@@ -14,6 +14,7 @@ from ..config import (
     START_YEAR,
     END_YEAR,
     EXPORTED_HEIGHT_WIDTH_METRES,
+    EE_BUCKET_TIFS,
 )
 
 from .era5 import get_single_image as get_single_era5_image, BANDS as ERA5_BANDS
@@ -24,6 +25,10 @@ from .s1 import (
 )
 from .s2 import get_single_image as get_single_s2_image, BANDS as S2_BANDS
 from .srtm import get_single_image as get_single_srtm_image, BANDS as SRTM_BANDS
+from .dynamic_world import (
+    get_single_image as get_single_dw_image,
+    UPDATED_BANDS as DW_BANDS,
+)
 from ..bbox import BBox
 from .ee_bbox import EEBoundingBox
 
@@ -34,8 +39,12 @@ SURROUNDING_METRES = EXPORTED_HEIGHT_WIDTH_METRES / 2
 START_DATE = date(START_YEAR, 1, 1)
 END_DATE = date(END_YEAR, 12, 31)
 
-DYNAMIC_IMAGE_FUNCTIONS = [get_single_s2_image, get_single_era5_image]
-DYNAMIC_BANDS = S1_BANDS + S2_BANDS + ERA5_BANDS
+DYNAMIC_IMAGE_FUNCTIONS = [
+    get_single_s2_image,
+    get_single_era5_image,
+    get_single_dw_image,
+]
+DYNAMIC_BANDS = S1_BANDS + S2_BANDS + ERA5_BANDS + DW_BANDS
 STATIC_IMAGE_FUNCTIONS = [get_single_srtm_image]
 STATIC_BANDS = SRTM_BANDS
 
@@ -198,7 +207,7 @@ class EarthEngineExporter:
 
     def __init__(
         self,
-        dest_bucket: str,
+        dest_bucket: str = EE_BUCKET_TIFS,
         check_ee: bool = False,
         check_gcp: bool = False,
         credentials=None,
