@@ -57,7 +57,7 @@ def _get_closest_dates(mid_date: date, imcol: ee.ImageCollection) -> ee.ImageCol
 
     # no matter what, we take the first element in the image collection
     # and we add 1 to ensure the less_than condition triggers
-    max_diff = ee.Number(from_mid_date.first().get("dateDist")).max( # type: ignore
+    max_diff = ee.Number(from_mid_date.first().get("dateDist")).max(  # type: ignore
         ee.Number(fifteen_days_in_ms)
     )
 

@@ -9,22 +9,21 @@ import ee
 import pandas as pd
 from pandas.compat._optional import import_optional_dependency
 
-from ..config import DAYS_PER_TIMESTEP, START_YEAR, END_YEAR, EXPORTED_HEIGHT_WIDTH_METRES
+from ..config import (
+    DAYS_PER_TIMESTEP,
+    START_YEAR,
+    END_YEAR,
+    EXPORTED_HEIGHT_WIDTH_METRES,
+)
 
 from .era5 import get_single_image as get_single_era5_image, BANDS as ERA5_BANDS
 from .s1 import (
     get_image_collection as get_s1_image_collection,
     get_single_image as get_single_s1_image,
-    BANDS as S1_BANDS
+    BANDS as S1_BANDS,
 )
-from .s2 import (
-    get_single_image as get_single_s2_image,
-    BANDS as S2_BANDS
-)
-from .srtm import (
-    get_single_image as get_single_srtm_image,
-    BANDS as SRTM_BANDS
-)
+from .s2 import get_single_image as get_single_s2_image, BANDS as S2_BANDS
+from .srtm import get_single_image as get_single_srtm_image, BANDS as SRTM_BANDS
 from ..bbox import BBox
 from .ee_bbox import EEBoundingBox
 

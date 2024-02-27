@@ -123,9 +123,7 @@ class EEBoundingBox(BBox):
         )
 
     @staticmethod
-    def from_bounding_box(
-        bounding_box: BBox, padding_metres: int
-    ) -> "EEBoundingBox":
+    def from_bounding_box(bounding_box: BBox, padding_metres: int) -> "EEBoundingBox":
         # get the mid lat, in degrees (the bounding box function returns it in radians)
         mid_lat, _ = bounding_box.get_centre(in_radians=False)
         m_per_deg_lat, m_per_deg_lon = EEBoundingBox.metre_per_degree(mid_lat)
