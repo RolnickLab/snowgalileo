@@ -119,7 +119,7 @@ def ee_safe_str(s: str):
 
 
 def create_ee_image(
-    polygon: ee.Geometry.Polygon,
+    polygon: ee.Geometry,
     start_date: date,
     end_date: date,
     days_per_timestep: int = DAYS_PER_TIMESTEP,
@@ -213,7 +213,7 @@ class EarthEngineExporter:
 
     def _export_for_polygon(
         self,
-        polygon: "ee.Geometry.Polygon",
+        polygon: ee.Geometry,
         polygon_identifier: Union[int, str],
         start_date: date,
         end_date: date,
@@ -309,7 +309,7 @@ class EarthEngineExporter:
             ee_bbox = EEBoundingBox.from_centre(
                 mid_lat=row[LAT],
                 mid_lon=row[LON],
-                surrounding_metres=SURROUNDING_METRES,
+                surrounding_metres=int(SURROUNDING_METRES),
             )
 
             export_started = self._export_for_polygon(

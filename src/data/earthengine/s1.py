@@ -17,8 +17,8 @@ def get_image_collection(
         date_to_string(end_date),
     )
 
-    startDate = ee.DateRange(dates).start()
-    endDate = ee.DateRange(dates).end()
+    startDate = ee.DateRange(dates).start()  # type: ignore
+    endDate = ee.DateRange(dates).end()  # type: ignore
 
     s1 = (
         ee.ImageCollection(image_collection)
@@ -49,7 +49,7 @@ def _get_closest_dates(mid_date: date, imcol: ee.ImageCollection) -> ee.ImageCol
         lambda image: image.set(
             "dateDist",
             ee.Number(image.get("system:time_start"))
-            .subtract(mid_date_ee.millis())
+            .subtract(mid_date_ee.millis())  # type: ignore
             .abs(),
         )
     )
@@ -57,7 +57,7 @@ def _get_closest_dates(mid_date: date, imcol: ee.ImageCollection) -> ee.ImageCol
 
     # no matter what, we take the first element in the image collection
     # and we add 1 to ensure the less_than condition triggers
-    max_diff = ee.Number(from_mid_date.first().get("dateDist")).max(
+    max_diff = ee.Number(from_mid_date.first().get("dateDist")).max( # type: ignore
         ee.Number(fifteen_days_in_ms)
     )
 

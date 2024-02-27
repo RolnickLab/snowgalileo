@@ -29,8 +29,8 @@ def get_single_image(region: ee.Geometry, start_date: date, end_date: date) -> e
         )
 
     dates = ee.DateRange(date_to_string(start), date_to_string(end))
-    startDate = ee.DateRange(dates).start()
-    endDate = ee.DateRange(dates).end()
+    startDate = ee.DateRange(dates).start()  # type: ignore
+    endDate = ee.DateRange(dates).end()  # type: ignore
 
     imcol = (
         ee.ImageCollection(image_collection)
