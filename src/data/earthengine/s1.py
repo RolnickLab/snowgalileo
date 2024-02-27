@@ -1,9 +1,9 @@
-import ee
 from datetime import date
 from typing import Tuple
 
-from .utils import date_to_string
+import ee
 
+from .utils import date_to_string
 
 image_collection = "COPERNICUS/S1_GRD"
 BANDS = ["VV", "VH"]
@@ -20,11 +20,7 @@ def get_image_collection(
     startDate = ee.DateRange(dates).start()  # type: ignore
     endDate = ee.DateRange(dates).end()  # type: ignore
 
-    s1 = (
-        ee.ImageCollection(image_collection)
-        .filterDate(startDate, endDate)
-        .filterBounds(region)
-    )
+    s1 = ee.ImageCollection(image_collection).filterDate(startDate, endDate).filterBounds(region)
 
     # different areas have either ascending, descending coverage or both.
     # https://sentinel.esa.int/web/sentinel/missions/sentinel-1/observation-scenario

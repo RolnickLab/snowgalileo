@@ -1,8 +1,6 @@
 from dataclasses import dataclass
-from math import sin, cos, radians
-from typing import List, Tuple
-
-from typing import Optional
+from math import cos, radians, sin
+from typing import List, Optional, Tuple
 
 
 @dataclass
@@ -20,7 +18,9 @@ class BBox:
         if self.max_lat < self.min_lat:
             raise ValueError("max_lat should be larger than min_lat")
 
-        self.url = f"http://bboxfinder.com/#{self.min_lat},{self.min_lon},{self.max_lat},{self.max_lon}"
+        self.url = (
+            f"http://bboxfinder.com/#{self.min_lat},{self.min_lon},{self.max_lat},{self.max_lon}"
+        )
 
     def contains(self, lat: float, lon: float) -> bool:
         return (

@@ -1,5 +1,6 @@
-import ee
 from datetime import date, timedelta
+
+import ee
 
 from .utils import date_to_string
 
@@ -33,9 +34,7 @@ def get_single_image(region: ee.Geometry, start_date: date, end_date: date) -> e
     endDate = ee.DateRange(dates).end()  # type: ignore
 
     imcol = (
-        ee.ImageCollection(image_collection)
-        .filterDate(startDate, endDate)
-        .filterBounds(region)
+        ee.ImageCollection(image_collection).filterDate(startDate, endDate).filterBounds(region)
     )
 
     # there should only be one timestep per daterange, so a mean shouldn't change the values

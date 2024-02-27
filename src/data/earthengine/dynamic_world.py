@@ -57,9 +57,7 @@ def get_single_image(region: ee.Geometry, start_date: date, end_date: date) -> e
             ee.Number(fifteen_days_in_ms)
         )
 
-        kept_images = from_mid_date.filterMetadata(
-            "dateDist", "not_greater_than", max_diff
-        )
+        kept_images = from_mid_date.filterMetadata("dateDist", "not_greater_than", max_diff)
         output_images.append(kept_images.mean())
 
         current_date = next_date

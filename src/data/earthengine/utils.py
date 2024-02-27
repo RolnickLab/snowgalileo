@@ -1,7 +1,7 @@
-import ee
 from datetime import date
-
 from typing import Union
+
+import ee
 
 
 def make_combine_bands_function(bands):

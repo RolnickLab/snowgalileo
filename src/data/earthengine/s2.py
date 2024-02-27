@@ -1,9 +1,9 @@
-import ee
-from datetime import date
 import math
+from datetime import date
+
+import ee
 
 from .utils import date_to_string
-
 
 # These are algorithm settings for the cloud filtering algorithm
 image_collection = "COPERNICUS/S2"
@@ -51,11 +51,7 @@ def get_single_image(region: ee.Geometry, start_date: date, end_date: date) -> e
 
     startDate = ee.DateRange(dates).start()  # type: ignore
     endDate = ee.DateRange(dates).end()  # type: ignore
-    imgC = (
-        ee.ImageCollection(image_collection)
-        .filterDate(startDate, endDate)
-        .filterBounds(region)
-    )
+    imgC = ee.ImageCollection(image_collection).filterDate(startDate, endDate).filterBounds(region)
 
     imgC = (
         imgC.map(lambda x: x.clip(region))
@@ -126,9 +122,7 @@ def computeS2CloudScore(img):
     score = score.max(ee.Image(0.001))
 
     # score = score.multiply(dilated)
-    score = score.reduceNeighborhood(
-        reducer=ee.Reducer.mean(), kernel=ee.Kernel.square(5)
-    )
+    score = score.reduceNeighborhood(reducer=ee.Reducer.mean(), kernel=ee.Kernel.square(5))
 
     return img.addBands(score.rename("cloudScore"))
 
@@ -140,9 +134,7 @@ def projectShadows(image):
     cloudMask = image.select(["cloudScore"]).gt(cloudThresh)
 
     # Find dark pixels
-    darkPixelsImg = (
-        image.select(["B8", "B11", "B12"]).divide(10000).reduce(ee.Reducer.sum())
-    )
+    darkPixelsImg = image.select(["B8", "B11", "B12"]).divide(10000).reduce(ee.Reducer.sum())
 
     ndvi = image.normalizedDifference(["B8", "B4"])
     waterMask = ndvi.lt(ndviThresh)
@@ -162,15 +154,9 @@ def projectShadows(image):
     def getShadows(cloudHeight):
         cloudHeight = ee.Number(cloudHeight)
 
-        shadowCastedDistance = zenR.tan().multiply(
-            cloudHeight
-        )  # Distance shadow is cast
-        x = (
-            azR.sin().multiply(shadowCastedDistance).multiply(-1)
-        )  # /X distance of shadow
-        y = (
-            azR.cos().multiply(shadowCastedDistance).multiply(-1)
-        )  # Y distance of shadow
+        shadowCastedDistance = zenR.tan().multiply(cloudHeight)  # Distance shadow is cast
+        x = azR.sin().multiply(shadowCastedDistance).multiply(-1)  # /X distance of shadow
+        y = azR.cos().multiply(shadowCastedDistance).multiply(-1)  # Y distance of shadow
         return image.select(["cloudScore"]).displace(
             ee.Image.constant(x).addBands(ee.Image.constant(y))
         )

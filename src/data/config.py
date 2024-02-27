@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 DAYS_PER_TIMESTEP = 30
 DEFAULT_NUM_TIMESTEPS = 12
 START_YEAR = 2022

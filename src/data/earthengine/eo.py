@@ -3,34 +3,42 @@ import json
 import os
 from datetime import date, timedelta
 from typing import Dict, List, Optional, Union
-from tqdm import tqdm
 
 import ee
 import pandas as pd
 from pandas.compat._optional import import_optional_dependency
+from tqdm import tqdm
 
+from ..bbox import BBox
 from ..config import (
     DAYS_PER_TIMESTEP,
-    START_YEAR,
+    EE_BUCKET_TIFS,
     END_YEAR,
     EXPORTED_HEIGHT_WIDTH_METRES,
-    EE_BUCKET_TIFS,
+    START_YEAR,
 )
-
-from .era5 import get_single_image as get_single_era5_image, BANDS as ERA5_BANDS
-from .s1 import (
-    get_image_collection as get_s1_image_collection,
-    get_single_image as get_single_s1_image,
-    BANDS as S1_BANDS,
-)
-from .s2 import get_single_image as get_single_s2_image, BANDS as S2_BANDS
-from .srtm import get_single_image as get_single_srtm_image, BANDS as SRTM_BANDS
 from .dynamic_world import (
-    get_single_image as get_single_dw_image,
     UPDATED_BANDS as DW_BANDS,
 )
-from ..bbox import BBox
+from .dynamic_world import (
+    get_single_image as get_single_dw_image,
+)
 from .ee_bbox import EEBoundingBox
+from .era5 import BANDS as ERA5_BANDS
+from .era5 import get_single_image as get_single_era5_image
+from .s1 import (
+    BANDS as S1_BANDS,
+)
+from .s1 import (
+    get_image_collection as get_s1_image_collection,
+)
+from .s1 import (
+    get_single_image as get_single_s1_image,
+)
+from .s2 import BANDS as S2_BANDS
+from .s2 import get_single_image as get_single_s2_image
+from .srtm import BANDS as SRTM_BANDS
+from .srtm import get_single_image as get_single_srtm_image
 
 # dataframe constants when exporting the labels
 LAT = "lat"
@@ -72,9 +80,7 @@ def get_ee_task_amount(prefix: Optional[str] = None):
     task_list = ee.data.getTaskList()
     for t in tqdm(task_list):
         valid_state = t["state"] in ["READY", "RUNNING"]
-        if valid_state and (
-            ee_prefix is None or t["description"].startswith(ee_prefix)
-        ):
+        if valid_state and (ee_prefix is None or t["description"].startswith(ee_prefix)):
             amount += 1
     return amount
 
@@ -88,9 +94,7 @@ def get_cloud_tif_list(
     try:
         tif_list = [
             blob.name
-            for blob in tqdm(
-                cloud_tif_list_iterator, desc="Loading tifs already on Google Cloud"
-            )
+            for blob in tqdm(cloud_tif_list_iterator, desc="Loading tifs already on Google Cloud")
         ]
     except Exception as e:
         raise Exception(
@@ -156,9 +160,7 @@ def create_ee_image(
         )
         for image_function in DYNAMIC_IMAGE_FUNCTIONS:
             image_list.append(
-                image_function(
-                    region=polygon, start_date=cur_date, end_date=cur_end_date
-                )
+                image_function(region=polygon, start_date=cur_date, end_date=cur_end_date)
             )
         image_collection_list.append(ee.Image.cat(image_list))
 
@@ -237,11 +239,11 @@ class EarthEngineExporter:
             f"{filename}.tif" in self.cloud_tif_list
             and f"tifs/{filename}.tif" in self.cloud_tif_list
         ):
-            return True
+            return False
 
         # Check if task is already started in EarthEngine
         if not test and description in self.ee_task_list:
-            return True
+            return False
 
         if len(self.ee_task_list) >= 3000:
             return False
@@ -305,7 +307,7 @@ class EarthEngineExporter:
     def export_for_labels(
         self,
         labels: pd.DataFrame,
-        num_labelled_points: int = 3000,
+        num_exports_to_start: int = 3000,
     ) -> None:
         for expected_column in [LAT, LON]:
             assert expected_column in labels
@@ -329,10 +331,7 @@ class EarthEngineExporter:
             )
             if export_started:
                 exports_started += 1
-                if (
-                    num_labelled_points is not None
-                    and exports_started >= num_labelled_points
-                ):
+                if num_exports_to_start is not None and exports_started >= num_exports_to_start:
                     print(f"Started {exports_started} exports. Ending export")
                     return None
 

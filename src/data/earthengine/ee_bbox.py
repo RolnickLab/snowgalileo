@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from math import cos, radians
 from typing import List, Tuple, Union
+
 import ee
 
 from ..bbox import BBox
@@ -118,9 +119,7 @@ class EEBoundingBox(BBox):
         max_lat, min_lat = mid_lat + deg_lat, mid_lat - deg_lat
         max_lon, min_lon = mid_lon + deg_lon, mid_lon - deg_lon
 
-        return EEBoundingBox(
-            max_lon=max_lon, min_lon=min_lon, max_lat=max_lat, min_lat=min_lat
-        )
+        return EEBoundingBox(max_lon=max_lon, min_lon=min_lon, max_lat=max_lat, min_lat=min_lat)
 
     @staticmethod
     def from_bounding_box(bounding_box: BBox, padding_metres: int) -> "EEBoundingBox":
@@ -136,6 +135,4 @@ class EEBoundingBox(BBox):
         min_lat = bounding_box.min_lat - extra_degrees_lat
         max_lat = bounding_box.max_lat + extra_degrees_lat
 
-        return EEBoundingBox(
-            max_lat=max_lat, min_lat=min_lat, max_lon=max_lon, min_lon=min_lon
-        )
+        return EEBoundingBox(max_lat=max_lat, min_lat=min_lat, max_lon=max_lon, min_lon=min_lon)
