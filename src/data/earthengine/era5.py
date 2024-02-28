@@ -4,7 +4,7 @@ import ee
 
 from .utils import date_to_string
 
-image_collection = "ECMWF/ERA5_LAND/MONTHLY"
+image_collection = "ECMWF/ERA5_LAND/MONTHLY_AGGR"
 BANDS = ["temperature_2m", "total_precipitation"]
 
 

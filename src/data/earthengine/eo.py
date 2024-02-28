@@ -13,6 +13,7 @@ from ..bbox import BBox
 from ..config import (
     DAYS_PER_TIMESTEP,
     EE_BUCKET_TIFS,
+    EE_PROJECT,
     END_YEAR,
     EXPORTED_HEIGHT_WIDTH_METRES,
     START_YEAR,
@@ -215,7 +216,9 @@ class EarthEngineExporter:
         credentials=None,
     ) -> None:
         self.dest_bucket = dest_bucket
-        ee.Initialize(credentials=credentials if credentials else get_ee_credentials())
+        ee.Initialize(
+            credentials=credentials if credentials else get_ee_credentials(), project=EE_PROJECT
+        )
         self.check_ee = check_ee
         self.ee_task_list = get_ee_task_list() if self.check_ee else []
         self.check_gcp = check_gcp
