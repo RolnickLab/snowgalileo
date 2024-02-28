@@ -5,7 +5,7 @@ import ee
 from .utils import date_to_string
 
 image_collection = "ECMWF/ERA5_LAND/MONTHLY_AGGR"
-BANDS = ["temperature_2m", "total_precipitation"]
+BANDS = ["temperature_2m", "total_precipitation_sum"]
 
 
 def get_single_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
