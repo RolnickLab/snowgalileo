@@ -1,10 +1,13 @@
 import unittest
-
 from pathlib import Path
+
 from src.data.dataset import Dataset
 
+TEST_FILE = (
+    Path(__file__).parents[1]
+    / "data/tifs_min_lat=19.2005_min_lon=-155.6227_max_lat=19.2132_max_lon=-155.6094_dates=2021-01-01_2023-12-31.tiff"
+)
 
-TEST_FILE = Path(__file__).parents[1] / "data/tifs_min_lat=19.2005_min_lon=-155.6227_max_lat=19.2132_max_lon=-155.6094_dates=2021-01-01_2023-12-31.tiff"
 
 class TestDataset(unittest.TestCase):
     def test_tif_to_array(self):
