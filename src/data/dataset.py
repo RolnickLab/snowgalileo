@@ -49,7 +49,6 @@ class Dataset:
         )
 
         dynamic_data = cls.normalize(dynamic_data, DYNAMIC_SHIFT_VALUES, DYNAMIC_DIV_VALUES)
-        print(dynamic_data.shape, cls.calculate_ndvi(dynamic_data).shape)
         dynamic_data = np.concatenate((dynamic_data, cls.calculate_ndvi(dynamic_data)), axis=-1)
         return (
             dynamic_data,
