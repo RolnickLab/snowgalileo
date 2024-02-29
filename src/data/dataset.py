@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from typing import cast
 
+import numpy as np
 import rioxarray
 import xarray as xr
 from einops import rearrange
@@ -24,7 +25,7 @@ class Dataset:
     @staticmethod
     def tif_to_array(tif_path: Path):
         data = cast(xr.Dataset, rioxarray.open_rasterio(tif_path))
-        values = data.values
+        values = cast(np.ndarray, data.values)
         static_data = values[-2:]  # [2, H, W]
         num_timesteps = (values.shape[0] - 2) / len(DYNAMIC_BANDS)
         assert num_timesteps % 1 == 0
