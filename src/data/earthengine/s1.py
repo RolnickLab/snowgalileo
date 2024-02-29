@@ -6,10 +6,13 @@ import ee
 from .utils import date_to_string
 
 image_collection = "COPERNICUS/S1_GRD"
-BANDS = ["VV", "VH"]
+S1_BANDS = ["VV", "VH"]
+# EarthEngine estimates Sentinel-1 values range from -50 to 1
+S1_SHIFT_VALUES = [25.0, 25.0]
+S1_DIV_VALUES = [25.0, 25.0]
 
 
-def get_image_collection(
+def get_s1_image_collection(
     region: ee.Geometry, start_date: date, end_date: date
 ) -> Tuple[ee.ImageCollection, ee.ImageCollection]:
     dates = ee.DateRange(
@@ -61,7 +64,7 @@ def _get_closest_dates(mid_date: date, imcol: ee.ImageCollection) -> ee.ImageCol
     return kept_images
 
 
-def get_single_image(
+def get_single_s1_image(
     region: ee.Geometry,
     start_date: date,
     end_date: date,
@@ -81,5 +84,5 @@ def get_single_image(
     ).clip(region)
 
     # rename to the bands
-    final_composite = composite.select(BANDS)
+    final_composite = composite.select(S1_BANDS)
     return final_composite

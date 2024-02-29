@@ -26,7 +26,8 @@ dilationPixels = 3
 # mosaicing (most recent on top)
 cloudFreeKeepThresh = 3
 
-BANDS = [
+# removed B1, B9, B10
+S2_BANDS = [
     "B1",
     "B2",
     "B3",
@@ -41,9 +42,11 @@ BANDS = [
     "B11",
     "B12",
 ]
+S2_SHIFT_VALUES = [float(0.0)] * len(S2_BANDS)
+S2_DIV_VALUES = [float(1e4)] * len(S2_BANDS)
 
 
-def get_single_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
+def get_single_s2_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
     dates = ee.DateRange(
         date_to_string(start_date),
         date_to_string(end_date),
@@ -90,7 +93,7 @@ def computeQualityScore(img):
 
 
 def computeS2CloudScore(img):
-    toa = img.select(BANDS).divide(10000)
+    toa = img.select(S2_BANDS).divide(10000)
 
     toa = toa.addBands(img.select(["QA60"]))
 

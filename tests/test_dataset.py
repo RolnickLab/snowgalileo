@@ -3,7 +3,7 @@ from pathlib import Path
 
 import numpy as np
 
-from src.data.dataset import DYNAMIC_BANDS, Dataset
+from src.data.dataset import DYNAMIC_BANDS, Dataset, STATIC_BANDS
 
 TEST_FILE = (
     Path(__file__).parents[1]
@@ -14,13 +14,15 @@ TEST_FILE = (
 class TestDataset(unittest.TestCase):
     def test_tif_to_array(self):
         dynamic_data, static_data = Dataset.tif_to_array(TEST_FILE)
-        self.assertEqual(static_data.shape[1], dynamic_data.shape[2])
-        self.assertEqual(static_data.shape[2], dynamic_data.shape[3])
+        self.assertEqual(static_data.shape[0], dynamic_data.shape[0])
+        self.assertEqual(static_data.shape[1], dynamic_data.shape[1])
+        self.assertEqual(len(DYNAMIC_BANDS), dynamic_data.shape[-1])
+        self.assertEqual(len(STATIC_BANDS), static_data.shape[-1])
 
         # one way to check this is correct is to see if all the DYNAMIC_WORLD bands
         # sum to 1
         dynamic_world_bands = [x for x in DYNAMIC_BANDS if x.startswith("DW_")]
-        dynamic_world_only = dynamic_data[-len(dynamic_world_bands) :].sum(axis=0)
+        dynamic_world_only = dynamic_data[:, :, :, -len(dynamic_world_bands) :].sum(axis=-1)
         self.assertTrue(
             np.allclose(dynamic_world_only[~np.isnan(dynamic_world_only)], 1, atol=0.01)
         )

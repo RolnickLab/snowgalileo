@@ -14,10 +14,12 @@ ORIGINAL_BANDS = [
     "snow_and_ice",
 ]
 
-UPDATED_BANDS = [f"DW_{band}" for band in ORIGINAL_BANDS]
+DW_BANDS = [f"DW_{band}" for band in ORIGINAL_BANDS]
+DW_SHIFT_VALUES = [0] * len(DW_BANDS)
+DW_DIV_VALUES = [1] * len(DW_BANDS)
 
 
-def get_single_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
+def get_single_dw_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
     start_date = date(start_date.year, start_date.month, start_date.day)
     end_date = date(end_date.year, end_date.month, end_date.day)
 
@@ -26,7 +28,7 @@ def get_single_image(region: ee.Geometry, start_date: date, end_date: date) -> e
         ee.ImageCollection("GOOGLE/DYNAMICWORLD/V1")
         .filterBounds(region)
         .filterDate(ee.DateRange(str(start_date), str(end_date)))
-        .select(ORIGINAL_BANDS, UPDATED_BANDS)
+        .select(ORIGINAL_BANDS, DW_BANDS)
     )
 
     output_images = []

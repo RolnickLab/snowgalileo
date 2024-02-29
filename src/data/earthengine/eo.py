@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from typing import Dict, List, Optional, Union
 
 import ee
+import numpy as np
 import pandas as pd
 from pandas.compat._optional import import_optional_dependency
 from tqdm import tqdm
@@ -18,28 +19,18 @@ from ..config import (
     EXPORTED_HEIGHT_WIDTH_METRES,
     START_YEAR,
 )
-from .dynamic_world import (
-    UPDATED_BANDS as DW_BANDS,
-)
-from .dynamic_world import (
-    get_single_image as get_single_dw_image,
-)
+from .dynamic_world import DW_BANDS, DW_DIV_VALUES, DW_SHIFT_VALUES, get_single_dw_image
 from .ee_bbox import EEBoundingBox
-from .era5 import BANDS as ERA5_BANDS
-from .era5 import get_single_image as get_single_era5_image
+from .era5 import ERA5_BANDS, ERA5_DIV_VALUES, ERA5_SHIFT_VALUES, get_single_era5_image
 from .s1 import (
-    BANDS as S1_BANDS,
+    S1_BANDS,
+    S1_DIV_VALUES,
+    S1_SHIFT_VALUES,
+    get_s1_image_collection,
+    get_single_s1_image,
 )
-from .s1 import (
-    get_image_collection as get_s1_image_collection,
-)
-from .s1 import (
-    get_single_image as get_single_s1_image,
-)
-from .s2 import BANDS as S2_BANDS
-from .s2 import get_single_image as get_single_s2_image
-from .srtm import BANDS as SRTM_BANDS
-from .srtm import get_single_image as get_single_srtm_image
+from .s2 import S2_BANDS, S2_DIV_VALUES, S2_SHIFT_VALUES, get_single_s2_image
+from .srtm import SRTM_BANDS, SRTM_DIV_VALUES, SRTM_SHIFT_VALUES, get_single_srtm_image
 
 # dataframe constants when exporting the labels
 LAT = "lat"
@@ -54,8 +45,14 @@ DYNAMIC_IMAGE_FUNCTIONS = [
     get_single_dw_image,
 ]
 DYNAMIC_BANDS = S1_BANDS + S2_BANDS + ERA5_BANDS + DW_BANDS
+DYNAMIC_SHIFT_VALUES = np.array(
+    S1_SHIFT_VALUES + S2_SHIFT_VALUES + ERA5_SHIFT_VALUES + DW_SHIFT_VALUES
+)
+DYNAMIC_DIV_VALUES = np.array(S1_DIV_VALUES + S2_DIV_VALUES + ERA5_DIV_VALUES + DW_DIV_VALUES)
 STATIC_IMAGE_FUNCTIONS = [get_single_srtm_image]
 STATIC_BANDS = SRTM_BANDS
+STATIC_SHIFT_VALUES = np.array(SRTM_SHIFT_VALUES)
+STATIC_DIV_VALUES = np.array(SRTM_DIV_VALUES)
 
 
 def get_ee_task_list(key: str = "description") -> List[str]:

@@ -5,10 +5,16 @@ import ee
 from .utils import date_to_string
 
 image_collection = "ECMWF/ERA5_LAND/MONTHLY_AGGR"
-BANDS = ["temperature_2m", "total_precipitation_sum"]
+ERA5_BANDS = ["temperature_2m", "total_precipitation_sum"]
+# for temperature, shift to celcius and then divide by 35 based on notebook (ranges from)
+# 37 to -22 degrees celcius
+# For rainfall, based on
+# https://github.com/nasaharvest/lem/blob/main/notebooks/exploratory_data_analysis.ipynb
+ERA5_SHIFT_VALUES = [-272.15, 0.0]
+ERA5_DIV_VALUES = [35.0, 0.03]
 
 
-def get_single_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
+def get_single_era5_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
     # This only really works with the values currently in config.
     # What happens is that the images are associated with the first day of the month,
     # so if we just use the given start_date and end_date, then we will often get
@@ -38,4 +44,4 @@ def get_single_image(region: ee.Geometry, start_date: date, end_date: date) -> e
     )
 
     # there should only be one timestep per daterange, so a mean shouldn't change the values
-    return imcol.select(BANDS).mean().toDouble()
+    return imcol.select(ERA5_BANDS).mean().toDouble()
