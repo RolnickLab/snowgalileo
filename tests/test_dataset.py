@@ -22,7 +22,7 @@ class TestDataset(unittest.TestCase):
         # one way to check this is correct is to see if all the DYNAMIC_WORLD bands
         # sum to 1
         dynamic_world_bands = [x for x in DYNAMIC_BANDS if x.startswith("DW_")]
-        dynamic_world_only = dynamic_data[:, :, :, -len(dynamic_world_bands) :].sum(axis=-1)
+        dynamic_world_only = dynamic_data[:, :, :, -len(dynamic_world_bands) - 1 : -1].sum(axis=-1)
         self.assertTrue(
             np.allclose(dynamic_world_only[~np.isnan(dynamic_world_only)], 1, atol=0.01)
         )
