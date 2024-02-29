@@ -27,7 +27,7 @@ dilationPixels = 3
 cloudFreeKeepThresh = 3
 
 # removed B1, B9, B10
-S2_BANDS = [
+ALL_S2_BANDS = [
     "B1",
     "B2",
     "B3",
@@ -39,6 +39,18 @@ S2_BANDS = [
     "B8A",
     "B9",
     "B10",
+    "B11",
+    "B12",
+]
+S2_BANDS = [
+    "B2",
+    "B3",
+    "B4",
+    "B5",
+    "B6",
+    "B7",
+    "B8",
+    "B8A",
     "B11",
     "B12",
 ]
@@ -67,7 +79,7 @@ def get_single_s2_image(region: ee.Geometry, start_date: date, end_date: date) -
 
     # has to be double to be compatible with the sentinel 1 imagery, which is in
     # float64
-    cloudFree = mergeCollection(imgC).toDouble()
+    cloudFree = mergeCollection(imgC).select(S2_BANDS).toDouble()
 
     return cloudFree
 
@@ -93,7 +105,7 @@ def computeQualityScore(img):
 
 
 def computeS2CloudScore(img):
-    toa = img.select(S2_BANDS).divide(10000)
+    toa = img.select(ALL_S2_BANDS).divide(10000)
 
     toa = toa.addBands(img.select(["QA60"]))
 
