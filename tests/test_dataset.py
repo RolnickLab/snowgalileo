@@ -1,7 +1,9 @@
 import unittest
 from pathlib import Path
 
-from src.data.dataset import Dataset
+import numpy as np
+
+from src.data.dataset import DYNAMIC_BANDS, Dataset
 
 TEST_FILE = (
     Path(__file__).parents[1]
@@ -15,3 +17,10 @@ class TestDataset(unittest.TestCase):
             return None
         dynamic_data, static_data = Dataset.tif_to_array(TEST_FILE)
         self.assertEqual(static_data.shape[1], dynamic_data.shape[2])
+        self.assertEqual(static_data.shape[2], dynamic_data.shape[3])
+
+        # one way to check this is correct is to see if all the DYNAMIC_WORLD bands
+        # sum to 1
+        dynamic_world_bands = [x for x in DYNAMIC_BANDS if x.startswith("DW_")]
+        dynamic_world_only = dynamic_data[-len(dynamic_world_bands) :]
+        self.assertTrue(np.allclose(dynamic_world_only, 1))

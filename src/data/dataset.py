@@ -8,7 +8,7 @@ import xarray as xr
 from einops import rearrange
 
 from .config import EE_BUCKET_TIFS
-from .earthengine.eo import DYNAMIC_BANDS
+from .earthengine.eo import DYNAMIC_BANDS, STATIC_BANDS
 
 
 class Dataset:
@@ -26,10 +26,13 @@ class Dataset:
     def tif_to_array(tif_path: Path):
         data = cast(xr.Dataset, rioxarray.open_rasterio(tif_path))
         values = cast(np.ndarray, data.values)
-        static_data = values[-2:]  # [2, H, W]
-        num_timesteps = (values.shape[0] - 2) / len(DYNAMIC_BANDS)
+        static_data = values[len(STATIC_BANDS) :]  # [2, H, W]
+        num_timesteps = (values.shape[0] - len(STATIC_BANDS)) / len(DYNAMIC_BANDS)
         assert num_timesteps % 1 == 0
         dynamic_data = rearrange(
-            values[:-2], "(b t) h w -> b t h w", b=len(DYNAMIC_BANDS), t=int(num_timesteps)
+            values[: -len(STATIC_BANDS)],
+            "(t b) h w -> b t h w",
+            b=len(DYNAMIC_BANDS),
+            t=int(num_timesteps),
         )
         return dynamic_data, static_data
