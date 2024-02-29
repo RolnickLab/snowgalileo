@@ -3,7 +3,7 @@ from pathlib import Path
 
 import numpy as np
 
-from src.data.dataset import DYNAMIC_BANDS, Dataset, STATIC_BANDS
+from src.data.dataset import DYNAMIC_BANDS, STATIC_BANDS, Dataset
 
 TEST_FILE = (
     Path(__file__).parents[1]
