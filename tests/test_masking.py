@@ -9,6 +9,7 @@ from src.data.masking import (
     VIT_PATCH_SIZE,
     mask_by_croma_blocks_random,
     mask_by_croma_spatial_blocks,
+    mask_by_presto_pixels_random,
     subset_image,
 )
 
@@ -70,7 +71,7 @@ class TestMasking(unittest.TestCase):
         static_input = np.ones((CROMA_INPUT_SIZE + 15, CROMA_INPUT_SIZE, 8))
         mask_ratio = 0.25
 
-        output = mask_by_croma_blocks_random(dynamic_input, static_input, mask_ratio)
+        output = mask_by_presto_pixels_random(dynamic_input, static_input, mask_ratio)
 
         first_index_of_dynamic_band_group = [
             value[0] for _, value in DYNAMIC_BANDS_GROUPS_IDX.items()
