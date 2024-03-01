@@ -26,9 +26,7 @@ class MaskingStrategy(Enum):
     PRESTO_TO_PRESTO = 3
 
 
-MaskedOutput = namedtuple(
-    "MaskedOutput", ["dynamic_input", "static_input", "dynamic_mask", "static_mask"]
-)
+MaskedOutput = namedtuple("MaskedOutput", ["dynamic_x", "static_x", "dynamic_mask", "static_mask"])
 
 
 def subset_image(
