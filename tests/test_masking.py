@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from src.data.masking import CROMA_INPUT_SIZE, mask_presto_to_croma, subset_image
+from src.data.masking import CROMA_INPUT_SIZE, mask_by_croma_blocks, subset_image
 
 
 class TestMasking(unittest.TestCase):
@@ -20,11 +20,11 @@ class TestMasking(unittest.TestCase):
         output = subset_image(input, input, 3)
         self.assertTrue(np.equal(np.ones((3, 3, 1)), output).all())
 
-    def test_mask_presto_to_croma(self):
+    def test_mask_by_croma_blocks(self):
         dynamic_input = np.ones((CROMA_INPUT_SIZE + 15, CROMA_INPUT_SIZE, 8, 8))
         static_input = np.ones((CROMA_INPUT_SIZE + 15, CROMA_INPUT_SIZE, 8))
         mask_ratio = 0.25
 
-        output = mask_presto_to_croma(dynamic_input, static_input, mask_ratio)
+        output = mask_by_croma_blocks(dynamic_input, static_input, mask_ratio)
         self.assertEqual(np.sum(output.dynamic_mask) / output.dynamic_mask.size, mask_ratio)
         self.assertEqual(np.sum(output.static_mask) / output.static_mask.size, mask_ratio)

@@ -45,7 +45,7 @@ def subset_image(
     ]
 
 
-def mask_presto_to_croma(
+def mask_by_croma_blocks(
     dynamic_input: np.ndarray, static_input: np.ndarray, mask_ratio: float
 ) -> MaskedOutput:
     """
