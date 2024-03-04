@@ -1,17 +1,18 @@
 from collections import namedtuple
 from enum import Enum
+from pathlib import Path
 from typing import Tuple
 
 import numpy as np
 from einops import repeat
 
-from .config import (
+from .data.config import (
     CROMA_INPUT_SIZE,
     NUM_VIT_PATCHES_PER_CROMA_DIM,
     PRESTO_INPUT_SIZE,
     VIT_PATCH_SIZE,
 )
-from .dataset import DYNAMIC_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
+from .data.dataset import DYNAMIC_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX, Dataset
 
 # This is to allow a quick expansion of the mask from
 # group-channel space into real-channel space
@@ -171,36 +172,46 @@ def mask_by_croma_blocks_random(
     )
 
 
-def mask_by_presto_pixels_time(
-    dynamic_input: np.ndarray, static_input: np.ndarray, mask_ratio: float
-) -> MaskedOutput:
-    """
-    Given a H >= PRESTO_INPUT_SIZE, W >= PRESTO_INPUT_SIZE input:
-    1. Crops to PRESTO_INPUT_SIZExPRESTO_INPUT_SIZE
-    2. Masks out blocks of PRESTO_INPUT_SIZExPRESTO_INPUT_SIZEx1xBAND_GROUPs.
-        e.g. if PRESTO_INPUT_SIZE=4 and mask_ratio=0.25, then 1/4 of the timesteps
-        (and the static channel groups, with 1/4 probability) will be masked out
-    """
-    dynamic_input, static_input = subset_image(dynamic_input, static_input, PRESTO_INPUT_SIZE)
-    num_timesteps = dynamic_input.shape[2]
-    num_timesteps_to_mask = int(num_timesteps * mask_ratio)
-    flat_timesteps = np.concatenate(
-        (
-            np.ones(num_timesteps_to_mask),
-            np.zeros(num_timesteps - num_timesteps_to_mask),
-        )
-    )
-    np.random.shuffle(flat_timesteps)
-    static_mask = np.zeros((PRESTO_INPUT_SIZE, PRESTO_INPUT_SIZE, len(STATIC_BAND_GROUPS_IDX)))
-    dynamic_mask = repeat(
-        flat_timesteps,
-        "t -> h w t c_g",
-        h=PRESTO_INPUT_SIZE,
-        w=PRESTO_INPUT_SIZE,
-        c_g=len(DYNAMIC_BANDS_GROUPS_IDX),
-    )
-    # then we go from token space back to pixel space
-    static_mask = np.repeat(static_mask, STATIC_BAND_EXPANSION, axis=-1)
-    dynamic_mask = np.repeat(dynamic_mask, DYNAMIC_BAND_EXPANSION, axis=-1)
+class PrestoToPrestoMaskedDataset(Dataset):
+    def __init__(self, data_folder: Path, mask_ratio: float, download: bool = True):
+        super().__init__(data_folder, download)
+        self.mask_ratio = mask_ratio
 
-    return MaskedOutput(dynamic_input, static_input, dynamic_mask, static_mask)
+    @staticmethod
+    def mask_by_presto_pixels_time(
+        dynamic_input: np.ndarray, static_input: np.ndarray, mask_ratio: float
+    ) -> MaskedOutput:
+        """
+        Given a H >= PRESTO_INPUT_SIZE, W >= PRESTO_INPUT_SIZE input:
+        1. Crops to PRESTO_INPUT_SIZExPRESTO_INPUT_SIZE
+        2. Masks out blocks of PRESTO_INPUT_SIZExPRESTO_INPUT_SIZEx1xBAND_GROUPs.
+            e.g. if PRESTO_INPUT_SIZE=4 and mask_ratio=0.25, then 1/4 of the timesteps
+            (and the static channel groups, with 1/4 probability) will be masked out
+        """
+        dynamic_input, static_input = subset_image(dynamic_input, static_input, PRESTO_INPUT_SIZE)
+        num_timesteps = dynamic_input.shape[2]
+        num_timesteps_to_mask = int(num_timesteps * mask_ratio)
+        flat_timesteps = np.concatenate(
+            (
+                np.ones(num_timesteps_to_mask),
+                np.zeros(num_timesteps - num_timesteps_to_mask),
+            )
+        )
+        np.random.shuffle(flat_timesteps)
+        static_mask = np.zeros((PRESTO_INPUT_SIZE, PRESTO_INPUT_SIZE, len(STATIC_BAND_GROUPS_IDX)))
+        dynamic_mask = repeat(
+            flat_timesteps,
+            "t -> h w t c_g",
+            h=PRESTO_INPUT_SIZE,
+            w=PRESTO_INPUT_SIZE,
+            c_g=len(DYNAMIC_BANDS_GROUPS_IDX),
+        )
+        # then we go from token space back to pixel space
+        static_mask = np.repeat(static_mask, STATIC_BAND_EXPANSION, axis=-1)
+        dynamic_mask = np.repeat(dynamic_mask, DYNAMIC_BAND_EXPANSION, axis=-1)
+
+        return MaskedOutput(dynamic_input, static_input, dynamic_mask, static_mask)
+
+    def __getitem__(self, idx) -> MaskedOutput:
+        d_x, s_x = self.tif_to_array(self.tifs[idx])
+        return self.mask_by_presto_pixels_time(d_x, s_x, self.mask_ratio)

@@ -2,14 +2,14 @@ import unittest
 
 import numpy as np
 
-from src.data.masking import (
+from src.masked_datasets import (
     CROMA_INPUT_SIZE,
     DYNAMIC_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
     VIT_PATCH_SIZE,
+    PrestoToPrestoMaskedDataset,
     mask_by_croma_blocks_random,
     mask_by_croma_spatial_blocks,
-    mask_by_presto_pixels_time,
     subset_image,
 )
 
@@ -72,7 +72,9 @@ class TestMasking(unittest.TestCase):
         static_input = np.ones((CROMA_INPUT_SIZE + 15, CROMA_INPUT_SIZE, 8))
         mask_ratio = 0.25
 
-        output = mask_by_presto_pixels_time(dynamic_input, static_input, mask_ratio)
+        output = PrestoToPrestoMaskedDataset.mask_by_presto_pixels_time(
+            dynamic_input, static_input, mask_ratio
+        )
 
         # collapse the dynamic_mask along the time dimension
         dynamic_mask_along_t = output.dynamic_mask.mean(axis=(0, 1, 3))
