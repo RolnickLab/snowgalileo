@@ -165,50 +165,34 @@ def mask_by_croma_blocks_random(
     )
 
 
-def mask_by_presto_pixels_random(
+def mask_by_presto_pixels_time(
     dynamic_input: np.ndarray, static_input: np.ndarray, mask_ratio: float
 ) -> MaskedOutput:
     """
     Given a >PRESTO_INPUT_SIZE>PRESTO_INPUT_SIZE input:
     1. Crops to PRESTO_INPUT_SIZExPRESTO_INPUT_SIZE
-    2. Masks out blocks of 1x1x1xBAND_GROUP.
-        e.g. if PRESTO_INPUT_SIZE=4 and mask_ratio=0.25,
-        then a mask might look like
-        [0 1 0 1]
-        [0 0 0 1]
-        [1 0 0 0]
-        [0 0 0 1]
-    3. This mask is not applied to each mask and band group; its randomly
-        applied along both of these dimensions
+    2. Masks out blocks of PRESTO_INPUT_SIZExPRESTO_INPUT_SIZEx1xBAND_GROUPs.
+        e.g. if PRESTO_INPUT_SIZE=4 and mask_ratio=0.25, then 1/4 of the timesteps
+        (and the static channel groups, with 1/4 probability) will be masked out
     """
     dynamic_input, static_input = subset_image(dynamic_input, static_input, PRESTO_INPUT_SIZE)
     num_timesteps = dynamic_input.shape[2]
-    num_dynamic_tokens = num_timesteps * (PRESTO_INPUT_SIZE**2) * len(DYNAMIC_BANDS_GROUPS_IDX)
-    num_static_tokens = (PRESTO_INPUT_SIZE**2) * len(STATIC_BAND_GROUPS_IDX)
-    num_tokens_to_mask = int(mask_ratio * (num_dynamic_tokens + num_static_tokens))
-
-    flat_spatial_mask = np.concatenate(
+    num_timesteps_to_mask = int(num_timesteps * mask_ratio)
+    flat_timesteps = np.concatenate(
         (
-            np.ones(num_tokens_to_mask),
-            np.zeros(num_dynamic_tokens + num_static_tokens - num_tokens_to_mask),
+            np.ones(num_timesteps_to_mask),
+            np.zeros(num_timesteps - num_timesteps_to_mask),
         )
     )
-    np.random.shuffle(flat_spatial_mask)
-    static_mask = flat_spatial_mask[:num_static_tokens]
-    dynamic_mask = flat_spatial_mask[num_static_tokens:]
-
-    static_mask = static_mask.reshape(
-        (PRESTO_INPUT_SIZE, PRESTO_INPUT_SIZE, len(STATIC_BAND_GROUPS_IDX))
+    np.random.shuffle(flat_timesteps)
+    static_mask = np.zeros((PRESTO_INPUT_SIZE, PRESTO_INPUT_SIZE, len(STATIC_BAND_GROUPS_IDX)))
+    dynamic_mask = repeat(
+        flat_timesteps,
+        "t -> h w t c_g",
+        h=PRESTO_INPUT_SIZE,
+        w=PRESTO_INPUT_SIZE,
+        c_g=len(DYNAMIC_BANDS_GROUPS_IDX),
     )
-    dynamic_mask = dynamic_mask.reshape(
-        (
-            PRESTO_INPUT_SIZE,
-            PRESTO_INPUT_SIZE,
-            num_timesteps,
-            len(DYNAMIC_BANDS_GROUPS_IDX),
-        )
-    )
-
     # then we go from token space back to pixel space
     static_mask = np.repeat(static_mask, STATIC_BAND_EXPANSION, axis=-1)
     dynamic_mask = np.repeat(dynamic_mask, DYNAMIC_BAND_EXPANSION, axis=-1)

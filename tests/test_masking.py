@@ -9,7 +9,7 @@ from src.data.masking import (
     VIT_PATCH_SIZE,
     mask_by_croma_blocks_random,
     mask_by_croma_spatial_blocks,
-    mask_by_presto_pixels_random,
+    mask_by_presto_pixels_time,
     subset_image,
 )
 
@@ -66,30 +66,15 @@ class TestMasking(unittest.TestCase):
             mask_ratio,
         )
 
-    def test_mask_by_presto_pixels_random(self):
-        dynamic_input = np.ones((CROMA_INPUT_SIZE + 15, CROMA_INPUT_SIZE, 8, 8))
+    def test_mask_by_presto_pixels_time(self):
+        num_timesteps = 8
+        dynamic_input = np.ones((CROMA_INPUT_SIZE + 15, CROMA_INPUT_SIZE, num_timesteps, 8))
         static_input = np.ones((CROMA_INPUT_SIZE + 15, CROMA_INPUT_SIZE, 8))
         mask_ratio = 0.25
 
-        output = mask_by_presto_pixels_random(dynamic_input, static_input, mask_ratio)
+        output = mask_by_presto_pixels_time(dynamic_input, static_input, mask_ratio)
 
-        first_index_of_dynamic_band_group = [
-            value[0] for _, value in DYNAMIC_BANDS_GROUPS_IDX.items()
-        ]
-        first_index_of_static_band_group = [
-            value[0] for _, value in STATIC_BAND_GROUPS_IDX.items()
-        ]
-
-        dynamic_mask = output.dynamic_mask[:, :, :, first_index_of_dynamic_band_group]
-        static_mask = output.static_mask[:, :, first_index_of_static_band_group]
-
-        num_dynamic_tokens_masked = np.sum(dynamic_mask)
-        total_dynamic_tokens = dynamic_mask.size
-        num_static_tokens_masked = np.sum(static_mask)
-        total_static_tokens = static_mask.size
-
-        self.assertEqual(
-            (num_dynamic_tokens_masked + num_static_tokens_masked)
-            / (total_dynamic_tokens + total_static_tokens),
-            mask_ratio,
-        )
+        # collapse the dynamic_mask along the time dimension
+        dynamic_mask_along_t = output.dynamic_mask.mean(axis=(0, 1, 3))
+        self.assertTrue(np.isin(dynamic_mask_along_t, (0, 1)).all())
+        self.assertEqual(sum(dynamic_mask_along_t) / len(dynamic_mask_along_t), 0.25)
