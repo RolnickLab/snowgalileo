@@ -390,8 +390,8 @@ class PrestoDecoder(nn.Module):
         # timesteps, which simplifies the mask addition
         d_x *= (1 - d_m).unsqueeze(-1)
         B, H, W, T, C = d_x.shape[0], d_x.shape[1], d_x.shape[2], d_x.shape[3], d_x.shape[4]
-        masks_to_add = repeat(self.mask_token, "d -> b h w t c d", b=B, h=H, w=W, t=T, c=C)
-        masks_to_add = masks_to_add * d_m.unsqueeze(-1)
+        mask_reshaped = repeat(self.mask_token, "d -> b h w t c d", b=B, h=H, w=W, t=T, c=C)
+        masks_to_add = mask_reshaped * d_m.unsqueeze(-1)
         d_m *= 0  # all values are unmasked now
         return d_x + masks_to_add, d_m
 
