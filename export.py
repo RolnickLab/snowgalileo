@@ -16,6 +16,6 @@ argparser = argparse.ArgumentParser()
 argparser.add_argument("--num_exports", type=int, default=3000)
 args = argparser.parse_args().__dict__
 
-labels = geopandas.read_file(DATA_FOLDER / "dynamic_world_samples.geojson")
+latlons = geopandas.read_file(DATA_FOLDER / "dynamic_world_samples.geojson")
 exporter = EarthEngineExporter(check_gcp=True)
-exporter.export_for_labels(labels, args["num_exports"])
+exporter.export_for_latlons(latlons, args["num_exports"])

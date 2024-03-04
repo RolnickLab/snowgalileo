@@ -65,7 +65,7 @@ def get_ee_task_list(key: str = "description") -> List[str]:
     ]
 
 
-def get_ee_task_amount(prefix: Optional[str] = None):
+def get_ee_task_amount(prefix: Optional[str] = None) -> int:
     """
     Gets amount of active tasks in Earth Engine.
     Args:
@@ -103,7 +103,7 @@ def get_cloud_tif_list(
     return tif_list
 
 
-def make_combine_bands_function(bands):
+def make_combine_bands_function(bands: List[str]):
     def combine_bands(current, previous):
         # Transforms an Image Collection with 1 band per Image into a single
         # Image with items as bands
@@ -293,6 +293,9 @@ class EarthEngineExporter:
         metres_per_polygon: Optional[int] = 10000,
         file_dimensions: Optional[int] = None,
     ) -> Dict[str, bool]:
+        """
+        Turns an EEBoundingBox into an ee.Polygon so that it can be exported
+        """
         if start_date > end_date:
             raise ValueError(f"Start date {start_date} is after end date {end_date}")
 
@@ -316,18 +319,23 @@ class EarthEngineExporter:
             )
         return return_obj
 
-    def export_for_labels(
+    def export_for_latlons(
         self,
-        labels: pd.DataFrame,
+        latlons: pd.DataFrame,
         num_exports_to_start: int = 3000,
     ) -> None:
+        """
+        Export boxes with length and width EXPORTED_HEIGHT_WIDTH_METRES
+        for the points in latlons (where latlons is a dataframe with
+        the columns "lat" and "lon")
+        """
         for expected_column in [LAT, LON]:
-            assert expected_column in labels
+            assert expected_column in latlons
 
         exports_started = 0
-        print(f"Exporting {len(labels)} labels: ")
+        print(f"Exporting {len(latlons)} latlons: ")
 
-        for _, row in tqdm(labels.iterrows(), desc="Exporting", total=len(labels)):
+        for _, row in tqdm(latlons.iterrows(), desc="Exporting", total=len(latlons)):
             ee_bbox = EEBoundingBox.from_centre(
                 mid_lat=row[LAT],
                 mid_lon=row[LON],
