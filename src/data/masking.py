@@ -32,6 +32,12 @@ MaskedOutput = namedtuple("MaskedOutput", ["dynamic_x", "static_x", "dynamic_mas
 def subset_image(
     dynamic_input: np.ndarray, static_input: np.ndarray, size: int
 ) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    dynamic_input: array of shape [H, W, T, D]
+    static_input: array of shape [H, W, D]
+
+    size must be greater or equal to H & W
+    """
     assert (dynamic_input.shape[0] == static_input.shape[0]) & (
         dynamic_input.shape[1] == static_input.shape[1]
     )
@@ -58,7 +64,7 @@ def mask_by_croma_spatial_blocks(
     dynamic_input: np.ndarray, static_input: np.ndarray, mask_ratio: float
 ) -> MaskedOutput:
     """
-    Given a >CROMA_INPUT_SIZE>CROMA_INPUT_SIZE input:
+    Given a H >= CROMA_INPUT_SIZE, W >= CROMA_INPUT_SIZE input:
     1. Crops to CROMA_INPUT_SIZExCROMA_INPUT_SIZE
     2. Masks out blocks of VIT_PATCH_SIZExVIT_PATCH_SIZExTimestepsxBands.
         e.g. if CROMA_INPUT_SIZE=4 and VIT_PATCH_SIZE=2 and mask_ratio=0.25,
@@ -103,7 +109,7 @@ def mask_by_croma_blocks_random(
     dynamic_input: np.ndarray, static_input: np.ndarray, mask_ratio: float
 ) -> MaskedOutput:
     """
-    Given a >CROMA_INPUT_SIZE>CROMA_INPUT_SIZE input:
+    Given a H >= CROMA_INPUT_SIZE, W >= CROMA_INPUT_SIZE input:
     1. Crops to CROMA_INPUT_SIZExCROMA_INPUT_SIZE
     2. Masks out blocks of VIT_PATCH_SIZExVIT_PATCH_SIZEx1xBAND_GROUP.
         e.g. if CROMA_INPUT_SIZE=4 and VIT_PATCH_SIZE=2 and mask_ratio=0.25,
@@ -169,7 +175,7 @@ def mask_by_presto_pixels_time(
     dynamic_input: np.ndarray, static_input: np.ndarray, mask_ratio: float
 ) -> MaskedOutput:
     """
-    Given a >PRESTO_INPUT_SIZE>PRESTO_INPUT_SIZE input:
+    Given a H >= PRESTO_INPUT_SIZE, W >= PRESTO_INPUT_SIZE input:
     1. Crops to PRESTO_INPUT_SIZExPRESTO_INPUT_SIZE
     2. Masks out blocks of PRESTO_INPUT_SIZExPRESTO_INPUT_SIZEx1xBAND_GROUPs.
         e.g. if PRESTO_INPUT_SIZE=4 and mask_ratio=0.25, then 1/4 of the timesteps
