@@ -1,5 +1,5 @@
 import torch
-from einops import rearrange
+from einops import rearrange, repeat
 from torch import nn
 from torch.jit import Final
 from torch.nn import functional as F
@@ -206,7 +206,6 @@ class PrestoAttn(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
-
     def apply_temporal_channel_attention(self, d_x, s_x, d_m, s_m):
         b, h, w = d_x.shape[0], d_x.shape[1], d_x.shape[2]
         d_t, d_c, s_c = d_x.shape[3], d_x.shape[4], s_x.shape[3]
@@ -354,6 +353,55 @@ class Encoder(nn.Module):
         dynamic_x, static_x, dynamic_mask, static_mask = self.apply_linear_projection(
             dynamic_x, static_x, dynamic_mask, static_mask
         )
+        dynamic_x, static_x, dynamic_mask, static_mask = self.presto_attn(
+            dynamic_x, static_x, dynamic_mask, static_mask
+        )
+        return dynamic_x, static_x, dynamic_mask, static_mask
+
+
+class PrestoDecoder(nn.Module):
+    def __init__(
+        self,
+        embedding_size: int = 128,
+        temporal_depth=2,
+        spatial_depth=2,
+        mlp_ratio=2,
+        num_heads=8,
+        max_sequence_length=24,
+    ):
+        super().__init__()
+
+        self.embedding_size = embedding_size
+        self.mask_token = nn.Parameter(torch.zeros(embedding_size))
+
+        self.presto_attn = PrestoAttn(
+            embedding_size=embedding_size,
+            temporal_depth=temporal_depth,
+            spatial_depth=spatial_depth,
+            mlp_ratio=mlp_ratio,
+            num_heads=num_heads,
+            max_sequence_length=max_sequence_length,
+        )
+
+    def add_masks(self, d_x: torch.Tensor, d_m: torch.Tensor):
+        # we make an assumption here that mask_by_presto_pixels_time
+        # was used to make the masks. This means we only have masked
+        # timesteps, which simplifies the mask addition
+        d_x *= (1 - d_m).unsqueeze(-1)
+        B, H, W, T, C = d_x.shape[0], d_x.shape[1], d_x.shape[2], d_x.shape[3], d_x.shape[4]
+        masks_to_add = repeat(self.mask_token, "d -> b h w t c d", b=B, h=H, w=W, t=T, c=C)
+        masks_to_add = masks_to_add * d_m.unsqueeze(-1)
+        d_m *= 0  # all values are unmasked now
+        return d_x + masks_to_add, d_m
+
+    def forward(
+        self,
+        dynamic_x: torch.Tensor,
+        static_x: torch.Tensor,
+        dynamic_mask: torch.Tensor,
+        static_mask: torch.Tensor,
+    ):
+        dynamic_x, dynamic_mask = self.add_masks(dynamic_x, dynamic_mask)
         dynamic_x, static_x, dynamic_mask, static_mask = self.presto_attn(
             dynamic_x, static_x, dynamic_mask, static_mask
         )
