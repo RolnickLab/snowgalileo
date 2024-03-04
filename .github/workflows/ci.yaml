@@ -28,3 +28,5 @@ jobs:
       run: python -m ruff format --check .
     - name: mypy
       run: python -m mypy .
+    - name: unit tests
+      run: python -m unittest discover -s tests

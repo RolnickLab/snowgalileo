@@ -1,0 +1,224 @@
+from collections import namedtuple
+from enum import Enum
+from typing import Tuple
+
+import numpy as np
+from einops import repeat
+
+from .config import (
+    CROMA_INPUT_SIZE,
+    NUM_VIT_PATCHES_PER_CROMA_DIM,
+    PRESTO_INPUT_SIZE,
+    VIT_PATCH_SIZE,
+)
+from .dataset import DYNAMIC_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
+
+# This is to allow a quick expansion of the mask from
+# group-channel space into real-channel space
+DYNAMIC_BAND_EXPANSION = [len(x) for x in DYNAMIC_BANDS_GROUPS_IDX.values()]
+STATIC_BAND_EXPANSION = [len(x) for x in STATIC_BAND_GROUPS_IDX.values()]
+
+
+class MaskingStrategy(Enum):
+    CROMA_TO_PRESTO = 0
+    PRESTO_TO_CROMA = 1
+    CROMA_TO_CROMA = 2
+    PRESTO_TO_PRESTO = 3
+
+
+MaskedOutput = namedtuple(
+    "MaskedOutput", ["dynamic_input", "static_input", "dynamic_mask", "static_mask"]
+)
+
+
+def subset_image(
+    dynamic_input: np.ndarray, static_input: np.ndarray, size: int
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    dynamic_input: array of shape [H, W, T, D]
+    static_input: array of shape [H, W, D]
+
+    size must be greater or equal to H & W
+    """
+    assert (dynamic_input.shape[0] == static_input.shape[0]) & (
+        dynamic_input.shape[1] == static_input.shape[1]
+    )
+    possible_h = dynamic_input.shape[0] - size
+    possible_w = dynamic_input.shape[1] - size
+    assert (possible_h >= 0) & (possible_w >= 0)
+
+    if possible_h > 0:
+        start_h = np.random.choice(possible_h)
+    else:
+        start_h = possible_h
+
+    if possible_w > 0:
+        start_w = np.random.choice(possible_w)
+    else:
+        start_w = possible_w
+
+    return dynamic_input[start_h : start_h + size, start_w : start_w + size], static_input[
+        start_h : start_h + size, start_w : start_w + size
+    ]
+
+
+def mask_by_croma_spatial_blocks(
+    dynamic_input: np.ndarray, static_input: np.ndarray, mask_ratio: float
+) -> MaskedOutput:
+    """
+    Given a H >= CROMA_INPUT_SIZE, W >= CROMA_INPUT_SIZE input:
+    1. Crops to CROMA_INPUT_SIZExCROMA_INPUT_SIZE
+    2. Masks out blocks of VIT_PATCH_SIZExVIT_PATCH_SIZExTimestepsxBands.
+        e.g. if CROMA_INPUT_SIZE=4 and VIT_PATCH_SIZE=2 and mask_ratio=0.25,
+        then a mask might look like
+        [0 0 1 1]
+        [0 0 1 1]
+        [0 0 0 0]
+        [0 0 0 0]
+        Where the top VIT_PATCH (2x2 pixels) is masked out.
+    3. This mask is then repeated along the channel and time dimensions to match
+       the dynamic and static input shapes
+    """
+    assert mask_ratio % (1 / ((CROMA_INPUT_SIZE / VIT_PATCH_SIZE) ** 2)) == 0
+    dynamic_input, static_input = subset_image(dynamic_input, static_input, CROMA_INPUT_SIZE)
+    # for the Presto to CROMA case, we will just remove blocks.
+    # To begin with, we compute a flat "mask" of patches
+    num_masked_patches = int((NUM_VIT_PATCHES_PER_CROMA_DIM**2) * mask_ratio)
+    flat_spatial_mask = np.concatenate(
+        (
+            np.ones(num_masked_patches),
+            np.zeros(NUM_VIT_PATCHES_PER_CROMA_DIM**2 - num_masked_patches),
+        )
+    )
+    np.random.shuffle(flat_spatial_mask)
+    spatial_mask = flat_spatial_mask.reshape(
+        NUM_VIT_PATCHES_PER_CROMA_DIM, NUM_VIT_PATCHES_PER_CROMA_DIM
+    )
+    # then we go from CROMA token space (16x16 pixels) back to pixel space
+    pixel_spatial_mask = np.repeat(
+        np.repeat(spatial_mask, repeats=VIT_PATCH_SIZE, axis=0), repeats=VIT_PATCH_SIZE, axis=1
+    )
+    # expand the temporal and band dims so they match the dynamic and static input shapes
+    dynamic_mask = repeat(
+        pixel_spatial_mask, "h w -> h w t c", t=dynamic_input.shape[2], c=dynamic_input.shape[3]
+    )
+    static_mask = repeat(pixel_spatial_mask, "h w -> h w c", c=static_input.shape[2])
+
+    return MaskedOutput(dynamic_input, static_input, dynamic_mask, static_mask)
+
+
+def mask_by_croma_blocks_random(
+    dynamic_input: np.ndarray, static_input: np.ndarray, mask_ratio: float
+) -> MaskedOutput:
+    """
+    Given a H >= CROMA_INPUT_SIZE, W >= CROMA_INPUT_SIZE input:
+    1. Crops to CROMA_INPUT_SIZExCROMA_INPUT_SIZE
+    2. Masks out blocks of VIT_PATCH_SIZExVIT_PATCH_SIZEx1xBAND_GROUP.
+        e.g. if CROMA_INPUT_SIZE=4 and VIT_PATCH_SIZE=2 and mask_ratio=0.25,
+        then a mask might look like
+        [0 0 1 1]
+        [0 0 1 1]
+        [0 0 0 0]
+        [0 0 0 0]
+        Where the top VIT_PATCH (2x2 pixels) is masked out.
+    3. This mask is not applied to each mask and band group; its randomly
+        applied along both of these dimensions
+    """
+    dynamic_input, static_input = subset_image(dynamic_input, static_input, CROMA_INPUT_SIZE)
+    num_timesteps = dynamic_input.shape[2]
+    num_dynamic_tokens = (
+        num_timesteps * (NUM_VIT_PATCHES_PER_CROMA_DIM**2) * len(DYNAMIC_BANDS_GROUPS_IDX)
+    )
+    num_static_tokens = (NUM_VIT_PATCHES_PER_CROMA_DIM**2) * len(STATIC_BAND_GROUPS_IDX)
+    num_tokens_to_mask = int(mask_ratio * (num_dynamic_tokens + num_static_tokens))
+
+    flat_spatial_mask = np.concatenate(
+        (
+            np.ones(num_tokens_to_mask),
+            np.zeros(num_dynamic_tokens + num_static_tokens - num_tokens_to_mask),
+        )
+    )
+    np.random.shuffle(flat_spatial_mask)
+    static_mask = flat_spatial_mask[:num_static_tokens]
+    dynamic_mask = flat_spatial_mask[num_static_tokens:]
+
+    static_mask = static_mask.reshape(
+        (NUM_VIT_PATCHES_PER_CROMA_DIM, NUM_VIT_PATCHES_PER_CROMA_DIM, len(STATIC_BAND_GROUPS_IDX))
+    )
+    dynamic_mask = dynamic_mask.reshape(
+        (
+            NUM_VIT_PATCHES_PER_CROMA_DIM,
+            NUM_VIT_PATCHES_PER_CROMA_DIM,
+            num_timesteps,
+            len(DYNAMIC_BANDS_GROUPS_IDX),
+        )
+    )
+
+    # then we go from CROMA token space (16x16 pixels) back to pixel space
+    static_pixel_spatial_mask = np.repeat(
+        np.repeat(static_mask, repeats=VIT_PATCH_SIZE, axis=0), repeats=VIT_PATCH_SIZE, axis=1
+    )
+    static_pixel_spatial_mask = np.repeat(
+        static_pixel_spatial_mask, STATIC_BAND_EXPANSION, axis=-1
+    )
+    dynamic_pixel_spatial_mask = np.repeat(
+        np.repeat(dynamic_mask, repeats=VIT_PATCH_SIZE, axis=0), repeats=VIT_PATCH_SIZE, axis=1
+    )
+    dynamic_pixel_spatial_mask = np.repeat(
+        dynamic_pixel_spatial_mask, DYNAMIC_BAND_EXPANSION, axis=-1
+    )
+
+    return MaskedOutput(
+        dynamic_input, static_input, dynamic_pixel_spatial_mask, static_pixel_spatial_mask
+    )
+
+
+def mask_by_presto_pixels_random(
+    dynamic_input: np.ndarray, static_input: np.ndarray, mask_ratio: float
+) -> MaskedOutput:
+    """
+    Given a H >= PRESTO_INPUT_SIZE, W >= PRESTO_INPUT_SIZE input:
+    1. Crops to PRESTO_INPUT_SIZExPRESTO_INPUT_SIZE
+    2. Masks out blocks of 1x1x1xBAND_GROUP.
+        e.g. if PRESTO_INPUT_SIZE=4 and mask_ratio=0.25,
+        then a mask might look like
+        [0 1 0 1]
+        [0 0 0 1]
+        [1 0 0 0]
+        [0 0 0 1]
+    3. This mask is not applied to each mask and band group; its randomly
+        applied along both of these dimensions
+    """
+    dynamic_input, static_input = subset_image(dynamic_input, static_input, PRESTO_INPUT_SIZE)
+    num_timesteps = dynamic_input.shape[2]
+    num_dynamic_tokens = num_timesteps * (PRESTO_INPUT_SIZE**2) * len(DYNAMIC_BANDS_GROUPS_IDX)
+    num_static_tokens = (PRESTO_INPUT_SIZE**2) * len(STATIC_BAND_GROUPS_IDX)
+    num_tokens_to_mask = int(mask_ratio * (num_dynamic_tokens + num_static_tokens))
+
+    flat_spatial_mask = np.concatenate(
+        (
+            np.ones(num_tokens_to_mask),
+            np.zeros(num_dynamic_tokens + num_static_tokens - num_tokens_to_mask),
+        )
+    )
+    np.random.shuffle(flat_spatial_mask)
+    static_mask = flat_spatial_mask[:num_static_tokens]
+    dynamic_mask = flat_spatial_mask[num_static_tokens:]
+
+    static_mask = static_mask.reshape(
+        (PRESTO_INPUT_SIZE, PRESTO_INPUT_SIZE, len(STATIC_BAND_GROUPS_IDX))
+    )
+    dynamic_mask = dynamic_mask.reshape(
+        (
+            PRESTO_INPUT_SIZE,
+            PRESTO_INPUT_SIZE,
+            num_timesteps,
+            len(DYNAMIC_BANDS_GROUPS_IDX),
+        )
+    )
+
+    # then we go from token space back to pixel space
+    static_mask = np.repeat(static_mask, STATIC_BAND_EXPANSION, axis=-1)
+    dynamic_mask = np.repeat(dynamic_mask, DYNAMIC_BAND_EXPANSION, axis=-1)
+
+    return MaskedOutput(dynamic_input, static_input, dynamic_mask, static_mask)
