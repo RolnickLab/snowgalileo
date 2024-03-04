@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 from einops import rearrange
 from torch import nn
@@ -151,27 +150,6 @@ class Block(nn.Module):
         return x
 
 
-def get_sinusoid_encoding_table(positions, d_hid, T=1000):
-    """Sinusoid position encoding table
-    positions: int or list of integer, if int range(positions)"""
-
-    if isinstance(positions, int):
-        positions = list(range(positions))
-
-    def cal_angle(position, hid_idx):
-        return position / np.power(T, 2 * (hid_idx // 2) / d_hid)
-
-    def get_posi_angle_vec(position):
-        return [cal_angle(position, hid_j) for hid_j in range(d_hid)]
-
-    sinusoid_table = np.array([get_posi_angle_vec(pos_i) for pos_i in positions])
-
-    sinusoid_table[:, 0::2] = np.sin(sinusoid_table[:, 0::2])  # dim 2i
-    sinusoid_table[:, 1::2] = np.cos(sinusoid_table[:, 1::2])  # dim 2i+1
-
-    return torch.FloatTensor(sinusoid_table)
-
-
 class Encoder(nn.Module):
     def __init__(
         self,
@@ -237,9 +215,6 @@ class Encoder(nn.Module):
         self.initialize_weights()
 
     def initialize_weights(self):
-        pos_embed = get_sinusoid_encoding_table(self.pos_embed.shape[1], self.pos_embed.shape[-1])
-        self.pos_embed.data.copy_(pos_embed)
-
         # initialize nn.Linear and nn.LayerNorm
         self.apply(self._init_weights)
 
@@ -277,6 +252,56 @@ class Encoder(nn.Module):
             torch.stack(s_m, dim=3),
         )
 
+    def apply_temporal_channel_attention(self, d_x, s_x, d_m, s_m):
+        b, h, w = d_x.shape[0], d_x.shape[1], d_x.shape[2]
+        d_t, d_c, s_c = d_x.shape[3], d_x.shape[4], s_x.shape[3]
+
+        # apply temporal Transformer blocks
+        d_x = rearrange(d_x, "b h w t c d -> (b h w) (t c) d")
+        d_m = rearrange(d_m, "b h w t c -> (b h w) (t c)")
+        s_x = rearrange(s_x, "b h w c d -> (b h w) c d")
+        s_m = rearrange(s_m, "b h w c -> (b h w) c")
+        num_d_t = d_x.shape[1]
+        x = torch.cat([d_x, s_x], dim=1)
+        m = torch.cat([d_m, s_m], dim=1)
+        for blk in self.temporal_blocks:
+            x = blk(x, attn_mask=~m.bool())
+
+        d_x = rearrange(
+            x[:, :num_d_t, :], "(b h w) (t c) d -> b h w t c d", h=h, w=w, b=b, t=d_t, c=d_c
+        )
+        s_x = rearrange(x[:, num_d_t:, :], "(b h w) c d -> b h w c d", b=b, h=h, w=w, c=s_c)
+        d_m = rearrange(m[:, :num_d_t], "(b h w) (t c) -> b h w t c", h=h, w=w, b=b, t=d_t, c=d_c)
+        s_m = rearrange(m[:, num_d_t:], "(b h w) c -> b h w c", b=b, h=h, w=w, c=s_c)
+
+        return d_x, s_x, d_m, s_m
+
+    def apply_spatial_attention(self, d_x, s_x, d_m, s_m):
+        b, h, w, d_t, d_c = d_x.shape[0], d_x.shape[1], d_x.shape[2], d_x.shape[3], d_x.shape[4]
+        d_x = rearrange(d_x, "b h w t c d -> b (t c) (h w) d")
+        d_m = rearrange(d_m, "b h w t c -> b (t c) (h w)")
+        s_x = rearrange(s_x, "b h w c d -> b c (h w) d")
+        s_m = rearrange(s_m, "b h w c -> b c (h w)")
+        num_d_t = d_t * d_c
+        x = torch.cat([d_x, s_x], dim=1)
+        m = torch.cat([d_m, s_m], dim=1)
+        j_t = x.shape[1]
+        x = rearrange(x, "b t hw d -> (b t) hw d")
+        m = rearrange(m, "b t hw -> (b t) hw")
+        for blk in self.temporal_blocks:
+            x = blk(x, attn_mask=~m.bool())
+
+        x = rearrange(x, "(b t) hw d -> b t hw d", b=b, t=j_t)
+        m = rearrange(m, "(b t) hw -> b t hw", b=b, t=j_t)
+        d_x = rearrange(
+            x[:, :num_d_t, :], "b (t c) (h w) d -> b h w t c d", h=h, w=w, b=b, t=d_t, c=d_c
+        )
+        s_x = rearrange(x[:, num_d_t:, :], "b c (h w) d -> b h w c d", h=h, w=w)
+        d_m = rearrange(m[:, :num_d_t], "b (t c) (h w) -> b h w t c", h=h, w=w, b=b, t=d_t, c=d_c)
+        s_m = rearrange(m[:, num_d_t:], "b c (h w) -> b h w c", h=h, w=w)
+
+        return d_x, s_x, d_m, s_m
+
     def forward(
         self,
         dynamic_x: torch.Tensor,
@@ -284,81 +309,14 @@ class Encoder(nn.Module):
         dynamic_mask: torch.Tensor,
         static_mask: torch.Tensor,
     ):
-        b, h, w = dynamic_x.shape[0], dynamic_x.shape[1], dynamic_x.shape[2]
         dynamic_x, static_x, dynamic_mask, static_mask = self.apply_linear_projection(
             dynamic_x, static_x, dynamic_mask, static_mask
         )
-        d_t, d_c, s_c = dynamic_x.shape[3], dynamic_x.shape[4], static_x.shape[3]
-
         # apply temporal Transformer blocks
-        dynamic_x = rearrange(dynamic_x, "b h w t c d -> (b h w) (t c) d")
-        dynamic_mask = rearrange(dynamic_mask, "b h w t c -> (b h w) (t c)")
-        static_x = rearrange(static_x, "b h w c d -> (b h w) c d")
-        static_mask = rearrange(static_mask, "b h w c -> (b h w) c")
-        num_dynamic_tokens = dynamic_x.shape[1]
-        joined_x = torch.cat([dynamic_x, static_x], dim=1)
-        joined_mask = torch.cat([dynamic_mask, static_mask], dim=1)
-        for blk in self.temporal_blocks:
-            joined_x = blk(joined_x, attn_mask=~joined_mask.bool())
-
-        # apply spatial Transformer blocks
-        dynamic_x = rearrange(
-            joined_x[:, :num_dynamic_tokens, :],
-            "(b h w) (t c) d -> b (t c) (h w) d",
-            h=h,
-            w=w,
-            b=b,
-            t=d_t,
-            c=d_c,
+        dynamic_x, static_x, dynamic_mask, static_mask = self.apply_temporal_channel_attention(
+            dynamic_x, static_x, dynamic_mask, static_mask
         )
-        static_x = rearrange(
-            joined_x[:, num_dynamic_tokens:, :], "(b h w) c d -> b c (h w) d", b=b, h=h, w=w, c=s_c
+        dynamic_x, static_x, dynamic_mask, static_mask = self.apply_spatial_attention(
+            dynamic_x, static_x, dynamic_mask, static_mask
         )
-        dynamic_mask = rearrange(
-            joined_mask[:, :num_dynamic_tokens],
-            "(b h w) (t c) -> b (t c) (h w)",
-            h=h,
-            w=w,
-            b=b,
-            t=d_t,
-            c=d_c,
-        )
-        static_mask = rearrange(
-            joined_mask[:, num_dynamic_tokens:], "(b h w) c -> b c (h w)", b=b, h=h, w=w, c=s_c
-        )
-        joined_x = torch.cat([dynamic_x, static_x], dim=1)
-        joined_mask = torch.cat([dynamic_mask, static_mask], dim=1)
-        num_dynamic_tokens, j_t = dynamic_x.shape[1], joined_x.shape[1]
-        joined_x = rearrange(joined_x, "b t hw d -> (b t) hw d")
-        joined_mask = rearrange(joined_mask, "b t hw -> (b t) hw")
-        for blk in self.temporal_blocks:
-            joined_x = blk(joined_x, attn_mask=~joined_mask.bool())
-
-        joined_x = rearrange(joined_x, "(b t) hw d -> b t hw d", b=b, t=j_t)
-        joined_mask = rearrange(joined_mask, "(b t) hw -> b t hw", b=b, t=j_t)
-        dynamic_x = rearrange(
-            joined_x[:, :num_dynamic_tokens, :],
-            "b (t c) (h w) d -> b h w t c d",
-            h=h,
-            w=w,
-            b=b,
-            t=d_t,
-            c=d_c,
-        )
-        static_x = rearrange(
-            joined_x[:, num_dynamic_tokens:, :], "b c (h w) d -> b h w c d", h=h, w=w
-        )
-        dynamic_mask = rearrange(
-            joined_mask[:, :num_dynamic_tokens],
-            "b (t c) (h w) -> b h w t c",
-            h=h,
-            w=w,
-            b=b,
-            t=d_t,
-            c=d_c,
-        )
-        static_mask = rearrange(
-            joined_mask[:, num_dynamic_tokens:], "b c (h w) -> b h w c", h=h, w=w
-        )
-
         return dynamic_x, static_x, dynamic_mask, static_mask
