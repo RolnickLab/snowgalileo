@@ -13,11 +13,15 @@ TEST_FILE = (
 
 class TestDataset(unittest.TestCase):
     def test_tif_to_array(self):
-        dynamic_data, static_data = Dataset.tif_to_array(TEST_FILE)
+        dynamic_data, static_data, months = Dataset.tif_to_array(TEST_FILE)
         self.assertEqual(static_data.shape[0], dynamic_data.shape[0])
         self.assertEqual(static_data.shape[1], dynamic_data.shape[1])
         self.assertEqual(len(DYNAMIC_BANDS), dynamic_data.shape[-1])
         self.assertEqual(len(STATIC_BANDS), static_data.shape[-1])
+        # visual test with the filepath above. The assert
+        # makes sure that file hasn't changed.
+        assert "dates=2022-01-01_2023-12-31" in TEST_FILE.name
+        self.assertEqual(months[0], 0)
 
         # one way to check this is correct is to see if all the DYNAMIC_WORLD bands
         # sum to 1

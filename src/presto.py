@@ -332,7 +332,7 @@ class Encoder(nn.Module):
         d_i, d_m, s_i, s_m = [], [], [], []
         for channel_group, channel_idxs in self.dynamic_groups.items():
             d_i.append(self.dynamic_embed[channel_group](dynamic_x[:, :, :, :, channel_idxs]))
-            d_m.append(dynamic_mask[:, :, :, channel_idxs[0]])
+            d_m.append(dynamic_mask[:, :, :, :, channel_idxs[0]])
         for channel_group, channel_idxs in self.static_groups.items():
             s_i.append(self.static_embed[channel_group](static_x[:, :, :, channel_idxs]))
             s_m.append(static_mask[:, :, :, channel_idxs[0]])
@@ -349,6 +349,7 @@ class Encoder(nn.Module):
         static_x: torch.Tensor,
         dynamic_mask: torch.Tensor,
         static_mask: torch.Tensor,
+        months: torch.Tensor,
     ):
         dynamic_x, static_x, dynamic_mask, static_mask = self.apply_linear_projection(
             dynamic_x, static_x, dynamic_mask, static_mask
@@ -356,7 +357,7 @@ class Encoder(nn.Module):
         dynamic_x, static_x, dynamic_mask, static_mask = self.presto_attn(
             dynamic_x, static_x, dynamic_mask, static_mask
         )
-        return dynamic_x, static_x, dynamic_mask, static_mask
+        return dynamic_x, static_x, dynamic_mask, static_mask, months
 
 
 class PrestoDecoder(nn.Module):
@@ -401,6 +402,7 @@ class PrestoDecoder(nn.Module):
         static_x: torch.Tensor,
         dynamic_mask: torch.Tensor,
         static_mask: torch.Tensor,
+        months: torch.Tensor,
     ):
         dynamic_x = self.decoder_embed(dynamic_x)
         static_x = self.decoder_embed(static_x)

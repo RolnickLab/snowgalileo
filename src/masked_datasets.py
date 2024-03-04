@@ -8,6 +8,7 @@ from einops import repeat
 
 from .data.config import (
     CROMA_INPUT_SIZE,
+    NUM_TIMESTEPS,
     NUM_VIT_PATCHES_PER_CROMA_DIM,
     PRESTO_INPUT_SIZE,
     VIT_PATCH_SIZE,
@@ -27,12 +28,18 @@ class MaskingStrategy(Enum):
     PRESTO_TO_PRESTO = 3
 
 
-MaskedOutput = namedtuple("MaskedOutput", ["dynamic_x", "static_x", "dynamic_mask", "static_mask"])
+MaskedOutput = namedtuple(
+    "MaskedOutput", ["dynamic_x", "static_x", "dynamic_mask", "static_mask", "months"]
+)
 
 
 def subset_image(
-    dynamic_input: np.ndarray, static_input: np.ndarray, size: int
-) -> Tuple[np.ndarray, np.ndarray]:
+    dynamic_input: np.ndarray,
+    static_input: np.ndarray,
+    months: np.ndarray,
+    size: int,
+    num_timesteps: int,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     dynamic_input: array of shape [H, W, T, D]
     static_input: array of shape [H, W, D]
@@ -45,6 +52,8 @@ def subset_image(
     possible_h = dynamic_input.shape[0] - size
     possible_w = dynamic_input.shape[1] - size
     assert (possible_h >= 0) & (possible_w >= 0)
+    possible_t = dynamic_input.shape[2] - num_timesteps
+    assert possible_t >= 0
 
     if possible_h > 0:
         start_h = np.random.choice(possible_h)
@@ -56,13 +65,22 @@ def subset_image(
     else:
         start_w = possible_w
 
-    return dynamic_input[start_h : start_h + size, start_w : start_w + size], static_input[
-        start_h : start_h + size, start_w : start_w + size
-    ]
+    if possible_t > 0:
+        start_t = np.random.choice(possible_t)
+    else:
+        start_t = possible_t
+
+    return (
+        dynamic_input[
+            start_h : start_h + size, start_w : start_w + size, start_t : start_t + num_timesteps
+        ],
+        static_input[start_h : start_h + size, start_w : start_w + size],
+        months[start_t : start_t + num_timesteps],
+    )
 
 
 def mask_by_croma_spatial_blocks(
-    dynamic_input: np.ndarray, static_input: np.ndarray, mask_ratio: float
+    dynamic_input: np.ndarray, static_input: np.ndarray, months: np.ndarray, mask_ratio: float
 ) -> MaskedOutput:
     """
     Given a H >= CROMA_INPUT_SIZE, W >= CROMA_INPUT_SIZE input:
@@ -79,7 +97,9 @@ def mask_by_croma_spatial_blocks(
        the dynamic and static input shapes
     """
     assert mask_ratio % (1 / ((CROMA_INPUT_SIZE / VIT_PATCH_SIZE) ** 2)) == 0
-    dynamic_input, static_input = subset_image(dynamic_input, static_input, CROMA_INPUT_SIZE)
+    dynamic_input, static_input, months = subset_image(
+        dynamic_input, static_input, months, CROMA_INPUT_SIZE, NUM_TIMESTEPS
+    )
     # for the Presto to CROMA case, we will just remove blocks.
     # To begin with, we compute a flat "mask" of patches
     num_masked_patches = int((NUM_VIT_PATCHES_PER_CROMA_DIM**2) * mask_ratio)
@@ -103,11 +123,11 @@ def mask_by_croma_spatial_blocks(
     )
     static_mask = repeat(pixel_spatial_mask, "h w -> h w c", c=static_input.shape[2])
 
-    return MaskedOutput(dynamic_input, static_input, dynamic_mask, static_mask)
+    return MaskedOutput(dynamic_input, static_input, dynamic_mask, static_mask, months)
 
 
 def mask_by_croma_blocks_random(
-    dynamic_input: np.ndarray, static_input: np.ndarray, mask_ratio: float
+    dynamic_input: np.ndarray, static_input: np.ndarray, months: np.ndarray, mask_ratio: float
 ) -> MaskedOutput:
     """
     Given a H >= CROMA_INPUT_SIZE, W >= CROMA_INPUT_SIZE input:
@@ -123,7 +143,9 @@ def mask_by_croma_blocks_random(
     3. This mask is not applied to each mask and band group; its randomly
         applied along both of these dimensions
     """
-    dynamic_input, static_input = subset_image(dynamic_input, static_input, CROMA_INPUT_SIZE)
+    dynamic_input, static_input, months = subset_image(
+        dynamic_input, static_input, months, CROMA_INPUT_SIZE, NUM_TIMESTEPS
+    )
     num_timesteps = dynamic_input.shape[2]
     num_dynamic_tokens = (
         num_timesteps * (NUM_VIT_PATCHES_PER_CROMA_DIM**2) * len(DYNAMIC_BANDS_GROUPS_IDX)
@@ -168,7 +190,7 @@ def mask_by_croma_blocks_random(
     )
 
     return MaskedOutput(
-        dynamic_input, static_input, dynamic_pixel_spatial_mask, static_pixel_spatial_mask
+        dynamic_input, static_input, dynamic_pixel_spatial_mask, static_pixel_spatial_mask, months
     )
 
 
@@ -179,7 +201,7 @@ class PrestoToPrestoMaskedDataset(Dataset):
 
     @staticmethod
     def mask_by_presto_pixels_time(
-        dynamic_input: np.ndarray, static_input: np.ndarray, mask_ratio: float
+        dynamic_input: np.ndarray, static_input: np.ndarray, months: np.ndarray, mask_ratio: float
     ) -> MaskedOutput:
         """
         Given a H >= PRESTO_INPUT_SIZE, W >= PRESTO_INPUT_SIZE input:
@@ -188,7 +210,9 @@ class PrestoToPrestoMaskedDataset(Dataset):
             e.g. if PRESTO_INPUT_SIZE=4 and mask_ratio=0.25, then 1/4 of the timesteps
             (and the static channel groups, with 1/4 probability) will be masked out
         """
-        dynamic_input, static_input = subset_image(dynamic_input, static_input, PRESTO_INPUT_SIZE)
+        dynamic_input, static_input, months = subset_image(
+            dynamic_input, static_input, months, PRESTO_INPUT_SIZE, NUM_TIMESTEPS
+        )
         num_timesteps = dynamic_input.shape[2]
         num_timesteps_to_mask = int(num_timesteps * mask_ratio)
         flat_timesteps = np.concatenate(
@@ -210,8 +234,8 @@ class PrestoToPrestoMaskedDataset(Dataset):
         static_mask = np.repeat(static_mask, STATIC_BAND_EXPANSION, axis=-1)
         dynamic_mask = np.repeat(dynamic_mask, DYNAMIC_BAND_EXPANSION, axis=-1)
 
-        return MaskedOutput(dynamic_input, static_input, dynamic_mask, static_mask)
+        return MaskedOutput(dynamic_input, static_input, dynamic_mask, static_mask, months)
 
     def __getitem__(self, idx) -> MaskedOutput:
-        d_x, s_x = self.tif_to_array(self.tifs[idx])
-        return self.mask_by_presto_pixels_time(d_x, s_x, self.mask_ratio)
+        d_x, s_x, months = self.tif_to_array(self.tifs[idx])
+        return self.mask_by_presto_pixels_time(d_x, s_x, months, self.mask_ratio)

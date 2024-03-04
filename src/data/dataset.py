@@ -60,8 +60,15 @@ class Dataset:
         # Download files (faster than using Python API)
         os.system(f"gcloud storage cp -n -r gs://{EE_BUCKET_TIFS}/tifs/ {data_folder}")
 
+    @staticmethod
+    def month_to_array(start_month: int, num_timesteps: int):
+        # >>> np.fmod(np.array([9., 10, 11, 12, 13, 14]), 12)
+        # array([ 9., 10., 11.,  0.,  1.,  2.])
+        # - 1 because we want to index from 0
+        return np.fmod(np.arange(start_month - 1, start_month - 1 + num_timesteps), 12)
+
     @classmethod
-    def tif_to_array(cls, tif_path: Path) -> Tuple[np.ndarray, np.ndarray]:
+    def tif_to_array(cls, tif_path: Path) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         data = cast(xr.Dataset, rioxarray.open_rasterio(tif_path))
         values = cast(np.ndarray, data.values)
         static_data = rearrange(values[-len(STATIC_BANDS) :], "b h w -> h w b")
@@ -76,9 +83,16 @@ class Dataset:
 
         dynamic_data = cls.normalize(dynamic_data, DYNAMIC_SHIFT_VALUES, DYNAMIC_DIV_VALUES)
         dynamic_data = np.concatenate((dynamic_data, cls.calculate_ndvi(dynamic_data)), axis=-1)
+
+        # assumes all files are exported with filenames including:
+        # *dates=<start_date>*, where the start_date is in a YYYY-MM-dd format
+        start_date = tif_path.name.partition("dates=")[2][:10]
+        start_month = int(start_date.split("-")[1])
+        months = cls.month_to_array(start_month, int(num_timesteps))
         return (
             dynamic_data,
             cls.normalize(static_data, STATIC_SHIFT_VALUES, STATIC_DIV_VALUES),
+            months,
         )
 
     @staticmethod
