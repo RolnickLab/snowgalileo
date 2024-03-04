@@ -194,7 +194,7 @@ class EarthEngineExporter:
     Export satellite data from Earth engine. It's called using the following
     script:
     ```
-    from openmapflow.eo import EarthEngineExporter
+    from src.data import EarthEngineExporter
     EarthEngineExporter(dest_bucket="bucket_name").export_for_labels(df)
     ```
     :param check_ee: Whether to check Earth Engine before exporting
@@ -239,6 +239,7 @@ class EarthEngineExporter:
             f"{filename}.tif" in self.cloud_tif_list
             and f"tifs/{filename}.tif" in self.cloud_tif_list
         ):
+            # checks that we haven't already exported this file
             return False
 
         # Check if task is already started in EarthEngine
@@ -246,6 +247,7 @@ class EarthEngineExporter:
             return False
 
         if len(self.ee_task_list) >= 3000:
+            # we can only have 3000 running exports at once
             return False
 
         img = create_ee_image(polygon, start_date, end_date)
@@ -334,33 +336,3 @@ class EarthEngineExporter:
                 if num_exports_to_start is not None and exports_started >= num_exports_to_start:
                     print(f"Started {exports_started} exports. Ending export")
                     return None
-
-
-class EarthEngineAPI:
-    """
-    Fetch satellite data from Earth engine by URL.
-    :param credentials: The credentials to use for the export. If not specified,
-        the default credentials will be used
-    """
-
-    def __init__(self, credentials=None) -> None:
-        ee.Initialize(
-            credentials if credentials else get_ee_credentials(),
-            opt_url="https://earthengine-highvolume.googleapis.com",
-        )
-
-    def get_ee_url(self, lat, lon):
-        ee_bbox = EEBoundingBox.from_centre(
-            mid_lat=lat,
-            mid_lon=lon,
-            surrounding_metres=SURROUNDING_METRES,
-        ).to_ee_polygon()
-        img = create_ee_image(ee_bbox, START_DATE, END_DATE)
-        return img.getDownloadURL(
-            {
-                "region": ee_bbox,
-                "scale": 10,
-                "filePerBand": False,
-                "format": "GEO_TIFF",
-            }
-        )
