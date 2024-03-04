@@ -150,7 +150,7 @@ class Block(nn.Module):
         return x
 
 
-class Encoder(nn.Module):
+class PrestoAttn(nn.Module):
     def __init__(
         self,
         embedding_size: int = 128,
@@ -161,24 +161,6 @@ class Encoder(nn.Module):
         max_sequence_length=24,
     ):
         super().__init__()
-
-        self.dynamic_groups = DYNAMIC_BANDS_GROUPS_IDX
-        self.static_groups = STATIC_BAND_GROUPS_IDX
-        self.embedding_size = embedding_size
-
-        self.dynamic_embed = nn.ModuleDict(
-            {
-                group_name: nn.Linear(len(group), embedding_size)
-                for group_name, group in self.dynamic_groups.items()
-            }
-        )
-        self.static_embed = nn.ModuleDict(
-            {
-                group_name: nn.Linear(len(group), embedding_size)
-                for group_name, group in self.static_groups.items()
-            }
-        )
-
         self.temporal_blocks = nn.ModuleList(
             [
                 Block(
@@ -207,10 +189,6 @@ class Encoder(nn.Module):
 
         # the positional + monthly + channel embedding
         self.max_sequence_length = max_sequence_length
-        pos_embedding_size = embedding_size
-        self.pos_embed = nn.Parameter(
-            torch.zeros(1, max_sequence_length, pos_embedding_size), requires_grad=False
-        )
 
         self.initialize_weights()
 
@@ -228,29 +206,6 @@ class Encoder(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
-    def apply_linear_projection(
-        self,
-        dynamic_x: torch.Tensor,
-        static_x: torch.Tensor,
-        dynamic_mask: torch.Tensor,
-        static_mask: torch.Tensor,
-    ):
-        """
-        Given a [H, W, (T), B] inputs, returns a [H, W, (T), B_G, D] output.
-        """
-        d_i, d_m, s_i, s_m = [], [], [], []
-        for channel_group, channel_idxs in self.dynamic_groups.items():
-            d_i.append(self.dynamic_embed[channel_group](dynamic_x[:, :, :, :, channel_idxs]))
-            d_m.append(dynamic_mask[:, :, :, channel_idxs[0]])
-        for channel_group, channel_idxs in self.static_groups.items():
-            s_i.append(self.static_embed[channel_group](static_x[:, :, :, channel_idxs]))
-            s_m.append(static_mask[:, :, :, channel_idxs[0]])
-        return (
-            torch.stack(d_i, dim=3),
-            torch.stack(s_i, dim=3),
-            torch.stack(d_m, dim=3),
-            torch.stack(s_m, dim=3),
-        )
 
     def apply_temporal_channel_attention(self, d_x, s_x, d_m, s_m):
         b, h, w = d_x.shape[0], d_x.shape[1], d_x.shape[2]
@@ -309,14 +264,97 @@ class Encoder(nn.Module):
         dynamic_mask: torch.Tensor,
         static_mask: torch.Tensor,
     ):
-        dynamic_x, static_x, dynamic_mask, static_mask = self.apply_linear_projection(
-            dynamic_x, static_x, dynamic_mask, static_mask
-        )
         # apply temporal Transformer blocks
         dynamic_x, static_x, dynamic_mask, static_mask = self.apply_temporal_channel_attention(
             dynamic_x, static_x, dynamic_mask, static_mask
         )
         dynamic_x, static_x, dynamic_mask, static_mask = self.apply_spatial_attention(
+            dynamic_x, static_x, dynamic_mask, static_mask
+        )
+        return dynamic_x, static_x, dynamic_mask, static_mask
+
+
+class Encoder(nn.Module):
+    def __init__(
+        self,
+        embedding_size: int = 128,
+        temporal_depth=2,
+        spatial_depth=2,
+        mlp_ratio=2,
+        num_heads=8,
+        max_sequence_length=24,
+    ):
+        super().__init__()
+
+        self.dynamic_groups = DYNAMIC_BANDS_GROUPS_IDX
+        self.static_groups = STATIC_BAND_GROUPS_IDX
+        self.embedding_size = embedding_size
+
+        self.dynamic_embed = nn.ModuleDict(
+            {
+                group_name: nn.Linear(len(group), embedding_size)
+                for group_name, group in self.dynamic_groups.items()
+            }
+        )
+        self.static_embed = nn.ModuleDict(
+            {
+                group_name: nn.Linear(len(group), embedding_size)
+                for group_name, group in self.static_groups.items()
+            }
+        )
+        self.presto_attn = PrestoAttn(
+            embedding_size=embedding_size,
+            temporal_depth=temporal_depth,
+            spatial_depth=spatial_depth,
+            mlp_ratio=mlp_ratio,
+            num_heads=num_heads,
+            max_sequence_length=max_sequence_length,
+        )
+
+        self.apply(self._init_weights)
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            # we use xavier_uniform following official JAX ViT:
+            torch.nn.init.xavier_uniform_(m.weight)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+
+    def apply_linear_projection(
+        self,
+        dynamic_x: torch.Tensor,
+        static_x: torch.Tensor,
+        dynamic_mask: torch.Tensor,
+        static_mask: torch.Tensor,
+    ):
+        """
+        Given a [H, W, (T), B] inputs, returns a [H, W, (T), B_G, D] output.
+        """
+        d_i, d_m, s_i, s_m = [], [], [], []
+        for channel_group, channel_idxs in self.dynamic_groups.items():
+            d_i.append(self.dynamic_embed[channel_group](dynamic_x[:, :, :, :, channel_idxs]))
+            d_m.append(dynamic_mask[:, :, :, channel_idxs[0]])
+        for channel_group, channel_idxs in self.static_groups.items():
+            s_i.append(self.static_embed[channel_group](static_x[:, :, :, channel_idxs]))
+            s_m.append(static_mask[:, :, :, channel_idxs[0]])
+        return (
+            torch.stack(d_i, dim=3),
+            torch.stack(s_i, dim=3),
+            torch.stack(d_m, dim=3),
+            torch.stack(s_m, dim=3),
+        )
+
+    def forward(
+        self,
+        dynamic_x: torch.Tensor,
+        static_x: torch.Tensor,
+        dynamic_mask: torch.Tensor,
+        static_mask: torch.Tensor,
+    ):
+        dynamic_x, static_x, dynamic_mask, static_mask = self.apply_linear_projection(
+            dynamic_x, static_x, dynamic_mask, static_mask
+        )
+        dynamic_x, static_x, dynamic_mask, static_mask = self.presto_attn(
             dynamic_x, static_x, dynamic_mask, static_mask
         )
         return dynamic_x, static_x, dynamic_mask, static_mask
