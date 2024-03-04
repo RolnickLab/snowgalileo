@@ -2,7 +2,7 @@ import os
 import warnings
 from collections import OrderedDict
 from pathlib import Path
-from typing import List, cast
+from typing import List, Tuple, cast
 from typing import OrderedDict as OrderedDictType
 
 import numpy as np
@@ -57,7 +57,7 @@ class Dataset:
         os.system(f"gcloud storage cp -n -r gs://{EE_BUCKET_TIFS}/tifs/ {data_folder}")
 
     @classmethod
-    def tif_to_array(cls, tif_path: Path):
+    def tif_to_array(cls, tif_path: Path) -> Tuple[np.ndarray, np.ndarray]:
         data = cast(xr.Dataset, rioxarray.open_rasterio(tif_path))
         values = cast(np.ndarray, data.values)
         static_data = rearrange(values[-len(STATIC_BANDS) :], "b h w -> h w b")

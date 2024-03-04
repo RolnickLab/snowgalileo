@@ -133,12 +133,22 @@ def create_ee_image(
     start_date: date,
     end_date: date,
     days_per_timestep: int = DAYS_PER_TIMESTEP,
-):
+) -> ee.Image:
+    """
+    Returns an ee.Image which we can then export.
+    This image will contain S1, S2, ERA5 and Dynamic World data
+    between start_date and end_date, in intervals of
+    days_per_timestep. Each timestep will be a different channel in the
+    image (e.g. if I have 3 timesteps, then I'll have VV, VV_1, VV_2 for the
+    S1 VV bands). The static in time SRTM bands will also be in the image.
+    """
     image_collection_list: List[ee.Image] = []
     cur_date = start_date
     cur_end_date = cur_date + timedelta(days=days_per_timestep)
 
-    # first, we get all the S1 images in an exaggerated date range
+    # We get all the S1 images in an exaggerated date range. We do this because
+    # S1 data is sparser, so we will pull from outside the days_per_timestep
+    # range if we are missing data within that range
     vv_imcol, vh_imcol = get_s1_image_collection(
         polygon, start_date - timedelta(days=31), end_date + timedelta(days=31)
     )
