@@ -362,7 +362,8 @@ class Encoder(nn.Module):
 class PrestoDecoder(nn.Module):
     def __init__(
         self,
-        embedding_size: int = 128,
+        encoder_embedding_size: int = 128,
+        decoder_embedding_size: int = 128,
         temporal_depth=2,
         spatial_depth=2,
         mlp_ratio=2,
@@ -371,11 +372,11 @@ class PrestoDecoder(nn.Module):
     ):
         super().__init__()
 
-        self.embedding_size = embedding_size
-        self.mask_token = nn.Parameter(torch.zeros(embedding_size))
+        self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
+        self.decoder_embed = nn.Linear(encoder_embedding_size, decoder_embedding_size, bias=True)
 
         self.presto_attn = PrestoAttn(
-            embedding_size=embedding_size,
+            embedding_size=decoder_embedding_size,
             temporal_depth=temporal_depth,
             spatial_depth=spatial_depth,
             mlp_ratio=mlp_ratio,
@@ -401,6 +402,8 @@ class PrestoDecoder(nn.Module):
         dynamic_mask: torch.Tensor,
         static_mask: torch.Tensor,
     ):
+        dynamic_x = self.decoder_embed(dynamic_x)
+        static_x = self.decoder_embed(static_x)
         dynamic_x, dynamic_mask = self.add_masks(dynamic_x, dynamic_mask)
         dynamic_x, static_x, dynamic_mask, static_mask = self.presto_attn(
             dynamic_x, static_x, dynamic_mask, static_mask

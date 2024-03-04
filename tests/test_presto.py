@@ -27,7 +27,11 @@ class TestPresto(unittest.TestCase):
     def test_presto_end_to_end(self):
         embedding_size = 2
         encoder = Encoder(embedding_size=embedding_size, num_heads=1)
-        decoder = PrestoDecoder(embedding_size=embedding_size, num_heads=1)
+        decoder = PrestoDecoder(
+            encoder_embedding_size=embedding_size,
+            decoder_embedding_size=embedding_size,
+            num_heads=1,
+        )
         dynamic_data, static_data = Dataset.tif_to_array(TEST_FILE)
         output = mask_by_presto_pixels_time(dynamic_data, static_data, mask_ratio=0.25)
         # unsqueeze to add the batch dimension
@@ -39,7 +43,11 @@ class TestPresto(unittest.TestCase):
 
     def test_presto_decoder_add_masks(self):
         embedding_size = 2
-        decoder = PrestoDecoder(embedding_size=embedding_size, num_heads=1)
+        decoder = PrestoDecoder(
+            encoder_embedding_size=embedding_size,
+            decoder_embedding_size=embedding_size,
+            num_heads=1,
+        )
         b, h, w, t = 5, 6, 7, 8
         d_x = torch.ones(b, h, w, t, len(DYNAMIC_BANDS_GROUPS_IDX), embedding_size)
         d_m = torch.zeros(b, h, w, t, len(DYNAMIC_BANDS_GROUPS_IDX))
