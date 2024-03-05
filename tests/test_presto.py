@@ -102,6 +102,12 @@ class TestPresto(unittest.TestCase):
             channel_mean = channel_encodings.mean(dim=[0, 1, 2, 3])
             self.assertTrue(torch.equal(channel_encodings[0, 0, 0, 0], channel_mean))
 
+        for i in range(len(STATIC_BAND_GROUPS_IDX)):
+            channel_dims = int(d * c_r)
+            channel_encodings = s_encodings[:, :, :, i, :channel_dims]  # [b, h, w, d]
+            channel_mean = channel_encodings.mean(dim=[0, 1, 2])
+            self.assertTrue(torch.equal(channel_encodings[0, 0, 0], channel_mean))
+
         for i in range(t):
             time_encodings = d_encodings[:, :, :, i, :, channel_dims:]  # [b, h, w, c_g, d]
             time_mean = time_encodings.mean(dim=[0, 1, 2, 3])
