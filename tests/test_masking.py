@@ -57,20 +57,10 @@ class TestMasking(unittest.TestCase):
 
         output = mask_by_croma_blocks_random(dynamic_input, static_input, months, mask_ratio)
 
-        first_index_of_dynamic_band_group = [
-            value[0] for _, value in DYNAMIC_BANDS_GROUPS_IDX.items()
-        ]
-        first_index_of_static_band_group = [
-            value[0] for _, value in STATIC_BAND_GROUPS_IDX.items()
-        ]
-
-        dynamic_mask = output.dynamic_mask[:, :, :, first_index_of_dynamic_band_group]
-        static_mask = output.static_mask[:, :, first_index_of_static_band_group]
-
-        num_dynamic_tokens_masked = np.sum(dynamic_mask) / (VIT_PATCH_SIZE**2)
-        total_dynamic_tokens = dynamic_mask.size / (VIT_PATCH_SIZE**2)
-        num_static_tokens_masked = np.sum(static_mask) / (VIT_PATCH_SIZE**2)
-        total_static_tokens = static_mask.size / (VIT_PATCH_SIZE**2)
+        num_dynamic_tokens_masked = np.sum(output.dynamic_mask) / (VIT_PATCH_SIZE**2)
+        total_dynamic_tokens = output.dynamic_mask.size / (VIT_PATCH_SIZE**2)
+        num_static_tokens_masked = np.sum(output.static_mask) / (VIT_PATCH_SIZE**2)
+        total_static_tokens = output.static_mask.size / (VIT_PATCH_SIZE**2)
 
         self.assertEqual(
             (num_dynamic_tokens_masked + num_static_tokens_masked)

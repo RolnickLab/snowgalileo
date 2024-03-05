@@ -398,12 +398,12 @@ class Encoder(nn.Module):
         Given a [H, W, (T), B] inputs, returns a [H, W, (T), B_G, D] output.
         """
         d_i, d_m, s_i, s_m = [], [], [], []
-        for channel_group, channel_idxs in self.dynamic_groups.items():
+        for idx, (channel_group, channel_idxs) in enumerate(self.dynamic_groups.items()):
             d_i.append(self.dynamic_embed[channel_group](dynamic_x[:, :, :, :, channel_idxs]))
-            d_m.append(dynamic_mask[:, :, :, :, channel_idxs[0]])
-        for channel_group, channel_idxs in self.static_groups.items():
+            d_m.append(dynamic_mask[:, :, :, :, idx])
+        for idx, (channel_group, channel_idxs) in enumerate(self.static_groups.items()):
             s_i.append(self.static_embed[channel_group](static_x[:, :, :, channel_idxs]))
-            s_m.append(static_mask[:, :, :, channel_idxs[0]])
+            s_m.append(static_mask[:, :, :, idx])
         return (
             torch.stack(d_i, dim=-2),
             torch.stack(s_i, dim=-2),
