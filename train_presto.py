@@ -83,7 +83,7 @@ for e in range(num_epochs):
         )
         # generate the targets
         with torch.no_grad():
-            t_d, t_s, _, _ = target_encoder(
+            t_d, t_s, _, _, _ = target_encoder(
                 d_x.float(),
                 s_x.float(),
                 torch.zeros_like(d_m),
