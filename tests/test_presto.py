@@ -4,7 +4,12 @@ from pathlib import Path
 import torch
 
 from src.data import DYNAMIC_BANDS_GROUPS_IDX
-from src.masked_datasets import PrestoToPrestoMaskedDataset
+from src.data.config import NUM_TIMESTEPS, PRESTO_INPUT_SIZE
+from src.masked_datasets import (
+    STATIC_BAND_GROUPS_IDX,
+    MaskedOutput,
+    PrestoToPrestoMaskedDataset,
+)
 from src.presto import Encoder, PrestoDecoder
 
 DATA_FOLDER = Path(__file__).parents[1] / "data"
@@ -15,18 +20,26 @@ TEST_FILE = (
 
 
 class TestPresto(unittest.TestCase):
+    @staticmethod
+    def to_tensor_with_batch_d(input: MaskedOutput):
+        return (
+            torch.from_numpy(input.dynamic_x).float().unsqueeze(0),
+            torch.from_numpy(input.static_x).float().unsqueeze(0),
+            torch.from_numpy(input.dynamic_mask).float().unsqueeze(0),
+            torch.from_numpy(input.static_mask).float().unsqueeze(0),
+            torch.from_numpy(input.months).long().unsqueeze(0),
+        )
+
     def test_presto_encoder(self):
-        model = Encoder(embedding_size=2, num_heads=1)
+        model = Encoder(embedding_size=8, num_heads=1)
         ds = PrestoToPrestoMaskedDataset(DATA_FOLDER, 0.25, False)
         output = ds[0]
-        # unsqueeze to add the batch dimension
-        output_t = [torch.from_numpy(x).float().unsqueeze(0) for x in output]
         with torch.no_grad():
             # for now, we just make sure it all runs
-            model(*output_t)
+            model(*self.to_tensor_with_batch_d(output))
 
     def test_presto_end_to_end(self):
-        embedding_size = 2
+        embedding_size = 8
         encoder = Encoder(embedding_size=embedding_size, num_heads=1)
         decoder = PrestoDecoder(
             encoder_embedding_size=embedding_size,
@@ -35,15 +48,34 @@ class TestPresto(unittest.TestCase):
         )
         ds = PrestoToPrestoMaskedDataset(DATA_FOLDER, 0.25, False)
         output = ds[0]
-        # unsqueeze to add the batch dimension
-        output_t = [torch.from_numpy(x).float().unsqueeze(0) for x in output]
         with torch.no_grad():
             # for now, we just make sure it all runs
-            output = encoder(*output_t)
-            decoder(*output)
+            output = encoder(*self.to_tensor_with_batch_d(output))
+            output = decoder(*output)
+        self.assertTrue(
+            list(output[0].shape)
+            == [
+                1,
+                PRESTO_INPUT_SIZE,
+                PRESTO_INPUT_SIZE,
+                NUM_TIMESTEPS,
+                len(DYNAMIC_BANDS_GROUPS_IDX),
+                embedding_size,
+            ]
+        )
+        self.assertTrue(
+            list(output[1].shape)
+            == [
+                1,
+                PRESTO_INPUT_SIZE,
+                PRESTO_INPUT_SIZE,
+                len(STATIC_BAND_GROUPS_IDX),
+                embedding_size,
+            ]
+        )
 
     def test_presto_decoder_add_masks(self):
-        embedding_size = 2
+        embedding_size = 8
         decoder = PrestoDecoder(
             encoder_embedding_size=embedding_size,
             decoder_embedding_size=embedding_size,
