@@ -4,9 +4,7 @@ import numpy as np
 
 from src.masked_datasets import (
     CROMA_INPUT_SIZE,
-    DYNAMIC_BANDS_GROUPS_IDX,
     NUM_TIMESTEPS,
-    STATIC_BAND_GROUPS_IDX,
     VIT_PATCH_SIZE,
     PrestoToPrestoMaskedDataset,
     mask_by_croma_blocks_random,
