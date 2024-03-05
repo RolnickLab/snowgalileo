@@ -15,7 +15,7 @@ from src.presto import Encoder, PrestoAttn, PrestoDecoder
 DATA_FOLDER = Path(__file__).parents[1] / "data/tifs"
 TEST_FILE = (
     DATA_FOLDER
-    / "tifs_min_lat=19.2005_min_lon=-155.6227_max_lat=19.2132_max_lon=-155.6094_dates=2022-01-01_2023-12-31.tiff"
+    / "tifs_min_lat=19.2005_min_lon=-155.6227_max_lat=19.2132_max_lon=-155.6094_dates=2022-01-01_2023-12-31.tif"
 )
 
 
@@ -42,8 +42,34 @@ class TestPresto(unittest.TestCase):
         output = ds[0]
         with torch.no_grad():
             # for now, we just make sure it all runs
-            output = encoder(*self.to_tensor_with_batch_d(output))
-            output = decoder(*output)
+            encoder_output = encoder(*self.to_tensor_with_batch_d(output))
+
+        self.assertTrue(
+            list(encoder_output[0].shape)
+            == [
+                1,
+                PRESTO_INPUT_SIZE,
+                PRESTO_INPUT_SIZE,
+                NUM_TIMESTEPS,
+                len(DYNAMIC_BANDS_GROUPS_IDX),
+                embedding_size,
+            ]
+        )
+        self.assertTrue(
+            list(encoder_output[1].shape)
+            == [
+                1,
+                PRESTO_INPUT_SIZE,
+                PRESTO_INPUT_SIZE,
+                len(STATIC_BAND_GROUPS_IDX),
+                embedding_size,
+            ]
+        )
+        self.assertFalse(torch.isnan(encoder_output[0]).any())
+        self.assertFalse(torch.isnan(encoder_output[1]).any())
+
+        with torch.no_grad():
+            output = decoder(*encoder_output)
         self.assertTrue(
             list(output[0].shape)
             == [
@@ -65,6 +91,8 @@ class TestPresto(unittest.TestCase):
                 embedding_size,
             ]
         )
+        self.assertFalse(torch.isnan(output[0]).any())
+        self.assertFalse(torch.isnan(output[1]).any())
 
     def test_presto_decoder_add_masks(self):
         embedding_size = 8

@@ -8,7 +8,7 @@ from typing import OrderedDict as OrderedDictType
 import numpy as np
 import rioxarray
 import xarray as xr
-from einops import rearrange
+from einops import rearrange, repeat
 from torch.utils.data import Dataset as PyTorchDataset
 
 from .config import EE_BUCKET_TIFS
@@ -62,6 +62,47 @@ class Dataset(PyTorchDataset):
         os.system(f"gcloud storage cp -n -r gs://{EE_BUCKET_TIFS}/tifs/* {data_folder}")
 
     @staticmethod
+    def _fillna(data: np.ndarray, bands_np: np.ndarray):
+        """Fill in the missing values in the data array"""
+        if len(data.shape) == 3:
+            has_time = False
+        elif len(data.shape) == 4:
+            has_time = True
+        else:
+            raise ValueError(
+                f"Expected data to be 3 or 4D (x, y, (time), band) - got {data.shape}"
+            )
+        if data.shape[-1] != len(bands_np):
+            raise ValueError(f"Expected data to have {len(bands_np)} bands - got {data.shape[-1]}")
+
+        is_nan = np.isnan(data)
+        if not is_nan.any():
+            return data
+        mean_per_time_band = np.nanmean(data, axis=(0, 1))  # t, b or b
+        if np.isnan(mean_per_time_band).any():
+            # If a band has all nan values, fill with default: 0
+            mean_per_time_band = np.nan_to_num(mean_per_time_band, nan=0)
+        if is_nan.any():
+            if has_time:
+                means_to_fill = (
+                    repeat(
+                        np.nanmean(mean_per_time_band, axis=0),
+                        "b -> h w t b",
+                        h=data.shape[0],
+                        w=data.shape[1],
+                        t=data.shape[2],
+                    )
+                    * is_nan
+                )
+            else:
+                means_to_fill = (
+                    repeat(mean_per_time_band, "b -> h w b", h=data.shape[0], w=data.shape[1])
+                    * is_nan
+                )
+            data = np.nan_to_num(data, nan=0) + means_to_fill
+        return data
+
+    @staticmethod
     def month_to_array(start_month: int, num_timesteps: int):
         # >>> np.fmod(np.array([9., 10, 11, 12, 13, 14]), 12)
         # array([ 9., 10., 11.,  0.,  1.,  2.])
@@ -73,6 +114,7 @@ class Dataset(PyTorchDataset):
         data = cast(xr.Dataset, rioxarray.open_rasterio(tif_path))
         values = cast(np.ndarray, data.values)
         static_data = rearrange(values[-len(STATIC_BANDS) :], "b h w -> h w b")
+        static_data = cls._fillna(static_data, np.array(STATIC_BANDS))
         num_timesteps = (values.shape[0] - len(STATIC_BANDS)) / len(EO_DYNAMIC_BANDS)
         assert num_timesteps % 1 == 0
         dynamic_data = rearrange(
@@ -81,6 +123,7 @@ class Dataset(PyTorchDataset):
             b=len(EO_DYNAMIC_BANDS),
             t=int(num_timesteps),
         )
+        dynamic_data = cls._fillna(dynamic_data, np.array(EO_DYNAMIC_BANDS))
 
         dynamic_data = cls.normalize(dynamic_data, DYNAMIC_SHIFT_VALUES, DYNAMIC_DIV_VALUES)
         dynamic_data = np.concatenate((dynamic_data, cls.calculate_ndvi(dynamic_data)), axis=-1)
