@@ -9,6 +9,7 @@ import numpy as np
 import rioxarray
 import xarray as xr
 from einops import rearrange
+from torch.utils.data import Dataset as PyTorchDataset
 
 from .config import EE_BUCKET_TIFS
 from .earthengine.eo import (
@@ -45,7 +46,7 @@ STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
 )
 
 
-class Dataset:
+class Dataset(PyTorchDataset):
     def __init__(self, data_folder: Path, download: bool = True):
         self.data_folder = data_folder
         if download:
@@ -125,3 +126,6 @@ class Dataset:
                 ),
                 -1,
             )
+
+    def __getitem__(self, idx):
+        raise NotImplementedError

@@ -5,8 +5,8 @@ from torch import nn
 from torch.jit import Final
 from torch.nn import functional as F
 
+from .config import PRESTO_INPUT_SIZE
 from .data import DYNAMIC_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
-from .data.config import PRESTO_INPUT_SIZE
 from .embeddings import (
     get_1d_sincos_pos_embed_from_grid,
     get_2d_sincos_pos_embed,
