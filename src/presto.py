@@ -51,6 +51,16 @@ class Attention(nn.Module):
         if self.fast_attn:
             if attn_mask is not None:
                 attn_mask = attn_mask[:, None, None].repeat((1, self.num_heads, N, 1))
+                # attn_mask will have shape [batch, num_heads, N, N]
+                # we want to make sure the trace is unmasked; otherwise
+                # we get NaNs
+                diagonal = repeat(
+                    torch.eye(N, device=attn_mask.device).bool(),
+                    "s1 s2 -> b h s1 s2",
+                    b=B,
+                    h=self.num_heads,
+                )
+                attn_mask = attn_mask + diagonal
             x = F.scaled_dot_product_attention(
                 q,
                 k,
@@ -271,7 +281,6 @@ class PrestoAttn(nn.Module):
         # apply temporal Transformer blocks
         d_x = d_x + d_embed
         s_x = s_x + s_embed
-
         d_x = rearrange(d_x, "b h w t c d -> (b h w) (t c) d")
         d_m = rearrange(d_m, "b h w t c -> (b h w) (t c)")
         s_x = rearrange(s_x, "b h w c d -> (b h w) c d")
@@ -288,7 +297,6 @@ class PrestoAttn(nn.Module):
         s_x = rearrange(x[:, num_d_t:, :], "(b h w) c d -> b h w c d", b=b, h=h, w=w, c=s_c)
         d_m = rearrange(m[:, :num_d_t], "(b h w) (t c) -> b h w t c", h=h, w=w, b=b, t=d_t, c=d_c)
         s_m = rearrange(m[:, num_d_t:], "(b h w) c -> b h w c", b=b, h=h, w=w, c=s_c)
-
         return d_x, s_x, d_m, s_m
 
     def apply_spatial_attention(self, d_x, s_x, d_m, s_m):
@@ -302,7 +310,6 @@ class PrestoAttn(nn.Module):
         d_embed, s_embed = self.construct_spatial_channel_embeddings(b, d_t, d_c, s_c)
         d_x = d_x + d_embed
         s_x = s_x + s_embed
-
         num_d_t = d_t * d_c
         x = torch.cat([d_x, s_x], dim=1)
         m = torch.cat([d_m, s_m], dim=1)
@@ -311,7 +318,6 @@ class PrestoAttn(nn.Module):
         m = rearrange(m, "b t hw -> (b t) hw")
         for blk in self.temporal_blocks:
             x = blk(x, attn_mask=~m.bool())
-
         x = rearrange(x, "(b t) hw d -> b t hw d", b=b, t=j_t)
         m = rearrange(m, "(b t) hw -> b t hw", b=b, t=j_t)
         d_x = rearrange(
@@ -320,7 +326,6 @@ class PrestoAttn(nn.Module):
         s_x = rearrange(x[:, num_d_t:, :], "b c (h w) d -> b h w c d", h=h, w=w)
         d_m = rearrange(m[:, :num_d_t], "b (t c) (h w) -> b h w t c", h=h, w=w, b=b, t=d_t, c=d_c)
         s_m = rearrange(m[:, num_d_t:], "b c (h w) -> b h w c", h=h, w=w)
-
         return d_x, s_x, d_m, s_m
 
     def forward(
