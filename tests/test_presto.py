@@ -30,14 +30,6 @@ class TestPresto(unittest.TestCase):
             torch.from_numpy(input.months).long().unsqueeze(0),
         )
 
-    def test_presto_encoder(self):
-        model = Encoder(embedding_size=8, num_heads=1)
-        ds = PrestoToPrestoMaskedDataset(DATA_FOLDER, 0.25, False)
-        output = ds[0]
-        with torch.no_grad():
-            # for now, we just make sure it all runs
-            model(*self.to_tensor_with_batch_d(output))
-
     def test_presto_end_to_end(self):
         embedding_size = 8
         encoder = Encoder(embedding_size=embedding_size, num_heads=1)
