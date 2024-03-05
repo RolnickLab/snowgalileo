@@ -59,7 +59,7 @@ class Dataset(PyTorchDataset):
     @staticmethod
     def download(data_folder):
         # Download files (faster than using Python API)
-        os.system(f"gcloud storage cp -n -r gs://{EE_BUCKET_TIFS}/tifs/ {data_folder}")
+        os.system(f"gcloud storage cp -n -r gs://{EE_BUCKET_TIFS}/tifs/* {data_folder}")
 
     @staticmethod
     def month_to_array(start_month: int, num_timesteps: int):
