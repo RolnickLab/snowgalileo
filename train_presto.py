@@ -29,7 +29,7 @@ batch_size = 1
 ema = (0.996, 1.0)
 mask_ratio = 0.5
 
-dataset = PrestoToPrestoMaskedDataset(DATA_FOLDER / "tifs", mask_ratio=mask_ratio)
+dataset = PrestoToPrestoMaskedDataset(DATA_FOLDER / "tifs", mask_ratio=mask_ratio, download=False)
 encoder = Encoder().to(device)
 predictor = PrestoDecoder().to(device)
 target_encoder = deepcopy(encoder)
