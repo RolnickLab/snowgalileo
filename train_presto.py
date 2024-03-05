@@ -78,7 +78,9 @@ for e in range(num_epochs):
         reversed_d, reversed_s = (1 - d_m).bool(), (1 - s_m).bool()
 
         # generate the predictions. TODO: add layer norm
-        p_d, p_s, _, _ = predictor(*encoder(d_x.float(), s_x.float(), d_m, s_m, months.long()))
+        p_d, p_s, _, _ = predictor(
+            *encoder(d_x.float(), s_x.float(), d_m.float(), s_m.float(), months.long())
+        )
         # generate the targets
         t_d, t_s, _, _ = target_encoder(
             d_x.float(), s_x.float(), torch.zeros_like(d_m), torch.zeros_like(s_m), months.long()
