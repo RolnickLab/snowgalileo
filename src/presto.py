@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from einops import rearrange, repeat
 from torch import nn
@@ -5,6 +6,12 @@ from torch.jit import Final
 from torch.nn import functional as F
 
 from .data import DYNAMIC_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
+from .data.config import PRESTO_INPUT_SIZE
+from .embeddings import (
+    get_1d_sincos_pos_embed_from_grid,
+    get_2d_sincos_pos_embed,
+    get_month_encoding_table,
+)
 
 
 class Attention(nn.Module):
@@ -159,6 +166,8 @@ class PrestoAttn(nn.Module):
         mlp_ratio=2,
         num_heads=8,
         max_sequence_length=24,
+        channel_embed_ratio: float = 0.25,
+        month_embed_ratio: float = 0.25,
     ):
         super().__init__()
         self.temporal_blocks = nn.ModuleList(
@@ -189,6 +198,28 @@ class PrestoAttn(nn.Module):
 
         # the positional + monthly + channel embedding
         self.max_sequence_length = max_sequence_length
+        # embeddings for the (T, C) attention
+        pos_embed_dim = int(embedding_size * (1 - (channel_embed_ratio + month_embed_ratio)))
+        channel_embed_dim = int(embedding_size * channel_embed_ratio)
+        month_embed_dim = int(embedding_size * month_embed_ratio)
+        self.pos_embed = nn.Parameter(
+            torch.from_numpy(
+                get_1d_sincos_pos_embed_from_grid(pos_embed_dim, np.arange(max_sequence_length))
+            ),
+            requires_grad=False,
+        )
+        month_tab = torch.from_numpy(get_month_encoding_table(month_embed_dim))
+        self.month_embed = nn.Embedding.from_pretrained(month_tab, freeze=True)
+        self.d_channel_embed = nn.Parameter(
+            torch.zeros(len(DYNAMIC_BANDS_GROUPS_IDX), channel_embed_dim)
+        )
+        self.s_channel_embed = nn.Parameter(
+            torch.zeros(len(STATIC_BAND_GROUPS_IDX), channel_embed_dim)
+        )
+        self.pos_embed_2d = nn.Parameter(
+            torch.from_numpy(get_2d_sincos_pos_embed(embedding_size, PRESTO_INPUT_SIZE)),
+            requires_grad=False,
+        )
 
         self.initialize_weights()
 
@@ -206,11 +237,36 @@ class PrestoAttn(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
-    def apply_temporal_channel_attention(self, d_x, s_x, d_m, s_m):
+    def construct_temporal_channel_embeddings(self, b: int, h: int, w: int, months: torch.Tensor):
+        t = months.shape[1]
+        d_channel = repeat(self.d_channel_embed, "c_g d -> b h w t c_g d", b=b, h=h, w=w, t=t)
+        c_g = d_channel.shape[-2]
+        d_pos = repeat(self.pos_embed[:t], "t d -> b h w t c_g d", b=b, h=h, w=w, c_g=c_g)
+        m_embed = repeat(self.month_embed(months), "b t d -> b h w t c_g d", h=h, w=w, c_g=c_g)
+
+        d_embed = torch.cat([d_channel, d_pos, m_embed], dim=-1)
+        s_channel = repeat(self.s_channel_embed, "c_g d -> b h w c_g d", b=b, h=h, w=w)
+        s_zeros = torch.zeros(
+            b, h, w, s_channel.shape[-2], d_embed.shape[-1] - s_channel.shape[-1]
+        )
+        s_embed = torch.cat([s_channel, s_zeros], dim=-1)
+        return d_embed, s_embed
+
+    def construct_spatial_channel_embeddings(self, b: int, t: int, d_c_g: int, s_c_g: int):
+        d_pos_embed_2d = repeat(self.pos_embed_2d, "hw d -> b tc hw d", b=b, tc=t * d_c_g)
+        s_pos_embed_2d = repeat(self.pos_embed_2d, "hw d -> b s_c hw d", b=b, s_c=s_c_g)
+        return d_pos_embed_2d, s_pos_embed_2d
+
+    def apply_temporal_channel_attention(self, d_x, s_x, d_m, s_m, months):
         b, h, w = d_x.shape[0], d_x.shape[1], d_x.shape[2]
         d_t, d_c, s_c = d_x.shape[3], d_x.shape[4], s_x.shape[3]
 
+        d_embed, s_embed = self.construct_temporal_channel_embeddings(b, h, w, months)
+
         # apply temporal Transformer blocks
+        d_x += d_embed
+        s_x += s_embed
+
         d_x = rearrange(d_x, "b h w t c d -> (b h w) (t c) d")
         d_m = rearrange(d_m, "b h w t c -> (b h w) (t c)")
         s_x = rearrange(s_x, "b h w c d -> (b h w) c d")
@@ -232,10 +288,16 @@ class PrestoAttn(nn.Module):
 
     def apply_spatial_attention(self, d_x, s_x, d_m, s_m):
         b, h, w, d_t, d_c = d_x.shape[0], d_x.shape[1], d_x.shape[2], d_x.shape[3], d_x.shape[4]
+        s_c = s_x.shape[3]
         d_x = rearrange(d_x, "b h w t c d -> b (t c) (h w) d")
         d_m = rearrange(d_m, "b h w t c -> b (t c) (h w)")
         s_x = rearrange(s_x, "b h w c d -> b c (h w) d")
         s_m = rearrange(s_m, "b h w c -> b c (h w)")
+
+        d_embed, s_embed = self.construct_spatial_channel_embeddings(b, d_t, d_c, s_c)
+        d_x += d_embed
+        s_x += s_embed
+
         num_d_t = d_t * d_c
         x = torch.cat([d_x, s_x], dim=1)
         m = torch.cat([d_m, s_m], dim=1)
@@ -262,10 +324,11 @@ class PrestoAttn(nn.Module):
         static_x: torch.Tensor,
         dynamic_mask: torch.Tensor,
         static_mask: torch.Tensor,
+        months: torch.Tensor,
     ):
         # apply temporal Transformer blocks
         dynamic_x, static_x, dynamic_mask, static_mask = self.apply_temporal_channel_attention(
-            dynamic_x, static_x, dynamic_mask, static_mask
+            dynamic_x, static_x, dynamic_mask, static_mask, months
         )
         dynamic_x, static_x, dynamic_mask, static_mask = self.apply_spatial_attention(
             dynamic_x, static_x, dynamic_mask, static_mask
@@ -337,10 +400,10 @@ class Encoder(nn.Module):
             s_i.append(self.static_embed[channel_group](static_x[:, :, :, channel_idxs]))
             s_m.append(static_mask[:, :, :, channel_idxs[0]])
         return (
-            torch.stack(d_i, dim=3),
-            torch.stack(s_i, dim=3),
-            torch.stack(d_m, dim=3),
-            torch.stack(s_m, dim=3),
+            torch.stack(d_i, dim=-2),
+            torch.stack(s_i, dim=-2),
+            torch.stack(d_m, dim=-1),
+            torch.stack(s_m, dim=-1),
         )
 
     def forward(
@@ -355,7 +418,7 @@ class Encoder(nn.Module):
             dynamic_x, static_x, dynamic_mask, static_mask
         )
         dynamic_x, static_x, dynamic_mask, static_mask = self.presto_attn(
-            dynamic_x, static_x, dynamic_mask, static_mask
+            dynamic_x, static_x, dynamic_mask, static_mask, months
         )
         return dynamic_x, static_x, dynamic_mask, static_mask, months
 
@@ -408,6 +471,6 @@ class PrestoDecoder(nn.Module):
         static_x = self.decoder_embed(static_x)
         dynamic_x, dynamic_mask = self.add_masks(dynamic_x, dynamic_mask)
         dynamic_x, static_x, dynamic_mask, static_mask = self.presto_attn(
-            dynamic_x, static_x, dynamic_mask, static_mask
+            dynamic_x, static_x, dynamic_mask, static_mask, months
         )
         return dynamic_x, static_x, dynamic_mask, static_mask
