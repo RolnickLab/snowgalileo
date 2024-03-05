@@ -247,7 +247,12 @@ class PrestoAttn(nn.Module):
         d_embed = torch.cat([d_channel, d_pos, m_embed], dim=-1)
         s_channel = repeat(self.s_channel_embed, "c_g d -> b h w c_g d", b=b, h=h, w=w)
         s_zeros = torch.zeros(
-            b, h, w, s_channel.shape[-2], d_embed.shape[-1] - s_channel.shape[-1]
+            b,
+            h,
+            w,
+            s_channel.shape[-2],
+            d_embed.shape[-1] - s_channel.shape[-1],
+            device=s_channel.device,
         )
         s_embed = torch.cat([s_channel, s_zeros], dim=-1)
         return d_embed, s_embed
