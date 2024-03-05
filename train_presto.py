@@ -82,9 +82,14 @@ for e in range(num_epochs):
             *encoder(d_x.float(), s_x.float(), d_m.float(), s_m.float(), months.long())
         )
         # generate the targets
-        t_d, t_s, _, _ = target_encoder(
-            d_x.float(), s_x.float(), torch.zeros_like(d_m), torch.zeros_like(s_m), months.long()
-        )
+        with torch.no_grad():
+            t_d, t_s, _, _ = target_encoder(
+                d_x.float(),
+                s_x.float(),
+                torch.zeros_like(d_m),
+                torch.zeros_like(s_m),
+                months.long(),
+            )
         loss = F.smooth_l1_loss(
             torch.concat([p_d[reversed_d], p_s[reversed_s]]),
             torch.concat([t_d[reversed_d], t_s[reversed_s]]),
