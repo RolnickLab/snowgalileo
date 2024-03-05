@@ -6,7 +6,7 @@ from typing import Tuple
 import numpy as np
 from einops import repeat
 
-from .data.config import (
+from .config import (
     CROMA_INPUT_SIZE,
     NUM_TIMESTEPS,
     NUM_VIT_PATCHES_PER_CROMA_DIM,
