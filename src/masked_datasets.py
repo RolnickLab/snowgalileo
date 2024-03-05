@@ -119,9 +119,12 @@ def mask_by_croma_spatial_blocks(
     )
     # expand the temporal and band dims so they match the dynamic and static input shapes
     dynamic_mask = repeat(
-        pixel_spatial_mask, "h w -> h w t c", t=dynamic_input.shape[2], c=dynamic_input.shape[3]
+        pixel_spatial_mask,
+        "h w -> h w t c",
+        t=dynamic_input.shape[2],
+        c=len(DYNAMIC_BANDS_GROUPS_IDX),
     )
-    static_mask = repeat(pixel_spatial_mask, "h w -> h w c", c=static_input.shape[2])
+    static_mask = repeat(pixel_spatial_mask, "h w -> h w c", c=len(STATIC_BAND_GROUPS_IDX))
 
     return MaskedOutput(dynamic_input, static_input, dynamic_mask, static_mask, months)
 
@@ -179,14 +182,8 @@ def mask_by_croma_blocks_random(
     static_pixel_spatial_mask = np.repeat(
         np.repeat(static_mask, repeats=VIT_PATCH_SIZE, axis=0), repeats=VIT_PATCH_SIZE, axis=1
     )
-    static_pixel_spatial_mask = np.repeat(
-        static_pixel_spatial_mask, STATIC_BAND_EXPANSION, axis=-1
-    )
     dynamic_pixel_spatial_mask = np.repeat(
         np.repeat(dynamic_mask, repeats=VIT_PATCH_SIZE, axis=0), repeats=VIT_PATCH_SIZE, axis=1
-    )
-    dynamic_pixel_spatial_mask = np.repeat(
-        dynamic_pixel_spatial_mask, DYNAMIC_BAND_EXPANSION, axis=-1
     )
 
     return MaskedOutput(
@@ -230,10 +227,6 @@ class PrestoToPrestoMaskedDataset(Dataset):
             w=PRESTO_INPUT_SIZE,
             c_g=len(DYNAMIC_BANDS_GROUPS_IDX),
         )
-        # then we go from token space back to pixel space
-        static_mask = np.repeat(static_mask, STATIC_BAND_EXPANSION, axis=-1)
-        dynamic_mask = np.repeat(dynamic_mask, DYNAMIC_BAND_EXPANSION, axis=-1)
-
         return MaskedOutput(dynamic_input, static_input, dynamic_mask, static_mask, months)
 
     def __getitem__(self, idx) -> MaskedOutput:
