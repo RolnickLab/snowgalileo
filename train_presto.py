@@ -90,6 +90,7 @@ for e in range(num_epochs):
                 torch.zeros_like(s_m),
                 months.long(),
             )
+
         loss = F.smooth_l1_loss(
             torch.concat([p_d[reversed_d], p_s[reversed_s]]),
             torch.concat([t_d[reversed_d], t_s[reversed_s]]),
