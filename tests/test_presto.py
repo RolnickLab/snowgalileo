@@ -10,7 +10,7 @@ from src.masked_datasets import (
     MaskedOutput,
     PrestoToPrestoMaskedDataset,
 )
-from src.presto import Encoder, PrestoDecoder
+from src.presto import Encoder, PrestoAttn, PrestoDecoder
 
 DATA_FOLDER = Path(__file__).parents[1] / "data"
 TEST_FILE = (
@@ -82,3 +82,32 @@ class TestPresto(unittest.TestCase):
         self.assertTrue((o_m == 0).all())
         self.assertTrue((o[:, :, :, 0] == 0).all())
         self.assertTrue((o[:, :, :, 1:] == 1).all())
+
+    def test_presto_time_channel_encodings(self):
+        b, h, w, t, d, c_r, m_r = 1, 2, 3, 4, 8, 0.25, 0.25
+        model = PrestoAttn(
+            embedding_size=d, num_heads=1, channel_embed_ratio=c_r, month_embed_ratio=m_r
+        )
+        months = torch.arange(0, t).unsqueeze(0)
+        with torch.no_grad():
+            d_encodings, s_encodings = model.construct_temporal_channel_embeddings(
+                b=b, h=h, w=w, months=months
+            )
+        self.assertEqual(list(d_encodings.shape), [b, h, w, t, len(DYNAMIC_BANDS_GROUPS_IDX), d])
+        self.assertEqual(list(s_encodings.shape), [b, h, w, len(STATIC_BAND_GROUPS_IDX), d])
+
+        for i in range(len(DYNAMIC_BANDS_GROUPS_IDX)):
+            channel_dims = int(d * c_r)
+            channel_encodings = d_encodings[:, :, :, :, i, :channel_dims]  # [b, h, w, t, d]
+            channel_mean = channel_encodings.mean(dim=[0, 1, 2, 3])
+            self.assertTrue(torch.equal(channel_encodings[0, 0, 0, 0], channel_mean))
+
+        for i in range(t):
+            time_encodings = d_encodings[:, :, :, i, :, channel_dims:]  # [b, h, w, c_g, d]
+            time_mean = time_encodings.mean(dim=[0, 1, 2, 3])
+            self.assertTrue(torch.allclose(time_encodings[0, 0, 0, 0], time_mean))
+            # also make sure they are different
+            if i > 0:
+                prev_time_encodings = d_encodings[:, :, :, i - 1, :, channel_dims:]
+                prev_time_mean = prev_time_encodings.mean(dim=[0, 1, 2, 3])
+                self.assertFalse((prev_time_mean == time_mean).any())
