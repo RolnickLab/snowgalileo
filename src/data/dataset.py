@@ -51,7 +51,7 @@ class Dataset(PyTorchDataset):
         self.data_folder = data_folder
         if download:
             self.download(data_folder)
-        self.tifs = list(data_folder.glob("*.tiff"))
+        self.tifs = list(data_folder.glob("*.tif"))
 
     def __len__(self) -> int:
         return len(self.tifs)
