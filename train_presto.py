@@ -31,7 +31,7 @@ mask_ratio = 0.5
 
 dataset = PrestoToPrestoMaskedDataset(DATA_FOLDER / "tifs", mask_ratio=mask_ratio, download=False)
 encoder = Encoder(embedding_size=64).to(device)
-predictor = PrestoDecoder(embedding_size=64).to(device)
+predictor = PrestoDecoder(encoder_embedding_size=64, decoder_embedding_size=64).to(device)
 target_encoder = deepcopy(encoder)
 
 
