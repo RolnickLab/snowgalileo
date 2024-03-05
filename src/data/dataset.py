@@ -78,7 +78,11 @@ class Dataset(PyTorchDataset):
         is_nan = np.isnan(data)
         if not is_nan.any():
             return data
-        mean_per_time_band = np.nanmean(data, axis=(0, 1))  # t, b or b
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
+            mean_per_time_band = np.nanmean(data, axis=(0, 1))  # t, b or b
+
         if np.isnan(mean_per_time_band).any():
             # If a band has all nan values, fill with default: 0
             mean_per_time_band = np.nan_to_num(mean_per_time_band, nan=0)
