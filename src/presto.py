@@ -269,8 +269,8 @@ class PrestoAttn(nn.Module):
         d_embed, s_embed = self.construct_temporal_channel_embeddings(b, h, w, months)
 
         # apply temporal Transformer blocks
-        d_x += d_embed
-        s_x += s_embed
+        d_x = d_x + d_embed
+        s_x = s_x + s_embed
 
         d_x = rearrange(d_x, "b h w t c d -> (b h w) (t c) d")
         d_m = rearrange(d_m, "b h w t c -> (b h w) (t c)")
@@ -300,8 +300,8 @@ class PrestoAttn(nn.Module):
         s_m = rearrange(s_m, "b h w c -> b c (h w)")
 
         d_embed, s_embed = self.construct_spatial_channel_embeddings(b, d_t, d_c, s_c)
-        d_x += d_embed
-        s_x += s_embed
+        d_x = d_x + d_embed
+        s_x = s_x + s_embed
 
         num_d_t = d_t * d_c
         x = torch.cat([d_x, s_x], dim=1)
@@ -457,11 +457,11 @@ class PrestoDecoder(nn.Module):
         # we make an assumption here that mask_by_presto_pixels_time
         # was used to make the masks. This means we only have masked
         # timesteps, which simplifies the mask addition
-        d_x *= (1 - d_m).unsqueeze(-1)
+        d_x = d_x * (1 - d_m).unsqueeze(-1)
         B, H, W, T, C = d_x.shape[0], d_x.shape[1], d_x.shape[2], d_x.shape[3], d_x.shape[4]
         mask_reshaped = repeat(self.mask_token, "d -> b h w t c d", b=B, h=H, w=W, t=T, c=C)
         masks_to_add = mask_reshaped * d_m.unsqueeze(-1)
-        d_m *= 0  # all values are unmasked now
+        d_m = d_m * 0  # all values are unmasked now
         return d_x + masks_to_add, d_m
 
     def forward(
