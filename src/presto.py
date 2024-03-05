@@ -205,10 +205,10 @@ class PrestoAttn(nn.Module):
         self.pos_embed = nn.Parameter(
             torch.from_numpy(
                 get_1d_sincos_pos_embed_from_grid(pos_embed_dim, np.arange(max_sequence_length))
-            ),
+            ).float(),
             requires_grad=False,
         )
-        month_tab = torch.from_numpy(get_month_encoding_table(month_embed_dim))
+        month_tab = torch.from_numpy(get_month_encoding_table(month_embed_dim)).float()
         self.month_embed = nn.Embedding.from_pretrained(month_tab, freeze=True)
         self.d_channel_embed = nn.Parameter(
             torch.zeros(len(DYNAMIC_BANDS_GROUPS_IDX), channel_embed_dim)
@@ -217,7 +217,7 @@ class PrestoAttn(nn.Module):
             torch.zeros(len(STATIC_BAND_GROUPS_IDX), channel_embed_dim)
         )
         self.pos_embed_2d = nn.Parameter(
-            torch.from_numpy(get_2d_sincos_pos_embed(embedding_size, PRESTO_INPUT_SIZE)),
+            torch.from_numpy(get_2d_sincos_pos_embed(embedding_size, PRESTO_INPUT_SIZE)).float(),
             requires_grad=False,
         )
 
@@ -253,7 +253,7 @@ class PrestoAttn(nn.Module):
             s_channel.shape[-2],
             d_embed.shape[-1] - s_channel.shape[-1],
             device=s_channel.device,
-        )
+        ).float()
         s_embed = torch.cat([s_channel, s_zeros], dim=-1)
         return d_embed, s_embed
 
