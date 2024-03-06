@@ -115,8 +115,9 @@ class Dataset(PyTorchDataset):
 
     @classmethod
     def tif_to_array(cls, tif_path: Path) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        data = cast(xr.Dataset, rioxarray.open_rasterio(tif_path))
-        values = cast(np.ndarray, data.values)
+        with cast(xr.Dataset, rioxarray.open_rasterio(tif_path)) as data:
+            values = cast(np.ndarray, data.values)
+
         static_data = rearrange(values[-len(STATIC_BANDS) :], "b h w -> h w b")
         static_data = cls._fillna(static_data, np.array(STATIC_BANDS))
         num_timesteps = (values.shape[0] - len(STATIC_BANDS)) / len(EO_DYNAMIC_BANDS)

@@ -1,9 +1,11 @@
 import os
 from copy import deepcopy
 
+import psutil
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER, EE_PROJECT
@@ -12,6 +14,7 @@ from src.presto import Encoder, PrestoDecoder
 from src.utils import seed_everything
 
 seed_everything(DEFAULT_SEED)
+process = psutil.Process()
 
 os.environ["GOOGLE_CLOUD_PROJECT"] = EE_PROJECT
 
@@ -72,8 +75,8 @@ momentum_scheduler = (
     for i in range(int(iterations_per_epoch * num_epochs) + 1)
 )
 
-for e in range(num_epochs):
-    for i, b in enumerate(dataloader):
+for e in tqdm(range(num_epochs)):
+    for i, b in tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
         b = [t.to(device) for t in b]
         d_x, s_x, d_m, s_m, months = b
         reversed_d, reversed_s = (1 - d_m).bool(), (1 - s_m).bool()
@@ -97,7 +100,11 @@ for e in range(num_epochs):
             torch.concat([t_d[reversed_d], t_s[reversed_s]]),
         )
         loss.backward()
-        print(f"Epoch {e}, iteration {i}: loss = {loss.item()}")
+        optimizer.step()
+        print(
+            f"Epoch {e}, iteration {i}: loss = {loss.item()}, memory used: {process.memory_info().rss}",
+            flush=True,
+        )
         optimizer.zero_grad()
         with torch.no_grad():
             m = next(momentum_scheduler)
