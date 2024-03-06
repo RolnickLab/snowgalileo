@@ -1,5 +1,4 @@
 from collections import namedtuple
-from enum import Enum
 from pathlib import Path
 from typing import Tuple
 
@@ -19,13 +18,6 @@ from .data.dataset import DYNAMIC_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX, Data
 # group-channel space into real-channel space
 DYNAMIC_BAND_EXPANSION = [len(x) for x in DYNAMIC_BANDS_GROUPS_IDX.values()]
 STATIC_BAND_EXPANSION = [len(x) for x in STATIC_BAND_GROUPS_IDX.values()]
-
-
-class MaskingStrategy(Enum):
-    CROMA_TO_PRESTO = 0
-    PRESTO_TO_CROMA = 1
-    CROMA_TO_CROMA = 2
-    PRESTO_TO_PRESTO = 3
 
 
 MaskedOutput = namedtuple(
