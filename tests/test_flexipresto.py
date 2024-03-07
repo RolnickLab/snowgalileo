@@ -31,12 +31,16 @@ class TestPresto(unittest.TestCase):
         )
 
     def test_presto_end_to_end(self):
-        embedding_size, patch_size = 8, 4
-        encoder = Encoder(embedding_size=embedding_size, num_heads=1)
+        embedding_size, patch_size = 16, 8
+        inputs_per_dim = int(PRESTO_INPUT_SIZE / patch_size)
+        encoder = Encoder(
+            embedding_size=embedding_size, num_heads=1, num_inputs_per_spatial_dim=inputs_per_dim
+        )
         decoder = PrestoDecoder(
             encoder_embedding_size=embedding_size,
             decoder_embedding_size=embedding_size,
             num_heads=1,
+            num_inputs_per_spatial_dim=inputs_per_dim,
         )
         ds = PrestoToPrestoMaskedDataset(DATA_FOLDER, 0.25, False)
         output = ds[0]
@@ -95,7 +99,7 @@ class TestPresto(unittest.TestCase):
         self.assertFalse(torch.isnan(output[1]).any())
 
     def test_presto_decoder_add_masks(self):
-        embedding_size = 8
+        embedding_size = 16
         decoder = PrestoDecoder(
             encoder_embedding_size=embedding_size,
             decoder_embedding_size=embedding_size,

@@ -12,6 +12,11 @@ from torch import Tensor
 from torch.jit import Final
 
 from .data import DYNAMIC_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
+from .embeddings import (
+    get_1d_sincos_pos_embed_from_grid,
+    get_2d_sincos_pos_embed,
+    get_month_encoding_table,
+)
 
 
 # thanks to https://github.com/bwconrad/flexivit/ for this nice implementation
@@ -236,6 +241,8 @@ class FlexiPatchEmbed(nn.Module):
 
         if has_time_dimension:
             x = rearrange(x, "(b t) c h w -> b h w t c", b=batch_size, t=num_timesteps)
+        else:
+            x = rearrange(x, "b c h w -> b h w c")
         x = self.norm(x)
 
         return x
@@ -394,26 +401,7 @@ class Block(nn.Module):
         return x
 
 
-def collapse_hwtc(d_x: torch.Tensor, s_x: torch.Tensor, d_m: torch.Tensor, s_m: torch.Tensor):
-    d_x = rearrange(d_x, "b h w t c_g d -> b (h w t c_g) d")
-    s_x = rearrange(s_x, "b h w c_g d -> b (h w c_g) d")
-    d_m = rearrange(d_m, "b h w t c_g-> b (h w t c_g)")
-    s_m = rearrange(s_m, "b h w c_g-> b (h w c_g)")
-    return d_x, s_x, d_m, s_m
-
-
-def split_and_expand_hwtc(
-    x: torch.Tensor, m: torch.Tensor, h: int, w: int, t: int, d_c_g: int, s_c_g: int
-):
-    n_d_t = h * w * t * d_c_g
-    d_x = rearrange(x[:, :n_d_t], "b (h w t c) d -> b h w t c d", h=h, w=w, t=t, c=d_c_g)
-    s_x = rearrange(x[:, n_d_t:], "b (h w c) d -> b h w c d", h=h, w=w, c=s_c_g)
-    d_m = rearrange(m[:, :n_d_t], "b (h w t c) -> b h w t c", h=h, w=w, t=t, c=d_c_g)
-    s_m = rearrange(m[:, n_d_t:], "b (h w c) -> b h w c", h=h, w=w, c=s_c_g)
-    return d_x, s_x, d_m, s_m
-
-
-class Encoder(nn.Module):
+class FlexiPrestoBase(nn.Module):
     def __init__(
         self,
         embedding_size: int = 128,
@@ -421,6 +409,7 @@ class Encoder(nn.Module):
         mlp_ratio=2,
         num_heads=8,
         max_sequence_length=24,
+        num_inputs_per_spatial_dim=4,
     ):
         super().__init__()
 
@@ -452,6 +441,136 @@ class Encoder(nn.Module):
                 )
                 for _ in range(depth)
             ]
+        )
+
+        self.max_sequence_length = max_sequence_length
+        # we have 4 embeddings (pos_in_time, pos_in_space, month, channel) so each get
+        # 0.25 of the dimension. This will change soon anyway
+        self.pos_embed = nn.Parameter(
+            torch.from_numpy(
+                get_1d_sincos_pos_embed_from_grid(
+                    int(embedding_size * 0.25), np.arange(max_sequence_length)
+                )
+            ).float(),
+            requires_grad=False,
+        )
+        month_tab = torch.from_numpy(get_month_encoding_table(int(embedding_size * 0.25))).float()
+        self.month_embed = nn.Embedding.from_pretrained(month_tab, freeze=True)
+        self.d_channel_embed = nn.Parameter(
+            torch.zeros(len(DYNAMIC_BANDS_GROUPS_IDX), int(embedding_size * 0.25))
+        )
+        self.s_channel_embed = nn.Parameter(
+            torch.zeros(len(STATIC_BAND_GROUPS_IDX), int(embedding_size * 0.25))
+        )
+        self.pos_embed_2d = nn.Parameter(
+            torch.from_numpy(
+                get_2d_sincos_pos_embed(int(embedding_size * 0.25), num_inputs_per_spatial_dim)
+            ).float(),
+            requires_grad=False,
+        )
+
+        self.apply(self._init_weights)
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            # we use xavier_uniform following official JAX ViT:
+            torch.nn.init.xavier_uniform_(m.weight)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+
+    @staticmethod
+    def collapse_hwtc(d_x: torch.Tensor, s_x: torch.Tensor, d_m: torch.Tensor, s_m: torch.Tensor):
+        d_x = rearrange(d_x, "b h w t c_g d -> b (h w t c_g) d")
+        s_x = rearrange(s_x, "b h w c_g d -> b (h w c_g) d")
+        d_m = rearrange(d_m, "b h w t c_g-> b (h w t c_g)")
+        s_m = rearrange(s_m, "b h w c_g-> b (h w c_g)")
+        return d_x, s_x, d_m, s_m
+
+    @staticmethod
+    def split_and_expand_hwtc(
+        x: torch.Tensor, m: torch.Tensor, h: int, w: int, t: int, d_c_g: int, s_c_g: int
+    ):
+        n_d_t = h * w * t * d_c_g
+        d_x = rearrange(x[:, :n_d_t], "b (h w t c) d -> b h w t c d", h=h, w=w, t=t, c=d_c_g)
+        s_x = rearrange(x[:, n_d_t:], "b (h w c) d -> b h w c d", h=h, w=w, c=s_c_g)
+        d_m = rearrange(m[:, :n_d_t], "b (h w t c) -> b h w t c", h=h, w=w, t=t, c=d_c_g)
+        s_m = rearrange(m[:, n_d_t:], "b (h w c) -> b h w c", h=h, w=w, c=s_c_g)
+        return d_x, s_x, d_m, s_m
+
+    def apply_encodings(self, d_x, s_x, months):
+        b, h, w, t, c_g_d, _ = d_x.shape
+        c_g_s = s_x.shape[-2]
+        d_channel = repeat(self.d_channel_embed, "c_g d -> b h w t c_g d", b=b, h=h, w=w, t=t)
+        d_pos = repeat(self.pos_embed[:t], "t d -> b h w t c_g d", b=b, h=h, w=w, c_g=c_g_d)
+        m_embed = repeat(self.month_embed(months), "b t d -> b h w t c_g d", h=h, w=w, c_g=c_g_d)
+
+        s_channel = repeat(self.s_channel_embed, "c_g d -> b h w c_g d", b=b, h=h, w=w)
+        s_zeros = torch.zeros(
+            b,
+            h,
+            w,
+            c_g_s,
+            s_channel.shape[-1] * 2,
+            device=s_channel.device,
+        ).float()
+
+        spatial_embed = rearrange(self.pos_embed_2d, "(h w) d -> h w d", h=h, w=w)
+        spatial_embed_d = repeat(
+            spatial_embed, " h w d -> b h w t c_g d", b=b, h=h, w=w, t=t, c_g=c_g_d
+        )
+        spatial_embed_s = repeat(spatial_embed, " h w d -> b h w c_g d", b=b, h=h, w=w, c_g=c_g_s)
+
+        d_embed = torch.cat([d_channel, d_pos, m_embed, spatial_embed_d], dim=-1)
+        s_embed = torch.cat([s_channel, s_zeros, spatial_embed_s], dim=-1)
+        print(s_x.shape, s_embed.shape)
+        return d_x + d_embed, s_x + s_embed
+
+    def apply_attn(self, d_x, s_x, d_m, s_m, m):
+        # todo - add encodings
+        _, h, w, t, d_c_g, _ = d_x.shape
+        s_c_g = s_x.shape[3]
+        d_x, s_x = self.apply_encodings(d_x, s_x, m)
+        d_x, s_x, d_m, s_m = self.collapse_hwtc(d_x, s_x, d_m, s_m)
+        x = torch.cat([d_x, s_x], dim=1)
+        m = torch.cat([d_m, s_m], dim=1)
+        for blk in self.blocks:
+            x = blk(x, attn_mask=~m.bool())
+        return self.split_and_expand_hwtc(x, m, h, w, t, d_c_g, s_c_g)
+
+
+class Encoder(FlexiPrestoBase):
+    def __init__(
+        self,
+        embedding_size: int = 128,
+        depth=2,
+        mlp_ratio=2,
+        num_heads=8,
+        max_sequence_length=24,
+        num_inputs_per_spatial_dim=4,
+    ):
+        super().__init__(
+            embedding_size,
+            depth,
+            mlp_ratio,
+            num_heads,
+            max_sequence_length,
+            num_inputs_per_spatial_dim,
+        )
+
+        self.dynamic_groups = DYNAMIC_BANDS_GROUPS_IDX
+        self.static_groups = STATIC_BAND_GROUPS_IDX
+
+        self.dynamic_embed = nn.ModuleDict(
+            {
+                group_name: FlexiPatchEmbed(in_chans=len(group), embed_dim=embedding_size)
+                for group_name, group in self.dynamic_groups.items()
+            }
+        )
+        self.static_embed = nn.ModuleDict(
+            {
+                group_name: FlexiPatchEmbed(in_chans=len(group), embed_dim=embedding_size)
+                for group_name, group in self.static_groups.items()
+            }
         )
 
         self.apply(self._init_weights)
@@ -515,24 +634,14 @@ class Encoder(nn.Module):
         dynamic_x, static_x, dynamic_mask, static_mask = self.apply_linear_projection(
             dynamic_x, static_x, dynamic_mask, static_mask, patch_size
         )
-        # todo - add encodings
-        _, h, w, t, d_c_g, _ = dynamic_x.shape
-        s_c_g = static_x.shape[3]
-        dynamic_x, static_x, dynamic_mask, static_mask = collapse_hwtc(
-            dynamic_x, static_x, dynamic_mask, static_mask
-        )
-        x = torch.cat([dynamic_x, static_x], dim=1)
-        m = torch.cat([dynamic_mask, static_mask], dim=1)
-        for blk in self.blocks:
-            x = blk(x, attn_mask=~m.bool())
-        dynamic_x, static_x, dynamic_mask, static_mask = split_and_expand_hwtc(
-            x, m, h, w, t, d_c_g, s_c_g
+        dynamic_x, static_x, dynamic_mask, static_mask = self.apply_attn(
+            dynamic_x, static_x, dynamic_mask, static_mask, months
         )
 
         return dynamic_x, static_x, dynamic_mask, static_mask, months
 
 
-class PrestoDecoder(nn.Module):
+class PrestoDecoder(FlexiPrestoBase):
     def __init__(
         self,
         encoder_embedding_size: int = 128,
@@ -541,24 +650,19 @@ class PrestoDecoder(nn.Module):
         mlp_ratio=2,
         num_heads=8,
         max_sequence_length=24,
+        num_inputs_per_spatial_dim=4,
     ):
-        super().__init__()
+        super().__init__(
+            decoder_embedding_size,
+            depth,
+            mlp_ratio,
+            num_heads,
+            max_sequence_length,
+            num_inputs_per_spatial_dim,
+        )
 
         self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
         self.decoder_embed = nn.Linear(encoder_embedding_size, decoder_embedding_size, bias=True)
-
-        self.blocks = nn.ModuleList(
-            [
-                Block(
-                    decoder_embedding_size,
-                    num_heads,
-                    mlp_ratio,
-                    qkv_bias=True,
-                    norm_layer=nn.LayerNorm,
-                )
-                for _ in range(depth)
-            ]
-        )
 
     def add_masks(self, d_x: torch.Tensor, d_m: torch.Tensor):
         # we make an assumption here that mask_by_presto_pixels_time
@@ -582,19 +686,4 @@ class PrestoDecoder(nn.Module):
         dynamic_x = self.decoder_embed(dynamic_x)
         static_x = self.decoder_embed(static_x)
         dynamic_x, dynamic_mask = self.add_masks(dynamic_x, dynamic_mask)
-
-        # todo - add encodings
-        _, h, w, t, d_c_g, _ = dynamic_x.shape
-        s_c_g = static_x.shape[3]
-        dynamic_x, static_x, dynamic_mask, static_mask = collapse_hwtc(
-            dynamic_x, static_x, dynamic_mask, static_mask
-        )
-        x = torch.cat([dynamic_x, static_x], dim=1)
-        m = torch.cat([dynamic_mask, static_mask], dim=1)
-        for blk in self.blocks:
-            x = blk(x, attn_mask=~m.bool())
-        dynamic_x, static_x, dynamic_mask, static_mask = split_and_expand_hwtc(
-            x, m, h, w, t, d_c_g, s_c_g
-        )
-
-        return dynamic_x, static_x, dynamic_mask, static_mask
+        return self.apply_attn(dynamic_x, static_x, dynamic_mask, static_mask, months)
