@@ -401,6 +401,7 @@ class Encoder(nn.Module):
     ):
         """
         Given a [H, W, (T), B] inputs, returns a [H, W, (T), B_G, D] output.
+        B_G = number of band groups, d = embedding dimension
         """
         d_i, d_m, s_i, s_m = [], [], [], []
         for idx, (channel_group, channel_idxs) in enumerate(self.dynamic_groups.items()):
