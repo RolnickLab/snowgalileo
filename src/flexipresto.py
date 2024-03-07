@@ -7,8 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange, repeat
-from functorch import vmap
-from torch import Tensor
+from torch import Tensor, vmap
 from torch.jit import Final
 
 from .data import DYNAMIC_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
@@ -522,7 +521,6 @@ class FlexiPrestoBase(nn.Module):
 
         d_embed = torch.cat([d_channel, d_pos, m_embed, spatial_embed_d], dim=-1)
         s_embed = torch.cat([s_channel, s_zeros, spatial_embed_s], dim=-1)
-        print(s_x.shape, s_embed.shape)
         return d_x + d_embed, s_x + s_embed
 
     def apply_attn(self, d_x, s_x, d_m, s_m, m):
