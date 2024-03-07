@@ -123,7 +123,6 @@ def mask_by_croma_spatial_blocks(
     dynamic_input, static_input, months = subset_image(
         dynamic_input, static_input, months, CROMA_INPUT_SIZE, NUM_TIMESTEPS
     )
-    # for the Presto to CROMA case, we will just remove blocks.
     # To begin with, we compute a flat "mask" of patches
     num_masked_patches = int((NUM_VIT_PATCHES_PER_CROMA_DIM**2) * mask_ratio)
     flat_spatial_mask = np.concatenate(

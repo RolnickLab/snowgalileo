@@ -108,6 +108,10 @@ class Dataset(PyTorchDataset):
 
     @staticmethod
     def month_to_array(start_month: int, num_timesteps: int):
+        """
+        Given a start_month and num_timesteps, returns an array of
+        months where months[idx] is the month for list(range(num_timesteps))[i]
+        """
         # >>> np.fmod(np.array([9., 10, 11, 12, 13, 14]), 12)
         # array([ 9., 10., 11.,  0.,  1.,  2.])
         # - 1 because we want to index from 0
