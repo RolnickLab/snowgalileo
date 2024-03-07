@@ -273,6 +273,11 @@ class PrestoAttn(nn.Module):
         return d_pos_embed_2d, s_pos_embed_2d
 
     def apply_temporal_channel_attention(self, d_x, s_x, d_m, s_m, months):
+        """
+        Attn requires a (B, N, D) input.
+        Move H, W into the B dimension, and T, C into the N dimension so
+        that the model attends over the time and channel dimensions
+        """
         b, h, w = d_x.shape[0], d_x.shape[1], d_x.shape[2]
         d_t, d_c, s_c = d_x.shape[3], d_x.shape[4], s_x.shape[3]
 
@@ -300,6 +305,11 @@ class PrestoAttn(nn.Module):
         return d_x, s_x, d_m, s_m
 
     def apply_spatial_attention(self, d_x, s_x, d_m, s_m):
+        """
+        Attn requires a (B, N, D) input.
+        Move T, C into the B dimension, and H, W into the N dimension so
+        that the model attends over the height and width dimensions
+        """
         b, h, w, d_t, d_c = d_x.shape[0], d_x.shape[1], d_x.shape[2], d_x.shape[3], d_x.shape[4]
         s_c = s_x.shape[3]
         d_x = rearrange(d_x, "b h w t c d -> b (t c) (h w) d")
