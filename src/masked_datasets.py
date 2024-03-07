@@ -203,6 +203,7 @@ class PrestoToPrestoMaskedDataset(Dataset):
             dynamic_input, static_input, months, PRESTO_INPUT_SIZE, NUM_TIMESTEPS
         )
         num_timesteps = dynamic_input.shape[2]
+        assert num_timesteps == NUM_TIMESTEPS
         num_timesteps_to_mask = int(num_timesteps * mask_ratio)
         flat_timesteps = np.concatenate(
             (
