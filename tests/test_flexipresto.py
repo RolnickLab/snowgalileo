@@ -30,17 +30,19 @@ class TestPresto(unittest.TestCase):
             torch.from_numpy(input.months).long().unsqueeze(0),
         )
 
-    def test_presto_end_to_end(self):
+    def test_end_to_end(self):
+        self._end_to_end_run(16, 8)
+
+    def test_end_to_end_different_inputs_per_dim_than_default(self):
+        self._end_to_end_run(16, 4)
+
+    def _end_to_end_run(self, embedding_size, patch_size):
         embedding_size, patch_size = 16, 8
-        inputs_per_dim = int(PRESTO_INPUT_SIZE / patch_size)
-        encoder = Encoder(
-            embedding_size=embedding_size, num_heads=1, num_inputs_per_spatial_dim=inputs_per_dim
-        )
+        encoder = Encoder(embedding_size=embedding_size, num_heads=1)
         decoder = PrestoDecoder(
             encoder_embedding_size=embedding_size,
             decoder_embedding_size=embedding_size,
             num_heads=1,
-            num_inputs_per_spatial_dim=inputs_per_dim,
         )
         ds = PrestoToPrestoMaskedDataset(DATA_FOLDER, 0.25, False)
         output = ds[0]
