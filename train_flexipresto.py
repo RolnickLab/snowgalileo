@@ -29,7 +29,7 @@ else:
 
 # this should live elsewhere
 num_epochs = 2
-batch_size = 1
+batch_size = 16
 ema = (0.996, 1.0)
 mask_ratio = 0.5
 spatial_patches_per_dim = 4
