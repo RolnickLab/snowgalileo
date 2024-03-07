@@ -88,7 +88,9 @@ for e in tqdm(range(num_epochs)):
         image_size = patch_size * spatial_patches_per_dim
         d_x, s_x, d_m, s_m = subset_batch_of_masked_outputs(d_x, s_x, d_m, s_m, image_size)
 
-        reversed_d, reversed_s = (1 - d_m).bool(), (1 - s_m).bool()
+        # also transform to patch-space
+        reversed_d = (1 - d_m[:, 0::patch_size, 0::patch_size]).bool()
+        reversed_s = (1 - s_m[:, 0::patch_size, 0::patch_size]).bool()
 
         # generate the predictions. TODO: add layer norm
         p_d, p_s, _, _ = predictor(
