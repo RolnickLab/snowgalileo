@@ -34,8 +34,8 @@ def subset_batch_of_masked_outputs(
     size: int,
 ):
     assert (dynamic_x.shape[1] == static_x.shape[1]) & (dynamic_x.shape[2] == static_x.shape[2])
-    possible_h = dynamic_x.shape[0] - size
-    possible_w = dynamic_x.shape[1] - size
+    possible_h = dynamic_x.shape[1] - size
+    possible_w = dynamic_x.shape[2] - size
     assert (possible_h >= 0) & (possible_w >= 0)
 
     if possible_h > 0:
