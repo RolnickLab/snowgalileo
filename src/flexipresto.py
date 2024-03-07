@@ -1,5 +1,6 @@
 import collections.abc
 import itertools
+import math
 from typing import Any, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
@@ -23,6 +24,46 @@ def to_2tuple(x: Any) -> Tuple:
     if isinstance(x, collections.abc.Iterable) and not isinstance(x, str):
         return tuple(x)
     return tuple(itertools.repeat(x, 2))
+
+
+def resize_abs_pos_embed(
+    pos_embed: torch.Tensor,
+    new_size: Tuple[int, int],
+    old_size: Optional[Union[int, Tuple[int, int]]] = None,
+    interpolation: str = "bicubic",
+    antialias: bool = True,
+) -> torch.Tensor:
+    """Resize absolute position embeddings to a target resolution via interpolation
+
+    Modified from: https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/pos_embed.py
+
+    Args:
+        pos_embed: Position embeddings tensor of size [b, n, d]
+        new_size: Target [height, width] of embedding
+        old_size: Original [height, width] of embedding
+        num_prefix_tokens: Number of non-spatial prefix tokens (eg. cls)
+        interpolation: Resize interpolation type
+        antialias: Whether to apply antialiasing resizing
+    Returns:
+        Resized pos_embed of size [b, n', d]
+    """
+
+    new_size = to_2tuple(new_size)
+    new_ntok = new_size[0] * new_size[1]
+    if not old_size:
+        old_size = int(math.sqrt(pos_embed.shape[1]))  # type:ignore
+    old_size = to_2tuple(old_size)
+
+    # Return if no resize necessary
+    if new_size == old_size:
+        return pos_embed
+
+    # Interpolate position embedding
+    pos_embed = pos_embed.reshape(1, old_size[0], old_size[1], -1).permute(0, 3, 1, 2)
+    pos_embed = F.interpolate(pos_embed, size=new_size, mode=interpolation, antialias=antialias)
+    pos_embed = pos_embed.permute(0, 2, 3, 1).reshape(1, new_ntok, -1)
+
+    return pos_embed
 
 
 def pi_resize_patch_embed(
@@ -408,7 +449,7 @@ class FlexiPrestoBase(nn.Module):
         mlp_ratio=2,
         num_heads=8,
         max_sequence_length=24,
-        num_inputs_per_spatial_dim=4,
+        base_inputs_per_spatial_dim=4,
     ):
         super().__init__()
 
@@ -463,7 +504,7 @@ class FlexiPrestoBase(nn.Module):
         )
         self.pos_embed_2d = nn.Parameter(
             torch.from_numpy(
-                get_2d_sincos_pos_embed(int(embedding_size * 0.25), num_inputs_per_spatial_dim)
+                get_2d_sincos_pos_embed(int(embedding_size * 0.25), base_inputs_per_spatial_dim)
             ).float(),
             requires_grad=False,
         )
@@ -513,11 +554,14 @@ class FlexiPrestoBase(nn.Module):
             device=s_channel.device,
         ).float()
 
-        spatial_embed = rearrange(self.pos_embed_2d, "(h w) d -> h w d", h=h, w=w)
-        spatial_embed_d = repeat(
-            spatial_embed, " h w d -> b h w t c_g d", b=b, h=h, w=w, t=t, c_g=c_g_d
+        spatial_embed = resize_abs_pos_embed(
+            repeat(self.pos_embed_2d, "hw d -> b hw d", b=b), (h, w)
         )
-        spatial_embed_s = repeat(spatial_embed, " h w d -> b h w c_g d", b=b, h=h, w=w, c_g=c_g_s)
+        spatial_embed = rearrange(spatial_embed, "b (h w) d -> b h w d", h=h, w=w)
+        spatial_embed_d = repeat(
+            spatial_embed, "b h w d -> b h w t c_g d", h=h, w=w, t=t, c_g=c_g_d
+        )
+        spatial_embed_s = repeat(spatial_embed, "b h w d -> b h w c_g d", h=h, w=w, c_g=c_g_s)
 
         d_embed = torch.cat([d_channel, d_pos, m_embed, spatial_embed_d], dim=-1)
         s_embed = torch.cat([s_channel, s_zeros, spatial_embed_s], dim=-1)
