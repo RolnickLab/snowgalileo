@@ -52,7 +52,7 @@ class So2SatDataset(PyTorchDataset):
             self, 
             split: str = "training",
     ):
-        assert split in ["training", "validation", "test"]
+        assert split in ["training", "validation", "testing"]
 
         self.split = split
         self.data = h5py.File(h5_data_dir + split + ".h5", 'r')
