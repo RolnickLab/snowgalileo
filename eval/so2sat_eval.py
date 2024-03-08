@@ -1,8 +1,16 @@
 import h5py
 import numpy as np
 import logging
+import tqdm
+from copy import deepcopy
 
 from torch.utils.data import Dataset as PyTorchDataset
+from torch.utils.data import DataLoader
+
+from ..src.masked_datasets import PrestoToPrestoMaskedDataset
+from ..src.presto import Encoder, PrestoDecoder
+from ..src.utils import seed_everything
+from ..src.config import DEFAULT_SEED
 
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
@@ -10,7 +18,7 @@ torch.multiprocessing.set_sharing_strategy('file_system')
 logger = logging.getLogger("__main__")
 
 
-h5_data_dir = "./data/so2sat/TUM/"
+h5_data_dir = "../data/so2sat/TUM/"
 
 
 class So2SatDataset(PyTorchDataset):
@@ -124,26 +132,71 @@ class So2SatDataset(PyTorchDataset):
     def __getitem__(self, idx):
 
         s1, s2_1, s2_2, s2_3, s2_4, s2_5, label = self.h5_to_array(self.split, idx)
+        
+        masked_output = PrestoToPrestoMaskedDataset.mask_by_presto_pixels_time(d_x, s_x, months, mask_ratio=0.25)
+
+        # d_x.shape(2) = num_timesteps
+
         logger.info(f"s1: {s1.shape}, s2_1: {s2_1.shape}, s2_2: {s2_2.shape}, s2_3: {s2_3.shape}, s2_4: {s2_4.shape}, s2_5: {s2_5.shape}, label: {label.shape}")
         logger.info(f"s1 unique: {np.unique(s1)}, s2_1 unique: {np.unique(s2_1)}, s2_2 unique: {np.unique(s2_2)}, s2_3 unique: {np.unique(s2_3)}, s2_4 unique: {np.unique(s2_4)}, s2_5 unique: {np.unique(s2_5)}, label unique: {np.unique(label)}")
 
         # provide a default class for dw, ndvi, era5 and srtm
 
-        return (
-            s1, 
-            s2_1, 
-            s2_2, 
-            s2_3, 
-            s2_4, 
-            s2_5, 
-            label
-        )
+        return masked_output
+    
+#b = dataset[0]
 
-
-dataset = So2SatDataset(split="test")
-
-b = dataset[0]
 # b is a MaskedOutput object d_x, s_x, d_m, s_m, months
 # d_x has shape [32, 32, 1, 9] with the correct channels masked out in d_m
-
 # write a test for the dataset
+    
+
+SPLIT = "testing"
+BATCH_SIZE = 64
+NUM_EPOCHS = 10
+
+seed_everything(DEFAULT_SEED)
+
+if not torch.cuda.is_available():
+    device = torch.device("cpu")
+else:
+    device = torch.device("cuda:0")
+    torch.cuda.set_device(device)
+
+print("Loading dataset and dataloader")
+dataset = So2SatDataset(
+    split=SPLIT,
+    )
+
+dataloader = DataLoader(
+    dataset, 
+    batch_size=BATCH_SIZE, 
+    shuffle=True,
+    #num_workers=0,
+    #collate_fn=So2SatDataset.collate_fn,
+    )
+
+print("Loading models")
+encoder = Encoder(embedding_size=64).to(device)
+predictor = PrestoDecoder(encoder_embedding_size=64, decoder_embedding_size=64).to(device)
+target_encoder = deepcopy(encoder)
+
+for e in tqdm(range(NUM_EPOCHS)):
+    for i, b in tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
+        b = [t.to(device) for t in b]
+        d_x, s_x, d_m, s_m, months = b
+        reversed_d, reversed_s = (1 - d_m).bool(), (1 - s_m).bool()
+
+        # generate the predictions. TODO: add layer norm
+        p_d, p_s, _, _ = predictor(
+            *encoder(d_x.float(), s_x.float(), d_m.float(), s_m.float(), months.long())
+        )
+        # generate the targets
+        with torch.no_grad():
+            t_d, t_s, _, _, _ = target_encoder(
+                d_x.float(),
+                s_x.float(),
+                torch.zeros_like(d_m),
+                torch.zeros_like(s_m),
+                months.long(),
+            )
