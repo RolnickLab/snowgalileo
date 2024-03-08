@@ -44,7 +44,7 @@ class So2SatDataset(PyTorchDataset):
             self, 
             split: str = "training",
     ):
-        assert split in ["training", "validation", "test"]
+        assert split in ["training", "validation", "testing"]
 
         self.split = split
         self.data = h5py.File(h5_data_dir + split + ".h5", 'r')
@@ -140,7 +140,7 @@ class So2SatDataset(PyTorchDataset):
         )
 
 
-dataset = So2SatDataset(split="test")
+dataset = So2SatDataset(split="testing")
 
 b = dataset[0]
 # b is a MaskedOutput object d_x, s_x, d_m, s_m, months
