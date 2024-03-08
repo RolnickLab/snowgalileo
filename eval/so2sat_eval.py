@@ -140,9 +140,11 @@ class So2SatDataset(PyTorchDataset):
         )
 
 
-dataset = So2SatDataset(split="testing")
 
-b = dataset[0]
+
+
+
+
 # b is a MaskedOutput object d_x, s_x, d_m, s_m, months
 # d_x has shape [32, 32, 1, 9] with the correct channels masked out in d_m
 
