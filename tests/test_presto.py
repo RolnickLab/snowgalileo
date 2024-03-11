@@ -39,7 +39,7 @@ class TestPresto(unittest.TestCase):
             decoder_embedding_size=embedding_size,
             num_heads=1,
         )
-        ds = PrestoToPrestoMaskedDataset(DATA_FOLDER, 0.25, False)
+        ds = PrestoToPrestoMaskedDataset(DATA_FOLDER / "presto_tif", 0.25, False)
         output = ds[0]
         with torch.no_grad():
             # for now, we just make sure it all runs
