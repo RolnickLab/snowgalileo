@@ -5,6 +5,7 @@ import torch
 
 from src.config import NUM_TIMESTEPS, PRESTO_INPUT_SIZE
 from src.data import DYNAMIC_BANDS_GROUPS_IDX
+from src.data.config import DATA_FOLDER
 from src.masked_datasets import (
     STATIC_BAND_GROUPS_IDX,
     MaskedOutput,
@@ -12,10 +13,8 @@ from src.masked_datasets import (
 )
 from src.presto import Encoder, PrestoAttn, PrestoDecoder
 
-DATA_FOLDER = Path(__file__).parents[1] / "data/tifs"
 TEST_FILE = (
-    DATA_FOLDER
-    / "tifs_min_lat=19.2005_min_lon=-155.6227_max_lat=19.2132_max_lon=-155.6094_dates=2022-01-01_2023-12-31.tif"
+    DATA_FOLDER / "test_files" / "presto_tif" / "tifs_min_lat=19.2005_min_lon=-155.6227_max_lat=19.2132_max_lon=-155.6094_dates=2022-01-01_2023-12-31.tif"
 )
 
 

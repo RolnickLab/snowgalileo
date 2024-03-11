@@ -23,27 +23,26 @@ MaskedOutput = namedtuple(
     "MaskedOutput", ["dynamic_x", "static_x", "dynamic_mask", "static_mask", "months"]
 )
 
-
-h5_data_dir = "../data/so2sat/TUM/"
-
-
 class So2SatDataset(PyTorchDataset):
     """
     So2Sat data is provided as .h5 files in the following shapes:
     sen1: [n, 32, 32, 8]
     sen2: [n, 32, 32, 10]
     label: [n, 17] (one-hot encoded labels for 17 LCV classes)
-    With n=352366 for the training set, n=24119 for the validation set, n=24188 for the test set.
+
+    With n=352366 for the training set, n=24119 for the validation set, n=24188 for the testing set.
     """
 
     def __init__(
         self,
+        data_path: str,
         split: str = "training",
     ):
         assert split in ["training", "validation", "testing"]
 
         self.split = split
-        self.data = h5py.File(h5_data_dir + split + ".h5", "r")
+        self.data_path = data_path
+        self.data = h5py.File(self.data_path, "r")
 
     def h5_to_eo_array(self, i: int) -> Tuple[np.ndarray, np.ndarray]:
         assert self.data["sen1"].shape == (self.__len__(), 32, 32, 8)

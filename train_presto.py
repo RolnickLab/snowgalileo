@@ -33,7 +33,7 @@ ema = (0.996, 1.0)
 mask_ratio = 0.5
 
 print("Loading dataset and dataloader")
-dataset = PrestoToPrestoMaskedDataset(DATA_FOLDER / "tifs", mask_ratio=mask_ratio, download=False)
+dataset = PrestoToPrestoMaskedDataset(DATA_FOLDER / "test_files" / "presto_tif", mask_ratio=mask_ratio, download=False)
 dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 print("Loading models")
 encoder = Encoder(embedding_size=64).to(device)
