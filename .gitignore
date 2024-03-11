@@ -1,6 +1,7 @@
 __pycache__
 # data needs to be explicitly added
 data/*
+!data/test_files/
 .ipynb_checkpoints
 models
 slurm
