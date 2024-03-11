@@ -12,10 +12,10 @@ class TestSo2Sat(unittest.TestCase):
         d_x, s_x, d_m, s_m, m = sample[0]
         label = sample[1]
         # input shape expected by Presto
-        self.assertEqual(d_x.shape, (32,32,1,24))
-        self.assertEqual(s_x.shape, (32,32,2))
-        self.assertEqual(d_m.shape, (32,32,1,9))
-        self.assertEqual(s_m.shape, (32,32,1))
+        self.assertEqual(d_x.shape, (32, 32, 1, 24))
+        self.assertEqual(s_x.shape, (32, 32, 2))
+        self.assertEqual(d_m.shape, (32, 32, 1, 9))
+        self.assertEqual(s_m.shape, (32, 32, 1))
         # sa2sat has only one timestep
         self.assertEqual(m.shape, (1,))
         self.assertEqual(label.shape, (17,))

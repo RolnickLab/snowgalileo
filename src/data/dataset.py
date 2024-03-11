@@ -51,6 +51,7 @@ NUM_STATIC_BAND_GROUPS = len(STATIC_BAND_GROUPS_IDX)
 NUM_DYNAMIC_BANDS = len(DYNAMIC_BANDS)
 NUM_STATIC_BANDS = len(STATIC_BANDS)
 
+
 class Dataset(PyTorchDataset):
     def __init__(self, data_folder: Path, download: bool = True):
         self.data_folder = data_folder
