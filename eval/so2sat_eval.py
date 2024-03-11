@@ -122,11 +122,11 @@ class So2SatDataset(PyTorchDataset):
         d_m, s_m = self.create_so2sat_masks()
         month = np.zeros((1,))
 
-        d_x = torch.from_numpy(d_x).float()
-        s_x = torch.from_numpy(s_x).float()
-        d_m = torch.from_numpy(d_m).long()
-        s_m = torch.from_numpy(s_m).long()
-        month = torch.from_numpy(month).long()
-        label = torch.from_numpy(label).long()
+        d_x_torch = torch.as_tensor(d_x, dtype=torch.float32)
+        s_x_torch = torch.as_tensor(s_x, dtype=torch.float32)
+        d_m_torch = torch.as_tensor(d_m, dtype=torch.long)
+        s_m_torch = torch.as_tensor(s_m, dtype=torch.long)
+        month_torch = torch.as_tensor(month, dtype=torch.long)
+        label_torch = torch.as_tensor(label, dtype=torch.long)
 
-        return (MaskedOutput(d_x, s_x, d_m, s_m, month), label)
+        return (MaskedOutput(d_x_torch, s_x_torch, d_m_torch, s_m_torch, month_torch), label_torch)
