@@ -1,28 +1,21 @@
-import sys
-import os
 
-# add parent directory to system path
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, parent_dir)
+import logging
+from collections import namedtuple
+from typing import Tuple
 
 import h5py
 import numpy as np
-import logging
-from tqdm import tqdm
-from copy import deepcopy
-from einops import rearrange, repeat
-from collections import namedtuple
-from typing import Dict, List, Optional, Tuple, Union, cast
-
-from torch.utils.data import Dataset as PyTorchDataset
-from torch.utils.data import DataLoader
-
-from src.presto import Encoder, PrestoDecoder
-from src.utils import seed_everything
-from src.config import DEFAULT_SEED, PRESTO_INPUT_SIZE
-from src.data.dataset import DYNAMIC_BANDS_GROUPS_IDX, NUM_DYNAMIC_BAND_GROUPS, NUM_STATIC_BAND_GROUPS, NUM_DYNAMIC_BANDS
-
 import torch.multiprocessing
+from torch.utils.data import Dataset as PyTorchDataset
+
+from src.config import PRESTO_INPUT_SIZE
+from src.data.dataset import (
+    DYNAMIC_BANDS_GROUPS_IDX,
+    NUM_DYNAMIC_BAND_GROUPS,
+    NUM_DYNAMIC_BANDS,
+    NUM_STATIC_BAND_GROUPS,
+)
+
 torch.multiprocessing.set_sharing_strategy('file_system')
 
 logger = logging.getLogger("__main__")

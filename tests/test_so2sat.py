@@ -1,12 +1,7 @@
-import sys
-import os
-
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, parent_dir)
-
 import unittest
-import numpy as np
+
 import torch
+
 from eval.so2sat_eval import So2SatDataset
 
 
