@@ -1,5 +1,4 @@
 import unittest
-from pathlib import Path
 
 import torch
 
@@ -14,7 +13,10 @@ from src.masked_datasets import (
 from src.presto import Encoder, PrestoAttn, PrestoDecoder
 
 TEST_FILE = (
-    DATA_FOLDER / "test_files" / "presto_tif" / "tifs_min_lat=19.2005_min_lon=-155.6227_max_lat=19.2132_max_lon=-155.6094_dates=2022-01-01_2023-12-31.tif"
+    DATA_FOLDER
+    / "test_files"
+    / "presto_tif"
+    / "tifs_min_lat=19.2005_min_lon=-155.6227_max_lat=19.2132_max_lon=-155.6094_dates=2022-01-01_2023-12-31.tif"
 )
 
 
