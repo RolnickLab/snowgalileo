@@ -113,7 +113,7 @@ class So2SatDataset(PyTorchDataset):
     def __len__(self):
         return self.data["sen1"].shape[0]
 
-    def __getitem__(self, idx) -> Tuple[MaskedOutput, np.ndarray]:
+    def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         d_x, label = self.h5_to_eo_array(idx)
         d_x = d_x.reshape(d_x.shape[0], d_x.shape[1], 1, d_x.shape[2])
 
@@ -122,11 +122,11 @@ class So2SatDataset(PyTorchDataset):
         d_m, s_m = self.create_so2sat_masks()
         month = np.zeros((1,))
 
-        d_x = torch.tensor(d_x).float()
-        s_x = torch.tensor(s_x).float()
-        d_m = torch.tensor(d_m).long()
-        s_m = torch.tensor(s_m).long()
-        month = torch.tensor(month).long()
-        label = torch.tensor(label).long()
+        d_x = torch.from_numpy(d_x).float()
+        s_x = torch.from_numpy(s_x).float()
+        d_m = torch.from_numpy(d_m).long()
+        s_m = torch.from_numpy(s_m).long()
+        month = torch.from_numpy(month).long()
+        label = torch.from_numpy(label).long()
 
         return (MaskedOutput(d_x, s_x, d_m, s_m, month), label)
