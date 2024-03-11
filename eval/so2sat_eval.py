@@ -23,6 +23,7 @@ MaskedOutput = namedtuple(
     "MaskedOutput", ["dynamic_x", "static_x", "dynamic_mask", "static_mask", "months"]
 )
 
+
 class So2SatDataset(PyTorchDataset):
     """
     So2Sat data is provided as .h5 files in the following shapes:

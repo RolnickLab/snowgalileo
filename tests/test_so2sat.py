@@ -8,7 +8,10 @@ from src.data.config import DATA_FOLDER
 
 class TestSo2Sat(unittest.TestCase):
     def test_so2sat_dataset(self):
-        dataset = So2SatDataset(data_path=DATA_FOLDER / "test_files" / "so2sat_h5" / "validation.h5", split="validation")
+        dataset = So2SatDataset(
+            data_path=DATA_FOLDER / "test_files" / "so2sat_h5" / "validation.h5",
+            split="validation",
+        )
         sample = dataset[0]
         d_x, s_x, d_m, s_m, m = sample[0]
         label = sample[1]
