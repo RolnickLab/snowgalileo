@@ -1,13 +1,15 @@
 import unittest
-from pathlib import Path
 
 import numpy as np
 
-from src.data.dataset import DYNAMIC_BANDS, STATIC_BANDS, Dataset
 from src.data.config import DATA_FOLDER
+from src.data.dataset import DYNAMIC_BANDS, STATIC_BANDS, Dataset
 
 TEST_FILE = (
-    DATA_FOLDER / "test_files" / "presto_tif" / "tifs_min_lat=19.2005_min_lon=-155.6227_max_lat=19.2132_max_lon=-155.6094_dates=2022-01-01_2023-12-31.tif"
+    DATA_FOLDER
+    / "test_files"
+    / "presto_tif"
+    / "tifs_min_lat=19.2005_min_lon=-155.6227_max_lat=19.2132_max_lon=-155.6094_dates=2022-01-01_2023-12-31.tif"
 )
 
 
