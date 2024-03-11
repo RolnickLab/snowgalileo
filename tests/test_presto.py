@@ -12,13 +12,6 @@ from src.masked_datasets import (
 )
 from src.presto import Encoder, PrestoAttn, PrestoDecoder
 
-TEST_FILE = (
-    DATA_FOLDER
-    / "test_files"
-    / "presto_tif"
-    / "tifs_min_lat=19.2005_min_lon=-155.6227_max_lat=19.2132_max_lon=-155.6094_dates=2022-01-01_2023-12-31.tif"
-)
-
 
 class TestPresto(unittest.TestCase):
     @staticmethod
@@ -39,7 +32,7 @@ class TestPresto(unittest.TestCase):
             decoder_embedding_size=embedding_size,
             num_heads=1,
         )
-        ds = PrestoToPrestoMaskedDataset(TEST_FILE, 0.25, False)
+        ds = PrestoToPrestoMaskedDataset(DATA_FOLDER / "test_files" / "presto_tif", 0.25, False)
         output = ds[0]
         with torch.no_grad():
             # for now, we just make sure it all runs
