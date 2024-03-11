@@ -1,4 +1,3 @@
-
 import logging
 from collections import namedtuple
 from typing import Tuple
@@ -16,7 +15,7 @@ from src.data.dataset import (
     NUM_STATIC_BAND_GROUPS,
 )
 
-torch.multiprocessing.set_sharing_strategy('file_system')
+torch.multiprocessing.set_sharing_strategy("file_system")
 
 logger = logging.getLogger("__main__")
 
@@ -38,41 +37,40 @@ class So2SatDataset(PyTorchDataset):
     """
 
     def __init__(
-            self, 
-            split: str = "training",
+        self,
+        split: str = "training",
     ):
         assert split in ["training", "validation", "testing"]
 
         self.split = split
-        self.data = h5py.File(h5_data_dir + split + ".h5", 'r')
-    
-    def h5_to_eo_array(self, i: int) -> Tuple[np.ndarray, np.ndarray]:
+        self.data = h5py.File(h5_data_dir + split + ".h5", "r")
 
-        assert self.data['sen1'].shape == (self.__len__(), 32, 32, 8)
-        assert self.data['sen2'].shape == (self.__len__(), 32, 32, 10)
-        assert self.data['label'].shape == (self.__len__(), 17)
+    def h5_to_eo_array(self, i: int) -> Tuple[np.ndarray, np.ndarray]:
+        assert self.data["sen1"].shape == (self.__len__(), 32, 32, 8)
+        assert self.data["sen2"].shape == (self.__len__(), 32, 32, 10)
+        assert self.data["label"].shape == (self.__len__(), 17)
 
         # so2sat provides 8 bands for sen1, we are interested in the filtered vh and vv bands (channel 4 and 5)
-        vh = np.array(self.data['sen1'][i,:,:,4])
-        vv = np.array(self.data['sen1'][i,:,:,5])
+        vh = np.array(self.data["sen1"][i, :, :, 4])
+        vv = np.array(self.data["sen1"][i, :, :, 5])
 
         # sen2 bands provided by so2sat correspond to the bands used by presto
-        b2 = np.array(self.data['sen2'][i,:,:,0])
-        b3 = np.array(self.data['sen2'][i,:,:,1])
-        b4 = np.array(self.data['sen2'][i,:,:,2])
+        b2 = np.array(self.data["sen2"][i, :, :, 0])
+        b3 = np.array(self.data["sen2"][i, :, :, 1])
+        b4 = np.array(self.data["sen2"][i, :, :, 2])
 
-        b5 = np.array(self.data['sen2'][i,:,:,3])
-        b6 = np.array(self.data['sen2'][i,:,:,4])
-        b7 = np.array(self.data['sen2'][i,:,:,5])
+        b5 = np.array(self.data["sen2"][i, :, :, 3])
+        b6 = np.array(self.data["sen2"][i, :, :, 4])
+        b7 = np.array(self.data["sen2"][i, :, :, 5])
 
-        b8 = np.array(self.data['sen2'][i,:,:,6])
+        b8 = np.array(self.data["sen2"][i, :, :, 6])
 
-        b8a = np.array(self.data['sen2'][i,:,:,7])
+        b8a = np.array(self.data["sen2"][i, :, :, 7])
 
-        b11 = np.array(self.data['sen2'][i,:,:,8])
-        b12 = np.array(self.data['sen2'][i,:,:,9])
+        b11 = np.array(self.data["sen2"][i, :, :, 8])
+        b12 = np.array(self.data["sen2"][i, :, :, 9])
 
-        label = np.array(self.data['label'][i,:])
+        label = np.array(self.data["label"][i, :])
 
         # labels should be one-hot encoded
         assert np.sum(label) == 1
@@ -81,11 +79,12 @@ class So2SatDataset(PyTorchDataset):
         d_x = np.stack([vv, vh, b2, b3, b4, b5, b6, b7, b8, b8a, b11, b12], axis=-1)
 
         return (d_x, label)
-    
+
     @staticmethod
     def create_so2sat_masks() -> Tuple[np.ndarray, np.ndarray]:
-
-        dynamic_channels = [idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if 'S2' in key or 'S1' in key]
+        dynamic_channels = [
+            idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" in key or "S1" in key
+        ]
 
         # everything is masked by default
         dynamic_mask = np.ones([PRESTO_INPUT_SIZE, PRESTO_INPUT_SIZE, 1, NUM_DYNAMIC_BAND_GROUPS])
@@ -99,10 +98,9 @@ class So2SatDataset(PyTorchDataset):
         assert np.unique(static_mask).tolist() == [1]
 
         return (dynamic_mask, static_mask)
-    
+
     @staticmethod
     def add_missing_channels(d_x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        
         # s_x is not provided by so2sat
         s_x = np.zeros((d_x.shape[0], d_x.shape[1], 2))
 
@@ -111,14 +109,11 @@ class So2SatDataset(PyTorchDataset):
         d_x = np.concatenate((d_x, d_x_missing), axis=-1)
 
         return (d_x, s_x)
-    
 
     def __len__(self):
-        return self.data['sen1'].shape[0]
-
+        return self.data["sen1"].shape[0]
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, np.ndarray]:
-
         d_x, label = self.h5_to_eo_array(idx)
         d_x = d_x.reshape(d_x.shape[0], d_x.shape[1], 1, d_x.shape[2])
 
