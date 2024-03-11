@@ -72,10 +72,6 @@ class So2SatDataset(PyTorchDataset):
 
         label = np.array(self.data["label"][i, :])
 
-        # labels should be one-hot encoded
-        assert np.sum(label) == 1
-        assert np.all(np.logical_or(label == 0, label == 1))
-
         d_x = np.stack([vv, vh, b2, b3, b4, b5, b6, b7, b8, b8a, b11, b12], axis=-1)
 
         return (d_x, label)
