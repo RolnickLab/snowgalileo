@@ -4,6 +4,7 @@ import torch
 
 from eval.so2sat_eval import So2SatDataset
 from src.data.config import DATA_FOLDER
+from src.data.dataset import DYNAMIC_BANDS_GROUPS_IDX
 
 
 class TestSo2Sat(unittest.TestCase):
@@ -32,3 +33,10 @@ class TestSo2Sat(unittest.TestCase):
         self.assertTrue(torch.all(s_m == 1))
         # labels are one-hot encoded
         self.assertTrue(torch.all(torch.logical_or(label == 0, label == 1)))
+
+        # will test if the right channels are masked out
+        present_bands = [idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" in key]
+        unpresent_bands = [idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if not "S2" in key]
+
+        self.assertTrue(torch.all(d_m[:,:,:,present_bands] == 0))
+        self.assertTrue(torch.all(d_m[:,:,:,unpresent_bands] == 1))
