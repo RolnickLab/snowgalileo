@@ -5,6 +5,7 @@ from typing import Tuple
 import h5py
 import numpy as np
 import torch.multiprocessing
+from einops import repeat
 from torch.utils.data import Dataset as PyTorchDataset
 
 from src.config import PRESTO_INPUT_SIZE
@@ -77,8 +78,7 @@ class So2SatDataset(PyTorchDataset):
 
         return (d_x, label)
 
-    @staticmethod
-    def create_so2sat_masks() -> Tuple[np.ndarray, np.ndarray]:
+    def create_so2sat_masks(self) -> Tuple[np.ndarray, np.ndarray]:
         dynamic_channels = [
             idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" in key or "S1" in key
         ]
@@ -87,8 +87,9 @@ class So2SatDataset(PyTorchDataset):
         dynamic_mask = np.ones([NUM_DYNAMIC_BAND_GROUPS])
         # unmask available s2 bands
         dynamic_mask[dynamic_channels] = 0
-        dynamic_mask = repeat(dynamic_mask, "d -> h w t d", h=self.input_size, w=self.input_size, t=1)
-
+        dynamic_mask = repeat(
+            dynamic_mask, "d -> h w t d", h=self.input_size, w=self.input_size, t=1
+        )
 
         # no static channels are available
         static_mask = np.ones([PRESTO_INPUT_SIZE, PRESTO_INPUT_SIZE, NUM_STATIC_BAND_GROUPS])
