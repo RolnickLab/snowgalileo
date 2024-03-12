@@ -120,8 +120,8 @@ class So2SatDataset(PyTorchDataset):
 
         d_x_torch = torch.as_tensor(d_x, dtype=torch.float32)
         s_x_torch = torch.as_tensor(s_x, dtype=torch.float32)
-        d_m_torch = torch.as_tensor(d_m, dtype=torch.long)
-        s_m_torch = torch.as_tensor(s_m, dtype=torch.long)
+        d_m_torch = torch.as_tensor(d_m, dtype=torch.float32)
+        s_m_torch = torch.as_tensor(s_m, dtype=torch.float32)
         month_torch = torch.as_tensor(month, dtype=torch.long)
         label_torch = torch.as_tensor(label, dtype=torch.long)
 
