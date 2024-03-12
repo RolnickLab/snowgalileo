@@ -43,6 +43,7 @@ class So2SatDataset(PyTorchDataset):
 
         self.split = split
         self.data_path = data_path
+        self.input_size = 32
         self.data = h5py.File(self.data_path, "r")
 
     def h5_to_eo_array(self, i: int) -> Tuple[np.ndarray, np.ndarray]:
@@ -83,9 +84,11 @@ class So2SatDataset(PyTorchDataset):
         ]
 
         # everything is masked by default
-        dynamic_mask = np.ones([PRESTO_INPUT_SIZE, PRESTO_INPUT_SIZE, 1, NUM_DYNAMIC_BAND_GROUPS])
-        # unmask available bands
+        dynamic_mask = np.ones([NUM_DYNAMIC_BAND_GROUPS])
+        # unmask available s2 bands
         dynamic_mask[dynamic_channels] = 0
+        dynamic_mask = repeat(dynamic_mask, "d -> h w t d", h=self.input_size, w=self.input_size, t=1)
+
 
         # no static channels are available
         static_mask = np.ones([PRESTO_INPUT_SIZE, PRESTO_INPUT_SIZE, NUM_STATIC_BAND_GROUPS])
