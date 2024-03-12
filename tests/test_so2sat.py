@@ -36,7 +36,9 @@ class TestSo2Sat(unittest.TestCase):
 
         # will test if the right channels are masked out
         present_bands = [idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" in key]
-        unpresent_bands = [idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if not "S2" in key]
+        unpresent_bands = [
+            idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" not in key
+        ]
 
-        self.assertTrue(torch.all(d_m[:,:,:,present_bands] == 0))
-        self.assertTrue(torch.all(d_m[:,:,:,unpresent_bands] == 1))
+        self.assertTrue(torch.all(d_m[:, :, :, present_bands] == 0))
+        self.assertTrue(torch.all(d_m[:, :, :, unpresent_bands] == 1))
