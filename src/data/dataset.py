@@ -45,6 +45,12 @@ STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {"SRTM": [STATIC_BANDS.index(b) for b in SRTM_BANDS]}
 )
 
+NUM_DYNAMIC_BAND_GROUPS = len(DYNAMIC_BANDS_GROUPS_IDX)
+NUM_STATIC_BAND_GROUPS = len(STATIC_BAND_GROUPS_IDX)
+
+NUM_DYNAMIC_BANDS = len(DYNAMIC_BANDS)
+NUM_STATIC_BANDS = len(STATIC_BANDS)
+
 
 class Dataset(PyTorchDataset):
     def __init__(self, data_folder: Path, download: bool = True):
