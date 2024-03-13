@@ -8,7 +8,6 @@ import torch.multiprocessing
 from einops import repeat
 from torch.utils.data import Dataset as PyTorchDataset
 
-from src.config import PRESTO_INPUT_SIZE
 from src.data.dataset import (
     DYNAMIC_BANDS_GROUPS_IDX,
     NUM_DYNAMIC_BAND_GROUPS,
