@@ -85,14 +85,14 @@ class So2SatDataset(PyTorchDataset):
 
         # everything is masked by default
         dynamic_mask = np.ones([NUM_DYNAMIC_BAND_GROUPS])
-        # unmask available s2 bands
+        # unmask available s1 and s2 bands
         dynamic_mask[dynamic_channels] = 0
         dynamic_mask = repeat(
             dynamic_mask, "d -> h w t d", h=self.input_size, w=self.input_size, t=1
         )
 
         # no static channels are available
-        static_mask = np.ones([PRESTO_INPUT_SIZE, PRESTO_INPUT_SIZE, NUM_STATIC_BAND_GROUPS])
+        static_mask = np.ones([self.input_size, self.input_size, NUM_STATIC_BAND_GROUPS])
 
         assert np.unique(dynamic_mask).tolist() == [0, 1]
         assert np.unique(static_mask).tolist() == [1]
