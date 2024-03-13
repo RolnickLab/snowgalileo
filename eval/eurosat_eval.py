@@ -30,9 +30,6 @@ class EuroSatDataset(PyTorchDataset):
     - 27000 MSI images of 64x64 pixels (13 sen2 bands), 10 land cover classes
     """
 
-    # this is not the true start month!
-    start_month = 1
-
     def __init__(
         self,
         rgb: bool = True,
@@ -93,7 +90,7 @@ class EuroSatDataset(PyTorchDataset):
 
         return (d_x, s_x)
 
-    def image_to_eo_array(self, idx: int):
+    def image_to_eo_array(self, idx: int) -> Tuple[np.ndarray, int]:
         image = np.array(self.data[idx]["image"])
         label = self.data[idx]["label"]
 
