@@ -10,6 +10,7 @@ from collections import namedtuple
 from typing import Tuple, Dict, List
 from abc import ABC
 import json
+from pathlib import Path
 
 import numpy as np
 from tqdm import tqdm
@@ -29,14 +30,44 @@ from src.data.dataset import (
 )
 from prediction_heads.knn import KNNat20
 
-### SETUP
 torch.multiprocessing.set_sharing_strategy("file_system")
 
+# needed to prevent CUDA runtime error
 torch.backends.cuda.enable_mem_efficient_sdp(False)
 torch.backends.cuda.enable_flash_sdp(False)
 torch.backends.cuda.enable_math_sdp(True)
 
 logger = logging.getLogger("__main__")
+
+def initialize_logging(output_dir: Union[str, Path], to_file=True, logger_name="__main__"):
+    logger = logging.getLogger(logger_name)
+    formatter = logging.Formatter(
+        fmt="%(asctime)s - %(levelname)s - %(message)s",
+        datefmt="%d-%m-%Y %H:%M:%S",
+    )
+    ch = logging.StreamHandler(stream=sys.stdout)
+    ch.setLevel(logging.INFO)
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+
+    logger.setLevel(logging.INFO)
+
+    if to_file:
+        path = os.path.join(output_dir, "console-output.log")
+        fh = logging.FileHandler(path)
+        fh.setLevel(logging.INFO)
+        fh.setFormatter(formatter)
+        logger.addHandler(fh)
+        logger.info("Initialized logging to %s" % path)
+    return logger
+
+output_parent_dir = Path(__file__).parent
+logging_dir = output_parent_dir / "output"
+logging_dir.mkdir(exist_ok=True, parents=True)
+initialize_logging(logging_dir)
+logger.info("Using output dir: %s" % logging_dir)
+
+
 MaskedOutput = namedtuple(
     "MaskedOutput", ["dynamic_x", "static_x", "dynamic_mask", "static_mask", "months"]
 )
@@ -268,6 +299,7 @@ class EuroSatEval(ABC):
 
             sample, label = b
             d_x, s_x, d_m, s_m, month = sample
+            logger.info("d_x: %s, s_x: %s, d_m: %s, s_m: %s, month: %s", d_x.shape, s_x.shape, d_m.shape, s_m.shape, month.shape)
 
             d_x, s_x, d_m, s_m, month = [t.to(device) for t in (d_x, s_x, d_m, s_m, month)]
 
@@ -311,18 +343,11 @@ class EuroSatEval(ABC):
         val_ds = EuroSatDataset(split="validation")
 
         # TODO: normalization
+        # TODO: implement train val merging
         train_dl = DataLoader(
             train_ds, 
             batch_size=HYPERPARAMS["batch_size"], 
             shuffle=True,
-            num_workers=HYPERPARAMS["num_workers"],
-        )
-
-        # TODO: implement train val merging
-        val_dl = DataLoader(
-            val_ds, 
-            batch_size=1, 
-            shuffle=False,
             num_workers=HYPERPARAMS["num_workers"],
         )
 

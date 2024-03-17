@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import logging
 from einops import rearrange, repeat
 from torch import nn
 from torch.jit import Final
@@ -13,6 +14,7 @@ from .embeddings import (
     get_month_encoding_table,
 )
 
+logger = logging.getLogger("__main__")
 
 class Attention(nn.Module):
     # https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/vision_transformer.py
@@ -435,9 +437,17 @@ class Encoder(nn.Module):
         static_mask: torch.Tensor,
         months: torch.Tensor,
     ):
+        logger.info(f"dynamic_x.shape before embed: {dynamic_x.shape}")
+        logger.info(f"static_x.shape: {static_x.shape}")
+        logger.info(f"dynamic_mask.shape: {dynamic_mask.shape}")
+        logger.info(f"static_mask.shape: {static_mask.shape}")
         dynamic_x, static_x, dynamic_mask, static_mask = self.apply_linear_projection(
             dynamic_x, static_x, dynamic_mask, static_mask
         )
+        logger.info(f"dynamic_x.shape after embed: {dynamic_x.shape}")
+        logger.info(f"static_x.shape: {static_x.shape}")
+        logger.info(f"dynamic_mask.shape: {dynamic_mask.shape}")
+        logger.info(f"static_mask.shape: {static_mask.shape}")
         dynamic_x, static_x, dynamic_mask, static_mask = self.presto_attn(
             dynamic_x, static_x, dynamic_mask, static_mask, months
         )
