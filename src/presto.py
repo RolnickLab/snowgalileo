@@ -412,8 +412,9 @@ class Encoder(nn.Module):
         static_mask: torch.Tensor,
     ):
         """
-        Given a [H, W, (T), B] inputs, returns a [H, W, (T), B_G, D] output.
-        B_G = number of band groups, d = embedding dimension
+        Given a [B, H, W, (T), C] inputs, returns a [B, H, W, (T), B_G, D] output.
+        B_G = number of band groups, D = embedding dimension.
+        Masks keep their shape.
         """
         d_i, d_m, s_i, s_m = [], [], [], []
         for idx, (channel_group, channel_idxs) in enumerate(self.dynamic_groups.items()):
@@ -437,17 +438,9 @@ class Encoder(nn.Module):
         static_mask: torch.Tensor,
         months: torch.Tensor,
     ):
-        logger.info(f"dynamic_x.shape before embed: {dynamic_x.shape}")
-        logger.info(f"static_x.shape: {static_x.shape}")
-        logger.info(f"dynamic_mask.shape: {dynamic_mask.shape}")
-        logger.info(f"static_mask.shape: {static_mask.shape}")
         dynamic_x, static_x, dynamic_mask, static_mask = self.apply_linear_projection(
             dynamic_x, static_x, dynamic_mask, static_mask
         )
-        logger.info(f"dynamic_x.shape after embed: {dynamic_x.shape}")
-        logger.info(f"static_x.shape: {static_x.shape}")
-        logger.info(f"dynamic_mask.shape: {dynamic_mask.shape}")
-        logger.info(f"static_mask.shape: {static_mask.shape}")
         dynamic_x, static_x, dynamic_mask, static_mask = self.presto_attn(
             dynamic_x, static_x, dynamic_mask, static_mask, months
         )
