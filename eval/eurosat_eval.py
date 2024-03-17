@@ -12,7 +12,7 @@ from abc import ABC
 import json
 
 import numpy as np
-import tqdm
+from tqdm import tqdm
 import torch.multiprocessing
 from datasets import load_dataset
 from einops import repeat
