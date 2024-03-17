@@ -195,11 +195,11 @@ class EuroSatEval(ABC):
             pretrained_model.eval()
             encodings = (
                 pretrained_model(
-                d_x=d_x,
-                s_x=s_x,
-                d_m=d_m,
-                s_m=s_m,
-                month=month)
+                dynamic_x=d_x,
+                static_x=s_x,
+                dynamic_m=d_m,
+                static_m=s_m,
+                months=month)
                 .cpu()
                 .numpy()
             )
@@ -270,11 +270,11 @@ class EuroSatEval(ABC):
             with torch.no_grad():
                 encodings = (
                     pretrained_model(
-                        d_x=d_x, 
-                        s_x=s_x,
-                        d_m=d_m, 
-                        s_m=s_m, 
-                        month=month
+                        dynamic_x=d_x, 
+                        static_x=s_x,
+                        dynamic_mask=d_m, 
+                        static_mask=s_m, 
+                        months=month
                     )
                     .cpu()
                     .numpy()
