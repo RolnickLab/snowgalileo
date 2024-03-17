@@ -111,7 +111,9 @@ class So2SatDataset(PyTorchDataset):
         return (d_x, s_x)
 
     def __len__(self):
-        return self.data["sen1"].shape[0]
+        with h5py.File(self.data_path, "r") as data:
+            len = data["sen1"].shape[0]
+        return len
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         d_x, label = self.h5_to_eo_array(idx)
