@@ -158,7 +158,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class EuroSatEval(ABC):
 
-    def init(
+    def __init__(
         self,
         rgb: bool = False
     ):
