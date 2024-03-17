@@ -322,8 +322,8 @@ class EuroSatEval(ABC):
         )
 
         finetuned_model = self.finetune_knn(
-            train_dl,
-            pretrained_model,
+            pretrained_model=pretrained_model,
+            train_dl=train_dl,
         )
 
         results_dict.update(
