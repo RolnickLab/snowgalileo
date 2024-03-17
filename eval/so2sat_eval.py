@@ -47,31 +47,32 @@ class So2SatDataset(PyTorchDataset):
         self.data = h5py.File(self.data_path, "r")
 
     def h5_to_eo_array(self, i: int) -> Tuple[np.ndarray, np.ndarray]:
-        assert self.data["sen1"].shape == (self.__len__(), 32, 32, 8)
-        assert self.data["sen2"].shape == (self.__len__(), 32, 32, 10)
-        assert self.data["label"].shape == (self.__len__(), 17)
+        with h5py.File(self.data_path, "r") as data:
+            assert data["sen1"].shape == (self.__len__(), 32, 32, 8)
+            assert data["sen2"].shape == (self.__len__(), 32, 32, 10)
+            assert data["label"].shape == (self.__len__(), 17)
 
-        # so2sat provides 8 bands for sen1, we are interested in the filtered vh and vv bands (channel 4 and 5)
-        vh = np.array(self.data["sen1"][i, :, :, 4])
-        vv = np.array(self.data["sen1"][i, :, :, 5])
+            # so2sat provides 8 bands for sen1, we are interested in the filtered vh and vv bands (channel 4 and 5)
+            vh = np.array(data["sen1"][i, :, :, 4])
+            vv = np.array(data["sen1"][i, :, :, 5])
 
-        # sen2 bands provided by so2sat correspond to the bands used by presto
-        b2 = np.array(self.data["sen2"][i, :, :, 0])
-        b3 = np.array(self.data["sen2"][i, :, :, 1])
-        b4 = np.array(self.data["sen2"][i, :, :, 2])
+            # sen2 bands provided by so2sat correspond to the bands used by presto
+            b2 = np.array(data["sen2"][i, :, :, 0])
+            b3 = np.array(data["sen2"][i, :, :, 1])
+            b4 = np.array(data["sen2"][i, :, :, 2])
 
-        b5 = np.array(self.data["sen2"][i, :, :, 3])
-        b6 = np.array(self.data["sen2"][i, :, :, 4])
-        b7 = np.array(self.data["sen2"][i, :, :, 5])
+            b5 = np.array(data["sen2"][i, :, :, 3])
+            b6 = np.array(data["sen2"][i, :, :, 4])
+            b7 = np.array(data["sen2"][i, :, :, 5])
 
-        b8 = np.array(self.data["sen2"][i, :, :, 6])
+            b8 = np.array(data["sen2"][i, :, :, 6])
 
-        b8a = np.array(self.data["sen2"][i, :, :, 7])
+            b8a = np.array(data["sen2"][i, :, :, 7])
 
-        b11 = np.array(self.data["sen2"][i, :, :, 8])
-        b12 = np.array(self.data["sen2"][i, :, :, 9])
+            b11 = np.array(data["sen2"][i, :, :, 8])
+            b12 = np.array(data["sen2"][i, :, :, 9])
 
-        label = np.array(self.data["label"][i, :])
+            label = np.array(data["label"][i, :])
 
         d_x = np.stack([vv, vh, b2, b3, b4, b5, b6, b7, b8, b8a, b11, b12], axis=-1)
 
