@@ -1,6 +1,5 @@
 import numpy as np
 import torch
-import logging
 from einops import rearrange, repeat
 from torch import nn
 from torch.jit import Final
@@ -14,7 +13,6 @@ from .embeddings import (
     get_month_encoding_table,
 )
 
-logger = logging.getLogger("__main__")
 
 class Attention(nn.Module):
     # https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/vision_transformer.py
