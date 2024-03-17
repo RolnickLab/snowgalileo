@@ -44,7 +44,6 @@ class So2SatDataset(PyTorchDataset):
         self.split = split
         self.data_path = data_path
         self.input_size = 32
-        self.data = h5py.File(self.data_path, "r")
 
     def h5_to_eo_array(self, i: int) -> Tuple[np.ndarray, np.ndarray]:
         with h5py.File(self.data_path, "r") as data:
