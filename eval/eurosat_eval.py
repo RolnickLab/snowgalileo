@@ -327,7 +327,7 @@ class EuroSatEval(ABC):
         )
 
         results_dict.update(
-            self.evaluate(finetuned_model, pretrained_model)
+            self.evaluate(finetuned_model=finetuned_model, pretrained_model=pretrained_model)
         )
 
         return results_dict
@@ -337,7 +337,9 @@ class EuroSatEval(ABC):
 model = Encoder(embedding_size=64).to(device)
 model.to(device)
 
+logger.info(type(model))
+
 eval_task = EuroSatEval(rgb=True)
-results = eval_task.finetune(model)
+results = eval_task.finetune(pretrained_model=model)
 
 logger.info(json.dumps(results, indent=2))
