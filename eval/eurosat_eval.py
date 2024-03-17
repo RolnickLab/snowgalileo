@@ -31,6 +31,11 @@ from prediction_heads.knn import KNNat20
 
 ### SETUP
 torch.multiprocessing.set_sharing_strategy("file_system")
+
+torch.backends.cuda.enable_mem_efficient_sdp(False)
+torch.backends.cuda.enable_flash_sdp(False)
+torch.backends.cuda.enable_math_sdp(True)
+
 logger = logging.getLogger("__main__")
 MaskedOutput = namedtuple(
     "MaskedOutput", ["dynamic_x", "static_x", "dynamic_mask", "static_mask", "months"]
