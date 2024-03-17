@@ -161,7 +161,7 @@ class EuroSatEval(ABC):
         self.rgb = rgb
         self.name = "EuroSat" if not rgb else "EuroSat_RGB"
 
-    def normalize(self, x: np.ndarray) -> np.ndarray:
+    def normalize(self, x: torch.Tensor):
         NotImplementedError
 
     @torch.no_grad()
