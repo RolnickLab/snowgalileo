@@ -7,7 +7,7 @@ sys.path.insert(0, parent_dir)
 
 import logging
 from collections import namedtuple
-from typing import Tuple, Dict, List
+from typing import Tuple, Dict, List, Union
 from abc import ABC
 import json
 from pathlib import Path
