@@ -1,34 +1,26 @@
-import sys
-import os
-
-# add parent directory to system path
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, parent_dir)
-
-import logging
-from collections import namedtuple
-from typing import Tuple, Dict, List, Union
-from abc import ABC
 import json
-from pathlib import Path
+import logging
+from abc import ABC
+from collections import namedtuple
+from typing import Dict, Tuple
 
 import numpy as np
-from tqdm import tqdm
 import torch.multiprocessing
 from datasets import load_dataset
 from einops import repeat
-from torch.utils.data import Dataset as PyTorchDataset
-from torch.utils.data import DataLoader
+from prediction_heads.knn import KNNat20
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
+from torch.utils.data import DataLoader
+from torch.utils.data import Dataset as PyTorchDataset
+from tqdm import tqdm
 
-from src.presto import Encoder
 from src.data.dataset import (
     DYNAMIC_BANDS_GROUPS_IDX,
     NUM_DYNAMIC_BAND_GROUPS,
     NUM_DYNAMIC_BANDS,
     NUM_STATIC_BAND_GROUPS,
 )
-from prediction_heads.knn import KNNat20
+from src.presto import Encoder
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
@@ -38,34 +30,6 @@ torch.backends.cuda.enable_flash_sdp(False)
 torch.backends.cuda.enable_math_sdp(True)
 
 logger = logging.getLogger("__main__")
-
-def initialize_logging(output_dir: Union[str, Path], to_file=True, logger_name="__main__"):
-    logger = logging.getLogger(logger_name)
-    formatter = logging.Formatter(
-        fmt="%(asctime)s - %(levelname)s - %(message)s",
-        datefmt="%d-%m-%Y %H:%M:%S",
-    )
-    ch = logging.StreamHandler(stream=sys.stdout)
-    ch.setLevel(logging.INFO)
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
-
-    logger.setLevel(logging.INFO)
-
-    if to_file:
-        path = os.path.join(output_dir, "console-output.log")
-        fh = logging.FileHandler(path)
-        fh.setLevel(logging.INFO)
-        fh.setFormatter(formatter)
-        logger.addHandler(fh)
-        logger.info("Initialized logging to %s" % path)
-    return logger
-
-output_parent_dir = Path(__file__).parent
-logging_dir = output_parent_dir / "output"
-logging_dir.mkdir(exist_ok=True, parents=True)
-initialize_logging(logging_dir)
-logger.info("Using output dir: %s" % logging_dir)
 
 
 MaskedOutput = namedtuple(
@@ -81,16 +45,16 @@ class EuroSatDataset(PyTorchDataset):
     """
 
     labels_to_int = {
-    "AnnualCrop": 0,
-    "Forest": 1,
-    "HerbaceousVegetation": 2,
-    "Highway": 3,
-    "Industrial": 4,
-    "Pasture": 5,
-    "PermanentCrop": 6,
-    "Residential": 7,
-    "River": 8,
-    "SeaLake": 9,
+        "AnnualCrop": 0,
+        "Forest": 1,
+        "HerbaceousVegetation": 2,
+        "Highway": 3,
+        "Industrial": 4,
+        "Pasture": 5,
+        "PermanentCrop": 6,
+        "Residential": 7,
+        "River": 8,
+        "SeaLake": 9,
     }
 
     def __init__(
@@ -193,13 +157,9 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 class EuroSatEval(ABC):
-
-    def __init__(
-        self,
-        rgb: bool = False
-    ):
+    def __init__(self, rgb: bool = False):
         self.rgb = rgb
-        self.name = f"EuroSat" if not rgb else f"EuroSat_RGB"
+        self.name = "EuroSat" if not rgb else "EuroSat_RGB"
 
     def normalize(self, x: np.ndarray) -> np.ndarray:
         NotImplementedError
@@ -210,12 +170,11 @@ class EuroSatEval(ABC):
         finetuned_model,
         pretrained_model,
     ) -> Dict:
-
         test_ds = EuroSatDataset(split="test")
 
         test_dl = DataLoader(
-            test_ds, 
-            batch_size=1, 
+            test_ds,
+            batch_size=1,
             shuffle=False,
             num_workers=HYPERPARAMS["num_workers"],
         )
@@ -231,11 +190,8 @@ class EuroSatEval(ABC):
             pretrained_model.eval()
             encodings = (
                 pretrained_model(
-                dynamic_x=d_x,
-                static_x=s_x,
-                dynamic_m=d_m,
-                static_m=s_m,
-                months=month)
+                    dynamic_x=d_x, static_x=s_x, dynamic_m=d_m, static_m=s_m, months=month
+                )
                 .cpu()
                 .numpy()
             )
@@ -259,7 +215,7 @@ class EuroSatEval(ABC):
         target = np.concatenate(labels)
         results_dict = {}
         int_to_labels, _ = zip(*sorted(test_ds.labels_to_int.items(), key=lambda l_i: l_i[1]))
-        
+
         test_preds_np = np.concatenate(pred_list, axis=0)
         prefix = finetuned_model.__class__.__name__
         results_dict.update(
@@ -268,9 +224,7 @@ class EuroSatEval(ABC):
                 f"{self.name}: {prefix}_f1_score": f1_score(
                     target, test_preds_np, average="weighted"
                 ),
-                f"{self.name}: {prefix}_accuracy_score": accuracy_score(
-                    target, test_preds_np
-                ),
+                f"{self.name}: {prefix}_accuracy_score": accuracy_score(target, test_preds_np),
             }
         )
         class_matrix = confusion_matrix(test_preds_np, target)
@@ -283,23 +237,26 @@ class EuroSatEval(ABC):
 
         return results_dict
 
-
-
     @torch.no_grad()
     def finetune_knn(
         self,
         pretrained_model,
         train_dl: DataLoader,
     ):
-
         pretrained_model.eval()
 
         encoding_list, target_list = [], []
         for b in tqdm(train_dl, leave=False, desc="Computing embeddings"):
-
             sample, label = b
             d_x, s_x, d_m, s_m, month = sample
-            logger.info("d_x: %s, s_x: %s, d_m: %s, s_m: %s, month: %s", d_x.shape, s_x.shape, d_m.shape, s_m.shape, month.shape)
+            logger.info(
+                "d_x: %s, s_x: %s, d_m: %s, s_m: %s, month: %s",
+                d_x.shape,
+                s_x.shape,
+                d_m.shape,
+                s_m.shape,
+                month.shape,
+            )
 
             d_x, s_x, d_m, s_m, month = [t.to(device) for t in (d_x, s_x, d_m, s_m, month)]
 
@@ -307,11 +264,11 @@ class EuroSatEval(ABC):
             with torch.no_grad():
                 encodings = (
                     pretrained_model(
-                        dynamic_x=d_x, 
+                        dynamic_x=d_x,
                         static_x=s_x,
-                        dynamic_mask=d_m, 
-                        static_mask=s_m, 
-                        months=month
+                        dynamic_mask=d_m,
+                        static_mask=s_m,
+                        months=month,
                     )
                     .cpu()
                     .numpy()
@@ -325,12 +282,10 @@ class EuroSatEval(ABC):
             targets = targets.ravel()
 
         fitted_model = KNNat20().fit(encodings_np, targets)
-        logger.info("Fitted model type: %s", type(fitted_model))
         return fitted_model
 
-
     def finetune(
-        self, 
+        self,
         pretrained_model,
         prediction_head: str = "knn",
     ):
@@ -340,13 +295,12 @@ class EuroSatEval(ABC):
         results_dict = {}
 
         train_ds = EuroSatDataset(split="train")
-        val_ds = EuroSatDataset(split="validation")
 
         # TODO: normalization
         # TODO: implement train val merging
         train_dl = DataLoader(
-            train_ds, 
-            batch_size=HYPERPARAMS["batch_size"], 
+            train_ds,
+            batch_size=HYPERPARAMS["batch_size"],
             shuffle=True,
             num_workers=HYPERPARAMS["num_workers"],
         )
@@ -361,13 +315,11 @@ class EuroSatEval(ABC):
         )
 
         return results_dict
-    
+
 
 # random initialized Presto model
 model = Encoder(embedding_size=64).to(device)
 model.to(device)
-
-logger.info(type(model))
 
 eval_task = EuroSatEval(rgb=True)
 results = eval_task.finetune(pretrained_model=model)
