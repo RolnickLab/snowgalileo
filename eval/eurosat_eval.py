@@ -188,13 +188,20 @@ class EuroSatEval(ABC):
             d_x, s_x, d_m, s_m, month = [t.to(device) for t in (d_x, s_x, d_m, s_m, month)]
 
             pretrained_model.eval()
-            encodings = (
-                pretrained_model(
-                    dynamic_x=d_x, static_x=s_x, dynamic_m=d_m, static_m=s_m, months=month
-                )
-                .cpu()
-                .numpy()
+            encodings = pretrained_model(
+                dynamic_x=d_x, 
+                static_x=s_x, 
+                dynamic_mask=d_m, 
+                static_mask=s_m, 
+                months=month,
             )
+
+            # bit hardcoded: to pass to cpu and convert to numpy
+            d_s_list = []
+            for enc in encodings:
+                enc = enc.cpu().numpy()
+                d_s_list.append(enc)
+            encodings = tuple(d_s_list)
 
             labels.append(
                 label.cpu()
@@ -262,18 +269,23 @@ class EuroSatEval(ABC):
 
             target_list.append(label.cpu().numpy())
             with torch.no_grad():
-                encodings = (
-                    pretrained_model(
-                        dynamic_x=d_x,
-                        static_x=s_x,
-                        dynamic_mask=d_m,
-                        static_mask=s_m,
-                        months=month,
-                    )
-                    .cpu()
-                    .numpy()
+                encodings = pretrained_model(
+                    dynamic_x=d_x, 
+                    static_x=s_x, 
+                    dynamic_mask=d_m, 
+                    static_mask=s_m, 
+                    months=month,
                 )
+
+                # bit hardcoded: to pass to cpu and convert to numpy
+                d_s_list = []
+                for enc in encodings:
+                    enc = enc.cpu().numpy()
+                    d_s_list.append(enc)
+                encodings = tuple(d_s_list)
+
                 encoding_list.append(encodings)
+
         encodings_np = np.concatenate(encoding_list)
         targets = np.concatenate(target_list)
 
