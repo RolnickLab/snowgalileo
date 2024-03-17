@@ -189,8 +189,8 @@ class EuroSatEval(ABC):
 
         for b in tqdm(test_dl, desc="Computing test predictions"):
             sample, label = b
-            d_x, d_m, s_x, s_m, month = sample
-            d_x, d_m, s_x, s_m, month = [t.to(device) for t in (d_x, d_m, s_x, s_m, month)]
+            d_x, s_x, d_m, s_m, month = sample
+            d_x, s_x, d_m, s_m, month = [t.to(device) for t in (d_x, s_x, d_m, s_m, month)]
 
             pretrained_model.eval()
             encodings = (
@@ -262,9 +262,9 @@ class EuroSatEval(ABC):
         for b in tqdm(train_dl, leave=False, desc="Computing embeddings"):
 
             sample, label = b
-            d_x, d_m, s_x, s_m, month = sample
+            d_x, s_x, d_m, s_m, month = sample
 
-            d_x, d_m, s_x, s_m, month = [t.to(device) for t in (d_x, d_m, s_x, s_m, month)]
+            d_x, s_x, d_m, s_m, month = [t.to(device) for t in (d_x, s_x, d_m, s_m, month)]
 
             target_list.append(label.cpu().numpy())
             with torch.no_grad():
