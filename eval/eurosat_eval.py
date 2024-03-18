@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 import numpy as np
-import torch.multiprocessing
 import rioxarray as xr
+import torch.multiprocessing
 from einops import repeat
 from torch.utils.data import Dataset as PyTorchDataset
 
@@ -77,7 +77,6 @@ class EuroSatDataset(PyTorchDataset):
 
         if self.rgb:
             NotImplementedError
-
 
     @staticmethod
     def url_to_list(url: str) -> List[str]:
