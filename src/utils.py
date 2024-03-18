@@ -1,4 +1,8 @@
+from pathlib import Path
+
 from .config import DEFAULT_SEED
+
+data_dir = Path(__file__).parent.parent / "data"
 
 
 # From https://gist.github.com/ihoromi4/b681a9088f348942b01711f251e5f964

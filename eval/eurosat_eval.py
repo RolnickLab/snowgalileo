@@ -1,18 +1,26 @@
+import json
 import logging
+import urllib.request
 from collections import namedtuple
-from typing import Tuple
+from pathlib import Path
+from typing import Dict, List, Tuple
 
 import numpy as np
 import torch.multiprocessing
-from datasets import load_dataset
+import xarray
 from einops import repeat
 from torch.utils.data import Dataset as PyTorchDataset
 
+from src import utils
 from src.data.dataset import (
+    ALL_S2_BANDS,
+    DYNAMIC_BANDS,
     DYNAMIC_BANDS_GROUPS_IDX,
     NUM_DYNAMIC_BAND_GROUPS,
     NUM_DYNAMIC_BANDS,
     NUM_STATIC_BAND_GROUPS,
+    NUM_STATIC_BANDS,
+    REMOVED_BANDS,
 )
 
 ### SETUP
@@ -22,6 +30,8 @@ MaskedOutput = namedtuple(
     "MaskedOutput", ["dynamic_x", "static_x", "dynamic_mask", "static_mask", "months"]
 )
 
+tif_files_dir = "eurosat/EuroSAT_MS"
+
 
 class EuroSatDataset(PyTorchDataset):
     """
@@ -30,24 +40,82 @@ class EuroSatDataset(PyTorchDataset):
     - 27000 MSI images of 64x64 pixels (13 sen2 bands), 10 land cover classes
     """
 
+    labels_to_int = {
+        "AnnualCrop": 0,
+        "Forest": 1,
+        "HerbaceousVegetation": 2,
+        "Highway": 3,
+        "Industrial": 4,
+        "Pasture": 5,
+        "PermanentCrop": 6,
+        "Residential": 7,
+        "River": 8,
+        "SeaLake": 9,
+    }
+
+    split_urls = {
+        "train": "https://storage.googleapis.com/remote_sensing_representations/eurosat-train.txt",
+        "val": "https://storage.googleapis.com/remote_sensing_representations/eurosat-val.txt",
+        "test": "https://storage.googleapis.com/remote_sensing_representations/eurosat-test.txt",
+    }
+
+    input_height_width = 64
+    num_timesteps = 1
+
     def __init__(
         self,
         rgb: bool = True,
         split: str = "train",
         merge_train_val: bool = True,
     ):
-        assert split in ["train", "validation", "test"]
+        assert split in ["train", "val", "test"]
 
         self.split = split
         self.rgb = rgb
-        self.input_size = 64
 
-        if self.rgb:
-            self.data = load_dataset("blanchon/EuroSAT_RGB", split=self.split)
+        self.images = self.split_images(merge_train_val)[split]
 
-        # MSI data
+    @staticmethod
+    def url_to_list(url: str) -> List[str]:
+        data = urllib.request.urlopen(url).read()
+        return data.decode("utf-8").split("\n")
+
+    @staticmethod
+    def image_name_to_path(name: str) -> Path:
+        class_name = name.split("_")[0]
+        if name.endswith("jpg"):
+            name = f"{name.split('.')[0]}.tif"
+        return utils.data_dir / tif_files_dir / class_name / name
+
+    @staticmethod
+    def split_images(merge_train_val: bool = True) -> Dict[str, List[str]]:
+        # updated to use the splits stored in
+        # https://storage.googleapis.com/remote_sensing_representations
+        # as per torchgeo
+        filename = (
+            "eurosat/train_test_split.json"
+            if merge_train_val
+            else "eurosat/train_val_test_split.json"
+        )
+        split_path = utils.data_dir / filename
+        if split_path.exists():
+            train_test_split = json.load(split_path.open("r"))
         else:
-            self.data = load_dataset("blanchon/EuroSAT_MSI", split=self.split)
+            # this code was only run once (the dictionary is then saved)
+            # but is saved here for clarity
+            train_images = EuroSatDataset.url_to_list(EuroSatDataset.split_urls["train"])
+            test_images = EuroSatDataset.url_to_list(EuroSatDataset.split_urls["test"])
+            train_test_split = {"train": train_images, "test": test_images}
+            if merge_train_val:
+                train_test_split["train"] += EuroSatDataset.url_to_list(
+                    EuroSatDataset.split_urls["val"]
+                )
+            else:
+                train_test_split["val"] = EuroSatDataset.url_to_list(
+                    EuroSatDataset.split_urls["val"]
+                )
+            json.dump(train_test_split, split_path.open("w"))
+        return train_test_split
 
     def create_eurosat_masks(self) -> Tuple[np.ndarray, np.ndarray]:
         if self.rgb:
@@ -65,49 +133,57 @@ class EuroSatDataset(PyTorchDataset):
         # unmask available s2 bands
         dynamic_mask[dynamic_channels] = 0
         dynamic_mask = repeat(
-            dynamic_mask, "d -> h w t d", h=self.input_size, w=self.input_size, t=1
+            dynamic_mask, "d -> h w t d", h=self.input_height_width, w=self.input_height_width, t=1
         )
 
         # no static channels are available
-        static_mask = np.ones([self.input_size, self.input_size, NUM_STATIC_BAND_GROUPS])
+        static_mask = np.ones(
+            [self.input_height_width, self.input_height_width, NUM_STATIC_BAND_GROUPS]
+        )
 
         assert np.unique(dynamic_mask).tolist() == [0, 1]
         assert np.unique(static_mask).tolist() == [1]
 
         return (dynamic_mask, static_mask)
 
-    def add_missing_channels(self, d_x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        # s_x is not provided by eurosat
-        s_x = np.zeros((d_x.shape[0], d_x.shape[1], 2))
+    def image_to_dynamic_eo_array(self, tif_filename: str) -> Tuple[np.ndarray, np.ndarray]:
+        indices_to_remove = []
+        for band in REMOVED_BANDS:
+            indices_to_remove.append(ALL_S2_BANDS.index(band))
+        kept_s2_bands = [i for i in range(len(ALL_S2_BANDS)) if i not in indices_to_remove]
+        kept_dynamic_bands = [
+            idx
+            for idx, x in enumerate(DYNAMIC_BANDS)
+            if ((x in ALL_S2_BANDS) and (x not in REMOVED_BANDS))
+        ]
 
-        # 3 presto channels are provided by RGB
-        if self.rgb:
-            d_x_missing = np.zeros((d_x.shape[0], d_x.shape[1], 1, NUM_DYNAMIC_BANDS - 3))
-        else:
-            d_x_missing = np.zeros((d_x.shape[0], d_x.shape[1], 1, NUM_DYNAMIC_BANDS - 10))
+        tif_file = self.image_name_to_path(tif_filename)
 
-        d_x = np.concatenate((d_x, d_x_missing), axis=-1)
+        with xarray.open_rasterio(tif_file) as image:
+            eo_style_array = np.zeros(
+                [
+                    self.input_height_width,
+                    self.input_height_width,
+                    self.num_timesteps,
+                    NUM_DYNAMIC_BANDS,
+                ]
+            )
+            eo_style_array[:, :, :, kept_dynamic_bands] = image.values[kept_s2_bands]
 
-        return (d_x, s_x)
-
-    def image_to_eo_array(self, idx: int) -> Tuple[np.ndarray, int]:
-        image = np.array(self.data[idx]["image"])
-        label = self.data[idx]["label"]
-
-        # for MSI, remove band 1,9 and 10
-        if not self.rgb:
-            image = np.delete(image, [0, 9, 10], axis=2)
-
-        return (image, label)
+        return (
+            eo_style_array,
+            np.array([self.labels_to_int[tif_file.parents[0].name]]),
+        )
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
-        d_x, label = self.image_to_eo_array(idx)
-        d_x = d_x.reshape(d_x.shape[0], d_x.shape[1], 1, d_x.shape[2])
+        image = self.images[idx]
+        d_x, label = self.image_to_dynamic_eo_array(image.strip())
 
-        d_x, s_x = self.add_missing_channels(d_x)
+        # static bands are not provided by eurosat
+        s_x = np.zeros((d_x.shape[0], d_x.shape[1], NUM_STATIC_BANDS))
 
         d_m, s_m = self.create_eurosat_masks()
-        month = np.zeros((1,))
+        month = np.zeros((self.num_timesteps,))
 
         d_x_torch = torch.as_tensor(d_x, dtype=torch.float32)
         s_x_torch = torch.as_tensor(s_x, dtype=torch.float32)
@@ -119,4 +195,4 @@ class EuroSatDataset(PyTorchDataset):
         return (MaskedOutput(d_x_torch, s_x_torch, d_m_torch, s_m_torch, month_torch), label_torch)
 
     def __len__(self):
-        return len(self.data)
+        return len(self.images)
