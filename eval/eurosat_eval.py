@@ -171,7 +171,13 @@ class EuroSatDataset(PyTorchDataset):
                     NUM_DYNAMIC_BANDS,
                 ]
             )
-            eo_style_array[:, :, :, kept_dynamic_bands] = image.values[kept_s2_bands]
+            image_kept_bands = image.values[kept_s2_bands]
+            eo_style_array[:, :, :, kept_dynamic_bands] = image_kept_bands.reshape(
+                image_kept_bands.shape[1],
+                image_kept_bands.shape[2],
+                self.num_timesteps,
+                image_kept_bands.shape[0],
+            )
 
         return (
             eo_style_array,
