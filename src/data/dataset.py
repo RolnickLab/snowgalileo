@@ -25,6 +25,9 @@ from .earthengine.eo import (
 )
 from .earthengine.eo import DYNAMIC_BANDS as EO_DYNAMIC_BANDS
 
+ALL_S2_BANDS = ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B8A", "B9", "B10", "B11", "B12"]
+REMOVED_BANDS = ["B1", "B9", "B10"]
+
 DYNAMIC_BANDS = EO_DYNAMIC_BANDS + ["NDVI"]
 
 DYNAMIC_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
