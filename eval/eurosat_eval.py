@@ -75,6 +75,10 @@ class EuroSatDataset(PyTorchDataset):
 
         self.images = self.split_images(merge_train_val)[split]
 
+        if self.rgb:
+            NotImplementedError
+
+
     @staticmethod
     def url_to_list(url: str) -> List[str]:
         data = urllib.request.urlopen(url).read()
