@@ -7,7 +7,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import torch.multiprocessing
-import xarray
+import rioxarray as xr
 from einops import repeat
 from torch.utils.data import Dataset as PyTorchDataset
 
@@ -163,7 +163,7 @@ class EuroSatDataset(PyTorchDataset):
 
         tif_file = self.image_name_to_path(tif_filename)
 
-        with xarray.open_rasterio(tif_file) as image:
+        with xr.open_rasterio(tif_file) as image:
             eo_style_array = np.zeros(
                 [
                     self.input_height_width,
