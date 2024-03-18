@@ -13,10 +13,6 @@ from src.masked_datasets import (
 )
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/tifs"
-TEST_FILE = (
-    DATA_FOLDER
-    / "tifs_min_lat=19.2005_min_lon=-155.6227_max_lat=19.2132_max_lon=-155.6094_dates=2022-01-01_2023-12-31.tif"
-)
 
 
 class TestPresto(unittest.TestCase):
