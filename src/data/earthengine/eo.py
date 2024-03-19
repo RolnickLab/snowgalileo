@@ -2,7 +2,7 @@
 import json
 import os
 from datetime import date, timedelta
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 import ee
 import numpy as np
@@ -10,7 +10,6 @@ import pandas as pd
 from pandas.compat._optional import import_optional_dependency
 from tqdm import tqdm
 
-from ..bbox import BBox
 from ..config import (
     DAYS_PER_TIMESTEP,
     EE_BUCKET_TIFS,
@@ -99,7 +98,7 @@ def get_cloud_tif_list(
             f"{e}\nPlease create the Google Cloud bucket: {dest_bucket}"
             + f"\nCommand: gsutil mb -l {region} gs://{dest_bucket}"
         )
-
+    print(f"Found {len(tif_list)} already exported tifs")
     return tif_list
 
 
@@ -237,23 +236,19 @@ class EarthEngineExporter:
         polygon_identifier: Union[int, str],
         start_date: date,
         end_date: date,
-        test: bool = False,
         file_dimensions: Optional[int] = None,
     ) -> bool:
-        filename = str(polygon_identifier)
+        filename = f"tifs/{str(polygon_identifier)}"
 
         # Description of the export cannot contain certrain characters
         description = ee_safe_str(filename)
 
-        if (
-            f"{filename}.tif" in self.cloud_tif_list
-            and f"tifs/{filename}.tif" in self.cloud_tif_list
-        ):
+        if f"{filename}.tif" in self.cloud_tif_list:
             # checks that we haven't already exported this file
             return False
 
         # Check if task is already started in EarthEngine
-        if not test and description in self.ee_task_list:
+        if description in self.ee_task_list:
             return False
 
         if len(self.ee_task_list) >= 3000:
@@ -261,11 +256,6 @@ class EarthEngineExporter:
             return False
 
         img = create_ee_image(polygon, start_date, end_date)
-
-        # and finally, export the image
-        if not test:
-            # If training data make sure it goes in the tifs folder
-            filename = f"tifs/{filename}"
 
         try:
             ee.batch.Export.image.toCloudStorage(
@@ -283,41 +273,6 @@ class EarthEngineExporter:
             print(f"Task not started! Got exception {e}")
 
         return True
-
-    def export_for_bbox(
-        self,
-        bbox: BBox,
-        bbox_name: str,
-        start_date: date,
-        end_date: date,
-        metres_per_polygon: Optional[int] = 10000,
-        file_dimensions: Optional[int] = None,
-    ) -> Dict[str, bool]:
-        """
-        Turns an EEBoundingBox into an ee.Polygon so that it can be exported
-        """
-        if start_date > end_date:
-            raise ValueError(f"Start date {start_date} is after end date {end_date}")
-
-        ee_bbox = EEBoundingBox.from_bounding_box(bounding_box=bbox, padding_metres=0)
-        if metres_per_polygon is not None:
-            regions = ee_bbox.to_polygons(metres_per_patch=metres_per_polygon)
-            ids = [f"batch_{i}/{i}" for i in range(len(regions))]
-        else:
-            regions = [ee_bbox.to_ee_polygon()]
-            ids = ["batch/0"]
-
-        return_obj = {}
-        for identifier, region in zip(ids, regions):
-            return_obj[identifier] = self._export_for_polygon(
-                polygon=region,
-                polygon_identifier=f"{bbox_name}/{identifier}",
-                start_date=start_date,
-                end_date=end_date,
-                file_dimensions=file_dimensions,
-                test=True,
-            )
-        return return_obj
 
     def export_for_latlons(
         self,
@@ -347,7 +302,6 @@ class EarthEngineExporter:
                 polygon_identifier=ee_bbox.get_identifier(START_DATE, END_DATE),
                 start_date=START_DATE,
                 end_date=END_DATE,
-                test=False,
             )
             if export_started:
                 exports_started += 1
