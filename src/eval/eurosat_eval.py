@@ -11,7 +11,6 @@ import torch.multiprocessing
 import xarray
 from einops import repeat
 from torch.utils.data import Dataset as PyTorchDataset
-from ..utils import data_dir
 
 from ..data.dataset import (
     DYNAMIC_BANDS,
@@ -22,6 +21,7 @@ from ..data.dataset import (
     STATIC_BANDS,
 )
 from ..data.earthengine.s2 import ALL_S2_BANDS
+from ..utils import data_dir
 
 ### SETUP
 torch.multiprocessing.set_sharing_strategy("file_system")
