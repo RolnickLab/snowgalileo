@@ -19,12 +19,8 @@ logger = logging.getLogger("__main__")
 
 @dataclass
 class Hyperparams:
-    lr: float = 3e-4
-    max_epochs: int = 100
     batch_size: int = 4096
-    patience: int = 3
     num_workers: int = 2
-    weight_decay: float = 0.05
 
 
 class EvalTask(ABC):
@@ -48,14 +44,14 @@ class EvalTask(ABC):
         self,
         dl: DataLoader,
         pretrained_model,
-        models: List[str] = ["Regression", "Random Forest"],
+        models: List[str] = ["Random Forest"],
     ) -> Union[Sequence[BaseEstimator], Dict]:
         for model_mode in models:
             if self.regression:
                 assert model_mode in ["Regression", "Random Forest"]
             else:
                 assert model_mode in [
-                    "Regression",
+                    "Logistic Regression",
                     "Random Forest",
                     "KNNat5",
                     "KNNat20",
@@ -78,7 +74,7 @@ class EvalTask(ABC):
         fit_models = []
         model_dict = {
             False: {
-                "Regression": self._construct_sklearn_model(
+                "Logistic Regression": self._construct_sklearn_model(
                     LogisticRegression(
                         class_weight="balanced", max_iter=1000, random_state=self.seed
                     )
