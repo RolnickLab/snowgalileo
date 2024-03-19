@@ -573,6 +573,14 @@ class Encoder(FlexiPrestoBase):
             torch.stack(s_m, dim=-1),
         )
 
+    @classmethod
+    def average_tokens(cls, d_x, s_x, d_m, s_m):
+        d_x, s_x, d_m, s_m = cls.collapse_hwtc(d_x, s_x, d_m, s_m)
+        x = torch.cat([d_x, s_x], dim=1)  # B, N, D
+        m = torch.cat([d_m, s_m], dim=1)  # B, N
+        x_for_mean = x * (1 - m.unsqueeze(-1))
+        return x_for_mean.sum(dim=1) / torch.sum(1 - m, -1, keepdim=True)
+
     def forward(
         self,
         dynamic_x: torch.Tensor,

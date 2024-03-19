@@ -12,19 +12,12 @@ from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER, EE_PROJECT
 from src.flexipresto import Encoder, PrestoDecoder
 from src.masked_datasets import PrestoToPrestoMaskedDataset, subset_batch_of_masked_outputs
-from src.utils import seed_everything
+from src.utils import device, seed_everything
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
 
 os.environ["GOOGLE_CLOUD_PROJECT"] = EE_PROJECT
-
-
-if not torch.cuda.is_available():
-    device = torch.device("cpu")
-else:
-    device = torch.device("cuda:0")
-    torch.cuda.set_device(device)
 
 
 # this should live elsewhere
