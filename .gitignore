@@ -1,8 +1,6 @@
 __pycache__
 # data needs to be explicitly added
 data/*
-# save eurosat splits
-!data/eurosat/train_test_split.json
 .ipynb_checkpoints
 models
 slurm
