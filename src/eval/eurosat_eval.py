@@ -3,11 +3,12 @@ import logging
 import urllib.request
 from collections import namedtuple
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, cast
 
 import numpy as np
 import rioxarray as xr
 import torch.multiprocessing
+import xarray
 from einops import repeat
 from torch.utils.data import Dataset as PyTorchDataset
 
@@ -158,7 +159,7 @@ class EuroSatDataset(PyTorchDataset):
 
         tif_file = self.image_name_to_path(tif_filename)
 
-        with xr.open_rasterio(tif_file) as image:
+        with cast(xarray.core.dataarray.DataArray, xr.open_rasterio(tif_file)) as image:
             eo_style_array = np.zeros(
                 [
                     self.input_height_width,
