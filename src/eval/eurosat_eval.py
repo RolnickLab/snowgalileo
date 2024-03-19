@@ -76,6 +76,13 @@ class EuroSatDataset(PyTorchDataset):
         self.images = self.split_images(merge_train_val)[split]
 
     @staticmethod
+    def image_name_to_path(self, name: str, tif_files_dir: str) -> Path:
+        class_name = name.split("_")[0]
+        if name.endswith("jpg"):
+            name = f"{name.split('.')[0]}.tif"
+        return data_dir / tif_files_dir / class_name / name
+
+    @staticmethod
     def url_to_list(url: str) -> List[str]:
         data = urllib.request.urlopen(url).read()
         return data.decode("utf-8").split("\n")
@@ -109,12 +116,6 @@ class EuroSatDataset(PyTorchDataset):
                 )
             json.dump(train_test_split, split_path.open("w"))
         return train_test_split
-
-    def image_name_to_path(self, name: str) -> Path:
-        class_name = name.split("_")[0]
-        if name.endswith("jpg"):
-            name = f"{name.split('.')[0]}.tif"
-        return data_dir / self.tif_files_dir / class_name / name
 
     def create_eurosat_masks(self) -> Tuple[np.ndarray, np.ndarray]:
         if self.rgb:
@@ -156,7 +157,7 @@ class EuroSatDataset(PyTorchDataset):
             if ((x in ALL_S2_BANDS) and (x not in REMOVED_BANDS))
         ]
 
-        tif_file = self.image_name_to_path(tif_filename)
+        tif_file = self.image_name_to_path(tif_filename, self.tif_files_dir)
 
         with cast(xarray.core.dataarray.DataArray, xr.open_rasterio(tif_file)) as image:
             eo_style_array = np.zeros(
