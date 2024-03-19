@@ -3,7 +3,7 @@ import logging
 import urllib.request
 from collections import namedtuple
 from pathlib import Path
-from typing import Dict, List, Tuple, cast
+from typing import Dict, List, Optional, Tuple, cast
 
 import numpy as np
 import rioxarray as xr
@@ -11,6 +11,7 @@ import torch.multiprocessing
 import xarray
 from einops import repeat
 from torch.utils.data import Dataset as PyTorchDataset
+from ..utils import data_dir
 
 from ..data.dataset import (
     DYNAMIC_BANDS,
@@ -21,7 +22,6 @@ from ..data.dataset import (
     STATIC_BANDS,
 )
 from ..data.earthengine.s2 import ALL_S2_BANDS
-from ..utils import data_dir
 
 ### SETUP
 torch.multiprocessing.set_sharing_strategy("file_system")
@@ -29,8 +29,6 @@ logger = logging.getLogger("__main__")
 MaskedOutput = namedtuple(
     "MaskedOutput", ["dynamic_x", "static_x", "dynamic_mask", "static_mask", "months"]
 )
-
-tif_files_dir = "eurosat/EuroSAT_MS"
 
 
 class EuroSatDataset(PyTorchDataset):
@@ -67,11 +65,13 @@ class EuroSatDataset(PyTorchDataset):
         rgb: bool = True,
         split: str = "train",
         merge_train_val: bool = True,
+        tif_files_dir: Optional[str] = "eurosat/EuroSAT_MS",
     ):
         assert split in ["train", "val", "test"]
 
         self.split = split
         self.rgb = rgb
+        self.tif_files_dir = tif_files_dir
 
         self.images = self.split_images(merge_train_val)[split]
 
@@ -79,13 +79,6 @@ class EuroSatDataset(PyTorchDataset):
     def url_to_list(url: str) -> List[str]:
         data = urllib.request.urlopen(url).read()
         return data.decode("utf-8").split("\n")
-
-    @staticmethod
-    def image_name_to_path(name: str) -> Path:
-        class_name = name.split("_")[0]
-        if name.endswith("jpg"):
-            name = f"{name.split('.')[0]}.tif"
-        return data_dir / tif_files_dir / class_name / name
 
     @staticmethod
     def split_images(merge_train_val: bool = True) -> Dict[str, List[str]]:
@@ -116,6 +109,12 @@ class EuroSatDataset(PyTorchDataset):
                 )
             json.dump(train_test_split, split_path.open("w"))
         return train_test_split
+
+    def image_name_to_path(self, name: str) -> Path:
+        class_name = name.split("_")[0]
+        if name.endswith("jpg"):
+            name = f"{name.split('.')[0]}.tif"
+        return data_dir / self.tif_files_dir / class_name / name
 
     def create_eurosat_masks(self) -> Tuple[np.ndarray, np.ndarray]:
         if self.rgb:
