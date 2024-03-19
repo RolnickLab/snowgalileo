@@ -11,6 +11,7 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.multioutput import MultiOutputClassifier
 from torch.utils.data import DataLoader
 
+from ..flexipresto import Encoder
 from ..utils import DEFAULT_SEED, device
 from .knn import KNNat5, KNNat20, KNNat100
 
@@ -43,7 +44,7 @@ class EvalTask(ABC):
     def train_sklearn_model(
         self,
         dl: DataLoader,
-        pretrained_model,
+        pretrained_model: Encoder,
         models: List[str] = ["Random Forest"],
     ) -> Union[Sequence[BaseEstimator], Dict]:
         for model_mode in models:
@@ -64,7 +65,8 @@ class EvalTask(ABC):
             d_x, s_x, d_m, s_m, months = [t.to(device) for t in masked_output]
             target_list.append(label.cpu().numpy())
             with torch.no_grad():
-                encodings = pretrained_model.encoder(d_x, s_x, d_m, s_m, months).cpu().numpy()
+                d_x, s_x, d_m, s_m, _ = pretrained_model(d_x, s_x, d_m, s_m, months)
+                encodings = pretrained_model.average_tokens(d_x, s_x, d_m, s_m).cpu().numpy()
                 encoding_list.append(encodings)
         encodings_np = np.concatenate(encoding_list)
         targets = np.concatenate(target_list)
@@ -95,5 +97,5 @@ class EvalTask(ABC):
             fit_models.append(clone(model_dict[self.regression][model]).fit(encodings_np, targets))
         return fit_models
 
-    def evaluate_model_on_task(self, pretrained_model, model_modes: List[str]) -> Dict:
+    def evaluate_model_on_task(self, pretrained_model: Encoder, model_modes: List[str]) -> Dict:
         raise NotImplementedError
