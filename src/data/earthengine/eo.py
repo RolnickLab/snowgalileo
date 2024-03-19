@@ -99,7 +99,7 @@ def get_cloud_tif_list(
             f"{e}\nPlease create the Google Cloud bucket: {dest_bucket}"
             + f"\nCommand: gsutil mb -l {region} gs://{dest_bucket}"
         )
-
+    print(f"Found {len(tif_list)} already exported tifs")
     return tif_list
 
 
@@ -237,23 +237,19 @@ class EarthEngineExporter:
         polygon_identifier: Union[int, str],
         start_date: date,
         end_date: date,
-        test: bool = False,
         file_dimensions: Optional[int] = None,
     ) -> bool:
-        filename = str(polygon_identifier)
+        filename = f"tifs/{str(polygon_identifier)}"
 
         # Description of the export cannot contain certrain characters
         description = ee_safe_str(filename)
 
-        if (
-            f"{filename}.tif" in self.cloud_tif_list
-            and f"tifs/{filename}.tif" in self.cloud_tif_list
-        ):
+        if f"{filename}.tif" in self.cloud_tif_list:
             # checks that we haven't already exported this file
             return False
 
         # Check if task is already started in EarthEngine
-        if not test and description in self.ee_task_list:
+        if description in self.ee_task_list:
             return False
 
         if len(self.ee_task_list) >= 3000:
@@ -261,11 +257,6 @@ class EarthEngineExporter:
             return False
 
         img = create_ee_image(polygon, start_date, end_date)
-
-        # and finally, export the image
-        if not test:
-            # If training data make sure it goes in the tifs folder
-            filename = f"tifs/{filename}"
 
         try:
             ee.batch.Export.image.toCloudStorage(
@@ -347,7 +338,6 @@ class EarthEngineExporter:
                 polygon_identifier=ee_bbox.get_identifier(START_DATE, END_DATE),
                 start_date=START_DATE,
                 end_date=END_DATE,
-                test=False,
             )
             if export_started:
                 exports_started += 1
