@@ -74,10 +74,10 @@ class TestEuroSat(unittest.TestCase):
         d_x, s_x, d_m, s_m, m = sample[0]
         label = sample[1]
 
-        self.test_dynamic(d_x, d_m)
-        self.test_static(s_x, s_m)
-        self.test_month(m)
-        self.test_label(label)
+        self.test_dynamic(dynamic_x=d_x, dynamic_m=d_m)
+        self.test_static(static_x=s_x, static_m=s_m)
+        self.test_month(month=m)
+        self.test_label(label=label)
 
         # will test if the right channels are masked out
         present_bands = [
@@ -96,10 +96,10 @@ class TestEuroSat(unittest.TestCase):
         d_x, s_x, d_m, s_m, m = sample[0]
         label = sample[1]
 
-        self.test_dynamic(d_x, d_m)
-        self.test_static(s_x, s_m)
-        self.test_month(m)
-        self.test_label(label)
+        self.test_dynamic(dynamic_x=d_x, dynamic_m=d_m)
+        self.test_static(static_x=s_x, static_m=s_m)
+        self.test_month(month=m)
+        self.test_label(label=label)
 
         # will test if the right channels are masked out
         present_bands = [idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" in key]
@@ -109,9 +109,3 @@ class TestEuroSat(unittest.TestCase):
 
         self.assertTrue(torch.all(d_m[:, :, :, present_bands] == 0))
         self.assertTrue(torch.all(d_m[:, :, :, unpresent_bands] == 1))
-
-
-if __name__ == "__main__":
-    test = TestEuroSat()
-    test.test_eurosat_dataset_rgb()
-    print("passed")
