@@ -8,7 +8,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 import rioxarray as xr
 import torch.multiprocessing
-from einops import rearrange, repeat
+from einops import repeat
 from torch.utils.data import Dataset as PyTorchDataset
 
 from src import utils
@@ -172,7 +172,7 @@ class EuroSatDataset(PyTorchDataset):
                 ]
             )
             image_kept_bands = image.values[kept_s2_bands]
-            eo_style_array[:, :, :, kept_dynamic_bands] = rearrange(
+            eo_style_array[:, :, :, kept_dynamic_bands] = repeat(
                 image_kept_bands, "c h w -> h w t c", t=self.num_timesteps
             )
 
