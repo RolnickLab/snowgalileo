@@ -44,7 +44,7 @@ class EvalTask(ABC):
         return model
 
     @torch.no_grad()
-    def finetune_sklearn_model(
+    def train_sklearn_model(
         self,
         dl: DataLoader,
         pretrained_model,
@@ -99,5 +99,5 @@ class EvalTask(ABC):
             fit_models.append(clone(model_dict[self.regression][model]).fit(encodings_np, targets))
         return fit_models
 
-    def finetuning_results(self, pretrained_model, model_modes: List[str]) -> Dict:
+    def evaluate_model_on_task(self, pretrained_model, model_modes: List[str]) -> Dict:
         raise NotImplementedError
