@@ -1,7 +1,7 @@
 import logging
 from abc import ABC
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Union
+from typing import Dict, List, Sequence, Union
 
 import numpy as np
 import torch
@@ -99,10 +99,5 @@ class EvalTask(ABC):
             fit_models.append(clone(model_dict[self.regression][model]).fit(encodings_np, targets))
         return fit_models
 
-    def finetuning_results(
-        self,
-        pretrained_model,
-        model_modes: List[str],
-        mask: Optional[np.ndarray] = None,
-    ) -> Dict:
+    def finetuning_results(self, pretrained_model, model_modes: List[str]) -> Dict:
         raise NotImplementedError
