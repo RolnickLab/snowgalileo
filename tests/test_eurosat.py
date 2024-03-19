@@ -77,7 +77,6 @@ class TestEuroSat(unittest.TestCase):
         self.assertTrue(torch.all(torch.logical_or(label == 0, label == 1)))
 
     def test_eurosat_dataset_rgb(self):
-        skip=False
         dataset = EuroSatDataset(rgb=True, split="test", tif_files_dir=DATA_FOLDER)
         sample = dataset[0]
         d_x, s_x, d_m, s_m, m = sample[0]
