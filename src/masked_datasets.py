@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Tuple
 
 import numpy as np
+import torch
 from einops import repeat
 
 from .config import (
@@ -23,6 +24,36 @@ STATIC_BAND_EXPANSION = [len(x) for x in STATIC_BAND_GROUPS_IDX.values()]
 MaskedOutput = namedtuple(
     "MaskedOutput", ["dynamic_x", "static_x", "dynamic_mask", "static_mask", "months"]
 )
+
+
+def subset_batch_of_masked_outputs(
+    dynamic_x: torch.Tensor,
+    static_x: torch.Tensor,
+    dynamic_mask: torch.Tensor,
+    static_mask: torch.Tensor,
+    size: int,
+):
+    assert (dynamic_x.shape[1] == static_x.shape[1]) & (dynamic_x.shape[2] == static_x.shape[2])
+    possible_h = dynamic_x.shape[1] - size
+    possible_w = dynamic_x.shape[2] - size
+    assert (possible_h >= 0) & (possible_w >= 0)
+
+    if possible_h > 0:
+        start_h = np.random.choice(possible_h)
+    else:
+        start_h = possible_h
+
+    if possible_w > 0:
+        start_w = np.random.choice(possible_w)
+    else:
+        start_w = possible_w
+
+    return (
+        dynamic_x[:, start_h : start_h + size, start_w : start_w + size],
+        static_x[:, start_h : start_h + size, start_w : start_w + size],
+        dynamic_mask[:, start_h : start_h + size, start_w : start_w + size],
+        static_mask[:, start_h : start_h + size, start_w : start_w + size],
+    )
 
 
 def subset_image(
