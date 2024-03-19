@@ -2,7 +2,7 @@
 import json
 import os
 from datetime import date, timedelta
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 import ee
 import numpy as np
@@ -10,7 +10,6 @@ import pandas as pd
 from pandas.compat._optional import import_optional_dependency
 from tqdm import tqdm
 
-from ..bbox import BBox
 from ..config import (
     DAYS_PER_TIMESTEP,
     EE_BUCKET_TIFS,
@@ -274,41 +273,6 @@ class EarthEngineExporter:
             print(f"Task not started! Got exception {e}")
 
         return True
-
-    def export_for_bbox(
-        self,
-        bbox: BBox,
-        bbox_name: str,
-        start_date: date,
-        end_date: date,
-        metres_per_polygon: Optional[int] = 10000,
-        file_dimensions: Optional[int] = None,
-    ) -> Dict[str, bool]:
-        """
-        Turns an EEBoundingBox into an ee.Polygon so that it can be exported
-        """
-        if start_date > end_date:
-            raise ValueError(f"Start date {start_date} is after end date {end_date}")
-
-        ee_bbox = EEBoundingBox.from_bounding_box(bounding_box=bbox, padding_metres=0)
-        if metres_per_polygon is not None:
-            regions = ee_bbox.to_polygons(metres_per_patch=metres_per_polygon)
-            ids = [f"batch_{i}/{i}" for i in range(len(regions))]
-        else:
-            regions = [ee_bbox.to_ee_polygon()]
-            ids = ["batch/0"]
-
-        return_obj = {}
-        for identifier, region in zip(ids, regions):
-            return_obj[identifier] = self._export_for_polygon(
-                polygon=region,
-                polygon_identifier=f"{bbox_name}/{identifier}",
-                start_date=start_date,
-                end_date=end_date,
-                file_dimensions=file_dimensions,
-                test=True,
-            )
-        return return_obj
 
     def export_for_latlons(
         self,
