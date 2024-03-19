@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 import torch
 
@@ -10,6 +11,8 @@ from src.data.dataset import (
     STATIC_BANDS,
 )
 from src.eval.eurosat_eval import EuroSatDataset
+
+DATA_FOLDER = Path(__file__).parents[1] / "data/eurosat/eurosat_test"
 
 
 class TestEuroSat(unittest.TestCase):
@@ -66,10 +69,7 @@ class TestEuroSat(unittest.TestCase):
         self.assertTrue(torch.all(torch.logical_or(label == 0, label == 1)))
 
     def test_eurosat_dataset_rgb(self):
-        dataset = EuroSatDataset(
-            rgb=True,
-            split="test",
-        )
+        dataset = EuroSatDataset(rgb=True, split="test", tif_files_dir=DATA_FOLDER)
         sample = dataset[0]
         d_x, s_x, d_m, s_m, m = sample[0]
         label = sample[1]
@@ -91,10 +91,7 @@ class TestEuroSat(unittest.TestCase):
         self.assertTrue(torch.all(d_m[:, :, :, unpresent_bands] == 1))
 
     def test_eurosat_dataset_msi(self):
-        dataset = EuroSatDataset(
-            rgb=False,
-            split="test",
-        )
+        dataset = EuroSatDataset(rgb=False, split="test", tif_files_dir=DATA_FOLDER)
         sample = dataset[0]
         d_x, s_x, d_m, s_m, m = sample[0]
         label = sample[1]
@@ -112,3 +109,9 @@ class TestEuroSat(unittest.TestCase):
 
         self.assertTrue(torch.all(d_m[:, :, :, present_bands] == 0))
         self.assertTrue(torch.all(d_m[:, :, :, unpresent_bands] == 1))
+
+
+if __name__ == "__main__":
+    test = TestEuroSat()
+    test.test_eurosat_dataset_rgb()
+    print("passed")
