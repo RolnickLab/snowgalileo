@@ -75,12 +75,11 @@ class EuroSatDataset(PyTorchDataset):
 
         self.images = self.split_images(merge_train_val)[split]
 
-    @staticmethod
-    def image_name_to_path(self, name: str, tif_files_dir: str) -> Path:
+    def image_name_to_path(self, name: str) -> Path:
         class_name = name.split("_")[0]
         if name.endswith("jpg"):
             name = f"{name.split('.')[0]}.tif"
-        return data_dir / tif_files_dir / class_name / name
+        return data_dir / cast(str, self.tif_files_dir) / class_name / name
 
     @staticmethod
     def url_to_list(url: str) -> List[str]:
@@ -157,7 +156,7 @@ class EuroSatDataset(PyTorchDataset):
             if ((x in ALL_S2_BANDS) and (x not in REMOVED_BANDS))
         ]
 
-        tif_file = self.image_name_to_path(tif_filename, self.tif_files_dir)
+        tif_file = self.image_name_to_path(tif_filename)
 
         with cast(xarray.core.dataarray.DataArray, xr.open_rasterio(tif_file)) as image:
             eo_style_array = np.zeros(
