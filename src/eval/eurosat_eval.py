@@ -11,17 +11,16 @@ import torch.multiprocessing
 from einops import repeat
 from torch.utils.data import Dataset as PyTorchDataset
 
-from src import utils
-from src.data.dataset import (
-    ALL_S2_BANDS,
+from ..data.dataset import (
     DYNAMIC_BANDS,
     DYNAMIC_BANDS_GROUPS_IDX,
     NUM_DYNAMIC_BAND_GROUPS,
-    NUM_DYNAMIC_BANDS,
     NUM_STATIC_BAND_GROUPS,
-    NUM_STATIC_BANDS,
     REMOVED_BANDS,
+    STATIC_BANDS,
 )
+from ..data.earthengine.s2 import ALL_S2_BANDS
+from ..utils import data_dir
 
 ### SETUP
 torch.multiprocessing.set_sharing_strategy("file_system")
@@ -75,9 +74,6 @@ class EuroSatDataset(PyTorchDataset):
 
         self.images = self.split_images(merge_train_val)[split]
 
-        if self.rgb:
-            NotImplementedError
-
     @staticmethod
     def url_to_list(url: str) -> List[str]:
         data = urllib.request.urlopen(url).read()
@@ -88,7 +84,7 @@ class EuroSatDataset(PyTorchDataset):
         class_name = name.split("_")[0]
         if name.endswith("jpg"):
             name = f"{name.split('.')[0]}.tif"
-        return utils.data_dir / tif_files_dir / class_name / name
+        return data_dir / tif_files_dir / class_name / name
 
     @staticmethod
     def split_images(merge_train_val: bool = True) -> Dict[str, List[str]]:
@@ -100,7 +96,7 @@ class EuroSatDataset(PyTorchDataset):
             if merge_train_val
             else "eurosat/train_val_test_split.json"
         )
-        split_path = utils.data_dir / filename
+        split_path = data_dir / filename
         if split_path.exists():
             train_test_split = json.load(split_path.open("r"))
         else:
@@ -168,7 +164,7 @@ class EuroSatDataset(PyTorchDataset):
                     self.input_height_width,
                     self.input_height_width,
                     self.num_timesteps,
-                    NUM_DYNAMIC_BANDS,
+                    len(DYNAMIC_BANDS),
                 ]
             )
             image_kept_bands = image.values[kept_s2_bands]
@@ -186,7 +182,7 @@ class EuroSatDataset(PyTorchDataset):
         d_x, label = self.image_to_dynamic_eo_array(image.strip())
 
         # static bands are not provided by eurosat
-        s_x = np.zeros((d_x.shape[0], d_x.shape[1], NUM_STATIC_BANDS))
+        s_x = np.zeros((d_x.shape[0], d_x.shape[1], len(STATIC_BANDS)))
 
         d_m, s_m = self.create_eurosat_masks()
         month = np.zeros((self.num_timesteps,))

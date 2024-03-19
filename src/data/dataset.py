@@ -25,7 +25,6 @@ from .earthengine.eo import (
 )
 from .earthengine.eo import DYNAMIC_BANDS as EO_DYNAMIC_BANDS
 
-ALL_S2_BANDS = ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B8A", "B9", "B10", "B11", "B12"]
 REMOVED_BANDS = ["B1", "B9", "B10"]
 
 DYNAMIC_BANDS = EO_DYNAMIC_BANDS + ["NDVI"]
@@ -50,9 +49,6 @@ STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
 
 NUM_DYNAMIC_BAND_GROUPS = len(DYNAMIC_BANDS_GROUPS_IDX)
 NUM_STATIC_BAND_GROUPS = len(STATIC_BAND_GROUPS_IDX)
-
-NUM_DYNAMIC_BANDS = len(DYNAMIC_BANDS)
-NUM_STATIC_BANDS = len(STATIC_BANDS)
 
 
 class Dataset(PyTorchDataset):

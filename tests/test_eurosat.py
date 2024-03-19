@@ -2,14 +2,14 @@ import unittest
 
 import torch
 
-from eval.eurosat_eval import EuroSatDataset
-from src.data.dataset import (
+from ..src.data.dataset import (
+    DYNAMIC_BANDS,
     DYNAMIC_BANDS_GROUPS_IDX,
     NUM_DYNAMIC_BAND_GROUPS,
-    NUM_DYNAMIC_BANDS,
     NUM_STATIC_BAND_GROUPS,
-    NUM_STATIC_BANDS,
+    STATIC_BANDS,
 )
+from ..src.eval.eurosat_eval import EuroSatDataset
 
 
 class TestEuroSat(unittest.TestCase):
@@ -20,7 +20,7 @@ class TestEuroSat(unittest.TestCase):
                 EuroSatDataset.input_height_width,
                 EuroSatDataset.input_height_width,
                 EuroSatDataset.num_timesteps,
-                NUM_DYNAMIC_BANDS,
+                len(DYNAMIC_BANDS),
             ),
         )
         self.assertEqual(
@@ -40,7 +40,7 @@ class TestEuroSat(unittest.TestCase):
             (
                 EuroSatDataset.input_height_width,
                 EuroSatDataset.input_height_width,
-                NUM_STATIC_BANDS,
+                len(STATIC_BANDS),
             ),
         )
         self.assertEqual(
