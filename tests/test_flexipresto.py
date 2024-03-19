@@ -112,3 +112,24 @@ class TestPresto(unittest.TestCase):
         self.assertTrue((o_m == 0).all())
         self.assertTrue((o[:, :, :, 0] == 0).all())
         self.assertTrue((o[:, :, :, 1:] == 1).all())
+
+    def test_mean_of_tokens(self):
+        b, t, d, h, w, d_c_g, s_c_g = 1, 2, 8, 3, 3, 5, 6
+        d_x = torch.ones((b, h, w, t, d_c_g, d))
+        s_x = torch.ones((b, h, w, s_c_g, d))
+
+        # the first timestep and the first column are masked
+        d_m = torch.zeros((b, h, w, t, d_c_g))
+        d_m[:, :, 0, :] = 1
+        d_m[:, :, :, 0] = 1
+        # the last row is masked
+        s_m = torch.zeros((b, h, w, s_c_g))
+        s_m[:, -1, :] = 1
+
+        d_x[:, :, 0, :] = 0
+        d_x[:, :, :, 0] = 0
+        s_x[:, -1, :] = 0
+
+        mean = Encoder.average_tokens(d_x, s_x, d_m, s_m)
+        self.assertEqual(mean.shape, (b, d))
+        self.assertTrue((mean == 1).all())
