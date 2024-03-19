@@ -16,7 +16,9 @@ DATA_FOLDER = Path(__file__).parents[1] / "data/eurosat/eurosat_test"
 
 
 class TestEuroSat(unittest.TestCase):
-    def test_dynamic(self, dynamic_x, dynamic_m):
+    def test_dynamic(self, dynamic_x=None, dynamic_m=None):
+        if dynamic_x is None or dynamic_m is None:
+            self.skipTest("Initially skipping dynamic check")
         self.assertEqual(
             dynamic_x.shape,
             (
@@ -37,7 +39,9 @@ class TestEuroSat(unittest.TestCase):
         )
         self.assertFalse(torch.any(torch.isnan(dynamic_x)))
 
-    def test_static(self, static_x, static_m):
+    def test_static(self, static_x=None, static_m=None):
+        if static_x is None or static_m is None:
+            self.skipTest("Initially skipping static check")
         self.assertEqual(
             static_x.shape,
             (
@@ -59,16 +63,21 @@ class TestEuroSat(unittest.TestCase):
         self.assertTrue(torch.all(static_x == 0))
         self.assertTrue(torch.all(static_m == 1))
 
-    def test_month(self, month):
+    def test_month(self, month=None):
+        if month is None:
+            self.skipTest("Initially skipping month check")
         self.assertEqual(month.shape, (EuroSatDataset.num_timesteps,))
         # no month in eurosat so set to zero
         self.assertEqual(month[0], 0)
 
-    def test_label(self, label):
+    def test_label(self, label=None):
+        if label is None:
+            self.skipTest("Initially skipping label check")
         # labels are one-hot encoded
         self.assertTrue(torch.all(torch.logical_or(label == 0, label == 1)))
 
     def test_eurosat_dataset_rgb(self):
+        skip=False
         dataset = EuroSatDataset(rgb=True, split="test", tif_files_dir=DATA_FOLDER)
         sample = dataset[0]
         d_x, s_x, d_m, s_m, m = sample[0]
