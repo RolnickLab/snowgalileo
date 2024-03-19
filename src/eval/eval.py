@@ -71,6 +71,7 @@ class EvalTask(ABC):
         encodings_np = np.concatenate(encoding_list)
         targets = np.concatenate(target_list)
         if len(targets.shape) == 2 and targets.shape[1] == 1:
+            # from [[0], [0], [1]] to [0, 0, 1]
             targets = targets.ravel()
 
         fit_models = []
