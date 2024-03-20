@@ -54,6 +54,7 @@ S2_BANDS = [
     "B11",
     "B12",
 ]
+REMOVED_BANDS = [item for item in ALL_S2_BANDS if item not in S2_BANDS]
 S2_SHIFT_VALUES = [float(0.0)] * len(S2_BANDS)
 S2_DIV_VALUES = [float(1e4)] * len(S2_BANDS)
 
