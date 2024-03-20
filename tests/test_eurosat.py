@@ -6,8 +6,7 @@ import torch
 from src.data.dataset import (
     DYNAMIC_BANDS,
     DYNAMIC_BANDS_GROUPS_IDX,
-    NUM_DYNAMIC_BAND_GROUPS,
-    NUM_STATIC_BAND_GROUPS,
+    STATIC_BAND_GROUPS_IDX,
     STATIC_BANDS,
 )
 from src.eval.eurosat_eval import EuroSatDataset
@@ -34,7 +33,7 @@ class TestEuroSat(unittest.TestCase):
                 EuroSatDataset.input_height_width,
                 EuroSatDataset.input_height_width,
                 EuroSatDataset.num_timesteps,
-                NUM_DYNAMIC_BAND_GROUPS,
+                len(DYNAMIC_BANDS_GROUPS_IDX),
             ),
         )
         self.assertFalse(torch.any(torch.isnan(dynamic_x)))
@@ -55,7 +54,7 @@ class TestEuroSat(unittest.TestCase):
             (
                 EuroSatDataset.input_height_width,
                 EuroSatDataset.input_height_width,
-                NUM_STATIC_BAND_GROUPS,
+                len(STATIC_BAND_GROUPS_IDX),
             ),
         )
 
