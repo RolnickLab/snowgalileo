@@ -13,7 +13,7 @@ from torch.jit import Final
 from .config import BASE_GSD
 from .data import DYNAMIC_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
 from .embeddings import (
-    get_1d_sincos_pos_embed_from_grid,
+    get_1d_sincos_pos_embed_from_grid_torch,
     get_2d_sincos_pos_embed_with_resolution,
     get_month_encoding_table,
 )
@@ -322,7 +322,7 @@ class FlexiPrestoBase(nn.Module):
         mlp_ratio=2,
         num_heads=8,
         max_sequence_length=24,
-        base_patch_size: Optional[int] = 4,
+        base_patch_size: int = 4,
     ):
         super().__init__()
 
@@ -365,11 +365,9 @@ class FlexiPrestoBase(nn.Module):
         # we have 4 embeddings (pos_in_time, pos_in_space, month, channel) so each get
         # 0.25 of the dimension. This will change soon anyway
         self.pos_embed = nn.Parameter(
-            torch.from_numpy(
-                get_1d_sincos_pos_embed_from_grid(
-                    int(embedding_size * 0.25), np.arange(max_sequence_length)
-                )
-            ).float(),
+            get_1d_sincos_pos_embed_from_grid_torch(
+                int(embedding_size * 0.25), torch.arange(max_sequence_length)
+            ),
             requires_grad=False,
         )
         month_tab = torch.from_numpy(get_month_encoding_table(int(embedding_size * 0.25))).float()
