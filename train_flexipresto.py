@@ -1,6 +1,7 @@
 import os
 from copy import deepcopy
 
+import codecarbon
 import numpy as np
 import psutil
 import torch
@@ -12,13 +13,21 @@ from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER, EE_PROJECT
 from src.flexipresto import Encoder, PrestoDecoder
 from src.masked_datasets import PrestoToPrestoMaskedDataset, subset_batch_of_masked_outputs
-from src.utils import device, seed_everything
+from src.utils import data_dir, device, seed_everything
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
 
 os.environ["GOOGLE_CLOUD_PROJECT"] = EE_PROJECT
 
+tracker = codecarbon.EmissionsTracker(
+    project_name="flexipresto",
+    experiment_name="train_flexipresto.py",
+    save_to_api=False,
+    output_dir=data_dir,
+)
+
+tracker.start()
 
 # this should live elsewhere
 num_epochs = 2
@@ -123,3 +132,6 @@ for e in tqdm(range(num_epochs)):
             m = next(momentum_scheduler)
             for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
                 param_k.data.mul_(m).add_((1.0 - m) * param_q.detach().data)
+
+
+tracker.stop()
