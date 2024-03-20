@@ -1,6 +1,5 @@
 import collections.abc
 import itertools
-import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -11,59 +10,21 @@ from einops import rearrange, repeat
 from torch import Tensor, vmap
 from torch.jit import Final
 
+from .config import BASE_GSD
 from .data import DYNAMIC_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
 from .embeddings import (
     get_1d_sincos_pos_embed_from_grid,
-    get_2d_sincos_pos_embed,
+    get_2d_sincos_pos_embed_with_resolution,
     get_month_encoding_table,
 )
 
 
 # thanks to https://github.com/bwconrad/flexivit/ for this nice implementation
+# of the FlexiPatchEmbed module
 def to_2tuple(x: Any) -> Tuple:
     if isinstance(x, collections.abc.Iterable) and not isinstance(x, str):
         return tuple(x)
     return tuple(itertools.repeat(x, 2))
-
-
-def resize_abs_pos_embed(
-    pos_embed: torch.Tensor,
-    new_size: Tuple[int, int],
-    old_size: Optional[Union[int, Tuple[int, int]]] = None,
-    interpolation: str = "bicubic",
-    antialias: bool = True,
-) -> torch.Tensor:
-    """Resize absolute position embeddings to a target resolution via interpolation
-
-    Modified from: https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/pos_embed.py
-
-    Args:
-        pos_embed: Position embeddings tensor of size [b, n, d]
-        new_size: Target [height, width] of embedding
-        old_size: Original [height, width] of embedding
-        num_prefix_tokens: Number of non-spatial prefix tokens (eg. cls)
-        interpolation: Resize interpolation type
-        antialias: Whether to apply antialiasing resizing
-    Returns:
-        Resized pos_embed of size [b, n', d]
-    """
-
-    new_size = to_2tuple(new_size)
-    new_ntok = new_size[0] * new_size[1]
-    if not old_size:
-        old_size = int(math.sqrt(pos_embed.shape[1]))  # type:ignore
-    old_size = to_2tuple(old_size)
-
-    # Return if no resize necessary
-    if new_size == old_size:
-        return pos_embed
-
-    # Interpolate position embedding
-    pos_embed = pos_embed.reshape(1, old_size[0], old_size[1], -1).permute(0, 3, 1, 2)
-    pos_embed = F.interpolate(pos_embed, size=new_size, mode=interpolation, antialias=antialias)
-    pos_embed = pos_embed.permute(0, 2, 3, 1).reshape(1, new_ntok, -1)
-
-    return pos_embed
 
 
 class FlexiPatchEmbed(nn.Module):
@@ -361,23 +322,28 @@ class FlexiPrestoBase(nn.Module):
         mlp_ratio=2,
         num_heads=8,
         max_sequence_length=24,
-        base_inputs_per_spatial_dim=4,
+        base_patch_size: Optional[int] = 4,
     ):
         super().__init__()
 
         self.dynamic_groups = DYNAMIC_BANDS_GROUPS_IDX
         self.static_groups = STATIC_BAND_GROUPS_IDX
         self.embedding_size = embedding_size
+        self.base_patch_size = base_patch_size
 
         self.dynamic_embed = nn.ModuleDict(
             {
-                group_name: FlexiPatchEmbed(in_chans=len(group), embed_dim=embedding_size)
+                group_name: FlexiPatchEmbed(
+                    in_chans=len(group), embed_dim=embedding_size, patch_size=base_patch_size
+                )
                 for group_name, group in self.dynamic_groups.items()
             }
         )
         self.static_embed = nn.ModuleDict(
             {
-                group_name: FlexiPatchEmbed(in_chans=len(group), embed_dim=embedding_size)
+                group_name: FlexiPatchEmbed(
+                    in_chans=len(group), embed_dim=embedding_size, patch_size=base_patch_size
+                )
                 for group_name, group in self.static_groups.items()
             }
         )
@@ -414,12 +380,6 @@ class FlexiPrestoBase(nn.Module):
         self.s_channel_embed = nn.Parameter(
             torch.zeros(len(STATIC_BAND_GROUPS_IDX), int(embedding_size * 0.25))
         )
-        self.pos_embed_2d = nn.Parameter(
-            torch.from_numpy(
-                get_2d_sincos_pos_embed(int(embedding_size * 0.25), base_inputs_per_spatial_dim)
-            ).float(),
-            requires_grad=False,
-        )
 
         self.apply(self._init_weights)
 
@@ -449,8 +409,8 @@ class FlexiPrestoBase(nn.Module):
         s_m = rearrange(m[:, n_d_t:], "b (h w c) -> b h w c", h=h, w=w, c=s_c_g)
         return d_x, s_x, d_m, s_m
 
-    def apply_encodings(self, d_x, s_x, months):
-        b, h, w, t, c_g_d, _ = d_x.shape
+    def apply_encodings(self, d_x, s_x, months, patch_size, input_res):
+        b, h, w, t, c_g_d, d = d_x.shape
         c_g_s = s_x.shape[-2]
         d_channel = repeat(self.d_channel_embed, "c_g d -> b h w t c_g d", b=b, h=h, w=w, t=t)
         d_pos = repeat(self.pos_embed[:t], "t d -> b h w t c_g d", b=b, h=h, w=w, c_g=c_g_d)
@@ -466,8 +426,19 @@ class FlexiPrestoBase(nn.Module):
             device=s_channel.device,
         ).float()
 
-        spatial_embed = resize_abs_pos_embed(
-            repeat(self.pos_embed_2d, "hw d -> b hw d", b=b), (h, w)
+        # find the resolution that each token represents, which will be
+        # the number of pixels in a patch * the resolution of each pixel
+        if patch_size is None:
+            patch_size = self.base_patch_size
+        token_res = input_res * patch_size
+        gsd_ratio = BASE_GSD / token_res
+
+        assert h == w, "get_2d_sincos_pos_embed_with_resolution currently requires that h==w"
+        spatial_embed = get_2d_sincos_pos_embed_with_resolution(
+            int(self.embedding_size * 0.25),
+            h,
+            torch.ones(b).to(d_x.device) * gsd_ratio,
+            device=d_x.device,
         )
         spatial_embed = rearrange(spatial_embed, "b (h w) d -> b h w d", h=h, w=w)
         spatial_embed_d = repeat(
@@ -479,11 +450,11 @@ class FlexiPrestoBase(nn.Module):
         s_embed = torch.cat([s_channel, s_zeros, spatial_embed_s], dim=-1)
         return d_x + d_embed, s_x + s_embed
 
-    def apply_attn(self, d_x, s_x, d_m, s_m, m):
+    def apply_attn(self, d_x, s_x, d_m, s_m, m, patch_size, input_res):
         # todo - add encodings
         _, h, w, t, d_c_g, _ = d_x.shape
         s_c_g = s_x.shape[3]
-        d_x, s_x = self.apply_encodings(d_x, s_x, m)
+        d_x, s_x = self.apply_encodings(d_x, s_x, m, patch_size, input_res)
         d_x, s_x, d_m, s_m = self.collapse_hwtc(d_x, s_x, d_m, s_m)
         x = torch.cat([d_x, s_x], dim=1)
         m = torch.cat([d_m, s_m], dim=1)
@@ -589,12 +560,13 @@ class Encoder(FlexiPrestoBase):
         static_mask: torch.Tensor,
         months: torch.Tensor,
         patch_size: Optional[int] = None,
+        input_resolution_m: Optional[int] = BASE_GSD,
     ):
         dynamic_x, static_x, dynamic_mask, static_mask = self.apply_linear_projection(
             dynamic_x, static_x, dynamic_mask, static_mask, patch_size
         )
         dynamic_x, static_x, dynamic_mask, static_mask = self.apply_attn(
-            dynamic_x, static_x, dynamic_mask, static_mask, months
+            dynamic_x, static_x, dynamic_mask, static_mask, months, patch_size, input_resolution_m
         )
 
         return dynamic_x, static_x, dynamic_mask, static_mask, months
@@ -641,8 +613,12 @@ class PrestoDecoder(FlexiPrestoBase):
         dynamic_mask: torch.Tensor,
         static_mask: torch.Tensor,
         months: torch.Tensor,
+        patch_size: Optional[int] = None,
+        input_resolution_m: Optional[int] = BASE_GSD,
     ):
         dynamic_x = self.decoder_embed(dynamic_x)
         static_x = self.decoder_embed(static_x)
         dynamic_x, dynamic_mask = self.add_masks(dynamic_x, dynamic_mask)
-        return self.apply_attn(dynamic_x, static_x, dynamic_mask, static_mask, months)
+        return self.apply_attn(
+            dynamic_x, static_x, dynamic_mask, static_mask, months, patch_size, input_resolution_m
+        )
