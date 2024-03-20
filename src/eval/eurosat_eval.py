@@ -138,8 +138,8 @@ class EuroSatDataset(PyTorchDataset):
             [self.input_height_width, self.input_height_width, len(STATIC_BAND_GROUPS_IDX)]
         )
 
-        assert np.isin(dynamic_mask, [0, 1])
-        assert np.isin(static_mask, [1])
+        assert (dynamic_mask == 0) | (dynamic_mask == 1).all()
+        assert (static_mask == 1).all()
 
         return (dynamic_mask, static_mask)
 
