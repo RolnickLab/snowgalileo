@@ -138,7 +138,7 @@ class EuroSatDataset(PyTorchDataset):
             [self.input_height_width, self.input_height_width, len(STATIC_BAND_GROUPS_IDX)]
         )
 
-        assert (dynamic_mask == 0) | (dynamic_mask == 1).all()
+        assert ((dynamic_mask == 0) | (dynamic_mask == 1)).all()
         assert (static_mask == 1).all()
 
         return (dynamic_mask, static_mask)
