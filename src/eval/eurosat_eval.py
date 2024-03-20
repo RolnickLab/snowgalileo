@@ -15,12 +15,10 @@ from torch.utils.data import Dataset as PyTorchDataset
 from ..data.dataset import (
     DYNAMIC_BANDS,
     DYNAMIC_BANDS_GROUPS_IDX,
-    NUM_DYNAMIC_BAND_GROUPS,
-    NUM_STATIC_BAND_GROUPS,
-    REMOVED_BANDS,
+    STATIC_BAND_GROUPS_IDX,
     STATIC_BANDS,
 )
-from ..data.earthengine.s2 import ALL_S2_BANDS
+from ..data.earthengine.s2 import ALL_S2_BANDS, REMOVED_BANDS
 from ..utils import data_dir
 
 ### SETUP
@@ -128,7 +126,7 @@ class EuroSatDataset(PyTorchDataset):
             ]
 
         # everything is masked by default
-        dynamic_mask = np.ones([NUM_DYNAMIC_BAND_GROUPS])
+        dynamic_mask = np.ones([len(DYNAMIC_BANDS_GROUPS_IDX)])
         # unmask available s2 bands
         dynamic_mask[dynamic_channels] = 0
         dynamic_mask = repeat(
@@ -137,11 +135,11 @@ class EuroSatDataset(PyTorchDataset):
 
         # no static channels are available
         static_mask = np.ones(
-            [self.input_height_width, self.input_height_width, NUM_STATIC_BAND_GROUPS]
+            [self.input_height_width, self.input_height_width, len(STATIC_BAND_GROUPS_IDX)]
         )
 
-        assert np.unique(dynamic_mask).tolist() == [0, 1]
-        assert np.unique(static_mask).tolist() == [1]
+        assert np.isin(dynamic_mask, [0, 1])
+        assert np.isin(static_mask, [1])
 
         return (dynamic_mask, static_mask)
 
