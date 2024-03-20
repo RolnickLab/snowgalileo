@@ -94,7 +94,8 @@ for e in tqdm(range(num_epochs)):
                 s_m.float(),
                 months.long(),
                 patch_size=patch_size,
-            )
+            ),
+            patch_size=patch_size,
         )
         # generate the targets
         with torch.no_grad():
