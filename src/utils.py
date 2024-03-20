@@ -1,10 +1,13 @@
 import os
 import random
+from pathlib import Path
 
 import numpy as np
 import torch
 
 from .config import DEFAULT_SEED
+
+data_dir = Path(__file__).parent.parent / "data"
 
 if not torch.cuda.is_available():
     device = torch.device("cpu")
