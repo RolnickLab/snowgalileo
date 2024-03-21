@@ -1,7 +1,7 @@
 import logging
 from abc import ABC
 from dataclasses import dataclass
-from typing import Dict, List, Sequence, Union
+from typing import Dict, List, Sequence
 
 import numpy as np
 import torch
@@ -46,7 +46,7 @@ class EvalTask(ABC):
         dl: DataLoader,
         pretrained_model: Encoder,
         models: List[str] = ["Random Forest"],
-    ) -> Union[Sequence[BaseEstimator], Dict]:
+    ) -> Sequence[BaseEstimator]:
         for model_mode in models:
             if self.regression:
                 assert model_mode in ["Regression", "Random Forest"]
