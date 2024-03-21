@@ -15,9 +15,7 @@ DATA_FOLDER = Path(__file__).parents[1] / "data/eurosat/eurosat_test"
 
 
 class TestEuroSat(unittest.TestCase):
-    def test_dynamic(self, dynamic_x=None, dynamic_m=None):
-        if dynamic_x is None or dynamic_m is None:
-            self.skipTest("Initially skipping dynamic check")
+    def check_dynamic(self, dynamic_x, dynamic_m):
         self.assertEqual(
             dynamic_x.shape,
             (
@@ -38,9 +36,7 @@ class TestEuroSat(unittest.TestCase):
         )
         self.assertFalse(torch.any(torch.isnan(dynamic_x)))
 
-    def test_static(self, static_x=None, static_m=None):
-        if static_x is None or static_m is None:
-            self.skipTest("Initially skipping static check")
+    def check_static(self, static_x, static_m):
         self.assertEqual(
             static_x.shape,
             (
@@ -62,14 +58,12 @@ class TestEuroSat(unittest.TestCase):
         self.assertTrue(torch.all(static_x == 0))
         self.assertTrue(torch.all(static_m == 1))
 
-    def test_month(self, month=None):
-        if month is None:
-            self.skipTest("Initially skipping month check")
+    def check_month(self, month):
         self.assertEqual(month.shape, (EuroSatDataset.num_timesteps,))
         # no month in eurosat so set to zero
         self.assertEqual(month[0], 0)
 
-    def test_label(self, label=None):
+    def check_label(self, label=None):
         if label is None:
             self.skipTest("Initially skipping label check")
         # labels are one-hot encoded
@@ -81,10 +75,10 @@ class TestEuroSat(unittest.TestCase):
         d_x, s_x, d_m, s_m, m = sample[0]
         label = sample[1]
 
-        self.test_dynamic(dynamic_x=d_x, dynamic_m=d_m)
-        self.test_static(static_x=s_x, static_m=s_m)
-        self.test_month(month=m)
-        self.test_label(label=label)
+        self.check_dynamic(dynamic_x=d_x, dynamic_m=d_m)
+        self.check_static(static_x=s_x, static_m=s_m)
+        self.check_month(month=m)
+        self.check_label(label=label)
 
         # will test if the right channels are masked out
         present_bands = [
@@ -103,10 +97,10 @@ class TestEuroSat(unittest.TestCase):
         d_x, s_x, d_m, s_m, m = sample[0]
         label = sample[1]
 
-        self.test_dynamic(dynamic_x=d_x, dynamic_m=d_m)
-        self.test_static(static_x=s_x, static_m=s_m)
-        self.test_month(month=m)
-        self.test_label(label=label)
+        self.check_dynamic(dynamic_x=d_x, dynamic_m=d_m)
+        self.check_static(static_x=s_x, static_m=s_m)
+        self.check_month(month=m)
+        self.check_label(label=label)
 
         # will test if the right channels are masked out
         present_bands = [idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" in key]
