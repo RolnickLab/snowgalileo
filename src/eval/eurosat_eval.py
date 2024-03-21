@@ -262,6 +262,8 @@ class EuroSatEval(EvalTask):
     def evaluate_model_on_task(
         self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
     ) -> Dict:
+        if model_modes is None:
+            model_modes = ["KNNat5", "KNNat20", "KNNat100"]
         for model_mode in model_modes:
             assert model_mode in self.all_classification_sklearn_models
 
