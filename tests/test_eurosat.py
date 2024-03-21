@@ -103,10 +103,16 @@ class TestEuroSat(unittest.TestCase):
         self.check_label(label=label)
 
         # will test if the right channels are masked out
-        present_bands = [idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" in key]
-        unpresent_bands = [
+        present_band_groups = [
+            idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" in key
+        ]
+        unpresent_band_groups = [
             idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" not in key
         ]
+        present_bands = [idx for idx, key in enumerate(DYNAMIC_BANDS) if "B" in key]
+        absent_bands = [idx for idx, key in enumerate(DYNAMIC_BANDS) if "B" not in key]
 
-        self.assertTrue(torch.all(d_m[:, :, :, present_bands] == 0))
-        self.assertTrue(torch.all(d_m[:, :, :, unpresent_bands] == 1))
+        self.assertTrue(torch.all(d_x[:, :, :, present_bands] != 0))
+        self.assertTrue(torch.all(d_x[:, :, :, absent_bands] == 0))
+        self.assertTrue(torch.all(d_m[:, :, :, present_band_groups] == 0))
+        self.assertTrue(torch.all(d_m[:, :, :, unpresent_band_groups] == 1))

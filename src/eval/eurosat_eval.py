@@ -94,7 +94,8 @@ class EuroSatDataset(PyTorchDataset):
         )
         split_path = data_dir / filename
         if split_path.exists():
-            train_test_split = json.load(split_path.open("r"))
+            with split_path.open("r") as f:
+                train_test_split = json.load(f)
         else:
             # this code was only run once (the dictionary is then saved)
             # but is saved here for clarity
