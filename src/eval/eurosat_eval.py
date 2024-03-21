@@ -155,7 +155,7 @@ class EuroSatDataset(PyTorchDataset):
 
         tif_file = self.image_name_to_path(tif_filename)
 
-        with cast(xarray.core.dataarray.DataArray, xr.open_rasterio(tif_file)) as image:
+        with cast(xarray.DataArray, xr.open_rasterio(tif_file)) as image:
             eo_style_array = np.zeros(
                 [
                     self.input_height_width,

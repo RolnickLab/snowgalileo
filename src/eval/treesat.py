@@ -74,6 +74,23 @@ class TreeSatDataset(Dataset):
         with (data_dir / treesat_dir / labels_file).open("r") as f:
             self.labels_dict = json.load(f)
 
+        # band mapping between the presto bands and the treesat bands
+        self.kept_treesat_s2_band_idx = [
+            i for i, val in enumerate(S2_BAND_ORDERING) if val in S2_BANDS
+        ]
+        kept_kept_treesat_s2_band_names = [val for val in S2_BAND_ORDERING if val in S2_BANDS]
+        self.treesat_to_presto_s2_map = [
+            DYNAMIC_BANDS.index(val) for val in kept_kept_treesat_s2_band_names
+        ]
+
+        self.kept_treesat_s1_band_idx = [
+            i for i, val in enumerate(S1_BAND_ORDERING) if val in S1_BANDS
+        ]
+        kept_kept_treesat_s1_band_names = [val for val in S1_BAND_ORDERING if val in S1_BANDS]
+        self.treesat_to_presto_s1_map = [
+            DYNAMIC_BANDS.index(val) for val in kept_kept_treesat_s1_band_names
+        ]
+
     def train_val_split(self, val_ratio: float = 0.1, seed=None):
         if seed is not None:
             random.seed(seed)
@@ -92,30 +109,17 @@ class TreeSatDataset(Dataset):
 
     def image_to_dynamic_eo_array(self, tif_file: str):
         s1_image, s2_image = self.image_name_to_paths(tif_file)
-        s2 = cast(xr.DataArray, rioxarray.open_rasterio(s2_image))
-        s1 = cast(xr.DataArray, rioxarray.open_rasterio(s1_image))
-
-        kept_treesat_s2_band_idx = [i for i, val in enumerate(S2_BAND_ORDERING) if val in S2_BANDS]
-        kept_kept_treesat_s2_band_names = [val for val in S2_BAND_ORDERING if val in S2_BANDS]
-        treesat_to_cropharvest_s2_map = [
-            DYNAMIC_BANDS.index(val) for val in kept_kept_treesat_s2_band_names
-        ]
-
-        kept_treesat_s1_band_idx = [i for i, val in enumerate(S1_BAND_ORDERING) if val in S1_BANDS]
-        kept_kept_treesat_s1_band_names = [val for val in S1_BAND_ORDERING if val in S1_BANDS]
-        treesat_to_cropharvest_s1_map = [
-            DYNAMIC_BANDS.index(val) for val in kept_kept_treesat_s1_band_names
-        ]
 
         labels_np = np.zeros(len(self.labels_to_int))
         positive_classes = self.labels_dict[tif_file]
         for name, percentage in positive_classes:
             labels_np[self.labels_to_int[name]] = percentage
 
-        assert len(s1.x) == len(s1.y) == len(s2.x) == len(s2.y) == self.input_height_width
         d_x = np.zeros([len(DYNAMIC_BANDS), self.input_height_width, self.input_height_width])
-        d_x[treesat_to_cropharvest_s2_map] = s2.values[kept_treesat_s2_band_idx]
-        d_x[treesat_to_cropharvest_s1_map] = s1.values[kept_treesat_s1_band_idx]
+        with cast(xr.DataArray, rioxarray.open_rasterio(s2_image)) as s2:
+            d_x[self.treesat_to_presto_s2_map] = s2.values[self.kept_treesat_s2_band_idx]
+        with cast(xr.DataArray, rioxarray.open_rasterio(s1_image)) as s1:
+            d_x[self.treesat_to_presto_s1_map] = s1.values[self.kept_treesat_s1_band_idx]
 
         d_x = repeat(d_x, "c h w -> h w t c", t=self.num_timesteps)
 
