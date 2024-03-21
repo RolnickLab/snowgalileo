@@ -1,5 +1,4 @@
 import json
-import logging
 import urllib.request
 from collections import namedtuple
 from pathlib import Path
@@ -10,7 +9,12 @@ import rioxarray as xr
 import torch.multiprocessing
 import xarray
 from einops import repeat
+from sklearn.metrics import accuracy_score, confusion_matrix
+from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as PyTorchDataset
+from tqdm import tqdm
+
+from src.flexipresto import Encoder
 
 from ..data.dataset import (
     DYNAMIC_BANDS,
@@ -19,11 +23,11 @@ from ..data.dataset import (
     STATIC_BANDS,
 )
 from ..data.earthengine.s2 import ALL_S2_BANDS, REMOVED_BANDS
-from ..utils import data_dir
+from ..utils import data_dir, device, logging_dir
+from .eval import EvalTask, Hyperparams
 
 ### SETUP
 torch.multiprocessing.set_sharing_strategy("file_system")
-logger = logging.getLogger("__main__")
 MaskedOutput = namedtuple(
     "MaskedOutput", ["dynamic_x", "static_x", "dynamic_mask", "static_mask", "months"]
 )
@@ -196,3 +200,116 @@ class EuroSatDataset(PyTorchDataset):
 
     def __len__(self):
         return len(self.images)
+
+
+class EuroSatEval(EvalTask):
+    @torch.no_grad()
+    def _evaluate_sklearn_model(
+        self,
+        pretrained_model: Encoder,
+        trained_sklearn_model,
+        rgb: bool = True,
+    ) -> Dict:
+        labels = []
+        pred_list = []
+
+        test_ds = EuroSatDataset(rgb=rgb, split="test")
+        test_dl = DataLoader(
+            batch_size=Hyperparams["batch_size"],
+            shuffle=False,
+            num_workers=Hyperparams["num_workers"],
+        )
+
+        for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
+            d_x, s_x, d_m, s_m, month = [t.to(device) for t in masked_output]
+
+            pretrained_model.eval()
+            d_x, s_x, d_m, s_m, _ = pretrained_model(d_x, s_x, d_m, s_m, month)
+            encodings = pretrained_model.average_tokens(d_x, s_x, d_m, s_m).cpu().numpy()
+
+            labels.append(
+                label.cpu()
+                .numpy()
+                .reshape(
+                    (
+                        encodings.shape[0],
+                        1,
+                        *label.shape[1:],
+                    )
+                )[:, 0]
+            )
+            assert not torch.isnan(encodings).any()
+
+            preds = trained_sklearn_model.predict(encodings)
+            pred_list.append(preds)
+
+        target = np.concatenate(labels)
+        results_dict = {}
+
+        int_to_labels, _ = zip(*sorted(test_ds.labels_to_int.items(), key=lambda l_i: l_i[1]))
+
+        test_preds_np = np.concatenate(pred_list, axis=0)
+        prefix = trained_sklearn_model.__class__.__name__
+        results_dict.update(
+            {
+                f"{self.name}: {prefix}_num_samples": len(target),
+                f"{self.name}: {prefix}_accuracy_score": accuracy_score(target, test_preds_np),
+            }
+        )
+        class_matrix = confusion_matrix(test_preds_np, target)
+        accuracies = class_matrix.diagonal() / class_matrix.sum(axis=1)
+        for acc, label in zip(accuracies, int_to_labels):
+            results_dict[f"{self.name}: {prefix}_accuracy_score_{label}"] = acc
+
+        return results_dict
+
+    def evaluate_model_on_task(
+        self, pretrained_model: Encoder, model_modes: List[str], rgb: bool = True
+    ) -> Dict:
+        for model_mode in model_modes:
+            assert model_mode in [
+                "Regression",
+                "Random Forest",
+                "KNNat5",
+                "KNNat20",
+                "KNNat100",
+                "finetune",
+            ]
+
+        output_results = {}
+
+        if any(
+            mode in model_modes for mode in ["Logistic Regression", "Random Forest", "finetune"]
+        ):
+            raise NotImplementedError
+
+        sklearn_modes = [x for x in model_modes if x != "finetune"]
+
+        # only KNN for now
+        if len(sklearn_modes) > 0:
+            # TODO: normalization
+            train_dl = DataLoader(
+                EuroSatDataset(rgb=rgb, split="train", merge_train_val=True),
+                batch_size=Hyperparams["batch_size"],
+                shuffle=True,
+                num_workers=Hyperparams["num_workers"],
+            )
+            trained_sklearn_models = self.train_sklearn_model(
+                train_dl, pretrained_model, sklearn_modes
+            )
+            for trained_sklearn_model in trained_sklearn_models:
+                output_results.update(
+                    self._evaluate_sklearn_model(pretrained_model, trained_sklearn_model, rgb)
+                )
+
+        return output_results
+
+
+if __name__ == "__main__":
+    eval_task = EuroSatEval()
+    pretrained_model = Encoder(embedding_size=64)
+    model_modes = ["KNNat5"]
+    results = eval_task.evaluate_model_on_task(pretrained_model, model_modes, rgb=True)
+    eval_results_file = logging_dir / "results.json"
+    with open(eval_results_file, "w") as f:
+        json.dump(results, f)
