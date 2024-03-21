@@ -213,9 +213,9 @@ class TreeSatEval(EvalTask):
     # (above)
     num_outputs = 15
 
-    def __init__(self, mode: str = "s2", seed: int = DEFAULT_SEED):
+    def __init__(self, mode: str = "s2", patch_size: int = 6, seed: int = DEFAULT_SEED):
         self.mode = mode
-        super().__init__(seed)
+        super().__init__(patch_size, seed)
         self.name = f"{self.name}_{self.mode}"
 
     def compute_metrics(
@@ -271,7 +271,9 @@ class TreeSatEval(EvalTask):
         for masked_output, labels in tqdm(test_dl, desc="Computing test predictions"):
             d_x, s_x, d_m, s_m, months = [t.to(device) for t in masked_output]
             with torch.no_grad():
-                d_x, s_x, d_m, s_m, _ = pretrained_model(d_x, s_x, d_m, s_m, months)
+                d_x, s_x, d_m, s_m, _ = pretrained_model(
+                    d_x, s_x, d_m, s_m, months, patch_size=self.patch_size
+                )
                 encodings = pretrained_model.average_tokens(d_x, s_x, d_m, s_m).cpu().numpy()
             labels_list.append(labels.cpu().numpy())
             for model in sklearn_models:
