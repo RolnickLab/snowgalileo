@@ -429,7 +429,7 @@ class FlexiPrestoBase(nn.Module):
         if patch_size is None:
             patch_size = self.base_patch_size
         token_res = input_res * patch_size
-        gsd_ratio = BASE_GSD / token_res
+        gsd_ratio = token_res / BASE_GSD
 
         assert h == w, "get_2d_sincos_pos_embed_with_resolution currently requires that h==w"
         spatial_embed = get_2d_sincos_pos_embed_with_resolution(
