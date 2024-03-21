@@ -1,7 +1,6 @@
 import json
 import logging
 import urllib.request
-from collections import namedtuple
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, cast
 
@@ -19,14 +18,12 @@ from ..data.dataset import (
     STATIC_BANDS,
 )
 from ..data.earthengine.s2 import ALL_S2_BANDS, REMOVED_BANDS
+from ..masked_datasets import MaskedOutput
 from ..utils import data_dir
 
 ### SETUP
 torch.multiprocessing.set_sharing_strategy("file_system")
 logger = logging.getLogger("__main__")
-MaskedOutput = namedtuple(
-    "MaskedOutput", ["dynamic_x", "static_x", "dynamic_mask", "static_mask", "months"]
-)
 
 
 class EuroSatDataset(PyTorchDataset):
@@ -72,6 +69,7 @@ class EuroSatDataset(PyTorchDataset):
         self.tif_files_dir = tif_files_dir
 
         self.images = self.split_images(merge_train_val)[split]
+        self.masks = self.create_eurosat_masks()
 
     def image_name_to_path(self, name: str) -> Path:
         class_name = name.split("_")[0]
@@ -182,7 +180,7 @@ class EuroSatDataset(PyTorchDataset):
         # static bands are not provided by eurosat
         s_x = np.zeros((d_x.shape[0], d_x.shape[1], len(STATIC_BANDS)))
 
-        d_m, s_m = self.create_eurosat_masks()
+        d_m, s_m = self.masks
         month = np.zeros((self.num_timesteps,))
 
         d_x_torch = torch.as_tensor(d_x, dtype=torch.float32)
