@@ -23,7 +23,7 @@ from ..data.dataset import (
 )
 from ..data.earthengine.s2 import ALL_S2_BANDS, REMOVED_BANDS
 from ..flexipresto import Encoder
-from ..utils import DEFAULT_SEED, data_dir, device, logging_dir
+from ..utils import DEFAULT_SEED, data_dir, device
 from .eval import EvalTask, Hyperparams
 
 ### SETUP
