@@ -8,7 +8,7 @@ from src.data.dataset import (
     STATIC_BAND_GROUPS_IDX,
     STATIC_BANDS,
 )
-from src.eval.treesat import TreeSatDataset
+from src.eval.treesat_eval import TreeSatDataset
 
 TEST_FILE = "Tilia_spec._9_99911_WEFL_NLF.tif"
 
@@ -59,7 +59,6 @@ class TestTreeSat(unittest.TestCase):
 
     def check_month(self, month):
         self.assertEqual(month.shape, (TreeSatDataset.num_timesteps,))
-        # no month in eurosat so set to zero
         self.assertEqual(month[0], TreeSatDataset.start_month)
 
     def test_treesat_dataset_s2(self):
