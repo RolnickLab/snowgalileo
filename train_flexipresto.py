@@ -137,10 +137,9 @@ for e in tqdm(range(num_epochs)):
 
 
 eval_tasks = [EuroSatEval(rgb) for rgb in [True, False]]
-eurosat_model_modes = ["KNNat5", "KNNat20", "KNNat100"]
 
 for task in eval_tasks:
-    results = task.evaluate_model_on_task(encoder, model_modes=eurosat_model_modes)
+    results = task.evaluate_model_on_task(encoder)
     eval_results_file = logging_dir / "results.json"
     with open(eval_results_file, "w") as f:
         json.dump(results, f)
