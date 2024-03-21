@@ -2,14 +2,23 @@ import json
 import random
 from copy import deepcopy
 from pathlib import Path
-from typing import Tuple, cast
+from typing import Dict, List, Sequence, Tuple, cast
 
 import numpy as np
 import rioxarray
 import torch
 import xarray as xr
 from einops import repeat
-from torch.utils.data import Dataset
+from sklearn.base import BaseEstimator
+from sklearn.metrics import (
+    accuracy_score,
+    average_precision_score,
+    f1_score,
+    precision_score,
+    recall_score,
+)
+from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
 
 from ..data.dataset import (
     DYNAMIC_BANDS,
@@ -19,8 +28,10 @@ from ..data.dataset import (
     STATIC_BANDS,
 )
 from ..data.earthengine.s2 import S2_BANDS
+from ..flexipresto import Encoder
 from ..masked_datasets import MaskedOutput
-from ..utils import data_dir
+from ..utils import DEFAULT_SEED, data_dir, device
+from .eval import EvalTask, Hyperparams
 
 treesat_dir = "treesat"
 s1_files_dir = "s1/60m"
@@ -191,3 +202,116 @@ class TreeSatDataset(Dataset):
 
     def __len__(self):
         return len(self.images)
+
+
+class TreeSatEval(EvalTask):
+    name = "treesat"
+    regression = False
+    multilabel = True
+    # different than the paper but this is
+    # from all the unique classes in the labels json
+    # (above)
+    num_outputs = 15
+
+    def __init__(self, mode: str = "s2", seed: int = DEFAULT_SEED):
+        self.mode = mode
+        super().__init__(seed)
+        self.name = f"{self.name}_{self.mode}"
+
+    def compute_metrics(
+        self, model_name: str, preds: np.ndarray, target: np.ndarray, threshold: float = 0.5
+    ) -> Dict:
+        preds_binary = preds > threshold
+        return {
+            f"{self.name}: {model_name}_num_samples": len(target),
+            f"{self.name}: {model_name}_mAP_score_weighted": average_precision_score(
+                target, preds, average="weighted"
+            ),
+            f"{self.name}: {model_name}_mAP_score_micro": average_precision_score(
+                target, preds, average="micro"
+            ),
+            f"{self.name}: {model_name}_f1_score_weighted": f1_score(
+                target, preds_binary, average="weighted"
+            ),
+            f"{self.name}: {model_name}_f1_score_micro": f1_score(
+                target, preds_binary, average="micro"
+            ),
+            f"{self.name}: {model_name}_precision_micro": precision_score(
+                target, preds_binary, average="micro"
+            ),
+            f"{self.name}: {model_name}_precision_weighted": precision_score(
+                target, preds_binary, average="weighted"
+            ),
+            f"{self.name}: {model_name}_recall_micro": recall_score(
+                target, preds_binary, average="micro"
+            ),
+            f"{self.name}: {model_name}_recall_weighted": recall_score(
+                target, preds_binary, average="weighted"
+            ),
+            f"{self.name}: {model_name}_accuracy_score": accuracy_score(target, preds_binary),
+        }
+
+    @torch.no_grad()
+    def _evaluate_model(
+        self,
+        pretrained_model: Encoder,
+        sklearn_models: Sequence[BaseEstimator],
+    ) -> Dict:
+        test_dl = DataLoader(
+            TreeSatDataset(split="test", mode=self.mode),
+            batch_size=Hyperparams.batch_size,
+            shuffle=False,
+            num_workers=Hyperparams.num_workers,
+        )
+        pred_dict: Dict[str, BaseEstimator] = {
+            model.__class__.__name__: [] for model in sklearn_models
+        }
+
+        labels_list = []
+        for masked_output, labels in tqdm(test_dl, desc="Computing test predictions"):
+            d_x, s_x, d_m, s_m, months = [t.to(device) for t in masked_output]
+            with torch.no_grad():
+                d_x, s_x, d_m, s_m, _ = pretrained_model(d_x, s_x, d_m, s_m, months)
+                encodings = pretrained_model.average_tokens(d_x, s_x, d_m, s_m).cpu().numpy()
+            labels_list.append(labels.cpu().numpy())
+            for model in sklearn_models:
+                preds_list = model.predict_proba(encodings)
+
+                # this is a list of probabilities; we want to take the sum of
+                # positive predictions
+                preds = np.zeros((preds_list[0].shape[0], self.num_outputs))
+                for idx, pred in enumerate(preds_list):
+                    if pred.shape[1] == 2:
+                        # if not, there are no positive samples
+                        preds[:, idx] = pred[:, 1]
+                pred_dict[model.__class__.__name__].append(preds)
+
+        target = np.concatenate(labels)
+        results_dict = {}
+        for model_name_str, pred_list in pred_dict.items():
+            test_preds_np = np.concatenate(pred_list, axis=0)
+            prefix = f"{model_name_str}"
+            results_dict.update(self.compute_metrics(prefix, test_preds_np, target))
+        return results_dict
+
+    def evaluate_model_on_task(self, pretrained_model: Encoder, model_modes: List[str]) -> Dict:
+        for model_mode in model_modes:
+            assert model_mode in [
+                "Logistic Regression",
+                "Random Forest",
+                "KNNat5",
+                "KNNat20",
+                "KNNat100",
+            ]
+        dl = DataLoader(
+            TreeSatDataset(split="train", mode=self.mode),
+            shuffle=False,
+            batch_size=Hyperparams.batch_size,
+            num_workers=Hyperparams.num_workers,
+        )
+        trained_sklearn_models = self.train_sklearn_model(
+            dl,
+            pretrained_model,
+            models=model_modes,
+        )
+        return self._evaluate_model(pretrained_model, trained_sklearn_models)
