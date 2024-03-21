@@ -2,11 +2,12 @@ import json
 import random
 from copy import deepcopy
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, cast
 
 import numpy as np
 import rioxarray
 import torch
+import xarray as xr
 from einops import repeat
 from torch.utils.data import Dataset
 
@@ -91,8 +92,8 @@ class TreeSatDataset(Dataset):
 
     def image_to_dynamic_eo_array(self, tif_file: str):
         s1_image, s2_image = self.image_name_to_paths(tif_file)
-        s2 = rioxarray.open_rasterio(s2_image)
-        s1 = rioxarray.open_rasterio(s1_image)
+        s2 = cast(xr.DataArray, rioxarray.open_rasterio(s2_image))
+        s1 = cast(xr.DataArray, rioxarray.open_rasterio(s1_image))
 
         kept_treesat_s2_band_idx = [i for i, val in enumerate(S2_BAND_ORDERING) if val in S2_BANDS]
         kept_kept_treesat_s2_band_names = [val for val in S2_BAND_ORDERING if val in S2_BANDS]
