@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as PyTorchDataset
 from tqdm import tqdm
 
-from src.flexipresto import Encoder
+from ..flexipresto import Encoder
 
 from ..data.dataset import (
     DYNAMIC_BANDS,
