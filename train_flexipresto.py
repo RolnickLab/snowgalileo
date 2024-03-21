@@ -1,3 +1,4 @@
+import json
 import os
 from copy import deepcopy
 
@@ -11,9 +12,10 @@ from tqdm import tqdm
 
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER, EE_PROJECT
+from src.eval import EuroSatEval
 from src.flexipresto import Encoder, PrestoDecoder
 from src.masked_datasets import PrestoToPrestoMaskedDataset, subset_batch_of_masked_outputs
-from src.utils import data_dir, device, seed_everything
+from src.utils import data_dir, device, logging_dir, seed_everything
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -132,6 +134,15 @@ for e in tqdm(range(num_epochs)):
             m = next(momentum_scheduler)
             for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
                 param_k.data.mul_(m).add_((1.0 - m) * param_q.detach().data)
+
+
+eval_tasks = [EuroSatEval()]
+
+for task in eval_tasks:
+    results = task.evaluate_model_on_task(encoder, ["KNNat5"], rgb=True)
+    eval_results_file = logging_dir / "results.json"
+    with open(eval_results_file, "w") as f:
+        json.dump(results, f)
 
 
 tracker.stop()
