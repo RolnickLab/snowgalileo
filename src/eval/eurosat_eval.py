@@ -251,7 +251,7 @@ class EuroSatEval(EvalTask):
                 preds = model.predict(encodings)
                 pred_dict[model.__class__.__name__].append(preds)
 
-        target = np.concatenate(label)
+        target = np.concatenate(labels_list)
         results_dict = {}
 
         for model_name_str, pred_list in pred_dict.items():
