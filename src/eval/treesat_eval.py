@@ -127,10 +127,12 @@ class TreeSatDataset(Dataset):
             labels_np[self.labels_to_int[name]] = percentage
 
         d_x = np.zeros([len(DYNAMIC_BANDS), self.input_height_width, self.input_height_width])
-        with cast(xr.DataArray, rioxarray.open_rasterio(s2_image)) as s2:
-            d_x[self.treesat_to_presto_s2_map] = s2.values[self.kept_treesat_s2_band_idx]
-        with cast(xr.DataArray, rioxarray.open_rasterio(s1_image)) as s1:
-            d_x[self.treesat_to_presto_s1_map] = s1.values[self.kept_treesat_s1_band_idx]
+        if self.mode in ["s2", "combined"]:
+            with cast(xr.DataArray, rioxarray.open_rasterio(s2_image)) as s2:
+                d_x[self.treesat_to_presto_s2_map] = s2.values[self.kept_treesat_s2_band_idx]
+        if self.mode in ["s1", "combined"]:
+            with cast(xr.DataArray, rioxarray.open_rasterio(s1_image)) as s1:
+                d_x[self.treesat_to_presto_s1_map] = s1.values[self.kept_treesat_s1_band_idx]
 
         d_x = repeat(d_x, "c h w -> h w t c", t=self.num_timesteps)
 
@@ -257,6 +259,8 @@ class TreeSatEval(EvalTask):
         pretrained_model: Encoder,
         sklearn_models: Sequence[BaseEstimator],
     ) -> Dict:
+        pretrained_model.eval()
+
         test_dl = DataLoader(
             TreeSatDataset(split="test", mode=self.mode),
             batch_size=Hyperparams.batch_size,
