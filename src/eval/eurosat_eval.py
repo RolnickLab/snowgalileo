@@ -2,19 +2,18 @@ import json
 import urllib.request
 from collections import namedtuple
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, cast
+from typing import Dict, List, Optional, Sequence, Tuple, cast
 
 import numpy as np
 import rioxarray as xr
 import torch.multiprocessing
 import xarray
 from einops import repeat
-from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.base import BaseEstimator
+from sklearn.metrics import accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as PyTorchDataset
 from tqdm import tqdm
-
-from ..flexipresto import Encoder
 
 from ..data.dataset import (
     DYNAMIC_BANDS,
@@ -23,7 +22,8 @@ from ..data.dataset import (
     STATIC_BANDS,
 )
 from ..data.earthengine.s2 import ALL_S2_BANDS, REMOVED_BANDS
-from ..utils import data_dir, device, logging_dir
+from ..flexipresto import Encoder
+from ..utils import DEFAULT_SEED, data_dir, device, logging_dir
 from .eval import EvalTask, Hyperparams
 
 ### SETUP
@@ -203,80 +203,68 @@ class EuroSatDataset(PyTorchDataset):
 
 
 class EuroSatEval(EvalTask):
+    name = "eurosat"
+    regression = False
+    multilabel = False
+
+    def __init__(self, patch_size: int = 64, seed=DEFAULT_SEED):
+        super().__init__(patch_size, seed)
+
+    def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
+        return {
+            f"{self.name}: {model_name}_accuracy_score": accuracy_score(target, preds),
+        }
+
     @torch.no_grad()
-    def _evaluate_sklearn_model(
+    def _evaluate_model(
         self,
         pretrained_model: Encoder,
-        trained_sklearn_model,
+        sklearn_models: Sequence[BaseEstimator],
         rgb: bool = True,
     ) -> Dict:
-        labels = []
-        pred_list = []
-
-        test_ds = EuroSatDataset(rgb=rgb, split="test")
         test_dl = DataLoader(
-            batch_size=Hyperparams["batch_size"],
+            test_ds=EuroSatDataset(rgb=rgb, split="test"),
+            batch_size=Hyperparams.batch_size,
             shuffle=False,
-            num_workers=Hyperparams["num_workers"],
+            num_workers=Hyperparams.num_workers,
         )
+        pred_dict: Dict[str, BaseEstimator] = {
+            model.__class__.__name__: [] for model in sklearn_models
+        }
+
+        labels_list = []
 
         for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
-            d_x, s_x, d_m, s_m, month = [t.to(device) for t in masked_output]
+            d_x, s_x, d_m, s_m, months = [t.to(device) for t in masked_output]
 
             pretrained_model.eval()
-            d_x, s_x, d_m, s_m, _ = pretrained_model(d_x, s_x, d_m, s_m, month)
-            encodings = pretrained_model.average_tokens(d_x, s_x, d_m, s_m).cpu().numpy()
 
-            labels.append(
-                label.cpu()
-                .numpy()
-                .reshape(
-                    (
-                        encodings.shape[0],
-                        1,
-                        *label.shape[1:],
-                    )
-                )[:, 0]
-            )
-            assert not torch.isnan(encodings).any()
+            with torch.no_grad():
+                d_x, s_x, d_m, s_m, _ = pretrained_model(
+                    d_x, s_x, d_m, s_m, months, patch_size=self.patch_size
+                )
+                encodings = pretrained_model.average_tokens(d_x, s_x, d_m, s_m).cpu().numpy()
 
-            preds = trained_sklearn_model.predict(encodings)
-            pred_list.append(preds)
+            labels_list.append(label.cpu().numpy())
 
-        target = np.concatenate(labels)
+            for model in sklearn_models:
+                preds = model.predict(encodings)
+                pred_dict[model.__class__.__name__].append(preds)
+
+        target = np.concatenate(label)
         results_dict = {}
 
-        int_to_labels, _ = zip(*sorted(test_ds.labels_to_int.items(), key=lambda l_i: l_i[1]))
-
-        test_preds_np = np.concatenate(pred_list, axis=0)
-        prefix = trained_sklearn_model.__class__.__name__
-        results_dict.update(
-            {
-                f"{self.name}: {prefix}_num_samples": len(target),
-                f"{self.name}: {prefix}_accuracy_score": accuracy_score(target, test_preds_np),
-            }
-        )
-        class_matrix = confusion_matrix(test_preds_np, target)
-        accuracies = class_matrix.diagonal() / class_matrix.sum(axis=1)
-        for acc, label in zip(accuracies, int_to_labels):
-            results_dict[f"{self.name}: {prefix}_accuracy_score_{label}"] = acc
-
+        for model_name_str, pred_list in pred_dict.items():
+            test_preds_np = np.concatenate(pred_list, axis=0)
+            prefix = f"{model_name_str}"
+            results_dict.update(self.compute_metrics(prefix, test_preds_np, target))
         return results_dict
 
     def evaluate_model_on_task(
         self, pretrained_model: Encoder, model_modes: List[str], rgb: bool = True
     ) -> Dict:
         for model_mode in model_modes:
-            assert model_mode in [
-                "Regression",
-                "Random Forest",
-                "KNNat5",
-                "KNNat20",
-                "KNNat100",
-                "finetune",
-            ]
-
-        output_results = {}
+            assert model_mode in self.all_classification_sklearn_models
 
         if any(
             mode in model_modes for mode in ["Logistic Regression", "Random Forest", "finetune"]
@@ -285,24 +273,17 @@ class EuroSatEval(EvalTask):
 
         sklearn_modes = [x for x in model_modes if x != "finetune"]
 
-        # only KNN for now
         if len(sklearn_modes) > 0:
-            # TODO: normalization
             train_dl = DataLoader(
                 EuroSatDataset(rgb=rgb, split="train", merge_train_val=True),
-                batch_size=Hyperparams["batch_size"],
+                batch_size=Hyperparams.batch_size,
                 shuffle=True,
-                num_workers=Hyperparams["num_workers"],
+                num_workers=Hyperparams.num_workers,
             )
             trained_sklearn_models = self.train_sklearn_model(
                 train_dl, pretrained_model, sklearn_modes
             )
-            for trained_sklearn_model in trained_sklearn_models:
-                output_results.update(
-                    self._evaluate_sklearn_model(pretrained_model, trained_sklearn_model, rgb)
-                )
-
-        return output_results
+        return self._evaluate_model(pretrained_model, trained_sklearn_models, rgb)
 
 
 if __name__ == "__main__":
