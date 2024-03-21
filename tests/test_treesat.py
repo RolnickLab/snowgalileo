@@ -73,10 +73,67 @@ class TestTreeSat(unittest.TestCase):
         self.check_month(month=m)
 
         # will test if the right channels are masked out
-        present_bands = [idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" in key]
-        unpresent_bands = [
+        present_band_groups = [
+            idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" in key
+        ]
+        absent_band_groups = [
             idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" not in key
         ]
+        present_bands = [idx for idx, key in enumerate(DYNAMIC_BANDS) if "B" in key]
 
-        self.assertTrue(torch.all(d_m[:, :, :, present_bands] == 0))
-        self.assertTrue(torch.all(d_m[:, :, :, unpresent_bands] == 1))
+        self.assertTrue(torch.all(d_x[:, :, :, present_bands] != 0))
+        self.assertTrue(torch.all(d_m[:, :, :, present_band_groups] == 0))
+        self.assertTrue(torch.all(d_m[:, :, :, absent_band_groups] == 1))
+
+    def test_treesat_dataset_s1(self):
+        dataset = TreeSatDataset(mode="s1", split="train")
+        dataset.images = [TEST_FILE]
+        sample = dataset[0]
+        d_x, s_x, d_m, s_m, m = sample[0]
+
+        self.check_dynamic_shape(dynamic_x=d_x, dynamic_m=d_m)
+        self.check_static_shape(static_x=s_x, static_m=s_m)
+        self.check_month(month=m)
+
+        # will test if the right channels are masked out
+        present_band_groups = [
+            idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S1" in key
+        ]
+        absent_band_groups = [
+            idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S1" not in key
+        ]
+        present_bands = [idx for idx, key in enumerate(DYNAMIC_BANDS) if key in ["VV", "VH"]]
+
+        self.assertTrue(torch.all(d_x[:, :, :, present_bands] != 0))
+        self.assertTrue(torch.all(d_m[:, :, :, present_band_groups] == 0))
+        self.assertTrue(torch.all(d_m[:, :, :, absent_band_groups] == 1))
+
+    def test_treesat_dataset_combined(self):
+        dataset = TreeSatDataset(mode="combined", split="train")
+        dataset.images = [TEST_FILE]
+        sample = dataset[0]
+        d_x, s_x, d_m, s_m, m = sample[0]
+
+        self.check_dynamic_shape(dynamic_x=d_x, dynamic_m=d_m)
+        self.check_static_shape(static_x=s_x, static_m=s_m)
+        self.check_month(month=m)
+
+        # will test if the right channels are masked out
+        present_band_groups = [
+            idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S" in key
+        ]
+        absent_band_groups = [
+            idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S" not in key
+        ]
+        present_bands = [
+            idx for idx, key in enumerate(DYNAMIC_BANDS) if (("B" in key) or (key in ["VV", "VH"]))
+        ]
+        absent_bands = [
+            idx
+            for idx, key in enumerate(DYNAMIC_BANDS)
+            if not (("B" in key) or (key in ["VV", "VH"]))
+        ]
+        self.assertTrue(torch.all(d_x[:, :, :, present_bands] != 0))
+        self.assertTrue(torch.all(d_x[:, :, :, absent_bands] == 0))
+        self.assertTrue(torch.all(d_m[:, :, :, present_band_groups] == 0))
+        self.assertTrue(torch.all(d_m[:, :, :, absent_band_groups] == 1))
