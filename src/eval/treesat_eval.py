@@ -2,7 +2,7 @@ import json
 import random
 from copy import deepcopy
 from pathlib import Path
-from typing import Dict, List, Sequence, Tuple, cast
+from typing import Dict, List, Optional, Sequence, Tuple, cast
 
 import numpy as np
 import rioxarray
@@ -294,15 +294,13 @@ class TreeSatEval(EvalTask):
             results_dict.update(self.compute_metrics(prefix, test_preds_np, target))
         return results_dict
 
-    def evaluate_model_on_task(self, pretrained_model: Encoder, model_modes: List[str]) -> Dict:
+    def evaluate_model_on_task(
+        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
+    ) -> Dict:
+        if model_modes is None:
+            model_modes = self.all_classification_sklearn_models
         for model_mode in model_modes:
-            assert model_mode in [
-                "Logistic Regression",
-                "Random Forest",
-                "KNNat5",
-                "KNNat20",
-                "KNNat100",
-            ]
+            assert model_mode in self.all_classification_sklearn_models
         dl = DataLoader(
             TreeSatDataset(split="train", mode=self.mode),
             shuffle=False,
