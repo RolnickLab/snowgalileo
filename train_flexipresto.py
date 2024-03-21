@@ -136,13 +136,13 @@ for e in tqdm(range(num_epochs)):
                 param_k.data.mul_(m).add_((1.0 - m) * param_q.detach().data)
 
 
-eval_tasks = [EuroSatEval()]
+eval_tasks = [EuroSatEval(rgb) for rgb in [True, False]]
+eurosat_model_modes = ["KNNat5", "KNNat20", "KNNat100"]
 
 for task in eval_tasks:
-    results = task.evaluate_model_on_task(encoder, ["KNNat5"], rgb=True)
+    results = task.evaluate_model_on_task(encoder, model_modes=eurosat_model_modes)
     eval_results_file = logging_dir / "results.json"
     with open(eval_results_file, "w") as f:
         json.dump(results, f)
-
 
 tracker.stop()
