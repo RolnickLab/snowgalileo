@@ -223,7 +223,7 @@ class EuroSatEval(EvalTask):
         rgb: bool = True,
     ) -> Dict:
         test_dl = DataLoader(
-            test_ds=EuroSatDataset(rgb=rgb, split="test"),
+            EuroSatDataset(rgb=rgb, split="test"),
             batch_size=Hyperparams.batch_size,
             shuffle=False,
             num_workers=Hyperparams.num_workers,
@@ -288,7 +288,7 @@ class EuroSatEval(EvalTask):
 
 if __name__ == "__main__":
     eval_task = EuroSatEval()
-    pretrained_model = Encoder(embedding_size=64)
+    pretrained_model = Encoder(embedding_size=64).to(device)
     model_modes = ["KNNat5"]
     results = eval_task.evaluate_model_on_task(pretrained_model, model_modes, rgb=True)
     eval_results_file = logging_dir / "results.json"
