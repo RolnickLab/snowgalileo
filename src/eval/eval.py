@@ -1,7 +1,7 @@
 import logging
 from abc import ABC
 from dataclasses import dataclass
-from typing import Dict, List, Sequence
+from typing import Dict, List, Optional, Sequence
 
 import numpy as np
 import torch
@@ -30,6 +30,15 @@ class EvalTask(ABC):
     regression: bool
     multilabel: bool
 
+    all_regression_sklearn_models = ["Regression", "Random Forest"]
+    all_classification_sklearn_models = [
+        "Logistic Regression",
+        "Random Forest",
+        "KNNat5",
+        "KNNat20",
+        "KNNat100",
+    ]
+
     def __init__(self, seed: int = DEFAULT_SEED):
         self.seed = seed
         self.name = f"{self.name}_{self.seed}"
@@ -49,15 +58,9 @@ class EvalTask(ABC):
     ) -> Sequence[BaseEstimator]:
         for model_mode in models:
             if self.regression:
-                assert model_mode in ["Regression", "Random Forest"]
+                assert model_mode in self.all_regression_sklearn_models
             else:
-                assert model_mode in [
-                    "Logistic Regression",
-                    "Random Forest",
-                    "KNNat5",
-                    "KNNat20",
-                    "KNNat100",
-                ]
+                assert model_mode in self.all_classification_sklearn_models
         pretrained_model.eval()
 
         encoding_list, target_list = [], []
@@ -98,5 +101,7 @@ class EvalTask(ABC):
             fit_models.append(clone(model_dict[self.regression][model]).fit(encodings_np, targets))
         return fit_models
 
-    def evaluate_model_on_task(self, pretrained_model: Encoder, model_modes: List[str]) -> Dict:
+    def evaluate_model_on_task(
+        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
+    ) -> Dict:
         raise NotImplementedError
