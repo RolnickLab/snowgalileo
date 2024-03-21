@@ -53,7 +53,7 @@ class TestTreeSat(unittest.TestCase):
             ),
         )
 
-        # no static data in eurosat so added as zeros and masked out
+        # no static data in treesat so added as zeros and masked out
         self.assertTrue(torch.all(static_x == 0))
         self.assertTrue(torch.all(static_m == 1))
 
