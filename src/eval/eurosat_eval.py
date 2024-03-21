@@ -207,8 +207,10 @@ class EuroSatEval(EvalTask):
     regression = False
     multilabel = False
 
-    def __init__(self, patch_size: int = 64, seed=DEFAULT_SEED):
+    def __init__(self, rgb: bool = True, patch_size: int = 64, seed=DEFAULT_SEED):
+        self.rgb = rgb
         super().__init__(patch_size, seed)
+        self.name = f"{self.name}_{self.rgb}"
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         return {
@@ -217,13 +219,10 @@ class EuroSatEval(EvalTask):
 
     @torch.no_grad()
     def _evaluate_model(
-        self,
-        pretrained_model: Encoder,
-        sklearn_models: Sequence[BaseEstimator],
-        rgb: bool = True,
+        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator]
     ) -> Dict:
         test_dl = DataLoader(
-            EuroSatDataset(rgb=rgb, split="test"),
+            EuroSatDataset(rgb=self.rgb, split="test"),
             batch_size=Hyperparams.batch_size,
             shuffle=False,
             num_workers=Hyperparams.num_workers,
@@ -261,7 +260,7 @@ class EuroSatEval(EvalTask):
         return results_dict
 
     def evaluate_model_on_task(
-        self, pretrained_model: Encoder, model_modes: List[str], rgb: bool = True
+        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
     ) -> Dict:
         for model_mode in model_modes:
             assert model_mode in self.all_classification_sklearn_models
@@ -275,7 +274,7 @@ class EuroSatEval(EvalTask):
 
         if len(sklearn_modes) > 0:
             train_dl = DataLoader(
-                EuroSatDataset(rgb=rgb, split="train", merge_train_val=True),
+                EuroSatDataset(rgb=self.rgb, split="train", merge_train_val=True),
                 batch_size=Hyperparams.batch_size,
                 shuffle=True,
                 num_workers=Hyperparams.num_workers,
@@ -283,14 +282,4 @@ class EuroSatEval(EvalTask):
             trained_sklearn_models = self.train_sklearn_model(
                 train_dl, pretrained_model, sklearn_modes
             )
-        return self._evaluate_model(pretrained_model, trained_sklearn_models, rgb)
-
-
-if __name__ == "__main__":
-    eval_task = EuroSatEval()
-    pretrained_model = Encoder(embedding_size=64).to(device)
-    model_modes = ["KNNat5"]
-    results = eval_task.evaluate_model_on_task(pretrained_model, model_modes, rgb=True)
-    eval_results_file = logging_dir / "results.json"
-    with open(eval_results_file, "w") as f:
-        json.dump(results, f)
+        return self._evaluate_model(pretrained_model, trained_sklearn_models)
