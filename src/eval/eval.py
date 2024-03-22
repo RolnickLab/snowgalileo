@@ -10,6 +10,7 @@ from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.multioutput import MultiOutputClassifier
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from ..flexipresto import Encoder
 from ..utils import DEFAULT_SEED, device
@@ -47,8 +48,12 @@ class EvalTask(ABC):
     @classmethod
     def _construct_sklearn_model(cls, model) -> BaseEstimator:
         if cls.multilabel:
-            model = MultiOutputClassifier(model, n_jobs=cls.num_outputs)
-        return model
+            mo_model = MultiOutputClassifier(model, n_jobs=cls.num_outputs)
+            # this is a bit hackey but allows us to differentiate between
+            # different MultiOutputClassifier models which have been trained
+            # and seems not to break anything
+            mo_model.__class__.__name__ = model.__class__.__name__
+        return mo_model
 
     @torch.no_grad()
     def train_sklearn_model(
@@ -65,7 +70,7 @@ class EvalTask(ABC):
         pretrained_model.eval()
 
         encoding_list, target_list = [], []
-        for masked_output, label in dl:
+        for masked_output, label in tqdm(dl, desc="Computing encodings for sklearn"):
             d_x, s_x, d_m, s_m, months = [t.to(device) for t in masked_output]
             target_list.append(label.cpu().numpy())
             with torch.no_grad():
