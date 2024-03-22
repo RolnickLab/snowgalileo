@@ -17,7 +17,7 @@ from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER, EE_PROJECT
 from src.eval import EuroSatEval, TreeSatEval
 from src.eval.eval import EvalTask
-from src.flexipresto import Encoder, PrestoDecoder
+from src.flexipresto import Encoder, PrestoDecoder, adjust_learning_rate
 from src.masked_datasets import PrestoToPrestoMaskedDataset, subset_batch_of_masked_outputs
 from src.utils import AverageMeter, data_dir, device, seed_everything
 
@@ -42,6 +42,7 @@ ema = (0.996, 1.0)
 mask_ratio = 0.5
 spatial_patches_per_dim = 4
 patch_sizes = (1, 2, 3, 4, 5, 6)
+start_lr, max_lr, final_lr, warmup_epochs = 0.0002, 0.001, 1.0e-06, 3
 # this too
 run_id = None
 wandb_enabled = True
@@ -75,34 +76,9 @@ predictor = PrestoDecoder(encoder_embedding_size=64, decoder_embedding_size=64).
 target_encoder = deepcopy(encoder)
 
 
-param_groups = [
-    {
-        "params": (
-            p for n, p in encoder.named_parameters() if ("bias" not in n) and (len(p.shape) != 1)
-        )
-    },
-    {
-        "params": (
-            p for n, p in predictor.named_parameters() if ("bias" not in n) and (len(p.shape) != 1)
-        )
-    },
-    {
-        "params": (
-            p for n, p in encoder.named_parameters() if ("bias" in n) or (len(p.shape) == 1)
-        ),
-        "WD_exclude": True,
-        "weight_decay": 0,
-    },
-    {
-        "params": (
-            p for n, p in predictor.named_parameters() if ("bias" in n) or (len(p.shape) == 1)
-        ),
-        "WD_exclude": True,
-        "weight_decay": 0,
-    },
-]
-# todo - implement schedule following IJEPA
-optimizer = torch.optim.AdamW(param_groups)  # type: ignore
+param_groups = [{"params": encoder.parameters()}, {"params": predictor.parameters()}]
+
+optimizer = torch.optim.AdamW(param_groups, lr=start_lr)  # type: ignore
 iterations_per_epoch = len(dataset)
 momentum_scheduler = (
     ema[0] + i * (ema[1] - ema[0]) / (iterations_per_epoch * num_epochs)
@@ -123,6 +99,16 @@ for e in tqdm(range(num_epochs)):
         # also transform to patch-space
         reversed_d = (1 - d_m[:, 0::patch_size, 0::patch_size]).bool()
         reversed_s = (1 - s_m[:, 0::patch_size, 0::patch_size]).bool()
+
+        optimizer.zero_grad()
+        adjust_learning_rate(
+            optimizer,
+            epoch=i / len(dataloader) + e,
+            warmup_epochs=warmup_epochs,
+            total_epochs=num_epochs,
+            max_lr=max_lr,
+            start_lr=start_lr,
+        )
 
         # generate the predictions. TODO: add layer norm
         p_d, p_s, _, _ = predictor(
@@ -158,7 +144,6 @@ for e in tqdm(range(num_epochs)):
             flush=True,
         )
         train_loss.update(loss.item(), n=d_x.shape[0])
-        optimizer.zero_grad()
         with torch.no_grad():
             m = next(momentum_scheduler)
             for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
