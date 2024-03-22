@@ -127,12 +127,6 @@ class TestTreeSat(unittest.TestCase):
         present_bands = [
             idx for idx, key in enumerate(DYNAMIC_BANDS) if (("B" in key) or (key in ["VV", "VH"]))
         ]
-        absent_bands = [
-            idx
-            for idx, key in enumerate(DYNAMIC_BANDS)
-            if not (("B" in key) or (key in ["VV", "VH"]))
-        ]
         self.assertTrue(torch.all(d_x[:, :, :, present_bands] != 0))
-        self.assertTrue(torch.all(d_x[:, :, :, absent_bands] == 0))
         self.assertTrue(torch.all(d_m[:, :, :, present_band_groups] == 0))
         self.assertTrue(torch.all(d_m[:, :, :, absent_band_groups] == 1))

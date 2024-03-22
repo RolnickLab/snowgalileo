@@ -51,9 +51,7 @@ NUM_DYNAMIC_BAND_GROUPS = len(DYNAMIC_BANDS_GROUPS_IDX)
 NUM_STATIC_BAND_GROUPS = len(STATIC_BAND_GROUPS_IDX)
 
 
-def _normalize(
-    x: np.ndarray, shift_values: np.ndarray | List, div_values: np.ndarray | List
-) -> np.ndarray:
+def _normalize(x: np.ndarray, shift_values: np.ndarray, div_values: np.ndarray) -> np.ndarray:
     return (x - shift_values) / div_values
 
 
@@ -65,9 +63,8 @@ def normalize_dynamic(x: np.ndarray) -> np.ndarray:
         # there is an additional NDVI band. We assume its already normalized - *N*DVI,
         # so we leave it alone
         assert x.shape[-1] == (len(DYNAMIC_SHIFT_VALUES) + 1)
-        d_s = DYNAMIC_SHIFT_VALUES + [0]
-        d_d = DYNAMIC_SHIFT_VALUES + [1]
-
+        d_s = np.append(DYNAMIC_SHIFT_VALUES, [0])
+        d_d = np.append(DYNAMIC_DIV_VALUES, [1])
     return _normalize(x, d_s, d_d)
 
 
