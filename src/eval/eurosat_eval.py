@@ -19,12 +19,13 @@ from ..data.dataset import (
     DYNAMIC_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
     STATIC_BANDS,
+    normalize_dynamic,
 )
 from ..data.earthengine.s2 import ALL_S2_BANDS, REMOVED_BANDS
 from ..flexipresto import Encoder
 from ..masked_datasets import MaskedOutput
 from ..utils import DEFAULT_SEED, data_dir, device
-from .eval import EvalTask, Hyperparams
+from .eval import EvalTask, Hyperparams, model_class_name
 
 ### SETUP
 torch.multiprocessing.set_sharing_strategy("file_system")
@@ -73,6 +74,7 @@ class EuroSatDataset(PyTorchDataset):
         self.tif_files_dir = tif_files_dir
 
         self.images = self.split_images(merge_train_val)[split]
+        self.masks = self.create_eurosat_masks()
 
     def image_name_to_path(self, name: str) -> Path:
         class_name = name.split("_")[0]
@@ -97,7 +99,8 @@ class EuroSatDataset(PyTorchDataset):
         )
         split_path = data_dir / filename
         if split_path.exists():
-            train_test_split = json.load(split_path.open("r"))
+            with split_path.open("r") as f:
+                train_test_split = json.load(f)
         else:
             # this code was only run once (the dictionary is then saved)
             # but is saved here for clarity
@@ -157,7 +160,7 @@ class EuroSatDataset(PyTorchDataset):
 
         tif_file = self.image_name_to_path(tif_filename)
 
-        with cast(xarray.core.dataarray.DataArray, xr.open_rasterio(tif_file)) as image:
+        with cast(xarray.DataArray, xr.open_rasterio(tif_file)) as image:
             eo_style_array = np.zeros(
                 [
                     self.input_height_width,
@@ -172,7 +175,7 @@ class EuroSatDataset(PyTorchDataset):
             )
 
         return (
-            eo_style_array,
+            normalize_dynamic(eo_style_array),
             np.array([self.labels_to_int[tif_file.parents[0].name]]),
         )
 
@@ -183,7 +186,7 @@ class EuroSatDataset(PyTorchDataset):
         # static bands are not provided by eurosat
         s_x = np.zeros((d_x.shape[0], d_x.shape[1], len(STATIC_BANDS)))
 
-        d_m, s_m = self.create_eurosat_masks()
+        d_m, s_m = self.masks
         month = np.zeros((self.num_timesteps,))
 
         d_x_torch = torch.as_tensor(d_x, dtype=torch.float32)
@@ -225,7 +228,7 @@ class EuroSatEval(EvalTask):
             num_workers=Hyperparams.num_workers,
         )
         pred_dict: Dict[str, BaseEstimator] = {
-            model.__class__.__name__: [] for model in sklearn_models
+            model_class_name(model): [] for model in sklearn_models
         }
 
         labels_list = []
@@ -245,7 +248,7 @@ class EuroSatEval(EvalTask):
 
             for model in sklearn_models:
                 preds = model.predict(encodings)
-                pred_dict[model.__class__.__name__].append(preds)
+                pred_dict[model_class_name(model)].append(preds)
 
         target = np.concatenate(labels_list)
         results_dict = {}

@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER, EE_PROJECT
-from src.eval import EuroSatEval
+from src.eval import EuroSatEval, TreeSatEval
 from src.flexipresto import Encoder, PrestoDecoder
 from src.masked_datasets import PrestoToPrestoMaskedDataset, subset_batch_of_masked_outputs
 from src.utils import data_dir, device, seed_everything
@@ -135,11 +135,11 @@ for e in tqdm(range(num_epochs)):
             for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
                 param_k.data.mul_(m).add_((1.0 - m) * param_q.detach().data)
 
-
-eval_tasks = [EuroSatEval(rgb) for rgb in [True, False]]
-
+eval_tasks = [
+    *[TreeSatEval(mode) for mode in ["s1", "s2", "combined"]],
+    *[EuroSatEval(rgb) for rgb in [True, False]],
+]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)
     print(json.dumps(results, indent=2), flush=True)
-
 tracker.stop()

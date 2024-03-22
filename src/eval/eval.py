@@ -10,6 +10,7 @@ from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.multioutput import MultiOutputClassifier
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from ..flexipresto import Encoder
 from ..utils import DEFAULT_SEED, device
@@ -22,6 +23,13 @@ logger = logging.getLogger("__main__")
 class Hyperparams:
     batch_size: int = 4096
     num_workers: int = 2
+
+
+def model_class_name(model: BaseEstimator) -> str:
+    if isinstance(model, MultiOutputClassifier):
+        return model.estimator.__class__.__name__
+    else:
+        return model.__class__.__name__
 
 
 class EvalTask(ABC):
@@ -65,7 +73,7 @@ class EvalTask(ABC):
         pretrained_model.eval()
 
         encoding_list, target_list = [], []
-        for masked_output, label in dl:
+        for masked_output, label in tqdm(dl, desc="Computing encodings for sklearn"):
             d_x, s_x, d_m, s_m, months = [t.to(device) for t in masked_output]
             target_list.append(label.cpu().numpy())
             with torch.no_grad():
@@ -74,6 +82,7 @@ class EvalTask(ABC):
                 )
                 encodings = pretrained_model.average_tokens(d_x, s_x, d_m, s_m).cpu().numpy()
                 encoding_list.append(encodings)
+
         encodings_np = np.concatenate(encoding_list)
         targets = np.concatenate(target_list)
         if len(targets.shape) == 2 and targets.shape[1] == 1:
