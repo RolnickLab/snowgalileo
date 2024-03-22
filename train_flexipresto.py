@@ -140,8 +140,6 @@ eval_tasks = [EuroSatEval(rgb) for rgb in [True, False]]
 
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)
-    eval_results_file = logging_dir / "results.json"
-    with open(eval_results_file, "w") as f:
-        json.dump(results, f)
+    print(json.dumps(results, indent=2), flush=True)
 
 tracker.stop()
