@@ -1,7 +1,7 @@
 import logging
 from abc import ABC
 from dataclasses import dataclass
-from typing import Dict, List, Sequence, Union
+from typing import Dict, List, Optional, Sequence
 
 import numpy as np
 import torch
@@ -30,9 +30,19 @@ class EvalTask(ABC):
     regression: bool
     multilabel: bool
 
-    def __init__(self, seed: int = DEFAULT_SEED):
+    all_regression_sklearn_models = ["Regression", "Random Forest"]
+    all_classification_sklearn_models = [
+        "Logistic Regression",
+        "Random Forest",
+        "KNNat5",
+        "KNNat20",
+        "KNNat100",
+    ]
+
+    def __init__(self, patch_size: int, seed: int = DEFAULT_SEED):
         self.seed = seed
-        self.name = f"{self.name}_{self.seed}"
+        self.patch_size = patch_size
+        self.name = f"{self.name}_s{self.seed}_ps{self.patch_size}"
 
     @classmethod
     def _construct_sklearn_model(cls, model) -> BaseEstimator:
@@ -46,18 +56,12 @@ class EvalTask(ABC):
         dl: DataLoader,
         pretrained_model: Encoder,
         models: List[str] = ["Random Forest"],
-    ) -> Union[Sequence[BaseEstimator], Dict]:
+    ) -> Sequence[BaseEstimator]:
         for model_mode in models:
             if self.regression:
-                assert model_mode in ["Regression", "Random Forest"]
+                assert model_mode in self.all_regression_sklearn_models
             else:
-                assert model_mode in [
-                    "Logistic Regression",
-                    "Random Forest",
-                    "KNNat5",
-                    "KNNat20",
-                    "KNNat100",
-                ]
+                assert model_mode in self.all_classification_sklearn_models
         pretrained_model.eval()
 
         encoding_list, target_list = [], []
@@ -65,7 +69,9 @@ class EvalTask(ABC):
             d_x, s_x, d_m, s_m, months = [t.to(device) for t in masked_output]
             target_list.append(label.cpu().numpy())
             with torch.no_grad():
-                d_x, s_x, d_m, s_m, _ = pretrained_model(d_x, s_x, d_m, s_m, months)
+                d_x, s_x, d_m, s_m, _ = pretrained_model(
+                    d_x, s_x, d_m, s_m, months, patch_size=self.patch_size
+                )
                 encodings = pretrained_model.average_tokens(d_x, s_x, d_m, s_m).cpu().numpy()
                 encoding_list.append(encodings)
         encodings_np = np.concatenate(encoding_list)
@@ -98,5 +104,7 @@ class EvalTask(ABC):
             fit_models.append(clone(model_dict[self.regression][model]).fit(encodings_np, targets))
         return fit_models
 
-    def evaluate_model_on_task(self, pretrained_model: Encoder, model_modes: List[str]) -> Dict:
+    def evaluate_model_on_task(
+        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
+    ) -> Dict:
         raise NotImplementedError
