@@ -1,32 +1,34 @@
 import json
-import logging
 import urllib.request
-from collections import namedtuple
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, cast
+from typing import Dict, List, Optional, Sequence, Tuple, cast
 
 import numpy as np
 import rioxarray as xr
 import torch.multiprocessing
 import xarray
 from einops import repeat
+from sklearn.base import BaseEstimator
+from sklearn.metrics import accuracy_score
+from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as PyTorchDataset
+from tqdm import tqdm
 
 from ..data.dataset import (
     DYNAMIC_BANDS,
     DYNAMIC_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
     STATIC_BANDS,
+    normalize_dynamic,
 )
 from ..data.earthengine.s2 import ALL_S2_BANDS, REMOVED_BANDS
-from ..utils import data_dir
+from ..flexipresto import Encoder
+from ..masked_datasets import MaskedOutput
+from ..utils import DEFAULT_SEED, data_dir, device
+from .eval import EvalTask, Hyperparams, model_class_name
 
 ### SETUP
 torch.multiprocessing.set_sharing_strategy("file_system")
-logger = logging.getLogger("__main__")
-MaskedOutput = namedtuple(
-    "MaskedOutput", ["dynamic_x", "static_x", "dynamic_mask", "static_mask", "months"]
-)
 
 
 class EuroSatDataset(PyTorchDataset):
@@ -72,6 +74,7 @@ class EuroSatDataset(PyTorchDataset):
         self.tif_files_dir = tif_files_dir
 
         self.images = self.split_images(merge_train_val)[split]
+        self.masks = self.create_eurosat_masks()
 
     def image_name_to_path(self, name: str) -> Path:
         class_name = name.split("_")[0]
@@ -96,7 +99,8 @@ class EuroSatDataset(PyTorchDataset):
         )
         split_path = data_dir / filename
         if split_path.exists():
-            train_test_split = json.load(split_path.open("r"))
+            with split_path.open("r") as f:
+                train_test_split = json.load(f)
         else:
             # this code was only run once (the dictionary is then saved)
             # but is saved here for clarity
@@ -156,7 +160,7 @@ class EuroSatDataset(PyTorchDataset):
 
         tif_file = self.image_name_to_path(tif_filename)
 
-        with cast(xarray.core.dataarray.DataArray, xr.open_rasterio(tif_file)) as image:
+        with cast(xarray.DataArray, xr.open_rasterio(tif_file)) as image:
             eo_style_array = np.zeros(
                 [
                     self.input_height_width,
@@ -171,7 +175,7 @@ class EuroSatDataset(PyTorchDataset):
             )
 
         return (
-            eo_style_array,
+            normalize_dynamic(eo_style_array),
             np.array([self.labels_to_int[tif_file.parents[0].name]]),
         )
 
@@ -182,7 +186,7 @@ class EuroSatDataset(PyTorchDataset):
         # static bands are not provided by eurosat
         s_x = np.zeros((d_x.shape[0], d_x.shape[1], len(STATIC_BANDS)))
 
-        d_m, s_m = self.create_eurosat_masks()
+        d_m, s_m = self.masks
         month = np.zeros((self.num_timesteps,))
 
         d_x_torch = torch.as_tensor(d_x, dtype=torch.float32)
@@ -196,3 +200,78 @@ class EuroSatDataset(PyTorchDataset):
 
     def __len__(self):
         return len(self.images)
+
+
+class EuroSatEval(EvalTask):
+    name = "eurosat"
+    regression = False
+    multilabel = False
+
+    def __init__(self, rgb: bool = True, patch_size: int = 8, seed=DEFAULT_SEED):
+        self.rgb = rgb
+        super().__init__(patch_size, seed)
+        self.name = f"{self.name}_{self.rgb}"
+
+    def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
+        return {
+            f"{self.name}: {model_name}_accuracy_score": accuracy_score(target, preds),
+        }
+
+    @torch.no_grad()
+    def _evaluate_model(
+        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator]
+    ) -> Dict:
+        test_dl = DataLoader(
+            EuroSatDataset(rgb=self.rgb, split="test"),
+            batch_size=Hyperparams.batch_size,
+            shuffle=False,
+            num_workers=Hyperparams.num_workers,
+        )
+        pred_dict: Dict[str, BaseEstimator] = {
+            model_class_name(model): [] for model in sklearn_models
+        }
+
+        labels_list = []
+
+        for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
+            d_x, s_x, d_m, s_m, months = [t.to(device) for t in masked_output]
+
+            pretrained_model.eval()
+
+            with torch.no_grad():
+                d_x, s_x, d_m, s_m, _ = pretrained_model(
+                    d_x, s_x, d_m, s_m, months, patch_size=self.patch_size
+                )
+                encodings = pretrained_model.average_tokens(d_x, s_x, d_m, s_m).cpu().numpy()
+
+            labels_list.append(label.cpu().numpy())
+
+            for model in sklearn_models:
+                preds = model.predict(encodings)
+                pred_dict[model_class_name(model)].append(preds)
+
+        target = np.concatenate(labels_list)
+        results_dict = {}
+
+        for model_name_str, pred_list in pred_dict.items():
+            test_preds_np = np.concatenate(pred_list, axis=0)
+            prefix = f"{model_name_str}"
+            results_dict.update(self.compute_metrics(prefix, test_preds_np, target))
+        return results_dict
+
+    def evaluate_model_on_task(
+        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
+    ) -> Dict:
+        if model_modes is None:
+            model_modes = self.all_classification_sklearn_models
+        for model_mode in model_modes:
+            assert model_mode in self.all_classification_sklearn_models
+
+        train_dl = DataLoader(
+            EuroSatDataset(rgb=self.rgb, split="train", merge_train_val=True),
+            batch_size=Hyperparams.batch_size,
+            shuffle=True,
+            num_workers=Hyperparams.num_workers,
+        )
+        trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
+        return self._evaluate_model(pretrained_model, trained_sklearn_models)
