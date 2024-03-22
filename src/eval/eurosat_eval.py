@@ -207,7 +207,7 @@ class EuroSatEval(EvalTask):
     regression = False
     multilabel = False
 
-    def __init__(self, rgb: bool = True, patch_size: int = 64, seed=DEFAULT_SEED):
+    def __init__(self, rgb: bool = True, patch_size: int = 8, seed=DEFAULT_SEED):
         self.rgb = rgb
         super().__init__(patch_size, seed)
         self.name = f"{self.name}_{self.rgb}"
@@ -263,25 +263,15 @@ class EuroSatEval(EvalTask):
         self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
     ) -> Dict:
         if model_modes is None:
-            model_modes = ["KNNat5", "KNNat20", "KNNat100"]
+            model_modes = self.all_classification_sklearn_models
         for model_mode in model_modes:
             assert model_mode in self.all_classification_sklearn_models
 
-        if any(
-            mode in model_modes for mode in ["Logistic Regression", "Random Forest", "finetune"]
-        ):
-            raise NotImplementedError
-
-        sklearn_modes = [x for x in model_modes if x != "finetune"]
-
-        if len(sklearn_modes) > 0:
-            train_dl = DataLoader(
-                EuroSatDataset(rgb=self.rgb, split="train", merge_train_val=True),
-                batch_size=Hyperparams.batch_size,
-                shuffle=True,
-                num_workers=Hyperparams.num_workers,
-            )
-            trained_sklearn_models = self.train_sklearn_model(
-                train_dl, pretrained_model, sklearn_modes
-            )
+        train_dl = DataLoader(
+            EuroSatDataset(rgb=self.rgb, split="train", merge_train_val=True),
+            batch_size=Hyperparams.batch_size,
+            shuffle=True,
+            num_workers=Hyperparams.num_workers,
+        )
+        trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
         return self._evaluate_model(pretrained_model, trained_sklearn_models)
