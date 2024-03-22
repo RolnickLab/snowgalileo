@@ -9,6 +9,8 @@ from .config import DEFAULT_SEED
 
 data_dir = Path(__file__).parent.parent / "data"
 
+logging_dir = Path(__file__).parent.parent / "logs"
+
 if not torch.cuda.is_available():
     device = torch.device("cpu")
 else:

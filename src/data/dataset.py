@@ -25,8 +25,6 @@ from .earthengine.eo import (
 )
 from .earthengine.eo import DYNAMIC_BANDS as EO_DYNAMIC_BANDS
 
-REMOVED_BANDS = ["B1", "B9", "B10"]
-
 DYNAMIC_BANDS = EO_DYNAMIC_BANDS + ["NDVI"]
 
 DYNAMIC_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
@@ -46,9 +44,6 @@ DYNAMIC_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
 STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {"SRTM": [STATIC_BANDS.index(b) for b in SRTM_BANDS]}
 )
-
-NUM_DYNAMIC_BAND_GROUPS = len(DYNAMIC_BANDS_GROUPS_IDX)
-NUM_STATIC_BAND_GROUPS = len(STATIC_BAND_GROUPS_IDX)
 
 
 def _normalize(x: np.ndarray, shift_values: np.ndarray, div_values: np.ndarray) -> np.ndarray:
