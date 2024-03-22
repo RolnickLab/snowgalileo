@@ -19,6 +19,7 @@ from ..data.dataset import (
     DYNAMIC_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
     STATIC_BANDS,
+    normalize_dynamic,
 )
 from ..data.earthengine.s2 import ALL_S2_BANDS, REMOVED_BANDS
 from ..flexipresto import Encoder
@@ -174,7 +175,7 @@ class EuroSatDataset(PyTorchDataset):
             )
 
         return (
-            eo_style_array,
+            normalize_dynamic(eo_style_array),
             np.array([self.labels_to_int[tif_file.parents[0].name]]),
         )
 
