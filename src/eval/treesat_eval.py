@@ -17,7 +17,8 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
 )
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
+from torch.utils.data import Dataset as PytorchDataset
 from tqdm import tqdm
 
 from ..data.dataset import (
@@ -28,6 +29,7 @@ from ..data.dataset import (
     S1_BANDS,
     STATIC_BAND_GROUPS_IDX,
     STATIC_BANDS,
+    Dataset,
 )
 from ..data.earthengine.s2 import S2_BANDS
 from ..flexipresto import Encoder
@@ -48,7 +50,7 @@ S2_BAND_ORDERING = ["B2", "B3", "B4", "B8", "B5", "B6", "B7", "B8A", "B11", "B12
 S1_BAND_ORDERING = ["VV", "VH", "VV/VH"]
 
 
-class TreeSatDataset(Dataset):
+class TreeSatDataset(PytorchDataset):
     labels_to_int = {
         "Abies": 0,
         "Acer": 1,
