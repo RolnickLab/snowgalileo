@@ -17,19 +17,16 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
 )
-from torch.utils.data import DataLoader
-from torch.utils.data import Dataset as PytorchDataset
+from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from ..data.dataset import (
     DYNAMIC_BANDS,
     DYNAMIC_BANDS_GROUPS_IDX,
-    DYNAMIC_DIV_VALUES,
-    DYNAMIC_SHIFT_VALUES,
     S1_BANDS,
     STATIC_BAND_GROUPS_IDX,
     STATIC_BANDS,
-    Dataset,
+    normalize_dynamic,
 )
 from ..data.earthengine.s2 import S2_BANDS
 from ..flexipresto import Encoder
@@ -50,7 +47,7 @@ S2_BAND_ORDERING = ["B2", "B3", "B4", "B8", "B5", "B6", "B7", "B8A", "B11", "B12
 S1_BAND_ORDERING = ["VV", "VH", "VV/VH"]
 
 
-class TreeSatDataset(PytorchDataset):
+class TreeSatDataset(Dataset):
     labels_to_int = {
         "Abies": 0,
         "Acer": 1,
@@ -139,7 +136,7 @@ class TreeSatDataset(PytorchDataset):
                 d_x[self.treesat_to_presto_s1_map] = s1.values[self.kept_treesat_s1_band_idx]
 
         d_x = repeat(d_x, "c h w -> h w t c", t=self.num_timesteps)
-        d_x = Dataset.normalize(d_x, DYNAMIC_SHIFT_VALUES, DYNAMIC_DIV_VALUES)
+        d_x = normalize_dynamic(d_x)
 
         return d_x, self.min_threshold(labels_np)
 

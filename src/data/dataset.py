@@ -51,6 +51,31 @@ NUM_DYNAMIC_BAND_GROUPS = len(DYNAMIC_BANDS_GROUPS_IDX)
 NUM_STATIC_BAND_GROUPS = len(STATIC_BAND_GROUPS_IDX)
 
 
+def _normalize(
+    x: np.ndarray, shift_values: np.ndarray | List, div_values: np.ndarray | List
+) -> np.ndarray:
+    return (x - shift_values) / div_values
+
+
+def normalize_dynamic(x: np.ndarray) -> np.ndarray:
+    if x.shape[-1] == len(DYNAMIC_SHIFT_VALUES):
+        d_s = DYNAMIC_SHIFT_VALUES
+        d_d = DYNAMIC_DIV_VALUES
+    else:
+        # there is an additional NDVI band. We assume its already normalized - *N*DVI,
+        # so we leave it alone
+        assert x.shape[-1] == (len(DYNAMIC_SHIFT_VALUES) + 1)
+        d_s = DYNAMIC_SHIFT_VALUES + [0]
+        d_d = DYNAMIC_SHIFT_VALUES + [1]
+
+    return _normalize(x, d_s, d_d)
+
+
+def normalize_static(x: np.ndarray) -> np.ndarray:
+    if isinstance(x, np.ndarray):
+        return _normalize(x, STATIC_SHIFT_VALUES, STATIC_DIV_VALUES)
+
+
 class Dataset(PyTorchDataset):
     def __init__(self, data_folder: Path, download: bool = True):
         self.data_folder = data_folder
@@ -139,7 +164,7 @@ class Dataset(PyTorchDataset):
         )
         dynamic_data = cls._fillna(dynamic_data, np.array(EO_DYNAMIC_BANDS))
 
-        dynamic_data = cls.normalize(dynamic_data, DYNAMIC_SHIFT_VALUES, DYNAMIC_DIV_VALUES)
+        dynamic_data = normalize_dynamic(dynamic_data)
         dynamic_data = np.concatenate((dynamic_data, cls.calculate_ndvi(dynamic_data)), axis=-1)
 
         # assumes all files are exported with filenames including:
@@ -147,15 +172,7 @@ class Dataset(PyTorchDataset):
         start_date = tif_path.name.partition("dates=")[2][:10]
         start_month = int(start_date.split("-")[1])
         months = cls.month_to_array(start_month, int(num_timesteps))
-        return (
-            dynamic_data,
-            cls.normalize(static_data, STATIC_SHIFT_VALUES, STATIC_DIV_VALUES),
-            months,
-        )
-
-    @staticmethod
-    def normalize(x: np.ndarray, shift_values: np.ndarray, div_values: np.ndarray):
-        return (x - shift_values) / div_values
+        return dynamic_data, normalize_static(static_data), months
 
     @staticmethod
     def calculate_ndvi(input_array: np.ndarray) -> np.ndarray:
