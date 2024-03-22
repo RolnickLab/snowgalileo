@@ -291,6 +291,7 @@ class TreeSatEval(EvalTask):
                     if pred.shape[1] == 2:
                         # if not, there are no positive samples
                         preds[:, idx] = pred[:, 1]
+                print(model.__class__.__name__)
                 pred_dict[model.__class__.__name__].append(preds)
 
         target = np.concatenate(labels_list)
