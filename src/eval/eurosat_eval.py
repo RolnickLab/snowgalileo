@@ -24,7 +24,7 @@ from ..data.earthengine.s2 import ALL_S2_BANDS, REMOVED_BANDS
 from ..flexipresto import Encoder
 from ..masked_datasets import MaskedOutput
 from ..utils import DEFAULT_SEED, data_dir, device
-from .eval import EvalTask, Hyperparams
+from .eval import EvalTask, Hyperparams, model_class_name
 
 ### SETUP
 torch.multiprocessing.set_sharing_strategy("file_system")
@@ -227,7 +227,7 @@ class EuroSatEval(EvalTask):
             num_workers=Hyperparams.num_workers,
         )
         pred_dict: Dict[str, BaseEstimator] = {
-            model.__class__.__name__: [] for model in sklearn_models
+            model_class_name(model): [] for model in sklearn_models
         }
 
         labels_list = []
@@ -247,7 +247,7 @@ class EuroSatEval(EvalTask):
 
             for model in sklearn_models:
                 preds = model.predict(encodings)
-                pred_dict[model.__class__.__name__].append(preds)
+                pred_dict[model_class_name(model)].append(preds)
 
         target = np.concatenate(labels_list)
         results_dict = {}

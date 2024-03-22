@@ -32,7 +32,7 @@ from ..data.earthengine.s2 import S2_BANDS
 from ..flexipresto import Encoder
 from ..masked_datasets import MaskedOutput
 from ..utils import DEFAULT_SEED, data_dir, device
-from .eval import EvalTask, Hyperparams
+from .eval import EvalTask, Hyperparams, model_class_name
 
 treesat_dir = "treesat"
 s1_files_dir = "s1/60m"
@@ -269,7 +269,7 @@ class TreeSatEval(EvalTask):
             num_workers=Hyperparams.num_workers,
         )
         pred_dict: Dict[str, BaseEstimator] = {
-            model.__class__.__name__: [] for model in sklearn_models
+            model_class_name(model): [] for model in sklearn_models
         }
 
         labels_list = []
@@ -291,8 +291,8 @@ class TreeSatEval(EvalTask):
                     if pred.shape[1] == 2:
                         # if not, there are no positive samples
                         preds[:, idx] = pred[:, 1]
-                print(model.__class__.__name__)
-                pred_dict[model.__class__.__name__].append(preds)
+                print(model_class_name(model))
+                pred_dict[model_class_name(model)].append(preds)
             break
 
         target = np.concatenate(labels_list)
