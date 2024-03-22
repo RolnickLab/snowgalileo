@@ -1,3 +1,4 @@
+import json
 import os
 from copy import deepcopy
 
@@ -137,4 +138,5 @@ for e in tqdm(range(num_epochs)):
 eval_tasks = [TreeSatEval(mode) for mode in ["s1", "s2", "combined"]]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)
+    print(json.dumps(results, indent=2), flush=True)
 tracker.stop()
