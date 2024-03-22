@@ -1,5 +1,6 @@
 import collections.abc
 import itertools
+import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -17,6 +18,19 @@ from .embeddings import (
     get_2d_sincos_pos_embed_with_resolution,
     get_month_encoding_table,
 )
+
+
+def adjust_learning_rate(optimizer, epoch, warmup_epochs, total_epochs, start_lr, max_lr, min_lr):
+    """Decay the learning rate with half-cycle cosine after warmup"""
+    if epoch < warmup_epochs:
+        lr = start_lr + (max_lr * epoch / warmup_epochs)
+    else:
+        lr = min_lr + (max_lr - min_lr) * 0.5 * (
+            1.0 + math.cos(math.pi * (epoch - warmup_epochs) / (total_epochs - warmup_epochs))
+        )
+    for group in optimizer.param_groups:
+        group["lr"] = lr
+    return lr
 
 
 # thanks to https://github.com/bwconrad/flexivit/ for this nice implementation
