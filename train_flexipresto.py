@@ -51,6 +51,16 @@ wandb_enabled = True
 wandb_org = "nasa-harvest"
 output_dir = Path(__file__).parent
 
+print("Loading dataset and dataloader")
+dataset = PrestoToPrestoMaskedDataset(DATA_FOLDER / "tifs", mask_ratio=mask_ratio, download=False)
+dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+print("Loading models")
+encoder = Encoder(embedding_size=64).to(device)
+predictor = PrestoDecoder(encoder_embedding_size=64, decoder_embedding_size=64).to(device)
+target_encoder = deepcopy(encoder)
+print("Loading validation task")
+val_task = EuroSatEval(rgb=True)
+
 if wandb_enabled:
     import wandb
 
@@ -66,19 +76,9 @@ if wandb_enabled:
         "batch_size": batch_size,
         "mask_ratio": mask_ratio,
         "spatial_patches_per_dim": spatial_patches_per_dim,
+        "training_samples": len(dataset)
     }
     wandb.config.update(training_config)
-
-
-print("Loading dataset and dataloader")
-dataset = PrestoToPrestoMaskedDataset(DATA_FOLDER / "tifs", mask_ratio=mask_ratio, download=False)
-dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-print("Loading models")
-encoder = Encoder(embedding_size=64).to(device)
-predictor = PrestoDecoder(encoder_embedding_size=64, decoder_embedding_size=64).to(device)
-target_encoder = deepcopy(encoder)
-print("Loading validation task")
-val_task = EuroSatEval(rgb=True)
 
 
 param_groups = [{"params": encoder.parameters()}, {"params": predictor.parameters()}]
