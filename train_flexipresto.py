@@ -15,7 +15,7 @@ from src.data.config import DATA_FOLDER, EE_PROJECT
 from src.eval import EuroSatEval
 from src.flexipresto import Encoder, PrestoDecoder
 from src.masked_datasets import PrestoToPrestoMaskedDataset, subset_batch_of_masked_outputs
-from src.utils import data_dir, device, logging_dir, seed_everything
+from src.utils import data_dir, device, seed_everything
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
