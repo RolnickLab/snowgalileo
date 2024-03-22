@@ -136,9 +136,8 @@ class TreeSatDataset(Dataset):
                 d_x[self.treesat_to_presto_s1_map] = s1.values[self.kept_treesat_s1_band_idx]
 
         d_x = repeat(d_x, "c h w -> h w t c", t=self.num_timesteps)
-        d_x = normalize_dynamic(d_x)
 
-        return d_x, self.min_threshold(labels_np)
+        return normalize_dynamic(d_x), self.min_threshold(labels_np)
 
     @staticmethod
     def min_threshold(labels: np.ndarray, binarize: bool = True):
