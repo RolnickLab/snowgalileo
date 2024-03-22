@@ -82,7 +82,7 @@ class EvalTask(ABC):
                 )
                 encodings = pretrained_model.average_tokens(d_x, s_x, d_m, s_m).cpu().numpy()
                 encoding_list.append(encodings)
-            break
+
         encodings_np = np.concatenate(encoding_list)
         targets = np.concatenate(target_list)
         if len(targets.shape) == 2 and targets.shape[1] == 1:
