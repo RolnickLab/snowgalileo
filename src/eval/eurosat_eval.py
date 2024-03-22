@@ -1,6 +1,5 @@
 import json
 import urllib.request
-from collections import namedtuple
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, cast
 
@@ -23,14 +22,12 @@ from ..data.dataset import (
 )
 from ..data.earthengine.s2 import ALL_S2_BANDS, REMOVED_BANDS
 from ..flexipresto import Encoder
+from ..masked_datasets import MaskedOutput
 from ..utils import DEFAULT_SEED, data_dir, device
 from .eval import EvalTask, Hyperparams
 
 ### SETUP
 torch.multiprocessing.set_sharing_strategy("file_system")
-MaskedOutput = namedtuple(
-    "MaskedOutput", ["dynamic_x", "static_x", "dynamic_mask", "static_mask", "months"]
-)
 
 
 class EuroSatDataset(PyTorchDataset):
