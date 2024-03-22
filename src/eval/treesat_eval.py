@@ -293,6 +293,7 @@ class TreeSatEval(EvalTask):
                         preds[:, idx] = pred[:, 1]
                 print(model.__class__.__name__)
                 pred_dict[model.__class__.__name__].append(preds)
+            break
 
         target = np.concatenate(labels_list)
         results_dict = {}
