@@ -9,3 +9,5 @@ rioxarray==0.15.1
 tqdm==4.66.2
 geopandas==0.14.3
 h5py==3.10.0
+scikit-learn==1.4.1.post1
+codecarbon==2.3.4
