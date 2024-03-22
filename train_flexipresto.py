@@ -1,5 +1,7 @@
 import os
 from copy import deepcopy
+from pathlib import Path
+from typing import cast
 
 import codecarbon
 import numpy as np
@@ -8,12 +10,13 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from wandb.sdk.wandb_run import Run
 
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER, EE_PROJECT
 from src.flexipresto import Encoder, PrestoDecoder
 from src.masked_datasets import PrestoToPrestoMaskedDataset, subset_batch_of_masked_outputs
-from src.utils import data_dir, device, seed_everything
+from src.utils import AverageMeter, data_dir, device, seed_everything
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -36,6 +39,29 @@ ema = (0.996, 1.0)
 mask_ratio = 0.5
 spatial_patches_per_dim = 4
 patch_sizes = (1, 2, 3, 4, 5, 6)
+# this too
+run_id = None
+wandb_enabled = True
+wandb_org = "nasa-harvest"
+output_dir = Path(__file__).parent
+if wandb_enabled:
+    import wandb
+
+    run = wandb.init(
+        entity=wandb_org,
+        project="flexipresto",
+        dir=output_dir,
+    )
+    run_id = cast(Run, run).id
+
+    training_config = {
+        "num_epochs": num_epochs,
+        "batch_size": batch_size,
+        "mask_ratio": mask_ratio,
+        "spatial_patches_per_dim": spatial_patches_per_dim,
+    }
+    wandb.config.update(training_config)
+
 
 print("Loading dataset and dataloader")
 dataset = PrestoToPrestoMaskedDataset(DATA_FOLDER / "tifs", mask_ratio=mask_ratio, download=False)
@@ -81,6 +107,7 @@ momentum_scheduler = (
 )
 
 for e in tqdm(range(num_epochs)):
+    train_loss = AverageMeter()
     for i, b in tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
         b = [t.to(device) for t in b]
         d_x, s_x, d_m, s_m, months = b
@@ -127,11 +154,12 @@ for e in tqdm(range(num_epochs)):
             f"Epoch {e}, iteration {i}: loss = {loss.item()}, memory used: {process.memory_info().rss}",
             flush=True,
         )
+        train_loss.update(loss.item(), n=d_x.shape[0])
         optimizer.zero_grad()
         with torch.no_grad():
             m = next(momentum_scheduler)
             for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
                 param_k.data.mul_(m).add_((1.0 - m) * param_q.detach().data)
-
+    wandb.log({"train_loss": train_loss.average})
 
 tracker.stop()

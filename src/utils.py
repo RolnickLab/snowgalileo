@@ -25,3 +25,21 @@ def seed_everything(seed: int = DEFAULT_SEED):
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = True
+
+
+class AverageMeter:
+    """computes and stores the average and current value"""
+
+    average: float
+    sum: float
+    count: int
+
+    def __init__(self):
+        self.average = 0.0
+        self.sum = 0.0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.sum += val * n
+        self.count += n
+        self.average = self.sum / self.count
