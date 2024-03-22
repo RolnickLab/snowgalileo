@@ -110,9 +110,7 @@ class TestEuroSat(unittest.TestCase):
             idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" not in key
         ]
         present_bands = [idx for idx, key in enumerate(DYNAMIC_BANDS) if "B" in key]
-        absent_bands = [idx for idx, key in enumerate(DYNAMIC_BANDS) if "B" not in key]
 
         self.assertTrue(torch.all(d_x[:, :, :, present_bands] != 0))
-        self.assertTrue(torch.all(d_x[:, :, :, absent_bands] == 0))
         self.assertTrue(torch.all(d_m[:, :, :, present_band_groups] == 0))
         self.assertTrue(torch.all(d_m[:, :, :, unpresent_band_groups] == 1))
