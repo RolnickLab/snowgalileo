@@ -36,18 +36,21 @@ tracker = codecarbon.EmissionsTracker(
 tracker.start()
 
 # this should live elsewhere
-num_epochs = 2
+num_epochs = 50
 batch_size = 16
 ema = (0.996, 1.0)
 mask_ratio = 0.5
 spatial_patches_per_dim = 4
-patch_sizes = (1, 2, 3, 4, 5, 6)
+patch_sizes = (1, 2, 3, 4, 5, 6, 7, 8)
 start_lr, max_lr, final_lr, warmup_epochs = 0.0002, 0.001, 1.0e-06, 3
+assert num_epochs > warmup_epochs
+eval_eurosat_every_n_epochs = 10
 # this too
 run_id = None
 wandb_enabled = True
 wandb_org = "nasa-harvest"
 output_dir = Path(__file__).parent
+
 if wandb_enabled:
     import wandb
 
@@ -74,6 +77,8 @@ print("Loading models")
 encoder = Encoder(embedding_size=64).to(device)
 predictor = PrestoDecoder(encoder_embedding_size=64, decoder_embedding_size=64).to(device)
 target_encoder = deepcopy(encoder)
+print("Loading validation task")
+val_task = EuroSatEval(rgb=True)
 
 
 param_groups = [{"params": encoder.parameters()}, {"params": predictor.parameters()}]
@@ -108,6 +113,7 @@ for e in tqdm(range(num_epochs)):
             total_epochs=num_epochs,
             max_lr=max_lr,
             start_lr=start_lr,
+            min_lr=final_lr,
         )
 
         # generate the predictions. TODO: add layer norm
@@ -148,8 +154,13 @@ for e in tqdm(range(num_epochs)):
             m = next(momentum_scheduler)
             for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
                 param_k.data.mul_(m).add_((1.0 - m) * param_q.detach().data)
+
     if wandb_enabled:
         wandb.log({"train_loss": train_loss.average})
+
+    if (eval_eurosat_every_n_epochs != 0) and (e % eval_eurosat_every_n_epochs == 0):
+        results = val_task.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
+        wandb.log(results)
 
 
 eval_tasks: List[EvalTask] = [
