@@ -1,0 +1,118 @@
+import unittest
+from pathlib import Path
+
+import torch
+
+from src.data.dataset import (
+    DYNAMIC_BANDS,
+    DYNAMIC_BANDS_GROUPS_IDX,
+    STATIC_BAND_GROUPS_IDX,
+    STATIC_BANDS,
+)
+from src.eval.eurosat_eval import EuroSatDataset
+
+DATA_FOLDER = Path(__file__).parents[1] / "data/eurosat/eurosat_test"
+
+
+class TestEuroSat(unittest.TestCase):
+    def test_dynamic(self, dynamic_x=None, dynamic_m=None):
+        if dynamic_x is None or dynamic_m is None:
+            self.skipTest("Initially skipping dynamic check")
+        self.assertEqual(
+            dynamic_x.shape,
+            (
+                EuroSatDataset.input_height_width,
+                EuroSatDataset.input_height_width,
+                EuroSatDataset.num_timesteps,
+                len(DYNAMIC_BANDS),
+            ),
+        )
+        self.assertEqual(
+            dynamic_m.shape,
+            (
+                EuroSatDataset.input_height_width,
+                EuroSatDataset.input_height_width,
+                EuroSatDataset.num_timesteps,
+                len(DYNAMIC_BANDS_GROUPS_IDX),
+            ),
+        )
+        self.assertFalse(torch.any(torch.isnan(dynamic_x)))
+
+    def test_static(self, static_x=None, static_m=None):
+        if static_x is None or static_m is None:
+            self.skipTest("Initially skipping static check")
+        self.assertEqual(
+            static_x.shape,
+            (
+                EuroSatDataset.input_height_width,
+                EuroSatDataset.input_height_width,
+                len(STATIC_BANDS),
+            ),
+        )
+        self.assertEqual(
+            static_m.shape,
+            (
+                EuroSatDataset.input_height_width,
+                EuroSatDataset.input_height_width,
+                len(STATIC_BAND_GROUPS_IDX),
+            ),
+        )
+
+        # no static data in eurosat so added as zeros and masked out
+        self.assertTrue(torch.all(static_x == 0))
+        self.assertTrue(torch.all(static_m == 1))
+
+    def test_month(self, month=None):
+        if month is None:
+            self.skipTest("Initially skipping month check")
+        self.assertEqual(month.shape, (EuroSatDataset.num_timesteps,))
+        # no month in eurosat so set to zero
+        self.assertEqual(month[0], 0)
+
+    def test_label(self, label=None):
+        if label is None:
+            self.skipTest("Initially skipping label check")
+        # labels are one-hot encoded
+        self.assertTrue(torch.all(torch.logical_or(label == 0, label == 1)))
+
+    def test_eurosat_dataset_rgb(self):
+        dataset = EuroSatDataset(rgb=True, split="test", tif_files_dir=DATA_FOLDER)
+        sample = dataset[0]
+        d_x, s_x, d_m, s_m, m = sample[0]
+        label = sample[1]
+
+        self.test_dynamic(dynamic_x=d_x, dynamic_m=d_m)
+        self.test_static(static_x=s_x, static_m=s_m)
+        self.test_month(month=m)
+        self.test_label(label=label)
+
+        # will test if the right channels are masked out
+        present_bands = [
+            idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2_RGB" in key
+        ]
+        unpresent_bands = [
+            idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2_RGB" not in key
+        ]
+
+        self.assertTrue(torch.all(d_m[:, :, :, present_bands] == 0))
+        self.assertTrue(torch.all(d_m[:, :, :, unpresent_bands] == 1))
+
+    def test_eurosat_dataset_msi(self):
+        dataset = EuroSatDataset(rgb=False, split="test", tif_files_dir=DATA_FOLDER)
+        sample = dataset[0]
+        d_x, s_x, d_m, s_m, m = sample[0]
+        label = sample[1]
+
+        self.test_dynamic(dynamic_x=d_x, dynamic_m=d_m)
+        self.test_static(static_x=s_x, static_m=s_m)
+        self.test_month(month=m)
+        self.test_label(label=label)
+
+        # will test if the right channels are masked out
+        present_bands = [idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" in key]
+        unpresent_bands = [
+            idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" not in key
+        ]
+
+        self.assertTrue(torch.all(d_m[:, :, :, present_bands] == 0))
+        self.assertTrue(torch.all(d_m[:, :, :, unpresent_bands] == 1))
