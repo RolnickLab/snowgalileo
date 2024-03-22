@@ -48,12 +48,13 @@ class EvalTask(ABC):
     @classmethod
     def _construct_sklearn_model(cls, model) -> BaseEstimator:
         if cls.multilabel:
-            mo_model = MultiOutputClassifier(model, n_jobs=cls.num_outputs)
+            model_name = model.__class__.__name__
+            model = MultiOutputClassifier(model, n_jobs=cls.num_outputs)
             # this is a bit hackey but allows us to differentiate between
             # different MultiOutputClassifier models which have been trained
             # and seems not to break anything
-            mo_model.__class__.__name__ = model.__class__.__name__
-        return mo_model
+            model.__class__.__name__ = model_name
+        return model
 
     @torch.no_grad()
     def train_sklearn_model(
@@ -79,6 +80,7 @@ class EvalTask(ABC):
                 )
                 encodings = pretrained_model.average_tokens(d_x, s_x, d_m, s_m).cpu().numpy()
                 encoding_list.append(encodings)
+            break
         encodings_np = np.concatenate(encoding_list)
         targets = np.concatenate(target_list)
         if len(targets.shape) == 2 and targets.shape[1] == 1:
