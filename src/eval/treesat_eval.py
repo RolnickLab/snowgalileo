@@ -23,6 +23,8 @@ from tqdm import tqdm
 from ..data.dataset import (
     DYNAMIC_BANDS,
     DYNAMIC_BANDS_GROUPS_IDX,
+    DYNAMIC_DIV_VALUES,
+    DYNAMIC_SHIFT_VALUES,
     S1_BANDS,
     STATIC_BAND_GROUPS_IDX,
     STATIC_BANDS,
@@ -135,6 +137,7 @@ class TreeSatDataset(Dataset):
                 d_x[self.treesat_to_presto_s1_map] = s1.values[self.kept_treesat_s1_band_idx]
 
         d_x = repeat(d_x, "c h w -> h w t c", t=self.num_timesteps)
+        d_x = Dataset.normalize(d_x, DYNAMIC_SHIFT_VALUES, DYNAMIC_DIV_VALUES)
 
         return d_x, self.min_threshold(labels_np)
 
