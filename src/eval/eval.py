@@ -25,6 +25,13 @@ class Hyperparams:
     num_workers: int = 2
 
 
+def model_class_name(model: BaseEstimator) -> str:
+    if isinstance(model, MultiOutputClassifier):
+        return model.estimator.__class__.__name__
+    else:
+        return model.__class__.__name__
+
+
 class EvalTask(ABC):
     name: str
     num_outputs: int
@@ -48,12 +55,7 @@ class EvalTask(ABC):
     @classmethod
     def _construct_sklearn_model(cls, model) -> BaseEstimator:
         if cls.multilabel:
-            model_name = model.__class__.__name__
             model = MultiOutputClassifier(model, n_jobs=cls.num_outputs)
-            # this is a bit hackey but allows us to differentiate between
-            # different MultiOutputClassifier models which have been trained
-            # and seems not to break anything
-            model.__class__.__name__ = model_name
         return model
 
     @torch.no_grad()
