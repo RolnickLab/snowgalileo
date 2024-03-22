@@ -2,7 +2,7 @@ import json
 import os
 from copy import deepcopy
 from pathlib import Path
-from typing import cast
+from typing import List, cast
 
 import codecarbon
 import numpy as np
@@ -16,6 +16,7 @@ from wandb.sdk.wandb_run import Run
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER, EE_PROJECT
 from src.eval import EuroSatEval, TreeSatEval
+from src.eval.eval import EvalTask
 from src.flexipresto import Encoder, PrestoDecoder
 from src.masked_datasets import PrestoToPrestoMaskedDataset, subset_batch_of_masked_outputs
 from src.utils import AverageMeter, data_dir, device, seed_everything
@@ -166,7 +167,7 @@ for e in tqdm(range(num_epochs)):
         wandb.log({"train_loss": train_loss.average})
 
 
-eval_tasks = [
+eval_tasks: List[EvalTask] = [
     *[TreeSatEval(mode) for mode in ["s1", "s2", "combined"]],
     *[EuroSatEval(rgb) for rgb in [True, False]],
 ]
