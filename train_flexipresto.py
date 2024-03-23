@@ -33,6 +33,10 @@ tracker = codecarbon.EmissionsTracker(
     output_dir=data_dir,
 )
 
+# test:
+# https://pytorch.org/blog/what-every-user-should-know-about-mixed-precision-training-in-pytorch/
+torch.backends.cuda.matmul.allow_tf32 = True
+
 tracker.start()
 
 # this should live elsewhere
