@@ -56,7 +56,9 @@ wandb_org = "nasa-harvest"
 output_dir = Path(__file__).parent
 
 print("Loading dataset and dataloader")
-dataset = PrestoToPrestoMaskedDataset(DATA_FOLDER / "tifs", mask_ratio=mask_ratio, download=False)
+dataset = PrestoToPrestoMaskedDataset(
+    DATA_FOLDER / "tifs", mask_ratio=mask_ratio, download=False, cache_folder=DATA_FOLDER / "npys"
+)
 dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 print("Loading models")
 encoder = Encoder(embedding_size=64).to(device)
@@ -80,7 +82,7 @@ if wandb_enabled:
         "batch_size": batch_size,
         "mask_ratio": mask_ratio,
         "spatial_patches_per_dim": spatial_patches_per_dim,
-        "training_samples": len(dataset)
+        "training_samples": len(dataset),
     }
     wandb.config.update(training_config)
 

@@ -2,7 +2,7 @@ import os
 import warnings
 from collections import OrderedDict
 from pathlib import Path
-from typing import List, Tuple, cast
+from typing import List, Optional, Tuple, cast
 from typing import OrderedDict as OrderedDictType
 
 import numpy as np
@@ -69,11 +69,17 @@ def normalize_static(x: np.ndarray) -> np.ndarray:
 
 
 class Dataset(PyTorchDataset):
-    def __init__(self, data_folder: Path, download: bool = True):
+    def __init__(
+        self, data_folder: Path, download: bool = True, cache_folder: Optional[Path] = None
+    ):
         self.data_folder = data_folder
         if download:
             self.download(data_folder)
         self.tifs = list(data_folder.glob("*.tif"))
+        self.cache_folder = cache_folder
+        self.cache = False
+        if cache_folder is not None:
+            self.cache = True
 
     def __len__(self) -> int:
         return len(self.tifs)
@@ -128,19 +134,31 @@ class Dataset(PyTorchDataset):
             data = np.nan_to_num(data, nan=0) + means_to_fill
         return data
 
-    @staticmethod
-    def month_to_array(start_month: int, num_timesteps: int):
+    def tif_to_npy_paths(self, tif_path: Path) -> Tuple[Path, Path]:
+        assert self.cache_folder is not None
+        tif_name = tif_path.stem
+        return (
+            self.cache_folder / f"{tif_name}_dynamic.npy",
+            self.cache_folder / f"{tif_name}_static.npy",
+        )
+
+    @classmethod
+    def month_array_from_file(cls, tif_path: Path, num_timesteps: int) -> np.ndarray:
         """
-        Given a start_month and num_timesteps, returns an array of
+        Given a filepath and num_timesteps, extract start_month and return an array of
         months where months[idx] is the month for list(range(num_timesteps))[i]
         """
+        # assumes all files are exported with filenames including:
+        # *dates=<start_date>*, where the start_date is in a YYYY-MM-dd format
+        start_date = tif_path.name.partition("dates=")[2][:10]
+        start_month = int(start_date.split("-")[1])
         # >>> np.fmod(np.array([9., 10, 11, 12, 13, 14]), 12)
         # array([ 9., 10., 11.,  0.,  1.,  2.])
         # - 1 because we want to index from 0
         return np.fmod(np.arange(start_month - 1, start_month - 1 + num_timesteps), 12)
 
     @classmethod
-    def tif_to_array(cls, tif_path: Path) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def _tif_to_array(cls, tif_path: Path) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         with cast(xr.Dataset, rioxarray.open_rasterio(tif_path)) as data:
             values = cast(np.ndarray, data.values)
 
@@ -158,13 +176,26 @@ class Dataset(PyTorchDataset):
 
         dynamic_data = normalize_dynamic(dynamic_data)
         dynamic_data = np.concatenate((dynamic_data, cls.calculate_ndvi(dynamic_data)), axis=-1)
-
-        # assumes all files are exported with filenames including:
-        # *dates=<start_date>*, where the start_date is in a YYYY-MM-dd format
-        start_date = tif_path.name.partition("dates=")[2][:10]
-        start_month = int(start_date.split("-")[1])
-        months = cls.month_to_array(start_month, int(num_timesteps))
+        months = cls.month_array_from_file(tif_path, int(num_timesteps))
         return dynamic_data, normalize_static(static_data), months
+
+    def load_tif(self, tif_path: Path) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        if self.cache_folder is None:
+            return self._tif_to_array(tif_path)
+        else:
+            cache_path_d, cache_path_s = self.tif_to_npy_paths(tif_path)
+            if cache_path_d.exists():
+                assert cache_path_s.exists()
+                # check if the files exists in cache
+                d_x = np.load(cache_path_d)
+                num_timesteps = d_x.shape[2]
+                months = self.month_array_from_file(tif_path, num_timesteps)
+                return d_x, np.load(cache_path_s), months
+            else:
+                d_x, d_s, months = self._tif_to_array(tif_path)
+                np.save(cache_path_d, d_x)
+                np.save(cache_path_s, d_s)
+                return d_x, d_s, months
 
     @staticmethod
     def calculate_ndvi(input_array: np.ndarray) -> np.ndarray:
