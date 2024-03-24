@@ -119,8 +119,8 @@ for e in tqdm(range(num_epochs)):
         d_x, s_x, d_m, s_m = subset_batch_of_masked_outputs(d_x, s_x, d_m, s_m, image_size)
 
         # also transform to pixel
-        reversed_d = torch.repeat_interleave(d_m, repeats=DYNAMIC_BAND_EXPANSION_T).bool()
-        reversed_s = torch.repeat_interleave(s_m, repeats=STATIC_BAND_EXPANSION_T).bool()
+        reversed_d = torch.repeat_interleave(d_m, repeats=DYNAMIC_BAND_EXPANSION_T, dim=-1).bool()
+        reversed_s = torch.repeat_interleave(s_m, repeats=STATIC_BAND_EXPANSION_T, dim=-1).bool()
 
         optimizer.zero_grad()
         adjust_learning_rate(
