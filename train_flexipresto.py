@@ -110,8 +110,8 @@ for e in tqdm(range(num_epochs)):
         d_x, s_x, d_m, s_m = subset_batch_of_masked_outputs(d_x, s_x, d_m, s_m, image_size)
 
         # also transform to patch-space
-        reversed_d = (1 - d_m[:, 0::patch_size, 0::patch_size]).bool()
-        reversed_s = (1 - s_m[:, 0::patch_size, 0::patch_size]).bool()
+        patch_d = d_m[:, 0::patch_size, 0::patch_size].bool()
+        patch_s = s_m[:, 0::patch_size, 0::patch_size].bool()
 
         optimizer.zero_grad()
         adjust_learning_rate(
@@ -148,8 +148,8 @@ for e in tqdm(range(num_epochs)):
             )
 
         loss = F.smooth_l1_loss(
-            torch.concat([p_d[reversed_d], p_s[reversed_s]]),
-            torch.concat([t_d[reversed_d], t_s[reversed_s]]),
+            torch.concat([p_d[patch_d], p_s[patch_s]]),
+            torch.concat([t_d[patch_d], t_s[patch_s]]),
         )
         loss.backward()
         optimizer.step()
