@@ -18,7 +18,7 @@ from src.data.config import DATA_FOLDER, EE_PROJECT
 from src.eval import EuroSatEval, TreeSatEval
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoDecoder, adjust_learning_rate
-from src.masked_datasets import PrestoToPrestoMaskedDataset, subset_batch_of_masked_outputs
+from src.masked_datasets import PrestoToPrestoMaskedDataset, subset_batch_of_masked_outputs, DYNAMIC_BAND_EXPANSION, STATIC_BAND_EXPANSION
 from src.utils import AverageMeter, data_dir, device, seed_everything
 
 seed_everything(DEFAULT_SEED)
@@ -41,7 +41,7 @@ tracker.start()
 
 # this should live elsewhere
 num_epochs = 50
-batch_size = 64
+batch_size = 16
 ema = (0.996, 1.0)
 mask_ratio = 0.5
 spatial_patches_per_dim = 4
@@ -64,10 +64,11 @@ dataloader = DataLoader(
 )
 print("Loading models")
 encoder = Encoder(embedding_size=64).to(device)
-predictor = PrestoDecoder(encoder_embedding_size=64, decoder_embedding_size=64).to(device)
+predictor = PrestoDecoder(encoder_embedding_size=64, decoder_embedding_size=64, max_patch_size=8).to(device)
 target_encoder = deepcopy(encoder)
 print("Loading validation task")
 val_task = EuroSatEval(rgb=True)
+
 
 if wandb_enabled:
     import wandb
@@ -93,10 +94,6 @@ param_groups = [{"params": encoder.parameters()}, {"params": predictor.parameter
 
 optimizer = torch.optim.AdamW(param_groups, lr=start_lr)  # type: ignore
 iterations_per_epoch = len(dataset)
-momentum_scheduler = (
-    ema[0] + i * (ema[1] - ema[0]) / (iterations_per_epoch * num_epochs)
-    for i in range(int(iterations_per_epoch * num_epochs) + 1)
-)
 
 for e in tqdm(range(num_epochs)):
     train_loss = AverageMeter()
@@ -109,9 +106,9 @@ for e in tqdm(range(num_epochs)):
         image_size = patch_size * spatial_patches_per_dim
         d_x, s_x, d_m, s_m = subset_batch_of_masked_outputs(d_x, s_x, d_m, s_m, image_size)
 
-        # also transform to patch-space
-        reversed_d = (1 - d_m[:, 0::patch_size, 0::patch_size]).bool()
-        reversed_s = (1 - s_m[:, 0::patch_size, 0::patch_size]).bool()
+        # also transform to pixel
+        reversed_d = torch.repeat_interleave(d_m, repeats=DYNAMIC_BAND_EXPANSION).bool()
+        reversed_s = torch.repeat_interleave(s_m, repeats=STATIC_BAND_EXPANSION).bool()
 
         optimizer.zero_grad()
         adjust_learning_rate(
