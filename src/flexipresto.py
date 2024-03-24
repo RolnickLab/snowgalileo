@@ -663,8 +663,8 @@ class PrestoDecoder(FlexiPrestoBase):
             )
 
         for idx, (group_name, c_g) in enumerate(self.static_groups.items()):
-            # decoded has shape [b, h, w, t, len(c_g) * patch_size ** 2]
-            decoded = self.static_embed[group_name](static_x[:, :, :, :, idx])
+            # decoded has shape [b, h, w, len(c_g) * patch_size ** 2]
+            decoded = self.static_embed[group_name](static_x[:, :, :, idx])
             output_s.append(
                 rearrange(
                     decoded,
