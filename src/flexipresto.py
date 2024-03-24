@@ -594,6 +594,7 @@ class PrestoDecoder(FlexiPrestoBase):
         num_heads=8,
         max_sequence_length=24,
         num_inputs_per_spatial_dim=4,
+        max_patch_size: int = 8
     ):
         super().__init__(
             decoder_embedding_size,
@@ -603,9 +604,21 @@ class PrestoDecoder(FlexiPrestoBase):
             max_sequence_length,
             num_inputs_per_spatial_dim,
         )
-
-        self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
         self.decoder_embed = nn.Linear(encoder_embedding_size, decoder_embedding_size, bias=True)
+        self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
+
+        self.dynamic_embed = nn.ModuleDict(
+            {
+                group_name: nn.Linear(decoder_embedding_size, len(group) * max_patch_size**2)
+                for group_name, group in self.dynamic_groups.items()
+            }
+        )
+        self.static_embed = nn.ModuleDict(
+            {
+                group_name: nn.Linear(decoder_embedding_size, len(group) * max_patch_size**2)
+                for group_name, group in self.static_groups.items()
+            }
+        )
 
     def add_masks(self, d_x: torch.Tensor, d_m: torch.Tensor):
         # we make an assumption here that mask_by_presto_pixels_time
@@ -631,6 +644,6 @@ class PrestoDecoder(FlexiPrestoBase):
         dynamic_x = self.decoder_embed(dynamic_x)
         static_x = self.decoder_embed(static_x)
         dynamic_x, dynamic_mask = self.add_masks(dynamic_x, dynamic_mask)
-        return self.apply_attn(
+        d_x, s_x, _, _ self.apply_attn(
             dynamic_x, static_x, dynamic_mask, static_mask, months, patch_size, input_resolution_m
         )
