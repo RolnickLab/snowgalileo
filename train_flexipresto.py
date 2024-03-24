@@ -134,7 +134,7 @@ for e in tqdm(range(num_epochs)):
         )
 
         # generate the predictions. TODO: add layer norm
-        p_d, p_s, _, _ = predictor(
+        p_d, p_s, = predictor(
             *encoder(
                 d_x.float(),
                 s_x.float(),
