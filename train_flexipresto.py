@@ -41,7 +41,7 @@ tracker.start()
 
 # this should live elsewhere
 num_epochs = 50
-batch_size = 16
+batch_size = 64
 ema = (0.996, 1.0)
 mask_ratio = 0.5
 spatial_patches_per_dim = 4
