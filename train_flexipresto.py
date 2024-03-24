@@ -148,7 +148,7 @@ for e in tqdm(range(num_epochs)):
 
         # p_d and p_s always assume the maximum patch size, so we need to
         # resample if its smaller
-        if patch_size > patch_sizes[-1]:
+        if patch_size < patch_sizes[-1]:
             p_d = rearrange(
                 resize(
                     rearrange(p_d, "b h w t d -> b t d h w"), size=(d_x.shape[1], d_x.shape[2])
