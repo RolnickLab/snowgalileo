@@ -594,7 +594,7 @@ class PrestoDecoder(FlexiPrestoBase):
         num_heads=8,
         max_sequence_length=24,
         num_inputs_per_spatial_dim=4,
-        max_patch_size: int = 8
+        max_patch_size: int = 8,
     ):
         super().__init__(
             decoder_embedding_size,
@@ -607,6 +607,7 @@ class PrestoDecoder(FlexiPrestoBase):
         self.decoder_embed = nn.Linear(encoder_embedding_size, decoder_embedding_size, bias=True)
         self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
 
+        self.max_patch_size = max_patch_size
         self.dynamic_embed = nn.ModuleDict(
             {
                 group_name: nn.Linear(decoder_embedding_size, len(group) * max_patch_size**2)
@@ -644,6 +645,34 @@ class PrestoDecoder(FlexiPrestoBase):
         dynamic_x = self.decoder_embed(dynamic_x)
         static_x = self.decoder_embed(static_x)
         dynamic_x, dynamic_mask = self.add_masks(dynamic_x, dynamic_mask)
-        d_x, s_x, _, _ self.apply_attn(
+        dynamic_x, static_x, _, _ = self.apply_attn(
             dynamic_x, static_x, dynamic_mask, static_mask, months, patch_size, input_resolution_m
         )
+        output_d, output_s = [], []
+        for idx, (group_name, c_g) in enumerate(self.dynamic_groups.items()):
+            # decoded has shape [b, h, w, t, len(c_g) * patch_size ** 2]
+            decoded = self.dynamic_embed[group_name](dynamic_x[:, :, :, :, idx])
+            output_d.append(
+                rearrange(
+                    decoded,
+                    "b t_h t_w t (c_g p_h p_w) -> b (t_h p_h) (t_w p_w) t c_g",
+                    c_g=len(c_g),
+                    p_w=self.max_patch_size,
+                    p_h=self.max_patch_size,
+                )
+            )
+
+        for idx, (group_name, c_g) in enumerate(self.static_groups.items()):
+            # decoded has shape [b, h, w, t, len(c_g) * patch_size ** 2]
+            decoded = self.static_embed[group_name](static_x[:, :, :, :, idx])
+            output_s.append(
+                rearrange(
+                    decoded,
+                    "b t_h t_w (c_g p_h p_w) -> b (t_h p_h) (t_w p_w) c_g",
+                    c_g=len(c_g),
+                    p_w=self.max_patch_size,
+                    p_h=self.max_patch_size,
+                )
+            )
+
+        return torch.cat(output_d, dim=-1), torch.cat(output_s, dim=-1)
