@@ -134,7 +134,10 @@ for e in tqdm(range(num_epochs)):
         )
 
         # generate the predictions. TODO: add layer norm
-        p_d, p_s, = predictor(
+        (
+            p_d,
+            p_s,
+        ) = predictor(
             *encoder(
                 d_x.float(),
                 s_x.float(),
@@ -149,11 +152,14 @@ for e in tqdm(range(num_epochs)):
         # p_d and p_s always assume the maximum patch size, so we need to
         # resample if its smaller
         if patch_size < patch_sizes[-1]:
+            t, d = d_x.shape[1], d_x.shape[2]
             p_d = rearrange(
                 resize(
-                    rearrange(p_d, "b h w t d -> b t d h w"), size=(d_x.shape[1], d_x.shape[2])
+                    rearrange(p_d, "b h w t d -> b (t d) h w"), size=(d_x.shape[1], d_x.shape[2])
                 ),
-                "b t d h w -> b h w t d",
+                "b (t d) h w -> b h w t d",
+                t=t,
+                d=d,
             )
             p_s = rearrange(
                 resize(rearrange(p_s, "b h w d -> b d h w"), size=(d_x.shape[1], d_x.shape[2])),
