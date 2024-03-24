@@ -9,7 +9,9 @@ import numpy as np
 import psutil
 import torch
 import torch.nn.functional as F
+from einops import rearrange
 from torch.utils.data import DataLoader
+from torchvision.transforms.functional import resize
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
@@ -18,7 +20,12 @@ from src.data.config import DATA_FOLDER, EE_PROJECT
 from src.eval import EuroSatEval, TreeSatEval
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoDecoder, adjust_learning_rate
-from src.masked_datasets import PrestoToPrestoMaskedDataset, subset_batch_of_masked_outputs, DYNAMIC_BAND_EXPANSION, STATIC_BAND_EXPANSION
+from src.masked_datasets import (
+    DYNAMIC_BAND_EXPANSION,
+    STATIC_BAND_EXPANSION,
+    PrestoToPrestoMaskedDataset,
+    subset_batch_of_masked_outputs,
+)
 from src.utils import AverageMeter, data_dir, device, seed_everything
 
 seed_everything(DEFAULT_SEED)
@@ -64,10 +71,15 @@ dataloader = DataLoader(
 )
 print("Loading models")
 encoder = Encoder(embedding_size=64).to(device)
-predictor = PrestoDecoder(encoder_embedding_size=64, decoder_embedding_size=64, max_patch_size=8).to(device)
+predictor = PrestoDecoder(
+    encoder_embedding_size=64, decoder_embedding_size=64, max_patch_size=patch_sizes[-1]
+).to(device)
 target_encoder = deepcopy(encoder)
 print("Loading validation task")
 val_task = EuroSatEval(rgb=True)
+
+DYNAMIC_BAND_EXPANSION_T = torch.tensor(DYNAMIC_BAND_EXPANSION, device=device).long()
+STATIC_BAND_EXPANSION_T = torch.tensor(STATIC_BAND_EXPANSION, device=device).long()
 
 
 if wandb_enabled:
@@ -107,8 +119,8 @@ for e in tqdm(range(num_epochs)):
         d_x, s_x, d_m, s_m = subset_batch_of_masked_outputs(d_x, s_x, d_m, s_m, image_size)
 
         # also transform to pixel
-        reversed_d = torch.repeat_interleave(d_m, repeats=DYNAMIC_BAND_EXPANSION).bool()
-        reversed_s = torch.repeat_interleave(s_m, repeats=STATIC_BAND_EXPANSION).bool()
+        reversed_d = torch.repeat_interleave(d_m, repeats=DYNAMIC_BAND_EXPANSION_T).bool()
+        reversed_s = torch.repeat_interleave(s_m, repeats=STATIC_BAND_EXPANSION_T).bool()
 
         optimizer.zero_grad()
         adjust_learning_rate(
@@ -133,20 +145,23 @@ for e in tqdm(range(num_epochs)):
             ),
             patch_size=patch_size,
         )
-        # generate the targets
-        with torch.no_grad():
-            t_d, t_s, _, _, _ = target_encoder(
-                d_x.float(),
-                s_x.float(),
-                torch.zeros_like(d_m),
-                torch.zeros_like(s_m),
-                months.long(),
-                patch_size=patch_size,
-            )
 
+        # p_d and p_s always assume the maximum patch size, so we need to
+        # resample if its smaller
+        if patch_size > patch_sizes[-1]:
+            p_d = rearrange(
+                resize(
+                    rearrange(p_d, "b h w t d -> b t d h w"), size=(d_x.shape[1], d_x.shape[2])
+                ),
+                "b t d h w -> b h w t d",
+            )
+            p_s = rearrange(
+                resize(rearrange(p_s, "b h w d -> b d h w"), size=(d_x.shape[1], d_x.shape[2])),
+                "b d h w -> b h w d",
+            )
         loss = F.smooth_l1_loss(
             torch.concat([p_d[reversed_d], p_s[reversed_s]]),
-            torch.concat([t_d[reversed_d], t_s[reversed_s]]),
+            torch.concat([d_x[reversed_d], s_x[reversed_s]]),
         )
         loss.backward()
         optimizer.step()
@@ -155,10 +170,6 @@ for e in tqdm(range(num_epochs)):
             flush=True,
         )
         train_loss.update(loss.item(), n=d_x.shape[0])
-        with torch.no_grad():
-            m = next(momentum_scheduler)
-            for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
-                param_k.data.mul_(m).add_((1.0 - m) * param_q.detach().data)
 
     if wandb_enabled:
         wandb.log({"train_loss": train_loss.average})
