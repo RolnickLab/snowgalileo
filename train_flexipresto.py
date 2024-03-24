@@ -16,7 +16,7 @@ from wandb.sdk.wandb_run import Run
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER, EE_PROJECT
 from src.eval import EuroSatEval, TreeSatEval
-from src.eval.eval import EvalTask
+from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoDecoder, adjust_learning_rate
 from src.masked_datasets import PrestoToPrestoMaskedDataset, subset_batch_of_masked_outputs
 from src.utils import AverageMeter, data_dir, device, seed_everything
@@ -59,7 +59,9 @@ print("Loading dataset and dataloader")
 dataset = PrestoToPrestoMaskedDataset(
     DATA_FOLDER / "tifs", mask_ratio=mask_ratio, download=False, cache_folder=DATA_FOLDER / "npys"
 )
-dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+dataloader = DataLoader(
+    dataset, batch_size=batch_size, shuffle=True, num_workers=Hyperparams.num_workers
+)
 print("Loading models")
 encoder = Encoder(embedding_size=64).to(device)
 predictor = PrestoDecoder(encoder_embedding_size=64, decoder_embedding_size=64).to(device)
