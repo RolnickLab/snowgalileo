@@ -1,6 +1,6 @@
 from collections import namedtuple
 from pathlib import Path
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 import torch
@@ -214,8 +214,14 @@ def mask_by_croma_blocks_random(
 
 
 class PrestoToPrestoMaskedDataset(Dataset):
-    def __init__(self, data_folder: Path, mask_ratio: float, download: bool = True):
-        super().__init__(data_folder, download)
+    def __init__(
+        self,
+        data_folder: Path,
+        mask_ratio: float,
+        download: bool = True,
+        cache_folder: Optional[Path] = None,
+    ):
+        super().__init__(data_folder, download, cache_folder)
         self.mask_ratio = mask_ratio
 
     @staticmethod
@@ -253,5 +259,5 @@ class PrestoToPrestoMaskedDataset(Dataset):
         return MaskedOutput(dynamic_input, static_input, dynamic_mask, static_mask, months)
 
     def __getitem__(self, idx) -> MaskedOutput:
-        d_x, s_x, months = self.tif_to_array(self.tifs[idx])
+        d_x, s_x, months = self.load_tif(self.tifs[idx])
         return self.mask_by_presto_pixels_time(d_x, s_x, months, self.mask_ratio)

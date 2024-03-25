@@ -1,5 +1,6 @@
 import collections.abc
 import itertools
+import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -17,6 +18,19 @@ from .embeddings import (
     get_2d_sincos_pos_embed_with_resolution,
     get_month_encoding_table,
 )
+
+
+def adjust_learning_rate(optimizer, epoch, warmup_epochs, total_epochs, start_lr, max_lr, min_lr):
+    """Decay the learning rate with half-cycle cosine after warmup"""
+    if epoch < warmup_epochs:
+        lr = start_lr + (max_lr * epoch / warmup_epochs)
+    else:
+        lr = min_lr + (max_lr - min_lr) * 0.5 * (
+            1.0 + math.cos(math.pi * (epoch - warmup_epochs) / (total_epochs - warmup_epochs))
+        )
+    for group in optimizer.param_groups:
+        group["lr"] = lr
+    return lr
 
 
 # thanks to https://github.com/bwconrad/flexivit/ for this nice implementation
@@ -617,6 +631,13 @@ class PrestoDecoder(FlexiPrestoBase):
         dynamic_x = self.decoder_embed(dynamic_x)
         static_x = self.decoder_embed(static_x)
         dynamic_x, dynamic_mask = self.add_masks(dynamic_x, dynamic_mask)
+        # remove all masks
         return self.apply_attn(
-            dynamic_x, static_x, dynamic_mask, static_mask, months, patch_size, input_resolution_m
+            dynamic_x,
+            static_x,
+            torch.zeros_like(dynamic_mask, device=dynamic_x.device),
+            torch.zeros_like(static_mask, device=static_mask.device),
+            months,
+            patch_size,
+            input_resolution_m,
         )
