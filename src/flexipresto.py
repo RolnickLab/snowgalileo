@@ -507,6 +507,8 @@ class Encoder(FlexiPrestoBase):
             }
         )
 
+        self.norm = nn.LayerNorm(embedding_size)
+
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
@@ -581,7 +583,7 @@ class Encoder(FlexiPrestoBase):
             dynamic_x, static_x, dynamic_mask, static_mask, months, patch_size, input_resolution_m
         )
 
-        return dynamic_x, static_x, dynamic_mask, static_mask, months
+        return self.norm(dynamic_x), self.norm(static_x), dynamic_mask, static_mask, months
 
 
 class PrestoDecoder(FlexiPrestoBase):
