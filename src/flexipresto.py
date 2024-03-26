@@ -586,7 +586,7 @@ class Encoder(FlexiPrestoBase):
         return self.norm(dynamic_x), self.norm(static_x), dynamic_mask, static_mask, months
 
 
-class PrestoDecoder(FlexiPrestoBase):
+class PrestoMAEDecoder(FlexiPrestoBase):
     def __init__(
         self,
         encoder_embedding_size: int = 128,
@@ -678,3 +678,68 @@ class PrestoDecoder(FlexiPrestoBase):
             )
 
         return torch.cat(output_d, dim=-1), torch.cat(output_s, dim=-1)
+
+
+class PrestoJepaPredictor(FlexiPrestoBase):
+    def __init__(
+        self,
+        encoder_embedding_size: int = 128,
+        decoder_embedding_size: int = 128,
+        depth=2,
+        mlp_ratio=2,
+        num_heads=8,
+        max_sequence_length=24,
+        num_inputs_per_spatial_dim=4,
+    ):
+        super().__init__(
+            decoder_embedding_size,
+            depth,
+            mlp_ratio,
+            num_heads,
+            max_sequence_length,
+            num_inputs_per_spatial_dim,
+        )
+
+        self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
+        self.decoder_embed = nn.Linear(encoder_embedding_size, decoder_embedding_size, bias=True)
+        self.reverse_embed = nn.Linear(decoder_embedding_size, encoder_embedding_size, bias=True)
+
+    def add_masks(self, d_x: torch.Tensor, d_m: torch.Tensor):
+        # we make an assumption here that mask_by_presto_pixels_time
+        # was used to make the masks. This means we only have masked
+        # timesteps, which simplifies the mask addition
+        d_x = d_x * (1 - d_m).unsqueeze(-1)
+        B, H, W, T, C = d_x.shape[0], d_x.shape[1], d_x.shape[2], d_x.shape[3], d_x.shape[4]
+        mask_reshaped = repeat(self.mask_token, "d -> b h w t c d", b=B, h=H, w=W, t=T, c=C)
+        masks_to_add = mask_reshaped * d_m.unsqueeze(-1)
+        d_m = d_m * 0  # all values are unmasked now
+        return d_x + masks_to_add, d_m
+
+    def forward(
+        self,
+        dynamic_x: torch.Tensor,
+        static_x: torch.Tensor,
+        dynamic_mask: torch.Tensor,
+        static_mask: torch.Tensor,
+        months: torch.Tensor,
+        patch_size: Optional[int] = None,
+        input_resolution_m: Optional[int] = BASE_GSD,
+    ):
+        dynamic_x = self.decoder_embed(dynamic_x)
+        static_x = self.decoder_embed(static_x)
+        dynamic_x, dynamic_mask = self.add_masks(dynamic_x, dynamic_mask)
+        dynamic_x, static_x, dynamic_mask, static_mask = self.apply_attn(
+            dynamic_x,
+            static_x,
+            torch.zeros_like(dynamic_mask, device=dynamic_mask.device),
+            torch.zeros_like(static_mask, device=static_mask.device),
+            months,
+            patch_size,
+            input_resolution_m,
+        )
+        return (
+            self.reverse_embed(dynamic_x),
+            self.reverse_embed(static_x),
+            dynamic_mask,
+            static_mask,
+        )
