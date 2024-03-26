@@ -5,9 +5,13 @@ import torch
 
 from src.config import NUM_TIMESTEPS, PRESTO_INPUT_SIZE
 from src.data import DYNAMIC_BANDS_GROUPS_IDX
+from src.data.dataset import (
+    DYNAMIC_BANDS,
+    STATIC_BAND_GROUPS_IDX,
+    STATIC_BANDS,
+)
 from src.flexipresto import Encoder, PrestoPixelDecoder, PrestoRepresentationDecoder
 from src.masked_datasets import (
-    STATIC_BAND_GROUPS_IDX,
     MaskedOutput,
     PrestoToPrestoMaskedDataset,
 )
@@ -142,7 +146,7 @@ class TestPresto(unittest.TestCase):
                 patch_size,
                 patch_size,
                 NUM_TIMESTEPS,
-                len(DYNAMIC_BANDS_GROUPS_IDX),
+                len(DYNAMIC_BANDS),
             ]
         )
         self.assertTrue(
@@ -151,7 +155,7 @@ class TestPresto(unittest.TestCase):
                 1,
                 patch_size,
                 patch_size,
-                len(STATIC_BAND_GROUPS_IDX),
+                len(STATIC_BANDS),
             ]
         )
         self.assertFalse(torch.isnan(output[0]).any())
