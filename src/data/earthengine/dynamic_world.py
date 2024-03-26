@@ -28,7 +28,7 @@ def get_single_dw_image(region: ee.Geometry, start_date: date, end_date: date) -
         ee.ImageCollection("GOOGLE/DYNAMICWORLD/V1")
         .filterBounds(region)
         .filterDate(ee.DateRange(str(start_date), str(end_date)))
-        .select("label")
+        .select(ORIGINAL_BANDS, DW_BANDS)
     )
 
     fifteen_days_in_ms = 1296000000
