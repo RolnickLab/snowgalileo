@@ -606,7 +606,9 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             max_sequence_length,
             num_inputs_per_spatial_dim,
         )
-        self.encoder_to_decoder_embed = nn.Linear(encoder_embedding_size, decoder_embedding_size, bias=True)
+        self.encoder_to_decoder_embed = nn.Linear(
+            encoder_embedding_size, decoder_embedding_size, bias=True
+        )
         self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
 
         self.max_patch_size = max_patch_size
@@ -701,8 +703,12 @@ class PrestoRepresentationDecoder(FlexiPrestoBase):
         )
 
         self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
-        self.encoder_to_decoder_embed = nn.Linear(encoder_embedding_size, decoder_embedding_size, bias=True)
-        self.decoder_to_encoder_embed = nn.Linear(decoder_embedding_size, encoder_embedding_size, bias=True)
+        self.encoder_to_decoder_embed = nn.Linear(
+            encoder_embedding_size, decoder_embedding_size, bias=True
+        )
+        self.decoder_to_encoder_embed = nn.Linear(
+            decoder_embedding_size, encoder_embedding_size, bias=True
+        )
 
     def add_masks(self, d_x: torch.Tensor, d_m: torch.Tensor):
         # we make an assumption here that mask_by_presto_pixels_time
