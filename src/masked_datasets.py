@@ -248,7 +248,11 @@ class PrestoToPrestoMaskedDataset(Dataset):
             )
         )
         np.random.shuffle(flat_timesteps)
-        static_mask = np.zeros((PRESTO_INPUT_SIZE, PRESTO_INPUT_SIZE, len(STATIC_BAND_GROUPS_IDX)))
+        static_mask = np.ones((PRESTO_INPUT_SIZE, PRESTO_INPUT_SIZE, len(STATIC_BAND_GROUPS_IDX)))
+        if np.random.rand() >= mask_ratio:
+            # unmask the static data
+            static_mask *= 0
+
         dynamic_mask = repeat(
             flat_timesteps,
             "t -> h w t c_g",
