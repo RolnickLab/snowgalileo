@@ -5,7 +5,7 @@ import torch
 
 from src.config import NUM_TIMESTEPS, PRESTO_INPUT_SIZE
 from src.data import DYNAMIC_BANDS_GROUPS_IDX
-from src.flexipresto import Encoder, PrestoRepresentationDecoder, PrestoPixelDecoder
+from src.flexipresto import Encoder, PrestoPixelDecoder, PrestoRepresentationDecoder
 from src.masked_datasets import (
     STATIC_BAND_GROUPS_IDX,
     MaskedOutput,
