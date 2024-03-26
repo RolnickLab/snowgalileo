@@ -109,6 +109,7 @@ class TestPresto(unittest.TestCase):
             decoder_embedding_size=embedding_size,
             num_heads=1,
         )
+        max_patch_size = decoder.max_patch_size
         ds = PrestoToPrestoMaskedDataset(DATA_FOLDER, 0.25, False)
         output = ds[0]
         with torch.no_grad():
@@ -145,8 +146,8 @@ class TestPresto(unittest.TestCase):
             list(output[0].shape)
             == [
                 1,
-                PRESTO_INPUT_SIZE,
-                PRESTO_INPUT_SIZE,
+                PRESTO_INPUT_SIZE*(max_patch_size / patch_size),
+                PRESTO_INPUT_SIZE*(max_patch_size / patch_size),
                 NUM_TIMESTEPS,
                 len(DYNAMIC_BANDS),
             ]
@@ -155,8 +156,8 @@ class TestPresto(unittest.TestCase):
             list(output[1].shape)
             == [
                 1,
-                PRESTO_INPUT_SIZE,
-                PRESTO_INPUT_SIZE,
+                PRESTO_INPUT_SIZE*(max_patch_size / patch_size),
+                PRESTO_INPUT_SIZE*(max_patch_size / patch_size),
                 len(STATIC_BANDS),
             ]
         )
