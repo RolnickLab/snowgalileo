@@ -586,7 +586,7 @@ class Encoder(FlexiPrestoBase):
         return self.norm(dynamic_x), self.norm(static_x), dynamic_mask, static_mask, months
 
 
-class PrestoMAEDecoder(FlexiPrestoBase):
+class PrestoPixelDecoder(FlexiPrestoBase):
     def __init__(
         self,
         encoder_embedding_size: int = 128,
@@ -680,7 +680,7 @@ class PrestoMAEDecoder(FlexiPrestoBase):
         return torch.cat(output_d, dim=-1), torch.cat(output_s, dim=-1)
 
 
-class PrestoJepaPredictor(FlexiPrestoBase):
+class PrestoRepresentationDecoder(FlexiPrestoBase):
     def __init__(
         self,
         encoder_embedding_size: int = 128,
