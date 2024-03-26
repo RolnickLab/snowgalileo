@@ -44,7 +44,7 @@ def to_2tuple(x: Any) -> Tuple:
 class FlexiPatchEmbed(nn.Module):
     def __init__(
         self,
-        patch_size: Union[int, Tuple[int, int]] = 4,
+        patch_size: Union[int, Tuple[int, int]],
         in_chans: int = 3,
         embed_dim: int = 128,
         norm_layer: Optional[nn.Module] = None,
@@ -478,6 +478,7 @@ class FlexiPrestoBase(nn.Module):
 class Encoder(FlexiPrestoBase):
     def __init__(
         self,
+        patch_size: Union[int, Tuple[int, int]] = 8,
         embedding_size: int = 128,
         depth=2,
         mlp_ratio=2,
@@ -496,13 +497,17 @@ class Encoder(FlexiPrestoBase):
 
         self.dynamic_embed = nn.ModuleDict(
             {
-                group_name: FlexiPatchEmbed(in_chans=len(group), embed_dim=embedding_size)
+                group_name: FlexiPatchEmbed(
+                    in_chans=len(group), embed_dim=embedding_size, patch_size=patch_size
+                )
                 for group_name, group in self.dynamic_groups.items()
             }
         )
         self.static_embed = nn.ModuleDict(
             {
-                group_name: FlexiPatchEmbed(in_chans=len(group), embed_dim=embedding_size)
+                group_name: FlexiPatchEmbed(
+                    in_chans=len(group), embed_dim=embedding_size, patch_size=patch_size
+                )
                 for group_name, group in self.static_groups.items()
             }
         )
