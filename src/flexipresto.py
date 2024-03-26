@@ -606,7 +606,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             max_sequence_length,
             num_inputs_per_spatial_dim,
         )
-        self.decoder_embed = nn.Linear(encoder_embedding_size, decoder_embedding_size, bias=True)
+        self.encoder_to_decoder_embed = nn.Linear(encoder_embedding_size, decoder_embedding_size, bias=True)
         self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
 
         self.max_patch_size = max_patch_size
@@ -644,8 +644,8 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         patch_size: Optional[int] = None,
         input_resolution_m: Optional[int] = BASE_GSD,
     ):
-        dynamic_x = self.decoder_embed(dynamic_x)
-        static_x = self.decoder_embed(static_x)
+        dynamic_x = self.encoder_to_decoder_embed(dynamic_x)
+        static_x = self.encoder_to_decoder_embed(static_x)
         dynamic_x, dynamic_mask = self.add_masks(dynamic_x, dynamic_mask)
         dynamic_x, static_x, _, _ = self.apply_attn(
             dynamic_x, static_x, dynamic_mask, static_mask, months, patch_size, input_resolution_m
@@ -701,8 +701,8 @@ class PrestoRepresentationDecoder(FlexiPrestoBase):
         )
 
         self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
-        self.decoder_embed = nn.Linear(encoder_embedding_size, decoder_embedding_size, bias=True)
-        self.reverse_embed = nn.Linear(decoder_embedding_size, encoder_embedding_size, bias=True)
+        self.encoder_to_decoder_embed = nn.Linear(encoder_embedding_size, decoder_embedding_size, bias=True)
+        self.decoder_to_encoder_embed = nn.Linear(decoder_embedding_size, encoder_embedding_size, bias=True)
 
     def add_masks(self, d_x: torch.Tensor, d_m: torch.Tensor):
         # we make an assumption here that mask_by_presto_pixels_time
@@ -725,8 +725,8 @@ class PrestoRepresentationDecoder(FlexiPrestoBase):
         patch_size: Optional[int] = None,
         input_resolution_m: Optional[int] = BASE_GSD,
     ):
-        dynamic_x = self.decoder_embed(dynamic_x)
-        static_x = self.decoder_embed(static_x)
+        dynamic_x = self.encoder_to_decoder_embed(dynamic_x)
+        static_x = self.encoder_to_decoder_embed(static_x)
         dynamic_x, dynamic_mask = self.add_masks(dynamic_x, dynamic_mask)
         dynamic_x, static_x, dynamic_mask, static_mask = self.apply_attn(
             dynamic_x,
@@ -738,8 +738,8 @@ class PrestoRepresentationDecoder(FlexiPrestoBase):
             input_resolution_m,
         )
         return (
-            self.reverse_embed(dynamic_x),
-            self.reverse_embed(static_x),
+            self.decoder_to_encoder_embed(dynamic_x),
+            self.decoder_to_encoder_embed(static_x),
             dynamic_mask,
             static_mask,
         )

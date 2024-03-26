@@ -5,7 +5,7 @@ import torch
 
 from src.config import NUM_TIMESTEPS, PRESTO_INPUT_SIZE
 from src.data import DYNAMIC_BANDS_GROUPS_IDX
-from src.flexipresto import Encoder, PrestoDecoder
+from src.flexipresto import Encoder, PrestoRepresentationDecoder
 from src.masked_datasets import (
     STATIC_BAND_GROUPS_IDX,
     MaskedOutput,
@@ -35,7 +35,7 @@ class TestPresto(unittest.TestCase):
     def _end_to_end_run(self, embedding_size, patch_size):
         embedding_size, patch_size = 16, 8
         encoder = Encoder(embedding_size=embedding_size, num_heads=1)
-        decoder = PrestoDecoder(
+        decoder = PrestoRepresentationDecoder(
             encoder_embedding_size=embedding_size,
             decoder_embedding_size=embedding_size,
             num_heads=1,
@@ -98,7 +98,7 @@ class TestPresto(unittest.TestCase):
 
     def test_presto_decoder_add_masks(self):
         embedding_size = 16
-        decoder = PrestoDecoder(
+        decoder = PrestoRepresentationDecoder(
             encoder_embedding_size=embedding_size,
             decoder_embedding_size=embedding_size,
             num_heads=1,

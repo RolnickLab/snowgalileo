@@ -17,7 +17,7 @@ from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER, EE_PROJECT
 from src.eval import EuroSatEval, TreeSatEval
 from src.eval.eval import EvalTask, Hyperparams
-from src.flexipresto import Encoder, PrestoDecoder, adjust_learning_rate
+from src.flexipresto import Encoder, PrestoRepresentationDecoder, adjust_learning_rate
 from src.masked_datasets import PrestoToPrestoMaskedDataset, subset_batch_of_masked_outputs
 from src.utils import AverageMeter, data_dir, device, seed_everything
 
@@ -66,7 +66,7 @@ dataloader = DataLoader(
 )
 print("Loading models")
 encoder = Encoder(embedding_size=enc_embedding_size).to(device)
-predictor = PrestoDecoder(
+predictor = PrestoRepresentationDecoder(
     encoder_embedding_size=enc_embedding_size, decoder_embedding_size=dec_embedding_size
 ).to(device)
 target_encoder = deepcopy(encoder)
