@@ -119,8 +119,8 @@ class TestPresto(unittest.TestCase):
             list(encoder_output[0].shape)
             == [
                 1,
-                PRESTO_INPUT_SIZE // patch_size,
-                PRESTO_INPUT_SIZE // patch_size,
+                PRESTO_INPUT_SIZE / patch_size,
+                PRESTO_INPUT_SIZE / patch_size,
                 NUM_TIMESTEPS,
                 len(DYNAMIC_BANDS_GROUPS_IDX),
                 embedding_size,
@@ -130,8 +130,8 @@ class TestPresto(unittest.TestCase):
             list(encoder_output[1].shape)
             == [
                 1,
-                PRESTO_INPUT_SIZE // patch_size,
-                PRESTO_INPUT_SIZE // patch_size,
+                PRESTO_INPUT_SIZE / patch_size,
+                PRESTO_INPUT_SIZE / patch_size,
                 len(STATIC_BAND_GROUPS_IDX),
                 embedding_size,
             ]
