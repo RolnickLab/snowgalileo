@@ -27,11 +27,11 @@ class TestPresto(unittest.TestCase):
         )
 
     def test_end_to_end(self):
-        self._end_to_end_run_ijepa(16, 8, 8)
+        self._end_to_end_run_ijepa(32, 16, 8)
         self._end_to_end_run_mae(16, 8)
 
     def test_end_to_end_different_inputs_per_dim_than_default(self):
-        self._end_to_end_run_ijepa(16, 8, 4)
+        self._end_to_end_run_ijepa(32, 16, 4)
         self._end_to_end_run_mae(16, 4)
 
     def _end_to_end_run_ijepa(self, encoder_embedding_size, decoder_embedding_size, patch_size):
