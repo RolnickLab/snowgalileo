@@ -18,7 +18,13 @@ from ..config import (
     EXPORTED_HEIGHT_WIDTH_METRES,
     START_YEAR,
 )
-from .dynamic_world import DW_BANDS, DW_DIV_VALUES, DW_SHIFT_VALUES, get_single_dw_image
+from .dynamic_world import (
+    DW_BANDS,
+    DW_DIV_VALUES,
+    DW_SHIFT_VALUES,
+    get_dw_image_collection,
+    get_single_dw_image,
+)
 from .ee_bbox import EEBoundingBox
 from .era5 import ERA5_BANDS, ERA5_DIV_VALUES, ERA5_SHIFT_VALUES, get_single_era5_image
 from .s1 import (
@@ -41,7 +47,6 @@ END_DATE = date(END_YEAR, 12, 31)
 DYNAMIC_IMAGE_FUNCTIONS = [
     get_single_s2_image,
     get_single_era5_image,
-    get_single_dw_image,
 ]
 DYNAMIC_BANDS = S1_BANDS + S2_BANDS + ERA5_BANDS + DW_BANDS
 DYNAMIC_SHIFT_VALUES = np.array(
@@ -151,6 +156,9 @@ def create_ee_image(
     vv_imcol, vh_imcol = get_s1_image_collection(
         polygon, start_date - timedelta(days=31), end_date + timedelta(days=31)
     )
+    dw_imcol = get_dw_image_collection(
+        polygon, start_date - timedelta(days=31), end_date + timedelta(days=31)
+    )
 
     while cur_end_date <= end_date:
         image_list: List[ee.Image] = []
@@ -170,6 +178,13 @@ def create_ee_image(
                 image_function(region=polygon, start_date=cur_date, end_date=cur_end_date)
             )
         image_collection_list.append(ee.Image.cat(image_list))
+
+        # and finally, dynamic world (to preserve the expected order)
+        image_list.append(
+            get_single_dw_image(
+                region=polygon, start_date=cur_date, end_date=cur_end_date, dw_imcol=dw_imcol
+            )
+        )
 
         cur_date += timedelta(days=days_per_timestep)
         cur_end_date += timedelta(days=days_per_timestep)

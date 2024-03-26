@@ -3,7 +3,7 @@ from typing import Tuple
 
 import ee
 
-from .utils import date_to_string
+from .utils import date_to_string, get_closest_dates
 
 image_collection = "COPERNICUS/S1_GRD"
 S1_BANDS = ["VV", "VH"]
@@ -39,31 +39,6 @@ def get_s1_image_collection(
     )
 
 
-def _get_closest_dates(mid_date: date, imcol: ee.ImageCollection) -> ee.ImageCollection:
-    fifteen_days_in_ms = 1296000000
-
-    mid_date_ee = ee.Date(date_to_string(mid_date))
-    # first, order by distance from mid_date
-    from_mid_date = imcol.map(
-        lambda image: image.set(
-            "dateDist",
-            ee.Number(image.get("system:time_start"))
-            .subtract(mid_date_ee.millis())  # type: ignore
-            .abs(),
-        )
-    )
-    from_mid_date = from_mid_date.sort("dateDist", opt_ascending=True)
-
-    # no matter what, we take the first element in the image collection
-    # and we add 1 to ensure the less_than condition triggers
-    max_diff = ee.Number(from_mid_date.first().get("dateDist")).max(  # type: ignore
-        ee.Number(fifteen_days_in_ms)
-    )
-
-    kept_images = from_mid_date.filterMetadata("dateDist", "not_greater_than", max_diff)
-    return kept_images
-
-
 def get_single_s1_image(
     region: ee.Geometry,
     start_date: date,
@@ -73,8 +48,8 @@ def get_single_s1_image(
 ) -> ee.Image:
     mid_date = start_date + ((end_date - start_date) / 2)
 
-    kept_vv = _get_closest_dates(mid_date, vv_imcol)
-    kept_vh = _get_closest_dates(mid_date, vh_imcol)
+    kept_vv = get_closest_dates(mid_date, vv_imcol)
+    kept_vh = get_closest_dates(mid_date, vh_imcol)
 
     composite = ee.Image.cat(
         [
