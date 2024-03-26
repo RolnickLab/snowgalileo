@@ -53,7 +53,7 @@ ema = (0.996, 1.0)
 mask_ratio = 0.5
 spatial_patches_per_dim = 4
 patch_sizes = (1, 2, 3, 4, 5, 6, 7, 8)
-enc_embedding_size = 128
+enc_embedding_size = 64
 dec_embedding_size = 64
 start_lr, max_lr, final_lr, warmup_epochs = 0.0002, 0.001, 1.0e-06, 3
 assert num_epochs > warmup_epochs
