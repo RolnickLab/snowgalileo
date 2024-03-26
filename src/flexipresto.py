@@ -1,5 +1,6 @@
 import collections.abc
 import itertools
+import math
 from typing import Any, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -19,6 +20,19 @@ from .embeddings import (
 )
 
 
+def adjust_learning_rate(optimizer, epoch, warmup_epochs, total_epochs, start_lr, max_lr, min_lr):
+    """Decay the learning rate with half-cycle cosine after warmup"""
+    if epoch < warmup_epochs:
+        lr = start_lr + (max_lr * epoch / warmup_epochs)
+    else:
+        lr = min_lr + (max_lr - min_lr) * 0.5 * (
+            1.0 + math.cos(math.pi * (epoch - warmup_epochs) / (total_epochs - warmup_epochs))
+        )
+    for group in optimizer.param_groups:
+        group["lr"] = lr
+    return lr
+
+
 # thanks to https://github.com/bwconrad/flexivit/ for this nice implementation
 # of the FlexiPatchEmbed module
 def to_2tuple(x: Any) -> Tuple:
@@ -30,7 +44,7 @@ def to_2tuple(x: Any) -> Tuple:
 class FlexiPatchEmbed(nn.Module):
     def __init__(
         self,
-        patch_size: Union[int, Tuple[int, int]] = 4,
+        patch_size: Union[int, Tuple[int, int]],
         in_chans: int = 3,
         embed_dim: int = 128,
         norm_layer: Optional[nn.Module] = None,
@@ -464,6 +478,7 @@ class FlexiPrestoBase(nn.Module):
 class Encoder(FlexiPrestoBase):
     def __init__(
         self,
+        patch_size: Union[int, Tuple[int, int]] = 8,
         embedding_size: int = 128,
         depth=2,
         mlp_ratio=2,
@@ -482,13 +497,17 @@ class Encoder(FlexiPrestoBase):
 
         self.dynamic_embed = nn.ModuleDict(
             {
-                group_name: FlexiPatchEmbed(in_chans=len(group), embed_dim=embedding_size)
+                group_name: FlexiPatchEmbed(
+                    in_chans=len(group), embed_dim=embedding_size, patch_size=patch_size
+                )
                 for group_name, group in self.dynamic_groups.items()
             }
         )
         self.static_embed = nn.ModuleDict(
             {
-                group_name: FlexiPatchEmbed(in_chans=len(group), embed_dim=embedding_size)
+                group_name: FlexiPatchEmbed(
+                    in_chans=len(group), embed_dim=embedding_size, patch_size=patch_size
+                )
                 for group_name, group in self.static_groups.items()
             }
         )
@@ -617,6 +636,13 @@ class PrestoDecoder(FlexiPrestoBase):
         dynamic_x = self.decoder_embed(dynamic_x)
         static_x = self.decoder_embed(static_x)
         dynamic_x, dynamic_mask = self.add_masks(dynamic_x, dynamic_mask)
+        # remove all masks
         return self.apply_attn(
-            dynamic_x, static_x, dynamic_mask, static_mask, months, patch_size, input_resolution_m
+            dynamic_x,
+            static_x,
+            torch.zeros_like(dynamic_mask, device=dynamic_x.device),
+            torch.zeros_like(static_mask, device=static_mask.device),
+            months,
+            patch_size,
+            input_resolution_m,
         )

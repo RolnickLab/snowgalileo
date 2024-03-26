@@ -1,6 +1,6 @@
 from collections import namedtuple
 from pathlib import Path
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 import torch
@@ -214,8 +214,14 @@ def mask_by_croma_blocks_random(
 
 
 class PrestoToPrestoMaskedDataset(Dataset):
-    def __init__(self, data_folder: Path, mask_ratio: float, download: bool = True):
-        super().__init__(data_folder, download)
+    def __init__(
+        self,
+        data_folder: Path,
+        mask_ratio: float,
+        download: bool = True,
+        cache_folder: Optional[Path] = None,
+    ):
+        super().__init__(data_folder, download, cache_folder)
         self.mask_ratio = mask_ratio
 
     @staticmethod
@@ -242,7 +248,11 @@ class PrestoToPrestoMaskedDataset(Dataset):
             )
         )
         np.random.shuffle(flat_timesteps)
-        static_mask = np.zeros((PRESTO_INPUT_SIZE, PRESTO_INPUT_SIZE, len(STATIC_BAND_GROUPS_IDX)))
+        static_mask = np.ones((PRESTO_INPUT_SIZE, PRESTO_INPUT_SIZE, len(STATIC_BAND_GROUPS_IDX)))
+        if np.random.rand() >= mask_ratio:
+            # unmask the static data
+            static_mask *= 0
+
         dynamic_mask = repeat(
             flat_timesteps,
             "t -> h w t c_g",
@@ -253,5 +263,5 @@ class PrestoToPrestoMaskedDataset(Dataset):
         return MaskedOutput(dynamic_input, static_input, dynamic_mask, static_mask, months)
 
     def __getitem__(self, idx) -> MaskedOutput:
-        d_x, s_x, months = self.tif_to_array(self.tifs[idx])
+        d_x, s_x, months = self.load_tif(self.tifs[idx])
         return self.mask_by_presto_pixels_time(d_x, s_x, months, self.mask_ratio)
