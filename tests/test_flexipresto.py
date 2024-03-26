@@ -168,7 +168,7 @@ class TestPresto(unittest.TestCase):
             num_heads=1,
         )
         b, h, w, t = 5, 6, 7, 8
-        d_x = torch.ones(b, h, w, t, len(DYNAMIC_BANDS_GROUPS_IDX), enc_embedding_size)
+        d_x = torch.ones(b, h, w, t, len(DYNAMIC_BANDS_GROUPS_IDX), dec_embedding_size)
         d_m = torch.zeros(b, h, w, t, len(DYNAMIC_BANDS_GROUPS_IDX))
         d_m[:, :, :, 0] = 1  # mask the first timestep
         with torch.no_grad():
