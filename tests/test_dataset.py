@@ -15,7 +15,7 @@ TEST_FILE = (
 
 class TestDataset(unittest.TestCase):
     def test_tif_to_array(self):
-        dynamic_data, static_data, months = Dataset.tif_to_array(TEST_FILE)
+        dynamic_data, static_data, months = Dataset._tif_to_array(TEST_FILE)
         self.assertFalse(np.isnan(dynamic_data).any())
         self.assertFalse(np.isnan(static_data).any())
         self.assertEqual(static_data.shape[0], dynamic_data.shape[0])
