@@ -119,19 +119,21 @@ class TestPresto(unittest.TestCase):
             list(encoder_output[0].shape)
             == [
                 1,
-                PRESTO_INPUT_SIZE,
-                PRESTO_INPUT_SIZE,
+                PRESTO_INPUT_SIZE // patch_size,
+                PRESTO_INPUT_SIZE // patch_size,
                 NUM_TIMESTEPS,
                 len(DYNAMIC_BANDS_GROUPS_IDX),
+                embedding_size,
             ]
         )
         self.assertTrue(
             list(encoder_output[1].shape)
             == [
                 1,
-                PRESTO_INPUT_SIZE,
-                PRESTO_INPUT_SIZE,
+                PRESTO_INPUT_SIZE // patch_size,
+                PRESTO_INPUT_SIZE // patch_size,
                 len(STATIC_BAND_GROUPS_IDX),
+                embedding_size,
             ]
         )
         self.assertFalse(torch.isnan(encoder_output[0]).any())
@@ -143,8 +145,8 @@ class TestPresto(unittest.TestCase):
             list(output[0].shape)
             == [
                 1,
-                patch_size,
-                patch_size,
+                PRESTO_INPUT_SIZE,
+                PRESTO_INPUT_SIZE,
                 NUM_TIMESTEPS,
                 len(DYNAMIC_BANDS),
             ]
@@ -153,8 +155,8 @@ class TestPresto(unittest.TestCase):
             list(output[1].shape)
             == [
                 1,
-                patch_size,
-                patch_size,
+                PRESTO_INPUT_SIZE,
+                PRESTO_INPUT_SIZE,
                 len(STATIC_BANDS),
             ]
         )
