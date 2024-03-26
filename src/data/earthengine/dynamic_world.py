@@ -2,8 +2,6 @@ from datetime import date
 
 import ee
 
-from .utils import get_closest_dates
-
 ORIGINAL_BANDS = [
     "water",
     "trees",
@@ -21,7 +19,7 @@ DW_SHIFT_VALUES = [0] * len(DW_BANDS)
 DW_DIV_VALUES = [1] * len(DW_BANDS)
 
 
-def get_dw_image_collection(
+def get_single_dw_image(
     region: ee.Geometry, start_date: date, end_date: date
 ) -> ee.ImageCollection:
     # we start by getting all the data for the range
@@ -30,17 +28,7 @@ def get_dw_image_collection(
         .filterBounds(region)
         .filterDate(ee.DateRange(str(start_date), str(end_date)))
         .select(ORIGINAL_BANDS, DW_BANDS)
+        .mean()
     )
 
     return dw_collection
-
-
-def get_single_dw_image(
-    region: ee.Geometry, start_date: date, end_date: date, dw_imcol: ee.ImageCollection
-) -> ee.Image:
-    mid_date = start_date + ((end_date - start_date) / 2)
-    overall_mean = dw_imcol.mean()
-    dw_image = ee.Image(get_closest_dates(mid_date, dw_imcol).select(DW_BANDS).mean()).clip(region)
-    # replace nulls
-    dw_image = dw_image.where(dw_image.mask(), overall_mean)
-    return dw_image
