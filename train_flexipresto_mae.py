@@ -53,6 +53,8 @@ ema = (0.996, 1.0)
 mask_ratio = 0.5
 spatial_patches_per_dim = 4
 patch_sizes = (1, 2, 3, 4, 5, 6, 7, 8)
+enc_embedding_size = 128
+dec_embedding_size = 64
 start_lr, max_lr, final_lr, warmup_epochs = 0.0002, 0.001, 1.0e-06, 3
 assert num_epochs > warmup_epochs
 eval_eurosat_every_n_epochs = 10
@@ -70,9 +72,11 @@ dataloader = DataLoader(
     dataset, batch_size=batch_size, shuffle=True, num_workers=Hyperparams.num_workers
 )
 print("Loading models")
-encoder = Encoder(embedding_size=64).to(device)
+encoder = Encoder(embedding_size=enc_embedding_size).to(device)
 predictor = PrestoDecoder(
-    encoder_embedding_size=64, decoder_embedding_size=64, max_patch_size=patch_sizes[-1]
+    encoder_embedding_size=enc_embedding_size,
+    decoder_embedding_size=dec_embedding_size,
+    max_patch_size=patch_sizes[-1],
 ).to(device)
 target_encoder = deepcopy(encoder)
 print("Loading validation task")
