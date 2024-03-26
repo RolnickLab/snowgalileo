@@ -22,7 +22,6 @@ from .dynamic_world import (
     DW_BANDS,
     DW_DIV_VALUES,
     DW_SHIFT_VALUES,
-    get_dw_image_collection,
     get_single_dw_image,
 )
 from .ee_bbox import EEBoundingBox
@@ -48,15 +47,13 @@ DYNAMIC_IMAGE_FUNCTIONS = [
     get_single_s2_image,
     get_single_era5_image,
 ]
-DYNAMIC_BANDS = S1_BANDS + S2_BANDS + ERA5_BANDS + DW_BANDS
-DYNAMIC_SHIFT_VALUES = np.array(
-    S1_SHIFT_VALUES + S2_SHIFT_VALUES + ERA5_SHIFT_VALUES + DW_SHIFT_VALUES
-)
-DYNAMIC_DIV_VALUES = np.array(S1_DIV_VALUES + S2_DIV_VALUES + ERA5_DIV_VALUES + DW_DIV_VALUES)
-STATIC_IMAGE_FUNCTIONS = [get_single_srtm_image]
-STATIC_BANDS = SRTM_BANDS
-STATIC_SHIFT_VALUES = np.array(SRTM_SHIFT_VALUES)
-STATIC_DIV_VALUES = np.array(SRTM_DIV_VALUES)
+DYNAMIC_BANDS = S1_BANDS + S2_BANDS + ERA5_BANDS
+DYNAMIC_SHIFT_VALUES = np.array(S1_SHIFT_VALUES + S2_SHIFT_VALUES + ERA5_SHIFT_VALUES)
+DYNAMIC_DIV_VALUES = np.array(S1_DIV_VALUES + S2_DIV_VALUES + ERA5_DIV_VALUES)
+STATIC_IMAGE_FUNCTIONS = [get_single_srtm_image, get_single_dw_image]
+STATIC_BANDS = SRTM_BANDS + DW_BANDS
+STATIC_SHIFT_VALUES = np.array(SRTM_SHIFT_VALUES + DW_SHIFT_VALUES)
+STATIC_DIV_VALUES = np.array(SRTM_DIV_VALUES + DW_DIV_VALUES)
 
 
 def get_ee_task_list(key: str = "description") -> List[str]:
@@ -156,9 +153,6 @@ def create_ee_image(
     vv_imcol, vh_imcol = get_s1_image_collection(
         polygon, start_date - timedelta(days=31), end_date + timedelta(days=31)
     )
-    dw_imcol = get_dw_image_collection(
-        polygon, start_date - timedelta(days=31), end_date + timedelta(days=31)
-    )
 
     while cur_end_date <= end_date:
         image_list: List[ee.Image] = []
@@ -178,13 +172,6 @@ def create_ee_image(
                 image_function(region=polygon, start_date=cur_date, end_date=cur_end_date)
             )
 
-        # and finally, dynamic world (to preserve the expected order)
-        image_list.append(
-            get_single_dw_image(
-                region=polygon, start_date=cur_date, end_date=cur_end_date, dw_imcol=dw_imcol
-            )
-        )
-
         image_collection_list.append(ee.Image.cat(image_list))
         cur_date += timedelta(days=days_per_timestep)
         cur_end_date += timedelta(days=days_per_timestep)
@@ -194,7 +181,7 @@ def create_ee_image(
     combine_bands_function = make_combine_bands_function(DYNAMIC_BANDS)
     img = ee.Image(imcoll.iterate(combine_bands_function))
 
-    # finally, we add the SRTM image seperately since its static in time
+    # finally, we add the static in time images
     total_image_list: List[ee.Image] = [img]
     for static_image_function in STATIC_IMAGE_FUNCTIONS:
         total_image_list.append(static_image_function(region=polygon))
