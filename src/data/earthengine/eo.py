@@ -177,7 +177,6 @@ def create_ee_image(
             image_list.append(
                 image_function(region=polygon, start_date=cur_date, end_date=cur_end_date)
             )
-        image_collection_list.append(ee.Image.cat(image_list))
 
         # and finally, dynamic world (to preserve the expected order)
         image_list.append(
@@ -186,6 +185,7 @@ def create_ee_image(
             )
         )
 
+        image_collection_list.append(ee.Image.cat(image_list))
         cur_date += timedelta(days=days_per_timestep)
         cur_end_date += timedelta(days=days_per_timestep)
 
