@@ -39,4 +39,8 @@ def get_single_dw_image(
     region: ee.Geometry, start_date: date, end_date: date, dw_imcol: ee.ImageCollection
 ) -> ee.Image:
     mid_date = start_date + ((end_date - start_date) / 2)
-    return ee.Image(get_closest_dates(mid_date, dw_imcol).select(DW_BANDS).mean()).clip(region)
+    overall_mean = dw_imcol.mean()
+    dw_image = ee.Image(get_closest_dates(mid_date, dw_imcol).select(DW_BANDS).mean()).clip(region)
+    # replace nulls
+    dw_image = dw_image.where(dw_image.mask(), overall_mean)
+    dw_image
