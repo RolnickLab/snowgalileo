@@ -35,7 +35,7 @@ class TestPresto(unittest.TestCase):
         self._end_to_end_run_mae(16, 4)
 
     def _end_to_end_run_ijepa(self, encoder_embedding_size, decoder_embedding_size, patch_size):
-        encoder = Encoder(encoder_embedding_size=encoder_embedding_size, num_heads=1)
+        encoder = Encoder(embedding_size=encoder_embedding_size, num_heads=1)
         decoder = PrestoRepresentationDecoder(
             encoder_embedding_size=encoder_embedding_size,
             decoder_embedding_size=decoder_embedding_size,
