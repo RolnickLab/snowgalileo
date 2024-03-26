@@ -36,13 +36,15 @@ DYNAMIC_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
         "S2_NIR_20m": [DYNAMIC_BANDS.index(b) for b in ["B8A"]],
         "S2_SWIR": [DYNAMIC_BANDS.index(b) for b in ["B11", "B12"]],
         "ERA5": [DYNAMIC_BANDS.index(b) for b in ERA5_BANDS],
-        "DW": [DYNAMIC_BANDS.index(b) for b in DW_BANDS],
         "NDVI": [DYNAMIC_BANDS.index("NDVI")],
     }
 )
 
 STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
-    {"SRTM": [STATIC_BANDS.index(b) for b in SRTM_BANDS]}
+    {
+        "SRTM": [STATIC_BANDS.index(b) for b in SRTM_BANDS],
+        "DW": [DYNAMIC_BANDS.index(b) for b in DW_BANDS],
+    }
 )
 
 
