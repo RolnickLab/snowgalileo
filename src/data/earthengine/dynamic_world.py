@@ -28,9 +28,10 @@ def get_single_dw_image(region: ee.Geometry, start_date: date, end_date: date) -
         ee.ImageCollection("GOOGLE/DYNAMICWORLD/V1")
         .filterBounds(region)
         .filterDate(ee.DateRange(str(start_date), str(end_date)))
-        .select(ORIGINAL_BANDS, DW_BANDS)
+        .select("label")
     )
 
+    fifteen_days_in_ms = 1296000000
     output_images = []
     current_date = start_date
     while current_date <= end_date:
@@ -45,16 +46,19 @@ def get_single_dw_image(region: ee.Geometry, start_date: date, end_date: date) -
         from_mid_date = dw_collection.map(
             lambda image: image.set(
                 "dateDist",
-                ee.Number(image.get("system:time_start"))
-                .subtract(mid_date_ee.millis())  # type: ignore
-                .abs(),
+                ee.Number(image.get("system:time_start")).subtract(mid_date_ee.millis()).abs(),
             )
         )
         from_mid_date = from_mid_date.sort("dateDist", opt_ascending=True)
-        # previously, we took an average of all the values within the window.
-        # this yielded NaN values; I don't think these values change a lot,
-        # so simply taking the closest image should be fine.
-        output_images.append(from_mid_date.first())
+
+        # no matter what, we take the first element in the image collection
+        # and we add 1 to ensure the less_than condition triggers
+        max_diff = ee.Number(from_mid_date.first().get("dateDist")).max(
+            ee.Number(fifteen_days_in_ms)
+        )
+
+        kept_images = from_mid_date.filterMetadata("dateDist", "not_greater_than", max_diff)
+        output_images.append(kept_images.mean())
 
         current_date = next_date
 
