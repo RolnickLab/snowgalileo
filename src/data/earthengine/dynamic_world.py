@@ -58,7 +58,7 @@ def get_single_dw_image(region: ee.Geometry, start_date: date, end_date: date) -
         )
 
         kept_images = from_mid_date.filterMetadata("dateDist", "not_greater_than", max_diff)
-        output_images.append(kept_images.mean())
+        output_images.append(kept_images.median())
 
         current_date = next_date
 
