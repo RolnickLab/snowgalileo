@@ -43,4 +43,4 @@ def get_single_dw_image(
     dw_image = ee.Image(get_closest_dates(mid_date, dw_imcol).select(DW_BANDS).mean()).clip(region)
     # replace nulls
     dw_image = dw_image.where(dw_image.mask(), overall_mean)
-    dw_image
+    return dw_image
