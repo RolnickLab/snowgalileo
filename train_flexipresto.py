@@ -63,7 +63,7 @@ dataloader = DataLoader(
     dataset, batch_size=batch_size, shuffle=True, num_workers=Hyperparams.num_workers
 )
 print("Loading models")
-encoder = Encoder(embedding_size=64).to(device)
+encoder = Encoder(embedding_size=64, patch_size=patch_sizes[-1]).to(device)
 predictor = PrestoDecoder(encoder_embedding_size=64, decoder_embedding_size=64).to(device)
 target_encoder = deepcopy(encoder)
 print("Loading validation task")
