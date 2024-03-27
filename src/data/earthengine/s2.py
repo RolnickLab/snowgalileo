@@ -6,7 +6,11 @@ import ee
 from .utils import date_to_string
 
 # These are algorithm settings for the cloud filtering algorithm
-image_collection = "COPERNICUS/S2"
+
+# After 2022-01-25, Sentinel-2 scenes with PROCESSING_BASELINE '04.00' or
+# above have their DN (value) range shifted by 1000. The HARMONIZED
+# collection shifts data in newer scenes to be in the same range as in older scenes.
+image_collection = "COPERNICUS/S2_HARMONIZED"
 
 # Ranges from 0-1.Lower value will mask more pixels out.
 # Generally 0.1-0.3 works well with 0.2 being used most commonly
