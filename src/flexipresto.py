@@ -471,6 +471,9 @@ class FlexiPrestoBase(nn.Module):
         x = torch.cat([d_x, s_x], dim=1)
         m = torch.cat([d_m, s_m], dim=1)
         for blk in self.blocks:
+            # we take the inverse of the mask because a value
+            # of True indicates the value *should* take part in
+            # attention
             x = blk(x, attn_mask=~m.bool())
         return self.split_and_expand_hwtc(x, m, h, w, t, d_c_g, s_c_g)
 
