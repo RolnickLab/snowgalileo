@@ -13,12 +13,18 @@ from tqdm import tqdm
 from ..config import (
     DAYS_PER_TIMESTEP,
     EE_BUCKET_TIFS,
+    EE_FOLDER_TIFS,
     EE_PROJECT,
     END_YEAR,
     EXPORTED_HEIGHT_WIDTH_METRES,
     START_YEAR,
 )
-from .dynamic_world import DW_BANDS, DW_DIV_VALUES, DW_SHIFT_VALUES, get_single_dw_image
+from .dynamic_world import (
+    DW_BANDS,
+    DW_DIV_VALUES,
+    DW_SHIFT_VALUES,
+    get_single_dw_image,
+)
 from .ee_bbox import EEBoundingBox
 from .era5 import ERA5_BANDS, ERA5_DIV_VALUES, ERA5_SHIFT_VALUES, get_single_era5_image
 from .s1 import (
@@ -41,17 +47,14 @@ END_DATE = date(END_YEAR, 12, 31)
 DYNAMIC_IMAGE_FUNCTIONS = [
     get_single_s2_image,
     get_single_era5_image,
-    get_single_dw_image,
 ]
-DYNAMIC_BANDS = S1_BANDS + S2_BANDS + ERA5_BANDS + DW_BANDS
-DYNAMIC_SHIFT_VALUES = np.array(
-    S1_SHIFT_VALUES + S2_SHIFT_VALUES + ERA5_SHIFT_VALUES + DW_SHIFT_VALUES
-)
-DYNAMIC_DIV_VALUES = np.array(S1_DIV_VALUES + S2_DIV_VALUES + ERA5_DIV_VALUES + DW_DIV_VALUES)
-STATIC_IMAGE_FUNCTIONS = [get_single_srtm_image]
-STATIC_BANDS = SRTM_BANDS
-STATIC_SHIFT_VALUES = np.array(SRTM_SHIFT_VALUES)
-STATIC_DIV_VALUES = np.array(SRTM_DIV_VALUES)
+DYNAMIC_BANDS = S1_BANDS + S2_BANDS + ERA5_BANDS
+DYNAMIC_SHIFT_VALUES = np.array(S1_SHIFT_VALUES + S2_SHIFT_VALUES + ERA5_SHIFT_VALUES)
+DYNAMIC_DIV_VALUES = np.array(S1_DIV_VALUES + S2_DIV_VALUES + ERA5_DIV_VALUES)
+STATIC_IMAGE_FUNCTIONS = [get_single_srtm_image, get_single_dw_image]
+STATIC_BANDS = SRTM_BANDS + DW_BANDS
+STATIC_SHIFT_VALUES = np.array(SRTM_SHIFT_VALUES + DW_SHIFT_VALUES)
+STATIC_DIV_VALUES = np.array(SRTM_DIV_VALUES + DW_DIV_VALUES)
 
 
 def get_ee_task_list(key: str = "description") -> List[str]:
@@ -83,7 +86,7 @@ def get_ee_task_amount(prefix: Optional[str] = None) -> int:
 
 
 def get_cloud_tif_list(
-    dest_bucket: str, prefix: str = "tifs", region: str = "us-central1"
+    dest_bucket: str, prefix: str = EE_FOLDER_TIFS, region: str = "us-central1"
 ) -> List[str]:
     """Gets a list of all cloud-free TIFs in a bucket."""
     storage = import_optional_dependency("google.cloud.storage")
@@ -169,8 +172,8 @@ def create_ee_image(
             image_list.append(
                 image_function(region=polygon, start_date=cur_date, end_date=cur_end_date)
             )
-        image_collection_list.append(ee.Image.cat(image_list))
 
+        image_collection_list.append(ee.Image.cat(image_list))
         cur_date += timedelta(days=days_per_timestep)
         cur_end_date += timedelta(days=days_per_timestep)
 
@@ -179,10 +182,16 @@ def create_ee_image(
     combine_bands_function = make_combine_bands_function(DYNAMIC_BANDS)
     img = ee.Image(imcoll.iterate(combine_bands_function))
 
-    # finally, we add the SRTM image seperately since its static in time
+    # finally, we add the static in time images
     total_image_list: List[ee.Image] = [img]
     for static_image_function in STATIC_IMAGE_FUNCTIONS:
-        total_image_list.append(static_image_function(region=polygon))
+        total_image_list.append(
+            static_image_function(
+                region=polygon,
+                start_date=start_date - timedelta(days=31),
+                end_date=end_date + timedelta(days=31),
+            )
+        )
 
     return ee.Image.cat(total_image_list)
 
@@ -238,7 +247,7 @@ class EarthEngineExporter:
         end_date: date,
         file_dimensions: Optional[int] = None,
     ) -> bool:
-        filename = f"tifs/{str(polygon_identifier)}"
+        filename = f"{EE_FOLDER_TIFS}/{str(polygon_identifier)}"
 
         # Description of the export cannot contain certrain characters
         description = ee_safe_str(filename)
