@@ -77,7 +77,7 @@ class Dataset(PyTorchDataset):
         self.data_folder = data_folder
         if download:
             self.download(data_folder)
-        self.tifs = list(data_folder.glob("*.tif"))
+        self.tifs = list(data_folder.glob("*.tif")) + list(data_folder.glob("*.tiff"))
         self.cache_folder = cache_folder
         self.cache = False
         if cache_folder is not None:

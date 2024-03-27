@@ -19,9 +19,7 @@ DW_SHIFT_VALUES = [0] * len(DW_BANDS)
 DW_DIV_VALUES = [1] * len(DW_BANDS)
 
 
-def get_single_dw_image(
-    region: ee.Geometry, start_date: date, end_date: date
-) -> ee.Image:
+def get_single_dw_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
     # we start by getting all the data for the range
     dw_collection = (
         ee.ImageCollection("GOOGLE/DYNAMICWORLD/V1")
