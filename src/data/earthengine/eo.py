@@ -13,6 +13,7 @@ from tqdm import tqdm
 from ..config import (
     DAYS_PER_TIMESTEP,
     EE_BUCKET_TIFS,
+    EE_FOLDER_TIFS,
     EE_PROJECT,
     END_YEAR,
     EXPORTED_HEIGHT_WIDTH_METRES,
@@ -85,7 +86,7 @@ def get_ee_task_amount(prefix: Optional[str] = None) -> int:
 
 
 def get_cloud_tif_list(
-    dest_bucket: str, prefix: str = "tifs", region: str = "us-central1"
+    dest_bucket: str, prefix: str = EE_FOLDER_TIFS, region: str = "us-central1"
 ) -> List[str]:
     """Gets a list of all cloud-free TIFs in a bucket."""
     storage = import_optional_dependency("google.cloud.storage")
@@ -246,7 +247,7 @@ class EarthEngineExporter:
         end_date: date,
         file_dimensions: Optional[int] = None,
     ) -> bool:
-        filename = f"tifs/{str(polygon_identifier)}"
+        filename = f"{EE_FOLDER_TIFS}/{str(polygon_identifier)}"
 
         # Description of the export cannot contain certrain characters
         description = ee_safe_str(filename)

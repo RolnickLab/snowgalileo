@@ -11,7 +11,7 @@ import xarray as xr
 from einops import rearrange, repeat
 from torch.utils.data import Dataset as PyTorchDataset
 
-from .config import EE_BUCKET_TIFS
+from .config import EE_BUCKET_TIFS, EE_FOLDER_TIFS
 from .earthengine.eo import (
     DW_BANDS,
     DYNAMIC_DIV_VALUES,
@@ -89,7 +89,9 @@ class Dataset(PyTorchDataset):
     @staticmethod
     def download(data_folder):
         # Download files (faster than using Python API)
-        os.system(f"gcloud storage cp -n -r gs://{EE_BUCKET_TIFS}/tifs/* {data_folder}")
+        os.system(
+            f"gcloud storage cp -n -r gs://{EE_BUCKET_TIFS}/{EE_FOLDER_TIFS}/* {data_folder}"
+        )
 
     @staticmethod
     def _fillna(data: np.ndarray, bands_np: np.ndarray):
