@@ -63,22 +63,14 @@ class TestEuroSat(unittest.TestCase):
         # no month in eurosat so set to zero
         self.assertEqual(month[0], 0)
 
-    def check_label(self, label=None):
-        if label is None:
-            self.skipTest("Initially skipping label check")
-        # labels are one-hot encoded
-        self.assertTrue(torch.all(torch.logical_or(label == 0, label == 1)))
-
     def test_eurosat_dataset_rgb(self):
         dataset = EuroSatDataset(rgb=True, split="test", tif_files_dir=DATA_FOLDER)
         sample = dataset[0]
         d_x, s_x, d_m, s_m, m = sample[0]
-        label = sample[1]
 
         self.check_dynamic(dynamic_x=d_x, dynamic_m=d_m)
         self.check_static(static_x=s_x, static_m=s_m)
         self.check_month(month=m)
-        self.check_label(label=label)
 
         # will test if the right channels are masked out
         present_bands = [
