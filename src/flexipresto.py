@@ -471,6 +471,9 @@ class FlexiPrestoBase(nn.Module):
         x = torch.cat([d_x, s_x], dim=1)
         m = torch.cat([d_m, s_m], dim=1)
         for blk in self.blocks:
+            # we take the inverse of the mask because a value
+            # of True indicates the value *should* take part in
+            # attention
             x = blk(x, attn_mask=~m.bool())
         return self.split_and_expand_hwtc(x, m, h, w, t, d_c_g, s_c_g)
 
@@ -511,6 +514,8 @@ class Encoder(FlexiPrestoBase):
                 for group_name, group in self.static_groups.items()
             }
         )
+
+        self.norm = nn.LayerNorm(embedding_size)
 
         self.apply(self._init_weights)
 
@@ -586,10 +591,10 @@ class Encoder(FlexiPrestoBase):
             dynamic_x, static_x, dynamic_mask, static_mask, months, patch_size, input_resolution_m
         )
 
-        return dynamic_x, static_x, dynamic_mask, static_mask, months
+        return self.norm(dynamic_x), self.norm(static_x), dynamic_mask, static_mask, months
 
 
-class PrestoDecoder(FlexiPrestoBase):
+class PrestoPixelDecoder(FlexiPrestoBase):
     def __init__(
         self,
         encoder_embedding_size: int = 128,
@@ -599,6 +604,7 @@ class PrestoDecoder(FlexiPrestoBase):
         num_heads=8,
         max_sequence_length=24,
         num_inputs_per_spatial_dim=4,
+        max_patch_size: int = 8,
     ):
         super().__init__(
             decoder_embedding_size,
@@ -608,9 +614,24 @@ class PrestoDecoder(FlexiPrestoBase):
             max_sequence_length,
             num_inputs_per_spatial_dim,
         )
-
+        self.encoder_to_decoder_embed = nn.Linear(
+            encoder_embedding_size, decoder_embedding_size, bias=True
+        )
         self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
-        self.decoder_embed = nn.Linear(encoder_embedding_size, decoder_embedding_size, bias=True)
+
+        self.max_patch_size = max_patch_size
+        self.dynamic_embed = nn.ModuleDict(
+            {
+                group_name: nn.Linear(decoder_embedding_size, len(group) * max_patch_size**2)
+                for group_name, group in self.dynamic_groups.items()
+            }
+        )
+        self.static_embed = nn.ModuleDict(
+            {
+                group_name: nn.Linear(decoder_embedding_size, len(group) * max_patch_size**2)
+                for group_name, group in self.static_groups.items()
+            }
+        )
 
     def add_masks(self, d_x: torch.Tensor, d_m: torch.Tensor):
         # we make an assumption here that mask_by_presto_pixels_time
@@ -633,16 +654,106 @@ class PrestoDecoder(FlexiPrestoBase):
         patch_size: Optional[int] = None,
         input_resolution_m: Optional[int] = BASE_GSD,
     ):
-        dynamic_x = self.decoder_embed(dynamic_x)
-        static_x = self.decoder_embed(static_x)
+        dynamic_x = self.encoder_to_decoder_embed(dynamic_x)
+        static_x = self.encoder_to_decoder_embed(static_x)
         dynamic_x, dynamic_mask = self.add_masks(dynamic_x, dynamic_mask)
-        # remove all masks
-        return self.apply_attn(
+        dynamic_x, static_x, _, _ = self.apply_attn(
+            dynamic_x, static_x, dynamic_mask, static_mask, months, patch_size, input_resolution_m
+        )
+        output_d, output_s = [], []
+        for idx, (group_name, c_g) in enumerate(self.dynamic_groups.items()):
+            # decoded has shape [b, h, w, t, len(c_g) * patch_size ** 2]
+            decoded = self.dynamic_embed[group_name](dynamic_x[:, :, :, :, idx])
+            output_d.append(
+                rearrange(
+                    decoded,
+                    "b t_h t_w t (c_g p_h p_w) -> b (t_h p_h) (t_w p_w) t c_g",
+                    c_g=len(c_g),
+                    p_w=self.max_patch_size,
+                    p_h=self.max_patch_size,
+                )
+            )
+
+        for idx, (group_name, c_g) in enumerate(self.static_groups.items()):
+            # decoded has shape [b, h, w, len(c_g) * patch_size ** 2]
+            decoded = self.static_embed[group_name](static_x[:, :, :, idx])
+            output_s.append(
+                rearrange(
+                    decoded,
+                    "b t_h t_w (c_g p_h p_w) -> b (t_h p_h) (t_w p_w) c_g",
+                    c_g=len(c_g),
+                    p_w=self.max_patch_size,
+                    p_h=self.max_patch_size,
+                )
+            )
+
+        return torch.cat(output_d, dim=-1), torch.cat(output_s, dim=-1)
+
+
+class PrestoRepresentationDecoder(FlexiPrestoBase):
+    def __init__(
+        self,
+        encoder_embedding_size: int = 128,
+        decoder_embedding_size: int = 128,
+        depth=2,
+        mlp_ratio=2,
+        num_heads=8,
+        max_sequence_length=24,
+        num_inputs_per_spatial_dim=4,
+    ):
+        super().__init__(
+            decoder_embedding_size,
+            depth,
+            mlp_ratio,
+            num_heads,
+            max_sequence_length,
+            num_inputs_per_spatial_dim,
+        )
+
+        self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
+        self.encoder_to_decoder_embed = nn.Linear(
+            encoder_embedding_size, decoder_embedding_size, bias=True
+        )
+        self.decoder_to_encoder_embed = nn.Linear(
+            decoder_embedding_size, encoder_embedding_size, bias=True
+        )
+
+    def add_masks(self, d_x: torch.Tensor, d_m: torch.Tensor):
+        # we make an assumption here that mask_by_presto_pixels_time
+        # was used to make the masks. This means we only have masked
+        # timesteps, which simplifies the mask addition
+        d_x = d_x * (1 - d_m).unsqueeze(-1)
+        B, H, W, T, C = d_x.shape[0], d_x.shape[1], d_x.shape[2], d_x.shape[3], d_x.shape[4]
+        mask_reshaped = repeat(self.mask_token, "d -> b h w t c d", b=B, h=H, w=W, t=T, c=C)
+        masks_to_add = mask_reshaped * d_m.unsqueeze(-1)
+        d_m = d_m * 0  # all values are unmasked now
+        return d_x + masks_to_add, d_m
+
+    def forward(
+        self,
+        dynamic_x: torch.Tensor,
+        static_x: torch.Tensor,
+        dynamic_mask: torch.Tensor,
+        static_mask: torch.Tensor,
+        months: torch.Tensor,
+        patch_size: Optional[int] = None,
+        input_resolution_m: Optional[int] = BASE_GSD,
+    ):
+        dynamic_x = self.encoder_to_decoder_embed(dynamic_x)
+        static_x = self.encoder_to_decoder_embed(static_x)
+        dynamic_x, dynamic_mask = self.add_masks(dynamic_x, dynamic_mask)
+        dynamic_x, static_x, dynamic_mask, static_mask = self.apply_attn(
             dynamic_x,
             static_x,
-            torch.zeros_like(dynamic_mask, device=dynamic_x.device),
+            torch.zeros_like(dynamic_mask, device=dynamic_mask.device),
             torch.zeros_like(static_mask, device=static_mask.device),
             months,
             patch_size,
             input_resolution_m,
+        )
+        return (
+            self.decoder_to_encoder_embed(dynamic_x),
+            self.decoder_to_encoder_embed(static_x),
+            dynamic_mask,
+            static_mask,
         )
