@@ -7,7 +7,7 @@ from src.data.dataset import DYNAMIC_BANDS, STATIC_BANDS, Dataset
 
 TEST_FILE = (
     Path(__file__).parents[1]
-    / "data/tifs/tifs_min_lat=19.2005_min_lon=-155.6227_max_lat=19.2132_max_lon=-155.6094_dates=2022-01-01_2023-12-31.tif"
+    / "data/tifs/tifs_min_lat=20.7599_min_lon=-98.2104_max_lat=20.7726_max_lon=-98.197_dates=2022-01-01_2023-12-31.tiff"
 )
 
 

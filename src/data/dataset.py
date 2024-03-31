@@ -11,7 +11,7 @@ import xarray as xr
 from einops import rearrange, repeat
 from torch.utils.data import Dataset as PyTorchDataset
 
-from .config import EE_BUCKET_TIFS
+from .config import EE_BUCKET_TIFS, EE_FOLDER_TIFS
 from .earthengine.eo import (
     DW_BANDS,
     DYNAMIC_DIV_VALUES,
@@ -36,13 +36,15 @@ DYNAMIC_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
         "S2_NIR_20m": [DYNAMIC_BANDS.index(b) for b in ["B8A"]],
         "S2_SWIR": [DYNAMIC_BANDS.index(b) for b in ["B11", "B12"]],
         "ERA5": [DYNAMIC_BANDS.index(b) for b in ERA5_BANDS],
-        "DW": [DYNAMIC_BANDS.index(b) for b in DW_BANDS],
         "NDVI": [DYNAMIC_BANDS.index("NDVI")],
     }
 )
 
 STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
-    {"SRTM": [STATIC_BANDS.index(b) for b in SRTM_BANDS]}
+    {
+        "SRTM": [STATIC_BANDS.index(b) for b in SRTM_BANDS],
+        "DW": [STATIC_BANDS.index(b) for b in DW_BANDS],
+    }
 )
 
 
@@ -75,7 +77,7 @@ class Dataset(PyTorchDataset):
         self.data_folder = data_folder
         if download:
             self.download(data_folder)
-        self.tifs = list(data_folder.glob("*.tif"))
+        self.tifs = list(data_folder.glob("*.tif")) + list(data_folder.glob("*.tiff"))
         self.cache_folder = cache_folder
         self.cache = False
         if cache_folder is not None:
@@ -87,7 +89,9 @@ class Dataset(PyTorchDataset):
     @staticmethod
     def download(data_folder):
         # Download files (faster than using Python API)
-        os.system(f"gcloud storage cp -n -r gs://{EE_BUCKET_TIFS}/tifs/* {data_folder}")
+        os.system(
+            f"gcloud storage cp -n -r gs://{EE_BUCKET_TIFS}/{EE_FOLDER_TIFS}/* {data_folder}"
+        )
 
     @staticmethod
     def _fillna(data: np.ndarray, bands_np: np.ndarray):
