@@ -134,7 +134,11 @@ class EuroSatDataset(PyTorchDataset):
         # unmask available s2 bands
         dynamic_mask[dynamic_channels] = 0
         dynamic_mask = repeat(
-            dynamic_mask, "d -> h w t d", h=self.input_height_width, w=self.input_height_width, t=self.num_timesteps
+            dynamic_mask,
+            "d -> h w t d",
+            h=self.input_height_width,
+            w=self.input_height_width,
+            t=self.num_timesteps,
         )
 
         # no static channels are available
