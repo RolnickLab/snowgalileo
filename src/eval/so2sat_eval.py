@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple, cast
 
 import h5py
 import numpy as np
@@ -95,7 +95,7 @@ class So2SatDataset(PyTorchDataset):
 
         return (dynamic_mask, static_mask)
 
-    def image_to_dynamic_eo_array(self, image: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def image_to_dynamic_eo_array(self, image: np.ndarray) -> np.ndarray:
         kept_dynamic_bands = [
             idx for idx, x in enumerate(DYNAMIC_BANDS) if (x in S2_BANDS or x in S1_BANDS)
         ]
@@ -138,7 +138,8 @@ class So2SatDataset(PyTorchDataset):
         if self._len is None:
             with h5py.File(data_dir / self.so2sat_dir / f"{self.split}.h5", "r") as data:
                 self._len = data["sen1"].shape[0]
-        return self._len
+        print(self._len)
+        return cast(int, self._len)
 
 
 class So2SatEval(EvalTask):
