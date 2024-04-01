@@ -199,7 +199,7 @@ class Dataset(PyTorchDataset):
         dynamic_data = normalize_dynamic(dynamic_data)
         dynamic_data = np.concatenate((dynamic_data, cls.calculate_ndvi(dynamic_data)), axis=-1)
         months = cls.month_array_from_file(tif_path, int(num_timesteps))
-        return dynamic_data, normalize_static(static_data), months
+        return DatasetOutput(dynamic_data, normalize_static(static_data), months)
 
     def load_tif(self, tif_path: Path) -> DatasetOutput:
         if self.cache_folder is None:
@@ -212,12 +212,12 @@ class Dataset(PyTorchDataset):
                 d_x = np.load(cache_path_d)
                 num_timesteps = d_x.shape[2]
                 months = self.month_array_from_file(tif_path, num_timesteps)
-                return d_x, np.load(cache_path_s), months
+                return DatasetOutput(d_x, np.load(cache_path_s), months)
             else:
                 d_x, d_s, months = self._tif_to_array(tif_path)
                 np.save(cache_path_d, d_x)
                 np.save(cache_path_s, d_s)
-                return d_x, d_s, months
+                return DatasetOutput(d_x, d_s, months)
 
     @staticmethod
     def calculate_ndvi(input_array: np.ndarray) -> np.ndarray:
@@ -249,4 +249,4 @@ class Dataset(PyTorchDataset):
     def __getitem__(self, idx):
         d_x, d_s, months = self.load_tif(self.tifs[idx])
         d_x, months = self.subset_timesteps(d_x, months)
-        return d_x, d_s, months
+        return DatasetOutput(d_x, d_s, months)
