@@ -25,16 +25,17 @@ MaskedOutput = namedtuple(
 )
 
 
-def subset_batch_of_masked_outputs(
+def subset_batch_of_images(
     dynamic_x: torch.Tensor,
     static_x: torch.Tensor,
-    dynamic_mask: torch.Tensor,
-    static_mask: torch.Tensor,
     size: int,
+    num_timesteps: int
 ):
     assert (dynamic_x.shape[1] == static_x.shape[1]) & (dynamic_x.shape[2] == static_x.shape[2])
     possible_h = dynamic_x.shape[1] - size
     possible_w = dynamic_x.shape[2] - size
+    possible_t = dynamic_x.shape[3] - num_timesteps
+    assert possible_t >= 0
     assert (possible_h >= 0) & (possible_w >= 0)
 
     if possible_h > 0:
@@ -47,11 +48,14 @@ def subset_batch_of_masked_outputs(
     else:
         start_w = possible_w
 
+    if possible_t > 0:
+        start_t = np.random.choice(possible_t)
+    else:
+        start_t = possible_t
+
     return (
-        dynamic_x[:, start_h : start_h + size, start_w : start_w + size],
-        static_x[:, start_h : start_h + size, start_w : start_w + size],
-        dynamic_mask[:, start_h : start_h + size, start_w : start_w + size],
-        static_mask[:, start_h : start_h + size, start_w : start_w + size],
+        dynamic_x[:, start_h : start_h + size, start_w : start_w + size, start_t + num_timesteps],
+        static_x[:, start_h : start_h + size, start_w : start_w + size, start_t + num_timesteps],
     )
 
 
