@@ -138,7 +138,6 @@ class So2SatDataset(PyTorchDataset):
         if self._len is None:
             with h5py.File(data_dir / self.so2sat_dir / f"{self.split}.h5", "r") as data:
                 self._len = data["sen1"].shape[0]
-        print(self._len)
         return cast(int, self._len)
 
 
