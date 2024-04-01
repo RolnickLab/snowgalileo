@@ -87,7 +87,6 @@ class TestEuroSat(unittest.TestCase):
         dataset = EuroSatDataset(rgb=False, split="test", tif_files_dir=DATA_FOLDER)
         sample = dataset[0]
         d_x, s_x, d_m, s_m, m = sample[0]
-        label = sample[1]
 
         self.check_dynamic(dynamic_x=d_x, dynamic_m=d_m)
         self.check_static(static_x=s_x, static_m=s_m)
