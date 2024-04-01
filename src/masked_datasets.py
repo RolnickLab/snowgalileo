@@ -237,11 +237,11 @@ def batch_mask_presto_time(
     b_flat_timesteps = repeat(flat_timesteps, "t -> b t", b=b)
     # hopefully this will allow for reproducibility, since random is seeded
     rng = np.random.default_rng(random.randint(0, 100))
-    b_flat_timesteps = torch.from_numpy(rng.permuted(b_flat_timesteps, axis=1)).to(
+    b_flat_timesteps_t = torch.from_numpy(rng.permuted(b_flat_timesteps, axis=1)).to(
         dynamic_x.device
     )
     dynamic_mask = repeat(
-        b_flat_timesteps,
+        b_flat_timesteps_t,
         "b t-> b h w t c_g",
         h=h,
         w=w,

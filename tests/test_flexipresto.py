@@ -3,30 +3,21 @@ from pathlib import Path
 
 import torch
 
-from src.config import NUM_TIMESTEPS, PRESTO_INPUT_SIZE
-from src.data import DYNAMIC_BANDS_GROUPS_IDX
-from src.data.dataset import (
-    DYNAMIC_BANDS,
-    STATIC_BAND_GROUPS_IDX,
-    STATIC_BANDS,
-)
+from src.config import NUM_TIMESTEPS
+from src.data import DYNAMIC_BANDS_GROUPS_IDX, Dataset
+from src.data.dataset import DYNAMIC_BANDS, STATIC_BAND_GROUPS_IDX, STATIC_BANDS, DatasetOutput
 from src.flexipresto import Encoder, PrestoPixelDecoder, PrestoRepresentationDecoder
-from src.masked_datasets import (
-    MaskedOutput,
-    PrestoToPrestoMaskedDataset,
-)
+from src.masked_datasets import batch_mask_presto, subset_batch_of_images
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/tifs"
 
 
 class TestPresto(unittest.TestCase):
     @staticmethod
-    def to_tensor_with_batch_d(input: MaskedOutput):
+    def to_tensor_with_batch_d(input: DatasetOutput):
         return (
             torch.from_numpy(input.dynamic_x).float().unsqueeze(0),
             torch.from_numpy(input.static_x).float().unsqueeze(0),
-            torch.from_numpy(input.dynamic_mask).float().unsqueeze(0),
-            torch.from_numpy(input.static_mask).float().unsqueeze(0),
             torch.from_numpy(input.months).long().unsqueeze(0),
         )
 
@@ -39,24 +30,27 @@ class TestPresto(unittest.TestCase):
         self._end_to_end_run_mae(16, 4)
 
     def _end_to_end_run_ijepa(self, encoder_embedding_size, decoder_embedding_size, patch_size):
+        image_size = patch_size * 4
         encoder = Encoder(embedding_size=encoder_embedding_size, num_heads=1)
         decoder = PrestoRepresentationDecoder(
             encoder_embedding_size=encoder_embedding_size,
             decoder_embedding_size=decoder_embedding_size,
             num_heads=1,
         )
-        ds = PrestoToPrestoMaskedDataset(DATA_FOLDER, 0.25, False)
-        output = ds[0]
+        ds = Dataset(DATA_FOLDER, False)
+        d_x, s_x, months = self.to_tensor_with_batch_d(ds[0])
+        d_x, s_x = subset_batch_of_images(d_x, s_x, size=image_size)
+        masked_output = batch_mask_presto(d_x, s_x, months, mask_ratio=0.5)
         with torch.no_grad():
             # for now, we just make sure it all runs
-            encoder_output = encoder(*self.to_tensor_with_batch_d(output), patch_size=patch_size)
+            encoder_output = encoder(*masked_output, patch_size=patch_size)
 
         self.assertTrue(
             list(encoder_output[0].shape)
             == [
                 1,
-                PRESTO_INPUT_SIZE / patch_size,
-                PRESTO_INPUT_SIZE / patch_size,
+                image_size / patch_size,
+                image_size / patch_size,
                 NUM_TIMESTEPS,
                 len(DYNAMIC_BANDS_GROUPS_IDX),
                 encoder_embedding_size,
@@ -66,8 +60,8 @@ class TestPresto(unittest.TestCase):
             list(encoder_output[1].shape)
             == [
                 1,
-                PRESTO_INPUT_SIZE / patch_size,
-                PRESTO_INPUT_SIZE / patch_size,
+                image_size / patch_size,
+                image_size / patch_size,
                 len(STATIC_BAND_GROUPS_IDX),
                 encoder_embedding_size,
             ]
@@ -81,8 +75,8 @@ class TestPresto(unittest.TestCase):
             list(output[0].shape)
             == [
                 1,
-                PRESTO_INPUT_SIZE / patch_size,
-                PRESTO_INPUT_SIZE / patch_size,
+                image_size / patch_size,
+                image_size / patch_size,
                 NUM_TIMESTEPS,
                 len(DYNAMIC_BANDS_GROUPS_IDX),
                 # decoder outputs should be mapped back to the encoder embedding size
@@ -93,8 +87,8 @@ class TestPresto(unittest.TestCase):
             list(output[1].shape)
             == [
                 1,
-                PRESTO_INPUT_SIZE / patch_size,
-                PRESTO_INPUT_SIZE / patch_size,
+                image_size / patch_size,
+                image_size / patch_size,
                 len(STATIC_BAND_GROUPS_IDX),
                 encoder_embedding_size,
             ]
@@ -103,6 +97,7 @@ class TestPresto(unittest.TestCase):
         self.assertFalse(torch.isnan(output[1]).any())
 
     def _end_to_end_run_mae(self, embedding_size, patch_size):
+        image_size = patch_size * 4
         encoder = Encoder(embedding_size=embedding_size, num_heads=1)
         decoder = PrestoPixelDecoder(
             encoder_embedding_size=embedding_size,
@@ -110,18 +105,20 @@ class TestPresto(unittest.TestCase):
             num_heads=1,
         )
         max_patch_size = decoder.max_patch_size
-        ds = PrestoToPrestoMaskedDataset(DATA_FOLDER, 0.25, False)
-        output = ds[0]
+        ds = Dataset(DATA_FOLDER, False)
+        d_x, s_x, months = self.to_tensor_with_batch_d(ds[0])
+        d_x, s_x = subset_batch_of_images(d_x, s_x, size=image_size)
+        masked_output = batch_mask_presto(d_x, s_x, months, mask_ratio=0.5)
         with torch.no_grad():
             # for now, we just make sure it all runs
-            encoder_output = encoder(*self.to_tensor_with_batch_d(output), patch_size=patch_size)
+            encoder_output = encoder(*masked_output, patch_size=patch_size)
 
         self.assertTrue(
             list(encoder_output[0].shape)
             == [
                 1,
-                PRESTO_INPUT_SIZE / patch_size,
-                PRESTO_INPUT_SIZE / patch_size,
+                image_size / patch_size,
+                image_size / patch_size,
                 NUM_TIMESTEPS,
                 len(DYNAMIC_BANDS_GROUPS_IDX),
                 embedding_size,
@@ -131,8 +128,8 @@ class TestPresto(unittest.TestCase):
             list(encoder_output[1].shape)
             == [
                 1,
-                PRESTO_INPUT_SIZE / patch_size,
-                PRESTO_INPUT_SIZE / patch_size,
+                image_size / patch_size,
+                image_size / patch_size,
                 len(STATIC_BAND_GROUPS_IDX),
                 embedding_size,
             ]
@@ -146,8 +143,8 @@ class TestPresto(unittest.TestCase):
             list(output[0].shape)
             == [
                 1,
-                PRESTO_INPUT_SIZE * (max_patch_size / patch_size),
-                PRESTO_INPUT_SIZE * (max_patch_size / patch_size),
+                image_size * (max_patch_size / patch_size),
+                image_size * (max_patch_size / patch_size),
                 NUM_TIMESTEPS,
                 len(DYNAMIC_BANDS),
             ]
@@ -156,8 +153,8 @@ class TestPresto(unittest.TestCase):
             list(output[1].shape)
             == [
                 1,
-                PRESTO_INPUT_SIZE * (max_patch_size / patch_size),
-                PRESTO_INPUT_SIZE * (max_patch_size / patch_size),
+                image_size * (max_patch_size / patch_size),
+                image_size * (max_patch_size / patch_size),
                 len(STATIC_BANDS),
             ]
         )
