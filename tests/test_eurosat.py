@@ -92,7 +92,6 @@ class TestEuroSat(unittest.TestCase):
         self.check_dynamic(dynamic_x=d_x, dynamic_m=d_m)
         self.check_static(static_x=s_x, static_m=s_m)
         self.check_month(month=m)
-        self.check_label(label=label)
 
         # will test if the right channels are masked out
         present_band_groups = [

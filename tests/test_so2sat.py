@@ -86,8 +86,3 @@ class TestSo2Sat(unittest.TestCase):
 
         self.assertTrue(torch.all(d_m[:, :, :, present_bands] == 0))
         self.assertTrue(torch.all(d_m[:, :, :, unpresent_bands] == 1))
-        print("passed")
-
-
-if __name__ == "__main__":
-    TestSo2Sat().test_so2sat_dataset()
