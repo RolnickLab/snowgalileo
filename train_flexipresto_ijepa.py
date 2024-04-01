@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
-from src.config import DEFAULT_SEED, NUM_TIMESTEPS
+from src.config import DEFAULT_SEED
 from src.data import Dataset
 from src.data.config import DATA_FOLDER, EE_PROJECT
 from src.eval import EuroSatEval, TreeSatEval
@@ -110,7 +110,7 @@ for e in tqdm(range(num_epochs)):
         # randomly sample a patch size, and a corresponding image size
         patch_size = np.random.choice(patch_sizes)
         image_size = patch_size * spatial_patches_per_dim
-        d_x, s_x = subset_batch_of_images(d_x, s_x, image_size, NUM_TIMESTEPS)
+        d_x, s_x = subset_batch_of_images(d_x, s_x, image_size)
         d_x, s_x, d_m, s_m, months = batch_mask_presto(d_x, s_x, months, mask_ratio)
 
         # also transform to patch-space

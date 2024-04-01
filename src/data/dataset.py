@@ -11,6 +11,7 @@ import xarray as xr
 from einops import rearrange, repeat
 from torch.utils.data import Dataset as PyTorchDataset
 
+from ..config import NUM_TIMESTEPS
 from .config import EE_BUCKET_TIFS, EE_FOLDER_TIFS
 from .earthengine.eo import (
     DW_BANDS,
@@ -94,6 +95,20 @@ class Dataset(PyTorchDataset):
         # Download files (faster than using Python API)
         os.system(
             f"gcloud storage cp -n -r gs://{EE_BUCKET_TIFS}/{EE_FOLDER_TIFS}/* {data_folder}"
+        )
+
+    @staticmethod
+    def subset_timesteps(d_x: np.ndarray, months: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        possible_t = d_x.shape[2] - NUM_TIMESTEPS
+        assert possible_t >= 0
+        if possible_t > 0:
+            start_t = np.random.choice(possible_t)
+        else:
+            start_t = possible_t
+
+        return (
+            d_x[:, :, start_t : start_t + NUM_TIMESTEPS],
+            months[start_t : start_t + NUM_TIMESTEPS],
         )
 
     @staticmethod
@@ -232,4 +247,6 @@ class Dataset(PyTorchDataset):
             )
 
     def __getitem__(self, idx):
-        return self.load_tif(self.tifs[idx])
+        d_x, d_s, months = self.load_tif(self.tifs[idx])
+        d_x, months = self.subset_timesteps(d_x, months)
+        return d_x, d_s, months

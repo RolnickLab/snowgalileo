@@ -28,15 +28,11 @@ MaskedOutput = namedtuple(
 def subset_batch_of_images(
     dynamic_x: torch.Tensor,
     static_x: torch.Tensor,
-    months: torch.Tensor,
     size: int,
-    num_timesteps: int,
 ):
     assert (dynamic_x.shape[1] == static_x.shape[1]) & (dynamic_x.shape[2] == static_x.shape[2])
     possible_h = dynamic_x.shape[1] - size
     possible_w = dynamic_x.shape[2] - size
-    possible_t = dynamic_x.shape[3] - num_timesteps
-    assert possible_t >= 0
     assert (possible_h >= 0) & (possible_w >= 0)
 
     if possible_h > 0:
@@ -48,19 +44,9 @@ def subset_batch_of_images(
         start_w = np.random.choice(possible_w)
     else:
         start_w = possible_w
-
-    if possible_t > 0:
-        start_t = np.random.choice(possible_t)
-    else:
-        start_t = possible_t
-
-    # TODO : each batch will contain the exact same months here,
-    # which should likely be a problem. Best would be to have all possible start_ts
-    # and sample from them
     return (
-        dynamic_x[:, start_h : start_h + size, start_w : start_w + size, start_t + num_timesteps],
-        static_x[:, start_h : start_h + size, start_w : start_w + size, start_t + num_timesteps],
-        months[:, start_t : start_t + num_timesteps],
+        dynamic_x[:, start_h : start_h + size, start_w : start_w + size],
+        static_x[:, start_h : start_h + size, start_w : start_w + size],
     )
 
 
