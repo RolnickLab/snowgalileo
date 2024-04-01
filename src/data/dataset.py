@@ -1,6 +1,6 @@
 import os
 import warnings
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from pathlib import Path
 from typing import List, Optional, Tuple, cast
 from typing import OrderedDict as OrderedDictType
@@ -46,6 +46,9 @@ STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
         "DW": [STATIC_BANDS.index(b) for b in DW_BANDS],
     }
 )
+
+
+DatasetOutput = namedtuple("DatasetOutput", ["dynamic_x", "static_x", "months"])
 
 
 def _normalize(x: np.ndarray, shift_values: np.ndarray, div_values: np.ndarray) -> np.ndarray:
@@ -162,7 +165,7 @@ class Dataset(PyTorchDataset):
         return np.fmod(np.arange(start_month - 1, start_month - 1 + num_timesteps), 12)
 
     @classmethod
-    def _tif_to_array(cls, tif_path: Path) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def _tif_to_array(cls, tif_path: Path) -> DatasetOutput:
         with cast(xr.Dataset, rioxarray.open_rasterio(tif_path)) as data:
             values = cast(np.ndarray, data.values)
 
@@ -183,7 +186,7 @@ class Dataset(PyTorchDataset):
         months = cls.month_array_from_file(tif_path, int(num_timesteps))
         return dynamic_data, normalize_static(static_data), months
 
-    def load_tif(self, tif_path: Path) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def load_tif(self, tif_path: Path) -> DatasetOutput:
         if self.cache_folder is None:
             return self._tif_to_array(tif_path)
         else:
@@ -229,4 +232,4 @@ class Dataset(PyTorchDataset):
             )
 
     def __getitem__(self, idx):
-        raise NotImplementedError
+        return self.load_tif(self.tifs[idx])

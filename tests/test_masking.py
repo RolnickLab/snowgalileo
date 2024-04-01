@@ -1,12 +1,14 @@
 import unittest
 
 import numpy as np
+import torch
+from einops import repeat
 
 from src.masked_datasets import (
     CROMA_INPUT_SIZE,
     NUM_TIMESTEPS,
     VIT_PATCH_SIZE,
-    PrestoToPrestoMaskedDataset,
+    batch_mask_presto_time,
     mask_by_croma_blocks_random,
     mask_by_croma_spatial_blocks,
     subset_image,
@@ -67,17 +69,18 @@ class TestMasking(unittest.TestCase):
         )
 
     def test_mask_by_presto_pixels_time(self):
-        num_timesteps = 24
-        dynamic_input = np.ones((CROMA_INPUT_SIZE + 15, CROMA_INPUT_SIZE, num_timesteps, 8))
-        static_input = np.ones((CROMA_INPUT_SIZE + 15, CROMA_INPUT_SIZE, 8))
-        months = np.arange(0, num_timesteps)
+        batch_size, num_timesteps = 2, NUM_TIMESTEPS
+        dynamic_input = torch.ones(
+            (batch_size, CROMA_INPUT_SIZE + 15, CROMA_INPUT_SIZE, num_timesteps, 8)
+        )
+        static_input = torch.ones((batch_size, CROMA_INPUT_SIZE + 15, CROMA_INPUT_SIZE, 8))
+        months = repeat(torch.arange(0, num_timesteps), "t -> b t", b=batch_size)
         mask_ratio = 0.25
 
-        output = PrestoToPrestoMaskedDataset.mask_by_presto_pixels_time(
-            dynamic_input, static_input, months, mask_ratio
-        )
-
+        output = batch_mask_presto_time(dynamic_input, static_input, months, mask_ratio)
         # collapse the dynamic_mask along the time dimension
-        dynamic_mask_along_t = output.dynamic_mask.mean(axis=(0, 1, 3))
+        dynamic_mask_along_t = output.dynamic_mask.mean(axis=(1, 2, 4))  # b, t
         self.assertTrue(np.isin(dynamic_mask_along_t, (0, 1)).all())
-        self.assertEqual(sum(dynamic_mask_along_t) / len(dynamic_mask_along_t), 0.25)
+        self.assertTrue(
+            (dynamic_mask_along_t.sum(axis=1) / dynamic_mask_along_t.shape[1] == 0.25).all()
+        )
