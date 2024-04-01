@@ -1,6 +1,6 @@
+import random
 from collections import namedtuple
-from pathlib import Path
-from typing import Optional, Tuple
+from typing import Tuple
 
 import numpy as np
 import torch
@@ -10,10 +10,9 @@ from .config import (
     CROMA_INPUT_SIZE,
     NUM_TIMESTEPS,
     NUM_VIT_PATCHES_PER_CROMA_DIM,
-    PRESTO_INPUT_SIZE,
     VIT_PATCH_SIZE,
 )
-from .data.dataset import DYNAMIC_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX, Dataset
+from .data.dataset import DYNAMIC_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
 
 # This is to allow a quick expansion of the mask from
 # group-channel space into real-channel space
@@ -213,55 +212,48 @@ def mask_by_croma_blocks_random(
     )
 
 
-class PrestoToPrestoMaskedDataset(Dataset):
-    def __init__(
-        self,
-        data_folder: Path,
-        mask_ratio: float,
-        download: bool = True,
-        cache_folder: Optional[Path] = None,
-    ):
-        super().__init__(data_folder, download, cache_folder)
-        self.mask_ratio = mask_ratio
+def batch_mask_presto(
+    dynamic_x: torch.Tensor, static_x: torch.Tensor, months: torch.Tensor, mask_ratio: float
+) -> MaskedOutput:
+    # for now, we only have one implemented but spatial is on its way
+    return batch_mask_presto_time(dynamic_x, static_x, months, mask_ratio)
 
-    @staticmethod
-    def mask_by_presto_pixels_time(
-        dynamic_input: np.ndarray, static_input: np.ndarray, months: np.ndarray, mask_ratio: float
-    ) -> MaskedOutput:
-        """
-        Given a H >= PRESTO_INPUT_SIZE, W >= PRESTO_INPUT_SIZE input:
-        1. Crops to PRESTO_INPUT_SIZExPRESTO_INPUT_SIZE
-        2. Masks out blocks of PRESTO_INPUT_SIZExPRESTO_INPUT_SIZEx1xBAND_GROUPs.
-            e.g. if PRESTO_INPUT_SIZE=4 and mask_ratio=0.25, then 1/4 of the timesteps
-            (and the static channel groups, with 1/4 probability) will be masked out
-        """
-        dynamic_input, static_input, months = subset_image(
-            dynamic_input, static_input, months, PRESTO_INPUT_SIZE, NUM_TIMESTEPS
-        )
-        num_timesteps = dynamic_input.shape[2]
-        assert num_timesteps == NUM_TIMESTEPS
-        num_timesteps_to_mask = int(num_timesteps * mask_ratio)
-        flat_timesteps = np.concatenate(
-            (
-                np.ones(num_timesteps_to_mask),
-                np.zeros(num_timesteps - num_timesteps_to_mask),
-            )
-        )
-        np.random.shuffle(flat_timesteps)
-        static_mask = np.ones((PRESTO_INPUT_SIZE, PRESTO_INPUT_SIZE, len(STATIC_BAND_GROUPS_IDX)))
-        if np.random.rand() >= mask_ratio:
-            # unmask the static data
-            static_mask *= 0
 
-        dynamic_mask = repeat(
-            flat_timesteps,
-            "t -> h w t c_g",
-            h=PRESTO_INPUT_SIZE,
-            w=PRESTO_INPUT_SIZE,
-            c_g=len(DYNAMIC_BANDS_GROUPS_IDX),
+def batch_mask_presto_time(
+    dynamic_x: torch.Tensor, static_x: torch.Tensor, months: torch.Tensor, mask_ratio: float
+):
+    """
+    Given a B > 1, H >= PRESTO_INPUT_SIZE, W >= PRESTO_INPUT_SIZE input:
+    1. Masks out blocks of PRESTO_INPUT_SIZExPRESTO_INPUT_SIZEx1xBAND_GROUPs.
+        e.g. if PRESTO_INPUT_SIZE=4 and mask_ratio=0.25, then 1/4 of the timesteps
+        (and the static channel groups, with 1/4 probability) will be masked out
+    """
+    b, h, w, t, _ = dynamic_x.shape
+    assert t == NUM_TIMESTEPS
+    num_timesteps_to_mask = int(t * mask_ratio)
+    # we do this as a numpy array to take advantage of
+    # numpy's permuted function
+    flat_timesteps = np.concatenate(
+        (
+            np.ones(num_timesteps_to_mask),
+            np.zeros(t - num_timesteps_to_mask),
         )
-        return MaskedOutput(dynamic_input, static_input, dynamic_mask, static_mask, months)
+    )
+    b_flat_timesteps = repeat(flat_timesteps, "t -> b t", b=b)
+    # hopefully this will allow for reproducibility, since random is seeded
+    rng = np.random.default_rng(random.randint(0, 100))
+    b_flat_timesteps = torch.from_numpy(rng.permuted(b_flat_timesteps, axis=1)).to(
+        dynamic_x.device
+    )
+    dynamic_mask = repeat(
+        b_flat_timesteps,
+        "b t-> b h w t c_g",
+        h=h,
+        w=w,
+        c_g=len(DYNAMIC_BANDS_GROUPS_IDX),
+    )
 
-    def __getitem__(self, idx) -> MaskedOutput:
-        d_x, s_x, months = self.load_tif(self.tifs[idx])
-        return self.mask_by_presto_pixels_time(d_x, s_x, months, self.mask_ratio)
+    static_mask = torch.rand(b, device=static_x.device) <= mask_ratio
+    static_mask = repeat(static_mask, "b -> b h w s", h=h, w=w, s=len(STATIC_BAND_GROUPS_IDX))
+
+    return MaskedOutput(dynamic_x, static_x, dynamic_mask, static_mask, months)
