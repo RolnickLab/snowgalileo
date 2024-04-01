@@ -43,7 +43,14 @@ class TestPresto(unittest.TestCase):
         masked_output = batch_mask_presto(d_x, s_x, months, mask_ratio=0.5)
         with torch.no_grad():
             # for now, we just make sure it all runs
-            encoder_output = encoder(*masked_output, patch_size=patch_size)
+            encoder_output = encoder(
+                masked_output.d_x.float(),
+                masked_output.s_x.float(),
+                masked_output.d_m.float(),
+                masked_output.s_m.float(),
+                masked_output.months.long(),
+                patch_size=patch_size,
+            )
 
         self.assertTrue(
             list(encoder_output[0].shape)
@@ -111,7 +118,14 @@ class TestPresto(unittest.TestCase):
         masked_output = batch_mask_presto(d_x, s_x, months, mask_ratio=0.5)
         with torch.no_grad():
             # for now, we just make sure it all runs
-            encoder_output = encoder(*masked_output, patch_size=patch_size)
+            encoder_output = encoder(
+                masked_output.d_x.float(),
+                masked_output.s_x.float(),
+                masked_output.d_m.float(),
+                masked_output.s_m.float(),
+                masked_output.months.long(),
+                patch_size=patch_size,
+            )
 
         self.assertTrue(
             list(encoder_output[0].shape)
