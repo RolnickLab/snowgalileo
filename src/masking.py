@@ -45,10 +45,29 @@ def subset_batch_of_images(
 
 
 def batch_mask_presto(
-    dynamic_x: torch.Tensor, static_x: torch.Tensor, months: torch.Tensor, mask_ratio: float
+    dynamic_x: torch.Tensor,
+    static_x: torch.Tensor,
+    months: torch.Tensor,
+    mask_ratio: float,
+    patch_size: int,
+    time_ratio: float,
 ) -> MaskedOutput:
-    # for now, we only have one implemented but spatial is on its way
-    return batch_mask_time(dynamic_x, static_x, months, mask_ratio)
+    b = dynamic_x.shape[0]
+    s = int(b * time_ratio)
+    d_x_t, s_x_t, d_m_t, s_m_t, m_t = batch_mask_time(
+        dynamic_x[:s], static_x[:s], months[:s], mask_ratio
+    )
+    d_x_s, s_x_s, d_m_s, s_m_s, m_s = batch_mask_space(
+        dynamic_x[s:], static_x[s:], months[s:], mask_ratio, patch_size
+    )
+
+    return MaskedOutput(
+        torch.cat((d_x_t, d_x_s), 0),
+        torch.cat((s_x_t, s_x_s), 0),
+        torch.cat((d_m_t, d_m_s), 0),
+        torch.cat((s_m_t, s_m_s), 0),
+        torch.cat((m_t, m_s), 0),
+    )
 
 
 def batch_mask_time(
