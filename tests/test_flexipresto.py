@@ -119,7 +119,7 @@ class TestPresto(unittest.TestCase):
         with torch.no_grad():
             # for now, we just make sure it all runs
             encoder_output = encoder(
-                masked_output.dynaic_x.float(),
+                masked_output.dynamic_x.float(),
                 masked_output.static_x.float(),
                 masked_output.dynamic_mask.float(),
                 masked_output.static_mask.float(),
