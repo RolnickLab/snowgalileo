@@ -4,7 +4,7 @@ from typing import Tuple
 
 import numpy as np
 import torch
-from einops import repeat
+from einops import rearrange, repeat
 
 from .config import (
     CROMA_INPUT_SIZE,
@@ -211,17 +211,18 @@ def batch_mask_presto(
     dynamic_x: torch.Tensor, static_x: torch.Tensor, months: torch.Tensor, mask_ratio: float
 ) -> MaskedOutput:
     # for now, we only have one implemented but spatial is on its way
-    return batch_mask_presto_time(dynamic_x, static_x, months, mask_ratio)
+    return batch_mask_time(dynamic_x, static_x, months, mask_ratio)
 
 
-def batch_mask_presto_time(
+def batch_mask_time(
     dynamic_x: torch.Tensor, static_x: torch.Tensor, months: torch.Tensor, mask_ratio: float
 ):
     """
-    Given a B > 1, H >= PRESTO_INPUT_SIZE, W >= PRESTO_INPUT_SIZE input:
-    1. Masks out blocks of PRESTO_INPUT_SIZExPRESTO_INPUT_SIZEx1xBAND_GROUPs.
-        e.g. if PRESTO_INPUT_SIZE=4 and mask_ratio=0.25, then 1/4 of the timesteps
-        (and the static channel groups, with 1/4 probability) will be masked out
+    Masks out blocks of hxwx1xBAND_GROUPs.
+    e.g. if mask_ratio=0.25, then 1/4 of the timesteps
+    (and the static channel groups, with 1/4 probability) will be masked out
+
+    Operates over batches where each item in the batch has independently masked timesteps
     """
     b, h, w, t, _ = dynamic_x.shape
     assert t == NUM_TIMESTEPS
@@ -250,5 +251,62 @@ def batch_mask_presto_time(
 
     static_mask = torch.rand(b, device=static_x.device) <= mask_ratio
     static_mask = repeat(static_mask, "b -> b h w s", h=h, w=w, s=len(STATIC_BAND_GROUPS_IDX))
+
+    return MaskedOutput(dynamic_x, static_x, dynamic_mask, static_mask, months)
+
+
+def batch_mask_space(
+    dynamic_x: torch.Tensor,
+    static_x: torch.Tensor,
+    months: torch.Tensor,
+    mask_ratio: float,
+    patch_size: int,
+):
+    """
+    Masks out blocks of hxwx1xBAND_GROUPs.
+    e.g. if mask_ratio=0.25, then 1/4 of the timesteps
+    (and the static channel groups, with 1/4 probability) will be masked out
+
+    Operates over batches where each item in the batch has independently masked timesteps
+    """
+    b, h, w, t, _ = dynamic_x.shape
+    assert (h % patch_size == 0) and (w % patch_size == 0)
+    assert t == NUM_TIMESTEPS
+    h_p = int(h / patch_size)
+    w_p = int(w / patch_size)
+    total_patches = h_p * w_p
+    num_patches_to_mask = int(total_patches * mask_ratio)
+    # we do this as a numpy array to take advantage of
+    # numpy's permuted function
+    flat_patches = np.concatenate(
+        (
+            np.ones(num_patches_to_mask),
+            np.zeros(total_patches - num_patches_to_mask),
+        )
+    )
+    b_flat_patches = repeat(flat_patches, "t -> b p", b=b)
+    # hopefully this will allow for reproducibility, since random is seeded
+    rng = np.random.default_rng(random.randint(0, 100))
+    b_flat_patches = rng.permuted(b_flat_patches, axis=1)
+    two_d_patch_mask = rearrange(b_flat_patches, "b (h w) -> b h w", h=h_p, w=w_p)
+    two_d_mask = np.repeat(
+        np.repeat(two_d_patch_mask, repeats=patch_size, axis=1), repeats=patch_size, axis=2
+    )
+    dynamic_mask = torch.from_numpy(
+        repeat(
+            two_d_mask,
+            "b h w -> b h w t c_g",
+            t=t,
+            c_g=len(DYNAMIC_BANDS_GROUPS_IDX),
+        )
+    ).to(dynamic_x.device)
+
+    static_mask = torch.from_numpy(
+        repeat(
+            two_d_mask,
+            "b h w -> b h w c_g",
+            c_g=len(STATIC_BAND_GROUPS_IDX),
+        )
+    ).to(static_x.device)
 
     return MaskedOutput(dynamic_x, static_x, dynamic_mask, static_mask, months)

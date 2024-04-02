@@ -44,10 +44,10 @@ class TestPresto(unittest.TestCase):
         with torch.no_grad():
             # for now, we just make sure it all runs
             encoder_output = encoder(
-                masked_output.d_x.float(),
-                masked_output.s_x.float(),
-                masked_output.d_m.float(),
-                masked_output.s_m.float(),
+                masked_output.dynamic_x.float(),
+                masked_output.static_x.float(),
+                masked_output.dynamic_mask.float(),
+                masked_output.static_mask.float(),
                 masked_output.months.long(),
                 patch_size=patch_size,
             )
@@ -119,10 +119,10 @@ class TestPresto(unittest.TestCase):
         with torch.no_grad():
             # for now, we just make sure it all runs
             encoder_output = encoder(
-                masked_output.d_x.float(),
-                masked_output.s_x.float(),
-                masked_output.d_m.float(),
-                masked_output.s_m.float(),
+                masked_output.dynaic_x.float(),
+                masked_output.static_x.float(),
+                masked_output.dynamic_mask.float(),
+                masked_output.static_mask.float(),
                 masked_output.months.long(),
                 patch_size=patch_size,
             )

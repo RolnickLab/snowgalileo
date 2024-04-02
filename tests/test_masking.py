@@ -8,7 +8,7 @@ from src.masking import (
     CROMA_INPUT_SIZE,
     NUM_TIMESTEPS,
     VIT_PATCH_SIZE,
-    batch_mask_presto_time,
+    batch_mask_time,
     mask_by_croma_blocks_random,
     mask_by_croma_spatial_blocks,
     subset_image,
@@ -77,7 +77,7 @@ class TestMasking(unittest.TestCase):
         months = repeat(torch.arange(0, num_timesteps), "t -> b t", b=batch_size)
         mask_ratio = 0.25
 
-        output = batch_mask_presto_time(dynamic_input, static_input, months, mask_ratio)
+        output = batch_mask_time(dynamic_input, static_input, months, mask_ratio)
         # collapse the dynamic_mask along the time dimension
         dynamic_mask_along_t = output.dynamic_mask.mean(axis=(1, 2, 4))  # b, t
         self.assertTrue(np.isin(dynamic_mask_along_t, (0, 1)).all())
