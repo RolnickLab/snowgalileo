@@ -10,11 +10,11 @@ from src.masking import (
     STATIC_BAND_GROUPS_IDX,
     batch_mask_space,
     batch_mask_time,
+    batch_mask_presto
 )
 
 
 class TestMasking(unittest.TestCase):
-
     def test_mask_by_time(self):
         b, t, h, w = 2, NUM_TIMESTEPS, 16, 16
         dynamic_input = torch.ones((b, h, w, t, 8))
@@ -52,3 +52,14 @@ class TestMasking(unittest.TestCase):
             self.assertTrue(
                 torch.equal(s_along_hw[:, i::p, i::p], s_along_hw[:, i - 1 :: p, i - 1 :: p])
             )
+
+    def test_mask_combined(self):
+        b, t, h, w, p = 2, NUM_TIMESTEPS, 16, 16, 4
+        dynamic_input = torch.ones((b, h, w, t, 8))
+        static_input = torch.ones((b, h, w, 8))
+        months = repeat(torch.arange(0, t), "t -> b t", b=b)
+        mask_ratio = 0.25
+
+        output = batch_mask_presto(dynamic_input, static_input, months, mask_ratio, p, time_ratio=0.5)
+        self.assertEqual((b, h, w, t, len(DYNAMIC_BANDS_GROUPS_IDX)), output.dynamic_mask.shape)
+        self.assertEqual((b, h, w, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
