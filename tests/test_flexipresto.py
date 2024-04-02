@@ -40,7 +40,9 @@ class TestPresto(unittest.TestCase):
         ds = Dataset(DATA_FOLDER, False)
         d_x, s_x, months = self.to_tensor_with_batch_d(ds[0])
         d_x, s_x = subset_batch_of_images(d_x, s_x, size=image_size)
-        masked_output = batch_mask_presto(d_x, s_x, months, mask_ratio=0.5)
+        masked_output = batch_mask_presto(
+            d_x, s_x, months, mask_ratio=0.5, patch_size=patch_size, time_ratio=0.5
+        )
         with torch.no_grad():
             # for now, we just make sure it all runs
             encoder_output = encoder(
@@ -115,7 +117,9 @@ class TestPresto(unittest.TestCase):
         ds = Dataset(DATA_FOLDER, False)
         d_x, s_x, months = self.to_tensor_with_batch_d(ds[0])
         d_x, s_x = subset_batch_of_images(d_x, s_x, size=image_size)
-        masked_output = batch_mask_presto(d_x, s_x, months, mask_ratio=0.5)
+        masked_output = batch_mask_presto(
+            d_x, s_x, months, mask_ratio=0.5, patch_size=patch_size, time_ratio=0.5
+        )
         with torch.no_grad():
             # for now, we just make sure it all runs
             encoder_output = encoder(
