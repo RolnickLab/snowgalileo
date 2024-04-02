@@ -1,17 +1,11 @@
 import random
 from collections import namedtuple
-from typing import Tuple
 
 import numpy as np
 import torch
 from einops import rearrange, repeat
 
-from .config import (
-    CROMA_INPUT_SIZE,
-    NUM_TIMESTEPS,
-    NUM_VIT_PATCHES_PER_CROMA_DIM,
-    VIT_PATCH_SIZE,
-)
+from .config import NUM_TIMESTEPS
 from .data.dataset import DYNAMIC_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
 
 # This is to allow a quick expansion of the mask from
@@ -47,163 +41,6 @@ def subset_batch_of_images(
     return (
         dynamic_x[:, start_h : start_h + size, start_w : start_w + size],
         static_x[:, start_h : start_h + size, start_w : start_w + size],
-    )
-
-
-def subset_image(
-    dynamic_input: np.ndarray,
-    static_input: np.ndarray,
-    months: np.ndarray,
-    size: int,
-    num_timesteps: int,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    dynamic_input: array of shape [H, W, T, D]
-    static_input: array of shape [H, W, D]
-
-    size must be greater or equal to H & W
-    """
-    assert (dynamic_input.shape[0] == static_input.shape[0]) & (
-        dynamic_input.shape[1] == static_input.shape[1]
-    )
-    possible_h = dynamic_input.shape[0] - size
-    possible_w = dynamic_input.shape[1] - size
-    assert (possible_h >= 0) & (possible_w >= 0)
-    possible_t = dynamic_input.shape[2] - num_timesteps
-    assert possible_t >= 0
-
-    if possible_h > 0:
-        start_h = np.random.choice(possible_h)
-    else:
-        start_h = possible_h
-
-    if possible_w > 0:
-        start_w = np.random.choice(possible_w)
-    else:
-        start_w = possible_w
-
-    if possible_t > 0:
-        start_t = np.random.choice(possible_t)
-    else:
-        start_t = possible_t
-
-    return (
-        dynamic_input[
-            start_h : start_h + size, start_w : start_w + size, start_t : start_t + num_timesteps
-        ],
-        static_input[start_h : start_h + size, start_w : start_w + size],
-        months[start_t : start_t + num_timesteps],
-    )
-
-
-def mask_by_croma_spatial_blocks(
-    dynamic_input: np.ndarray, static_input: np.ndarray, months: np.ndarray, mask_ratio: float
-) -> MaskedOutput:
-    """
-    Given a H >= CROMA_INPUT_SIZE, W >= CROMA_INPUT_SIZE input:
-    1. Crops to CROMA_INPUT_SIZExCROMA_INPUT_SIZE
-    2. Masks out blocks of VIT_PATCH_SIZExVIT_PATCH_SIZExTimestepsxBands.
-        e.g. if CROMA_INPUT_SIZE=4 and VIT_PATCH_SIZE=2 and mask_ratio=0.25,
-        then a mask might look like
-        [0 0 1 1]
-        [0 0 1 1]
-        [0 0 0 0]
-        [0 0 0 0]
-        Where the top VIT_PATCH (2x2 pixels) is masked out.
-    3. This mask is then repeated along the channel and time dimensions to match
-       the dynamic and static input shapes
-    """
-    assert mask_ratio % (1 / ((CROMA_INPUT_SIZE / VIT_PATCH_SIZE) ** 2)) == 0
-    dynamic_input, static_input, months = subset_image(
-        dynamic_input, static_input, months, CROMA_INPUT_SIZE, NUM_TIMESTEPS
-    )
-    # To begin with, we compute a flat "mask" of patches
-    num_masked_patches = int((NUM_VIT_PATCHES_PER_CROMA_DIM**2) * mask_ratio)
-    flat_spatial_mask = np.concatenate(
-        (
-            np.ones(num_masked_patches),
-            np.zeros(NUM_VIT_PATCHES_PER_CROMA_DIM**2 - num_masked_patches),
-        )
-    )
-    np.random.shuffle(flat_spatial_mask)
-    spatial_mask = flat_spatial_mask.reshape(
-        NUM_VIT_PATCHES_PER_CROMA_DIM, NUM_VIT_PATCHES_PER_CROMA_DIM
-    )
-    # then we go from CROMA token space (16x16 pixels) back to pixel space
-    pixel_spatial_mask = np.repeat(
-        np.repeat(spatial_mask, repeats=VIT_PATCH_SIZE, axis=0), repeats=VIT_PATCH_SIZE, axis=1
-    )
-    # expand the temporal and band dims so they match the dynamic and static input shapes
-    dynamic_mask = repeat(
-        pixel_spatial_mask,
-        "h w -> h w t c",
-        t=dynamic_input.shape[2],
-        c=len(DYNAMIC_BANDS_GROUPS_IDX),
-    )
-    static_mask = repeat(pixel_spatial_mask, "h w -> h w c", c=len(STATIC_BAND_GROUPS_IDX))
-
-    return MaskedOutput(dynamic_input, static_input, dynamic_mask, static_mask, months)
-
-
-def mask_by_croma_blocks_random(
-    dynamic_input: np.ndarray, static_input: np.ndarray, months: np.ndarray, mask_ratio: float
-) -> MaskedOutput:
-    """
-    Given a H >= CROMA_INPUT_SIZE, W >= CROMA_INPUT_SIZE input:
-    1. Crops to CROMA_INPUT_SIZExCROMA_INPUT_SIZE
-    2. Masks out blocks of VIT_PATCH_SIZExVIT_PATCH_SIZEx1xBAND_GROUP.
-        e.g. if CROMA_INPUT_SIZE=4 and VIT_PATCH_SIZE=2 and mask_ratio=0.25,
-        then a mask might look like
-        [0 0 1 1]
-        [0 0 1 1]
-        [0 0 0 0]
-        [0 0 0 0]
-        Where the top VIT_PATCH (2x2 pixels) is masked out.
-    3. This mask is not applied to each mask and band group; its randomly
-        applied along both of these dimensions
-    """
-    dynamic_input, static_input, months = subset_image(
-        dynamic_input, static_input, months, CROMA_INPUT_SIZE, NUM_TIMESTEPS
-    )
-    num_timesteps = dynamic_input.shape[2]
-    num_dynamic_tokens = (
-        num_timesteps * (NUM_VIT_PATCHES_PER_CROMA_DIM**2) * len(DYNAMIC_BANDS_GROUPS_IDX)
-    )
-    num_static_tokens = (NUM_VIT_PATCHES_PER_CROMA_DIM**2) * len(STATIC_BAND_GROUPS_IDX)
-    num_tokens_to_mask = int(mask_ratio * (num_dynamic_tokens + num_static_tokens))
-
-    flat_spatial_mask = np.concatenate(
-        (
-            np.ones(num_tokens_to_mask),
-            np.zeros(num_dynamic_tokens + num_static_tokens - num_tokens_to_mask),
-        )
-    )
-    np.random.shuffle(flat_spatial_mask)
-    static_mask = flat_spatial_mask[:num_static_tokens]
-    dynamic_mask = flat_spatial_mask[num_static_tokens:]
-
-    static_mask = static_mask.reshape(
-        (NUM_VIT_PATCHES_PER_CROMA_DIM, NUM_VIT_PATCHES_PER_CROMA_DIM, len(STATIC_BAND_GROUPS_IDX))
-    )
-    dynamic_mask = dynamic_mask.reshape(
-        (
-            NUM_VIT_PATCHES_PER_CROMA_DIM,
-            NUM_VIT_PATCHES_PER_CROMA_DIM,
-            num_timesteps,
-            len(DYNAMIC_BANDS_GROUPS_IDX),
-        )
-    )
-
-    # then we go from CROMA token space (16x16 pixels) back to pixel space
-    static_pixel_spatial_mask = np.repeat(
-        np.repeat(static_mask, repeats=VIT_PATCH_SIZE, axis=0), repeats=VIT_PATCH_SIZE, axis=1
-    )
-    dynamic_pixel_spatial_mask = np.repeat(
-        np.repeat(dynamic_mask, repeats=VIT_PATCH_SIZE, axis=0), repeats=VIT_PATCH_SIZE, axis=1
-    )
-
-    return MaskedOutput(
-        dynamic_input, static_input, dynamic_pixel_spatial_mask, static_pixel_spatial_mask, months
     )
 
 
@@ -284,7 +121,7 @@ def batch_mask_space(
             np.zeros(total_patches - num_patches_to_mask),
         )
     )
-    b_flat_patches = repeat(flat_patches, "t -> b p", b=b)
+    b_flat_patches = repeat(flat_patches, "p -> b p", b=b)
     # hopefully this will allow for reproducibility, since random is seeded
     rng = np.random.default_rng(random.randint(0, 100))
     b_flat_patches = rng.permuted(b_flat_patches, axis=1)

@@ -5,82 +5,50 @@ import torch
 from einops import repeat
 
 from src.masking import (
-    CROMA_INPUT_SIZE,
+    DYNAMIC_BANDS_GROUPS_IDX,
     NUM_TIMESTEPS,
-    VIT_PATCH_SIZE,
+    STATIC_BAND_GROUPS_IDX,
+    batch_mask_space,
     batch_mask_time,
-    mask_by_croma_blocks_random,
-    mask_by_croma_spatial_blocks,
-    subset_image,
 )
 
 
 class TestMasking(unittest.TestCase):
-    def test_subset_image_with_minimum_size(self):
-        input = np.ones((3, 3, 1))
-        months = np.ones(1)
-        output = subset_image(input, input, months, 3, 1)
-        self.assertTrue(np.equal(input, output[0]).all())
-        self.assertTrue(np.equal(input, output[1]).all())
-        self.assertTrue(np.equal(months, output[2]).all())
 
-    def test_subset_with_too_small_image(self):
-        input = np.ones((2, 2, 1))
-        months = np.ones(1)
-        self.assertRaises(AssertionError, subset_image, input, input, months, 3, 1)
-
-    def test_subset_with_larger_images(self):
-        input = np.ones((5, 5, 1))
-        months = np.ones(1)
-        output = subset_image(input, input, months, 3, 1)
-        self.assertTrue(np.equal(np.ones((3, 3, 1)), output[0]).all())
-        self.assertTrue(np.equal(np.ones((3, 3, 1)), output[1]).all())
-        self.assertTrue(np.equal(months, output[2]).all())
-
-    def test_mask_by_croma_blocks_spatial(self):
-        dynamic_input = np.ones((CROMA_INPUT_SIZE + 15, CROMA_INPUT_SIZE, 24, 8))
-        static_input = np.ones((CROMA_INPUT_SIZE + 15, CROMA_INPUT_SIZE, 8))
-        months = np.arange(0, 24)
-        mask_ratio = 0.25
-
-        output = mask_by_croma_spatial_blocks(dynamic_input, static_input, months, mask_ratio)
-        self.assertEqual(np.sum(output.dynamic_mask) / output.dynamic_mask.size, mask_ratio)
-        self.assertEqual(np.sum(output.static_mask) / output.static_mask.size, mask_ratio)
-        self.assertEqual(len(output.months), NUM_TIMESTEPS)
-        self.assertEqual(output.dynamic_mask.shape[2], NUM_TIMESTEPS)
-
-    def test_mask_by_croma_blocks_random(self):
-        dynamic_input = np.ones((CROMA_INPUT_SIZE + 15, CROMA_INPUT_SIZE, 24, 8))
-        static_input = np.ones((CROMA_INPUT_SIZE + 15, CROMA_INPUT_SIZE, 8))
-        months = np.arange(0, 24)
-        mask_ratio = 0.25
-
-        output = mask_by_croma_blocks_random(dynamic_input, static_input, months, mask_ratio)
-
-        num_dynamic_tokens_masked = np.sum(output.dynamic_mask) / (VIT_PATCH_SIZE**2)
-        total_dynamic_tokens = output.dynamic_mask.size / (VIT_PATCH_SIZE**2)
-        num_static_tokens_masked = np.sum(output.static_mask) / (VIT_PATCH_SIZE**2)
-        total_static_tokens = output.static_mask.size / (VIT_PATCH_SIZE**2)
-
-        self.assertEqual(
-            (num_dynamic_tokens_masked + num_static_tokens_masked)
-            / (total_dynamic_tokens + total_static_tokens),
-            mask_ratio,
-        )
-
-    def test_mask_by_presto_pixels_time(self):
-        batch_size, num_timesteps = 2, NUM_TIMESTEPS
-        dynamic_input = torch.ones(
-            (batch_size, CROMA_INPUT_SIZE + 15, CROMA_INPUT_SIZE, num_timesteps, 8)
-        )
-        static_input = torch.ones((batch_size, CROMA_INPUT_SIZE + 15, CROMA_INPUT_SIZE, 8))
-        months = repeat(torch.arange(0, num_timesteps), "t -> b t", b=batch_size)
+    def test_mask_by_time(self):
+        b, t, h, w = 2, NUM_TIMESTEPS, 16, 16
+        dynamic_input = torch.ones((b, h, w, t, 8))
+        static_input = torch.ones((b, h, w, 8))
+        months = repeat(torch.arange(0, t), "t -> b t", b=b)
         mask_ratio = 0.25
 
         output = batch_mask_time(dynamic_input, static_input, months, mask_ratio)
+        self.assertEqual((b, h, w, t, len(DYNAMIC_BANDS_GROUPS_IDX)), output.dynamic_mask.shape)
+        self.assertEqual((b, h, w, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
         # collapse the dynamic_mask along the time dimension
         dynamic_mask_along_t = output.dynamic_mask.mean(axis=(1, 2, 4))  # b, t
         self.assertTrue(np.isin(dynamic_mask_along_t, (0, 1)).all())
         self.assertTrue(
-            (dynamic_mask_along_t.sum(axis=1) / dynamic_mask_along_t.shape[1] == 0.25).all()
+            (dynamic_mask_along_t.sum(axis=1) / dynamic_mask_along_t.shape[1] == mask_ratio).all()
         )
+
+    def test_mask_by_space(self):
+        b, t, h, w, p = 2, NUM_TIMESTEPS, 16, 16, 4
+        dynamic_input = torch.ones((b, h, w, t, 8))
+        static_input = torch.ones((b, h, w, 8))
+        months = repeat(torch.arange(0, t), "t -> b t", b=b)
+        mask_ratio = 0.25
+
+        output = batch_mask_space(dynamic_input, static_input, months, mask_ratio, p)
+        self.assertEqual((b, h, w, t, len(DYNAMIC_BANDS_GROUPS_IDX)), output.dynamic_mask.shape)
+        self.assertEqual((b, h, w, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
+        # collapse the masks along h, w dimensions
+        d_along_hw = output.dynamic_mask.mean(axis=(3, 4))  # b, h, w
+        s_along_hw = output.static_mask.mean(axis=(3))  # b, h, w
+        self.assertTrue(torch.equal(d_along_hw, s_along_hw))
+        self.assertTrue((d_along_hw.sum(axis=1).sum(axis=1) / (h * w) == mask_ratio).all())
+
+        for i in range(1, p):
+            self.assertTrue(
+                torch.equal(s_along_hw[:, i::p, i::p], s_along_hw[:, i - 1 :: p, i - 1 :: p])
+            )
