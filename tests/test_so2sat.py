@@ -68,7 +68,7 @@ class TestSo2Sat(unittest.TestCase):
         self.assertTrue(torch.all(torch.logical_or(label == 0, label == 1)))
 
     def test_so2sat_dataset(self):
-        dataset = So2SatDataset(split="validation", so2sat_dir=DATA_FOLDER)
+        dataset = So2SatDataset(split="testing", so2sat_dir=DATA_FOLDER)
         sample = dataset[0]
         d_x, s_x, d_m, s_m, m = sample[0]
         label = sample[1]

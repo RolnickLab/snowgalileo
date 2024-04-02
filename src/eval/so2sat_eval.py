@@ -33,8 +33,6 @@ class So2SatDataset(PyTorchDataset):
     sen1: [n, 32, 32, 8]
     sen2: [n, 32, 32, 10]
     label: [n, 17] (one-hot encoded labels for 17 LCV classes)
-
-    With n=352366 for the training set, n=24119 for the validation set, n=24188 for the testing set.
     """
 
     input_height_width = 32
@@ -43,9 +41,9 @@ class So2SatDataset(PyTorchDataset):
     def __init__(
         self,
         split: str = "training",
-        so2sat_dir: str = "so2sat/TUM/",
+        so2sat_dir: str = "so2sat/block/",
     ):
-        assert split in ["training", "validation", "testing"]
+        assert split in ["training", "testing"]
 
         self.split = split
         self.so2sat_dir = so2sat_dir
