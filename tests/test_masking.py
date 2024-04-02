@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from einops import repeat
 
-from src.masked_datasets import (
+from src.masking import (
     CROMA_INPUT_SIZE,
     NUM_TIMESTEPS,
     VIT_PATCH_SIZE,
