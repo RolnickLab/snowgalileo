@@ -8,9 +8,9 @@ from src.masking import (
     DYNAMIC_BANDS_GROUPS_IDX,
     NUM_TIMESTEPS,
     STATIC_BAND_GROUPS_IDX,
+    batch_mask_presto,
     batch_mask_space,
     batch_mask_time,
-    batch_mask_presto
 )
 
 
@@ -60,6 +60,8 @@ class TestMasking(unittest.TestCase):
         months = repeat(torch.arange(0, t), "t -> b t", b=b)
         mask_ratio = 0.25
 
-        output = batch_mask_presto(dynamic_input, static_input, months, mask_ratio, p, time_ratio=0.5)
+        output = batch_mask_presto(
+            dynamic_input, static_input, months, mask_ratio, p, time_ratio=0.5
+        )
         self.assertEqual((b, h, w, t, len(DYNAMIC_BANDS_GROUPS_IDX)), output.dynamic_mask.shape)
         self.assertEqual((b, h, w, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
