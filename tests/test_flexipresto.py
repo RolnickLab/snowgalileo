@@ -3,8 +3,8 @@ from pathlib import Path
 
 import torch
 
-from src.data.config import NUM_TIMESTEPS
 from src.data import DYNAMIC_BANDS_GROUPS_IDX, Dataset
+from src.data.config import NUM_TIMESTEPS
 from src.data.dataset import DYNAMIC_BANDS, STATIC_BAND_GROUPS_IDX, STATIC_BANDS, DatasetOutput
 from src.flexipresto import Encoder, PrestoPixelDecoder, PrestoRepresentationDecoder
 from src.masking import batch_mask_presto, subset_batch_of_images
