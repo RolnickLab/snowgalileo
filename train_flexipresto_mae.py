@@ -21,7 +21,7 @@ from src.data.config import DATA_FOLDER, EE_PROJECT
 from src.eval import EuroSatEval, TreeSatEval
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
-from src.masked_datasets import (
+from src.masking import (
     DYNAMIC_BAND_EXPANSION,
     STATIC_BAND_EXPANSION,
     batch_mask_presto,

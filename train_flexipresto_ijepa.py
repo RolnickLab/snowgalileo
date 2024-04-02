@@ -19,7 +19,7 @@ from src.data.config import DATA_FOLDER, EE_PROJECT
 from src.eval import EuroSatEval, TreeSatEval
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoRepresentationDecoder, adjust_learning_rate
-from src.masked_datasets import batch_mask_presto, subset_batch_of_images
+from src.masking import batch_mask_presto, subset_batch_of_images
 from src.utils import AverageMeter, data_dir, device, seed_everything
 
 seed_everything(DEFAULT_SEED)
