@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from einops import rearrange, repeat
 
-from .config import NUM_TIMESTEPS
+from .data.config import NUM_TIMESTEPS
 from .data.dataset import DYNAMIC_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
 
 # This is to allow a quick expansion of the mask from

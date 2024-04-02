@@ -11,8 +11,7 @@ import xarray as xr
 from einops import rearrange, repeat
 from torch.utils.data import Dataset as PyTorchDataset
 
-from ..config import NUM_TIMESTEPS
-from .config import EE_BUCKET_TIFS, EE_FOLDER_TIFS
+from .config import DATASET_OUTPUT_HW, EE_BUCKET_TIFS, EE_FOLDER_TIFS, NUM_TIMESTEPS
 from .earthengine.eo import (
     DW_BANDS,
     DYNAMIC_DIV_VALUES,
@@ -98,17 +97,51 @@ class Dataset(PyTorchDataset):
         )
 
     @staticmethod
-    def subset_timesteps(d_x: np.ndarray, months: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        possible_t = d_x.shape[2] - NUM_TIMESTEPS
+    def subset_image(
+        dynamic_input: np.ndarray,
+        static_input: np.ndarray,
+        months: np.ndarray,
+        size: int,
+        num_timesteps: int,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        dynamic_input: array of shape [H, W, T, D]
+        static_input: array of shape [H, W, D]
+
+        size must be greater or equal to H & W
+        """
+        assert (dynamic_input.shape[0] == static_input.shape[0]) & (
+            dynamic_input.shape[1] == static_input.shape[1]
+        )
+        possible_h = dynamic_input.shape[0] - size
+        possible_w = dynamic_input.shape[1] - size
+        assert (possible_h >= 0) & (possible_w >= 0)
+        possible_t = dynamic_input.shape[2] - num_timesteps
         assert possible_t >= 0
+
+        if possible_h > 0:
+            start_h = np.random.choice(possible_h)
+        else:
+            start_h = possible_h
+
+        if possible_w > 0:
+            start_w = np.random.choice(possible_w)
+        else:
+            start_w = possible_w
+
         if possible_t > 0:
             start_t = np.random.choice(possible_t)
         else:
             start_t = possible_t
 
         return (
-            d_x[:, :, start_t : start_t + NUM_TIMESTEPS],
-            months[start_t : start_t + NUM_TIMESTEPS],
+            dynamic_input[
+                start_h : start_h + size,
+                start_w : start_w + size,
+                start_t : start_t + num_timesteps,
+            ],
+            static_input[start_h : start_h + size, start_w : start_w + size],
+            months[start_t : start_t + num_timesteps],
         )
 
     @staticmethod
@@ -247,6 +280,6 @@ class Dataset(PyTorchDataset):
             )
 
     def __getitem__(self, idx):
-        d_x, d_s, months = self.load_tif(self.tifs[idx])
-        d_x, months = self.subset_timesteps(d_x, months)
-        return DatasetOutput(d_x, d_s, months)
+        d_x, s_x, months = self.load_tif(self.tifs[idx])
+        d_x, s_x, months = self.subset_image(d_x, s_x, months, DATASET_OUTPUT_HW, NUM_TIMESTEPS)
+        return DatasetOutput(d_x, s_x, months)
