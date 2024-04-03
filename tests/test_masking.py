@@ -9,6 +9,7 @@ from src.masking import (
     NUM_TIMESTEPS,
     STATIC_BAND_GROUPS_IDX,
     batch_mask_presto,
+    batch_mask_random,
     batch_mask_space,
     batch_mask_time,
 )
@@ -53,15 +54,52 @@ class TestMasking(unittest.TestCase):
                 torch.equal(s_along_hw[:, i::p, i::p], s_along_hw[:, i - 1 :: p, i - 1 :: p])
             )
 
-    def test_mask_combined(self):
+    def test_mask_by_random(self):
         b, t, h, w, p = 2, NUM_TIMESTEPS, 16, 16, 4
         dynamic_input = torch.ones((b, h, w, t, 8))
         static_input = torch.ones((b, h, w, 8))
         months = repeat(torch.arange(0, t), "t -> b t", b=b)
         mask_ratio = 0.25
 
+        output = batch_mask_random(dynamic_input, static_input, months, mask_ratio, p)
+        self.assertEqual((b, h, w, t, len(DYNAMIC_BANDS_GROUPS_IDX)), output.dynamic_mask.shape)
+        self.assertEqual((b, h, w, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
+
+        for i in range(1, p):
+            self.assertTrue(
+                torch.equal(
+                    output.dynamic_mask[:, i::p, i::p],
+                    output.dynamic_mask[:, i - 1 :: p, i - 1 :: p],
+                )
+            )
+            self.assertTrue(
+                torch.equal(
+                    output.static_mask[:, i::p, i::p],
+                    output.static_mask[:, i - 1 :: p, i - 1 :: p],
+                )
+            )
+
+        dynamic_masked_per_instance = output.dynamic_mask.sum(dim=(1, 2, 3, 4))
+        static_masked_per_instance = output.static_mask.sum(dim=(1, 2, 3))
+        total_tokens = (h * w * t * len(DYNAMIC_BANDS_GROUPS_IDX)) + (
+            h * w * len(STATIC_BAND_GROUPS_IDX)
+        )
+        self.assertTrue(
+            (
+                dynamic_masked_per_instance + static_masked_per_instance
+                == total_tokens * mask_ratio
+            ).all()
+        )
+
+    def test_mask_combined(self):
+        b, t, h, w, p = 4, NUM_TIMESTEPS, 16, 16, 4
+        dynamic_input = torch.ones((b, h, w, t, 8))
+        static_input = torch.ones((b, h, w, 8))
+        months = repeat(torch.arange(0, t), "t -> b t", b=b)
+        mask_ratio = 0.25
+
         output = batch_mask_presto(
-            dynamic_input, static_input, months, mask_ratio, p, time_ratio=0.5
+            dynamic_input, static_input, months, mask_ratio, p, time_ratio=0.25, space_ratio=0.25
         )
         self.assertEqual((b, h, w, t, len(DYNAMIC_BANDS_GROUPS_IDX)), output.dynamic_mask.shape)
         self.assertEqual((b, h, w, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
