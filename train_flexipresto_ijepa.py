@@ -14,11 +14,12 @@ from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
 from src.config import DEFAULT_SEED
+from src.data import Dataset
 from src.data.config import DATA_FOLDER, EE_PROJECT
 from src.eval import EuroSatEval, So2SatEval, TreeSatEval
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoRepresentationDecoder, adjust_learning_rate
-from src.masked_datasets import PrestoToPrestoMaskedDataset, subset_batch_of_masked_outputs
+from src.masking import batch_mask_presto, subset_batch_of_images
 from src.utils import AverageMeter, data_dir, device, seed_everything
 
 seed_everything(DEFAULT_SEED)
@@ -44,6 +45,7 @@ num_epochs = 50
 batch_size = 64
 ema = (0.996, 1.0)
 mask_ratio = 0.5
+time_to_space_masking_ratio = 0.5
 spatial_patches_per_dim = 4
 patch_sizes = (1, 2, 3, 4, 5, 6, 7, 8)
 enc_embedding_size = 128
@@ -58,9 +60,7 @@ wandb_org = "nasa-harvest"
 output_dir = Path(__file__).parent
 
 print("Loading dataset and dataloader")
-dataset = PrestoToPrestoMaskedDataset(
-    DATA_FOLDER / "tifs", mask_ratio=mask_ratio, download=False, cache_folder=DATA_FOLDER / "npys"
-)
+dataset = Dataset(DATA_FOLDER / "tifs", download=False, cache_folder=DATA_FOLDER / "npys")
 dataloader = DataLoader(
     dataset, batch_size=batch_size, shuffle=True, num_workers=Hyperparams.num_workers
 )
@@ -106,12 +106,15 @@ for e in tqdm(range(num_epochs)):
     train_loss = AverageMeter()
     for i, b in tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
         b = [t.to(device) for t in b]
-        d_x, s_x, d_m, s_m, months = b
+        d_x, s_x, months = b
 
         # randomly sample a patch size, and a corresponding image size
         patch_size = np.random.choice(patch_sizes)
         image_size = patch_size * spatial_patches_per_dim
-        d_x, s_x, d_m, s_m = subset_batch_of_masked_outputs(d_x, s_x, d_m, s_m, image_size)
+        d_x, s_x = subset_batch_of_images(d_x, s_x, image_size)
+        d_x, s_x, d_m, s_m, months = batch_mask_presto(
+            d_x, s_x, months, mask_ratio, patch_size, time_to_space_masking_ratio
+        )
 
         # also transform to patch-space
         patch_d = d_m[:, 0::patch_size, 0::patch_size].bool()
