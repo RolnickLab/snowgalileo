@@ -30,7 +30,7 @@ def seed_everything(seed: int = DEFAULT_SEED):
 
 
 def masked_output_np_to_tensor(arr: np.ndarray, dtype: torch.dtype) -> torch.Tensor:
-    return torch.as_tensor(arr, dytype=dtype)
+    return torch.as_tensor(arr, dtype=dtype)
 
 
 class AverageMeter:
