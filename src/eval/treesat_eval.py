@@ -30,7 +30,7 @@ from ..data.dataset import (
 )
 from ..data.earthengine.s2 import S2_BANDS
 from ..flexipresto import Encoder
-from ..masked_datasets import MaskedOutput
+from ..masking import MaskedOutput
 from ..utils import DEFAULT_SEED, data_dir, device
 from .eval import EvalTask, Hyperparams, model_class_name
 

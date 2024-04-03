@@ -1,6 +1,6 @@
 import os
 import warnings
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from pathlib import Path
 from typing import List, Optional, Tuple, cast
 from typing import OrderedDict as OrderedDictType
@@ -11,7 +11,7 @@ import xarray as xr
 from einops import rearrange, repeat
 from torch.utils.data import Dataset as PyTorchDataset
 
-from .config import EE_BUCKET_TIFS, EE_FOLDER_TIFS
+from .config import DATASET_OUTPUT_HW, EE_BUCKET_TIFS, EE_FOLDER_TIFS, NUM_TIMESTEPS
 from .earthengine.eo import (
     DW_BANDS,
     DYNAMIC_DIV_VALUES,
@@ -46,6 +46,9 @@ STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
         "DW": [STATIC_BANDS.index(b) for b in DW_BANDS],
     }
 )
+
+
+DatasetOutput = namedtuple("DatasetOutput", ["dynamic_x", "static_x", "months"])
 
 
 def _normalize(x: np.ndarray, shift_values: np.ndarray, div_values: np.ndarray) -> np.ndarray:
@@ -91,6 +94,54 @@ class Dataset(PyTorchDataset):
         # Download files (faster than using Python API)
         os.system(
             f"gcloud storage cp -n -r gs://{EE_BUCKET_TIFS}/{EE_FOLDER_TIFS}/* {data_folder}"
+        )
+
+    @staticmethod
+    def subset_image(
+        dynamic_input: np.ndarray,
+        static_input: np.ndarray,
+        months: np.ndarray,
+        size: int,
+        num_timesteps: int,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        dynamic_input: array of shape [H, W, T, D]
+        static_input: array of shape [H, W, D]
+
+        size must be greater or equal to H & W
+        """
+        assert (dynamic_input.shape[0] == static_input.shape[0]) & (
+            dynamic_input.shape[1] == static_input.shape[1]
+        )
+        possible_h = dynamic_input.shape[0] - size
+        possible_w = dynamic_input.shape[1] - size
+        assert (possible_h >= 0) & (possible_w >= 0)
+        possible_t = dynamic_input.shape[2] - num_timesteps
+        assert possible_t >= 0
+
+        if possible_h > 0:
+            start_h = np.random.choice(possible_h)
+        else:
+            start_h = possible_h
+
+        if possible_w > 0:
+            start_w = np.random.choice(possible_w)
+        else:
+            start_w = possible_w
+
+        if possible_t > 0:
+            start_t = np.random.choice(possible_t)
+        else:
+            start_t = possible_t
+
+        return (
+            dynamic_input[
+                start_h : start_h + size,
+                start_w : start_w + size,
+                start_t : start_t + num_timesteps,
+            ],
+            static_input[start_h : start_h + size, start_w : start_w + size],
+            months[start_t : start_t + num_timesteps],
         )
 
     @staticmethod
@@ -162,7 +213,7 @@ class Dataset(PyTorchDataset):
         return np.fmod(np.arange(start_month - 1, start_month - 1 + num_timesteps), 12)
 
     @classmethod
-    def _tif_to_array(cls, tif_path: Path) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def _tif_to_array(cls, tif_path: Path) -> DatasetOutput:
         with cast(xr.Dataset, rioxarray.open_rasterio(tif_path)) as data:
             values = cast(np.ndarray, data.values)
 
@@ -181,9 +232,9 @@ class Dataset(PyTorchDataset):
         dynamic_data = normalize_dynamic(dynamic_data)
         dynamic_data = np.concatenate((dynamic_data, cls.calculate_ndvi(dynamic_data)), axis=-1)
         months = cls.month_array_from_file(tif_path, int(num_timesteps))
-        return dynamic_data, normalize_static(static_data), months
+        return DatasetOutput(dynamic_data, normalize_static(static_data), months)
 
-    def load_tif(self, tif_path: Path) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def load_tif(self, tif_path: Path) -> DatasetOutput:
         if self.cache_folder is None:
             return self._tif_to_array(tif_path)
         else:
@@ -194,12 +245,12 @@ class Dataset(PyTorchDataset):
                 d_x = np.load(cache_path_d)
                 num_timesteps = d_x.shape[2]
                 months = self.month_array_from_file(tif_path, num_timesteps)
-                return d_x, np.load(cache_path_s), months
+                return DatasetOutput(d_x, np.load(cache_path_s), months)
             else:
                 d_x, d_s, months = self._tif_to_array(tif_path)
                 np.save(cache_path_d, d_x)
                 np.save(cache_path_s, d_s)
-                return d_x, d_s, months
+                return DatasetOutput(d_x, d_s, months)
 
     @staticmethod
     def calculate_ndvi(input_array: np.ndarray) -> np.ndarray:
@@ -229,4 +280,6 @@ class Dataset(PyTorchDataset):
             )
 
     def __getitem__(self, idx):
-        raise NotImplementedError
+        d_x, s_x, months = self.load_tif(self.tifs[idx])
+        d_x, s_x, months = self.subset_image(d_x, s_x, months, DATASET_OUTPUT_HW, NUM_TIMESTEPS)
+        return DatasetOutput(d_x, s_x, months)
