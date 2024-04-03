@@ -51,22 +51,31 @@ def batch_mask_presto(
     mask_ratio: float,
     patch_size: int,
     time_ratio: float,
+    space_ratio: float,
 ) -> MaskedOutput:
     b = dynamic_x.shape[0]
-    s = int(b * time_ratio)
+    t_r = int(b * time_ratio)
+    s_r = int(b * space_ratio)
     d_x_t, s_x_t, d_m_t, s_m_t, m_t = batch_mask_time(
-        dynamic_x[:s], static_x[:s], months[:s], mask_ratio
+        dynamic_x[:t_r], static_x[:t_r], months[:t_r], mask_ratio
     )
     d_x_s, s_x_s, d_m_s, s_m_s, m_s = batch_mask_space(
-        dynamic_x[s:], static_x[s:], months[s:], mask_ratio, patch_size
+        dynamic_x[t_r : t_r + s_r],
+        static_x[t_r : t_r + s_r],
+        months[t_r : t_r + s_r],
+        mask_ratio,
+        patch_size,
+    )
+    d_x_r, s_x_r, d_m_r, s_m_r, m_r = batch_mask_random(
+        dynamic_x[t_r + s_r :], static_x[t_r + s_r :], months[t_r + s_r :], mask_ratio, patch_size
     )
 
     return MaskedOutput(
-        torch.cat((d_x_t, d_x_s), 0),
-        torch.cat((s_x_t, s_x_s), 0),
-        torch.cat((d_m_t, d_m_s), 0),
-        torch.cat((s_m_t, s_m_s), 0),
-        torch.cat((m_t, m_s), 0),
+        torch.cat((d_x_t, d_x_s, d_x_r), 0),
+        torch.cat((s_x_t, s_x_s, s_x_r), 0),
+        torch.cat((d_m_t, d_m_s, d_m_r), 0),
+        torch.cat((s_m_t, s_m_s, s_m_r), 0),
+        torch.cat((m_t, m_s, m_r), 0),
     )
 
 
@@ -126,7 +135,7 @@ def batch_mask_space(
     [0 0 0 0]
     [0 0 0 0]
     repeated over all dynamic timesteps + channel groups and static channel groups
-    Operates over batches where each item in the batch has independently masked timesteps
+    Operates over batches where each item in the batch is independently masked
     """
     b, h, w, t, _ = dynamic_x.shape
     assert (h % patch_size == 0) and (w % patch_size == 0)
@@ -166,6 +175,59 @@ def batch_mask_space(
             "b h w -> b h w c_g",
             c_g=len(STATIC_BAND_GROUPS_IDX),
         )
+    ).to(static_x.device)
+
+    return MaskedOutput(dynamic_x, static_x, dynamic_mask, static_mask, months)
+
+
+def batch_mask_random(
+    dynamic_x: torch.Tensor,
+    static_x: torch.Tensor,
+    months: torch.Tensor,
+    mask_ratio: float,
+    patch_size: int,
+):
+    """
+    Masks out random tokens (blocks of of pxpx1x1).
+    e.g. if mask_ratio=0.25, h = w = 8 and p=2, then a mask (for one timestep)
+    and channel group) might be
+    [0 0 1 1]
+    [0 0 1 1]
+    [0 0 0 0]
+    [0 0 0 0]
+    Operates over batches where each item in the batch is independently masked
+    """
+    b, h, w, t, _ = dynamic_x.shape
+    c_d, c_s = len(DYNAMIC_BANDS_GROUPS_IDX), len(STATIC_BAND_GROUPS_IDX)
+    assert (h % patch_size == 0) and (w % patch_size == 0)
+    assert t == NUM_TIMESTEPS
+    h_p = int(h / patch_size)
+    w_p = int(w / patch_size)
+    num_dynamic_tokens, num_static_tokens = (h_p * w_p * t * c_d), (h_p * w_p * c_s)
+    total_tokens = num_dynamic_tokens + num_static_tokens
+    num_tokens_to_mask = int(total_tokens * mask_ratio)
+    # we do this as a numpy array to take advantage of
+    # numpy's permuted function
+    flat_tokens = np.concatenate(
+        (
+            np.ones(num_tokens_to_mask),
+            np.zeros(total_tokens - num_tokens_to_mask),
+        )
+    )
+    b_flat_tokens = repeat(flat_tokens, "t -> b t", b=b)
+    # hopefully this will allow for reproducibility, since random is seeded
+    rng = np.random.default_rng(random.randint(0, 100))
+    b_flat_tokens = rng.permuted(b_flat_tokens, axis=1)
+    d_tokens = b_flat_tokens[:, :num_dynamic_tokens]
+    d_tokens = rearrange(d_tokens, "b (h w t c) -> b h w t c", h=h_p, w=w_p, t=t, c=c_d)
+    dynamic_mask = torch.from_numpy(
+        np.repeat(np.repeat(d_tokens, repeats=patch_size, axis=1), repeats=patch_size, axis=2)
+    ).to(dynamic_x.device)
+
+    s_tokens = b_flat_tokens[:, num_dynamic_tokens:]
+    s_tokens = rearrange(s_tokens, "b (h w c) -> b h w c", h=h_p, w=w_p, c=c_s)
+    static_mask = torch.from_numpy(
+        np.repeat(np.repeat(s_tokens, repeats=patch_size, axis=1), repeats=patch_size, axis=2)
     ).to(static_x.device)
 
     return MaskedOutput(dynamic_x, static_x, dynamic_mask, static_mask, months)
