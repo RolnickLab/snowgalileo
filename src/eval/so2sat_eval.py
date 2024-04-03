@@ -21,7 +21,7 @@ from ..data.dataset import (
 from ..data.earthengine.s2 import S2_BANDS
 from ..flexipresto import Encoder
 from ..masked_datasets import MaskedOutput
-from ..utils import DEFAULT_SEED, data_dir, device
+from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
 from .eval import EvalTask, Hyperparams, model_class_name
 
 torch.multiprocessing.set_sharing_strategy("file_system")
@@ -48,25 +48,24 @@ class So2SatDataset(PyTorchDataset):
         self.split = split
         self.so2sat_dir = so2sat_dir
         self._len = None
-        self.images, self.labels = self.h5_to_eo_array()
         self.masks = self.create_so2sat_masks()
 
-    def h5_to_eo_array(self) -> Tuple[np.ndarray, np.ndarray]:
+    def h5_to_eo_array_and_label(self, idx) -> Tuple[np.ndarray, np.ndarray]:
         with h5py.File(data_dir / self.so2sat_dir / f"{self.split}.h5", "r") as data:
             assert data["sen1"].shape == (self.__len__(), 32, 32, 8)
             assert data["sen2"].shape == (self.__len__(), 32, 32, 10)
             assert data["label"].shape == (self.__len__(), 17)
 
             # so2sat provides 8 bands for sen1, we are interested in the filtered vh and vv bands (channel 4 and 5)
-            s1 = np.array(data["sen1"][:, :, :, 4:6])
+            s1 = np.array(data["sen1"][idx, :, :, 4:6])
             # sen2 bands provided by so2sat correspond to the bands used by presto
-            s2 = np.array(data["sen2"][:, :, :, :10])
+            s2 = np.array(data["sen2"][idx, :, :, :10])
 
-            labels = np.array(data["label"][:, :])
+            label = np.array(data["label"][idx, :])
 
-        images = np.concatenate([s1, s2], axis=-1)
+        image = np.concatenate([s1, s2], axis=-1)
 
-        return images, labels
+        return image, label
 
     def create_so2sat_masks(self) -> Tuple[np.ndarray, np.ndarray]:
         dynamic_channels = [idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S" in key]
@@ -113,8 +112,7 @@ class So2SatDataset(PyTorchDataset):
         return normalize_dynamic(eo_style_array)
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
-        image = self.images[idx]
-        label = self.labels[idx]
+        image, label = self.h5_to_eo_array_and_label(idx)
         d_x = self.image_to_dynamic_eo_array(image)
 
         # static bands are not provided by so2sat
@@ -123,12 +121,12 @@ class So2SatDataset(PyTorchDataset):
         d_m, s_m = self.masks
         month = np.zeros((self.num_timesteps,))
 
-        d_x_torch = torch.as_tensor(d_x, dtype=torch.float32)
-        s_x_torch = torch.as_tensor(s_x, dtype=torch.float32)
-        d_m_torch = torch.as_tensor(d_m, dtype=torch.float32)
-        s_m_torch = torch.as_tensor(s_m, dtype=torch.float32)
-        month_torch = torch.as_tensor(month, dtype=torch.long)
-        label_torch = torch.as_tensor(label, dtype=torch.long)
+        d_x_torch = masked_output_np_to_tensor(d_x, dtype=torch.float32)
+        s_x_torch = masked_output_np_to_tensor(s_x, dtype=torch.float32)
+        d_m_torch = masked_output_np_to_tensor(d_m, dtype=torch.float32)
+        s_m_torch = masked_output_np_to_tensor(s_m, dtype=torch.float32)
+        month_torch = masked_output_np_to_tensor(month, dtype=torch.long)
+        label_torch = masked_output_np_to_tensor(label, dtype=torch.long)
 
         return (MaskedOutput(d_x_torch, s_x_torch, d_m_torch, s_m_torch, month_torch), label_torch)
 

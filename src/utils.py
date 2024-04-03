@@ -29,6 +29,10 @@ def seed_everything(seed: int = DEFAULT_SEED):
     torch.backends.cudnn.benchmark = True
 
 
+def masked_output_np_to_tensor(arr: np.ndarray, dtype: torch.dtype) -> torch.Tensor:
+    return torch.as_tensor(arr, dytype=dtype)
+
+
 class AverageMeter:
     """computes and stores the average and current value"""
 

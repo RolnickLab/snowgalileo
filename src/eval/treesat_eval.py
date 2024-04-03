@@ -31,7 +31,7 @@ from ..data.dataset import (
 from ..data.earthengine.s2 import S2_BANDS
 from ..flexipresto import Encoder
 from ..masked_datasets import MaskedOutput
-from ..utils import DEFAULT_SEED, data_dir, device
+from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
 from .eval import EvalTask, Hyperparams, model_class_name
 
 treesat_dir = "treesat"
@@ -194,12 +194,12 @@ class TreeSatDataset(Dataset):
         d_m, s_m = self.masks
         month = np.ones((self.num_timesteps,)) * self.start_month
 
-        d_x_torch = torch.as_tensor(d_x, dtype=torch.float32)
-        s_x_torch = torch.as_tensor(s_x, dtype=torch.float32)
-        d_m_torch = torch.as_tensor(d_m, dtype=torch.float32)
-        s_m_torch = torch.as_tensor(s_m, dtype=torch.float32)
-        month_torch = torch.as_tensor(month, dtype=torch.long)
-        label_torch = torch.as_tensor(label, dtype=torch.long)
+        d_x_torch = masked_output_np_to_tensor(d_x, dtype=torch.float32)
+        s_x_torch = masked_output_np_to_tensor(s_x, dtype=torch.float32)
+        d_m_torch = masked_output_np_to_tensor(d_m, dtype=torch.float32)
+        s_m_torch = masked_output_np_to_tensor(s_m, dtype=torch.float32)
+        month_torch = masked_output_np_to_tensor(month, dtype=torch.long)
+        label_torch = masked_output_np_to_tensor(label, dtype=torch.long)
 
         return (MaskedOutput(d_x_torch, s_x_torch, d_m_torch, s_m_torch, month_torch), label_torch)
 
