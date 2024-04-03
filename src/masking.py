@@ -119,10 +119,13 @@ def batch_mask_space(
     patch_size: int,
 ):
     """
-    Masks out blocks of hxwx1xBAND_GROUPs.
-    e.g. if mask_ratio=0.25, then 1/4 of the timesteps
-    (and the static channel groups, with 1/4 probability) will be masked out
-
+    Masks out patches (blocks of of pxpxtxBAND_GROUPs).
+    e.g. if mask_ratio=0.25, h = w = 8 and p=2, then a mask might be:
+    [0 0 1 1]
+    [0 0 1 1]
+    [0 0 0 0]
+    [0 0 0 0]
+    repeated over all dynamic timesteps + channel groups and static channel groups
     Operates over batches where each item in the batch has independently masked timesteps
     """
     b, h, w, t, _ = dynamic_x.shape
