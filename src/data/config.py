@@ -1,7 +1,8 @@
 from pathlib import Path
 
 DAYS_PER_TIMESTEP = 30
-DEFAULT_NUM_TIMESTEPS = 12
+NUM_TIMESTEPS = 12
+DATASET_OUTPUT_HW = 128
 
 # TODO: Update when ERA5 gets updated
 START_YEAR = 2022
