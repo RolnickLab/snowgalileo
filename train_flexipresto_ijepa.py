@@ -45,7 +45,8 @@ num_epochs = 50
 batch_size = 64
 ema = (0.996, 1.0)
 mask_ratio = 0.5
-time_to_space_masking_ratio = 0.5
+time_masking_ratio = 0.25
+space_masking_ratio = 0.25
 spatial_patches_per_dim = 4
 patch_sizes = (1, 2, 3, 4, 5, 6, 7, 8)
 enc_embedding_size = 128
@@ -113,7 +114,13 @@ for e in tqdm(range(num_epochs)):
         image_size = patch_size * spatial_patches_per_dim
         d_x, s_x = subset_batch_of_images(d_x, s_x, image_size)
         d_x, s_x, d_m, s_m, months = batch_mask_presto(
-            d_x, s_x, months, mask_ratio, patch_size, time_to_space_masking_ratio
+            d_x,
+            s_x,
+            months,
+            mask_ratio,
+            patch_size,
+            time_ratio=time_masking_ratio,
+            space_ratio=space_masking_ratio,
         )
 
         # also transform to patch-space
