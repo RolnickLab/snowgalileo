@@ -30,7 +30,7 @@ def seed_everything(seed: int = DEFAULT_SEED):
     torch.backends.cudnn.benchmark = True
 
 
-def masked_ouptput_np_to_tensor(d_x, s_x, d_m, s_m, month) -> MaskedOutput:
+def masked_output_np_to_tensor(d_x, s_x, d_m, s_m, month) -> MaskedOutput:
     """converts eval task"""
     d_x_torch = torch.as_tensor(d_x, dtype=torch.float32)
     s_x_torch = torch.as_tensor(s_x, dtype=torch.float32)
