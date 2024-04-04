@@ -1,7 +1,6 @@
 import argparse
 import json
 import os
-from copy import deepcopy
 from pathlib import Path
 from typing import List, cast
 
@@ -55,7 +54,6 @@ args = argparser.parse_args().__dict__
 config = load_check_config(args["config_file"], "mae")
 training_config = config["training"]
 
-# this too
 run_id = None
 wandb_enabled = True
 wandb_org = "nasa-harvest"
@@ -72,7 +70,6 @@ dataloader = DataLoader(
 print("Loading models")
 encoder = Encoder(**config["model"]["encoder"]).to(device)
 predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
-target_encoder = deepcopy(encoder)
 print("Loading validation task")
 val_task = EuroSatEval(rgb=True)
 
@@ -89,6 +86,7 @@ if wandb_enabled:
         dir=output_dir,
     )
     run_id = cast(Run, run).id
+    config["training"]["training_samples"] = len(dataset)
     wandb.config.update(config)
 
 

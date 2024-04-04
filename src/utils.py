@@ -57,7 +57,6 @@ def load_check_config(name: str, mode: str):
     expected_training_keys_type = {
         "num_epochs": int,
         "batch_size": int,
-        "ema": list,
         "mask_ratio": float,
         "patch_sizes": list,
         "start_lr": float,
@@ -68,12 +67,8 @@ def load_check_config(name: str, mode: str):
         "time_ratio": float,
         "space_ratio": float,
     }
-    if mode == "mae":
-        expected_training_keys_type.update(
-            {
-                "mask_ratio": float,
-            }
-        )
+    if mode == "jepa":
+        expected_training_keys_type["ema"] = list
     training_dict = config["training"]
 
     for key, val in expected_training_keys_type.items():
