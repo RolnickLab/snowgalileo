@@ -2,7 +2,7 @@
     "training": {
         "num_epochs": 50,
         "batch_size": 16,
-        "mask_ratio": 0.75,
+        "ema": [0.996, 1.0],
         "patch_sizes": [1, 2, 3, 4, 5, 6, 7, 8],
         "start_lr": 0.0002,
         "max_lr": 0.001,
