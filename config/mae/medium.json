@@ -1,6 +1,6 @@
 {
     "training": {
-        "num_epochs": 50,
+        "num_epochs": 150,
         "batch_size": 16,
         "mask_ratio": 0.75,
         "patch_sizes": [1, 2, 3, 4, 5, 6, 7, 8],
