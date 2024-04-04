@@ -121,14 +121,9 @@ class So2SatDataset(PyTorchDataset):
         d_m, s_m = self.masks
         month = np.zeros((self.num_timesteps,))
 
-        d_x_torch = masked_output_np_to_tensor(d_x, dtype=torch.float32)
-        s_x_torch = masked_output_np_to_tensor(s_x, dtype=torch.float32)
-        d_m_torch = masked_output_np_to_tensor(d_m, dtype=torch.float32)
-        s_m_torch = masked_output_np_to_tensor(s_m, dtype=torch.float32)
-        month_torch = masked_output_np_to_tensor(month, dtype=torch.long)
-        label_torch = masked_output_np_to_tensor(label, dtype=torch.long)
+        label_torch = torch.tensor(label, dtype=torch.long)
 
-        return (MaskedOutput(d_x_torch, s_x_torch, d_m_torch, s_m_torch, month_torch), label_torch)
+        return (masked_output_np_to_tensor(d_x, s_x, d_m, s_m, month), label_torch)
 
     def __len__(self) -> int:
         if self._len is None:
