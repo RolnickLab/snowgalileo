@@ -65,7 +65,8 @@ def load_check_config(name: str, mode: str):
         "final_lr": float,
         "warmup_epochs": int,
         "eval_eurosat_every_n_epochs": int,
-        "time_to_space_masking_ratio": float,
+        "time_ratio": float,
+        "space_ratio": float,
     }
     if mode == "mae":
         expected_training_keys_type.update(

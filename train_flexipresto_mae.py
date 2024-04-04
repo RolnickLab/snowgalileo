@@ -113,7 +113,8 @@ for e in tqdm(range(training_config["num_epochs"])):
             months,
             training_config["mask_ratio"],
             patch_size,
-            training_config["time_to_space_masking_ratio"],
+            time_ratio=training_config["time_ratio"],
+            space_ratio=training_config["space_ratio"],
         )
 
         # also transform to pixel
