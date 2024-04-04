@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 from copy import deepcopy
@@ -27,7 +28,7 @@ from src.masking import (
     batch_mask_presto,
     subset_batch_of_images,
 )
-from src.utils import AverageMeter, data_dir, device, seed_everything
+from src.utils import AverageMeter, data_dir, device, load_check_config, seed_everything
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -47,19 +48,13 @@ torch.backends.cuda.matmul.allow_tf32 = True
 
 tracker.start()
 
-# this should live elsewhere
-num_epochs = 50
-batch_size = 16
-ema = (0.996, 1.0)
-mask_ratio = 0.75
-time_to_space_masking_ratio = 0.5
-spatial_patches_per_dim = 4
-patch_sizes = (1, 2, 3, 4, 5, 6, 7, 8)
-enc_embedding_size = 64
-dec_embedding_size = 64
-start_lr, max_lr, final_lr, warmup_epochs = 0.0002, 0.001, 1.0e-06, 3
-assert num_epochs > warmup_epochs
-eval_eurosat_every_n_epochs = 10
+argparser = argparse.ArgumentParser()
+argparser.add_argument("--config_file", type=str, default="default.json")
+args = argparser.parse_args().__dict__
+
+config = load_check_config(args["config_file"], "mae")
+training_config = config["training"]
+
 # this too
 run_id = None
 wandb_enabled = True
@@ -69,15 +64,14 @@ output_dir = Path(__file__).parent
 print("Loading dataset and dataloader")
 dataset = Dataset(DATA_FOLDER / "tifs", download=False, cache_folder=DATA_FOLDER / "npys")
 dataloader = DataLoader(
-    dataset, batch_size=batch_size, shuffle=True, num_workers=Hyperparams.num_workers
+    dataset,
+    batch_size=training_config["batch_size"],
+    shuffle=True,
+    num_workers=Hyperparams.num_workers,
 )
 print("Loading models")
-encoder = Encoder(embedding_size=enc_embedding_size).to(device)
-predictor = PrestoPixelDecoder(
-    encoder_embedding_size=enc_embedding_size,
-    decoder_embedding_size=dec_embedding_size,
-    max_patch_size=patch_sizes[-1],
-).to(device)
+encoder = Encoder(**config["model"]["encoder"]).to(device)
+predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
 target_encoder = deepcopy(encoder)
 print("Loading validation task")
 val_task = EuroSatEval(rgb=True)
@@ -95,34 +89,31 @@ if wandb_enabled:
         dir=output_dir,
     )
     run_id = cast(Run, run).id
-
-    training_config = {
-        "num_epochs": num_epochs,
-        "batch_size": batch_size,
-        "mask_ratio": mask_ratio,
-        "spatial_patches_per_dim": spatial_patches_per_dim,
-        "training_samples": len(dataset),
-    }
-    wandb.config.update(training_config)
+    wandb.config.update(config)
 
 
 param_groups = [{"params": encoder.parameters()}, {"params": predictor.parameters()}]
 
-optimizer = torch.optim.AdamW(param_groups, lr=start_lr)  # type: ignore
+optimizer = torch.optim.AdamW(param_groups, lr=training_config["start_lr"])  # type: ignore
 iterations_per_epoch = len(dataset)
 
-for e in tqdm(range(num_epochs)):
+for e in tqdm(range(training_config["num_epochs"])):
     train_loss = AverageMeter()
     for i, b in tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
         b = [t.to(device) for t in b]
         d_x, s_x, months = b
 
         # randomly sample a patch size, and a corresponding image size
-        patch_size = np.random.choice(patch_sizes)
-        image_size = patch_size * spatial_patches_per_dim
+        patch_size = np.random.choice(training_config["patch_sizes"])
+        image_size = patch_size * training_config["spatial_patches_per_dim"]
         d_x, s_x = subset_batch_of_images(d_x, s_x, image_size)
         d_x, s_x, d_m, s_m, months = batch_mask_presto(
-            d_x, s_x, months, mask_ratio, patch_size, time_to_space_masking_ratio
+            d_x,
+            s_x,
+            months,
+            training_config["mask_ratio"],
+            patch_size,
+            training_config["time_to_space_masking_ratio"],
         )
 
         # also transform to pixel
@@ -133,11 +124,11 @@ for e in tqdm(range(num_epochs)):
         adjust_learning_rate(
             optimizer,
             epoch=i / len(dataloader) + e,
-            warmup_epochs=warmup_epochs,
-            total_epochs=num_epochs,
-            max_lr=max_lr,
-            start_lr=start_lr,
-            min_lr=final_lr,
+            warmup_epochs=training_config["warmup_epochs"],
+            total_epochs=training_config["num_epochs"],
+            max_lr=training_config["max_lr"],
+            start_lr=training_config["start_lr"],
+            min_lr=training_config["final_lr"],
         )
 
         # generate the predictions. TODO: add layer norm
@@ -158,7 +149,7 @@ for e in tqdm(range(num_epochs)):
 
         # p_d and p_s always assume the maximum patch size, so we need to
         # resample if its smaller
-        if patch_size < patch_sizes[-1]:
+        if patch_size < training_config["patch_sizes"][-1]:
             t, d = d_x.shape[3], d_x.shape[4]
             p_d = rearrange(
                 resize(
@@ -187,7 +178,9 @@ for e in tqdm(range(num_epochs)):
     if wandb_enabled:
         wandb.log({"train_loss": train_loss.average})
 
-    if (eval_eurosat_every_n_epochs != 0) and (e % eval_eurosat_every_n_epochs == 0):
+    if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
+        e % training_config["eval_eurosat_every_n_epochs"] == 0
+    ):
         results = val_task.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
         wandb.log(results)
 
