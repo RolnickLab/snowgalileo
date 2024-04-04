@@ -66,6 +66,7 @@ def load_check_config(name: str, mode: str):
         "eval_eurosat_every_n_epochs": int,
         "time_ratio": float,
         "space_ratio": float,
+        "spatial_patches_per_dim": int
     }
     if mode == "jepa":
         expected_training_keys_type["ema"] = list
