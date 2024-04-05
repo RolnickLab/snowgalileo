@@ -36,7 +36,7 @@ class TestPastis(unittest.TestCase):
         )
         self.assertFalse(torch.any(torch.isnan(dynamic_x)))
 
-    def check_static(self, static_x, static_m, num_timesteps):
+    def check_static(self, static_x, static_m):
         self.assertEqual(
             static_x.shape,
             (
