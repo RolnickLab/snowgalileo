@@ -1,5 +1,5 @@
 import json
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, cast
 
 import geopandas as gpd
 import numpy as np
@@ -78,7 +78,7 @@ class PastisDataset(PyTorchDataset):
         return np.array(months)
 
     def get_pastis_norm(self):
-        with open((data_dir / self.data_path / "NORM_S2_patch.json"), "r") as file:
+        with open((data_dir / cast(str, self.data_path) / "NORM_S2_patch.json"), "r") as file:
             normvals = json.loads(file.read())
         means = [normvals["Fold_{}".format(f)]["mean"] for f in self.folds]
         stds = [normvals["Fold_{}".format(f)]["std"] for f in self.folds]
@@ -111,9 +111,9 @@ class PastisDataset(PyTorchDataset):
         return (dynamic_mask, static_mask)
 
     def get_dynamic_eo_array_and_timesteps(self, id) -> Tuple[np.ndarray, np.ndarray]:
-        data = np.load(data_dir / self.data_path / "DATA_S2" / "S2_{}.npy".format(id)).astype(
-            np.float32
-        )
+        data = np.load(
+            data_dir / cast(str, self.data_path) / "DATA_S2/S2_{}.npy".format(id)
+        ).astype(np.float32)
         # data comes in shape T x C x H x W
         num_timesteps = data.shape[0]
 
