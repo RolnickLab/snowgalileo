@@ -4,7 +4,7 @@ Only the S2 data is used.
 
 References:
 
-´´´
+```
 @article{garnot2021panoptic,
   title={Panoptic Segmentation of Satellite Image Time Series
 with Convolutional Temporal Attention Networks},
@@ -12,8 +12,8 @@ with Convolutional Temporal Attention Networks},
   journal={ICCV},
   year={2021}
 }
-´´´
-´´´
+```
+```
 @article{garnot2021mmfusion,
   title    = {Multi-modal temporal attention models for crop mapping from satellite time series},
   journal  = {ISPRS Journal of Photogrammetry and Remote Sensing},
@@ -21,4 +21,4 @@ with Convolutional Temporal Attention Networks},
   doi      = {https://doi.org/10.1016/j.isprsjprs.2022.03.012},
   author   = {Vivien {Sainte Fare Garnot} and Loic Landrieu and Nesrine Chehata},
 }
-´´´
+```
