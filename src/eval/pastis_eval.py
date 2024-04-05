@@ -58,7 +58,7 @@ class PastisDataset(PyTorchDataset):
 
         self.data_path = data_path
 
-        self.metadata = gpd.read_file(data_dir / self.data_path / "metadata.geojson")
+        self.metadata = gpd.read_file(data_dir / cast(str, self.data_path) / "metadata.geojson")
         self.metadata.index = self.metadata["ID_PATCH"].astype(int)
         self.metadata.sort_index(inplace=True)
 
@@ -135,7 +135,7 @@ class PastisDataset(PyTorchDataset):
         return eo_style_array, num_timesteps
 
     def get_target(self, id):
-        target = np.load(data_dir / self.data_path / "ANNOTATIONS/TARGET_{}.npy".format(id))
+        target = np.load(data_dir / cast(str, self.data_path) / "ANNOTATIONS/TARGET_{}.npy".format(id))
         return torch.from_numpy(target[0].astype(int))
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
