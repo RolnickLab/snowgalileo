@@ -74,10 +74,12 @@ def load_check_config(name: str, mode: str):
 
     for key, val in expected_training_keys_type.items():
         assert key in training_dict, f"Expected {key} in training dict"
-        assert isinstance(training_dict[key], val)
+        assert isinstance(training_dict[key], val)  # type: ignore
 
     if isinstance(training_dict["warmup_epochs"], float):
-        training_dict["warmup_epochs"] = int(training_dict["warmup_epochs"] * training_dict["num_epochs"])
+        training_dict["warmup_epochs"] = int(
+            training_dict["warmup_epochs"] * training_dict["num_epochs"]
+        )
     assert isinstance(training_dict["warmup_epochs"], int)
     assert training_dict["num_epochs"] > training_dict["warmup_epochs"]
 
