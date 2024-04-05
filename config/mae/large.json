@@ -7,7 +7,7 @@
         "start_lr": 0.0002,
         "max_lr": 0.001,
         "final_lr": 1.0e-06,
-        "warmup_epochs": 3,
+        "warmup_epochs": 0.1,
         "eval_eurosat_every_n_epochs": 10,
         "time_ratio": 0.34,
         "space_ratio": 0.34,

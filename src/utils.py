@@ -62,7 +62,7 @@ def load_check_config(name: str, mode: str):
         "start_lr": float,
         "max_lr": float,
         "final_lr": float,
-        "warmup_epochs": int,
+        "warmup_epochs": (int, float),
         "eval_eurosat_every_n_epochs": int,
         "time_ratio": float,
         "space_ratio": float,
@@ -75,6 +75,10 @@ def load_check_config(name: str, mode: str):
     for key, val in expected_training_keys_type.items():
         assert key in training_dict, f"Expected {key} in training dict"
         assert isinstance(training_dict[key], val)
+
+    if isinstance(training_dict["warmup_epochs"], float):
+        training_dict["warmup_epochs"] = int(training_dict["warmup_epochs"] * training_dict["num_epochs"])
+    assert isinstance(training_dict["warmup_epochs"], int)
     assert training_dict["num_epochs"] > training_dict["warmup_epochs"]
 
     expected_encoder_decoder_keys_type = {
