@@ -1,18 +1,13 @@
 import json
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import List, Optional, Tuple
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import torch.multiprocessing
 from einops import repeat
-from sklearn.base import BaseEstimator
-from sklearn.metrics import accuracy_score
-from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as PyTorchDataset
-from tqdm import tqdm
 
-from ...local.eval import EvalTask, Hyperparams, model_class_name
 from ..data.dataset import (
     DYNAMIC_BANDS,
     DYNAMIC_BANDS_GROUPS_IDX,
@@ -20,9 +15,8 @@ from ..data.dataset import (
     STATIC_BANDS,
 )
 from ..data.earthengine.s2 import S2_BANDS
-from ..flexipresto import Encoder
 from ..masking import MaskedOutput
-from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
+from ..utils import data_dir, masked_output_np_to_tensor
 
 ### SETUP
 torch.multiprocessing.set_sharing_strategy("file_system")
@@ -57,9 +51,10 @@ class PastisDataset(PyTorchDataset):
     def __init__(
         self,
         folds: List[int],
-        data_path: Optional[str] = "pastis/PASTIS_R",
+        data_path: Optional[str] = "pastis/PASTIS-R",
     ):
-        assert folds in [1, 2, 3, 4, 5]
+        self.folds = folds
+        assert all(fold in [1, 2, 3, 4, 5] for fold in self.folds)
 
         self.data_path = data_path
 
@@ -67,12 +62,10 @@ class PastisDataset(PyTorchDataset):
         self.metadata.index = self.metadata["ID_PATCH"].astype(int)
         self.metadata.sort_index(inplace=True)
 
-        self.metadata = pd.concat([self.meta_patch[self.meta_patch["Fold"] == f] for f in folds])
+        self.metadata = pd.concat([self.metadata[self.metadata["Fold"] == f] for f in folds])
         self.norm = self.get_pastis_norm()
 
         self.id = self.metadata.index
-
-        self.masks = self.create_pastis_masks()
 
     def get_months_from_metadata(self, id) -> np.ndarray:
         dates = self.metadata["dates-S2"][id]
@@ -82,7 +75,7 @@ class PastisDataset(PyTorchDataset):
 
         assert all(1 <= month <= 12 for month in months)
 
-        return np.ndarray(months)
+        return np.array(months)
 
     def get_pastis_norm(self):
         with open((data_dir / self.data_path / "NORM_S2_patch.json"), "r") as file:
@@ -92,7 +85,7 @@ class PastisDataset(PyTorchDataset):
 
         return np.stack(means).mean(axis=0), np.stack(stds).mean(axis=0)
 
-    def create_pastis_masks(self) -> Tuple[np.ndarray, np.ndarray]:
+    def create_pastis_masks(self, num_timesteps) -> Tuple[np.ndarray, np.ndarray]:
         dynamic_channels = [idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" in key]
 
         # everything is masked by default
@@ -100,7 +93,11 @@ class PastisDataset(PyTorchDataset):
         # unmask available bands
         dynamic_mask[dynamic_channels] = 0
         dynamic_mask = repeat(
-            dynamic_mask, "d -> h w t d", h=self.input_height_width, w=self.input_height_width, t=1
+            dynamic_mask,
+            "d -> h w t d",
+            h=self.input_height_width,
+            w=self.input_height_width,
+            t=num_timesteps,
         )
 
         # no static channels are available
@@ -113,8 +110,8 @@ class PastisDataset(PyTorchDataset):
 
         return (dynamic_mask, static_mask)
 
-    def get_dynamic_eo_array(self, id) -> Tuple[np.ndarray, np.ndarray]:
-        data = np.load(data_dir / self.data_path / "DATA_S2/S2_{}.npy".format(id)).astype(
+    def get_dynamic_eo_array_and_timesteps(self, id) -> Tuple[np.ndarray, np.ndarray]:
+        data = np.load(data_dir / self.data_path / "DATA_S2" / "S2_{}.npy".format(id)).astype(
             np.float32
         )
         # data comes in shape T x C x H x W
@@ -133,24 +130,24 @@ class PastisDataset(PyTorchDataset):
                 len(DYNAMIC_BANDS),
             ]
         )
-        eo_style_array[:, :, :, :, kept_dynamic_bands] = repeat(data, "t c h w -> h w t c")
+        eo_style_array[:, :, :, kept_dynamic_bands] = repeat(data, "t c h w -> h w t c")
 
-        return eo_style_array
+        return eo_style_array, num_timesteps
 
     def get_target(self, id):
-        target = np.load(self.data_path / "ANNOTATIONS/TARGET_{}.npy".format(id))
+        target = np.load(data_dir / self.data_path / "ANNOTATIONS/TARGET_{}.npy".format(id))
         return torch.from_numpy(target[0].astype(int))
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         id = self.id[idx]
 
-        d_x = self.get_dynamic_eo_array(id)
+        d_x, num_timesteps = self.get_dynamic_eo_array_and_timesteps(id)
         target = self.get_target(id)
 
         # static bands are not provided by pastis
         s_x = np.zeros((d_x.shape[0], d_x.shape[1], len(STATIC_BANDS)))
 
-        d_m, s_m = self.masks
+        d_m, s_m = self.create_pastis_masks(num_timesteps)
         months = self.get_months_from_metadata(id)
 
         return (masked_output_np_to_tensor(d_x, s_x, d_m, s_m, months), target)

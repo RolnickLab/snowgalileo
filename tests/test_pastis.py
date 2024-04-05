@@ -62,19 +62,21 @@ class TestPastis(unittest.TestCase):
         self.assertEqual(month.shape, (num_timesteps,))
 
     def check_target(self, labels):
-        self.assertTrue(labels in PastisDataset.labels_to_int.values())
+        self.assertTrue(
+            torch.all(torch.isin(labels, torch.tensor(list(PastisDataset.labels_to_int.values()))))
+        )
 
     def test_pastis_dataset(self):
-        dataset = PastisDataset(folds=[1, 2, 3], data_path=DATA_FOLDER)
+        dataset = PastisDataset(folds=[1, 2, 3])
         sample = dataset[0]
         d_x, s_x, d_m, s_m, m = sample[0]
         label = sample[1]
         num_timesteps = d_x.shape[2]
 
         self.check_dynamic(dynamic_x=d_x, dynamic_m=d_m, num_timesteps=num_timesteps)
-        self.check_static(static_x=s_x, static_m=s_m, num_timesteps=num_timesteps)
+        self.check_static(static_x=s_x, static_m=s_m)
         self.check_month(month=m, num_timesteps=num_timesteps)
-        self.check_target(label=label)
+        self.check_target(labels=label)
 
         # will test if the right channels are masked out
         present_bands = [idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" in key]
