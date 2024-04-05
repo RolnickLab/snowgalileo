@@ -67,7 +67,7 @@ class TestPastis(unittest.TestCase):
         )
 
     def test_pastis_dataset(self):
-        dataset = PastisDataset(folds=[1, 2, 3])
+        dataset = PastisDataset(folds=[1, 2, 3], data_path=DATA_FOLDER)
         sample = dataset[0]
         d_x, s_x, d_m, s_m, m = sample[0]
         label = sample[1]
