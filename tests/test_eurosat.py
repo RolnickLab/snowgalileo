@@ -63,11 +63,8 @@ class TestEuroSat(unittest.TestCase):
         # no month in eurosat so set to zero
         self.assertEqual(month[0], 0)
 
-    def check_label(self, label=None):
-        if label is None:
-            self.skipTest("Initially skipping label check")
-        # labels are one-hot encoded
-        self.assertTrue(torch.all(torch.logical_or(label == 0, label == 1)))
+    def check_label(self, label):
+        self.assertTrue(label in EuroSatDataset.labels_to_int.values())
 
     def test_eurosat_dataset_rgb(self):
         dataset = EuroSatDataset(rgb=True, split="test", tif_files_dir=DATA_FOLDER)

@@ -18,7 +18,7 @@ from wandb.sdk.wandb_run import Run
 from src.config import DEFAULT_SEED
 from src.data import Dataset
 from src.data.config import DATA_FOLDER, EE_PROJECT
-from src.eval import EuroSatEval, TreeSatEval
+from src.eval import EuroSatEval, So2SatEval, TreeSatEval
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
 from src.masking import (
@@ -196,12 +196,14 @@ for e in tqdm(range(num_epochs)):
 
     if (eval_eurosat_every_n_epochs != 0) and (e % eval_eurosat_every_n_epochs == 0):
         results = val_task.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
-        wandb.log(results)
+        if wandb_enabled:
+            wandb.log(results)
 
 
 eval_tasks: List[EvalTask] = [
     *[TreeSatEval(mode) for mode in ["s1", "s2", "combined"]],
     *[EuroSatEval(rgb) for rgb in [True, False]],
+    *[So2SatEval()],
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)
