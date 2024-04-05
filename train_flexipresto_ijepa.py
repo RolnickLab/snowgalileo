@@ -182,7 +182,7 @@ for e in tqdm(range(training_config["num_epochs"])):
 
 
 eval_tasks: List[EvalTask] = [
-    *[TreeSatEval(mode) for mode in ["s1", "s2", "combined"]],
+    *[TreeSatEval(mode, patch_size) for mode in ["s1", "s2", "combined"] for patch_size in [6, 3]],
     *[EuroSatEval(rgb) for rgb in [True, False]],
 ]
 for task in eval_tasks:
