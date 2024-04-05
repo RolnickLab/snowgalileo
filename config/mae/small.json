@@ -16,13 +16,13 @@
     "model": {
         "encoder": {
             "embedding_size": 128,
-            "depth": 4,
+            "depth": 2,
             "mlp_ratio": 4,
             "num_heads": 8,
             "max_sequence_length": 24
         },
         "decoder": {
-            "embedding_size": 64,
+            "embedding_size": 128,
             "depth": 2,
             "mlp_ratio": 4,
             "num_heads": 8,

@@ -48,7 +48,7 @@ torch.backends.cuda.matmul.allow_tf32 = True
 tracker.start()
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument("--config_file", type=str, default="default.json")
+argparser.add_argument("--config_file", type=str, default="small.json")
 args = argparser.parse_args().__dict__
 
 config = load_check_config(args["config_file"], "mae")
