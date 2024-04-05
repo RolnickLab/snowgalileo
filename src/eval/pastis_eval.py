@@ -135,7 +135,9 @@ class PastisDataset(PyTorchDataset):
         return eo_style_array, num_timesteps
 
     def get_target(self, id):
-        target = np.load(data_dir / cast(str, self.data_path) / "ANNOTATIONS/TARGET_{}.npy".format(id))
+        target = np.load(
+            data_dir / cast(str, self.data_path) / "ANNOTATIONS/TARGET_{}.npy".format(id)
+        )
         return torch.from_numpy(target[0].astype(int))
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
