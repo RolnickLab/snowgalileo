@@ -1,0 +1,159 @@
+import json
+from typing import Dict, List, Optional, Sequence, Tuple
+
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+import torch.multiprocessing
+from einops import repeat
+from sklearn.base import BaseEstimator
+from sklearn.metrics import accuracy_score
+from torch.utils.data import DataLoader
+from torch.utils.data import Dataset as PyTorchDataset
+from tqdm import tqdm
+
+from ...local.eval import EvalTask, Hyperparams, model_class_name
+from ..data.dataset import (
+    DYNAMIC_BANDS,
+    DYNAMIC_BANDS_GROUPS_IDX,
+    STATIC_BAND_GROUPS_IDX,
+    STATIC_BANDS,
+)
+from ..data.earthengine.s2 import S2_BANDS
+from ..flexipresto import Encoder
+from ..masking import MaskedOutput
+from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
+
+### SETUP
+torch.multiprocessing.set_sharing_strategy("file_system")
+
+
+class PastisDataset(PyTorchDataset):
+    labels_to_int = {
+        "Background": 0,
+        "Meadow": 1,
+        "SoftWinterWheat": 2,
+        "Corn": 3,
+        "WinterBarley": 4,
+        "WinterRapeseed": 5,
+        "SpringBarley": 6,
+        "Sunflower": 7,
+        "Grapevine": 8,
+        "Beet": 9,
+        "WinterTriticale": 10,
+        "WinterDurumWheat": 11,
+        "FruitsVegetablesFlowers": 12,
+        "Potatoes": 13,
+        "LeguminousFodder": 14,
+        "Soybeans": 15,
+        "Orchard": 16,
+        "MixedCereal": 17,
+        "Sorghum": 18,
+        "VoidLabel": 19,
+    }
+
+    input_height_width = 128
+
+    def __init__(
+        self,
+        folds: List[int],
+        data_path: Optional[str] = "pastis/PASTIS_R",
+    ):
+        assert folds in [1, 2, 3, 4, 5]
+
+        self.data_path = data_path
+
+        self.metadata = gpd.read_file(data_dir / self.data_path / "metadata.geojson")
+        self.metadata.index = self.metadata["ID_PATCH"].astype(int)
+        self.metadata.sort_index(inplace=True)
+
+        self.metadata = pd.concat([self.meta_patch[self.meta_patch["Fold"] == f] for f in folds])
+        self.norm = self.get_pastis_norm()
+
+        self.id = self.metadata.index
+
+        self.masks = self.create_pastis_masks()
+
+    def get_months_from_metadata(self, id) -> np.ndarray:
+        dates = self.metadata["dates-S2"][id]
+
+        # the dates are in the format YYYYMMDD
+        months = [int(str(value)[4:6]) for _, value in dates.items()]
+
+        assert all(1 <= month <= 12 for month in months)
+
+        return np.ndarray(months)
+
+    def get_pastis_norm(self):
+        with open((data_dir / self.data_path / "NORM_S2_patch.json"), "r") as file:
+            normvals = json.loads(file.read())
+        means = [normvals["Fold_{}".format(f)]["mean"] for f in self.folds]
+        stds = [normvals["Fold_{}".format(f)]["std"] for f in self.folds]
+
+        return np.stack(means).mean(axis=0), np.stack(stds).mean(axis=0)
+
+    def create_pastis_masks(self) -> Tuple[np.ndarray, np.ndarray]:
+        dynamic_channels = [idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" in key]
+
+        # everything is masked by default
+        dynamic_mask = np.ones([len(DYNAMIC_BANDS_GROUPS_IDX)])
+        # unmask available bands
+        dynamic_mask[dynamic_channels] = 0
+        dynamic_mask = repeat(
+            dynamic_mask, "d -> h w t d", h=self.input_height_width, w=self.input_height_width, t=1
+        )
+
+        # no static channels are available
+        static_mask = np.ones(
+            [self.input_height_width, self.input_height_width, len(STATIC_BAND_GROUPS_IDX)]
+        )
+
+        assert ((dynamic_mask == 0) | (dynamic_mask == 1)).all()
+        assert (static_mask == 1).all()
+
+        return (dynamic_mask, static_mask)
+
+    def get_dynamic_eo_array(self, id) -> Tuple[np.ndarray, np.ndarray]:
+        data = np.load(data_dir / self.data_path / "DATA_S2/S2_{}.npy".format(id)).astype(
+            np.float32
+        )
+        # data comes in shape T x C x H x W
+        num_timesteps = data.shape[0]
+
+        # apply normalization
+        data = (data - self.norm[0][None, :, None, None]) / self.norm[1][None, :, None, None]
+
+        kept_dynamic_bands = [idx for idx, x in enumerate(DYNAMIC_BANDS) if (x in S2_BANDS)]
+
+        eo_style_array = np.zeros(
+            [
+                self.input_height_width,
+                self.input_height_width,
+                num_timesteps,
+                len(DYNAMIC_BANDS),
+            ]
+        )
+        eo_style_array[:, :, :, :, kept_dynamic_bands] = repeat(data, "t c h w -> h w t c")
+
+        return eo_style_array
+
+    def get_target(self, id):
+        target = np.load(self.data_path / "ANNOTATIONS/TARGET_{}.npy".format(id))
+        return torch.from_numpy(target[0].astype(int))
+
+    def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
+        id = self.id[idx]
+
+        d_x = self.get_dynamic_eo_array(id)
+        target = self.get_target(id)
+
+        # static bands are not provided by pastis
+        s_x = np.zeros((d_x.shape[0], d_x.shape[1], len(STATIC_BANDS)))
+
+        d_m, s_m = self.masks
+        months = self.get_months_from_metadata(id)
+
+        return (masked_output_np_to_tensor(d_x, s_x, d_m, s_m, months), target)
+
+    def __len__(self):
+        return self.metadata.shape[0]
