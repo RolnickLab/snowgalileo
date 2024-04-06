@@ -16,7 +16,7 @@ from wandb.sdk.wandb_run import Run
 from src.config import DEFAULT_SEED
 from src.data import Dataset
 from src.data.config import DATA_FOLDER, EE_PROJECT
-from src.eval import EuroSatEval, So2SatEval, TreeSatEval
+from src.eval import EuroSatEval, PastisEval, So2SatEval, TreeSatEval
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoRepresentationDecoder, adjust_learning_rate
 from src.masking import batch_mask_presto, subset_batch_of_images
@@ -187,6 +187,7 @@ for e in tqdm(range(num_epochs)):
 
 
 eval_tasks: List[EvalTask] = [
+    *[PastisEval()],
     *[TreeSatEval(mode) for mode in ["s1", "s2", "combined"]],
     *[EuroSatEval(rgb) for rgb in [True, False]],
     *[So2SatEval()],
