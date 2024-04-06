@@ -1,6 +1,7 @@
 import collections.abc
 import itertools
 import math
+from copy import deepcopy
 from typing import Any, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -757,3 +758,43 @@ class PrestoRepresentationDecoder(FlexiPrestoBase):
             dynamic_mask,
             static_mask,
         )
+
+
+class FinetuningHead(nn.Module):
+    def __init__(self, hidden_size: int, num_outputs: int, regression: bool) -> None:
+        super().__init__()
+
+        self.hidden_size = hidden_size
+        self.num_outputs = num_outputs
+        self.regression = regression
+        self.linear = nn.Linear(hidden_size, num_outputs)
+
+    def forward(self, x: torch.Tensor):
+        x = self.linear(x)
+        if (not self.regression) & (self.num_outputs == 1):
+            x = torch.sigmoid(x)
+        return x
+
+
+class PrestoFineTuningModel(nn.Module):
+    def __init__(self, encoder, head):
+        self.encoder: Encoder = deepcopy(encoder)
+        # model should be trainable but not position and month encoder
+        self.encoder.requires_grad_(True)
+        self.encoder.pos_embed.requires_grad_(False)
+        self.encoder.month_embed.requires_grad_(False)
+        self.head = head
+
+    def forward(
+        self,
+        dynamic_x: torch.Tensor,
+        static_x: torch.Tensor,
+        dynamic_mask: torch.Tensor,
+        static_mask: torch.Tensor,
+        months: torch.Tensor,
+        patch_size: Optional[int] = None,
+    ) -> torch.Tensor:
+        d_x, s_x, d_m, s_m, _ = self.encoder(
+            dynamic_x, static_x, dynamic_mask, static_mask, months, patch_size
+        )
+        return self.head(self.encoder.average_tokens(d_x, s_x, d_m, s_m))

@@ -1,12 +1,15 @@
 import json
-from typing import List, Optional, Tuple, cast
+from typing import Dict, List, Optional, Tuple, cast
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import torch.multiprocessing
 from einops import repeat
+from sklearn.metrics import jaccard_score
+from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as PyTorchDataset
+from tqdm import tqdm
 
 from ..data.dataset import (
     DYNAMIC_BANDS,
@@ -15,8 +18,10 @@ from ..data.dataset import (
     STATIC_BANDS,
 )
 from ..data.earthengine.s2 import S2_BANDS
+from ..flexipresto import Encoder, PrestoFineTuningModel
 from ..masking import MaskedOutput
-from ..utils import data_dir, masked_output_np_to_tensor
+from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
+from .eval import EvalTask, Hyperparams
 
 ### SETUP
 torch.multiprocessing.set_sharing_strategy("file_system")
@@ -156,3 +161,79 @@ class PastisDataset(PyTorchDataset):
 
     def __len__(self):
         return self.metadata.shape[0]
+
+
+class PastisEval(EvalTask):
+    name = "pastis"
+    regression = False
+    multilabel = False
+
+    def __init__(self, patch_size: int = 8, seed=DEFAULT_SEED):
+        super().__init__(patch_size, seed)
+
+    def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
+        return {
+            f"{self.name}: {model_name}_iou": jaccard_score(target, preds),
+        }
+
+    @torch.no_grad()
+    def _evaluate_model(self, finetuned_model: PrestoFineTuningModel) -> Dict:
+        test_dl = DataLoader(
+            PastisDataset(folds=[5]),
+            batch_size=Hyperparams.batch_size,
+            shuffle=False,
+            num_workers=Hyperparams.num_workers,
+        )
+        pred_list = []
+
+        labels_list = []
+
+        for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
+            d_x, s_x, d_m, s_m, months = [t.to(device) for t in masked_output]
+
+            labels_list.append(label.cpu().numpy())
+
+            finetuned_model.eval()
+
+            with torch.no_grad():
+                preds = (
+                    finetuned_model(d_x, s_x, d_m, s_m, months, patch_size=self.patch_size)
+                    .cpu()
+                    .numpy()
+                )
+
+            pred_list.append(preds)
+
+        target = np.concatenate(labels_list)
+        results_dict = {}
+
+        test_preds_np = np.concatenate(pred_list, axis=0)
+        prefix = "finetuned"
+        results_dict.update(self.compute_metrics(prefix, test_preds_np, target))
+
+        return results_dict
+
+    def evaluate_model_on_task(
+        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
+    ) -> Dict:
+        if model_modes is None:
+            model_modes = ["finetune"]
+        for model_mode in model_modes:
+            assert model_mode in ["finetune"]
+
+        train_dl = DataLoader(
+            PastisDataset(folds=[1, 2, 3]),
+            batch_size=Hyperparams.batch_size,
+            shuffle=True,
+            num_workers=Hyperparams.num_workers,
+        )
+
+        val_dl = DataLoader(
+            PastisDataset(folds=[4]),
+            batch_size=Hyperparams.batch_size,
+            shuffle=False,
+            num_workers=Hyperparams.num_workers,
+        )
+
+        finetuned_model = self.finetune_presto(train_dl, val_dl, pretrained_model)
+        return self._evaluate_model(finetuned_model)
