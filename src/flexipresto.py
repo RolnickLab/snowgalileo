@@ -777,7 +777,7 @@ class FinetuningHead(nn.Module):
         self.segmentation = segmentation
         self.input_height_width = input_height_width
 
-    def forward(self, x: torch.Tensor, patch_size: int):
+    def forward(self, x: torch.Tensor):
         if self.segmentation:
             pixels_per_image = self.input_height_width**2
             linear = nn.Linear(self.hidden_size, pixels_per_image * self.num_outputs)
@@ -806,6 +806,7 @@ class FinetuningHead(nn.Module):
 
 class PrestoFineTuningModel(nn.Module):
     def __init__(self, encoder, head):
+        super().__init__()
         self.encoder: Encoder = deepcopy(encoder)
         # model should be trainable but not position and month encoder
         self.encoder.requires_grad_(True)
