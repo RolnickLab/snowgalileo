@@ -763,7 +763,6 @@ class PrestoRepresentationDecoder(FlexiPrestoBase):
 class FinetuningHead(nn.Module):
     def __init__(
         self,
-        hidden_size: int,
         num_outputs: int,
         regression: bool,
         segmentation: bool,
@@ -771,7 +770,6 @@ class FinetuningHead(nn.Module):
     ) -> None:
         super().__init__()
 
-        self.hidden_size = hidden_size
         self.num_outputs = num_outputs
         self.regression = regression
         self.segmentation = segmentation

@@ -72,7 +72,6 @@ class EvalTask(ABC):
     ) -> PrestoFineTuningModel:
         head = FinetuningHead(
             num_outputs=cls.num_outputs,
-            hidden_size=pretrained_model.embedding_size,
             regression=cls.regression,
             segmentation=cls.segmentation,
             input_height_width=cls.input_height_width,
