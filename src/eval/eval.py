@@ -23,8 +23,8 @@ logger = logging.getLogger("__main__")
 
 @dataclass
 class Hyperparams:
-    batch_size: int = 1000
-    num_workers: int = 2
+    batch_size: int = 64
+    num_workers: int = 0
     max_epochs: int = 1
     patience: int = 10
     finetuning_lr: float = 3e-4

@@ -777,24 +777,55 @@ class FinetuningHead(nn.Module):
         self.segmentation = segmentation
         self.input_height_width = input_height_width
 
-    def forward(self, x: torch.Tensor):
+    @staticmethod
+    def concatenate_input_and_apply_mask(
+        d_x: torch.Tensor, s_x: torch.Tensor, d_m: torch.Tensor, s_m: torch.Tensor
+    ):
+        d_x = rearrange(d_x, "b h w t c_g d -> b (h w) (t c_g) d")
+        s_x = rearrange(s_x, "b h w c_g d -> b (h w) c_g d")
+        d_m = rearrange(d_m, "b h w t c_g-> b (h w) (t c_g)")
+        s_m = rearrange(s_m, "b h w c_g-> b (h w) c_g")
+
+        x = torch.cat([d_x, s_x], dim=2)  # B, S, N, D
+        m = torch.cat([d_m, s_m], dim=2)  # B, S, N
+        x = x * (1 - m.unsqueeze(-1))
+
+        # collapse time and channel groups to get the same prediction for each timestep and channel group
+        x = rearrange(x, "b hw tc d -> b hw (tc d)")
+
+        return x
+
+    def forward(
+        self,
+        d_x: torch.Tensor,
+        s_x: torch.Tensor,
+        d_m: torch.Tensor,
+        s_m: torch.Tensor,
+        patch_size: int,
+    ):
+        x = self.concatenate_input_and_apply_mask(d_x, s_x, d_m, s_m)
+        num_patches = self.input_height_width / patch_size
+        patch_vector_length = x.shape[-1]
+
         if self.segmentation:
-            pixels_per_image = self.input_height_width**2
-            linear = nn.Linear(self.hidden_size, pixels_per_image * self.num_outputs)
+            linear = nn.Linear(patch_vector_length, patch_size * patch_size * self.num_outputs)
 
+            # map from (t c_g d) to (o i j)
             x = linear(x)
-
             # bring back to pixel space
             x = rearrange(
                 x,
-                "b (h w o) -> b h w o",
-                h=self.input_height_width,
-                w=self.input_height_width,
+                "b (h w) (o i j) -> b o (h i) (w j)",
+                h=num_patches,
+                w=num_patches,
                 o=self.num_outputs,
+                i=patch_size,
+                j=patch_size,
             )
+
         else:
             # classification or regression
-            linear = nn.Linear(self.hidden_size, self.num_outputs)
+            linear = nn.Linear(patch_vector_length, self.num_outputs)
 
             x = linear(x)
 
@@ -826,4 +857,4 @@ class PrestoFineTuningModel(nn.Module):
         d_x, s_x, d_m, s_m, _ = self.encoder(
             dynamic_x, static_x, dynamic_mask, static_mask, months, patch_size
         )
-        return self.head(self.encoder.average_tokens(d_x, s_x, d_m, s_m))
+        return self.head(d_x, s_x, d_m, s_m, patch_size)
