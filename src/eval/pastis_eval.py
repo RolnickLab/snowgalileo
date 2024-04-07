@@ -167,6 +167,9 @@ class PastisEval(EvalTask):
     name = "pastis"
     regression = False
     multilabel = False
+    segmentation = True
+    num_outputs = len(PastisDataset.labels_to_int)
+    input_height_width = PastisDataset.input_height_width
 
     def __init__(self, patch_size: int = 8, seed=DEFAULT_SEED):
         super().__init__(patch_size, seed)

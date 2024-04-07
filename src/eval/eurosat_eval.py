@@ -204,7 +204,10 @@ class EuroSatDataset(PyTorchDataset):
 class EuroSatEval(EvalTask):
     name = "eurosat"
     regression = False
+    segmentation = False
     multilabel = False
+    num_outputs = len(EuroSatDataset.labels_to_int)
+    input_height_width = EuroSatDataset.input_height_width
 
     def __init__(self, rgb: bool = True, patch_size: int = 8, seed=DEFAULT_SEED):
         self.rgb = rgb
