@@ -41,7 +41,9 @@ class EvalTask(ABC):
     name: str
     num_outputs: int
     regression: bool
+    segmentation: bool
     multilabel: bool
+    input_height_width: int
 
     all_regression_sklearn_models = ["Regression", "Random Forest"]
     all_classification_sklearn_models = [
@@ -63,14 +65,17 @@ class EvalTask(ABC):
             model = MultiOutputClassifier(model, n_jobs=cls.num_outputs)
         return model
 
+    @classmethod
     def _construct_finetuning_model(
-        self,
+        cls,
         pretrained_model: Encoder,
     ) -> PrestoFineTuningModel:
         head = FinetuningHead(
-            num_outputs=self.num_outputs,
+            num_outputs=cls.num_outputs,
             hidden_size=pretrained_model.embedding_size,
-            regression=self.regression,
+            regression=cls.regression,
+            segmentation=cls.segmentation,
+            input_height_width=cls.input_height_width,
         )
         model = PrestoFineTuningModel(pretrained_model, head).to(device)
         model.train()
@@ -172,7 +177,7 @@ class EvalTask(ABC):
             all_preds, all_y = [], []
 
             for masked_output, label in tqdm(
-                train_dl, desc="Validating model for batch", leave=False
+                val_dl, desc="Validating model for batch", leave=False
             ):
                 d_x, s_x, d_m, s_m, months = [t.to(device) for t in masked_output]
                 y = label.to(device)

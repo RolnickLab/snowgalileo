@@ -761,18 +761,46 @@ class PrestoRepresentationDecoder(FlexiPrestoBase):
 
 
 class FinetuningHead(nn.Module):
-    def __init__(self, hidden_size: int, num_outputs: int, regression: bool) -> None:
+    def __init__(
+        self,
+        hidden_size: int,
+        num_outputs: int,
+        regression: bool,
+        segmentation: bool,
+        input_height_width: int,
+    ) -> None:
         super().__init__()
 
         self.hidden_size = hidden_size
         self.num_outputs = num_outputs
         self.regression = regression
-        self.linear = nn.Linear(hidden_size, num_outputs)
+        self.segmentation = segmentation
+        self.input_height_width = input_height_width
 
-    def forward(self, x: torch.Tensor):
-        x = self.linear(x)
-        if (not self.regression) & (self.num_outputs == 1):
-            x = torch.sigmoid(x)
+    def forward(self, x: torch.Tensor, patch_size: int):
+        if self.segmentation:
+            pixels_per_image = self.input_height_width**2
+            linear = nn.Linear(self.hidden_size, pixels_per_image * self.num_outputs)
+
+            x = linear(x)
+
+            # bring back to pixel space
+            x = rearrange(
+                x,
+                "b (h w o) -> b h w o",
+                h=self.input_height_width,
+                w=self.input_height_width,
+                o=self.num_outputs,
+            )
+        else:
+            # classification or regression
+            linear = nn.Linear(self.hidden_size, self.num_outputs)
+
+            x = linear(x)
+
+            if (not self.regression) & (self.num_outputs == 1):
+                x = torch.sigmoid(x)
+
         return x
 
 
