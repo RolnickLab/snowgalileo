@@ -150,14 +150,14 @@ class PastisDataset(PyTorchDataset):
 
         id = self.id[img_idx]
 
-        d_x, num_timesteps = self.get_dynamic_eo_array_and_timesteps(img_idx)
-        target = self.get_target(img_idx)
+        d_x, num_timesteps = self.get_dynamic_eo_array_and_timesteps(id)
+        target = self.get_target(id)
 
         # static bands are not provided by pastis
         s_x = np.zeros((d_x.shape[0], d_x.shape[1], len(STATIC_BANDS)))
 
         d_m, s_m = self.create_pastis_masks(num_timesteps)
-        months = self.get_months_from_metadata(img_idx)
+        months = self.get_months_from_metadata(id)
 
         height, width = d_x.shape[:2]
         half_height = height // 2
