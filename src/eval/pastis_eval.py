@@ -146,7 +146,6 @@ class PastisDataset(PyTorchDataset):
         return torch.from_numpy(target[0].astype(int))
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
-
         img_idx = idx // 4
 
         id = self.id[img_idx]
@@ -165,13 +164,49 @@ class PastisDataset(PyTorchDataset):
         half_width = width // 2
 
         if idx % 4 == 0:
-            return (masked_output_np_to_tensor(d_x[:half_height, :half_width, :, :], s_x[:half_height, :half_width, :], d_m[:half_height, :half_width, :, :], s_m[:half_height, :half_width, :], months), target[:half_height, :half_width])
+            return (
+                masked_output_np_to_tensor(
+                    d_x[:half_height, :half_width, :, :],
+                    s_x[:half_height, :half_width, :],
+                    d_m[:half_height, :half_width, :, :],
+                    s_m[:half_height, :half_width, :],
+                    months,
+                ),
+                target[:half_height, :half_width],
+            )
         elif idx % 4 == 1:
-            return (masked_output_np_to_tensor(d_x[:half_height, half_width:, :, :], s_x[:half_height, half_width:, :], d_m[:half_height, half_width:, :, :], s_m[:half_height, half_width:, :], months), target[:half_height, half_width])
+            return (
+                masked_output_np_to_tensor(
+                    d_x[:half_height, half_width:, :, :],
+                    s_x[:half_height, half_width:, :],
+                    d_m[:half_height, half_width:, :, :],
+                    s_m[:half_height, half_width:, :],
+                    months,
+                ),
+                target[:half_height, half_width],
+            )
         elif idx % 4 == 2:
-            return (masked_output_np_to_tensor(d_x[half_height:, :half_width, :, :], s_x[half_height:, :half_width, :], d_m[half_height:, :half_width, :, :], s_m[half_height:, :half_width, :], months), target[half_height:, :half_width])
+            return (
+                masked_output_np_to_tensor(
+                    d_x[half_height:, :half_width, :, :],
+                    s_x[half_height:, :half_width, :],
+                    d_m[half_height:, :half_width, :, :],
+                    s_m[half_height:, :half_width, :],
+                    months,
+                ),
+                target[half_height:, :half_width],
+            )
         elif idx % 4 == 3:
-            return (masked_output_np_to_tensor(d_x[half_height:, half_width:, :, :], s_x[half_height:, half_width:, :], d_m[half_height:, half_width:, :, :], s_m[half_height:, half_width:, :], months), target[half_height:, half_width:])
+            return (
+                masked_output_np_to_tensor(
+                    d_x[half_height:, half_width:, :, :],
+                    s_x[half_height:, half_width:, :],
+                    d_m[half_height:, half_width:, :, :],
+                    s_m[half_height:, half_width:, :],
+                    months,
+                ),
+                target[half_height:, half_width:],
+            )
 
     def __len__(self):
         return self.metadata.shape[0]
