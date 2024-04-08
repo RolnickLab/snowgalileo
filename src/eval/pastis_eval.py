@@ -131,7 +131,7 @@ class PastisDataset(PyTorchDataset):
         # randomly sample the timesteps if there are more than the minimum
         if image_timesteps > self.num_timesteps:
             sampled_timesteps = np.random.permutation(image_timesteps)[: self.num_timesteps]
-            data = data[:, :, sampled_timesteps, :]
+            data = data[sampled_timesteps, :, :, :]
 
         # apply normalization
         data = (data - self.norm[0][None, :, None, None]) / self.norm[1][None, :, None, None]
