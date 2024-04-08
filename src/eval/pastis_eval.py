@@ -90,7 +90,7 @@ class PastisDataset(PyTorchDataset):
             : self.num_timesteps
         ]
 
-        return np.array(months[sampled_timesteps])
+        return np.array(months)[sampled_timesteps]
 
     def get_pastis_norm(self):
         with open((data_dir / cast(str, self.data_path) / "NORM_S2_patch.json"), "r") as file:
