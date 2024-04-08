@@ -19,8 +19,8 @@ class TestPastis(unittest.TestCase):
         self.assertEqual(
             dynamic_x.shape,
             (
-                PastisDataset.input_height_width,
-                PastisDataset.input_height_width,
+                PastisDataset.input_height_width // 4,
+                PastisDataset.input_height_width // 4,
                 num_timesteps,
                 len(DYNAMIC_BANDS),
             ),
@@ -28,8 +28,8 @@ class TestPastis(unittest.TestCase):
         self.assertEqual(
             dynamic_m.shape,
             (
-                PastisDataset.input_height_width,
-                PastisDataset.input_height_width,
+                PastisDataset.input_height_width // 4,
+                PastisDataset.input_height_width // 4,
                 num_timesteps,
                 len(DYNAMIC_BANDS_GROUPS_IDX),
             ),
@@ -40,16 +40,16 @@ class TestPastis(unittest.TestCase):
         self.assertEqual(
             static_x.shape,
             (
-                PastisDataset.input_height_width,
-                PastisDataset.input_height_width,
+                PastisDataset.input_height_width // 4,
+                PastisDataset.input_height_width // 4,
                 len(STATIC_BANDS),
             ),
         )
         self.assertEqual(
             static_m.shape,
             (
-                PastisDataset.input_height_width,
-                PastisDataset.input_height_width,
+                PastisDataset.input_height_width // 4,
+                PastisDataset.input_height_width // 4,
                 len(STATIC_BAND_GROUPS_IDX),
             ),
         )

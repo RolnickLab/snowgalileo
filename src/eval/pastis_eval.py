@@ -146,18 +146,32 @@ class PastisDataset(PyTorchDataset):
         return torch.from_numpy(target[0].astype(int))
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
-        id = self.id[idx]
 
-        d_x, num_timesteps = self.get_dynamic_eo_array_and_timesteps(id)
-        target = self.get_target(id)
+        img_idx = idx // 4
+
+        id = self.id[img_idx]
+
+        d_x, num_timesteps = self.get_dynamic_eo_array_and_timesteps(img_idx)
+        target = self.get_target(img_idx)
 
         # static bands are not provided by pastis
         s_x = np.zeros((d_x.shape[0], d_x.shape[1], len(STATIC_BANDS)))
 
         d_m, s_m = self.create_pastis_masks(num_timesteps)
-        months = self.get_months_from_metadata(id)
+        months = self.get_months_from_metadata(img_idx)
 
-        return (masked_output_np_to_tensor(d_x, s_x, d_m, s_m, months), target)
+        height, width = d_x.shape[:2]
+        half_height = height // 2
+        half_width = width // 2
+
+        if idx % 4 == 0:
+            return (masked_output_np_to_tensor(d_x[:half_height, :half_width, :, :], s_x[:half_height, :half_width, :], d_m[:half_height, :half_width, :, :], s_m[:half_height, :half_width, :], months), target[:half_height, :half_width])
+        elif idx % 4 == 1:
+            return (masked_output_np_to_tensor(d_x[:half_height, half_width:, :, :], s_x[:half_height, half_width:, :], d_m[:half_height, half_width:, :, :], s_m[:half_height, half_width:, :], months), target[:half_height, half_width])
+        elif idx % 4 == 2:
+            return (masked_output_np_to_tensor(d_x[half_height:, :half_width, :, :], s_x[half_height:, :half_width, :], d_m[half_height:, :half_width, :, :], s_m[half_height:, :half_width, :], months), target[half_height:, :half_width])
+        elif idx % 4 == 3:
+            return (masked_output_np_to_tensor(d_x[half_height:, half_width:, :, :], s_x[half_height:, half_width:, :], d_m[half_height:, half_width:, :, :], s_m[half_height:, half_width:, :], months), target[half_height:, half_width:])
 
     def __len__(self):
         return self.metadata.shape[0]
