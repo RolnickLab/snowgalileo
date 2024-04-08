@@ -78,7 +78,7 @@ class PastisDataset(PyTorchDataset):
 
         self.num_subtiles = num_subtiles
 
-    def get_months_from_metadata(self, id) -> np.ndarray:
+    def get_months_from_metadata(self, id, image_timesteps) -> np.ndarray:
         dates = self.metadata["dates-S2"][id]
 
         # the dates are in the format YYYYMMDD
@@ -86,7 +86,11 @@ class PastisDataset(PyTorchDataset):
 
         assert all(1 <= month <= 12 for month in months)
 
-        return np.array(months)
+        sampled_timesteps = np.random.default_rng(seed=DEFAULT_SEED).permutation(image_timesteps)[
+            : self.num_timesteps
+        ]
+
+        return np.array(months[sampled_timesteps])
 
     def get_pastis_norm(self):
         with open((data_dir / cast(str, self.data_path) / "NORM_S2_patch.json"), "r") as file:
@@ -130,7 +134,9 @@ class PastisDataset(PyTorchDataset):
 
         # randomly sample the timesteps if there are more than the minimum
         if image_timesteps > self.num_timesteps:
-            sampled_timesteps = np.random.permutation(image_timesteps)[: self.num_timesteps]
+            sampled_timesteps = np.random.default_rng(seed=DEFAULT_SEED).permutation(
+                image_timesteps
+            )[: self.num_timesteps]
             data = data[sampled_timesteps, :, :, :]
 
         # apply normalization
@@ -148,7 +154,7 @@ class PastisDataset(PyTorchDataset):
         )
         eo_style_array[:, :, :, kept_dynamic_bands] = repeat(data, "t c h w -> h w t c")
 
-        return eo_style_array
+        return eo_style_array, image_timesteps
 
     def get_target(self, id):
         target = np.load(
@@ -161,16 +167,17 @@ class PastisDataset(PyTorchDataset):
 
         id = self.id[img_idx]
 
-        d_x = self.get_dynamic_eo_array(id)
+        d_x, image_timesteps = self.get_dynamic_eo_array(id)
         target = self.get_target(id)
 
         # static bands are not provided by pastis
         s_x = np.zeros((d_x.shape[0], d_x.shape[1], len(STATIC_BANDS)))
 
         d_m, s_m = self.create_pastis_masks()
-        months = self.get_months_from_metadata(id)
+        months = self.get_months_from_metadata(id, image_timesteps)
 
-        subtiles_per_dim = int(sqrt(self.num_subtiles))
+        subtiles_per_dim = sqrt(self.num_subtiles)
+        subtiles_per_dim = int(subtiles_per_dim)
         h, w = d_x.shape[:2]
         assert h == w  # this is the case for PASTIS
         assert h % subtiles_per_dim == 0
