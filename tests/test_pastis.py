@@ -15,13 +15,13 @@ DATA_FOLDER = Path(__file__).parents[1] / "data/pastis/pastis_test"
 
 
 class TestPastis(unittest.TestCase):
-    def check_dynamic(self, dynamic_x, dynamic_m, num_timesteps):
+    def check_dynamic(self, dynamic_x, dynamic_m):
         self.assertEqual(
             dynamic_x.shape,
             (
                 PastisDataset.input_height_width // 4,
                 PastisDataset.input_height_width // 4,
-                num_timesteps,
+                PastisDataset.num_timesteps,
                 len(DYNAMIC_BANDS),
             ),
         )
@@ -30,7 +30,7 @@ class TestPastis(unittest.TestCase):
             (
                 PastisDataset.input_height_width // 4,
                 PastisDataset.input_height_width // 4,
-                num_timesteps,
+                PastisDataset.num_timesteps,
                 len(DYNAMIC_BANDS_GROUPS_IDX),
             ),
         )
@@ -58,8 +58,8 @@ class TestPastis(unittest.TestCase):
         self.assertTrue(torch.all(static_x == 0))
         self.assertTrue(torch.all(static_m == 1))
 
-    def check_month(self, month, num_timesteps):
-        self.assertEqual(month.shape, (num_timesteps,))
+    def check_month(self, month):
+        self.assertEqual(month.shape, (PastisDataset.num_timesteps,))
 
     def check_target(self, labels):
         self.assertTrue(
@@ -71,11 +71,10 @@ class TestPastis(unittest.TestCase):
         sample = dataset[0]
         d_x, s_x, d_m, s_m, m = sample[0]
         label = sample[1]
-        num_timesteps = d_x.shape[2]
 
-        self.check_dynamic(dynamic_x=d_x, dynamic_m=d_m, num_timesteps=num_timesteps)
+        self.check_dynamic(dynamic_x=d_x, dynamic_m=d_m)
         self.check_static(static_x=s_x, static_m=s_m)
-        self.check_month(month=m, num_timesteps=num_timesteps)
+        self.check_month(month=m)
         self.check_target(labels=label)
 
         # will test if the right channels are masked out

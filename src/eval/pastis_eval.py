@@ -53,6 +53,8 @@ class PastisDataset(PyTorchDataset):
     }
 
     input_height_width = 128
+    # PASTIS comes with a variable number of timesteps, we use the minimum number available in all tiles
+    num_timesteps = 42
 
     def __init__(
         self,
@@ -94,7 +96,7 @@ class PastisDataset(PyTorchDataset):
 
         return np.stack(means).mean(axis=0), np.stack(stds).mean(axis=0)
 
-    def create_pastis_masks(self, num_timesteps) -> Tuple[np.ndarray, np.ndarray]:
+    def create_pastis_masks(self) -> Tuple[np.ndarray, np.ndarray]:
         dynamic_channels = [idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" in key]
 
         # everything is masked by default
@@ -106,7 +108,7 @@ class PastisDataset(PyTorchDataset):
             "d -> h w t d",
             h=self.input_height_width,
             w=self.input_height_width,
-            t=num_timesteps,
+            t=self.num_timesteps,
         )
 
         # no static channels are available
@@ -119,12 +121,17 @@ class PastisDataset(PyTorchDataset):
 
         return (dynamic_mask, static_mask)
 
-    def get_dynamic_eo_array_and_timesteps(self, id) -> Tuple[np.ndarray, np.ndarray]:
+    def get_dynamic_eo_array(self, id) -> Tuple[np.ndarray, np.ndarray]:
         data = np.load(
             data_dir / cast(str, self.data_path) / "DATA_S2/S2_{}.npy".format(id)
         ).astype(np.float32)
         # data comes in shape T x C x H x W
-        num_timesteps = data.shape[0]
+        image_timesteps = data.shape[0]
+
+        # randomly sample the timesteps if there are more than the minimum
+        if image_timesteps > self.num_timesteps:
+            sampled_timesteps = np.randperm(image_timesteps)[: self.num_timesteps]
+            data = data[:, :, sampled_timesteps, :]
 
         # apply normalization
         data = (data - self.norm[0][None, :, None, None]) / self.norm[1][None, :, None, None]
@@ -135,13 +142,13 @@ class PastisDataset(PyTorchDataset):
             [
                 self.input_height_width,
                 self.input_height_width,
-                num_timesteps,
+                self.num_timesteps,
                 len(DYNAMIC_BANDS),
             ]
         )
         eo_style_array[:, :, :, kept_dynamic_bands] = repeat(data, "t c h w -> h w t c")
 
-        return eo_style_array, num_timesteps
+        return eo_style_array
 
     def get_target(self, id):
         target = np.load(
@@ -154,13 +161,13 @@ class PastisDataset(PyTorchDataset):
 
         id = self.id[img_idx]
 
-        d_x, num_timesteps = self.get_dynamic_eo_array_and_timesteps(id)
+        d_x = self.get_dynamic_eo_array(id)
         target = self.get_target(id)
 
         # static bands are not provided by pastis
         s_x = np.zeros((d_x.shape[0], d_x.shape[1], len(STATIC_BANDS)))
 
-        d_m, s_m = self.create_pastis_masks(num_timesteps)
+        d_m, s_m = self.create_pastis_masks()
         months = self.get_months_from_metadata(id)
 
         subtiles_per_dim = int(sqrt(self.num_subtiles))
