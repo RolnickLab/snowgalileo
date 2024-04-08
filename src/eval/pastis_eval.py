@@ -1,4 +1,5 @@
 import json
+from math import sqrt
 from typing import Dict, List, Optional, Tuple, cast
 
 import geopandas as gpd
@@ -57,6 +58,7 @@ class PastisDataset(PyTorchDataset):
         self,
         folds: List[int],
         data_path: Optional[str] = "pastis/PASTIS-R",
+        num_subtiles: Optional[int] = 4,
     ):
         self.folds = folds
         assert all(fold in [1, 2, 3, 4, 5] for fold in self.folds)
@@ -71,6 +73,8 @@ class PastisDataset(PyTorchDataset):
         self.norm = self.get_pastis_norm()
 
         self.id = self.metadata.index
+
+        self.num_subtiles = num_subtiles
 
     def get_months_from_metadata(self, id) -> np.ndarray:
         dates = self.metadata["dates-S2"][id]
@@ -159,54 +163,47 @@ class PastisDataset(PyTorchDataset):
         d_m, s_m = self.create_pastis_masks(num_timesteps)
         months = self.get_months_from_metadata(id)
 
-        height, width = d_x.shape[:2]
-        half_height = height // 2
-        half_width = width // 2
+        subtiles_per_dim = sqrt(self.num_subtiles)
+        h, w = d_x.shape[:2]
+        assert h == w  # this is the case for PASTIS
+        assert h % subtiles_per_dim == 0
+        pixels_per_dim = h // subtiles_per_dim
+        subtile_idx = idx % subtiles_per_dim
 
-        if idx % 4 == 0:
-            return (
-                masked_output_np_to_tensor(
-                    d_x[:half_height, :half_width, :, :],
-                    s_x[:half_height, :half_width, :],
-                    d_m[:half_height, :half_width, :, :],
-                    s_m[:half_height, :half_width, :],
-                    months,
-                ),
-                target[:half_height, :half_width],
-            )
-        elif idx % 4 == 1:
-            return (
-                masked_output_np_to_tensor(
-                    d_x[:half_height, half_width:, :, :],
-                    s_x[:half_height, half_width:, :],
-                    d_m[:half_height, half_width:, :, :],
-                    s_m[:half_height, half_width:, :],
-                    months,
-                ),
-                target[:half_height, half_width],
-            )
-        elif idx % 4 == 2:
-            return (
-                masked_output_np_to_tensor(
-                    d_x[half_height:, :half_width, :, :],
-                    s_x[half_height:, :half_width, :],
-                    d_m[half_height:, :half_width, :, :],
-                    s_m[half_height:, :half_width, :],
-                    months,
-                ),
-                target[half_height:, :half_width],
-            )
-        elif idx % 4 == 3:
-            return (
-                masked_output_np_to_tensor(
-                    d_x[half_height:, half_width:, :, :],
-                    s_x[half_height:, half_width:, :],
-                    d_m[half_height:, half_width:, :, :],
-                    s_m[half_height:, half_width:, :],
-                    months,
-                ),
-                target[half_height:, half_width:],
-            )
+        row_idx = subtile_idx // subtiles_per_dim
+        col_idx = subtile_idx % subtiles_per_dim
+
+        return (
+            masked_output_np_to_tensor(
+                d_x[
+                    row_idx * pixels_per_dim : (row_idx + 1) * pixels_per_dim,
+                    col_idx * pixels_per_dim : (col_idx + 1) * pixels_per_dim,
+                    :,
+                    :,
+                ],
+                s_x[
+                    row_idx * pixels_per_dim : (row_idx + 1) * pixels_per_dim,
+                    col_idx * pixels_per_dim : (col_idx + 1) * pixels_per_dim,
+                    :,
+                ],
+                d_m[
+                    row_idx * pixels_per_dim : (row_idx + 1) * pixels_per_dim,
+                    col_idx * pixels_per_dim : (col_idx + 1) * pixels_per_dim,
+                    :,
+                    :,
+                ],
+                s_m[
+                    row_idx * pixels_per_dim : (row_idx + 1) * pixels_per_dim,
+                    col_idx * pixels_per_dim : (col_idx + 1) * pixels_per_dim,
+                    :,
+                ],
+                months,
+            ),
+            target[
+                row_idx * pixels_per_dim : (row_idx + 1) * pixels_per_dim,
+                col_idx * pixels_per_dim : (col_idx + 1) * pixels_per_dim,
+            ],
+        )
 
     def __len__(self):
         return self.metadata.shape[0]
