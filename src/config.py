@@ -1,3 +1,2 @@
 BASE_GSD = 10
-
 DEFAULT_SEED = 42
