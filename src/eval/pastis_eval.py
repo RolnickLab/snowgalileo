@@ -220,7 +220,7 @@ class PastisDataset(PyTorchDataset):
         )
 
     def __len__(self):
-        return self.metadata.shape[0]
+        return self.metadata.shape[0] * self.num_subtiles
 
 
 class PastisEval(EvalTask):
