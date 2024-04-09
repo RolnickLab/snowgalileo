@@ -164,7 +164,7 @@ class EvalTask(ABC):
                 optimizer.zero_grad()
                 preds = model(d_x, s_x, d_m, s_m, months, patch_size=self.patch_size)
 
-                loss = train_loss_fn(preds, y.float())
+                loss = train_loss_fn(preds, y.long())
                 epoch_train_loss += loss.item()
                 num_updates += 1
                 loss.backward()
