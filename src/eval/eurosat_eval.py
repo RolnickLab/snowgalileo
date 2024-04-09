@@ -209,7 +209,7 @@ class EuroSatEval(EvalTask):
     def __init__(self, rgb: bool = True, patch_size: int = 8, seed=DEFAULT_SEED):
         self.rgb = rgb
         super().__init__(patch_size, seed)
-        self.name = f"{self.name}_{self.rgb}"
+        self.name = f"{self.name}_{'RGB' if self.rgb else 'MS'}"
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         return {
