@@ -346,23 +346,6 @@ class FlexiPrestoBase(nn.Module):
         self.embedding_size = embedding_size
         self.base_patch_size = base_patch_size
 
-        self.dynamic_embed = nn.ModuleDict(
-            {
-                group_name: FlexiPatchEmbed(
-                    in_chans=len(group), embed_dim=embedding_size, patch_size=base_patch_size
-                )
-                for group_name, group in self.dynamic_groups.items()
-            }
-        )
-        self.static_embed = nn.ModuleDict(
-            {
-                group_name: FlexiPatchEmbed(
-                    in_chans=len(group), embed_dim=embedding_size, patch_size=base_patch_size
-                )
-                for group_name, group in self.static_groups.items()
-            }
-        )
-
         self.blocks = nn.ModuleList(
             [
                 Block(
@@ -482,13 +465,12 @@ class FlexiPrestoBase(nn.Module):
 class Encoder(FlexiPrestoBase):
     def __init__(
         self,
-        patch_size: Union[int, Tuple[int, int]] = 8,
+        max_patch_size: int = 8,
         embedding_size: int = 128,
         depth=2,
         mlp_ratio=2,
         num_heads=8,
         max_sequence_length=24,
-        num_inputs_per_spatial_dim=4,
     ):
         super().__init__(
             embedding_size,
@@ -496,13 +478,13 @@ class Encoder(FlexiPrestoBase):
             mlp_ratio,
             num_heads,
             max_sequence_length,
-            num_inputs_per_spatial_dim,
+            max_patch_size,
         )
 
         self.dynamic_embed = nn.ModuleDict(
             {
                 group_name: FlexiPatchEmbed(
-                    in_chans=len(group), embed_dim=embedding_size, patch_size=patch_size
+                    in_chans=len(group), embed_dim=embedding_size, patch_size=max_patch_size
                 )
                 for group_name, group in self.dynamic_groups.items()
             }
@@ -510,7 +492,7 @@ class Encoder(FlexiPrestoBase):
         self.static_embed = nn.ModuleDict(
             {
                 group_name: FlexiPatchEmbed(
-                    in_chans=len(group), embed_dim=embedding_size, patch_size=patch_size
+                    in_chans=len(group), embed_dim=embedding_size, patch_size=max_patch_size
                 )
                 for group_name, group in self.static_groups.items()
             }
@@ -604,7 +586,6 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         mlp_ratio=2,
         num_heads=8,
         max_sequence_length=24,
-        num_inputs_per_spatial_dim=4,
         max_patch_size: int = 8,
     ):
         super().__init__(
@@ -613,7 +594,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             mlp_ratio,
             num_heads,
             max_sequence_length,
-            num_inputs_per_spatial_dim,
+            max_patch_size,
         )
         self.encoder_to_decoder_embed = nn.Linear(
             encoder_embedding_size, decoder_embedding_size, bias=True
@@ -700,7 +681,7 @@ class PrestoRepresentationDecoder(FlexiPrestoBase):
         mlp_ratio=2,
         num_heads=8,
         max_sequence_length=24,
-        num_inputs_per_spatial_dim=4,
+        max_patch_size=8,
     ):
         super().__init__(
             decoder_embedding_size,
@@ -708,7 +689,7 @@ class PrestoRepresentationDecoder(FlexiPrestoBase):
             mlp_ratio,
             num_heads,
             max_sequence_length,
-            num_inputs_per_spatial_dim,
+            max_patch_size,
         )
 
         self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
