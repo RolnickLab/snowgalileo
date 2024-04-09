@@ -1,3 +1,4 @@
+import json
 import os
 import random
 from pathlib import Path
@@ -9,8 +10,8 @@ from .config import DEFAULT_SEED
 from .masking import MaskedOutput
 
 data_dir = Path(__file__).parent.parent / "data"
-
 logging_dir = Path(__file__).parent.parent / "logs"
+config_dir = Path(__file__).parent.parent / "config"
 
 if not torch.cuda.is_available():
     device = torch.device("cpu")
@@ -56,3 +57,64 @@ class AverageMeter:
         self.sum += val * n
         self.count += n
         self.average = self.sum / self.count
+
+
+def load_check_config(name: str, mode: str):
+    assert mode in ["mae", "jepa"]
+
+    with (config_dir / mode / name).open("r") as f:
+        config = json.load(f)
+
+    expected_training_keys_type = {
+        "num_epochs": int,
+        "batch_size": int,
+        "mask_ratio": float,
+        "patch_sizes": list,
+        "start_lr": float,
+        "max_lr": float,
+        "final_lr": float,
+        "warmup_epochs": (int, float),
+        "eval_eurosat_every_n_epochs": int,
+        "time_ratio": float,
+        "space_ratio": float,
+        "spatial_patches_per_dim": int,
+    }
+    if mode == "jepa":
+        expected_training_keys_type["ema"] = list
+    training_dict = config["training"]
+
+    for key, val in expected_training_keys_type.items():
+        assert key in training_dict, f"Expected {key} in training dict"
+        assert isinstance(training_dict[key], val)  # type: ignore
+
+    if isinstance(training_dict["warmup_epochs"], float):
+        training_dict["warmup_epochs"] = int(
+            training_dict["warmup_epochs"] * training_dict["num_epochs"]
+        )
+    assert isinstance(training_dict["warmup_epochs"], int)
+    assert training_dict["num_epochs"] > training_dict["warmup_epochs"]
+
+    expected_encoder_decoder_keys_type = {
+        "embedding_size": int,
+        "depth": int,
+        "mlp_ratio": int,
+        "num_heads": int,
+        "max_sequence_length": int,
+    }
+
+    model_dict = config["model"]
+    for model in ["encoder", "decoder"]:
+        assert model in model_dict
+        for key, val in expected_encoder_decoder_keys_type.items():
+            assert key in model_dict[model], f"Expected {key} in {model} dict"
+            assert isinstance(model_dict[model][key], val)
+
+    config["model"]["encoder"]["max_patch_size"] = config["training"]["patch_sizes"][-1]
+    config["model"]["decoder"]["max_patch_size"] = config["training"]["patch_sizes"][-1]
+    config["model"]["decoder"]["encoder_embedding_size"] = config["model"]["encoder"][
+        "embedding_size"
+    ]
+    config["model"]["decoder"]["decoder_embedding_size"] = config["model"]["decoder"].pop(
+        "embedding_size"
+    )
+    return config
