@@ -54,7 +54,7 @@ class PastisDataset(PyTorchDataset):
 
     input_height_width = 128
     # PASTIS comes with a variable number of timesteps, we use the minimum number available in all tiles
-    num_timesteps = 42
+    num_timesteps = 38
 
     def __init__(
         self,
@@ -229,7 +229,8 @@ class PastisEval(EvalTask):
     multilabel = False
     segmentation = True
     num_outputs = len(PastisDataset.labels_to_int)
-    input_height_width = PastisDataset.input_height_width
+    # TODO: change, this is not dynamic!
+    input_height_width = PastisDataset.input_height_width // 2
 
     def __init__(self, patch_size: int = 8, seed=DEFAULT_SEED):
         super().__init__(patch_size, seed)
