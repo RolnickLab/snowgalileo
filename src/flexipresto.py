@@ -783,7 +783,7 @@ class FinetuningHead(nn.Module):
         patch_size: int,
     ):
         x = self.concatenate_input_and_apply_mask(d_x, s_x, d_m, s_m)
-        num_patches = self.input_height_width / patch_size
+        num_patches = self.input_height_width // patch_size
         patch_vector_length = x.shape[-1]
 
         if self.segmentation:
