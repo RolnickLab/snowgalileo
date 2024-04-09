@@ -163,7 +163,7 @@ class PastisDataset(PyTorchDataset):
         return torch.from_numpy(target[0].astype(int))
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
-        img_idx = idx // 4
+        img_idx = idx // self.num_subtiles
 
         id = self.id[img_idx]
 
@@ -182,7 +182,7 @@ class PastisDataset(PyTorchDataset):
         assert h == w  # this is the case for PASTIS
         assert h % subtiles_per_dim == 0
         pixels_per_dim = h // subtiles_per_dim
-        subtile_idx = idx % subtiles_per_dim
+        subtile_idx = idx % self.num_subtiles
 
         row_idx = subtile_idx // subtiles_per_dim
         col_idx = subtile_idx % subtiles_per_dim
