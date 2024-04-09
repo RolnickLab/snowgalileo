@@ -54,7 +54,7 @@ class PastisDataset(PyTorchDataset):
 
     input_height_width = 128
     # PASTIS comes with a variable number of timesteps, we use the minimum number available in all tiles
-    num_timesteps = 38
+    num_timesteps = 12
 
     def __init__(
         self,
@@ -90,7 +90,7 @@ class PastisDataset(PyTorchDataset):
             : self.num_timesteps
         ]
 
-        return np.array(months)[sampled_timesteps] - 1 # 0-indexed months
+        return np.array(months)[sampled_timesteps] - 1  # 0-indexed months
 
     def get_pastis_norm(self):
         with open((data_dir / cast(str, self.data_path) / "NORM_S2_patch.json"), "r") as file:
