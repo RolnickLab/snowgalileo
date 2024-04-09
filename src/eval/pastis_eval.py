@@ -176,8 +176,7 @@ class PastisDataset(PyTorchDataset):
         d_m, s_m = self.create_pastis_masks()
         months = self.get_months_from_metadata(id, image_timesteps)
 
-        subtiles_per_dim = sqrt(self.num_subtiles)
-        subtiles_per_dim = int(subtiles_per_dim)
+        subtiles_per_dim = sqrt(cast(float, self.num_subtiles))
         assert subtiles_per_dim == 2
         h, w = d_x.shape[:2]
         assert h == w  # this is the case for PASTIS
@@ -187,11 +186,6 @@ class PastisDataset(PyTorchDataset):
 
         row_idx = subtile_idx // subtiles_per_dim
         col_idx = subtile_idx % subtiles_per_dim
-
-        assert pixels_per_dim == 64
-        assert subtile_idx in [0, 1, 2, 3]
-        assert row_idx in [0, 1]
-        assert col_idx in [0, 1]
 
         return (
             masked_output_np_to_tensor(

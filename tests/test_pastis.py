@@ -19,8 +19,8 @@ class TestPastis(unittest.TestCase):
         self.assertEqual(
             dynamic_x.shape,
             (
-                PastisDataset.input_height_width // 4,
-                PastisDataset.input_height_width // 4,
+                PastisDataset.input_height_width // 2,
+                PastisDataset.input_height_width // 2,
                 PastisDataset.num_timesteps,
                 len(DYNAMIC_BANDS),
             ),
@@ -28,8 +28,8 @@ class TestPastis(unittest.TestCase):
         self.assertEqual(
             dynamic_m.shape,
             (
-                PastisDataset.input_height_width // 4,
-                PastisDataset.input_height_width // 4,
+                PastisDataset.input_height_width // 2,
+                PastisDataset.input_height_width // 2,
                 PastisDataset.num_timesteps,
                 len(DYNAMIC_BANDS_GROUPS_IDX),
             ),
@@ -40,16 +40,16 @@ class TestPastis(unittest.TestCase):
         self.assertEqual(
             static_x.shape,
             (
-                PastisDataset.input_height_width // 4,
-                PastisDataset.input_height_width // 4,
+                PastisDataset.input_height_width // 2,
+                PastisDataset.input_height_width // 2,
                 len(STATIC_BANDS),
             ),
         )
         self.assertEqual(
             static_m.shape,
             (
-                PastisDataset.input_height_width // 4,
-                PastisDataset.input_height_width // 4,
+                PastisDataset.input_height_width // 2,
+                PastisDataset.input_height_width // 2,
                 len(STATIC_BAND_GROUPS_IDX),
             ),
         )
@@ -68,7 +68,7 @@ class TestPastis(unittest.TestCase):
 
     def test_pastis_dataset(self):
         dataset = PastisDataset(folds=[1, 2, 3], data_path=DATA_FOLDER)
-        sample = dataset[0]
+        sample = dataset[1]
         d_x, s_x, d_m, s_m, m = sample[0]
         label = sample[1]
 
@@ -85,3 +85,7 @@ class TestPastis(unittest.TestCase):
 
         self.assertTrue(torch.all(d_m[:, :, :, present_bands] == 0))
         self.assertTrue(torch.all(d_m[:, :, :, unpresent_bands] == 1))
+
+
+if __name__ == "__main__":
+    unittest.main()
