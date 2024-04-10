@@ -183,7 +183,11 @@ for e in tqdm(range(training_config["num_epochs"])):
 
 
 eval_tasks: List[EvalTask] = [
-    *[PastisEval()],
+    *[
+        PastisEval(average_months, num_subtiles)
+        for average_months in [True, False]
+        for num_subtiles in [4, 8]
+    ],
     *[TreeSatEval(mode, patch_size) for mode in ["s1", "s2", "combined"] for patch_size in [6, 3]],
     *[EuroSatEval(rgb) for rgb in [True, False]],
     *[So2SatEval()],

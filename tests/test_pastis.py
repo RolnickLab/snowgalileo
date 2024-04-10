@@ -15,13 +15,13 @@ DATA_FOLDER = Path(__file__).parents[1] / "data/pastis/pastis_test"
 
 
 class TestPastis(unittest.TestCase):
-    def check_dynamic(self, dynamic_x, dynamic_m):
+    def check_dynamic(self, dynamic_x, dynamic_m, num_timesteps):
         self.assertEqual(
             dynamic_x.shape,
             (
                 PastisDataset.input_height_width // 2,
                 PastisDataset.input_height_width // 2,
-                PastisDataset.num_timesteps,
+                num_timesteps,
                 len(DYNAMIC_BANDS),
             ),
         )
@@ -30,7 +30,7 @@ class TestPastis(unittest.TestCase):
             (
                 PastisDataset.input_height_width // 2,
                 PastisDataset.input_height_width // 2,
-                PastisDataset.num_timesteps,
+                num_timesteps,
                 len(DYNAMIC_BANDS_GROUPS_IDX),
             ),
         )
@@ -58,23 +58,23 @@ class TestPastis(unittest.TestCase):
         self.assertTrue(torch.all(static_x == 0))
         self.assertTrue(torch.all(static_m == 1))
 
-    def check_month(self, month):
-        self.assertEqual(month.shape, (PastisDataset.num_timesteps,))
+    def check_month(self, month, num_timesteps):
+        self.assertEqual(month.shape, (num_timesteps,))
 
     def check_target(self, labels):
         self.assertTrue(
             torch.all(torch.isin(labels, torch.tensor(list(PastisDataset.labels_to_int.values()))))
         )
 
-    def test_pastis_dataset(self):
-        dataset = PastisDataset(folds=[1, 2, 3], data_path=DATA_FOLDER)
+    def test_pastis_month_average(self):
+        dataset = PastisDataset(folds=[1, 2, 3], data_path=DATA_FOLDER, average_s2_over_month=True)
         sample = dataset[1]
         d_x, s_x, d_m, s_m, m = sample[0]
         label = sample[1]
 
-        self.check_dynamic(dynamic_x=d_x, dynamic_m=d_m)
+        self.check_dynamic(dynamic_x=d_x, dynamic_m=d_m, num_timesteps=12)
         self.check_static(static_x=s_x, static_m=s_m)
-        self.check_month(month=m)
+        self.check_month(month=m, num_timesteps=12)
         self.check_target(labels=label)
 
         # will test if the right channels are masked out
@@ -85,6 +85,30 @@ class TestPastis(unittest.TestCase):
 
         self.assertTrue(torch.all(d_m[:, :, :, present_bands] == 0))
         self.assertTrue(torch.all(d_m[:, :, :, unpresent_bands] == 1))
+
+    def test_pastis_max_timesteps(self):
+        dataset = PastisDataset(
+            folds=[1, 2, 3], data_path=DATA_FOLDER, average_s2_over_month=False
+        )
+        sample = dataset[1]
+        d_x, s_x, d_m, s_m, m = sample[0]
+        label = sample[1]
+
+        # max number of timesteps in pastis are 61, missing get padded and masked
+        self.check_dynamic(dynamic_x=d_x, dynamic_m=d_m, num_timesteps=61)
+        self.check_static(static_x=s_x, static_m=s_m)
+        self.check_month(month=m, num_timesteps=61)
+        self.check_target(labels=label)
+
+        # will test if the right channels are masked out
+        present_bands = [idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" in key]
+        unpresent_bands = [
+            idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" not in key
+        ]
+
+        # 38 is the minimum number of timesteps present in all observations
+        self.assertTrue(torch.all(d_m[:, :, :38, present_bands] == 0))
+        self.assertTrue(torch.all(d_m[:, :, :38, unpresent_bands] == 1))
 
 
 if __name__ == "__main__":

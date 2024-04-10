@@ -53,14 +53,13 @@ class PastisDataset(PyTorchDataset):
     }
 
     input_height_width = 128
-    # PASTIS comes with a variable number of timesteps, we use the minimum number available in all tiles
-    num_timesteps = 12
 
     def __init__(
         self,
         folds: List[int],
         data_path: Optional[str] = "pastis/PASTIS-R",
         num_subtiles: Optional[int] = 4,
+        average_s2_over_month: Optional[bool] = True,
     ):
         self.folds = folds
         assert all(fold in [1, 2, 3, 4, 5] for fold in self.folds)
@@ -78,21 +77,18 @@ class PastisDataset(PyTorchDataset):
 
         self.num_subtiles = num_subtiles
 
-    def get_months_from_metadata(self, id, image_timesteps) -> np.ndarray:
-        dates = self.metadata["dates-S2"][id]
+        self.average_s2_over_month = average_s2_over_month
 
-        # the dates are in the format YYYYMMDD
-        months = [int(str(value)[4:6]) for _, value in dates.items()]
+        if average_s2_over_month:
+            self.num_timesteps = 12
+        else:
+            # max number of timesteps in PASTIS
+            self.num_timesteps = 61
 
-        assert all(1 <= month <= 12 for month in months)
-
-        sampled_timesteps = np.random.default_rng(seed=DEFAULT_SEED).permutation(image_timesteps)[
-            : self.num_timesteps
-        ]
-
-        return np.array(months)[sampled_timesteps] - 1  # 0-indexed months
-
-    def get_pastis_norm(self):
+    def get_pastis_norm(self) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Retrieves pre-calculated fold-wise normalization values.
+        """
         with open((data_dir / cast(str, self.data_path) / "NORM_S2_patch.json"), "r") as file:
             normvals = json.loads(file.read())
         means = [normvals["Fold_{}".format(f)]["mean"] for f in self.folds]
@@ -100,7 +96,10 @@ class PastisDataset(PyTorchDataset):
 
         return np.stack(means).mean(axis=0), np.stack(stds).mean(axis=0)
 
-    def create_pastis_masks(self) -> Tuple[np.ndarray, np.ndarray]:
+    def create_pastis_masks(self, timesteps_with_data: int) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Masks unavailable channels and timesteps.
+        """
         dynamic_channels = [idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" in key]
 
         # everything is masked by default
@@ -115,6 +114,9 @@ class PastisDataset(PyTorchDataset):
             t=self.num_timesteps,
         )
 
+        # mask padded timesteps if there are any
+        dynamic_mask[:, :, timesteps_with_data:, :] = 1
+
         # no static channels are available
         static_mask = np.ones(
             [self.input_height_width, self.input_height_width, len(STATIC_BAND_GROUPS_IDX)]
@@ -123,28 +125,89 @@ class PastisDataset(PyTorchDataset):
         assert ((dynamic_mask == 0) | (dynamic_mask == 1)).all()
         assert (static_mask == 1).all()
 
-        return (dynamic_mask, static_mask)
+        return dynamic_mask, static_mask
 
-    def get_dynamic_eo_array(self, id) -> Tuple[np.ndarray, np.ndarray]:
-        data = np.load(
-            data_dir / cast(str, self.data_path) / "DATA_S2/S2_{}.npy".format(id)
-        ).astype(np.float32)
+    def average_over_month(
+        self, s2: np.ndarray, months: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Returns the month-wise mean of an input image, pixel- and channel-specific.
+        """
         # data comes in shape T x C x H x W
-        image_timesteps = data.shape[0]
+        sums = np.zeros((12, *s2.shape[1:]))
+        counts = np.zeros((12, *s2.shape[1:]))
 
-        # randomly sample the timesteps if there are more than the minimum
-        if image_timesteps > self.num_timesteps:
-            sampled_timesteps = np.random.default_rng(seed=DEFAULT_SEED).permutation(
-                image_timesteps
-            )[: self.num_timesteps]
-            data = data[sampled_timesteps, :, :, :]
+        for month, observation in zip(months, s2):
+            sums[month] += observation
+            counts[month] += np.ones_like(observation)
+
+        # avoid division by zero for months with no observations
+        averages = np.divide(sums, counts, out=np.zeros_like(sums), where=counts != 0)
+        months = np.arange(12)
+
+        return averages, months
+
+    def zero_pad_missing_timesteps(
+        self, s2: np.ndarray, months: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, int]:
+        """
+        Pads input image and months with zeros to reach the maximum number of timesteps available in PASTIS.
+        """
+        # data comes in shape T x C x H x W
+        timesteps_with_data = s2.shape[0]
+
+        s2 = np.concatenate(
+            [
+                s2,
+                np.zeros(
+                    (
+                        self.num_timesteps - timesteps_with_data,
+                        s2.shape[1],
+                        s2.shape[2],
+                        s2.shape[3],
+                    )
+                ),
+            ],
+            axis=0,
+        )
+        months = np.concatenate(
+            [months, np.zeros(self.num_timesteps - timesteps_with_data)], axis=0
+        )
+
+        return s2, months, timesteps_with_data
+
+    def get_eo_array_and_masks(
+        self, id: int
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Loads the image for a given ID, handles missing timesteps and normalizes the data.
+        Also provides static and month data, and creates masks for missing data.
+        """
+        s2 = np.load(data_dir / cast(str, self.data_path) / "DATA_S2/S2_{}.npy".format(id)).astype(
+            np.float32
+        )
+
+        dates = self.metadata["dates-S2"][id]
+        # the dates are in the format YYYYMMDD
+        months = (
+            np.array([int(str(value)[4:6]) for _, value in dates.items()]) - 1
+        )  # 0-indexed months
+        assert all(0 <= month <= 11 for month in months)
+
+        if self.average_s2_over_month:
+            s2, months = self.average_over_month(s2, months)
+            timesteps_with_data = self.num_timesteps
+
+        # pad missing timesteps, will be masked out later
+        else:
+            s2, months, timesteps_with_data = self.zero_pad_missing_timesteps(s2, months)
 
         # apply normalization
-        data = (data - self.norm[0][None, :, None, None]) / self.norm[1][None, :, None, None]
+        s2 = (s2 - self.norm[0][None, :, None, None]) / self.norm[1][None, :, None, None]
 
         kept_dynamic_bands = [idx for idx, x in enumerate(DYNAMIC_BANDS) if (x in S2_BANDS)]
 
-        eo_style_array = np.zeros(
+        d_x = np.zeros(
             [
                 self.input_height_width,
                 self.input_height_width,
@@ -152,29 +215,31 @@ class PastisDataset(PyTorchDataset):
                 len(DYNAMIC_BANDS),
             ]
         )
-        eo_style_array[:, :, :, kept_dynamic_bands] = repeat(data, "t c h w -> h w t c")
+        d_x[:, :, :, kept_dynamic_bands] = repeat(s2, "t c h w -> h w t c")
 
-        return eo_style_array, image_timesteps
+        # static bands are not provided by pastis
+        s_x = np.zeros((d_x.shape[0], d_x.shape[1], len(STATIC_BANDS)))
 
-    def get_target(self, id):
+        d_m, s_m = self.create_pastis_masks(timesteps_with_data=timesteps_with_data)
+
+        return d_x, s_x, d_m, s_m, months
+
+    def get_target(self, id: int) -> torch.Tensor:
         target = np.load(
             data_dir / cast(str, self.data_path) / "ANNOTATIONS/TARGET_{}.npy".format(id)
         )
         return torch.from_numpy(target[0].astype(int))
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
+        """
+        Slices and returns a subtile of the image and the corresponding target.
+        """
         img_idx = idx // self.num_subtiles
 
         id = self.id[img_idx]
 
-        d_x, image_timesteps = self.get_dynamic_eo_array(id)
+        d_x, s_x, d_m, s_m, months = self.get_eo_array_and_masks(id)
         target = self.get_target(id)
-
-        # static bands are not provided by pastis
-        s_x = np.zeros((d_x.shape[0], d_x.shape[1], len(STATIC_BANDS)))
-
-        d_m, s_m = self.create_pastis_masks()
-        months = self.get_months_from_metadata(id, image_timesteps)
 
         subtiles_per_dim = int(sqrt(cast(float, self.num_subtiles)))
         assert subtiles_per_dim == 2
@@ -229,11 +294,22 @@ class PastisEval(EvalTask):
     multilabel = False
     segmentation = True
     num_outputs = len(PastisDataset.labels_to_int)
-    # TODO: change, this is not dynamic!
-    input_height_width = PastisDataset.input_height_width // 2
+    input_height_width = PastisDataset.input_height_width
 
-    def __init__(self, patch_size: int = 8, seed=DEFAULT_SEED):
+    def __init__(
+        self,
+        average_months: bool = True,
+        num_subtiles: int = 4,
+        patch_size: int = 8,
+        seed=DEFAULT_SEED,
+    ):
+        self.average_months = average_months
+        self.num_subtiles = num_subtiles
         super().__init__(patch_size, seed)
+        self.input_height_width = self.input_height_width // int(
+            sqrt(cast(float, self.num_subtiles))
+        )
+        self.name = f"{self.name}_{'AVERAGED_MONTHS' if self.average_months else 'ALL_MONTHS'}_hw{self.input_height_width}"
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         return {
@@ -243,7 +319,11 @@ class PastisEval(EvalTask):
     @torch.no_grad()
     def _evaluate_model(self, finetuned_model: PrestoFineTuningModel) -> Dict:
         test_dl = DataLoader(
-            PastisDataset(folds=[5]),
+            PastisDataset(
+                folds=[5],
+                average_s2_over_month=self.average_months,
+                num_subtiles=self.num_subtiles,
+            ),
             batch_size=Hyperparams.batch_size,
             shuffle=False,
             num_workers=Hyperparams.num_workers,
@@ -286,14 +366,22 @@ class PastisEval(EvalTask):
             assert model_mode in ["finetune"]
 
         train_dl = DataLoader(
-            PastisDataset(folds=[1, 2, 3]),
+            PastisDataset(
+                folds=[1, 2, 3],
+                average_s2_over_month=self.average_months,
+                num_subtiles=self.num_subtiles,
+            ),
             batch_size=Hyperparams.batch_size,
             shuffle=True,
             num_workers=Hyperparams.num_workers,
         )
 
         val_dl = DataLoader(
-            PastisDataset(folds=[4]),
+            PastisDataset(
+                folds=[4],
+                average_s2_over_month=self.average_months,
+                num_subtiles=self.num_subtiles,
+            ),
             batch_size=Hyperparams.batch_size,
             shuffle=False,
             num_workers=Hyperparams.num_workers,
