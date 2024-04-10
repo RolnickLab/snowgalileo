@@ -757,7 +757,7 @@ class FinetuningHead(nn.Module):
         self.input_height_width = input_height_width
 
     @staticmethod
-    def concatenate_input_and_apply_mask(
+    def apply_mask_and_average_tokens_per_patch(
         d_x: torch.Tensor, s_x: torch.Tensor, d_m: torch.Tensor, s_m: torch.Tensor
     ):
         d_x = rearrange(d_x, "b h w t c_g d -> b (h w) (t c_g) d")
@@ -767,12 +767,9 @@ class FinetuningHead(nn.Module):
 
         x = torch.cat([d_x, s_x], dim=2)  # B, S, N, D
         m = torch.cat([d_m, s_m], dim=2)  # B, S, N
-        x = x * (1 - m.unsqueeze(-1))
+        x_for_mean = x * (1 - m.unsqueeze(-1))
 
-        # collapse time and channel groups to get the same prediction for each timestep and channel group
-        x = rearrange(x, "b hw tc d -> b hw (tc d)")
-
-        return x
+        return x_for_mean.sum(dim=2) / torch.sum(1 - m, -1, keepdim=True)
 
     def forward(
         self,
@@ -782,14 +779,14 @@ class FinetuningHead(nn.Module):
         s_m: torch.Tensor,
         patch_size: int,
     ):
-        x = self.concatenate_input_and_apply_mask(d_x, s_x, d_m, s_m)
+        x = self.apply_mask_and_average_tokens_per_patch(d_x, s_x, d_m, s_m)
         num_patches = self.input_height_width // patch_size
         patch_vector_length = x.shape[-1]
 
         if self.segmentation:
             linear = nn.Linear(patch_vector_length, patch_size * patch_size * self.num_outputs)
 
-            # map from (t c_g d) to (o i j)
+            # map from (d) to (o i j)
             x = linear(x)
             # bring back to pixel space
             x = rearrange(
@@ -837,3 +834,6 @@ class PrestoFineTuningModel(nn.Module):
             dynamic_x, static_x, dynamic_mask, static_mask, months, patch_size
         )
         return self.head(d_x, s_x, d_m, s_m, patch_size)
+
+
+# each batch has a dimension of [H*W*T*C] and each token has a dimension of [D]
