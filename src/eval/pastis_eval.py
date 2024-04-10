@@ -242,7 +242,6 @@ class PastisDataset(PyTorchDataset):
         target = self.get_target(id)
 
         subtiles_per_dim = int(sqrt(cast(float, self.num_subtiles)))
-        assert subtiles_per_dim == 2
         h, w = d_x.shape[:2]
         assert h == w  # this is the case for PASTIS
         assert h % subtiles_per_dim == 0

@@ -65,16 +65,15 @@ class EvalTask(ABC):
             model = MultiOutputClassifier(model, n_jobs=cls.num_outputs)
         return model
 
-    @classmethod
     def _construct_finetuning_model(
-        cls,
+        self,
         pretrained_model: Encoder,
     ) -> PrestoFineTuningModel:
         head = FinetuningHead(
-            num_outputs=cls.num_outputs,
-            regression=cls.regression,
-            segmentation=cls.segmentation,
-            input_height_width=cls.input_height_width,
+            num_outputs=self.num_outputs,
+            regression=self.regression,
+            segmentation=self.segmentation,
+            input_height_width=self.input_height_width,
         )
         model = PrestoFineTuningModel(pretrained_model, head).to(device)
         model.train()
