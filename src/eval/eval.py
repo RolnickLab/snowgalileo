@@ -185,9 +185,7 @@ class EvalTask(ABC):
                     all_preds.append(preds)
                     all_y.append(y)
 
-            val_loss.append(
-                val_loss_fn(torch.cat(all_preds).cpu(), torch.cat(all_y).cpu().long())
-            )
+            val_loss.append(val_loss_fn(torch.cat(all_preds).cpu(), torch.cat(all_y).cpu().long()))
             if best_loss is None:
                 best_loss = val_loss[-1]
                 best_model_dict = model.state_dict()
