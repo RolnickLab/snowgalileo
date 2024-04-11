@@ -23,7 +23,7 @@ logger = logging.getLogger("__main__")
 
 @dataclass
 class Hyperparams:
-    batch_size: int = 64
+    batch_size: int = 8
     num_workers: int = 0
     max_epochs: int = 1
     patience: int = 10
@@ -74,8 +74,8 @@ class EvalTask(ABC):
             regression=self.regression,
             segmentation=self.segmentation,
             input_height_width=self.input_height_width,
-        ).to(device)
-        model = PrestoFineTuningModel(pretrained_model, head).to(device)
+        )
+        model = PrestoFineTuningModel(pretrained_model, head)
         model.train()
         return model
 

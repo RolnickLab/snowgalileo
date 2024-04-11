@@ -19,6 +19,7 @@ from .embeddings import (
     get_2d_sincos_pos_embed_with_resolution,
     get_month_encoding_table,
 )
+from .utils import device
 
 
 def adjust_learning_rate(optimizer, epoch, warmup_epochs, total_epochs, start_lr, max_lr, min_lr):
@@ -786,7 +787,10 @@ class FinetuningHead(nn.Module):
         patch_vector_length = x.shape[-1]
 
         if self.segmentation:
-            linear = nn.Linear(patch_vector_length, patch_size * patch_size * self.num_outputs)
+            linear = nn.Linear(patch_vector_length, patch_size * patch_size * self.num_outputs).to(
+                device
+            )
+            x = x.to(device)
 
             # map from (d) to (o i j)
             x = linear(x)
