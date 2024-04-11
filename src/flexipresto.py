@@ -11,7 +11,6 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 from torch import Tensor, vmap
 from torch.jit import Final
-from utils import device
 
 from .config import BASE_GSD
 from .data import DYNAMIC_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
@@ -20,6 +19,7 @@ from .embeddings import (
     get_2d_sincos_pos_embed_with_resolution,
     get_month_encoding_table,
 )
+from .utils import device
 
 
 def adjust_learning_rate(optimizer, epoch, warmup_epochs, total_epochs, start_lr, max_lr, min_lr):
