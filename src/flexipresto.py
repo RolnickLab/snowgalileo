@@ -782,7 +782,7 @@ class FinetuningHead(nn.Module):
         s_m: torch.Tensor,
         patch_size: int,
     ):
-        x = self.apply_mask_and_average_tokens_per_patch(d_x, s_x, d_m, s_m).to(device)
+        x = self.apply_mask_and_average_tokens_per_patch(d_x, s_x, d_m, s_m)
         num_patches = self.input_height_width // patch_size
         patch_vector_length = x.shape[-1]
 
@@ -790,7 +790,7 @@ class FinetuningHead(nn.Module):
             linear = nn.Linear(patch_vector_length, patch_size * patch_size * self.num_outputs)
 
             # map from (d) to (o i j)
-            x = linear(x)
+            x = linear(x.to(device))
             # bring back to pixel space
             x = rearrange(
                 x,
