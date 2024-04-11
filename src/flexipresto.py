@@ -143,7 +143,6 @@ class FlexiPatchEmbed(nn.Module):
         x: Tensor,
         patch_size: Optional[Union[int, Tuple[int, int]]] = None,
     ) -> Union[Tensor, Tuple[Tensor, Tuple[int, int]]]:
-        print("Shape before conv" + str(x.shape))
         # x has input shape [b, h, w, (t), c]
         batch_size = x.shape[0]
         has_time_dimension = False
@@ -168,7 +167,6 @@ class FlexiPatchEmbed(nn.Module):
 
         # Apply conv with resized weights
         x = F.conv2d(x, weight, bias=self.proj.bias, stride=patch_size)
-        print("Shape after conv" + str(x.shape))
 
         if has_time_dimension:
             x = rearrange(x, "(b t) c h w -> b h w t c", b=batch_size, t=num_timesteps)
@@ -747,14 +745,12 @@ class PrestoRepresentationDecoder(FlexiPrestoBase):
 class FinetuningHead(nn.Module):
     def __init__(
         self,
-        num_outputs: int,
         regression: bool,
         segmentation: bool,
         input_height_width: int,
     ) -> None:
         super().__init__()
 
-        self.num_outputs = num_outputs
         self.regression = regression
         self.segmentation = segmentation
         self.input_height_width = input_height_width
@@ -797,10 +793,9 @@ class FinetuningHead(nn.Module):
             # bring back to pixel space
             x = rearrange(
                 x,
-                "b (h w) (o i j) -> b o (h i) (w j)",
+                "b (h w) (i j) -> b (h i) (w j)",
                 h=num_patches,
                 w=num_patches,
-                o=self.num_outputs,
                 i=patch_size,
                 j=patch_size,
             )
