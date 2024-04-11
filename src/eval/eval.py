@@ -74,7 +74,7 @@ class EvalTask(ABC):
             regression=self.regression,
             segmentation=self.segmentation,
             input_height_width=self.input_height_width,
-        )
+        ).to(device)
         model = PrestoFineTuningModel(pretrained_model, head).to(device)
         model.train()
         return model
