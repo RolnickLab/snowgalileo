@@ -319,7 +319,7 @@ class PastisEval(EvalTask):
     def _evaluate_model(self, finetuned_model: PrestoFineTuningModel) -> Dict:
         test_dl = DataLoader(
             PastisDataset(
-                folds=[5],
+                folds=[1],
                 average_s2_over_month=self.average_months,
                 num_subtiles=self.num_subtiles,
             ),
@@ -366,7 +366,7 @@ class PastisEval(EvalTask):
 
         train_dl = DataLoader(
             PastisDataset(
-                folds=[1, 2, 3],
+                folds=[3, 4, 5],
                 average_s2_over_month=self.average_months,
                 num_subtiles=self.num_subtiles,
             ),
@@ -377,7 +377,7 @@ class PastisEval(EvalTask):
 
         val_dl = DataLoader(
             PastisDataset(
-                folds=[4],
+                folds=[2],
                 average_s2_over_month=self.average_months,
                 num_subtiles=self.num_subtiles,
             ),
