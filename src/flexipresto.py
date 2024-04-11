@@ -783,9 +783,7 @@ class FinetuningHead(nn.Module):
         patch_vector_length = x.shape[-1]
 
         if self.segmentation:
-            linear = nn.Linear(patch_vector_length, patch_size * patch_size).to(
-                device
-            )
+            linear = nn.Linear(patch_vector_length, patch_size * patch_size).to(device)
             x = x.to(device)
 
             # map from (d) to (o i j)
