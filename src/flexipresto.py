@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 from torch import Tensor, vmap
 from torch.jit import Final
+from utils import device
 
 from .config import BASE_GSD
 from .data import DYNAMIC_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
@@ -142,6 +143,7 @@ class FlexiPatchEmbed(nn.Module):
         x: Tensor,
         patch_size: Optional[Union[int, Tuple[int, int]]] = None,
     ) -> Union[Tensor, Tuple[Tensor, Tuple[int, int]]]:
+        print("Shape before conv" + str(x.shape))
         # x has input shape [b, h, w, (t), c]
         batch_size = x.shape[0]
         has_time_dimension = False
@@ -166,6 +168,7 @@ class FlexiPatchEmbed(nn.Module):
 
         # Apply conv with resized weights
         x = F.conv2d(x, weight, bias=self.proj.bias, stride=patch_size)
+        print("Shape after conv" + str(x.shape))
 
         if has_time_dimension:
             x = rearrange(x, "(b t) c h w -> b h w t c", b=batch_size, t=num_timesteps)
@@ -779,7 +782,7 @@ class FinetuningHead(nn.Module):
         s_m: torch.Tensor,
         patch_size: int,
     ):
-        x = self.apply_mask_and_average_tokens_per_patch(d_x, s_x, d_m, s_m)
+        x = self.apply_mask_and_average_tokens_per_patch(d_x, s_x, d_m, s_m).to(device)
         num_patches = self.input_height_width // patch_size
         patch_vector_length = x.shape[-1]
 
@@ -834,6 +837,3 @@ class PrestoFineTuningModel(nn.Module):
             dynamic_x, static_x, dynamic_mask, static_mask, months, patch_size
         )
         return self.head(d_x, s_x, d_m, s_m, patch_size)
-
-
-# each batch has a dimension of [H*W*T*C] and each token has a dimension of [D]
