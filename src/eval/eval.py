@@ -202,7 +202,7 @@ class EvalTask(ABC):
         assert best_model_dict is not None
         model.load_state_dict(best_model_dict)
 
-        return model()
+        return model
 
     def evaluate_model_on_task(
         self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
