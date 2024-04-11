@@ -70,7 +70,6 @@ class EvalTask(ABC):
         pretrained_model: Encoder,
     ) -> PrestoFineTuningModel:
         head = FinetuningHead(
-            num_outputs=self.num_outputs,
             regression=self.regression,
             segmentation=self.segmentation,
             input_height_width=self.input_height_width,
