@@ -116,7 +116,6 @@ class Dataset(PyTorchDataset):
         space_time_x: np.ndarray,
         space_x: np.ndarray,
         time_x: np.ndarray,
-        static_input: np.ndarray,
         months: np.ndarray,
         size: int,
         num_timesteps: int,

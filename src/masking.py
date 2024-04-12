@@ -6,27 +6,31 @@ import torch
 from einops import rearrange, repeat
 
 from .data.config import NUM_TIMESTEPS
-from .data.dataset import DYNAMIC_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
+from .data.dataset import SPACE_BAND_GROUPS_IDX, SPACE_TIME_BANDS_GROUPS_IDX, TIME_BAND_GROUPS_IDX
 
 # This is to allow a quick expansion of the mask from
 # group-channel space into real-channel space
-DYNAMIC_BAND_EXPANSION = [len(x) for x in DYNAMIC_BANDS_GROUPS_IDX.values()]
-STATIC_BAND_EXPANSION = [len(x) for x in STATIC_BAND_GROUPS_IDX.values()]
+SPACE_TIME_BAND_EXPANSION = [len(x) for x in SPACE_TIME_BANDS_GROUPS_IDX.values()]
+SPACE_BAND_EXPANSION = [len(x) for x in SPACE_BAND_GROUPS_IDX.values()]
+TIME_BAND_GROUPS_IDX = [len(x) for x in TIME_BAND_GROUPS_IDX.values()]
 
 
 MaskedOutput = namedtuple(
-    "MaskedOutput", ["dynamic_x", "static_x", "dynamic_mask", "static_mask", "months"]
+    "MaskedOutput",
+    ["space_time_x", "space_x", "time_x", "space_time_mask", "space_mask", "time_mask", "months"],
 )
 
 
 def subset_batch_of_images(
-    dynamic_x: torch.Tensor,
-    static_x: torch.Tensor,
+    space_time_x: torch.Tensor,
+    space_x: torch.Tensor,
     size: int,
 ):
-    assert (dynamic_x.shape[1] == static_x.shape[1]) & (dynamic_x.shape[2] == static_x.shape[2])
-    possible_h = dynamic_x.shape[1] - size
-    possible_w = dynamic_x.shape[2] - size
+    assert (space_time_x.shape[1] == space_x.shape[1]) & (
+        space_time_x.shape[2] == space_x.shape[2]
+    )
+    possible_h = space_time_x.shape[1] - size
+    possible_w = space_time_x.shape[2] - size
     assert (possible_h >= 0) & (possible_w >= 0)
 
     if possible_h > 0:
@@ -39,8 +43,8 @@ def subset_batch_of_images(
     else:
         start_w = possible_w
     return (
-        dynamic_x[:, start_h : start_h + size, start_w : start_w + size],
-        static_x[:, start_h : start_h + size, start_w : start_w + size],
+        space_time_x[:, start_h : start_h + size, start_w : start_w + size],
+        space_x[:, start_h : start_h + size, start_w : start_w + size],
     )
 
 
@@ -80,7 +84,11 @@ def batch_mask_presto(
 
 
 def batch_mask_time(
-    dynamic_x: torch.Tensor, static_x: torch.Tensor, months: torch.Tensor, mask_ratio: float
+    space_time_x: torch.Tensor,
+    space_x: torch.Tensor,
+    time_x: torch.Tensor,
+    months: torch.Tensor,
+    mask_ratio: float,
 ):
     """
     Masks out blocks of hxwx1xBAND_GROUPs.
@@ -89,7 +97,7 @@ def batch_mask_time(
 
     Operates over batches where each item in the batch has independently masked timesteps
     """
-    b, h, w, t, _ = dynamic_x.shape
+    b, h, w, t, _ = space_time_x.shape
     assert t == NUM_TIMESTEPS
     num_timesteps_to_mask = int(t * mask_ratio)
     # we do this as a numpy array to take advantage of
@@ -104,20 +112,27 @@ def batch_mask_time(
     # hopefully this will allow for reproducibility, since random is seeded
     rng = np.random.default_rng(random.randint(0, 100))
     b_flat_timesteps_t = torch.from_numpy(rng.permuted(b_flat_timesteps, axis=1)).to(
-        dynamic_x.device
+        space_time_x.device
     )
-    dynamic_mask = repeat(
+    space_time_mask = repeat(
         b_flat_timesteps_t,
         "b t-> b h w t c_g",
         h=h,
         w=w,
-        c_g=len(DYNAMIC_BANDS_GROUPS_IDX),
+        c_g=len(SPACE_TIME_BANDS_GROUPS_IDX),
+    )
+    time_mask = repeat(
+        b_flat_timesteps_t,
+        "b t-> b t c_g",
+        c_g=len(TIME_BAND_GROUPS_IDX),
     )
 
-    static_mask = torch.rand(b, device=static_x.device) <= mask_ratio
-    static_mask = repeat(static_mask, "b -> b h w s", h=h, w=w, s=len(STATIC_BAND_GROUPS_IDX))
+    space_mask = torch.rand(b, device=space_x.device) <= mask_ratio
+    space_mask = repeat(space_mask, "b -> b h w s", h=h, w=w, s=len(SPACE_BAND_GROUPS_IDX))
 
-    return MaskedOutput(dynamic_x, static_x, dynamic_mask, static_mask, months)
+    return MaskedOutput(
+        space_time_x, space_x, time_x, space_time_mask, space_mask, time_mask, months
+    )
 
 
 def batch_mask_space(
