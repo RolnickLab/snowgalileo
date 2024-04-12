@@ -148,7 +148,7 @@ class FlexiPatchEmbed(nn.Module):
         if len(x.shape) == 5:
             has_time_dimension = True
             num_timesteps = x.shape[3]
-            x = rearrange(x, "b h w t c -> (b t) h w c")
+            x = rearrange(x, "b h w t c -> (b t) c h w")
         x = rearrange(x, "b h w c -> b c h w")
 
         if not patch_size:
