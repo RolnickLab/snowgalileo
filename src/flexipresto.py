@@ -12,7 +12,7 @@ from torch import Tensor, vmap
 from torch.jit import Final
 
 from .config import BASE_GSD
-from .data import SPACE_TIME_BANDS_GROUPS_IDX, SPACE_BAND_GROUPS_IDX, TIME_BAND_GROUPS_IDX
+from .data import SPACE_BAND_GROUPS_IDX, SPACE_TIME_BANDS_GROUPS_IDX, TIME_BAND_GROUPS_IDX
 from .embeddings import (
     get_1d_sincos_pos_embed_from_grid_torch,
     get_2d_sincos_pos_embed_with_resolution,
@@ -390,7 +390,14 @@ class FlexiPrestoBase(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     @staticmethod
-    def collapse_hwtc(s_t_x: torch.Tensor, s_x: torch.Tensor, t_x: torch.Tensor, s_t_m: torch.Tensor, s_m: torch.Tensor, t_m: torch.Tensor):
+    def collapse_hwtc(
+        s_t_x: torch.Tensor,
+        s_x: torch.Tensor,
+        t_x: torch.Tensor,
+        s_t_m: torch.Tensor,
+        s_m: torch.Tensor,
+        t_m: torch.Tensor,
+    ):
         s_t_x = rearrange(s_t_x, "b h w t c_g d -> b (h w t c_g) d")
         s_x = rearrange(s_x, "b h w c_g d -> b (h w c_g) d")
         t_x = rearrange(t_x, "b t c_g d -> b (t c_g) d")
@@ -402,7 +409,14 @@ class FlexiPrestoBase(nn.Module):
 
     @staticmethod
     def split_and_expand_hwtc(
-        x: torch.Tensor, m: torch.Tensor, h: int, w: int, t: int, s_t_c_g: int, s_c_g: int, t_c_g: int
+        x: torch.Tensor,
+        m: torch.Tensor,
+        h: int,
+        w: int,
+        t: int,
+        s_t_c_g: int,
+        s_c_g: int,
+        t_c_g: int,
     ):
         n_s_t_t = h * w * t * s_t_c_g
         n_t_t = t * t_c_g
@@ -416,19 +430,31 @@ class FlexiPrestoBase(nn.Module):
         t_m = rearrange(m[:, -n_t_t:], "b (t c) -> b t c", t=t, c=t_c_g)
         return s_t_x, s_x, t_x, s_t_m, s_m, t_m
 
-    def apply_encodings(self, d_x, s_x, months, patch_size, input_res):
-        b, h, w, t, c_g_d, d = d_x.shape
-        c_g_s = s_x.shape[-2]
-        d_channel = repeat(self.d_channel_embed, "c_g d -> b h w t c_g d", b=b, h=h, w=w, t=t)
-        d_pos = repeat(self.pos_embed[:t], "t d -> b h w t c_g d", b=b, h=h, w=w, c_g=c_g_d)
-        m_embed = repeat(self.month_embed(months), "b t d -> b h w t c_g d", h=h, w=w, c_g=c_g_d)
+    def apply_encodings(self, s_t_x, s_x, t_x, months, patch_size, input_res):
+        b, h, w, t, s_t_c_g, _ = s_t_x.shape
+        s_c_g, t_c_g = s_x.shape[-2], t_x.shape[-2]
+
+        s_t_channel = repeat(self.s_t_channel_embed, "c_g d -> b h w t c_g d", b=b, h=h, w=w, t=t)
+        pos_embed_s_t = repeat(
+            self.pos_embed[:t], "t d -> b h w t c_g d", b=b, h=h, w=w, c_g=s_t_c_g
+        )
+        m_embed_s_t = repeat(
+            self.month_embed(months), "b t d -> b h w t c_g d", h=h, w=w, c_g=s_t_c_g
+        )
+
+        t_channel = repeat(self.t_channel_embed, "c_g d -> b t c_g d", b=b, t=t)
+        pos_embed_t = repeat(self.pos_embed[:t], "t d -> b t c_g d", b=b, c_g=t_c_g)
+        m_embed_t = repeat(self.month_embed(months), "b t d -> b t c_g d", c_g=t_c_g)
+        t_zeros = torch.zeros(
+            b, t, t_c_g, int(self.embedding_size * 0.25), device=t_x.device
+        ).float()
 
         s_channel = repeat(self.s_channel_embed, "c_g d -> b h w c_g d", b=b, h=h, w=w)
         s_zeros = torch.zeros(
             b,
             h,
             w,
-            c_g_s,
+            s_c_g,
             s_channel.shape[-1] * 2,
             device=s_channel.device,
         ).float()
@@ -444,33 +470,41 @@ class FlexiPrestoBase(nn.Module):
         spatial_embed = get_2d_sincos_pos_embed_with_resolution(
             int(self.embedding_size * 0.25),
             h,
-            torch.ones(b).to(d_x.device) * gsd_ratio,
-            device=d_x.device,
+            torch.ones(b).to(s_t_x.device) * gsd_ratio,
+            device=s_t_x.device,
         )
         spatial_embed = rearrange(spatial_embed, "b (h w) d -> b h w d", h=h, w=w)
-        spatial_embed_d = repeat(
-            spatial_embed, "b h w d -> b h w t c_g d", h=h, w=w, t=t, c_g=c_g_d
+        spatial_embed_s_t = repeat(
+            spatial_embed, "b h w d -> b h w t c_g d", h=h, w=w, t=t, c_g=s_t_c_g
         )
-        spatial_embed_s = repeat(spatial_embed, "b h w d -> b h w c_g d", h=h, w=w, c_g=c_g_s)
+        spatial_embed_s = repeat(spatial_embed, "b h w d -> b h w c_g d", h=h, w=w, c_g=s_c_g)
 
-        d_embed = torch.cat([d_channel, d_pos, m_embed, spatial_embed_d], dim=-1)
+        s_t_embed = torch.cat([s_t_channel, pos_embed_s_t, m_embed_s_t, spatial_embed_s_t], dim=-1)
         s_embed = torch.cat([s_channel, s_zeros, spatial_embed_s], dim=-1)
-        return d_x + d_embed, s_x + s_embed
+        t_embed = torch.cat([t_channel, pos_embed_t, m_embed_t, t_zeros], dim=-1)
+        return s_t_x + s_t_embed, s_x + s_embed, t_x + t_embed
 
-    def apply_attn(self, d_x, s_x, d_m, s_m, m, patch_size, input_res):
+    def apply_attn(self, s_t_x, s_x, t_x, s_t_m, s_m, t_m, m, patch_size, input_res):
         # todo - add encodings
-        _, h, w, t, d_c_g, _ = d_x.shape
-        s_c_g = s_x.shape[3]
-        d_x, s_x = self.apply_encodings(d_x, s_x, m, patch_size, input_res)
-        d_x, s_x, d_m, s_m = self.collapse_hwtc(d_x, s_x, d_m, s_m)
-        x = torch.cat([d_x, s_x], dim=1)
-        m = torch.cat([d_m, s_m], dim=1)
+        _, h, w, t, s_t_c_g, _ = s_t_x.shape
+        s_c_g, t_c_g = s_x.shape[3], t_x.shape[-2]
+        s_t_x, s_x, t_x = self.apply_encodings(s_t_x, s_x, t_x, m, patch_size, input_res)
+        s_t_x, s_x, t_x, s_t_m, s_m, t_m = self.collapse_hwtc(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
+        x = torch.cat(
+            [
+                s_t_x,
+                s_x,
+                t_x,
+            ],
+            dim=1,
+        )
+        m = torch.cat([s_t_m, s_m, t_m], dim=1)
         for blk in self.blocks:
             # we take the inverse of the mask because a value
             # of True indicates the value *should* take part in
             # attention
             x = blk(x, attn_mask=~m.bool())
-        return self.split_and_expand_hwtc(x, m, h, w, t, d_c_g, s_c_g)
+        return self.split_and_expand_hwtc(x, m, h, w, t, s_t_c_g, s_c_g, t_c_g)
 
 
 class Encoder(FlexiPrestoBase):
