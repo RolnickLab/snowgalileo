@@ -662,51 +662,71 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
 
         self.max_patch_size = max_patch_size
-        self.dynamic_embed = nn.ModuleDict(
+        self.space_time_embed = nn.ModuleDict(
             {
                 group_name: nn.Linear(decoder_embedding_size, len(group) * max_patch_size**2)
-                for group_name, group in self.dynamic_groups.items()
+                for group_name, group in self.space_time_groups.items()
             }
         )
-        self.static_embed = nn.ModuleDict(
+        self.space_embed = nn.ModuleDict(
             {
                 group_name: nn.Linear(decoder_embedding_size, len(group) * max_patch_size**2)
-                for group_name, group in self.static_groups.items()
+                for group_name, group in self.space_groups.items()
+            }
+        )
+        self.time_embed = nn.ModuleDict(
+            {
+                group_name: nn.Linear(decoder_embedding_size, len(group))
+                for group_name, group in self.time_groups.items()
             }
         )
 
-    def add_masks(self, d_x: torch.Tensor, d_m: torch.Tensor):
-        # we make an assumption here that mask_by_presto_pixels_time
-        # was used to make the masks. This means we only have masked
-        # timesteps, which simplifies the mask addition
-        d_x = d_x * (1 - d_m).unsqueeze(-1)
-        B, H, W, T, C = d_x.shape[0], d_x.shape[1], d_x.shape[2], d_x.shape[3], d_x.shape[4]
-        mask_reshaped = repeat(self.mask_token, "d -> b h w t c d", b=B, h=H, w=W, t=T, c=C)
-        masks_to_add = mask_reshaped * d_m.unsqueeze(-1)
-        d_m = d_m * 0  # all values are unmasked now
-        return d_x + masks_to_add, d_m
+    def add_masks(self, s_t_x, s_x, t_x, s_t_m, s_m, t_m):
+        s_t_x = s_t_x * (1 - s_t_m).unsqueeze(-1)
+        B, H, W, T, S_T_C, _ = s_t_x.shape
+        s_t_m_reshaped = repeat(self.mask_token, "d -> b h w t c d", b=B, h=H, w=W, t=T, c=S_T_C)
+        s_t_m_add = s_t_m_reshaped * s_t_m.unsqueeze(-1)
+        s_t_m = s_t_m * 0  # all values are unmasked now
+
+        s_x = s_x * (1 - s_m).unsqueeze(-1)
+        S_C = s_x.shape[-2]
+        s_m_reshaped = repeat(self.mask_token, "d -> b h w c d", b=B, h=H, w=W, t=T, c=S_C)
+        s_m_add = s_m_reshaped * s_m.unsqueeze(-1)
+        s_m = s_m * 0
+
+        t_x = t_x * (1 - t_m).unsqueeze(-1)
+        T_C = t_x.shape[-2]
+        t_m_reshaped = repeat(self.mask_token, "d -> b t c d", b=B, t=T, c=T_C)
+        t_m_add = t_m_reshaped * t_m.unsqueeze(-1)
+        t_m = t_m * 0
+
+        return s_t_x + s_t_m_add, s_x + s_m_add, t_x + t_m_add, s_t_m, s_m, t_m
 
     def forward(
         self,
-        dynamic_x: torch.Tensor,
-        static_x: torch.Tensor,
-        dynamic_mask: torch.Tensor,
-        static_mask: torch.Tensor,
+        s_t_x: torch.Tensor,
+        s_x: torch.Tensor,
+        t_x: torch.Tensor,
+        s_t_m: torch.Tensor,
+        s_m: torch.Tensor,
+        t_m: torch.Tensor,
         months: torch.Tensor,
         patch_size: Optional[int] = None,
         input_resolution_m: Optional[int] = BASE_GSD,
     ):
-        dynamic_x = self.encoder_to_decoder_embed(dynamic_x)
-        static_x = self.encoder_to_decoder_embed(static_x)
-        dynamic_x, dynamic_mask = self.add_masks(dynamic_x, dynamic_mask)
-        dynamic_x, static_x, _, _ = self.apply_attn(
-            dynamic_x, static_x, dynamic_mask, static_mask, months, patch_size, input_resolution_m
+        s_t_x = self.encoder_to_decoder_embed(s_t_x)
+        s_x = self.encoder_to_decoder_embed(s_x)
+        t_x = self.encoder_to_decoder_embed(t_x)
+
+        s_t_x, s_x, t_x, s_t_m, s_m, t_m = self.add_masks(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
+        s_t_x, s_x, t_x, s_t_m, s_m, t_m = self.apply_attn(
+            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size, input_resolution_m
         )
-        output_d, output_s = [], []
-        for idx, (group_name, c_g) in enumerate(self.dynamic_groups.items()):
+        output_s_t, output_s, output_t = [], [], []
+        for idx, (group_name, c_g) in enumerate(self.space_time_groups.items()):
             # decoded has shape [b, h, w, t, len(c_g) * patch_size ** 2]
-            decoded = self.dynamic_embed[group_name](dynamic_x[:, :, :, :, idx])
-            output_d.append(
+            decoded = self.space_time_embed[group_name](s_t_x[:, :, :, :, idx])
+            output_s_t.append(
                 rearrange(
                     decoded,
                     "b t_h t_w t (c_g p_h p_w) -> b (t_h p_h) (t_w p_w) t c_g",
@@ -716,9 +736,9 @@ class PrestoPixelDecoder(FlexiPrestoBase):
                 )
             )
 
-        for idx, (group_name, c_g) in enumerate(self.static_groups.items()):
+        for idx, (group_name, c_g) in enumerate(self.space_groups.items()):
             # decoded has shape [b, h, w, len(c_g) * patch_size ** 2]
-            decoded = self.static_embed[group_name](static_x[:, :, :, idx])
+            decoded = self.space_embed[group_name](s_x[:, :, :, idx])
             output_s.append(
                 rearrange(
                     decoded,
@@ -729,7 +749,16 @@ class PrestoPixelDecoder(FlexiPrestoBase):
                 )
             )
 
-        return torch.cat(output_d, dim=-1), torch.cat(output_s, dim=-1)
+        for idx, (group_name, c_g) in enumerate(self.time_groups.items()):
+            # decoded has shape [b, h, w, len(c_g) * patch_size ** 2]
+            decoded = self.time_embed[group_name](t_x[:, :, :, idx])
+            output_t.append(decoded)
+
+        return (
+            torch.cat(output_s_t, dim=-1),
+            torch.cat(output_s, dim=-1),
+            torch.cat(output_t, dim=-1),
+        )
 
 
 class PrestoRepresentationDecoder(FlexiPrestoBase):
@@ -760,16 +789,26 @@ class PrestoRepresentationDecoder(FlexiPrestoBase):
             decoder_embedding_size, encoder_embedding_size, bias=True
         )
 
-    def add_masks(self, d_x: torch.Tensor, d_m: torch.Tensor):
-        # we make an assumption here that mask_by_presto_pixels_time
-        # was used to make the masks. This means we only have masked
-        # timesteps, which simplifies the mask addition
-        d_x = d_x * (1 - d_m).unsqueeze(-1)
-        B, H, W, T, C = d_x.shape[0], d_x.shape[1], d_x.shape[2], d_x.shape[3], d_x.shape[4]
-        mask_reshaped = repeat(self.mask_token, "d -> b h w t c d", b=B, h=H, w=W, t=T, c=C)
-        masks_to_add = mask_reshaped * d_m.unsqueeze(-1)
-        d_m = d_m * 0  # all values are unmasked now
-        return d_x + masks_to_add, d_m
+    def add_masks(self, s_t_x, s_x, t_x, s_t_m, s_m, t_m):
+        s_t_x = s_t_x * (1 - s_t_m).unsqueeze(-1)
+        B, H, W, T, S_T_C, _ = s_t_x.shape
+        s_t_m_reshaped = repeat(self.mask_token, "d -> b h w t c d", b=B, h=H, w=W, t=T, c=S_T_C)
+        s_t_m_add = s_t_m_reshaped * s_t_m.unsqueeze(-1)
+        s_t_m = s_t_m * 0  # all values are unmasked now
+
+        s_x = s_x * (1 - s_m).unsqueeze(-1)
+        S_C = s_x.shape[-2]
+        s_m_reshaped = repeat(self.mask_token, "d -> b h w c d", b=B, h=H, w=W, t=T, c=S_C)
+        s_m_add = s_m_reshaped * s_m.unsqueeze(-1)
+        s_m = s_m * 0
+
+        t_x = t_x * (1 - t_m).unsqueeze(-1)
+        T_C = t_x.shape[-2]
+        t_m_reshaped = repeat(self.mask_token, "d -> b t c d", b=B, t=T, c=T_C)
+        t_m_add = t_m_reshaped * t_m.unsqueeze(-1)
+        t_m = t_m * 0
+
+        return s_t_x + s_t_m_add, s_x + s_m_add, t_x + t_m_add, s_t_m, s_m, t_m
 
     def forward(
         self,
