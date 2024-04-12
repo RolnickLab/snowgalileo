@@ -61,10 +61,8 @@ def batch_mask_presto(
     b = s_t_x.shape[0]
     t_r = int(b * time_ratio)
     s_r = int(b * space_ratio)
-    d_x_t, s_x_t, d_m_t, s_m_t, m_t = batch_mask_time(
-        s_t_x[:t_r], s_x[:t_r], t_x, months[:t_r], mask_ratio
-    )
-    d_x_s, s_x_s, d_m_s, s_m_s, m_s = batch_mask_space(
+    o_t = batch_mask_time(s_t_x[:t_r], s_x[:t_r], t_x, months[:t_r], mask_ratio)
+    o_s = batch_mask_space(
         s_t_x[t_r : t_r + s_r],
         s_x[t_r : t_r + s_r],
         t_x[t_r : t_r + s_r],
@@ -72,7 +70,7 @@ def batch_mask_presto(
         mask_ratio,
         patch_size,
     )
-    d_x_r, s_x_r, d_m_r, s_m_r, m_r = batch_mask_random(
+    o_r = batch_mask_random(
         s_t_x[t_r + s_r :],
         s_x[t_r + s_r :],
         t_x[t_r + s_r :],
@@ -82,11 +80,13 @@ def batch_mask_presto(
     )
 
     return MaskedOutput(
-        torch.cat((d_x_t, d_x_s, d_x_r), 0),
-        torch.cat((s_x_t, s_x_s, s_x_r), 0),
-        torch.cat((d_m_t, d_m_s, d_m_r), 0),
-        torch.cat((s_m_t, s_m_s, s_m_r), 0),
-        torch.cat((m_t, m_s, m_r), 0),
+        torch.cat((o_t[0], o_s[0], o_r[0]), 0),
+        torch.cat((o_t[1], o_s[1], o_r[1]), 0),
+        torch.cat((o_t[2], o_s[2], o_r[2]), 0),
+        torch.cat((o_t[3], o_s[3], o_r[3]), 0),
+        torch.cat((o_t[4], o_s[4], o_r[4]), 0),
+        torch.cat((o_t[5], o_s[5], o_r[5]), 0),
+        torch.cat((o_t[6], o_s[6], o_r[6]), 0),
     )
 
 
@@ -201,7 +201,7 @@ def batch_mask_space(
     ).to(space_x.device)
 
     time_mask = torch.rand(b, device=time_x.device) <= mask_ratio
-    time_mask = repeat(time_mask, "b -> b t", t=t, s=len(TIME_BAND_GROUPS_IDX))
+    time_mask = repeat(time_mask, "b -> b t c_g", t=t, c_g=len(TIME_BAND_GROUPS_IDX))
 
     return MaskedOutput(
         space_time_x, space_x, time_x, space_time_mask, space_mask, time_mask, months
@@ -267,7 +267,9 @@ def batch_mask_random(
     ).to(space_x.device)
 
     time_tokens = b_flat_tokens[:, -num_time_tokens:]
-    time_mask = rearrange(time_tokens, "b (t c) -> b t c", t=t, c=c_t)
+    time_mask = torch.from_numpy(rearrange(time_tokens, "b (t c) -> b t c", t=t, c=c_t)).to(
+        time_x.device
+    )
 
     return MaskedOutput(
         space_time_x, space_x, time_x, space_time_mask, space_mask, time_mask, months
