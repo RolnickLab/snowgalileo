@@ -136,8 +136,9 @@ def batch_mask_time(
 
 
 def batch_mask_space(
-    dynamic_x: torch.Tensor,
-    static_x: torch.Tensor,
+    space_time_x: torch.Tensor,
+    space_x: torch.Tensor,
+    time_x: torch.Tensor,
     months: torch.Tensor,
     mask_ratio: float,
     patch_size: int,
@@ -152,7 +153,7 @@ def batch_mask_space(
     repeated over all dynamic timesteps + channel groups and static channel groups
     Operates over batches where each item in the batch is independently masked
     """
-    b, h, w, t, _ = dynamic_x.shape
+    b, h, w, t, _ = space_time_x.shape
     assert (h % patch_size == 0) and (w % patch_size == 0)
     assert t == NUM_TIMESTEPS
     h_p = int(h / patch_size)
@@ -175,29 +176,35 @@ def batch_mask_space(
     two_d_mask = np.repeat(
         np.repeat(two_d_patch_mask, repeats=patch_size, axis=1), repeats=patch_size, axis=2
     )
-    dynamic_mask = torch.from_numpy(
+    space_time_mask = torch.from_numpy(
         repeat(
             two_d_mask,
             "b h w -> b h w t c_g",
             t=t,
-            c_g=len(DYNAMIC_BANDS_GROUPS_IDX),
+            c_g=len(SPACE_TIME_BANDS_GROUPS_IDX),
         )
-    ).to(dynamic_x.device)
+    ).to(space_time_x.device)
 
-    static_mask = torch.from_numpy(
+    space_mask = torch.from_numpy(
         repeat(
             two_d_mask,
             "b h w -> b h w c_g",
-            c_g=len(STATIC_BAND_GROUPS_IDX),
+            c_g=len(SPACE_BAND_GROUPS_IDX),
         )
-    ).to(static_x.device)
+    ).to(space_x.device)
 
-    return MaskedOutput(dynamic_x, static_x, dynamic_mask, static_mask, months)
+    time_mask = torch.rand(b, device=time_x.device) <= mask_ratio
+    time_mask = repeat(time_mask, "b -> b t", t=t, s=len(TIME_BAND_GROUPS_IDX))
+
+    return MaskedOutput(
+        space_time_x, space_x, time_x, space_time_mask, space_mask, time_mask, months
+    )
 
 
 def batch_mask_random(
-    dynamic_x: torch.Tensor,
-    static_x: torch.Tensor,
+    space_time_x: torch.Tensor,
+    space_x: torch.Tensor,
+    time_x: torch.Tensor,
     months: torch.Tensor,
     mask_ratio: float,
     patch_size: int,
@@ -212,14 +219,20 @@ def batch_mask_random(
     [0 0 0 0]
     Operates over batches where each item in the batch is independently masked
     """
-    b, h, w, t, _ = dynamic_x.shape
-    c_d, c_s = len(DYNAMIC_BANDS_GROUPS_IDX), len(STATIC_BAND_GROUPS_IDX)
+    b, h, w, t, _ = space_time_x.shape
+    c_s_t = len(SPACE_TIME_BANDS_GROUPS_IDX)
+    c_s = len(SPACE_BAND_GROUPS_IDX)
+    c_t = len(TIME_BAND_GROUPS_IDX)
     assert (h % patch_size == 0) and (w % patch_size == 0)
     assert t == NUM_TIMESTEPS
     h_p = int(h / patch_size)
     w_p = int(w / patch_size)
-    num_dynamic_tokens, num_static_tokens = (h_p * w_p * t * c_d), (h_p * w_p * c_s)
-    total_tokens = num_dynamic_tokens + num_static_tokens
+
+    num_space_time_tokens = h_p * w_p * t * c_s_t
+    num_space_tokens = h_p * w_p * c_s
+    num_time_tokens = t * c_t
+
+    total_tokens = num_space_time_tokens + num_space_tokens + num_time_tokens
     num_tokens_to_mask = int(total_tokens * mask_ratio)
     # we do this as a numpy array to take advantage of
     # numpy's permuted function
@@ -233,16 +246,22 @@ def batch_mask_random(
     # hopefully this will allow for reproducibility, since random is seeded
     rng = np.random.default_rng(random.randint(0, 100))
     b_flat_tokens = rng.permuted(b_flat_tokens, axis=1)
-    d_tokens = b_flat_tokens[:, :num_dynamic_tokens]
-    d_tokens = rearrange(d_tokens, "b (h w t c) -> b h w t c", h=h_p, w=w_p, t=t, c=c_d)
-    dynamic_mask = torch.from_numpy(
-        np.repeat(np.repeat(d_tokens, repeats=patch_size, axis=1), repeats=patch_size, axis=2)
-    ).to(dynamic_x.device)
 
-    s_tokens = b_flat_tokens[:, num_dynamic_tokens:]
-    s_tokens = rearrange(s_tokens, "b (h w c) -> b h w c", h=h_p, w=w_p, c=c_s)
-    static_mask = torch.from_numpy(
-        np.repeat(np.repeat(s_tokens, repeats=patch_size, axis=1), repeats=patch_size, axis=2)
-    ).to(static_x.device)
+    s_t_tokens = b_flat_tokens[:, :num_space_time_tokens]
+    s_t_tokens = rearrange(s_t_tokens, "b (h w t c) -> b h w t c", h=h_p, w=w_p, t=t, c=c_s_t)
+    space_time_mask = torch.from_numpy(
+        np.repeat(np.repeat(s_t_tokens, repeats=patch_size, axis=1), repeats=patch_size, axis=2)
+    ).to(space_time_x.device)
 
-    return MaskedOutput(dynamic_x, static_x, dynamic_mask, static_mask, months)
+    space_tokens = b_flat_tokens[:, num_space_time_tokens:-num_time_tokens]
+    space_tokens = rearrange(space_tokens, "b (h w c) -> b h w c", h=h_p, w=w_p, c=c_s)
+    space_mask = torch.from_numpy(
+        np.repeat(np.repeat(space_tokens, repeats=patch_size, axis=1), repeats=patch_size, axis=2)
+    ).to(space_x.device)
+
+    time_tokens = b_flat_tokens[:, -num_time_tokens:]
+    time_mask = rearrange(time_tokens, "b (t c) -> b t c", t=t, c=c_t)
+
+    return MaskedOutput(
+        space_time_x, space_x, time_x, space_time_mask, space_mask, time_mask, months
+    )
