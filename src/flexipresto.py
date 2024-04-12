@@ -12,7 +12,7 @@ from torch import Tensor, vmap
 from torch.jit import Final
 
 from .config import BASE_GSD
-from .data import DYNAMIC_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
+from .data import SPACE_TIME_BANDS_GROUPS_IDX, SPACE_BAND_GROUPS_IDX, TIME_BAND_GROUPS_IDX
 from .embeddings import (
     get_1d_sincos_pos_embed_from_grid_torch,
     get_2d_sincos_pos_embed_with_resolution,
@@ -340,8 +340,9 @@ class FlexiPrestoBase(nn.Module):
     ):
         super().__init__()
 
-        self.dynamic_groups = DYNAMIC_BANDS_GROUPS_IDX
-        self.static_groups = STATIC_BAND_GROUPS_IDX
+        self.space_time_groups = SPACE_TIME_BANDS_GROUPS_IDX
+        self.space_groups = SPACE_BAND_GROUPS_IDX
+        self.time_groups = TIME_BAND_GROUPS_IDX
         self.embedding_size = embedding_size
         self.base_patch_size = base_patch_size
 
@@ -369,11 +370,14 @@ class FlexiPrestoBase(nn.Module):
         )
         month_tab = torch.from_numpy(get_month_encoding_table(int(embedding_size * 0.25))).float()
         self.month_embed = nn.Embedding.from_pretrained(month_tab, freeze=True)
-        self.d_channel_embed = nn.Parameter(
-            torch.zeros(len(DYNAMIC_BANDS_GROUPS_IDX), int(embedding_size * 0.25))
+        self.s_t_channel_embed = nn.Parameter(
+            torch.zeros(len(SPACE_TIME_BANDS_GROUPS_IDX), int(embedding_size * 0.25))
         )
         self.s_channel_embed = nn.Parameter(
-            torch.zeros(len(STATIC_BAND_GROUPS_IDX), int(embedding_size * 0.25))
+            torch.zeros(len(SPACE_BAND_GROUPS_IDX), int(embedding_size * 0.25))
+        )
+        self.t_channel_embed = nn.Parameter(
+            torch.zeros(len(TIME_BAND_GROUPS_IDX), int(embedding_size * 0.25))
         )
 
         self.apply(self._init_weights)
@@ -386,23 +390,31 @@ class FlexiPrestoBase(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     @staticmethod
-    def collapse_hwtc(d_x: torch.Tensor, s_x: torch.Tensor, d_m: torch.Tensor, s_m: torch.Tensor):
-        d_x = rearrange(d_x, "b h w t c_g d -> b (h w t c_g) d")
+    def collapse_hwtc(s_t_x: torch.Tensor, s_x: torch.Tensor, t_x: torch.Tensor, s_t_m: torch.Tensor, s_m: torch.Tensor, t_m: torch.Tensor):
+        s_t_x = rearrange(s_t_x, "b h w t c_g d -> b (h w t c_g) d")
         s_x = rearrange(s_x, "b h w c_g d -> b (h w c_g) d")
-        d_m = rearrange(d_m, "b h w t c_g-> b (h w t c_g)")
+        t_x = rearrange(t_x, "b t c_g d -> b (t c_g) d")
+
+        s_t_m = rearrange(s_t_m, "b h w t c_g-> b (h w t c_g)")
         s_m = rearrange(s_m, "b h w c_g-> b (h w c_g)")
-        return d_x, s_x, d_m, s_m
+        t_m = rearrange(t_m, "b t c_g -> b (t c_g)")
+        return s_t_x, s_x, t_x, s_t_m, s_m, t_m
 
     @staticmethod
     def split_and_expand_hwtc(
-        x: torch.Tensor, m: torch.Tensor, h: int, w: int, t: int, d_c_g: int, s_c_g: int
+        x: torch.Tensor, m: torch.Tensor, h: int, w: int, t: int, s_t_c_g: int, s_c_g: int, t_c_g: int
     ):
-        n_d_t = h * w * t * d_c_g
-        d_x = rearrange(x[:, :n_d_t], "b (h w t c) d -> b h w t c d", h=h, w=w, t=t, c=d_c_g)
-        s_x = rearrange(x[:, n_d_t:], "b (h w c) d -> b h w c d", h=h, w=w, c=s_c_g)
-        d_m = rearrange(m[:, :n_d_t], "b (h w t c) -> b h w t c", h=h, w=w, t=t, c=d_c_g)
-        s_m = rearrange(m[:, n_d_t:], "b (h w c) -> b h w c", h=h, w=w, c=s_c_g)
-        return d_x, s_x, d_m, s_m
+        n_s_t_t = h * w * t * s_t_c_g
+        n_t_t = t * t_c_g
+
+        s_t_x = rearrange(x[:, :n_s_t_t], "b (h w t c) d -> b h w t c d", h=h, w=w, t=t, c=s_t_c_g)
+        s_x = rearrange(x[:, n_s_t_t:-n_t_t], "b (h w c) d -> b h w c d", h=h, w=w, c=s_c_g)
+        t_x = rearrange(x[:, -n_t_t:], "b (t c) d -> b t c d", t=t, c=t_c_g)
+
+        s_t_m = rearrange(m[:, :n_s_t_t], "b (h w t c) -> b h w t c", h=h, w=w, t=t, c=s_t_c_g)
+        s_m = rearrange(m[:, n_s_t_t:-n_t_t], "b (h w c) -> b h w c", h=h, w=w, c=s_c_g)
+        t_m = rearrange(m[:, -n_t_t:], "b (t c) -> b t c", t=t, c=t_c_g)
+        return s_t_x, s_x, t_x, s_t_m, s_m, t_m
 
     def apply_encodings(self, d_x, s_x, months, patch_size, input_res):
         b, h, w, t, c_g_d, d = d_x.shape
