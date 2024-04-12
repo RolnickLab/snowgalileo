@@ -149,7 +149,8 @@ class FlexiPatchEmbed(nn.Module):
             has_time_dimension = True
             num_timesteps = x.shape[3]
             x = rearrange(x, "b h w t c -> (b t) c h w")
-        x = rearrange(x, "b h w c -> b c h w")
+        else:
+            x = rearrange(x, "b h w c -> b c h w")
 
         if not patch_size:
             # During evaluation use base patch size if not specified
@@ -162,7 +163,6 @@ class FlexiPatchEmbed(nn.Module):
             weight = self.proj.weight
         else:
             weight = self.resize_patch_embed(self.proj.weight, patch_size)
-
         # Apply conv with resized weights
         x = F.conv2d(x, weight, bias=self.proj.bias, stride=patch_size)
 
