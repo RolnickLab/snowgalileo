@@ -49,29 +49,36 @@ def subset_batch_of_images(
 
 
 def batch_mask_presto(
-    dynamic_x: torch.Tensor,
-    static_x: torch.Tensor,
+    s_t_x: torch.Tensor,
+    s_x: torch.Tensor,
+    t_x: torch.Tensor,
     months: torch.Tensor,
     mask_ratio: float,
     patch_size: int,
     time_ratio: float,
     space_ratio: float,
 ) -> MaskedOutput:
-    b = dynamic_x.shape[0]
+    b = s_t_x.shape[0]
     t_r = int(b * time_ratio)
     s_r = int(b * space_ratio)
     d_x_t, s_x_t, d_m_t, s_m_t, m_t = batch_mask_time(
-        dynamic_x[:t_r], static_x[:t_r], months[:t_r], mask_ratio
+        s_t_x[:t_r], s_x[:t_r], t_x, months[:t_r], mask_ratio
     )
     d_x_s, s_x_s, d_m_s, s_m_s, m_s = batch_mask_space(
-        dynamic_x[t_r : t_r + s_r],
-        static_x[t_r : t_r + s_r],
+        s_t_x[t_r : t_r + s_r],
+        s_x[t_r : t_r + s_r],
+        t_x[t_r : t_r + s_r],
         months[t_r : t_r + s_r],
         mask_ratio,
         patch_size,
     )
     d_x_r, s_x_r, d_m_r, s_m_r, m_r = batch_mask_random(
-        dynamic_x[t_r + s_r :], static_x[t_r + s_r :], months[t_r + s_r :], mask_ratio, patch_size
+        s_t_x[t_r + s_r :],
+        s_x[t_r + s_r :],
+        t_x[t_r + s_r :],
+        months[t_r + s_r :],
+        mask_ratio,
+        patch_size,
     )
 
     return MaskedOutput(
