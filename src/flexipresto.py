@@ -745,12 +745,14 @@ class PrestoRepresentationDecoder(FlexiPrestoBase):
 class FinetuningHead(nn.Module):
     def __init__(
         self,
+        num_outputs: int,
         regression: bool,
         segmentation: bool,
         input_height_width: int,
     ) -> None:
         super().__init__()
 
+        self.num_outputs = num_outputs
         self.regression = regression
         self.segmentation = segmentation
         self.input_height_width = input_height_width
@@ -783,7 +785,9 @@ class FinetuningHead(nn.Module):
         patch_vector_length = x.shape[-1]
 
         if self.segmentation:
-            linear = nn.Linear(patch_vector_length, patch_size * patch_size).to(device)
+            linear = nn.Linear(patch_vector_length, patch_size * patch_size * self.num_outputs).to(
+                device
+            )
             x = x.to(device)
 
             # map from (d) to (o i j)
@@ -791,9 +795,10 @@ class FinetuningHead(nn.Module):
             # bring back to pixel space
             x = rearrange(
                 x,
-                "b (h w) (i j) -> b (h i) (w j)",
+                "b (h w) (i j o) -> b (h i) (w j) o",
                 h=num_patches,
                 w=num_patches,
+                o=self.num_outputs,
                 i=patch_size,
                 j=patch_size,
             )

@@ -73,6 +73,7 @@ class EvalTask(ABC):
             regression=self.regression,
             segmentation=self.segmentation,
             input_height_width=self.input_height_width,
+            num_outputs=self.num_outputs,
         )
         model = PrestoFineTuningModel(pretrained_model, head)
         model.train()
