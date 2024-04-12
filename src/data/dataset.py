@@ -29,8 +29,8 @@ from .earthengine.eo import (
 )
 from .earthengine.eo import SPACE_TIME_BANDS as EO_SPACE_TIME_BANDS
 
+EO_SPACE_TIME_BANDS_NP = np.array(EO_SPACE_TIME_BANDS)
 SPACE_TIME_BANDS = EO_SPACE_TIME_BANDS + ["NDVI"]
-SPACE_TIME_BANDS_NP = np.array(SPACE_TIME_BANDS)
 
 SPACE_TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
@@ -246,7 +246,7 @@ class Dataset(PyTorchDataset):
             t=int(num_timesteps),
         )
 
-        space_time_x = cls._fillna(dynamic_x[:, :, :, : -len(TIME_BANDS)], SPACE_TIME_BANDS_NP)
+        space_time_x = cls._fillna(dynamic_x[:, :, :, : -len(TIME_BANDS)], EO_SPACE_TIME_BANDS_NP)
         space_time_x = np.concatenate((space_time_x, cls.calculate_ndvi(space_time_x)), axis=-1)
         space_time_x = normalize_space_time(space_time_x)
 
