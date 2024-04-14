@@ -10,6 +10,7 @@ from einops import repeat
 from sklearn.metrics import jaccard_score
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as PyTorchDataset
+from torchmetrics import JaccardIndex
 from tqdm import tqdm
 
 from ..data.dataset import (
@@ -228,7 +229,7 @@ class PastisDataset(PyTorchDataset):
         target = np.load(
             data_dir / cast(str, self.data_path) / "ANNOTATIONS/TARGET_{}.npy".format(id)
         )
-        return torch.from_numpy(target[0].astype(int))
+        return torch.from_numpy(target[0].astype(int)).long()
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         """
@@ -311,8 +312,9 @@ class PastisEval(EvalTask):
         self.name = f"{self.name}_{'AVERAGED_MONTHS' if self.average_months else 'ALL_MONTHS'}_hw{self.input_height_width}"
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
+        jaccard_mean = JaccardIndex(task="multiclass", num_classes=self.num_outputs).to(device)
         return {
-            f"{self.name}: {model_name}_iou": jaccard_score(target, preds),
+            f"{self.name}: {model_name}_mean_iou": jaccard_mean(preds, target),
         }
 
     @torch.no_grad()
