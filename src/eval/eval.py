@@ -163,7 +163,7 @@ class EvalTask(ABC):
                 optimizer.zero_grad()
                 preds = model(d_x, s_x, d_m, s_m, months, patch_size=self.patch_size)
 
-                loss = train_loss_fn(preds, y.long())
+                loss = train_loss_fn(preds, y)
                 epoch_train_loss += loss.item()
                 num_updates += 1
                 loss.backward()
@@ -185,7 +185,7 @@ class EvalTask(ABC):
                     all_preds.append(preds)
                     all_y.append(y)
 
-            val_loss.append(val_loss_fn(torch.cat(all_preds).cpu(), torch.cat(all_y).cpu().long()))
+            val_loss.append(val_loss_fn(torch.cat(all_preds).cpu(), torch.cat(all_y).cpu()))
             if best_loss is None:
                 best_loss = val_loss[-1]
                 best_model_dict = model.state_dict()
