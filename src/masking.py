@@ -61,7 +61,7 @@ def batch_mask_presto(
     b = s_t_x.shape[0]
     t_r = int(b * time_ratio)
     s_r = int(b * space_ratio)
-    o_t = batch_mask_time(s_t_x[:t_r], s_x[:t_r], t_x, months[:t_r], mask_ratio)
+    o_t = batch_mask_time(s_t_x[:t_r], s_x[:t_r], t_x[:t_r], months[:t_r], mask_ratio)
     o_s = batch_mask_space(
         s_t_x[t_r : t_r + s_r],
         s_x[t_r : t_r + s_r],
@@ -78,7 +78,6 @@ def batch_mask_presto(
         mask_ratio,
         patch_size,
     )
-
     return MaskedOutput(
         torch.cat((o_t[0], o_s[0], o_r[0]), 0),
         torch.cat((o_t[1], o_s[1], o_r[1]), 0),
