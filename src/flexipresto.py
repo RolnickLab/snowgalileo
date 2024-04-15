@@ -614,16 +614,22 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             }
         )
 
-    def add_masks(self, d_x: torch.Tensor, d_m: torch.Tensor):
-        # we make an assumption here that mask_by_presto_pixels_time
-        # was used to make the masks. This means we only have masked
-        # timesteps, which simplifies the mask addition
+    def add_masks(
+        self, d_x: torch.Tensor, s_x: torch.Tensor, d_m: torch.Tensor, s_m: torch.Tensor
+    ):
         d_x = d_x * (1 - d_m).unsqueeze(-1)
         B, H, W, T, C = d_x.shape[0], d_x.shape[1], d_x.shape[2], d_x.shape[3], d_x.shape[4]
-        mask_reshaped = repeat(self.mask_token, "d -> b h w t c d", b=B, h=H, w=W, t=T, c=C)
-        masks_to_add = mask_reshaped * d_m.unsqueeze(-1)
+        d_m_reshaped = repeat(self.mask_token, "d -> b h w t c d", b=B, h=H, w=W, t=T, c=C)
+        d_m_add = d_m_reshaped * d_m.unsqueeze(-1)
         d_m = d_m * 0  # all values are unmasked now
-        return d_x + masks_to_add, d_m
+
+        s_x = s_x * (1 - s_m).unsqueeze(-1)
+        S_C = s_x.shape[-2]
+        s_m_reshaped = repeat(self.mask_token, "d -> b h w c d", b=B, h=H, w=W, t=T, c=S_C)
+        s_m_add = s_m_reshaped * s_m.unsqueeze(-1)
+        s_m = s_m * 0
+
+        return d_x + d_m_add, d_m, s_x + s_m_add, d_m, s_m
 
     def forward(
         self,
@@ -637,7 +643,9 @@ class PrestoPixelDecoder(FlexiPrestoBase):
     ):
         dynamic_x = self.encoder_to_decoder_embed(dynamic_x)
         static_x = self.encoder_to_decoder_embed(static_x)
-        dynamic_x, dynamic_mask = self.add_masks(dynamic_x, dynamic_mask)
+        dynamic_x, static_x, dynamic_mask, static_mask = self.add_masks(
+            dynamic_x, static_x, dynamic_mask, static_mask
+        )
         dynamic_x, static_x, _, _ = self.apply_attn(
             dynamic_x, static_x, dynamic_mask, static_mask, months, patch_size, input_resolution_m
         )
@@ -699,16 +707,22 @@ class PrestoRepresentationDecoder(FlexiPrestoBase):
             decoder_embedding_size, encoder_embedding_size, bias=True
         )
 
-    def add_masks(self, d_x: torch.Tensor, d_m: torch.Tensor):
-        # we make an assumption here that mask_by_presto_pixels_time
-        # was used to make the masks. This means we only have masked
-        # timesteps, which simplifies the mask addition
+    def add_masks(
+        self, d_x: torch.Tensor, s_x: torch.Tensor, d_m: torch.Tensor, s_m: torch.Tensor
+    ):
         d_x = d_x * (1 - d_m).unsqueeze(-1)
         B, H, W, T, C = d_x.shape[0], d_x.shape[1], d_x.shape[2], d_x.shape[3], d_x.shape[4]
-        mask_reshaped = repeat(self.mask_token, "d -> b h w t c d", b=B, h=H, w=W, t=T, c=C)
-        masks_to_add = mask_reshaped * d_m.unsqueeze(-1)
+        d_m_reshaped = repeat(self.mask_token, "d -> b h w t c d", b=B, h=H, w=W, t=T, c=C)
+        d_m_add = d_m_reshaped * d_m.unsqueeze(-1)
         d_m = d_m * 0  # all values are unmasked now
-        return d_x + masks_to_add, d_m
+
+        s_x = s_x * (1 - s_m).unsqueeze(-1)
+        S_C = s_x.shape[-2]
+        s_m_reshaped = repeat(self.mask_token, "d -> b h w c d", b=B, h=H, w=W, t=T, c=S_C)
+        s_m_add = s_m_reshaped * s_m.unsqueeze(-1)
+        s_m = s_m * 0
+
+        return d_x + d_m_add, d_m, s_x + s_m_add, d_m, s_m
 
     def forward(
         self,
@@ -722,7 +736,9 @@ class PrestoRepresentationDecoder(FlexiPrestoBase):
     ):
         dynamic_x = self.encoder_to_decoder_embed(dynamic_x)
         static_x = self.encoder_to_decoder_embed(static_x)
-        dynamic_x, dynamic_mask = self.add_masks(dynamic_x, dynamic_mask)
+        dynamic_x, static_x, dynamic_mask, static_mask = self.add_masks(
+            dynamic_x, static_x, dynamic_mask, static_mask
+        )
         dynamic_x, static_x, dynamic_mask, static_mask = self.apply_attn(
             dynamic_x,
             static_x,
