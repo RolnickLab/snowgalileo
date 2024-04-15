@@ -580,31 +580,31 @@ class Encoder(FlexiPrestoBase):
         [1, 1, 0, 0]
         for the H, W dimensions
         """
-        s_t_i, s_i, t_i, s_t_m, s_m, t_m = [], [], [], [], [], []
+        s_t_l, s_l, t_l, s_t_m_l, s_m_l, t_m_l = [], [], [], [], [], []
         for idx, (channel_group, channel_idxs) in enumerate(self.space_time_groups.items()):
-            s_t_i.append(
+            s_t_l.append(
                 self.space_time_embed[channel_group](
                     s_t_x[:, :, :, :, channel_idxs], patch_size=patch_size
                 )
             )
-            s_t_m.append(s_t_m[:, 0::patch_size, 0::patch_size, :, idx])
+            s_t_m_l.append(s_t_m[:, 0::patch_size, 0::patch_size, :, idx])
         for idx, (channel_group, channel_idxs) in enumerate(self.space_time_groups.items()):
-            s_i.append(
+            s_l.append(
                 self.space_embed[channel_group](s_x[:, :, :, channel_idxs], patch_size=patch_size)
             )
-            s_m.append(s_m[:, 0::patch_size, 0::patch_size, idx])
+            s_m_l.append(s_m[:, 0::patch_size, 0::patch_size, idx])
 
         for idx, (channel_group, channel_idxs) in enumerate(self.time_groups.items()):
-            t_i.append(self.time_embed[channel_group](t_x[:, :, channel_idxs]))
-            t_m.append(t_m[:, :, idx])
+            t_l.append(self.time_embed[channel_group](t_x[:, :, channel_idxs]))
+            t_m_l.append(t_m[:, :, idx])
 
         return (
-            torch.stack(s_t_i, dim=-2),
-            torch.stack(s_i, dim=-2),
-            torch.stack(t_i, dim=-2),
-            torch.stack(s_t_m, dim=-1),
-            torch.stack(s_m, dim=-1),
-            torch.stack(t_m, dim=-1),
+            torch.stack(s_t_l, dim=-2),
+            torch.stack(s_l, dim=-2),
+            torch.stack(t_l, dim=-2),
+            torch.stack(s_t_m_l, dim=-1),
+            torch.stack(s_m_l, dim=-1),
+            torch.stack(t_m_l, dim=-1),
         )
 
     @classmethod
@@ -690,7 +690,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
 
         s_x = s_x * (1 - s_m).unsqueeze(-1)
         S_C = s_x.shape[-2]
-        s_m_reshaped = repeat(self.mask_token, "d -> b h w c d", b=B, h=H, w=W, t=T, c=S_C)
+        s_m_reshaped = repeat(self.mask_token, "d -> b h w c d", b=B, h=H, w=W, c=S_C)
         s_m_add = s_m_reshaped * s_m.unsqueeze(-1)
         s_m = s_m * 0
 
@@ -798,7 +798,7 @@ class PrestoRepresentationDecoder(FlexiPrestoBase):
 
         s_x = s_x * (1 - s_m).unsqueeze(-1)
         S_C = s_x.shape[-2]
-        s_m_reshaped = repeat(self.mask_token, "d -> b h w c d", b=B, h=H, w=W, t=T, c=S_C)
+        s_m_reshaped = repeat(self.mask_token, "d -> b h w c d", b=B, h=H, w=W, c=S_C)
         s_m_add = s_m_reshaped * s_m.unsqueeze(-1)
         s_m = s_m * 0
 
