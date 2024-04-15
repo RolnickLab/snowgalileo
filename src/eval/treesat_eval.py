@@ -21,12 +21,13 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from ..data.dataset import (
-    DYNAMIC_BANDS,
-    DYNAMIC_BANDS_GROUPS_IDX,
     S1_BANDS,
-    STATIC_BAND_GROUPS_IDX,
-    STATIC_BANDS,
-    normalize_dynamic,
+    SPACE_BAND_GROUPS_IDX,
+    SPACE_BANDS,
+    SPACE_TIME_BANDS,
+    SPACE_TIME_BANDS_GROUPS_IDX,
+    TIME_BANDS,
+    normalize_space_time,
 )
 from ..data.earthengine.s2 import S2_BANDS
 from ..flexipresto import Encoder
@@ -92,7 +93,7 @@ class TreeSatDataset(Dataset):
         ]
         kept_kept_treesat_s2_band_names = [val for val in S2_BAND_ORDERING if val in S2_BANDS]
         self.treesat_to_presto_s2_map = [
-            DYNAMIC_BANDS.index(val) for val in kept_kept_treesat_s2_band_names
+            SPACE_TIME_BANDS.index(val) for val in kept_kept_treesat_s2_band_names
         ]
 
         self.kept_treesat_s1_band_idx = [
@@ -100,7 +101,7 @@ class TreeSatDataset(Dataset):
         ]
         kept_kept_treesat_s1_band_names = [val for val in S1_BAND_ORDERING if val in S1_BANDS]
         self.treesat_to_presto_s1_map = [
-            DYNAMIC_BANDS.index(val) for val in kept_kept_treesat_s1_band_names
+            SPACE_TIME_BANDS.index(val) for val in kept_kept_treesat_s1_band_names
         ]
 
     def train_val_split(self, val_ratio: float = 0.1, seed=None):
@@ -127,17 +128,17 @@ class TreeSatDataset(Dataset):
         for name, percentage in positive_classes:
             labels_np[self.labels_to_int[name]] = percentage
 
-        d_x = np.zeros([len(DYNAMIC_BANDS), self.input_height_width, self.input_height_width])
+        s_t_x = np.zeros([len(SPACE_TIME_BANDS), self.input_height_width, self.input_height_width])
         if self.mode in ["s2", "combined"]:
             with cast(xr.DataArray, rioxarray.open_rasterio(s2_image)) as s2:
-                d_x[self.treesat_to_presto_s2_map] = s2.values[self.kept_treesat_s2_band_idx]
+                s_t_x[self.treesat_to_presto_s2_map] = s2.values[self.kept_treesat_s2_band_idx]
         if self.mode in ["s1", "combined"]:
             with cast(xr.DataArray, rioxarray.open_rasterio(s1_image)) as s1:
-                d_x[self.treesat_to_presto_s1_map] = s1.values[self.kept_treesat_s1_band_idx]
+                s_t_x[self.treesat_to_presto_s1_map] = s1.values[self.kept_treesat_s1_band_idx]
 
-        d_x = repeat(d_x, "c h w -> h w t c", t=self.num_timesteps)
+        s_t_x = repeat(s_t_x, "c h w -> h w t c", t=self.num_timesteps)
 
-        return normalize_dynamic(d_x), self.min_threshold(labels_np)
+        return normalize_space_time(s_t_x), self.min_threshold(labels_np)
 
     @staticmethod
     def min_threshold(labels: np.ndarray, binarize: bool = True):
@@ -153,50 +154,51 @@ class TreeSatDataset(Dataset):
 
     def make_masks(self):
         if self.mode == "s2":
-            dynamic_channels = [
-                idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" in key
+            s_t_channels = [
+                idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S2" in key
             ]
 
         elif self.mode == "s1":
-            dynamic_channels = [
-                idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S1" in key
+            s_t_channels = [
+                idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S1" in key
             ]
         else:
-            dynamic_channels = [
-                idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S" in key
+            s_t_channels = [
+                idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S" in key
             ]
 
         # everything is masked by default
-        dynamic_mask = np.ones([len(DYNAMIC_BANDS_GROUPS_IDX)])
+        s_t_m = np.ones([len(SPACE_TIME_BANDS_GROUPS_IDX)])
         # unmask available s2 bands
-        dynamic_mask[dynamic_channels] = 0
-        dynamic_mask = repeat(
-            dynamic_mask, "d -> h w t d", h=self.input_height_width, w=self.input_height_width, t=1
+        s_t_m[s_t_channels] = 0
+        s_t_m = repeat(
+            s_t_m, "d -> h w t d", h=self.input_height_width, w=self.input_height_width, t=1
         )
 
-        # no static channels are available
-        static_mask = np.ones(
-            [self.input_height_width, self.input_height_width, len(STATIC_BAND_GROUPS_IDX)]
+        s_m = np.ones(
+            [self.input_height_width, self.input_height_width, len(SPACE_BAND_GROUPS_IDX)]
         )
+        t_m = np.ones([self.num_timesteps, len(SPACE_TIME_BANDS_GROUPS_IDX)])
 
-        assert ((dynamic_mask == 0) | (dynamic_mask == 1)).all()
-        assert (static_mask == 1).all()
+        assert ((s_t_m == 0) | (s_t_m == 1)).all()
+        assert (s_m == 1).all()
+        assert (t_m == 1).all()
 
-        return (dynamic_mask, static_mask)
+        return (s_t_m, s_m, t_m)
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         image = self.images[idx]
-        d_x, label = self.image_to_dynamic_eo_array(image.strip())
+        s_t_x, label = self.image_to_dynamic_eo_array(image.strip())
 
-        # static bands are not provided by eurosat
-        s_x = np.zeros((d_x.shape[0], d_x.shape[1], len(STATIC_BANDS)))
+        s_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
+        t_x = np.zeros((s_t_x.shape[2], len(TIME_BANDS)))
 
-        d_m, s_m = self.masks
+        s_t_m, s_m, t_m = self.masks
         month = np.ones((self.num_timesteps,)) * self.start_month
 
         label_torch = torch.tensor(label, dtype=torch.long)
 
-        return (masked_output_np_to_tensor(d_x, s_x, d_m, s_m, month), label_torch)
+        return (masked_output_np_to_tensor(s_t_x, s_x, t_x, s_t_m, s_m, t_m, month), label_torch)
 
     def __len__(self):
         return len(self.images)
@@ -269,12 +271,14 @@ class TreeSatEval(EvalTask):
 
         labels_list = []
         for masked_output, labels in tqdm(test_dl, desc="Computing test predictions"):
-            d_x, s_x, d_m, s_m, months = [t.to(device) for t in masked_output]
+            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
             with torch.no_grad():
-                d_x, s_x, d_m, s_m, _ = pretrained_model(
-                    d_x, s_x, d_m, s_m, months, patch_size=self.patch_size
+                s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
+                    s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
                 )
-                encodings = pretrained_model.average_tokens(d_x, s_x, d_m, s_m).cpu().numpy()
+                encodings = (
+                    pretrained_model.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m).cpu().numpy()
+                )
             labels_list.append(labels.cpu().numpy())
             for model in sklearn_models:
                 preds_list = model.predict_proba(encodings)
