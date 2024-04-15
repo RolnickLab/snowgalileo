@@ -310,12 +310,6 @@ class PastisEval(EvalTask):
         )
         self.name = f"{self.name}_{'AVERAGED_MONTHS' if self.average_months else 'ALL_MONTHS'}_hw{self.input_height_width}"
 
-    def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
-        jaccard_mean = JaccardIndex(task="multiclass", num_classes=self.num_outputs).to(device)
-        return {
-            f"{self.name}: {model_name}_mean_iou": jaccard_mean(preds, target),
-        }
-
     @torch.no_grad()
     def _evaluate_model(self, finetuned_model: PrestoFineTuningModel) -> Dict:
         test_dl = DataLoader(
@@ -328,32 +322,22 @@ class PastisEval(EvalTask):
             shuffle=False,
             num_workers=Hyperparams.num_workers,
         )
-        pred_list = []
 
-        labels_list = []
+        mean_IoU = []
 
         for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
             d_x, s_x, d_m, s_m, months = [t.to(device) for t in masked_output]
+            label = label.to(device)
 
-            labels_list.append(label.cpu().numpy())
+            jaccard_mean = JaccardIndex(task="multiclass", num_classes=self.num_outputs).to(device)
 
             finetuned_model.eval()
 
             with torch.no_grad():
-                preds = finetuned_model(
-                    d_x, s_x, d_m, s_m, months, patch_size=self.patch_size
-                ).cpu()
+                preds = finetuned_model(d_x, s_x, d_m, s_m, months, patch_size=self.patch_size)
+                mean_IoU.append(jaccard_mean(preds, label).item())
 
-            pred_list.append(preds)
-
-        target = np.concatenate(labels_list)
-        results_dict = {}
-
-        test_preds_np = np.concatenate(pred_list, axis=0)
-        prefix = "finetuned"
-        results_dict.update(self.compute_metrics(prefix, test_preds_np, target))
-
-        return results_dict
+        return {f"{self.name}: finetuned_mean_iou": np.mean(mean_IoU)}
 
     def evaluate_model_on_task(
         self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
