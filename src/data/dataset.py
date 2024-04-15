@@ -119,7 +119,7 @@ class Dataset(PyTorchDataset):
         months: np.ndarray,
         size: int,
         num_timesteps: int,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         space_time_x: array of shape [H, W, T, D]
         space_x: array of shape [H, W, D]
@@ -265,19 +265,21 @@ class Dataset(PyTorchDataset):
         if self.cache_folder is None:
             return self._tif_to_array(tif_path)
         else:
-            cache_path_d, cache_path_s = self.tif_to_npy_paths(tif_path)
-            if cache_path_d.exists():
+            cache_path_s_t, cache_path_s, cache_path_t = self.tif_to_npy_paths(tif_path)
+            if cache_path_s_t.exists():
                 assert cache_path_s.exists()
+                assert cache_path_t.exists()
                 # check if the files exists in cache
-                d_x = np.load(cache_path_d)
-                num_timesteps = d_x.shape[2]
+                s_t_x = np.load(cache_path_s_t)
+                num_timesteps = s_t_x.shape[2]
                 months = self.month_array_from_file(tif_path, num_timesteps)
-                return DatasetOutput(d_x, np.load(cache_path_s), months)
+                return DatasetOutput(s_t_x, np.load(cache_path_s), np.load(cache_path_t), months)
             else:
-                d_x, d_s, months = self._tif_to_array(tif_path)
-                np.save(cache_path_d, d_x)
-                np.save(cache_path_s, d_s)
-                return DatasetOutput(d_x, d_s, months)
+                s_t_x, s_x, t_x, months = self._tif_to_array(tif_path)
+                np.save(cache_path_s_t, s_t_x)
+                np.save(cache_path_s, s_x)
+                np.save(cache_path_t, t_x)
+                return DatasetOutput(s_t_x, s_x, t_x, months)
 
     @staticmethod
     def calculate_ndvi(input_array: np.ndarray) -> np.ndarray:
