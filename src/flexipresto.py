@@ -742,8 +742,8 @@ class PrestoRepresentationDecoder(FlexiPrestoBase):
         dynamic_x, static_x, dynamic_mask, static_mask = self.apply_attn(
             dynamic_x,
             static_x,
-            torch.zeros_like(dynamic_mask, device=dynamic_mask.device),
-            torch.zeros_like(static_mask, device=static_mask.device),
+            dynamic_mask,
+            static_mask,
             months,
             patch_size,
             input_resolution_m,
