@@ -588,7 +588,7 @@ class Encoder(FlexiPrestoBase):
                 )
             )
             s_t_m_l.append(s_t_m[:, 0::patch_size, 0::patch_size, :, idx])
-        for idx, (channel_group, channel_idxs) in enumerate(self.space_time_groups.items()):
+        for idx, (channel_group, channel_idxs) in enumerate(self.space_groups.items()):
             s_l.append(
                 self.space_embed[channel_group](s_x[:, :, :, channel_idxs], patch_size=patch_size)
             )
@@ -812,29 +812,29 @@ class PrestoRepresentationDecoder(FlexiPrestoBase):
 
     def forward(
         self,
-        dynamic_x: torch.Tensor,
-        static_x: torch.Tensor,
-        dynamic_mask: torch.Tensor,
-        static_mask: torch.Tensor,
+        s_t_x: torch.Tensor,
+        s_x: torch.Tensor,
+        t_x: torch.Tensor,
+        s_t_m: torch.Tensor,
+        s_m: torch.Tensor,
+        t_m: torch.Tensor,
         months: torch.Tensor,
         patch_size: Optional[int] = None,
         input_resolution_m: Optional[int] = BASE_GSD,
     ):
-        dynamic_x = self.encoder_to_decoder_embed(dynamic_x)
-        static_x = self.encoder_to_decoder_embed(static_x)
-        dynamic_x, dynamic_mask = self.add_masks(dynamic_x, dynamic_mask)
-        dynamic_x, static_x, dynamic_mask, static_mask = self.apply_attn(
-            dynamic_x,
-            static_x,
-            torch.zeros_like(dynamic_mask, device=dynamic_mask.device),
-            torch.zeros_like(static_mask, device=static_mask.device),
-            months,
-            patch_size,
-            input_resolution_m,
+        s_t_x = self.encoder_to_decoder_embed(s_t_x)
+        s_x = self.encoder_to_decoder_embed(s_x)
+        t_x = self.encoder_to_decoder_embed(t_x)
+
+        s_t_x, s_x, t_x, s_t_m, s_m, t_m = self.add_masks(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
+        s_t_x, s_x, t_x, s_t_m, s_m, t_m = self.apply_attn(
+            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size, input_resolution_m
         )
         return (
-            self.decoder_to_encoder_embed(dynamic_x),
-            self.decoder_to_encoder_embed(static_x),
-            dynamic_mask,
-            static_mask,
+            self.decoder_to_encoder_embed(s_t_x),
+            self.decoder_to_encoder_embed(s_x),
+            self.decoder_to_encoder_embed(t_x),
+            s_t_m,
+            s_m,
+            t_m,
         )
