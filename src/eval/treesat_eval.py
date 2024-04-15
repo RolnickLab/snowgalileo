@@ -26,6 +26,7 @@ from ..data.dataset import (
     SPACE_BANDS,
     SPACE_TIME_BANDS,
     SPACE_TIME_BANDS_GROUPS_IDX,
+    TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
     normalize_space_time,
 )
@@ -178,7 +179,7 @@ class TreeSatDataset(Dataset):
         s_m = np.ones(
             [self.input_height_width, self.input_height_width, len(SPACE_BAND_GROUPS_IDX)]
         )
-        t_m = np.ones([self.num_timesteps, len(SPACE_TIME_BANDS_GROUPS_IDX)])
+        t_m = np.ones([self.num_timesteps, len(TIME_BAND_GROUPS_IDX)])
 
         assert ((s_t_m == 0) | (s_t_m == 1)).all()
         assert (s_m == 1).all()
