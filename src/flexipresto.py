@@ -750,8 +750,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             )
 
         for idx, (group_name, c_g) in enumerate(self.time_groups.items()):
-            # decoded has shape [b, h, w, len(c_g) * patch_size ** 2]
-            decoded = self.time_embed[group_name](t_x[:, :, :, idx])
+            decoded = self.time_embed[group_name](t_x[:, :, idx])
             output_t.append(decoded)
 
         return (

@@ -10,7 +10,7 @@ from src.data import (
     Dataset,
 )
 from src.data.config import NUM_TIMESTEPS
-from src.data.dataset import DatasetOutput
+from src.data.dataset import SPACE_BANDS, SPACE_TIME_BANDS, TIME_BANDS, DatasetOutput
 from src.flexipresto import Encoder, PrestoPixelDecoder, PrestoRepresentationDecoder
 from src.masking import batch_mask_presto, subset_batch_of_images
 
@@ -29,7 +29,7 @@ class TestPresto(unittest.TestCase):
 
     def test_end_to_end(self):
         self._end_to_end_run_ijepa(32, 16, 8)
-        # self._end_to_end_run_mae(16, 8)
+        self._end_to_end_run_mae(16, 8)
 
     def test_end_to_end_different_inputs_per_dim_than_default(self):
         self._end_to_end_run_ijepa(32, 16, 4)
@@ -150,11 +150,12 @@ class TestPresto(unittest.TestCase):
         )
         max_patch_size = decoder.max_patch_size
         ds = Dataset(DATA_FOLDER, False)
-        d_x, s_x, months = self.to_tensor_with_batch_d(ds[0])
-        d_x, s_x = subset_batch_of_images(d_x, s_x, size=image_size)
+        s_t_x, s_x, t_x, months = self.to_tensor_with_batch_d(ds[0])
+        s_t_x, s_x = subset_batch_of_images(s_t_x, s_x, size=image_size)
         masked_output = batch_mask_presto(
-            d_x,
+            s_t_x,
             s_x,
+            t_x,
             months,
             mask_ratio=0.5,
             patch_size=patch_size,
@@ -164,10 +165,12 @@ class TestPresto(unittest.TestCase):
         with torch.no_grad():
             # for now, we just make sure it all runs
             encoder_output = encoder(
-                masked_output.dynamic_x.float(),
-                masked_output.static_x.float(),
-                masked_output.dynamic_mask.float(),
-                masked_output.static_mask.float(),
+                masked_output.space_time_x.float(),
+                masked_output.space_x.float(),
+                masked_output.time_x.float(),
+                masked_output.space_time_mask.float(),
+                masked_output.space_mask.float(),
+                masked_output.time_mask.float(),
                 masked_output.months.long(),
                 patch_size=patch_size,
             )
@@ -179,7 +182,7 @@ class TestPresto(unittest.TestCase):
                 image_size / patch_size,
                 image_size / patch_size,
                 NUM_TIMESTEPS,
-                len(DYNAMIC_BANDS_GROUPS_IDX),
+                len(SPACE_TIME_BANDS_GROUPS_IDX),
                 embedding_size,
             ]
         )
@@ -189,12 +192,22 @@ class TestPresto(unittest.TestCase):
                 1,
                 image_size / patch_size,
                 image_size / patch_size,
-                len(STATIC_BAND_GROUPS_IDX),
+                len(SPACE_BAND_GROUPS_IDX),
+                embedding_size,
+            ]
+        )
+        self.assertTrue(
+            list(encoder_output[2].shape)
+            == [
+                1,
+                NUM_TIMESTEPS,
+                len(TIME_BAND_GROUPS_IDX),
                 embedding_size,
             ]
         )
         self.assertFalse(torch.isnan(encoder_output[0]).any())
         self.assertFalse(torch.isnan(encoder_output[1]).any())
+        self.assertFalse(torch.isnan(encoder_output[2]).any())
 
         with torch.no_grad():
             output = decoder(*encoder_output)
@@ -205,7 +218,7 @@ class TestPresto(unittest.TestCase):
                 image_size * (max_patch_size / patch_size),
                 image_size * (max_patch_size / patch_size),
                 NUM_TIMESTEPS,
-                len(DYNAMIC_BANDS),
+                len(SPACE_TIME_BANDS),
             ]
         )
         self.assertTrue(
@@ -214,11 +227,13 @@ class TestPresto(unittest.TestCase):
                 1,
                 image_size * (max_patch_size / patch_size),
                 image_size * (max_patch_size / patch_size),
-                len(STATIC_BANDS),
+                len(SPACE_BANDS),
             ]
         )
+        self.assertTrue(list(output[2].shape) == [1, NUM_TIMESTEPS, len(TIME_BANDS)])
         self.assertFalse(torch.isnan(output[0]).any())
         self.assertFalse(torch.isnan(output[1]).any())
+        self.assertFalse(torch.isnan(output[2]).any())
 
     def test_presto_representation_decoder_add_masks(self):
         enc_embedding_size = 16
