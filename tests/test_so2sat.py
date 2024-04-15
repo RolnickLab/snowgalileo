@@ -4,10 +4,12 @@ from pathlib import Path
 import torch
 
 from src.data.dataset import (
-    DYNAMIC_BANDS,
-    DYNAMIC_BANDS_GROUPS_IDX,
-    STATIC_BAND_GROUPS_IDX,
-    STATIC_BANDS,
+    SPACE_BAND_GROUPS_IDX,
+    SPACE_BANDS,
+    SPACE_TIME_BANDS,
+    SPACE_TIME_BANDS_GROUPS_IDX,
+    TIME_BAND_GROUPS_IDX,
+    TIME_BANDS,
 )
 from src.eval.so2sat_eval import So2SatDataset
 
@@ -15,48 +17,68 @@ DATA_FOLDER = Path(__file__).parents[1] / "data/so2sat/so2sat_test"
 
 
 class TestSo2Sat(unittest.TestCase):
-    def check_dynamic(self, dynamic_x, dynamic_m):
+    def check_space_time(self, s_t_x, s_t_m):
         self.assertEqual(
-            dynamic_x.shape,
+            s_t_x.shape,
             (
                 So2SatDataset.input_height_width,
                 So2SatDataset.input_height_width,
                 So2SatDataset.num_timesteps,
-                len(DYNAMIC_BANDS),
+                len(SPACE_TIME_BANDS),
             ),
         )
         self.assertEqual(
-            dynamic_m.shape,
+            s_t_m.shape,
             (
                 So2SatDataset.input_height_width,
                 So2SatDataset.input_height_width,
                 So2SatDataset.num_timesteps,
-                len(DYNAMIC_BANDS_GROUPS_IDX),
+                len(SPACE_TIME_BANDS_GROUPS_IDX),
             ),
         )
-        self.assertFalse(torch.any(torch.isnan(dynamic_x)))
+        self.assertFalse(torch.any(torch.isnan(s_t_x)))
 
-    def check_static(self, static_x, static_m):
+    def check_space(self, s_x, s_m):
         self.assertEqual(
-            static_x.shape,
+            s_x.shape,
             (
                 So2SatDataset.input_height_width,
                 So2SatDataset.input_height_width,
-                len(STATIC_BANDS),
+                len(SPACE_BANDS),
             ),
         )
         self.assertEqual(
-            static_m.shape,
+            s_m.shape,
             (
                 So2SatDataset.input_height_width,
                 So2SatDataset.input_height_width,
-                len(STATIC_BAND_GROUPS_IDX),
+                len(SPACE_BAND_GROUPS_IDX),
             ),
         )
 
-        # no static data in so2sat so added as zeros and masked out
-        self.assertTrue(torch.all(static_x == 0))
-        self.assertTrue(torch.all(static_m == 1))
+        # no static data so added as zeros and masked out
+        self.assertTrue(torch.all(s_x == 0))
+        self.assertTrue(torch.all(s_m == 1))
+
+    def check_time(self, t_x, t_m):
+        self.assertEqual(
+            t_x.shape,
+            (
+                So2SatDataset.num_timesteps,
+                len(TIME_BANDS),
+            ),
+        )
+        self.assertEqual(
+            t_m.shape,
+            (
+                So2SatDataset.num_timesteps,
+                len(TIME_BAND_GROUPS_IDX),
+            ),
+        )
+
+        # no time-only data so added as zeros and masked out
+        self.assertTrue(torch.all(t_x == 0))
+        self.assertTrue(torch.all(t_m == 1))
 
     def check_month(self, month):
         self.assertEqual(month.shape, (So2SatDataset.num_timesteps,))
@@ -70,19 +92,20 @@ class TestSo2Sat(unittest.TestCase):
     def test_so2sat_dataset(self):
         dataset = So2SatDataset(split="testing", so2sat_dir=DATA_FOLDER)
         sample = dataset[0]
-        d_x, s_x, d_m, s_m, m = sample[0]
+        s_t_x, s_x, t_x, s_t_m, s_m, t_m, m = sample[0]
         label = sample[1]
 
-        self.check_dynamic(dynamic_x=d_x, dynamic_m=d_m)
-        self.check_static(static_x=s_x, static_m=s_m)
+        self.check_space_time(s_t_x, s_t_m)
+        self.check_space(s_x, s_m)
+        self.check_time(t_x, t_m)
         self.check_month(month=m)
         self.check_label(label=label)
 
         # will test if the right channels are masked out
-        present_bands = [idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S" in key]
+        present_bands = [idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S" in key]
         unpresent_bands = [
-            idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S" not in key
+            idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S" not in key
         ]
 
-        self.assertTrue(torch.all(d_m[:, :, :, present_bands] == 0))
-        self.assertTrue(torch.all(d_m[:, :, :, unpresent_bands] == 1))
+        self.assertTrue(torch.all(s_t_m[:, :, :, present_bands] == 0))
+        self.assertTrue(torch.all(s_t_m[:, :, :, unpresent_bands] == 1))

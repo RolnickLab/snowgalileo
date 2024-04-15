@@ -11,12 +11,13 @@ from torch.utils.data import Dataset as PyTorchDataset
 from tqdm import tqdm
 
 from ..data.dataset import (
-    DYNAMIC_BANDS,
-    DYNAMIC_BANDS_GROUPS_IDX,
     S1_BANDS,
-    STATIC_BAND_GROUPS_IDX,
-    STATIC_BANDS,
-    normalize_dynamic,
+    SPACE_BAND_GROUPS_IDX,
+    SPACE_BANDS,
+    SPACE_TIME_BANDS,
+    SPACE_TIME_BANDS_GROUPS_IDX,
+    TIME_BANDS,
+    normalize_space_time,
 )
 from ..data.earthengine.s2 import S2_BANDS
 from ..flexipresto import Encoder
@@ -68,14 +69,14 @@ class So2SatDataset(PyTorchDataset):
         return image, label
 
     def create_so2sat_masks(self) -> Tuple[np.ndarray, np.ndarray]:
-        dynamic_channels = [idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S" in key]
+        s_t_channels = [idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S" in key]
 
         # everything is masked by default
-        dynamic_mask = np.ones([len(DYNAMIC_BANDS_GROUPS_IDX)])
+        s_t_m = np.ones([len(SPACE_TIME_BANDS_GROUPS_IDX)])
         # unmask available s1 and s2 bands
-        dynamic_mask[dynamic_channels] = 0
-        dynamic_mask = repeat(
-            dynamic_mask,
+        s_t_m[s_t_channels] = 0
+        s_t_m = repeat(
+            s_t_m,
             "d -> h w t d",
             h=self.input_height_width,
             w=self.input_height_width,
@@ -83,18 +84,20 @@ class So2SatDataset(PyTorchDataset):
         )
 
         # no static channels are available
-        static_mask = np.ones(
-            [self.input_height_width, self.input_height_width, len(STATIC_BAND_GROUPS_IDX)]
+        s_m = np.ones(
+            [self.input_height_width, self.input_height_width, len(SPACE_BAND_GROUPS_IDX)]
         )
+        t_m = np.ones([self.num_timesteps, len(SPACE_BAND_GROUPS_IDX)])
 
-        assert ((dynamic_mask == 0) | (dynamic_mask == 1)).all()
-        assert (static_mask == 1).all()
+        assert ((s_t_m == 0) | (s_t_m == 1)).all()
+        assert (s_m == 1).all()
+        assert (t_m == 1).all()
 
-        return (dynamic_mask, static_mask)
+        return (s_t_m, s_m, t_m)
 
     def image_to_dynamic_eo_array(self, image: np.ndarray) -> np.ndarray:
         kept_dynamic_bands = [
-            idx for idx, x in enumerate(DYNAMIC_BANDS) if (x in S2_BANDS or x in S1_BANDS)
+            idx for idx, x in enumerate(SPACE_TIME_BANDS) if (x in S2_BANDS or x in S1_BANDS)
         ]
 
         eo_style_array = np.zeros(
@@ -102,28 +105,29 @@ class So2SatDataset(PyTorchDataset):
                 self.input_height_width,
                 self.input_height_width,
                 self.num_timesteps,
-                len(DYNAMIC_BANDS),
+                len(SPACE_TIME_BANDS),
             ]
         )
         eo_style_array[:, :, :, kept_dynamic_bands] = repeat(
             image, "h w c -> h w t c", t=self.num_timesteps
         )
 
-        return normalize_dynamic(eo_style_array)
+        return normalize_space_time(eo_style_array)
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         image, label = self.h5_to_eo_array_and_label(idx)
-        d_x = self.image_to_dynamic_eo_array(image)
+        s_t_x = self.image_to_dynamic_eo_array(image)
 
-        # static bands are not provided by so2sat
-        s_x = np.zeros((d_x.shape[0], d_x.shape[1], len(STATIC_BANDS)))
+        # space only / time only bands are not provided by so2sat
+        s_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
+        t_x = np.zeros((s_t_x.shape[2], len(TIME_BANDS)))
 
-        d_m, s_m = self.masks
+        s_t_m, s_m, t_m = self.masks
         month = np.zeros((self.num_timesteps,))
 
         label_torch = torch.tensor(label, dtype=torch.long)
 
-        return (masked_output_np_to_tensor(d_x, s_x, d_m, s_m, month), label_torch)
+        return (masked_output_np_to_tensor(s_t_x, s_x, t_x, s_t_m, s_m, t_m, month), label_torch)
 
     def __len__(self) -> int:
         if self._len is None:
@@ -164,15 +168,17 @@ class So2SatEval(EvalTask):
         labels_list = []
 
         for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
-            d_x, s_x, d_m, s_m, months = [t.to(device) for t in masked_output]
+            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
 
             pretrained_model.eval()
 
             with torch.no_grad():
-                d_x, s_x, d_m, s_m, _ = pretrained_model(
-                    d_x, s_x, d_m, s_m, months, patch_size=self.patch_size
+                s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
+                    s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
                 )
-                encodings = pretrained_model.average_tokens(d_x, s_x, d_m, s_m).cpu().numpy()
+                encodings = (
+                    pretrained_model.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m).cpu().numpy()
+                )
 
             labels_list.append(label.cpu().numpy())
 
