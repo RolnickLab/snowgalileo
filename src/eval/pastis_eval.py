@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import torch.multiprocessing
 from einops import repeat
-from sklearn.metrics import jaccard_score
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as PyTorchDataset
 from torchmetrics import JaccardIndex
@@ -341,11 +340,9 @@ class PastisEval(EvalTask):
             finetuned_model.eval()
 
             with torch.no_grad():
-                preds = (
-                    finetuned_model(d_x, s_x, d_m, s_m, months, patch_size=self.patch_size)
-                    .cpu()
-                    .numpy()
-                )
+                preds = finetuned_model(
+                    d_x, s_x, d_m, s_m, months, patch_size=self.patch_size
+                ).cpu()
 
             pred_list.append(preds)
 
