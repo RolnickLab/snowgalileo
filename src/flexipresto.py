@@ -625,11 +625,11 @@ class PrestoPixelDecoder(FlexiPrestoBase):
 
         s_x = s_x * (1 - s_m).unsqueeze(-1)
         S_C = s_x.shape[-2]
-        s_m_reshaped = repeat(self.mask_token, "d -> b h w c d", b=B, h=H, w=W, t=T, c=S_C)
+        s_m_reshaped = repeat(self.mask_token, "d -> b h w c d", b=B, h=H, w=W, c=S_C)
         s_m_add = s_m_reshaped * s_m.unsqueeze(-1)
         s_m = s_m * 0
 
-        return d_x + d_m_add, d_m, s_x + s_m_add, d_m, s_m
+        return d_x + d_m_add, s_x + s_m_add, d_m, s_m
 
     def forward(
         self,
@@ -718,11 +718,11 @@ class PrestoRepresentationDecoder(FlexiPrestoBase):
 
         s_x = s_x * (1 - s_m).unsqueeze(-1)
         S_C = s_x.shape[-2]
-        s_m_reshaped = repeat(self.mask_token, "d -> b h w c d", b=B, h=H, w=W, t=T, c=S_C)
+        s_m_reshaped = repeat(self.mask_token, "d -> b h w c d", b=B, h=H, w=W, c=S_C)
         s_m_add = s_m_reshaped * s_m.unsqueeze(-1)
         s_m = s_m * 0
 
-        return d_x + d_m_add, d_m, s_x + s_m_add, d_m, s_m
+        return d_x + d_m_add, s_x + s_m_add, d_m, s_m
 
     def forward(
         self,
