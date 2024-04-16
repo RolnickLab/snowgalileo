@@ -155,7 +155,7 @@ class EuroSatDataset(PyTorchDataset):
 
         return (space_time_mask, space_mask, time_mask)
 
-    def image_to_dynamic_eo_array(self, tif_filename: str) -> Tuple[np.ndarray, np.ndarray]:
+    def image_to_space_time_array(self, tif_filename: str) -> Tuple[np.ndarray, np.ndarray]:
         indices_to_remove = []
         for band in REMOVED_BANDS:
             indices_to_remove.append(ALL_S2_BANDS.index(band))
@@ -189,7 +189,7 @@ class EuroSatDataset(PyTorchDataset):
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         image = self.images[idx]
-        s_t_x, label = self.image_to_dynamic_eo_array(image.strip())
+        s_t_x, label = self.image_to_space_time_array(image.strip())
 
         # static bands are not provided by eurosat
         s_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))

@@ -121,7 +121,7 @@ class TreeSatDataset(Dataset):
         s2_path = data_dir / treesat_dir / s2_files_dir / Path(tif_file).name
         return s1_path, s2_path
 
-    def image_to_dynamic_eo_array(self, tif_file: str):
+    def image_to_space_time_array(self, tif_file: str):
         s1_image, s2_image = self.image_name_to_paths(tif_file)
 
         labels_np = np.zeros(len(self.labels_to_int))
@@ -189,7 +189,7 @@ class TreeSatDataset(Dataset):
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         image = self.images[idx]
-        s_t_x, label = self.image_to_dynamic_eo_array(image.strip())
+        s_t_x, label = self.image_to_space_time_array(image.strip())
 
         s_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
         t_x = np.zeros((s_t_x.shape[2], len(TIME_BANDS)))

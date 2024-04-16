@@ -96,7 +96,7 @@ class So2SatDataset(PyTorchDataset):
 
         return (s_t_m, s_m, t_m)
 
-    def image_to_dynamic_eo_array(self, image: np.ndarray) -> np.ndarray:
+    def image_to_space_time_array(self, image: np.ndarray) -> np.ndarray:
         kept_dynamic_bands = [
             idx for idx, x in enumerate(SPACE_TIME_BANDS) if (x in S2_BANDS or x in S1_BANDS)
         ]
@@ -117,7 +117,7 @@ class So2SatDataset(PyTorchDataset):
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         image, label = self.h5_to_eo_array_and_label(idx)
-        s_t_x = self.image_to_dynamic_eo_array(image)
+        s_t_x = self.image_to_space_time_array(image)
 
         # space only / time only bands are not provided by so2sat
         s_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
