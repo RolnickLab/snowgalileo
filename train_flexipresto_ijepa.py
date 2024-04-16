@@ -45,7 +45,7 @@ argparser = argparse.ArgumentParser()
 argparser.add_argument("--config_file", type=str, default="default.json")
 args = argparser.parse_args().__dict__
 
-config = load_check_config(args["config_file"], "mae")
+config = load_check_config(args["config_file"], "jepa")
 training_config = config["training"]
 
 # this too
