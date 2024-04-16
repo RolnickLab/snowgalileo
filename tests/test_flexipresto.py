@@ -202,12 +202,19 @@ class TestPresto(unittest.TestCase):
         b, h, w, t = 5, 6, 7, 8
         d_x = torch.ones(b, h, w, t, len(DYNAMIC_BANDS_GROUPS_IDX), dec_embedding_size)
         d_m = torch.zeros(b, h, w, t, len(DYNAMIC_BANDS_GROUPS_IDX))
+        s_x = torch.ones(b, h, w, len(STATIC_BAND_GROUPS_IDX), dec_embedding_size)
+        s_m = torch.zeros(b, h, w, len(STATIC_BAND_GROUPS_IDX))
         d_m[:, :, :, 0] = 1  # mask the first timestep
+        s_m[:, 0] = 1  # mask the first row of static data
         with torch.no_grad():
-            o, o_m = decoder.add_masks(d_x, d_m)
-        self.assertTrue((o_m == 0).all())
-        self.assertTrue((o[:, :, :, 0] == 0).all())
-        self.assertTrue((o[:, :, :, 1:] == 1).all())
+            o_d, o_s, o_d_m, o_s_m = decoder.add_masks(d_x, s_x, d_m, s_m)
+        self.assertTrue((o_d_m == 0).all())
+        self.assertTrue((o_s_m == 0).all())
+        # mask token is initialized to 0s
+        self.assertTrue((o_d[:, :, :, 0] == 0).all())
+        self.assertTrue((o_d[:, :, :, 1:] == 1).all())
+        self.assertTrue((o_s[:, 0] == 0).all())
+        self.assertTrue((o_s[:, 1:] == 1).all())
 
     def test_presto_pixel_decoder_add_masks(self):
         embedding_size = 16
@@ -219,12 +226,19 @@ class TestPresto(unittest.TestCase):
         b, h, w, t = 5, 6, 7, 8
         d_x = torch.ones(b, h, w, t, len(DYNAMIC_BANDS_GROUPS_IDX), embedding_size)
         d_m = torch.zeros(b, h, w, t, len(DYNAMIC_BANDS_GROUPS_IDX))
+        s_x = torch.ones(b, h, w, len(STATIC_BAND_GROUPS_IDX), embedding_size)
+        s_m = torch.zeros(b, h, w, len(STATIC_BAND_GROUPS_IDX))
         d_m[:, :, :, 0] = 1  # mask the first timestep
+        s_m[:, 0] = 1  # mask the first row of static data
         with torch.no_grad():
-            o, o_m = decoder.add_masks(d_x, d_m)
-        self.assertTrue((o_m == 0).all())
-        self.assertTrue((o[:, :, :, 0] == 0).all())
-        self.assertTrue((o[:, :, :, 1:] == 1).all())
+            o_d, o_s, o_d_m, o_s_m = decoder.add_masks(d_x, s_x, d_m, s_m)
+        self.assertTrue((o_d_m == 0).all())
+        self.assertTrue((o_s_m == 0).all())
+        # mask token is initialized to 0s
+        self.assertTrue((o_d[:, :, :, 0] == 0).all())
+        self.assertTrue((o_d[:, :, :, 1:] == 1).all())
+        self.assertTrue((o_s[:, 0] == 0).all())
+        self.assertTrue((o_s[:, 1:] == 1).all())
 
     def test_mean_of_tokens(self):
         b, t, d, h, w, d_c_g, s_c_g = 1, 2, 8, 3, 3, 5, 6
