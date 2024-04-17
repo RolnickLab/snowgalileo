@@ -67,6 +67,7 @@ dataloader = DataLoader(
     shuffle=True,
     num_workers=Hyperparams.num_workers,
 )
+# choose three random images to plot
 example_to_plot = dataset[0]
 print("Loading models")
 encoder = Encoder(**config["model"]["encoder"]).to(device)

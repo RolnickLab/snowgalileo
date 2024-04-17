@@ -124,28 +124,16 @@ def load_check_config(name: str, mode: str):
     return config
 
 
-def plot_masked_bands(y_true: np.ndarray, y_pred: np.ndarray, mask_strategy: str):
-    """Plot only the masked bands over time"""
-    ncols = len(BANDS_GROUPS_IDX[mask_strategy])
-    plt = import_optional_dependency("matplotlib.pyplot")
-    fig, axes = plt.subplots(nrows=1, ncols=ncols, figsize=(20, 10))
-    for i, masked_band_idx in enumerate(BANDS_GROUPS_IDX[mask_strategy]):
-        if ncols == 1:
-            ax = axes
-        else:
-            ax = axes[i]
-        ax.plot(y_true[:, masked_band_idx], label=f"Actual {mask_strategy} band {i}")
-        ax.plot(y_pred[:, masked_band_idx], label=f"Prediced {mask_strategy} band {i}")
-        ax.set_title(f"{mask_strategy} band {i}")
-        ax.set_ylabel(f"{mask_strategy} band {i}")
-        ax.set_xlabel("Time interval")
-        ax.legend()
-    return fig
-
-
-def plot_masked_general(example: MaskedExample, y_pred: np.ndarray, dw_pred: np.ndarray):
+def plot_masked_general(target, masked, prediction, prediction_interpolated):
     """Plot all bands over time"""
-    fig, axes = plt.subplots(nrows=7, ncols=5, figsize=(20, 30))
+
+    fig, axes = plt.subplots(nrows=4, ncols=4, figsize=(20,20))
+
+    s2_rgb = x[:, :, :, :]
+    s1 = x[:, :, :, :]
+    era5 = x[:, :, :, :]
+    # dw maybe
+
 
     # Reconstruct eo data
     eo_data_actual = example.x_eo.copy()
@@ -182,11 +170,8 @@ def plot_masked_general(example: MaskedExample, y_pred: np.ndarray, dw_pred: np.
     return fig
 
 
-def plot_prediction(example: MaskedExample, eo_pred: np.ndarray, dw_pred: np.ndarray):
-    if example.strategy in list(BANDS_GROUPS_IDX.keys()):
-        fig = plot_masked_bands(example.y_eo, eo_pred, example.strategy)
-    else:
-        fig = plot_masked_general(example, eo_pred, dw_pred)
+def plot_masked(example: MaskedExample, eo_pred: np.ndarray, dw_pred: np.ndarray):
+    fig = plot_masked_general(example, eo_pred, dw_pred)
     plt = import_optional_dependency("matplotlib.pyplot")
     plt.suptitle(
         f"Start month: {example.start_month}, "
@@ -203,6 +188,9 @@ def plot_predictions(model, patch_size, image_size, training_config, image):
     d_x, s_x, d_m, s_m, months = image
     d_x, s_x, months = image
 
+    target = d_x[:, :, :, 0, :].squeeze(0).cpu().numpy()
+    assert(target.shape == (image_size, image_size))
+
     d_x, s_x = subset_batch_of_images(d_x, s_x, image_size)
     d_x, s_x, d_m, s_m, months = batch_mask_presto(
         d_x,
@@ -214,8 +202,8 @@ def plot_predictions(model, patch_size, image_size, training_config, image):
         space_ratio=training_config["space_ratio"],
     )
 
-    target = d_x[:, :, :, 0, 0].squeeze(0).cpu().numpy()
-    assert(target.shape == (image_size, image_size))
+    masked = d_x[:, :, :, 0, :].squeeze(0).cpu().numpy()
+    assert(masked.shape == (image_size, image_size))
 
     with torch.no_grad():
         p_d, _ = model(
@@ -227,7 +215,7 @@ def plot_predictions(model, patch_size, image_size, training_config, image):
             patch_size=patch_size,
         )
 
-    output = p_d[:, :, :, 0, 0].squeeze(0).cpu().numpy()
+    output = p_d[:, :, :, 0, :].squeeze(0).cpu().numpy()
     assert(output.shape == (image_size, image_size))
 
     if patch_size < training_config["patch_sizes"][-1]:
@@ -241,11 +229,20 @@ def plot_predictions(model, patch_size, image_size, training_config, image):
             d=d,
         )
     
-    interpolated = p_d[:, :, :, 0, 0].squeeze(0).cpu().numpy()
+    interpolated = p_d[:, :, :, 0, :].squeeze(0).cpu().numpy()
     assert(interpolated.shape == (image_size, image_size))
 
+    # design choices: which bands to plot / RGB (because visual), S1, ERA5, etc.
+    # target, masked, prediction, interpolated
+    # S2 RGB
+    # S1
+    # ERA5
+    # DW
+
+    # iterate over timesteps to plot, squeeze timedim
+
     name_plots_list = []
-    for i, example in enumerate(examples):
+    for i, example in enumerate(training_config["nr_timesteps_to_plot"]):
         if i < wandb_plots:
             title = f"plot_train_{i}_{example.strategy}"
         else:
