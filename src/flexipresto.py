@@ -484,11 +484,11 @@ class FlexiPrestoBase(nn.Module):
         t_embed = torch.cat([t_channel, pos_embed_t, m_embed_t, t_zeros], dim=-1)
         return s_t_x + s_t_embed, s_x + s_embed, t_x + t_embed
 
-    def apply_attn(self, s_t_x, s_x, t_x, s_t_m, s_m, t_m, m, patch_size, input_res):
+    def apply_attn(self, s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size, input_res):
         # todo - add encodings
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
         s_c_g, t_c_g = s_x.shape[3], t_x.shape[-2]
-        s_t_x, s_x, t_x = self.apply_encodings(s_t_x, s_x, t_x, m, patch_size, input_res)
+        s_t_x, s_x, t_x = self.apply_encodings(s_t_x, s_x, t_x, months, patch_size, input_res)
         s_t_x, s_x, t_x, s_t_m, s_m, t_m = self.collapse_hwtc(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
         x = torch.cat(
             [
