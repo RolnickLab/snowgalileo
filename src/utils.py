@@ -31,14 +31,17 @@ def seed_everything(seed: int = DEFAULT_SEED):
     torch.backends.cudnn.benchmark = True
 
 
-def masked_output_np_to_tensor(d_x, s_x, d_m, s_m, month) -> MaskedOutput:
+def masked_output_np_to_tensor(s_t_x, s_x, t_x, s_t_m, s_m, t_m, month) -> MaskedOutput:
     """converts eval task"""
-    d_x_torch = torch.as_tensor(d_x, dtype=torch.float32)
-    s_x_torch = torch.as_tensor(s_x, dtype=torch.float32)
-    d_m_torch = torch.as_tensor(d_m, dtype=torch.float32)
-    s_m_torch = torch.as_tensor(s_m, dtype=torch.float32)
-    month_torch = torch.as_tensor(month, dtype=torch.long)
-    return MaskedOutput(d_x_torch, s_x_torch, d_m_torch, s_m_torch, month_torch)
+    return MaskedOutput(
+        torch.as_tensor(s_t_x, dtype=torch.float32),
+        torch.as_tensor(s_x, dtype=torch.float32),
+        torch.as_tensor(t_x, dtype=torch.float32),
+        torch.as_tensor(s_t_m, dtype=torch.float32),
+        torch.as_tensor(s_m, dtype=torch.float32),
+        torch.as_tensor(t_m, dtype=torch.float32),
+        torch.as_tensor(month, dtype=torch.long),
+    )
 
 
 class AverageMeter:

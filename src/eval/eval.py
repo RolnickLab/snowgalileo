@@ -74,13 +74,15 @@ class EvalTask(ABC):
 
         encoding_list, target_list = [], []
         for masked_output, label in tqdm(dl, desc="Computing encodings for sklearn"):
-            d_x, s_x, d_m, s_m, months = [t.to(device) for t in masked_output]
+            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
             target_list.append(label.cpu().numpy())
             with torch.no_grad():
-                d_x, s_x, d_m, s_m, _ = pretrained_model(
-                    d_x, s_x, d_m, s_m, months, patch_size=self.patch_size
+                s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
+                    s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
                 )
-                encodings = pretrained_model.average_tokens(d_x, s_x, d_m, s_m).cpu().numpy()
+                encodings = (
+                    pretrained_model.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m).cpu().numpy()
+                )
                 encoding_list.append(encodings)
 
         encodings_np = np.concatenate(encoding_list)
