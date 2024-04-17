@@ -811,7 +811,7 @@ class FinetuningHead(nn.Module):
             # bring back to pixel space
             x = rearrange(
                 x,
-                "b (h w) (i j o) -> b (h i) (w j) o",
+                "b (h w) (o i j) -> b o (h i) (w j)",
                 h=num_patches,
                 w=num_patches,
                 o=self.num_outputs,
