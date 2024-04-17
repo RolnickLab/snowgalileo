@@ -29,7 +29,7 @@ from .earthengine.eo import (
 )
 from .earthengine.eo import SPACE_TIME_BANDS as EO_SPACE_TIME_BANDS
 
-EO_DYNAMIC_BANDS_NP = np.array(EO_SPACE_TIME_BANDS + TIME_BANDS)
+EO_DYNAMIC_IN_TIME_BANDS_NP = np.array(EO_SPACE_TIME_BANDS + TIME_BANDS)
 SPACE_TIME_BANDS = EO_SPACE_TIME_BANDS + ["NDVI"]
 
 SPACE_TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
@@ -235,26 +235,30 @@ class Dataset(PyTorchDataset):
     @classmethod
     def _tif_to_array(cls, tif_path: Path) -> DatasetOutput:
         with cast(xr.Dataset, rioxarray.open_rasterio(tif_path)) as data:
+            # [all_combined_bands, H, W]
+            # all_combined_bands includes all dynamic-in-time bands
+            # interleaved for all timesteps
+            # followed by the static-in-time bands
             values = cast(np.ndarray, data.values)
 
         num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(ALL_DYNAMIC_IN_TIME_BANDS)
         assert num_timesteps % 1 == 0
-        dynamic_x = rearrange(
+        dynamic_in_time_x = rearrange(
             values[: -len(SPACE_BANDS)],
-            "(t b) h w -> h w t b",
-            b=len(ALL_DYNAMIC_IN_TIME_BANDS),
+            "(t c) h w -> h w t c",
+            c=len(ALL_DYNAMIC_IN_TIME_BANDS),
             t=int(num_timesteps),
         )
-        dynamic_x = cls._fillna(dynamic_x, EO_DYNAMIC_BANDS_NP)
-        space_time_x = dynamic_x[:, :, :, : -len(TIME_BANDS)]
+        dynamic_in_time_x = cls._fillna(dynamic_in_time_x, EO_DYNAMIC_IN_TIME_BANDS_NP)
+        space_time_x = dynamic_in_time_x[:, :, :, : -len(TIME_BANDS)]
         space_time_x = np.concatenate((space_time_x, cls.calculate_ndvi(space_time_x)), axis=-1)
         space_time_x = normalize_space_time(space_time_x)
 
-        time_x = dynamic_x[:, :, :, -len(TIME_BANDS) :]
+        time_x = dynamic_in_time_x[:, :, :, -len(TIME_BANDS) :]
         time_x = np.nanmean(time_x, axis=(0, 1))
         time_x = normalize_time(time_x)
 
-        space_x = rearrange(values[-len(SPACE_BANDS) :], "b h w -> h w b")
+        space_x = rearrange(values[-len(SPACE_BANDS) :], "c h w -> h w c")
         space_x = cls._fillna(space_x, np.array(SPACE_BANDS))
         space_x = normalize_space(space_x)
 
@@ -285,7 +289,7 @@ class Dataset(PyTorchDataset):
     def calculate_ndvi(input_array: np.ndarray) -> np.ndarray:
         r"""
         Given an input array of shape [h, w, t, bands]
-        where bands == len(EO_DYNAMIC_BANDS), returns an array of shape
+        where bands == len(EO_DYNAMIC_IN_TIME_BANDS_NP), returns an array of shape
         [h, w, t, 1] representing NDVI,
         (b08 - b04) / (b08 + b04)
         """
