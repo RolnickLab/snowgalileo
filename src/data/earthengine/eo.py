@@ -44,17 +44,24 @@ SURROUNDING_METRES = EXPORTED_HEIGHT_WIDTH_METRES / 2
 START_DATE = date(START_YEAR, 1, 1)
 END_DATE = date(END_YEAR, 12, 31)
 
-DYNAMIC_IMAGE_FUNCTIONS = [
+TIME_IMAGE_FUNCTIONS = [
     get_single_s2_image,
     get_single_era5_image,
 ]
-DYNAMIC_BANDS = S1_BANDS + S2_BANDS + ERA5_BANDS
-DYNAMIC_SHIFT_VALUES = np.array(S1_SHIFT_VALUES + S2_SHIFT_VALUES + ERA5_SHIFT_VALUES)
-DYNAMIC_DIV_VALUES = np.array(S1_DIV_VALUES + S2_DIV_VALUES + ERA5_DIV_VALUES)
-STATIC_IMAGE_FUNCTIONS = [get_single_srtm_image, get_single_dw_image]
-STATIC_BANDS = SRTM_BANDS + DW_BANDS
-STATIC_SHIFT_VALUES = np.array(SRTM_SHIFT_VALUES + DW_SHIFT_VALUES)
-STATIC_DIV_VALUES = np.array(SRTM_DIV_VALUES + DW_DIV_VALUES)
+SPACE_TIME_BANDS = S1_BANDS + S2_BANDS
+SPACE_TIME_SHIFT_VALUES = np.array(S1_SHIFT_VALUES + S2_SHIFT_VALUES)
+SPACE_TIME_DIV_VALUES = np.array(S1_DIV_VALUES + S2_DIV_VALUES)
+
+TIME_BANDS = ERA5_BANDS
+TIME_SHIFT_VALUES = np.array(ERA5_SHIFT_VALUES)
+TIME_DIV_VALUES = np.array(ERA5_DIV_VALUES)
+
+ALL_DYNAMIC_IN_TIME_BANDS = SPACE_TIME_BANDS + TIME_BANDS
+
+SPACE_BANDS = SRTM_BANDS + DW_BANDS
+SPACE_IMAGE_FUNCTIONS = [get_single_srtm_image, get_single_dw_image]
+SPACE_SHIFT_VALUES = np.array(SRTM_SHIFT_VALUES + DW_SHIFT_VALUES)
+SPACE_DIV_VALUES = np.array(SRTM_DIV_VALUES + DW_DIV_VALUES)
 
 
 def get_ee_task_list(key: str = "description") -> List[str]:
@@ -168,7 +175,7 @@ def create_ee_image(
                 vh_imcol=vh_imcol,
             )
         )
-        for image_function in DYNAMIC_IMAGE_FUNCTIONS:
+        for image_function in TIME_IMAGE_FUNCTIONS:
             image_list.append(
                 image_function(region=polygon, start_date=cur_date, end_date=cur_end_date)
             )
@@ -179,12 +186,12 @@ def create_ee_image(
 
     # now, we want to take our image collection and append the bands into a single image
     imcoll = ee.ImageCollection(image_collection_list)
-    combine_bands_function = make_combine_bands_function(DYNAMIC_BANDS)
+    combine_bands_function = make_combine_bands_function(ALL_DYNAMIC_IN_TIME_BANDS)
     img = ee.Image(imcoll.iterate(combine_bands_function))
 
     # finally, we add the static in time images
     total_image_list: List[ee.Image] = [img]
-    for static_image_function in STATIC_IMAGE_FUNCTIONS:
+    for static_image_function in SPACE_IMAGE_FUNCTIONS:
         total_image_list.append(
             static_image_function(
                 region=polygon,

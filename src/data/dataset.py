@@ -13,64 +13,79 @@ from torch.utils.data import Dataset as PyTorchDataset
 
 from .config import DATASET_OUTPUT_HW, EE_BUCKET_TIFS, EE_FOLDER_TIFS, NUM_TIMESTEPS
 from .earthengine.eo import (
+    ALL_DYNAMIC_IN_TIME_BANDS,
     DW_BANDS,
-    DYNAMIC_DIV_VALUES,
-    DYNAMIC_SHIFT_VALUES,
     ERA5_BANDS,
     S1_BANDS,
+    SPACE_BANDS,
+    SPACE_DIV_VALUES,
+    SPACE_SHIFT_VALUES,
+    SPACE_TIME_DIV_VALUES,
+    SPACE_TIME_SHIFT_VALUES,
     SRTM_BANDS,
-    STATIC_BANDS,
-    STATIC_DIV_VALUES,
-    STATIC_SHIFT_VALUES,
+    TIME_BANDS,
+    TIME_DIV_VALUES,
+    TIME_SHIFT_VALUES,
 )
-from .earthengine.eo import DYNAMIC_BANDS as EO_DYNAMIC_BANDS
+from .earthengine.eo import SPACE_TIME_BANDS as EO_SPACE_TIME_BANDS
 
-DYNAMIC_BANDS = EO_DYNAMIC_BANDS + ["NDVI"]
+EO_DYNAMIC_IN_TIME_BANDS_NP = np.array(EO_SPACE_TIME_BANDS + TIME_BANDS)
+SPACE_TIME_BANDS = EO_SPACE_TIME_BANDS + ["NDVI"]
 
-DYNAMIC_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
+SPACE_TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
-        "S1": [DYNAMIC_BANDS.index(b) for b in S1_BANDS],
-        "S2_RGB": [DYNAMIC_BANDS.index(b) for b in ["B2", "B3", "B4"]],
-        "S2_Red_Edge": [DYNAMIC_BANDS.index(b) for b in ["B5", "B6", "B7"]],
-        "S2_NIR_10m": [DYNAMIC_BANDS.index(b) for b in ["B8"]],
-        "S2_NIR_20m": [DYNAMIC_BANDS.index(b) for b in ["B8A"]],
-        "S2_SWIR": [DYNAMIC_BANDS.index(b) for b in ["B11", "B12"]],
-        "ERA5": [DYNAMIC_BANDS.index(b) for b in ERA5_BANDS],
-        "NDVI": [DYNAMIC_BANDS.index("NDVI")],
+        "S1": [SPACE_TIME_BANDS.index(b) for b in S1_BANDS],
+        "S2_RGB": [SPACE_TIME_BANDS.index(b) for b in ["B2", "B3", "B4"]],
+        "S2_Red_Edge": [SPACE_TIME_BANDS.index(b) for b in ["B5", "B6", "B7"]],
+        "S2_NIR_10m": [SPACE_TIME_BANDS.index(b) for b in ["B8"]],
+        "S2_NIR_20m": [SPACE_TIME_BANDS.index(b) for b in ["B8A"]],
+        "S2_SWIR": [SPACE_TIME_BANDS.index(b) for b in ["B11", "B12"]],
+        "NDVI": [SPACE_TIME_BANDS.index("NDVI")],
     }
 )
 
-STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
+TIME_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
-        "SRTM": [STATIC_BANDS.index(b) for b in SRTM_BANDS],
-        "DW": [STATIC_BANDS.index(b) for b in DW_BANDS],
+        "ERA5": [TIME_BANDS.index(b) for b in ERA5_BANDS],
+    }
+)
+
+SPACE_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
+    {
+        "SRTM": [SPACE_BANDS.index(b) for b in SRTM_BANDS],
+        "DW": [SPACE_BANDS.index(b) for b in DW_BANDS],
     }
 )
 
 
-DatasetOutput = namedtuple("DatasetOutput", ["dynamic_x", "static_x", "months"])
+DatasetOutput = namedtuple("DatasetOutput", ["space_time_x", "space_x", "time_x", "months"])
 
 
 def _normalize(x: np.ndarray, shift_values: np.ndarray, div_values: np.ndarray) -> np.ndarray:
     return (x - shift_values) / div_values
 
 
-def normalize_dynamic(x: np.ndarray) -> np.ndarray:
-    if x.shape[-1] == len(DYNAMIC_SHIFT_VALUES):
-        d_s = DYNAMIC_SHIFT_VALUES
-        d_d = DYNAMIC_DIV_VALUES
+def normalize_space_time(x: np.ndarray) -> np.ndarray:
+    if x.shape[-1] == len(SPACE_TIME_SHIFT_VALUES):
+        d_s = SPACE_TIME_SHIFT_VALUES
+        d_d = SPACE_TIME_DIV_VALUES
     else:
         # there is an additional NDVI band. We assume its already normalized - *N*DVI,
         # so we leave it alone
-        assert x.shape[-1] == (len(DYNAMIC_SHIFT_VALUES) + 1)
-        d_s = np.append(DYNAMIC_SHIFT_VALUES, [0])
-        d_d = np.append(DYNAMIC_DIV_VALUES, [1])
+        assert x.shape[-1] == (len(SPACE_TIME_SHIFT_VALUES) + 1)
+        d_s = np.append(SPACE_TIME_SHIFT_VALUES, [0])
+        d_d = np.append(SPACE_TIME_DIV_VALUES, [1])
     return _normalize(x, d_s, d_d)
 
 
-def normalize_static(x: np.ndarray) -> np.ndarray:
-    if isinstance(x, np.ndarray):
-        return _normalize(x, STATIC_SHIFT_VALUES, STATIC_DIV_VALUES)
+def normalize_space(x: np.ndarray) -> np.ndarray:
+    assert isinstance(x, np.ndarray)
+    return _normalize(x, SPACE_SHIFT_VALUES, SPACE_DIV_VALUES)
+
+
+def normalize_time(x: np.ndarray) -> np.ndarray:
+    assert isinstance(x, np.ndarray)
+    return _normalize(x, TIME_SHIFT_VALUES, TIME_DIV_VALUES)
 
 
 class Dataset(PyTorchDataset):
@@ -98,25 +113,28 @@ class Dataset(PyTorchDataset):
 
     @staticmethod
     def subset_image(
-        dynamic_input: np.ndarray,
-        static_input: np.ndarray,
+        space_time_x: np.ndarray,
+        space_x: np.ndarray,
+        time_x: np.ndarray,
         months: np.ndarray,
         size: int,
         num_timesteps: int,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
-        dynamic_input: array of shape [H, W, T, D]
-        static_input: array of shape [H, W, D]
+        space_time_x: array of shape [H, W, T, D]
+        space_x: array of shape [H, W, D]
+        time_x: array of shape [T, D]
 
         size must be greater or equal to H & W
         """
-        assert (dynamic_input.shape[0] == static_input.shape[0]) & (
-            dynamic_input.shape[1] == static_input.shape[1]
+        assert (space_time_x.shape[0] == space_x.shape[0]) & (
+            space_time_x.shape[1] == space_x.shape[1]
         )
-        possible_h = dynamic_input.shape[0] - size
-        possible_w = dynamic_input.shape[1] - size
+        assert space_time_x.shape[2] == time_x.shape[0]
+        possible_h = space_time_x.shape[0] - size
+        possible_w = space_time_x.shape[1] - size
         assert (possible_h >= 0) & (possible_w >= 0)
-        possible_t = dynamic_input.shape[2] - num_timesteps
+        possible_t = space_time_x.shape[2] - num_timesteps
         assert possible_t >= 0
 
         if possible_h > 0:
@@ -135,12 +153,13 @@ class Dataset(PyTorchDataset):
             start_t = possible_t
 
         return (
-            dynamic_input[
+            space_time_x[
                 start_h : start_h + size,
                 start_w : start_w + size,
                 start_t : start_t + num_timesteps,
             ],
-            static_input[start_h : start_h + size, start_w : start_w + size],
+            space_x[start_h : start_h + size, start_w : start_w + size],
+            time_x[start_t : start_t + num_timesteps],
             months[start_t : start_t + num_timesteps],
         )
 
@@ -189,12 +208,13 @@ class Dataset(PyTorchDataset):
             data = np.nan_to_num(data, nan=0) + means_to_fill
         return data
 
-    def tif_to_npy_paths(self, tif_path: Path) -> Tuple[Path, Path]:
+    def tif_to_npy_paths(self, tif_path: Path) -> Tuple[Path, Path, Path]:
         assert self.cache_folder is not None
         tif_name = tif_path.stem
         return (
-            self.cache_folder / f"{tif_name}_dynamic.npy",
-            self.cache_folder / f"{tif_name}_static.npy",
+            self.cache_folder / f"{tif_name}_space_time.npy",
+            self.cache_folder / f"{tif_name}_space.npy",
+            self.cache_folder / f"{tif_name}_time.npy",
         )
 
     @classmethod
@@ -215,54 +235,67 @@ class Dataset(PyTorchDataset):
     @classmethod
     def _tif_to_array(cls, tif_path: Path) -> DatasetOutput:
         with cast(xr.Dataset, rioxarray.open_rasterio(tif_path)) as data:
+            # [all_combined_bands, H, W]
+            # all_combined_bands includes all dynamic-in-time bands
+            # interleaved for all timesteps
+            # followed by the static-in-time bands
             values = cast(np.ndarray, data.values)
 
-        static_data = rearrange(values[-len(STATIC_BANDS) :], "b h w -> h w b")
-        static_data = cls._fillna(static_data, np.array(STATIC_BANDS))
-        num_timesteps = (values.shape[0] - len(STATIC_BANDS)) / len(EO_DYNAMIC_BANDS)
+        num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(ALL_DYNAMIC_IN_TIME_BANDS)
         assert num_timesteps % 1 == 0
-        dynamic_data = rearrange(
-            values[: -len(STATIC_BANDS)],
-            "(t b) h w -> h w t b",
-            b=len(EO_DYNAMIC_BANDS),
+        dynamic_in_time_x = rearrange(
+            values[: -len(SPACE_BANDS)],
+            "(t c) h w -> h w t c",
+            c=len(ALL_DYNAMIC_IN_TIME_BANDS),
             t=int(num_timesteps),
         )
-        dynamic_data = cls._fillna(dynamic_data, np.array(EO_DYNAMIC_BANDS))
+        dynamic_in_time_x = cls._fillna(dynamic_in_time_x, EO_DYNAMIC_IN_TIME_BANDS_NP)
+        space_time_x = dynamic_in_time_x[:, :, :, : -len(TIME_BANDS)]
+        space_time_x = np.concatenate((space_time_x, cls.calculate_ndvi(space_time_x)), axis=-1)
+        space_time_x = normalize_space_time(space_time_x)
 
-        dynamic_data = normalize_dynamic(dynamic_data)
-        dynamic_data = np.concatenate((dynamic_data, cls.calculate_ndvi(dynamic_data)), axis=-1)
+        time_x = dynamic_in_time_x[:, :, :, -len(TIME_BANDS) :]
+        time_x = np.nanmean(time_x, axis=(0, 1))
+        time_x = normalize_time(time_x)
+
+        space_x = rearrange(values[-len(SPACE_BANDS) :], "c h w -> h w c")
+        space_x = cls._fillna(space_x, np.array(SPACE_BANDS))
+        space_x = normalize_space(space_x)
+
         months = cls.month_array_from_file(tif_path, int(num_timesteps))
-        return DatasetOutput(dynamic_data, normalize_static(static_data), months)
+        return DatasetOutput(space_time_x, space_x, time_x, months)
 
     def load_tif(self, tif_path: Path) -> DatasetOutput:
         if self.cache_folder is None:
             return self._tif_to_array(tif_path)
         else:
-            cache_path_d, cache_path_s = self.tif_to_npy_paths(tif_path)
-            if cache_path_d.exists():
+            cache_path_s_t, cache_path_s, cache_path_t = self.tif_to_npy_paths(tif_path)
+            if cache_path_s_t.exists():
                 assert cache_path_s.exists()
+                assert cache_path_t.exists()
                 # check if the files exists in cache
-                d_x = np.load(cache_path_d)
-                num_timesteps = d_x.shape[2]
+                s_t_x = np.load(cache_path_s_t)
+                num_timesteps = s_t_x.shape[2]
                 months = self.month_array_from_file(tif_path, num_timesteps)
-                return DatasetOutput(d_x, np.load(cache_path_s), months)
+                return DatasetOutput(s_t_x, np.load(cache_path_s), np.load(cache_path_t), months)
             else:
-                d_x, d_s, months = self._tif_to_array(tif_path)
-                np.save(cache_path_d, d_x)
-                np.save(cache_path_s, d_s)
-                return DatasetOutput(d_x, d_s, months)
+                s_t_x, s_x, t_x, months = self._tif_to_array(tif_path)
+                np.save(cache_path_s_t, s_t_x)
+                np.save(cache_path_s, s_x)
+                np.save(cache_path_t, t_x)
+                return DatasetOutput(s_t_x, s_x, t_x, months)
 
     @staticmethod
     def calculate_ndvi(input_array: np.ndarray) -> np.ndarray:
         r"""
         Given an input array of shape [h, w, t, bands]
-        where bands == len(EO_DYNAMIC_BANDS), returns an array of shape
+        where bands == len(EO_DYNAMIC_IN_TIME_BANDS_NP), returns an array of shape
         [h, w, t, 1] representing NDVI,
         (b08 - b04) / (b08 + b04)
         """
         band_1, band_2 = "B8", "B4"
-        band_1_np = input_array[:, :, :, EO_DYNAMIC_BANDS.index(band_1)]
-        band_2_np = input_array[:, :, :, EO_DYNAMIC_BANDS.index(band_2)]
+        band_1_np = input_array[:, :, :, EO_SPACE_TIME_BANDS.index(band_1)]
+        band_2_np = input_array[:, :, :, EO_SPACE_TIME_BANDS.index(band_2)]
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message="invalid value encountered in divide")
@@ -280,6 +313,8 @@ class Dataset(PyTorchDataset):
             )
 
     def __getitem__(self, idx):
-        d_x, s_x, months = self.load_tif(self.tifs[idx])
-        d_x, s_x, months = self.subset_image(d_x, s_x, months, DATASET_OUTPUT_HW, NUM_TIMESTEPS)
-        return DatasetOutput(d_x, s_x, months)
+        s_t_x, s_x, t_x, months = self.load_tif(self.tifs[idx])
+        s_t_x, s_x, t_x, months = self.subset_image(
+            s_t_x, s_x, t_x, months, DATASET_OUTPUT_HW, NUM_TIMESTEPS
+        )
+        return DatasetOutput(s_t_x, s_x, t_x, months)
