@@ -15,11 +15,13 @@ from torch.utils.data import Dataset as PyTorchDataset
 from tqdm import tqdm
 
 from ..data.dataset import (
-    DYNAMIC_BANDS,
-    DYNAMIC_BANDS_GROUPS_IDX,
-    STATIC_BAND_GROUPS_IDX,
-    STATIC_BANDS,
-    normalize_dynamic,
+    SPACE_BAND_GROUPS_IDX,
+    SPACE_BANDS,
+    SPACE_TIME_BANDS,
+    SPACE_TIME_BANDS_GROUPS_IDX,
+    TIME_BAND_GROUPS_IDX,
+    TIME_BANDS,
+    normalize_space_time,
 )
 from ..data.earthengine.s2 import ALL_S2_BANDS, REMOVED_BANDS
 from ..flexipresto import Encoder
@@ -118,47 +120,49 @@ class EuroSatDataset(PyTorchDataset):
             json.dump(train_test_split, split_path.open("w"))
         return train_test_split
 
-    def create_eurosat_masks(self) -> Tuple[np.ndarray, np.ndarray]:
+    def create_eurosat_masks(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         if self.rgb:
-            dynamic_channels = [
-                idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2_RGB" in key
+            space_time_channels = [
+                idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S2_RGB" in key
             ]
 
         else:
-            dynamic_channels = [
-                idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" in key
+            space_time_channels = [
+                idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S2" in key
             ]
 
         # everything is masked by default
-        dynamic_mask = np.ones([len(DYNAMIC_BANDS_GROUPS_IDX)])
+        space_time_mask = np.ones([len(SPACE_TIME_BANDS_GROUPS_IDX)])
         # unmask available s2 bands
-        dynamic_mask[dynamic_channels] = 0
-        dynamic_mask = repeat(
-            dynamic_mask,
+        space_time_mask[space_time_channels] = 0
+        space_time_mask = repeat(
+            space_time_mask,
             "d -> h w t d",
             h=self.input_height_width,
             w=self.input_height_width,
             t=self.num_timesteps,
         )
 
-        # no static channels are available
-        static_mask = np.ones(
-            [self.input_height_width, self.input_height_width, len(STATIC_BAND_GROUPS_IDX)]
+        # no space only / time only channels are available
+        space_mask = np.ones(
+            [self.input_height_width, self.input_height_width, len(SPACE_BAND_GROUPS_IDX)]
         )
+        time_mask = np.ones([self.num_timesteps, len(TIME_BAND_GROUPS_IDX)])
 
-        assert ((dynamic_mask == 0) | (dynamic_mask == 1)).all()
-        assert (static_mask == 1).all()
+        assert ((space_time_mask == 0) | (space_time_mask == 1)).all()
+        assert (space_mask == 1).all()
+        assert (time_mask == 1).all()
 
-        return (dynamic_mask, static_mask)
+        return (space_time_mask, space_mask, time_mask)
 
-    def image_to_dynamic_eo_array(self, tif_filename: str) -> Tuple[np.ndarray, np.ndarray]:
+    def image_to_space_time_array(self, tif_filename: str) -> Tuple[np.ndarray, np.ndarray]:
         indices_to_remove = []
         for band in REMOVED_BANDS:
             indices_to_remove.append(ALL_S2_BANDS.index(band))
         kept_s2_bands = [i for i in range(len(ALL_S2_BANDS)) if i not in indices_to_remove]
         kept_dynamic_bands = [
             idx
-            for idx, x in enumerate(DYNAMIC_BANDS)
+            for idx, x in enumerate(SPACE_TIME_BANDS)
             if ((x in ALL_S2_BANDS) and (x not in REMOVED_BANDS))
         ]
 
@@ -170,7 +174,7 @@ class EuroSatDataset(PyTorchDataset):
                     self.input_height_width,
                     self.input_height_width,
                     self.num_timesteps,
-                    len(DYNAMIC_BANDS),
+                    len(SPACE_TIME_BANDS),
                 ]
             )
             image_kept_bands = image.values[kept_s2_bands]
@@ -179,23 +183,24 @@ class EuroSatDataset(PyTorchDataset):
             )
 
         return (
-            normalize_dynamic(eo_style_array),
+            normalize_space_time(eo_style_array),
             np.array([self.labels_to_int[tif_file.parents[0].name]]),
         )
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         image = self.images[idx]
-        d_x, label = self.image_to_dynamic_eo_array(image.strip())
+        s_t_x, label = self.image_to_space_time_array(image.strip())
 
         # static bands are not provided by eurosat
-        s_x = np.zeros((d_x.shape[0], d_x.shape[1], len(STATIC_BANDS)))
+        s_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
+        t_x = np.zeros((s_t_x.shape[2], len(TIME_BANDS)))
 
-        d_m, s_m = self.masks
+        s_t_m, s_m, t_m = self.masks
         month = np.zeros((self.num_timesteps,))
 
         label_torch = torch.tensor(label, dtype=torch.long)
 
-        return (masked_output_np_to_tensor(d_x, s_x, d_m, s_m, month), label_torch)
+        return (masked_output_np_to_tensor(s_t_x, s_x, t_x, s_t_m, s_m, t_m, month), label_torch)
 
     def __len__(self):
         return len(self.images)
@@ -236,15 +241,17 @@ class EuroSatEval(EvalTask):
         labels_list = []
 
         for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
-            d_x, s_x, d_m, s_m, months = [t.to(device) for t in masked_output]
+            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
 
             pretrained_model.eval()
 
             with torch.no_grad():
-                d_x, s_x, d_m, s_m, _ = pretrained_model(
-                    d_x, s_x, d_m, s_m, months, patch_size=self.patch_size
+                s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
+                    s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
                 )
-                encodings = pretrained_model.average_tokens(d_x, s_x, d_m, s_m).cpu().numpy()
+                encodings = (
+                    pretrained_model.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m).cpu().numpy()
+                )
 
             labels_list.append(label.cpu().numpy())
 

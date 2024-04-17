@@ -1,4 +1,3 @@
-import json
 from math import sqrt
 from typing import Dict, List, Optional, Tuple, cast
 
@@ -13,10 +12,13 @@ from torchmetrics import JaccardIndex
 from tqdm import tqdm
 
 from ..data.dataset import (
-    DYNAMIC_BANDS,
-    DYNAMIC_BANDS_GROUPS_IDX,
-    STATIC_BAND_GROUPS_IDX,
-    STATIC_BANDS,
+    SPACE_BAND_GROUPS_IDX,
+    SPACE_BANDS,
+    SPACE_TIME_BANDS,
+    SPACE_TIME_BANDS_GROUPS_IDX,
+    TIME_BAND_GROUPS_IDX,
+    TIME_BANDS,
+    normalize_space_time,
 )
 from ..data.earthengine.s2 import S2_BANDS
 from ..flexipresto import Encoder, PrestoFineTuningModel
@@ -71,7 +73,6 @@ class PastisDataset(PyTorchDataset):
         self.metadata.sort_index(inplace=True)
 
         self.metadata = pd.concat([self.metadata[self.metadata["Fold"] == f] for f in folds])
-        self.norm = self.get_pastis_norm()
 
         self.id = self.metadata.index
 
@@ -85,29 +86,20 @@ class PastisDataset(PyTorchDataset):
             # max number of timesteps in PASTIS
             self.num_timesteps = 61
 
-    def get_pastis_norm(self) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Retrieves pre-calculated fold-wise normalization values.
-        """
-        with open((data_dir / cast(str, self.data_path) / "NORM_S2_patch.json"), "r") as file:
-            normvals = json.loads(file.read())
-        means = [normvals["Fold_{}".format(f)]["mean"] for f in self.folds]
-        stds = [normvals["Fold_{}".format(f)]["std"] for f in self.folds]
-
-        return np.stack(means).mean(axis=0), np.stack(stds).mean(axis=0)
-
-    def create_pastis_masks(self, timesteps_with_data: int) -> Tuple[np.ndarray, np.ndarray]:
+    def create_pastis_masks(
+        self, timesteps_with_data: int
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Masks unavailable channels and timesteps.
         """
-        dynamic_channels = [idx for idx, key in enumerate(DYNAMIC_BANDS_GROUPS_IDX) if "S2" in key]
+        s_t_channels = [idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S2" in key]
 
         # everything is masked by default
-        dynamic_mask = np.ones([len(DYNAMIC_BANDS_GROUPS_IDX)])
+        s_t_m = np.ones([len(SPACE_TIME_BANDS_GROUPS_IDX)])
         # unmask available bands
-        dynamic_mask[dynamic_channels] = 0
-        dynamic_mask = repeat(
-            dynamic_mask,
+        s_t_m[s_t_channels] = 0
+        s_t_m = repeat(
+            s_t_m,
             "d -> h w t d",
             h=self.input_height_width,
             w=self.input_height_width,
@@ -115,17 +107,19 @@ class PastisDataset(PyTorchDataset):
         )
 
         # mask padded timesteps if there are any
-        dynamic_mask[:, :, timesteps_with_data:, :] = 1
+        s_t_m[:, :, timesteps_with_data:, :] = 1
 
-        # no static channels are available
-        static_mask = np.ones(
-            [self.input_height_width, self.input_height_width, len(STATIC_BAND_GROUPS_IDX)]
+        # no space only / time only channels are available
+        s_m = np.ones(
+            [self.input_height_width, self.input_height_width, len(SPACE_BAND_GROUPS_IDX)]
         )
+        t_m = np.ones([self.num_timesteps, len(TIME_BAND_GROUPS_IDX)])
 
-        assert ((dynamic_mask == 0) | (dynamic_mask == 1)).all()
-        assert (static_mask == 1).all()
+        assert ((s_t_m == 0) | (s_t_m == 1)).all()
+        assert (s_m == 1).all()
+        assert (t_m == 1).all()
 
-        return dynamic_mask, static_mask
+        return (s_t_m, s_m, t_m)
 
     def average_over_month(
         self, s2: np.ndarray, months: np.ndarray
@@ -178,7 +172,7 @@ class PastisDataset(PyTorchDataset):
 
     def get_eo_array_and_masks(
         self, id: int
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         Loads the image for a given ID, handles missing timesteps and normalizes the data.
         Also provides static and month data, and creates masks for missing data.
@@ -202,27 +196,25 @@ class PastisDataset(PyTorchDataset):
         else:
             s2, months, timesteps_with_data = self.zero_pad_missing_timesteps(s2, months)
 
-        # apply normalization
-        s2 = (s2 - self.norm[0][None, :, None, None]) / self.norm[1][None, :, None, None]
+        kept_dynamic_bands = [idx for idx, x in enumerate(SPACE_TIME_BANDS) if (x in S2_BANDS)]
 
-        kept_dynamic_bands = [idx for idx, x in enumerate(DYNAMIC_BANDS) if (x in S2_BANDS)]
-
-        d_x = np.zeros(
+        s_t_x = np.zeros(
             [
                 self.input_height_width,
                 self.input_height_width,
                 self.num_timesteps,
-                len(DYNAMIC_BANDS),
+                len(SPACE_TIME_BANDS),
             ]
         )
-        d_x[:, :, :, kept_dynamic_bands] = repeat(s2, "t c h w -> h w t c")
+        s_t_x[:, :, :, kept_dynamic_bands] = repeat(s2, "t c h w -> h w t c")
 
-        # static bands are not provided by pastis
-        s_x = np.zeros((d_x.shape[0], d_x.shape[1], len(STATIC_BANDS)))
+        # space only / time only bands are not provided by pastis
+        s_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
+        t_x = np.zeros((s_t_x.shape[2], len(TIME_BANDS)))
 
-        d_m, s_m = self.create_pastis_masks(timesteps_with_data=timesteps_with_data)
+        s_t_m, s_m, t_m = self.create_pastis_masks(timesteps_with_data=timesteps_with_data)
 
-        return d_x, s_x, d_m, s_m, months
+        return normalize_space_time(s_t_x), s_x, t_x, s_t_m, s_m, t_m, months
 
     def get_target(self, id: int) -> torch.Tensor:
         target = np.load(
@@ -238,11 +230,11 @@ class PastisDataset(PyTorchDataset):
 
         id = self.id[img_idx]
 
-        d_x, s_x, d_m, s_m, months = self.get_eo_array_and_masks(id)
+        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = self.get_eo_array_and_masks(id)
         target = self.get_target(id)
 
         subtiles_per_dim = int(sqrt(cast(float, self.num_subtiles)))
-        h, w = d_x.shape[:2]
+        h, w = s_t_x.shape[:2]
         assert h == w  # this is the case for PASTIS
         assert h % subtiles_per_dim == 0
         pixels_per_dim = h // subtiles_per_dim
@@ -253,7 +245,7 @@ class PastisDataset(PyTorchDataset):
 
         return (
             masked_output_np_to_tensor(
-                d_x[
+                s_t_x[
                     row_idx * pixels_per_dim : (row_idx + 1) * pixels_per_dim,
                     col_idx * pixels_per_dim : (col_idx + 1) * pixels_per_dim,
                     :,
@@ -264,7 +256,8 @@ class PastisDataset(PyTorchDataset):
                     col_idx * pixels_per_dim : (col_idx + 1) * pixels_per_dim,
                     :,
                 ],
-                d_m[
+                t_x,
+                s_t_m[
                     row_idx * pixels_per_dim : (row_idx + 1) * pixels_per_dim,
                     col_idx * pixels_per_dim : (col_idx + 1) * pixels_per_dim,
                     :,
@@ -275,6 +268,7 @@ class PastisDataset(PyTorchDataset):
                     col_idx * pixels_per_dim : (col_idx + 1) * pixels_per_dim,
                     :,
                 ],
+                t_m,
                 months,
             ),
             target[
@@ -326,7 +320,7 @@ class PastisEval(EvalTask):
         mean_IoU = []
 
         for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
-            d_x, s_x, d_m, s_m, months = [t.to(device) for t in masked_output]
+            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
             label = label.to(device)
 
             jaccard_mean = JaccardIndex(task="multiclass", num_classes=self.num_outputs).to(device)
@@ -334,7 +328,9 @@ class PastisEval(EvalTask):
             finetuned_model.eval()
 
             with torch.no_grad():
-                preds = finetuned_model(d_x, s_x, d_m, s_m, months, patch_size=self.patch_size)
+                preds = finetuned_model(
+                    s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
+                )
                 mean_IoU.append(jaccard_mean(preds, label).item())
 
         return {f"{self.name}: finetuned_mean_iou": np.mean(mean_IoU)}
