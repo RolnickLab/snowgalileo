@@ -94,6 +94,7 @@ class EvalTask(ABC):
         pretrained_model.eval()
 
         encoding_list, target_list = [], []
+        
         for masked_output, label in tqdm(train_dl, desc="Computing encodings for sklearn"):
             s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
             target_list.append(label.cpu().numpy())
