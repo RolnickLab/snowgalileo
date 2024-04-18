@@ -916,5 +916,8 @@ class PrestoFineTuningModel(nn.Module):
         months: torch.Tensor,
         patch_size: Optional[int] = None,
     ) -> torch.Tensor:
-        x = self.encoder(s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size).average_tokens()
+        s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = self.encoder(
+            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size
+        )
+        x = self.encoder.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
         return self.head(x, patch_size)
