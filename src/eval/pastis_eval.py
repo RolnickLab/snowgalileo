@@ -126,7 +126,7 @@ class PastisDataset(PyTorchDataset):
 
     def average_over_month(
         self, s2: np.ndarray, months: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Returns the month-wise mean of an input image, pixel- and channel-specific.
         Months without observations are filled with zeros.
@@ -162,7 +162,7 @@ class PastisDataset(PyTorchDataset):
 
     def zero_pad_missing_timesteps(
         self, s2: np.ndarray, months: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, int]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Pads input image and months with zeros to reach the maximum number of timesteps available in PASTIS.
         """
