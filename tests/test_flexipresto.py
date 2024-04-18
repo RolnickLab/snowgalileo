@@ -57,18 +57,17 @@ class TestPresto(unittest.TestCase):
             time_ratio=0.25,
             space_ratio=0.25,
         )
-        with torch.no_grad():
-            # for now, we just make sure it all runs
-            encoder_output = encoder(
-                masked_output.space_time_x.float(),
-                masked_output.space_x.float(),
-                masked_output.time_x.float(),
-                masked_output.space_time_mask.float(),
-                masked_output.space_mask.float(),
-                masked_output.time_mask.float(),
-                masked_output.months.long(),
-                patch_size=patch_size,
-            )
+        # for now, we just make sure it all runs
+        encoder_output = encoder(
+            masked_output.space_time_x.float(),
+            masked_output.space_x.float(),
+            masked_output.time_x.float(),
+            masked_output.space_time_mask.float(),
+            masked_output.space_mask.float(),
+            masked_output.time_mask.float(),
+            masked_output.months.long(),
+            patch_size=patch_size,
+        )
 
         self.assertTrue(
             list(encoder_output[0].shape)
@@ -104,8 +103,7 @@ class TestPresto(unittest.TestCase):
         self.assertFalse(torch.isnan(encoder_output[1]).any())
         self.assertFalse(torch.isnan(encoder_output[2]).any())
 
-        with torch.no_grad():
-            output = decoder(*encoder_output)
+        output = decoder(*encoder_output)
         self.assertTrue(
             list(output[0].shape)
             == [
@@ -141,6 +139,10 @@ class TestPresto(unittest.TestCase):
         self.assertFalse(torch.isnan(output[1]).any())
         self.assertFalse(torch.isnan(output[2]).any())
 
+        # check we can call backwards
+        summed_output = sum([torch.sum(o) for o in output])
+        summed_output.backward()
+
     def _end_to_end_run_mae(self, embedding_size, patch_size):
         image_size = patch_size * 4
         encoder = Encoder(embedding_size=embedding_size, num_heads=1)
@@ -163,18 +165,18 @@ class TestPresto(unittest.TestCase):
             time_ratio=0.25,
             space_ratio=0.25,
         )
-        with torch.no_grad():
-            # for now, we just make sure it all runs
-            encoder_output = encoder(
-                masked_output.space_time_x.float(),
-                masked_output.space_x.float(),
-                masked_output.time_x.float(),
-                masked_output.space_time_mask.float(),
-                masked_output.space_mask.float(),
-                masked_output.time_mask.float(),
-                masked_output.months.long(),
-                patch_size=patch_size,
-            )
+
+        # for now, we just make sure it all runs
+        encoder_output = encoder(
+            masked_output.space_time_x.float(),
+            masked_output.space_x.float(),
+            masked_output.time_x.float(),
+            masked_output.space_time_mask.float(),
+            masked_output.space_mask.float(),
+            masked_output.time_mask.float(),
+            masked_output.months.long(),
+            patch_size=patch_size,
+        )
 
         self.assertTrue(
             list(encoder_output[0].shape)
@@ -210,8 +212,7 @@ class TestPresto(unittest.TestCase):
         self.assertFalse(torch.isnan(encoder_output[1]).any())
         self.assertFalse(torch.isnan(encoder_output[2]).any())
 
-        with torch.no_grad():
-            output = decoder(*encoder_output)
+        output = decoder(*encoder_output)
         self.assertTrue(
             list(output[0].shape)
             == [
@@ -235,6 +236,10 @@ class TestPresto(unittest.TestCase):
         self.assertFalse(torch.isnan(output[0]).any())
         self.assertFalse(torch.isnan(output[1]).any())
         self.assertFalse(torch.isnan(output[2]).any())
+
+        # check we can call backwards
+        summed_output = sum([torch.sum(o) for o in output])
+        summed_output.backward()
 
     def test_presto_representation_decoder_add_masks(self):
         enc_embedding_size = 16
@@ -326,11 +331,13 @@ class TestPresto(unittest.TestCase):
 
     def test_mask_and_unmask_tokens(self):
         b, d = 2, 2
-        x = torch.tensor([[0, 1, 0], [1, 0, 1]])
+        x = torch.tensor([[0, 1, 0], [1, 0, 1]]).float()
         x = repeat(x, "b n -> b n d", d=d)
-        mask = torch.tensor([[1, 0, 1], [0, 1, 0]])
+        mask = torch.tensor([[1, 0, 1], [0, 1, 0]]).float()
 
         out_x, indices, updated_mask = Encoder.remove_masked_tokens(x, mask)
+        self.assertEqual(out_x.dtype, x.dtype)
+        self.assertEqual(updated_mask.dtype, mask.dtype)
         self.assertEqual(out_x.shape, (b, 2, d))
         # for the 2nd item in the batch, there should be only 0s
         self.assertTrue(torch.equal(out_x[1], torch.ones_like(out_x[1])))
@@ -344,5 +351,7 @@ class TestPresto(unittest.TestCase):
 
         # check that when we add things back, they are once again what we had originally
         final_x, final_mask = Encoder.add_removed_tokens(out_x, indices, updated_mask)
+        self.assertEqual(final_x.dtype, x.dtype)
+        self.assertEqual(final_mask.dtype, mask.dtype)
         self.assertTrue(torch.equal(final_x, x))
         self.assertTrue(torch.equal(final_mask, mask))

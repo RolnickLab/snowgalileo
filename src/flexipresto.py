@@ -420,6 +420,7 @@ class FlexiPrestoBase(nn.Module):
 
     @staticmethod
     def remove_masked_tokens(x, mask):
+        org_mask_dtype = mask.dtype
         mask = mask.bool()
         # https://stackoverflow.com/a/68621610/2332296
         # move all non-masked values to the front of their rows
@@ -433,7 +434,7 @@ class FlexiPrestoBase(nn.Module):
         x = x[:, :max_length]
         updated_mask = 1 - sorted_mask[:, :max_length]
 
-        return x, indices, updated_mask
+        return x, indices, updated_mask.to(dtype=org_mask_dtype)
 
     @staticmethod
     def add_removed_tokens(x, indices, mask):
@@ -443,7 +444,9 @@ class FlexiPrestoBase(nn.Module):
         full_mask = torch.cat(
             (
                 mask,
-                torch.ones((x.shape[0], indices.shape[1] - x.shape[1]), device=x.device),
+                torch.ones(
+                    (x.shape[0], indices.shape[1] - x.shape[1]), device=x.device, dtype=mask.dtype
+                ),
             ),
             dim=-1,
         )
