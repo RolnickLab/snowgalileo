@@ -2,6 +2,7 @@ import unittest
 from pathlib import Path
 
 import torch
+from einops import repeat
 
 from src.data import (
     SPACE_BAND_GROUPS_IDX,
@@ -322,3 +323,26 @@ class TestPresto(unittest.TestCase):
         mean = Encoder.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
         self.assertEqual(mean.shape, (b, d))
         self.assertTrue((mean == 1).all())
+
+    def test_mask_and_unmask_tokens(self):
+        b, d = 2, 2
+        x = torch.tensor([[0, 1, 0], [1, 0, 1]])
+        x = repeat(x, "b n -> b n d", d=d)
+        mask = torch.tensor([[1, 0, 1], [0, 1, 0]])
+
+        out_x, indices, updated_mask = Encoder.remove_masked_tokens(x, mask)
+        self.assertEqual(out_x.shape, (b, 2, d))
+        # for the 2nd item in the batch, there should be only 0s
+        self.assertTrue(torch.equal(out_x[1], torch.ones_like(out_x[1])))
+        # for the first item in the batch, only the first index is unmasked so
+        # it should be at the front
+        self.assertEqual(indices[0, 0], 1)
+        # for the second item, the 0th and 2nd are masked
+        self.assertTrue(torch.equal(indices[1, :2], torch.tensor([0, 2])))
+        self.assertEqual(updated_mask.shape, (b, 2))
+        self.assertTrue(torch.equal(updated_mask, torch.Tensor([[0, 1], [0, 0]])))
+
+        # check that when we add things back, they are once again what we had originally
+        final_x, final_mask = Encoder.add_removed_tokens(out_x, indices, updated_mask)
+        self.assertTrue(torch.equal(final_x, x))
+        self.assertTrue(torch.equal(final_mask, mask))
