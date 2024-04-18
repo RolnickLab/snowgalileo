@@ -90,7 +90,7 @@ class PastisDataset(PyTorchDataset):
             self.num_timesteps = 61
 
     def create_pastis_masks(
-        self, timesteps_with_data: int
+        self, missing_timestep_indeces: int
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Masks unavailable channels and timesteps.
@@ -109,8 +109,8 @@ class PastisDataset(PyTorchDataset):
             t=self.num_timesteps,
         )
 
-        # mask padded timesteps if there are any
-        s_t_m[:, :, timesteps_with_data:, :] = 1
+        # mask missing timesteps
+        s_t_m[:, :, missing_timestep_indeces, :] = 1
 
         # no space only / time only channels are available
         s_m = np.ones(
@@ -129,9 +129,16 @@ class PastisDataset(PyTorchDataset):
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Returns the month-wise mean of an input image, pixel- and channel-specific.
+        Months without observations are filled with zeros.
+        Expected data input shape: T x C x H x W.
+        Months are expected to be 0-indexed.
         """
+        unique_months = np.unique(months)
 
-        # data comes in shape T x C x H x W
+        all_months = np.arange(self.num_timesteps)
+        missing_timestep_indeces = np.where(~np.isin(all_months, unique_months))[0]
+
+        # stack months and s2 indices to group by month
         s2_idx = np.arange(s2.shape[0])
         stacked_months_and_s2_idx = np.column_stack((months, s2_idx))
 
@@ -144,33 +151,14 @@ class PastisDataset(PyTorchDataset):
             np.unique(stacked_months_and_s2_idx[:, 0], return_index=True)[1][1:],
         )
 
-        averages = np.array([s2[idx].mean(axis=0) for idx in s2_idx_per_month])
+        averages_months_with_data = np.array([s2[idx].mean(axis=0) for idx in s2_idx_per_month])
 
-        # rearrange months to match the order of the averages
-        months = np.unique(months).argsort()
-
-        timesteps_with_data = months.shape[0]
+        averages_all_months = np.zeros((self.num_timesteps, s2.shape[1], s2.shape[2], s2.shape[3]))
 
         # fill up with zeros if there are months without observations
-        averages = np.concatenate(
-            [
-                averages,
-                np.zeros(
-                    (
-                        self.num_timesteps - timesteps_with_data,
-                        s2.shape[1],
-                        s2.shape[2],
-                        s2.shape[3],
-                    )
-                ),
-            ],
-            axis=0,
-        )
-        months = np.concatenate(
-            [months, np.zeros(self.num_timesteps - timesteps_with_data)], axis=0
-        )
+        averages_all_months[unique_months] = averages_months_with_data
 
-        return averages, months
+        return averages_all_months, all_months, missing_timestep_indeces
 
     def zero_pad_missing_timesteps(
         self, s2: np.ndarray, months: np.ndarray
@@ -178,28 +166,15 @@ class PastisDataset(PyTorchDataset):
         """
         Pads input image and months with zeros to reach the maximum number of timesteps available in PASTIS.
         """
-        # data comes in shape T x C x H x W
-        timesteps_with_data = s2.shape[0]
 
-        s2 = np.concatenate(
-            [
-                s2,
-                np.zeros(
-                    (
-                        self.num_timesteps - timesteps_with_data,
-                        s2.shape[1],
-                        s2.shape[2],
-                        s2.shape[3],
-                    )
-                ),
-            ],
-            axis=0,
-        )
-        months = np.concatenate(
-            [months, np.zeros(self.num_timesteps - timesteps_with_data)], axis=0
-        )
+        s2_all_months = np.zeros((self.num_timesteps, s2.shape[1], s2.shape[2], s2.shape[3]))
+        s2_all_months[np.arange(s2.shape[0])] = s2
 
-        return s2, months, timesteps_with_data
+        all_months = np.zeros(self.num_timesteps)
+        all_months[np.arange(months.shape[0])] = months
+        missing_timestep_indeces = np.where(~np.isin(all_months, months))[0]
+
+        return s2_all_months, all_months, missing_timestep_indeces
 
     def get_eo_array_and_masks(
         self, id: int
@@ -220,12 +195,11 @@ class PastisDataset(PyTorchDataset):
         assert all(0 <= month <= 11 for month in months)
 
         if self.average_s2_over_month:
-            s2, months = self.average_over_month(s2, months)
-            timesteps_with_data = self.num_timesteps
+            s2, months, missing_timestep_indeces = self.average_over_month(s2, months)
 
         # pad missing timesteps, will be masked out later
         else:
-            s2, months, timesteps_with_data = self.zero_pad_missing_timesteps(s2, months)
+            s2, months, missing_timestep_indeces = self.zero_pad_missing_timesteps(s2, months)
 
         kept_dynamic_bands = [idx for idx, x in enumerate(SPACE_TIME_BANDS) if (x in S2_BANDS)]
 
@@ -243,7 +217,9 @@ class PastisDataset(PyTorchDataset):
         s_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
         t_x = np.zeros((s_t_x.shape[2], len(TIME_BANDS)))
 
-        s_t_m, s_m, t_m = self.create_pastis_masks(timesteps_with_data=timesteps_with_data)
+        s_t_m, s_m, t_m = self.create_pastis_masks(
+            missing_timestep_indeces=missing_timestep_indeces
+        )
 
         return normalize_space_time(s_t_x), s_x, t_x, s_t_m, s_m, t_m, months
 

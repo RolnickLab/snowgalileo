@@ -101,12 +101,10 @@ class TestPastis(unittest.TestCase):
         self.check_target(labels=label)
 
         # will test if the right channels are masked out
-        present_bands = [idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S2" in key]
         unpresent_bands = [
             idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S2" not in key
         ]
 
-        self.assertTrue(torch.all(s_t_m[:, :, :, present_bands] == 0))
         self.assertTrue(torch.all(s_t_m[:, :, :, unpresent_bands] == 1))
 
     def test_pastis_max_timesteps(self):
