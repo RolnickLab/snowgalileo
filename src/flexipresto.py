@@ -867,10 +867,10 @@ class FinetuningHead(nn.Module):
     ):
         s_t_x = rearrange(s_t_x, "b h w t c_g d -> b (h w) (t c_g) d")
         s_x = rearrange(s_x, "b h w c_g d -> b (h w) c_g d")
-        t_x = rearrange(t_x, "b t c_g d -> b (t c_g) d")
-        s_t_m = rearrange(s_t_m, "b h w t c_g-> b (h w) (t c_g)")
-        s_m = rearrange(s_m, "b h w c_g-> b (h w) c_g")
-        t_m = rearrange(t_m, "b t c_g -> b (t c_g)")
+        t_x = rearrange(t_x, "b t c_g d -> b s (t c_g) d", s=1)
+        s_t_m = rearrange(s_t_m, "b h w t c_g -> b (h w) (t c_g)")
+        s_m = rearrange(s_m, "b h w c_g -> b (h w) c_g")
+        t_m = rearrange(t_m, "b t c_g -> b s (t c_g)", s=1)
 
         x = torch.cat([s_t_x, s_x, t_x], dim=2)  # B, S, N, D
         m = torch.cat([s_t_m, s_m, t_m], dim=2)  # B, S, N
