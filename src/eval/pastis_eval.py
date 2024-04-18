@@ -130,6 +130,7 @@ class PastisDataset(PyTorchDataset):
         """
         Returns the month-wise mean of an input image, pixel- and channel-specific.
         """
+
         # data comes in shape T x C x H x W
         s2_idx = np.arange(s2.shape[0])
         stacked_months_and_s2_idx = np.column_stack((months, s2_idx))
@@ -143,8 +144,31 @@ class PastisDataset(PyTorchDataset):
             np.unique(stacked_months_and_s2_idx[:, 0], return_index=True)[1][1:],
         )
 
-        averages = np.array([s2[idx].mean() for idx in s2_idx_per_month])
-        months = np.arange(12)
+        averages = np.array([s2[idx].mean(axis=0) for idx in s2_idx_per_month])
+
+        # rearrange months to match the order of the averages
+        months = np.unique(months).argsort()
+
+        timesteps_with_data = months.shape[0]
+
+        # fill up with zeros if there are months without observations
+        averages = np.concatenate(
+            [
+                averages,
+                np.zeros(
+                    (
+                        self.num_timesteps - timesteps_with_data,
+                        s2.shape[1],
+                        s2.shape[2],
+                        s2.shape[3],
+                    )
+                ),
+            ],
+            axis=0,
+        )
+        months = np.concatenate(
+            [months, np.zeros(self.num_timesteps - timesteps_with_data)], axis=0
+        )
 
         return averages, months
 
