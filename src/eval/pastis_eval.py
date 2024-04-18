@@ -90,7 +90,7 @@ class PastisDataset(PyTorchDataset):
             self.num_timesteps = 61
 
     def create_pastis_masks(
-        self, missing_timestep_indeces: int
+        self, missing_timestep_indeces: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Masks unavailable channels and timesteps.

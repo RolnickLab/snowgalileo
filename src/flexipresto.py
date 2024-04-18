@@ -900,11 +900,42 @@ class FinetuningHead(nn.Module):
         self.segmentation = segmentation
         self.input_height_width = input_height_width
 
+    @staticmethod
+    def apply_mask_and_average_tokens_per_patch(
+        s_t_x: torch.Tensor,
+        s_x: torch.Tensor,
+        t_x: torch.Tensor,
+        s_t_m: torch.Tensor,
+        s_m: torch.Tensor,
+        t_m: torch.Tensor,
+    ):
+        s_t_x = rearrange(s_t_x, "b h w t c_g d -> b (h w) (t c_g) d")
+        s_x = rearrange(s_x, "b h w c_g d -> b (h w) c_g d")
+        # repeat time tokens over space
+        t_x = repeat(
+            rearrange(t_x, "b t c_g d -> b (t c_g) d"), "b n d -> b s n d", s=s_x.shape[1]
+        )
+        s_t_m = rearrange(s_t_m, "b h w t c_g-> b (h w) (t c_g)")
+        s_m = rearrange(s_m, "b h w c_g-> b (h w) c_g")
+        t_m = repeat(rearrange(t_m, "b t c_g -> b (t c_g)"), "b n -> b s n", s=s_x.shape[1])
+
+        x = torch.cat([s_t_x, s_x, t_x], dim=2)  # B, S, N, D
+        m = torch.cat([s_t_m, s_m, t_m], dim=2)  # B, S, N
+        x_for_mean = x * (1 - m.unsqueeze(-1))
+
+        return x_for_mean.sum(dim=2) / torch.sum(1 - m, -1, keepdim=True)
+
     def forward(
         self,
-        x: torch.Tensor,
+        s_t_x: torch.Tensor,
+        s_x: torch.Tensor,
+        t_x: torch.Tensor,
+        s_t_m: torch.Tensor,
+        s_m: torch.Tensor,
+        t_m: torch.Tensor,
         patch_size: int,
     ):
+        x = self.apply_mask_and_average_tokens_per_patch(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
         num_patches = self.input_height_width // patch_size
         patch_vector_length = x.shape[-1]
 
@@ -919,7 +950,7 @@ class FinetuningHead(nn.Module):
             # bring back to pixel space
             x = rearrange(
                 x,
-                "b (o h w i j) -> b o (h i) (w j)",
+                "b (h w) (o i j) -> b o (h i) (w j)",
                 h=num_patches,
                 w=num_patches,
                 o=self.num_outputs,
@@ -963,5 +994,4 @@ class PrestoFineTuningModel(nn.Module):
         s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = self.encoder(
             s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size
         )
-        x = self.encoder.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
-        return self.head(x, patch_size)
+        return self.head(s_t_x, s_x, t_x, s_t_m, s_m, t_m, patch_size)
