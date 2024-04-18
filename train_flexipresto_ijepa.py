@@ -45,7 +45,7 @@ argparser = argparse.ArgumentParser()
 argparser.add_argument("--config_file", type=str, default="default.json")
 args = argparser.parse_args().__dict__
 
-config = load_check_config(args["config_file"], "mae")
+config = load_check_config(args["config_file"], "jepa")
 training_config = config["training"]
 
 # this too
@@ -60,7 +60,9 @@ wandb_org = "nasa-harvest"
 output_dir = Path(__file__).parent
 
 print("Loading dataset and dataloader")
-dataset = Dataset(DATA_FOLDER / "tifs", download=False, cache_folder=DATA_FOLDER / "npys")
+dataset = Dataset(
+    DATA_FOLDER / "tifs", download=False, cache_folder=DATA_FOLDER / "npys_spacetime"
+)
 dataloader = DataLoader(
     dataset,
     batch_size=training_config["batch_size"],
@@ -101,15 +103,16 @@ for e in tqdm(range(training_config["num_epochs"])):
     train_loss = AverageMeter()
     for i, b in tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
         b = [t.to(device) for t in b]
-        d_x, s_x, months = b
+        s_t_x, s_x, t_x, months = b
 
         # randomly sample a patch size, and a corresponding image size
         patch_size = np.random.choice(training_config["patch_sizes"])
         image_size = patch_size * training_config["spatial_patches_per_dim"]
-        d_x, s_x = subset_batch_of_images(d_x, s_x, image_size)
-        d_x, s_x, d_m, s_m, months = batch_mask_presto(
-            d_x,
+        s_t_x, s_x = subset_batch_of_images(s_t_x, s_x, image_size)
+        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = batch_mask_presto(
+            s_t_x,
             s_x,
+            t_x,
             months,
             training_config["mask_ratio"],
             patch_size,
@@ -118,7 +121,7 @@ for e in tqdm(range(training_config["num_epochs"])):
         )
 
         # also transform to patch-space
-        patch_d = d_m[:, 0::patch_size, 0::patch_size].bool()
+        patch_s_t = s_t_m[:, 0::patch_size, 0::patch_size].bool()
         patch_s = s_m[:, 0::patch_size, 0::patch_size].bool()
 
         optimizer.zero_grad()
@@ -133,12 +136,14 @@ for e in tqdm(range(training_config["num_epochs"])):
         )
 
         # generate the predictions. TODO: add layer norm
-        p_d, p_s, _, _ = predictor(
+        p_s_t, p_s, p_t, _, _, _ = predictor(
             *encoder(
-                d_x.float(),
+                s_t_x.float(),
                 s_x.float(),
-                d_m.float(),
+                t_x.float(),
+                s_t_m.float(),
                 s_m.float(),
+                t_m.float(),
                 months.long(),
                 patch_size=patch_size,
             ),
@@ -146,18 +151,20 @@ for e in tqdm(range(training_config["num_epochs"])):
         )
         # generate the targets
         with torch.no_grad():
-            t_d, t_s, _, _, _ = target_encoder(
-                d_x.float(),
+            t_s_t, t_s, t_t, _, _, _, _ = target_encoder(
+                s_t_x.float(),
                 s_x.float(),
-                torch.zeros_like(d_m),
+                t_x.float(),
+                torch.zeros_like(s_t_m),
                 torch.zeros_like(s_m),
+                torch.zeros_like(t_m),
                 months.long(),
                 patch_size=patch_size,
             )
 
         loss = F.smooth_l1_loss(
-            torch.concat([p_d[patch_d], p_s[patch_s]]),
-            torch.concat([t_d[patch_d], t_s[patch_s]]),
+            torch.concat([p_s_t[patch_s_t], p_s[patch_s], p_t[t_m]]),
+            torch.concat([t_s_t[patch_s_t], t_s[patch_s], t_t[t_m]]),
         )
         loss.backward()
         optimizer.step()
@@ -165,7 +172,7 @@ for e in tqdm(range(training_config["num_epochs"])):
             f"Epoch {e}, iteration {i}: loss = {loss.item()}, memory used: {process.memory_info().rss}",
             flush=True,
         )
-        train_loss.update(loss.item(), n=d_x.shape[0])
+        train_loss.update(loss.item(), n=s_t_x.shape[0])
         with torch.no_grad():
             m = next(momentum_scheduler)
             for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
