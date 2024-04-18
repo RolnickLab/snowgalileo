@@ -391,8 +391,9 @@ class FlexiPrestoBase(nn.Module):
             if isinstance(m, nn.Linear) and m.bias is not None:
                 nn.init.constant_(m.bias, 0)
 
-    @staticmethod
-    def collapse_hwtc(
+    @classmethod
+    def collapse_and_combine_hwtc(
+        cls,
         s_t_x: torch.Tensor,
         s_x: torch.Tensor,
         t_x: torch.Tensor,
@@ -407,11 +408,64 @@ class FlexiPrestoBase(nn.Module):
         s_t_m = rearrange(s_t_m, "b h w t c_g-> b (h w t c_g)")
         s_m = rearrange(s_m, "b h w c_g-> b (h w c_g)")
         t_m = rearrange(t_m, "b t c_g -> b (t c_g)")
-        return s_t_x, s_x, t_x, s_t_m, s_m, t_m
+
+        x = torch.cat(
+            [
+                s_t_x,
+                s_x,
+                t_x,
+            ],
+            dim=1,
+        )
+        m = torch.cat([s_t_m, s_m, t_m], dim=1)
+        return cls.remove_masked_tokens(x, m)
 
     @staticmethod
+    def remove_masked_tokens(x, mask):
+        org_mask_dtype = mask.dtype
+        mask = mask.bool()
+        # https://stackoverflow.com/a/68621610/2332296
+        # move all non-masked values to the front of their rows
+        sorted_mask, indices = torch.sort((~mask).int(), dim=1, descending=True, stable=True)
+        x = x.gather(1, indices[:, :, None].expand_as(x))
+        # set masked values to 0 (not really necessary since we'll ignore them anyway)
+        x = x * sorted_mask.unsqueeze(-1)
+
+        # cut off to the length of the longest sequence
+        max_length = sorted_mask.sum(-1).max()
+        x = x[:, :max_length]
+        updated_mask = 1 - sorted_mask[:, :max_length]
+
+        return x, indices, updated_mask.to(dtype=org_mask_dtype)
+
+    @staticmethod
+    def add_removed_tokens(x, indices, mask):
+        masked_tokens = repeat(
+            torch.zeros_like(x[0, 0, :]), "d -> b t d", b=x.shape[0], t=indices.shape[1]
+        )
+        full_mask = torch.cat(
+            (
+                mask,
+                torch.ones(
+                    (x.shape[0], indices.shape[1] - x.shape[1]), device=x.device, dtype=mask.dtype
+                ),
+            ),
+            dim=-1,
+        )
+        # can't set value on leaf variable
+        out = masked_tokens.clone()
+        # put tokens in full masked tensor (at the first N positions in every row)
+        out[~full_mask.bool()] = x[~mask.bool()]
+        # then move them to their original positions
+        out = out.scatter(1, indices[:, :, None].expand_as(out), out)
+        full_mask = full_mask.scatter(1, indices.expand_as(full_mask), full_mask)
+        return out, full_mask
+
+    @classmethod
     def split_and_expand_hwtc(
+        cls,
         x: torch.Tensor,
+        indices: torch.Tensor,
         m: torch.Tensor,
         h: int,
         w: int,
@@ -420,6 +474,7 @@ class FlexiPrestoBase(nn.Module):
         s_c_g: int,
         t_c_g: int,
     ):
+        x, m = cls.add_removed_tokens(x, indices, m)
         n_s_t_t = h * w * t * s_t_c_g
         n_t_t = t * t_c_g
 
@@ -491,22 +546,13 @@ class FlexiPrestoBase(nn.Module):
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
         s_c_g, t_c_g = s_x.shape[3], t_x.shape[-2]
         s_t_x, s_x, t_x = self.apply_encodings(s_t_x, s_x, t_x, months, patch_size, input_res)
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m = self.collapse_hwtc(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
-        x = torch.cat(
-            [
-                s_t_x,
-                s_x,
-                t_x,
-            ],
-            dim=1,
-        )
-        m = torch.cat([s_t_m, s_m, t_m], dim=1)
+        x, indices, m = self.collapse_and_combine_hwtc(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
         for blk in self.blocks:
             # we take the inverse of the mask because a value
             # of True indicates the value *should* take part in
             # attention
             x = blk(x, attn_mask=~m.bool())
-        return self.split_and_expand_hwtc(x, m, h, w, t, s_t_c_g, s_c_g, t_c_g)
+        return self.split_and_expand_hwtc(x, indices, m, h, w, t, s_t_c_g, s_c_g, t_c_g)
 
 
 class Encoder(FlexiPrestoBase):
@@ -611,9 +657,7 @@ class Encoder(FlexiPrestoBase):
 
     @classmethod
     def average_tokens(cls, s_t_x, s_x, t_x, s_t_m, s_m, t_m):
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m = cls.collapse_hwtc(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
-        x = torch.cat([s_t_x, s_x, t_x], dim=1)  # B, N, D
-        m = torch.cat([s_t_m, s_m, t_m], dim=1)  # B, N
+        x, _, m = cls.collapse_and_combine_hwtc(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
         x_for_mean = x * (1 - m.unsqueeze(-1))
         return x_for_mean.sum(dim=1) / torch.sum(1 - m, -1, keepdim=True)
 
