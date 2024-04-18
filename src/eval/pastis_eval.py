@@ -60,7 +60,7 @@ class PastisDataset(PyTorchDataset):
         self,
         folds: List[int],
         data_path: Optional[str] = "pastis/PASTIS-R",
-        num_subtiles: Optional[int] = 4,
+        num_subtiles_per_image: Optional[int] = 4,
         average_s2_over_month: Optional[bool] = True,
     ):
         self.folds = folds
@@ -76,7 +76,10 @@ class PastisDataset(PyTorchDataset):
 
         self.id = self.metadata.index
 
-        self.num_subtiles = num_subtiles
+        # pastis comes in large images, we split them into subtiles
+        # must be a square number
+        self.num_subtiles_per_image = num_subtiles_per_image
+        assert sqrt(cast(float, self.num_subtiles_per_image)).is_integer()
 
         self.average_s2_over_month = average_s2_over_month
 
@@ -128,15 +131,19 @@ class PastisDataset(PyTorchDataset):
         Returns the month-wise mean of an input image, pixel- and channel-specific.
         """
         # data comes in shape T x C x H x W
-        sums = np.zeros((12, *s2.shape[1:]))
-        counts = np.zeros((12, *s2.shape[1:]))
+        s2_idx = np.arange(s2.shape[0])
+        stacked_months_and_s2_idx = np.column_stack((months, s2_idx))
 
-        for month, observation in zip(months, s2):
-            sums[month] += observation
-            counts[month] += np.ones_like(observation)
+        # group observations by sorted month https://stackoverflow.com/questions/38013778/is-there-any-numpy-group-by-function
+        stacked_months_and_s2_idx = stacked_months_and_s2_idx[
+            stacked_months_and_s2_idx[:, 0].argsort()
+        ]
+        s2_idx_per_month = np.split(
+            stacked_months_and_s2_idx[:, 1],
+            np.unique(stacked_months_and_s2_idx[:, 0], return_index=True)[1][1:],
+        )
 
-        # avoid division by zero for months with no observations
-        averages = np.divide(sums, counts, out=np.zeros_like(sums), where=counts != 0)
+        averages = np.array([s2[idx].mean() for idx in s2_idx_per_month])
         months = np.arange(12)
 
         return averages, months
@@ -226,19 +233,19 @@ class PastisDataset(PyTorchDataset):
         """
         Slices and returns a subtile of the image and the corresponding target.
         """
-        img_idx = idx // self.num_subtiles
+        img_idx = idx // self.num_subtiles_per_image
 
         id = self.id[img_idx]
 
         s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = self.get_eo_array_and_masks(id)
         target = self.get_target(id)
 
-        subtiles_per_dim = int(sqrt(cast(float, self.num_subtiles)))
+        subtiles_per_dim = int(sqrt(cast(float, self.num_subtiles_per_image)))
         h, w = s_t_x.shape[:2]
         assert h == w  # this is the case for PASTIS
         assert h % subtiles_per_dim == 0
         pixels_per_dim = h // subtiles_per_dim
-        subtile_idx = idx % self.num_subtiles
+        subtile_idx = idx % self.num_subtiles_per_image
 
         row_idx = subtile_idx // subtiles_per_dim
         col_idx = subtile_idx % subtiles_per_dim
@@ -278,7 +285,7 @@ class PastisDataset(PyTorchDataset):
         )
 
     def __len__(self):
-        return self.metadata.shape[0] * self.num_subtiles
+        return self.metadata.shape[0] * self.num_subtiles_per_image
 
 
 class PastisEval(EvalTask):
@@ -292,15 +299,15 @@ class PastisEval(EvalTask):
     def __init__(
         self,
         average_months: bool = True,
-        num_subtiles: int = 4,
+        num_subtiles_per_image: int = 4,
         patch_size: int = 8,
         seed=DEFAULT_SEED,
     ):
         self.average_months = average_months
-        self.num_subtiles = num_subtiles
+        self.num_subtiles_per_image = num_subtiles_per_image
         super().__init__(patch_size, seed)
         self.input_height_width = self.input_height_width // int(
-            sqrt(cast(float, self.num_subtiles))
+            sqrt(cast(float, self.num_subtiles_per_image))
         )
         self.name = f"{self.name}_{'AVERAGED_MONTHS' if self.average_months else 'ALL_MONTHS'}_hw{self.input_height_width}"
 
@@ -310,7 +317,7 @@ class PastisEval(EvalTask):
             PastisDataset(
                 folds=[1],
                 average_s2_over_month=self.average_months,
-                num_subtiles=self.num_subtiles,
+                num_subtiles_per_image=self.num_subtiles_per_image,
             ),
             batch_size=Hyperparams.batch_size,
             shuffle=False,
@@ -347,7 +354,7 @@ class PastisEval(EvalTask):
             PastisDataset(
                 folds=[3, 4, 5],
                 average_s2_over_month=self.average_months,
-                num_subtiles=self.num_subtiles,
+                num_subtiles_per_image=self.num_subtiles_per_image,
             ),
             batch_size=Hyperparams.batch_size,
             shuffle=True,
@@ -358,7 +365,7 @@ class PastisEval(EvalTask):
             PastisDataset(
                 folds=[2],
                 average_s2_over_month=self.average_months,
-                num_subtiles=self.num_subtiles,
+                num_subtiles_per_image=self.num_subtiles_per_image,
             ),
             batch_size=Hyperparams.batch_size,
             shuffle=False,
