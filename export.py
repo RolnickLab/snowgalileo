@@ -15,10 +15,11 @@ os.environ["GOOGLE_CLOUD_PROJECT"] = EE_PROJECT
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--start_export_from_idx", type=int, default=0)
 argparser.add_argument("--num_exports", type=int, default=3000)
+argparser.add_argument("--filename", type=str, default="worldstrat_metadata.csv")
 args = argparser.parse_args().__dict__
 
-latlons = geopandas.read_file(DATA_FOLDER / "dynamic_world_samples.geojson")[
-    args["start_export_from_idx"] :
-]
+filepath = DATA_FOLDER / "pretraining_points" / args["filename"]
+assert filepath.exists()
+latlons = geopandas.read_file(filepath)[args["start_export_from_idx"] :]
 exporter = EarthEngineExporter(check_gcp=True)
 exporter.export_for_latlons(latlons, args["num_exports"])
