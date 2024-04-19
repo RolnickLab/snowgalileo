@@ -199,7 +199,7 @@ eval_tasks: List[EvalTask] = [
     *[
         PastisEval(average_months, num_subtiles_per_image)
         for average_months in [True, False]
-        for num_subtiles_per_image in [4, 8]
+        for num_subtiles_per_image in [4, 16]
     ],
     *[TreeSatEval(mode, patch_size) for mode in ["s1", "s2", "combined"] for patch_size in [6, 3]],
     *[EuroSatEval(rgb) for rgb in [True, False]],
