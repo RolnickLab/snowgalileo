@@ -136,6 +136,7 @@ class TestMasking(unittest.TestCase):
             p,
             time_ratio=0.25,
             space_ratio=0.25,
+            channel_ratio=0.25
         )
         self.assertEqual(
             (b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX)), output.space_time_mask.shape
