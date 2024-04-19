@@ -118,6 +118,7 @@ for e in tqdm(range(training_config["num_epochs"])):
             patch_size,
             time_ratio=training_config["time_ratio"],
             space_ratio=training_config["space_ratio"],
+            channel_ratio=training_config["channel_ratio"],
         )
 
         # also transform to pixel

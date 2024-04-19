@@ -230,7 +230,7 @@ def batch_mask_channels(
 
     def channel_mask(b: int, num_channels: int, mask_ratio: float, device: torch.device):
         if num_channels == 1:
-            return torch.rand(b, device=device) <= mask_ratio
+            return (torch.rand(b, device=device) <= mask_ratio).unsqueeze(-1)
         else:
             num_channels_to_mask = int(num_channels * mask_ratio)
             flat_channels = np.concatenate(
