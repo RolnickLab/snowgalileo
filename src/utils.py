@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from matplotlib import pyplot as plt
 from einops import rearrange
+from copy import deepcopy
 
 from .config import DEFAULT_SEED
 from .masking import MaskedOutput, subset_batch_of_images, batch_mask_presto
@@ -84,7 +85,8 @@ def load_check_config(name: str, mode: str):
         "time_ratio": float,
         "space_ratio": float,
         "spatial_patches_per_dim": int,
-        "plot_every_n_epochs": int,
+        "wandb_plot_every_n_epochs": int,
+        "num_images_to_wandb_plot": int,
     }
     if mode == "jepa":
         expected_training_keys_type["ema"] = list
@@ -126,97 +128,54 @@ def load_check_config(name: str, mode: str):
     )
     return config
 
+def plot_predictions(
+        encoder,
+        predictor, 
+        training_config, 
+        examples_to_plot):
+    
+    encoder = deepcopy(encoder).requires_grad_(False).eval()
+    predictor = deepcopy(predictor).requires_grad_(False).eval()
 
-def plot_masked_general(target, masked, prediction, prediction_interpolated):
-    """Plot all bands over time"""
+    for example in examples_to_plot:
+        # repeat preprocessing and masking procedure for image to plot
+        example = [torch.from_numpy(ex).to(device) for ex in example]
+        s_t_x, s_x, t_x, months = example
 
-    fig, axes = plt.subplots(nrows=4, ncols=4, figsize=(20,20))
-
-    s2_rgb = x[:, :, :, :]
-    s1 = x[:, :, :, :]
-    era5 = x[:, :, :, :]
-    # dw maybe
-
-
-    # Reconstruct eo data
-    eo_data_actual = example.x_eo.copy()
-    eo_data_actual[example.mask_eo == 1] = example.y_eo[example.mask_eo == 1]
-    eo_data_predicted = y_pred
-
-    dw_actual = example.x_dw.copy()
-    dw_actual[example.mask_dw == 1] = example.y_dw[example.mask_dw == 1]
-    dw_predicted = np.argmax(dw_pred, axis=1)
-
-    row_idx = 0
-    for band_group, band_indexes in BANDS_GROUPS_IDX.items():
-        if row_idx > 6:
-            row_idx = 6
-        else:
-            col_idx = 0
-        for b in band_indexes:
-            ax = axes[row_idx, col_idx]
-            (pred_line,) = ax.plot(eo_data_predicted[:, b], color="orange")
-            (actual_line,) = ax.plot(eo_data_actual[:, b], color="blue")
-            ax.set_title(NORMED_BANDS[b])
-            ax.set_ylabel(band_group)
-            col_idx += 1
-        row_idx += 1
-
-    dw_ax = axes[0, 4]
-    dw_ax.plot(dw_predicted, color="orange")
-    dw_ax.plot(dw_actual, color="blue")
-    dw_ax.set_title("Dynamic World")
-    dw_ax.set_yticks(list(DynamicWorld2020_2021.legend.keys()))
-    dw_ax.set_yticklabels((DynamicWorld2020_2021.legend.values()), rotation=60)
-
-    fig.legend([pred_line, actual_line], ["Predicted", "Actual"], loc="upper left")
-    return fig
-
-
-def plot_masked(example: MaskedExample, eo_pred: np.ndarray, dw_pred: np.ndarray):
-    fig = plot_masked_general(example, eo_pred, dw_pred)
-    plt = import_optional_dependency("matplotlib.pyplot")
-    plt.suptitle(
-        f"Start month: {example.start_month}, "
-        + f"Latlon: {example.latlon}"
-        + f"\nStrategy: {example.strategy}",
-        size=24,
-    )
-    fig.subplots_adjust(top=0.15)
-    fig.tight_layout()
-    return fig
-
-def plot_predictions(model, patch_size, image_size, training_config, image):
-    # repeat preprocessing and masking procedure
-    d_x, s_x, d_m, s_m, months = image
-    d_x, s_x, months = image
-
-    target = d_x[:, :, :, 0, :].squeeze(0).cpu().numpy()
-    assert(target.shape == (image_size, image_size))
-
-    d_x, s_x = subset_batch_of_images(d_x, s_x, image_size)
-    d_x, s_x, d_m, s_m, months = batch_mask_presto(
-        d_x,
-        s_x,
-        months,
-        training_config["mask_ratio"],
-        patch_size,
-        time_ratio=training_config["time_ratio"],
-        space_ratio=training_config["space_ratio"],
-    )
-
-    masked = d_x[:, :, :, 0, :].squeeze(0).cpu().numpy()
-    assert(masked.shape == (image_size, image_size))
-
-    with torch.no_grad():
-        p_d, _ = model(
-            d_x.float(),
-            s_x.float(),
-            d_m.float(),
-            s_m.float(),
-            months.long(),
-            patch_size=patch_size,
+        # randomly sample a patch size, and a corresponding image size
+        patch_size = np.random.choice(training_config["patch_sizes"])
+        image_size = patch_size * training_config["spatial_patches_per_dim"]
+        s_t_x, s_x = subset_batch_of_images(s_t_x, s_x, image_size)
+        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = batch_mask_presto(
+            s_t_x,
+            s_x,
+            t_x,
+            months,
+            training_config["mask_ratio"],
+            patch_size,
+            time_ratio=training_config["time_ratio"],
+            space_ratio=training_config["space_ratio"],
         )
+
+        target = s_t_x[:, :, 0, 0].squeeze(0).cpu().numpy()
+        print(target.shape)
+        assert(target.shape == (image_size, image_size, 1))
+
+        """
+        masked = d_x[:, :, :, 0, :].squeeze(0).cpu().numpy()
+        assert(masked.shape == (image_size, image_size))
+
+        with torch.no_grad():
+            p_d, _ = model(
+                s_t_x.float(),
+                s_x.float(),
+                t_x.float(),
+                s_t_m.float(),
+                s_m.float(),
+                t_m.float(),
+                months.long(),
+                patch_size=patch_size,
+            )
 
     output = p_d[:, :, :, 0, :].squeeze(0).cpu().numpy()
     assert(output.shape == (image_size, image_size))
@@ -257,3 +216,4 @@ def plot_predictions(model, patch_size, image_size, training_config, image):
         )
         name_plots_list.append((title, wandb.Image(fig)))
     return name_plots_list
+    """

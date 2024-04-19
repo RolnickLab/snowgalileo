@@ -28,7 +28,14 @@ from src.masking import (
     batch_mask_presto,
     subset_batch_of_images,
 )
-from src.utils import AverageMeter, data_dir, device, load_check_config, seed_everything, plot_predictions
+from src.utils import (
+    AverageMeter,
+    data_dir,
+    device,
+    load_check_config,
+    seed_everything,
+    plot_predictions,
+)
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -70,8 +77,6 @@ dataloader = DataLoader(
     shuffle=True,
     num_workers=Hyperparams.num_workers,
 )
-# choose three random images to plot
-example_to_plot = dataset[0]
 print("Loading models")
 encoder = Encoder(**config["model"]["encoder"]).to(device)
 predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
@@ -81,7 +86,6 @@ val_task = EuroSatEval(rgb=True)
 SPACE_TIME_BAND_EXPANSION_T = torch.tensor(SPACE_TIME_BAND_EXPANSION, device=device).long()
 SPACE_BAND_EXPANSION_T = torch.tensor(SPACE_BAND_EXPANSION, device=device).long()
 TIME_BAND_EXPANSION_T = torch.tensor(TIME_BAND_EXPANSION, device=device).long()
-
 
 if wandb_enabled:
     import wandb
@@ -95,21 +99,20 @@ if wandb_enabled:
     config["training"]["training_samples"] = len(dataset)
     wandb.config.update(config)
 
+    # choose random images to plot during training
+    if training_config["wandb_plot_every_n_epochs"] > 0:
+        examples_to_plot = []
+        plot_indeces = np.random.choice(len(dataset), training_config["num_images_to_wandb_plot"])
+
+        for i in plot_indeces:
+            examples_to_plot.append(dataset[i])
 
 param_groups = [{"params": encoder.parameters()}, {"params": predictor.parameters()}]
 
 optimizer = torch.optim.AdamW(param_groups, lr=training_config["start_lr"])  # type: ignore
 iterations_per_epoch = len(dataset)
 
-plot = False
-
 for e in tqdm(range(training_config["num_epochs"])):
-
-    if (training_config["plot_every_n_epochs"] != 0) and (
-        e % training_config["plot_every_n_epochs"] == 0
-    ):
-        plot = True
-
     train_loss = AverageMeter()
     for i, b in tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
         b = [t.to(device) for t in b]
@@ -197,18 +200,15 @@ for e in tqdm(range(training_config["num_epochs"])):
     if wandb_enabled:
         wandb.log({"train_loss": train_loss.average})
 
-    if plot:
-        plot_predictions(model = predictor(
-            *encoder(
-                d_x.float(),
-                s_x.float(),
-                d_m.float(),
-                s_m.float(),
-                months.long(),
-                patch_size=patch_size,
-            ),
-            patch_size=patch_size,
-        ), patch_size=patch_size, image_size=image_size, training_config=training_config, image = example_to_plot)
+        if (training_config["wandb_plot_every_n_epochs"] != 0) and (
+            e % training_config["wandb_plot_every_n_epochs"] == 0
+        ):
+            plot_predictions(
+                encoder=encoder,
+                predictor=predictor,
+                training_config=training_config,
+                examples_to_plot=examples_to_plot,
+            )
 
     if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
         e % training_config["eval_eurosat_every_n_epochs"] == 0
