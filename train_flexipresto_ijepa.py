@@ -192,7 +192,7 @@ for e in tqdm(range(training_config["num_epochs"])):
 eval_tasks: List[EvalTask] = [
     *[
         PastisEval(
-            average_s2_over_month=average_s2_over_month,
+            average_months=average_s2_over_month,
             num_subtiles_per_image=num_subtiles_per_image,
         )
         for average_s2_over_month in [True, False]
