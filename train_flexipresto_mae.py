@@ -63,7 +63,7 @@ args = argparser.parse_args().__dict__
 
 
 ##################################################################################################
-def plot_space_time_predictions(encoder, predictor, training_config, examples_to_plot):
+def plot_space_time_predictions(epoch, encoder, predictor, training_config, examples_to_plot):
     """
     Plots MAE input images, MAE predictions and differences for a random subset of the dataset.
     The number of timesteps, number of images, and bands to plot are defined in the training config.
@@ -72,12 +72,13 @@ def plot_space_time_predictions(encoder, predictor, training_config, examples_to
     encoder = deepcopy(encoder).requires_grad_(False).eval()
     predictor = deepcopy(predictor).requires_grad_(False).eval()
 
+    plot_list = []
+
     for idx, example in enumerate(examples_to_plot):
         # repeat preprocessing and masking procedure for image to plot
         example = [ex.to(device) for ex in example]
         s_t_x, s_x, t_x, months = example
 
-        # patch size will be the last one because random is seeded
         patch_size = np.random.choice(training_config["patch_sizes"])
         image_size = patch_size * training_config["spatial_patches_per_dim"]
         s_t_x, s_x = subset_batch_of_images(s_t_x, s_x, image_size)
@@ -142,34 +143,33 @@ def plot_space_time_predictions(encoder, predictor, training_config, examples_to
                 len(SPACE_TIME_BANDS),
             )
 
-    plot_list = []
-    for c in training_config["band_indeces_to_wandb_plot"]:
-        for t in range(training_config["num_timesteps_to_wandb_plot"]):
-            input = input_to_plot[:, :, t, c]
-            output = output_to_plot[:, :, t, c]
-            if patch_size < training_config["patch_sizes"][-1]:
-                interpolated = interpolated_to_plot[:, :, t, c]
+        for c in training_config["band_indeces_to_wandb_plot"]:
+            for t in range(training_config["num_timesteps_to_wandb_plot"]):
+                input = input_to_plot[:, :, t, c]
+                output = output_to_plot[:, :, t, c]
+                if patch_size < training_config["patch_sizes"][-1]:
+                    interpolated = interpolated_to_plot[:, :, t, c]
 
-            # plot target, masked, prediction, interpolated
-            fig, axs = plt.subplots(2, 2, figsize=(10, 10))
-            axs[0, 0].imshow(input, cmap="gray")
-            axs[0, 0].set_title(f"Target_image{idx}_timestep{t}_channel{c}")
-            axs[0, 1].imshow(output, cmap="gray")
-            axs[0, 1].set_title(f"Prediction_image{idx}_timestep{t}_channel{c}")
-            if patch_size < training_config["patch_sizes"][-1]:
-                axs[1, 0].imshow(interpolated, cmap="gray")
-                axs[1, 0].set_title(f"Interpolated_image{idx}_timestep{t}_band{c}")
-                axs[1, 1].imshow(input - interpolated, cmap="coolwarm")
-                axs[1, 1].set_title(f"Difference_image{idx}_timestep{t}_channel{c}")
-            else:
-                axs[1, 0].imshow(input - output, cmap="coolwarm")
-                axs[1, 0].set_title(f"Difference_image{idx}_timestep{t}_channel{c}")
+                # plot target, masked, prediction, interpolated
+                fig, axs = plt.subplots(2, 2, figsize=(10, 10))
+                axs[0, 0].imshow(input, cmap="gray")
+                axs[0, 0].set_title(f"Input_image{idx}_epoch{e}_timestep{t}_channel{c}")
+                axs[0, 1].imshow(output, cmap="gray")
+                axs[0, 1].set_title(f"Output_image{idx}_epoch{e}_timestep{t}_channel{c}")
+                if patch_size < training_config["patch_sizes"][-1]:
+                    axs[1, 0].imshow(interpolated, cmap="gray")
+                    axs[1, 0].set_title(f"Interpolated_image{idx}_epoch{e}_timestep{t}_channel{c}")
+                    axs[1, 1].imshow(input - interpolated, cmap="coolwarm")
+                    axs[1, 1].set_title(f"Difference_image{idx}_epoch{e}_timestep{t}_channel{c}")
+                else:
+                    axs[1, 0].imshow(input - output, cmap="coolwarm")
+                    axs[1, 0].set_title(f"Difference_image{idx}_epoch{e}_timestep{t}_channel{c}")
 
-            fig.tight_layout()
+                fig.tight_layout()
 
-            title = f"plot_{idx}_{t}_{c}"
-            plot = wandb.Image(fig)
-            plot_list.append((title, plot))
+                title = f"plot_image{idx}_epoch{e}_timestep{t}_channel{c}"
+                plot = wandb.Image(fig)
+                plot_list.append((title, plot))
     return plot_list
 
 
@@ -325,6 +325,7 @@ for e in tqdm(range(training_config["num_epochs"])):
             e % training_config["wandb_plot_every_n_epochs"] == 0
         ):
             plot_list = plot_space_time_predictions(
+                epoch=e,
                 encoder=encoder,
                 predictor=predictor,
                 training_config=training_config,
