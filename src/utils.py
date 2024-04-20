@@ -2,6 +2,7 @@ import json
 import os
 import random
 from pathlib import Path
+import wandb
 
 import numpy as np
 import torch
@@ -87,6 +88,8 @@ def load_check_config(name: str, mode: str):
         "spatial_patches_per_dim": int,
         "wandb_plot_every_n_epochs": int,
         "num_images_to_wandb_plot": int,
+        "num_timesteps_to_wandb_plot": int,
+        "band_indeces_to_wandb_plot": list,
     }
     if mode == "jepa":
         expected_training_keys_type["ema"] = list
@@ -127,93 +130,3 @@ def load_check_config(name: str, mode: str):
         "embedding_size"
     )
     return config
-
-def plot_predictions(
-        encoder,
-        predictor, 
-        training_config, 
-        examples_to_plot):
-    
-    encoder = deepcopy(encoder).requires_grad_(False).eval()
-    predictor = deepcopy(predictor).requires_grad_(False).eval()
-
-    for example in examples_to_plot:
-        # repeat preprocessing and masking procedure for image to plot
-        example = [torch.from_numpy(ex).to(device) for ex in example]
-        s_t_x, s_x, t_x, months = example
-
-        # randomly sample a patch size, and a corresponding image size
-        patch_size = np.random.choice(training_config["patch_sizes"])
-        image_size = patch_size * training_config["spatial_patches_per_dim"]
-        s_t_x, s_x = subset_batch_of_images(s_t_x, s_x, image_size)
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = batch_mask_presto(
-            s_t_x,
-            s_x,
-            t_x,
-            months,
-            training_config["mask_ratio"],
-            patch_size,
-            time_ratio=training_config["time_ratio"],
-            space_ratio=training_config["space_ratio"],
-        )
-
-        target = s_t_x[:, :, 0, 0].squeeze(0).cpu().numpy()
-        print(target.shape)
-        assert(target.shape == (image_size, image_size, 1))
-
-        """
-        masked = d_x[:, :, :, 0, :].squeeze(0).cpu().numpy()
-        assert(masked.shape == (image_size, image_size))
-
-        with torch.no_grad():
-            p_d, _ = model(
-                s_t_x.float(),
-                s_x.float(),
-                t_x.float(),
-                s_t_m.float(),
-                s_m.float(),
-                t_m.float(),
-                months.long(),
-                patch_size=patch_size,
-            )
-
-    output = p_d[:, :, :, 0, :].squeeze(0).cpu().numpy()
-    assert(output.shape == (image_size, image_size))
-
-    if patch_size < training_config["patch_sizes"][-1]:
-        t, d = d_x.shape[3], d_x.shape[4]
-        p_d = rearrange(
-            resize(
-                rearrange(p_d, "b h w t d -> b (t d) h w"), size=(d_x.shape[1], d_x.shape[2])
-            ),
-            "b (t d) h w -> b h w t d",
-            t=t,
-            d=d,
-        )
-    
-    interpolated = p_d[:, :, :, 0, :].squeeze(0).cpu().numpy()
-    assert(interpolated.shape == (image_size, image_size))
-
-    # design choices: which bands to plot / RGB (because visual), S1, ERA5, etc.
-    # target, masked, prediction, interpolated
-    # S2 RGB
-    # S1
-    # ERA5
-    # DW
-
-    # iterate over timesteps to plot, squeeze timedim
-
-    name_plots_list = []
-    for i, example in enumerate(training_config["nr_timesteps_to_plot"]):
-        if i < wandb_plots:
-            title = f"plot_train_{i}_{example.strategy}"
-        else:
-            title = f"plot_val_{i}_{example.strategy}"
-        fig = plot_masked(
-            example=example,
-            output=p_d[i].cpu().numpy(),
-            interpolated=dw_preds[i].cpu().numpy(),
-        )
-        name_plots_list.append((title, wandb.Image(fig)))
-    return name_plots_list
-    """
