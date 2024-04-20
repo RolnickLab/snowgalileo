@@ -1,10 +1,12 @@
 import argparse
 import json
 import os
+from copy import deepcopy
 from pathlib import Path
 from typing import List, cast
 
 import codecarbon
+import matplotlib.pyplot as plt
 import numpy as np
 import psutil
 import torch
@@ -13,11 +15,11 @@ from einops import rearrange
 from torch.utils.data import DataLoader
 from torchvision.transforms.functional import resize
 from tqdm import tqdm
-from wandb.sdk.wandb_run import Run
 
 from src.config import DEFAULT_SEED
 from src.data import Dataset
-from src.data.config import DATA_FOLDER, EE_PROJECT
+from src.data.config import DATA_FOLDER, EE_PROJECT, NUM_TIMESTEPS
+from src.data.dataset import SPACE_TIME_BANDS
 from src.eval import EuroSatEval, So2SatEval, TreeSatEval
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
@@ -34,8 +36,8 @@ from src.utils import (
     device,
     load_check_config,
     seed_everything,
-    plot_predictions,
 )
+from wandb.sdk.wandb_run import Run
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -58,6 +60,127 @@ tracker.start()
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--config_file", type=str, default="small.json")
 args = argparser.parse_args().__dict__
+
+
+##################################################################################################
+def plot_space_time_predictions(encoder, predictor, training_config, plot_dataloader):
+    """
+    Plots MAE input images, MAE predictions and differences for a random subset of the dataset.
+    The number of timesteps, number of images, and bands to plot are defined in the training config.
+    """
+    c = 0
+
+    encoder = deepcopy(encoder).requires_grad_(False).eval()
+    predictor = deepcopy(predictor).requires_grad_(False).eval()
+
+    examples_to_plot = []
+
+    for _ in range(training_config["num_images_to_wandb_plot"]):
+        # extract batches of images to be able to apply batch masking
+        examples_to_plot.append(next(iter(plot_dataloader)))
+
+    for idx, example in enumerate(examples_to_plot):
+        # repeat preprocessing and masking procedure for image to plot
+        example = [ex.to(device) for ex in example]
+        s_t_x, s_x, t_x, months = example
+
+        # patch size will be the last one because random is seeded
+        patch_size = np.random.choice(training_config["patch_sizes"])
+        image_size = patch_size * training_config["spatial_patches_per_dim"]
+        s_t_x, s_x = subset_batch_of_images(s_t_x, s_x, image_size)
+        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = batch_mask_presto(
+            s_t_x,
+            s_x,
+            t_x,
+            months,
+            training_config["mask_ratio"],
+            patch_size,
+            time_ratio=training_config["time_ratio"],
+            space_ratio=training_config["space_ratio"],
+        )
+
+        input_to_plot = s_t_x[:, :, :, :, :].squeeze(0).cpu().numpy()
+        assert input_to_plot.shape == (
+            image_size,
+            image_size,
+            NUM_TIMESTEPS,
+            len(SPACE_TIME_BANDS),
+        )
+
+        with torch.no_grad():
+            output, _, _ = predictor(
+                *encoder(
+                    s_t_x.float(),
+                    s_x.float(),
+                    t_x.float(),
+                    s_t_m.float(),
+                    s_m.float(),
+                    t_m.float(),
+                    months.long(),
+                    patch_size=patch_size,
+                ),
+                patch_size=patch_size,
+            )
+
+        output_to_plot = output[:, :, :, :, :].squeeze(0).cpu().numpy()
+        assert output_to_plot.shape == (
+            training_config["patch_sizes"][-1] * training_config["spatial_patches_per_dim"],
+            training_config["patch_sizes"][-1] * training_config["spatial_patches_per_dim"],
+            NUM_TIMESTEPS,
+            len(SPACE_TIME_BANDS),
+        )
+
+        if patch_size < training_config["patch_sizes"][-1]:
+            t, d = s_t_x.shape[3], s_t_x.shape[4]
+            interpolated = rearrange(
+                resize(
+                    rearrange(output, "b h w t d -> b (t d) h w"),
+                    size=(s_t_x.shape[1], s_t_x.shape[2]),
+                ),
+                "b (t d) h w -> b h w t d",
+                t=t,
+                d=d,
+            )
+            interpolated_to_plot = interpolated[:, :, :, :, :].squeeze(0).cpu().numpy()
+            assert interpolated_to_plot.shape == (
+                image_size,
+                image_size,
+                NUM_TIMESTEPS,
+                len(SPACE_TIME_BANDS),
+            )
+
+    plot_list = []
+    for c in training_config["band_indeces_to_wandb_plot"]:
+        for t in range(training_config["num_timesteps_to_wandb_plot"]):
+            input = input_to_plot[:, :, t, c]
+            output = output_to_plot[:, :, t, c]
+            if patch_size < training_config["patch_sizes"][-1]:
+                interpolated = interpolated_to_plot[:, :, t, c]
+
+            # plot target, masked, prediction, interpolated
+            fig, axs = plt.subplots(2, 2, figsize=(10, 10))
+            axs[0, 0].imshow(input, cmap="gray")
+            axs[0, 0].set_title(f"Target_image{idx}_timestep{t}_channel{c}")
+            axs[0, 1].imshow(output, cmap="gray")
+            axs[0, 1].set_title(f"Prediction_image{idx}_timestep{t}_channel{c}")
+            if patch_size < training_config["patch_sizes"][-1]:
+                axs[1, 0].imshow(interpolated, cmap="gray")
+                axs[1, 0].set_title(f"Interpolated_image{idx}_timestep{t}_band{c}")
+                axs[1, 1].imshow(input - interpolated, cmap="coolwarm")
+                axs[1, 1].set_title(f"Difference_image{idx}_timestep{t}_channel{c}")
+            else:
+                axs[1, 0].imshow(input - output, cmap="coolwarm")
+                axs[1, 0].set_title(f"Difference_image{idx}_timestep{t}_channel{c}")
+
+            fig.tight_layout()
+
+            title = f"plot_{idx}_{t}_{c}"
+            plot = wandb.Image(fig)
+            plot_list.append((title, plot))
+    return plot_list
+
+
+##################################################################################################
 
 config = load_check_config(args["config_file"], "mae")
 training_config = config["training"]
@@ -101,11 +224,11 @@ if wandb_enabled:
 
     # choose random images to plot during training
     if training_config["wandb_plot_every_n_epochs"] > 0:
-        examples_to_plot = []
-        plot_indeces = np.random.choice(len(dataset), training_config["num_images_to_wandb_plot"])
-
-        for i in plot_indeces:
-            examples_to_plot.append(dataset[i])
+        plot_dataloader = DataLoader(
+            dataset,
+            batch_size=1,
+            shuffle=False,
+        )
 
 param_groups = [{"params": encoder.parameters()}, {"params": predictor.parameters()}]
 
@@ -203,12 +326,14 @@ for e in tqdm(range(training_config["num_epochs"])):
         if (training_config["wandb_plot_every_n_epochs"] != 0) and (
             e % training_config["wandb_plot_every_n_epochs"] == 0
         ):
-            plot_predictions(
+            plot_list = plot_space_time_predictions(
                 encoder=encoder,
                 predictor=predictor,
                 training_config=training_config,
-                examples_to_plot=examples_to_plot,
+                plot_dataloader=plot_dataloader,
             )
+            for title, plot in plot_list:
+                wandb.log({"plot": plot})
 
     if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
         e % training_config["eval_eurosat_every_n_epochs"] == 0
@@ -229,3 +354,9 @@ for task in eval_tasks:
     if wandb_enabled:
         wandb.log(results)
 tracker.stop()
+
+
+if __name__ == "__main__":
+    import multiprocessing
+
+    multiprocessing.freeze_support()
