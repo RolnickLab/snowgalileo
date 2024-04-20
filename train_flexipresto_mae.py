@@ -63,21 +63,14 @@ args = argparser.parse_args().__dict__
 
 
 ##################################################################################################
-def plot_space_time_predictions(encoder, predictor, training_config, plot_dataloader):
+def plot_space_time_predictions(encoder, predictor, training_config, examples_to_plot):
     """
     Plots MAE input images, MAE predictions and differences for a random subset of the dataset.
     The number of timesteps, number of images, and bands to plot are defined in the training config.
     """
-    c = 0
 
     encoder = deepcopy(encoder).requires_grad_(False).eval()
     predictor = deepcopy(predictor).requires_grad_(False).eval()
-
-    examples_to_plot = []
-
-    for _ in range(training_config["num_images_to_wandb_plot"]):
-        # extract batches of images to be able to apply batch masking
-        examples_to_plot.append(next(iter(plot_dataloader)))
 
     for idx, example in enumerate(examples_to_plot):
         # repeat preprocessing and masking procedure for image to plot
@@ -229,6 +222,11 @@ if wandb_enabled:
             batch_size=1,
             shuffle=False,
         )
+        examples_to_plot = []
+
+        for _ in range(training_config["num_images_to_wandb_plot"]):
+            # extract batches of images to be able to apply batch masking
+            examples_to_plot.append(next(iter(plot_dataloader)))
 
 param_groups = [{"params": encoder.parameters()}, {"params": predictor.parameters()}]
 
@@ -330,7 +328,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                 encoder=encoder,
                 predictor=predictor,
                 training_config=training_config,
-                plot_dataloader=plot_dataloader,
+                examples_to_plot=examples_to_plot,
             )
             for title, plot in plot_list:
                 wandb.log({"plot": plot})
@@ -354,9 +352,3 @@ for task in eval_tasks:
     if wandb_enabled:
         wandb.log(results)
 tracker.stop()
-
-
-if __name__ == "__main__":
-    import multiprocessing
-
-    multiprocessing.freeze_support()
