@@ -79,6 +79,8 @@ def plot_space_time_predictions(epoch, encoder, predictor, training_config, exam
         example = [ex.to(device) for ex in example]
         s_t_x, s_x, t_x, months = example
 
+        image_to_plot = s_t_x[:, :, :, :, :].squeeze(0).cpu().numpy()
+
         patch_size = np.random.choice(training_config["patch_sizes"])
         image_size = patch_size * training_config["spatial_patches_per_dim"]
         s_t_x, s_x = subset_batch_of_images(s_t_x, s_x, image_size)
@@ -145,13 +147,14 @@ def plot_space_time_predictions(epoch, encoder, predictor, training_config, exam
 
         for c in training_config["band_indeces_to_wandb_plot"]:
             for t in range(training_config["num_timesteps_to_wandb_plot"]):
+                image = image_to_plot[:, :, t, c]
                 input = input_to_plot[:, :, t, c]
                 output = output_to_plot[:, :, t, c]
                 if patch_size < training_config["patch_sizes"][-1]:
                     interpolated = interpolated_to_plot[:, :, t, c]
 
                 # plot target, masked, prediction, interpolated
-                fig, axs = plt.subplots(2, 2, figsize=(10, 10))
+                fig, axs = plt.subplots(2, 3, figsize=(20, 30))
                 axs[0, 0].imshow(input, cmap="gray")
                 axs[0, 0].set_title(f"Input_image{idx}_epoch{epoch}_timestep{t}_channel{c}")
                 axs[0, 1].imshow(output, cmap="gray")
@@ -164,6 +167,7 @@ def plot_space_time_predictions(epoch, encoder, predictor, training_config, exam
                 else:
                     axs[1, 0].imshow(input - output, cmap="coolwarm")
                     axs[1, 0].set_title(f"Difference_image{idx}_epoch{epoch}_timestep{t}_channel{c}")
+                axs[1, 2].imshow(image, cmap="gray")
 
                 fig.tight_layout()
 
