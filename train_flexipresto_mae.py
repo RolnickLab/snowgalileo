@@ -173,27 +173,25 @@ for e in tqdm(range(training_config["num_epochs"])):
             )
 
             # fix the mask too
-            patch_expended_s_t_m = expanded_s_t[:, 0::patch_size, 0::patch_size]
-            pixel_expanded_s_t_m = repeat(
-                patch_expended_s_t_m,
+            expanded_s_t = expanded_s_t[:, 0::patch_size, 0::patch_size]
+            expanded_s_t = repeat(
+                expanded_s_t,
                 "b h w t c -> b (h h2) (w w2) t c",
                 h2=training_config["patch_sizes"][-1],
                 w2=training_config["patch_sizes"][-1],
             )
 
-            patch_expanded_s_m = expanded_s[:, 0::patch_size, 0::patch_size]
-            pixel_expanded_s_m = repeat(
-                patch_expanded_s_m,
+            expanded_s = expanded_s[:, 0::patch_size, 0::patch_size]
+            expanded_s = repeat(
+                expanded_s,
                 "b h w c -> b (h h2) (w w2) c",
                 h2=training_config["patch_sizes"][-1],
                 w2=training_config["patch_sizes"][-1],
             )
 
         loss = F.mse_loss(
-            torch.concat([p_s_t[pixel_expanded_s_t_m], p_s[pixel_expanded_s_m], p_t[expanded_t]]),
-            torch.concat(
-                [s_t_x[pixel_expanded_s_t_m], s_x[pixel_expanded_s_m], t_x[expanded_t]]
-            ).float(),
+            torch.concat([p_s_t[expanded_s_t], p_s[expanded_s], p_t[expanded_t]]),
+            torch.concat([s_t_x[expanded_s_t], s_x[expanded_s], t_x[expanded_t]]).float(),
         )
         loss.backward()
         optimizer.step()
