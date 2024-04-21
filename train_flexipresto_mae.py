@@ -81,7 +81,8 @@ def plot_space_time_predictions(epoch, encoder, predictor, training_config, exam
 
         image_to_plot = s_t_x[:, :, :, :, :].squeeze(0).cpu().numpy()
 
-        patch_size = np.random.choice(training_config["patch_sizes"])
+        # TODO: if to make patch size a random parameter
+        patch_size = 8
         image_size = patch_size * training_config["spatial_patches_per_dim"]
         s_t_x, s_x = subset_batch_of_images(s_t_x, s_x, image_size)
         s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = batch_mask_presto(
