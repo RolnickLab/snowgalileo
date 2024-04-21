@@ -158,19 +158,17 @@ for e in tqdm(range(training_config["num_epochs"])):
         # resample if its smaller
         if patch_size < training_config["patch_sizes"][-1]:
             t, d = s_t_x.shape[3], s_t_x.shape[4]
-            p_s_t = rearrange(
+            s_t_x = rearrange(
                 resize(
-                    rearrange(p_s_t, "b h w t d -> b (t d) h w"),
-                    size=(s_t_x.shape[1], s_t_x.shape[2]),
+                    rearrange(s_t_x, "b h w t d -> b (t d) h w"),
+                    size=(p_s_t.shape[1], p_s_t.shape[2]),
                 ),
                 "b (t d) h w -> b h w t d",
                 t=t,
                 d=d,
             )
-            p_s = rearrange(
-                resize(
-                    rearrange(p_s, "b h w d -> b d h w"), size=(s_t_x.shape[1], s_t_x.shape[2])
-                ),
+            s_x = rearrange(
+                resize(rearrange(s_x, "b h w d -> b d h w"), size=(p_s.shape[1], p_s.shape[2])),
                 "b d h w -> b h w d",
             )
         loss = F.mse_loss(
