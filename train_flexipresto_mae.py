@@ -153,21 +153,21 @@ def plot_space_time_predictions(epoch, encoder, predictor, training_config, exam
                 # plot target, masked, prediction, interpolated
                 fig, axs = plt.subplots(2, 2, figsize=(10, 10))
                 axs[0, 0].imshow(input, cmap="gray")
-                axs[0, 0].set_title(f"Input_image{idx}_epoch{e}_timestep{t}_channel{c}")
+                axs[0, 0].set_title(f"Input_image{idx}_epoch{epoch}_timestep{t}_channel{c}")
                 axs[0, 1].imshow(output, cmap="gray")
-                axs[0, 1].set_title(f"Output_image{idx}_epoch{e}_timestep{t}_channel{c}")
+                axs[0, 1].set_title(f"Output_image{idx}_epoch{epoch}_timestep{t}_channel{c}")
                 if patch_size < training_config["patch_sizes"][-1]:
                     axs[1, 0].imshow(interpolated, cmap="gray")
-                    axs[1, 0].set_title(f"Interpolated_image{idx}_epoch{e}_timestep{t}_channel{c}")
+                    axs[1, 0].set_title(f"Interpolated_image{idx}_epoch{epoch}_timestep{t}_channel{c}")
                     axs[1, 1].imshow(input - interpolated, cmap="coolwarm")
-                    axs[1, 1].set_title(f"Difference_image{idx}_epoch{e}_timestep{t}_channel{c}")
+                    axs[1, 1].set_title(f"Difference_image{idx}_epoch{epoch}_timestep{t}_channel{c}")
                 else:
                     axs[1, 0].imshow(input - output, cmap="coolwarm")
-                    axs[1, 0].set_title(f"Difference_image{idx}_epoch{e}_timestep{t}_channel{c}")
+                    axs[1, 0].set_title(f"Difference_image{idx}_epoch{epoch}_timestep{t}_channel{c}")
 
                 fig.tight_layout()
 
-                title = f"plot_image{idx}_epoch{e}_timestep{t}_channel{c}"
+                title = f"plot_image{idx}_epoch{epoch}_timestep{t}_channel{c}"
                 plot = wandb.Image(fig)
                 plot_list.append((title, plot))
     return plot_list
