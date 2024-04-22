@@ -22,7 +22,7 @@ logger = logging.getLogger("__main__")
 @dataclass
 class Hyperparams:
     batch_size: int = 1000
-    num_workers: int = 2
+    num_workers: int = 4
 
 
 def model_class_name(model: BaseEstimator) -> str:
