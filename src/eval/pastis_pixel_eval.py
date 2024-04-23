@@ -9,6 +9,7 @@ from einops import repeat
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as PyTorchDataset
 from torchmetrics import JaccardIndex
+from torch.nn import functional as F
 from tqdm import tqdm
 
 from ..data.dataset import (
@@ -60,7 +61,6 @@ class PastisPixelDataset(PyTorchDataset):
         self,
         folds: List[int] = [1, 2, 3, 4, 5],
         data_path: Optional[str] = "pastis/PASTIS-R_PixelSet",
-        cache: Optional[bool] = False,
         n_pixel: Optional[int] = 32,
         ignore_label: Optional[int] = None,
     ):
@@ -72,7 +72,6 @@ class PastisPixelDataset(PyTorchDataset):
             folds: List of numbers specifying which of the 5 official folds to load.
             data_path: Relative path to the data folder starting from the default data path.
             average_s2_over_month: Whether to average the Sentinel-2 data over months.
-            cache: Whether to cache the data in RAM.
             n_pixel: Number of pixels randomly sampled from each parcel.
             ignore_label: If not None, the parcels annotated with this label are removed from the dataset.
         
@@ -82,10 +81,6 @@ class PastisPixelDataset(PyTorchDataset):
         self.n_pixels = n_pixel
 
         self.data_path = data_path
-
-        self.cache = cache
-        self.memory = {}
-        self.memory_months = {}
 
         self.meta = pd.read_csv(data_dir / cast(str, self.data_path) / "metadata_parcel.csv")
         self.meta.index = self.meta["ID_PARCEL"].astype(int)
@@ -106,6 +101,9 @@ class PastisPixelDataset(PyTorchDataset):
 
         self.input_height_width = 1
         self.num_timesteps = 12
+
+        self.data, self.labels = self.get_and_cache_data()
+        self.len = self.data.shape[0]
 
     def create_pastis_masks(
         self, missing_timestep_indeces: np.ndarray
@@ -142,6 +140,7 @@ class PastisPixelDataset(PyTorchDataset):
 
         return (s_t_m, s_m, t_m)
     
+    @staticmethod
     def repeat_pixel(pixels, n_pixel):
         """
         Repeats a pixel if the parcel has fewer pixels than n_pixel.
@@ -161,6 +160,20 @@ class PastisPixelDataset(PyTorchDataset):
             x = pixels
             mask = np.array([1 for _ in range(n_pixel)])
         return x, mask
+    
+    @staticmethod
+    def sample_pixels(pixels, n_pixel):
+        """
+        Random sampling of pixels within a parcel.
+        """
+        if pixels.shape[-1] > n_pixel:
+            idx = np.random.choice(
+                list(range(pixels.shape[-1])), size=n_pixel, replace=False
+            )
+            x = pixels[:, :, idx]
+        else:
+            x = pixels
+        return x
 
     def average_over_month(
         self, s2: np.ndarray, months: np.ndarray
@@ -168,7 +181,7 @@ class PastisPixelDataset(PyTorchDataset):
         """
         Returns the month-wise mean of an input image, pixel- and channel-specific.
         Months without observations are filled with zeros.
-        Expected data input shape: T x C x H x W.
+        Expected data input shape: T x C x NR_PIXELS.
         Months are expected to be 0-indexed.
         """
         unique_months = np.unique(months)
@@ -191,7 +204,7 @@ class PastisPixelDataset(PyTorchDataset):
 
         averages_months_with_data = np.array([s2[idx].mean(axis=0) for idx in s2_idx_per_month])
 
-        averages_all_months = np.zeros((self.num_timesteps, s2.shape[1], s2.shape[2], s2.shape[3]))
+        averages_all_months = np.zeros((self.num_timesteps, s2.shape[1], s2.shape[2]))
 
         # fill up with zeros if there are months without observations
         averages_all_months[unique_months] = averages_months_with_data
@@ -207,13 +220,17 @@ class PastisPixelDataset(PyTorchDataset):
         Also provides static and month data, and creates masks for missing data.
         """
         
+        # Shape of the data: T x C x NR_PIXELS
         s2 = np.load(data_dir / cast(str, self.data_path) / "DATA_S2/S2_{}.npy".format(id_parcel)).astype(
             np.float32
         )
 
         print(f"Data shape after loading: {s2.shape}")
 
-        s2 = self.repeat_pixel(s2, self.n_pixels)
+        s2, mask = self.repeat_pixel(s2, self.n_pixels)
+        s2 = self.sample_pixels(s2, self.n_pixels)
+
+        print(f"Data shape after repeat: {s2.shape}")
 
         dates = self.meta_patch["dates-S2"][id_patch]
         # the dates are in the format YYYYMMDD
@@ -223,6 +240,8 @@ class PastisPixelDataset(PyTorchDataset):
         assert all(0 <= month <= 11 for month in months)
 
         s2, months, missing_timestep_indeces = self.average_over_month(s2, months)
+
+        print(f"Data shape after month average: {s2.shape}") 
 
         kept_dynamic_bands = [idx for idx, x in enumerate(SPACE_TIME_BANDS) if (x in S2_BANDS)]
 
@@ -234,7 +253,7 @@ class PastisPixelDataset(PyTorchDataset):
                 len(SPACE_TIME_BANDS),
             ]
         )
-        s_t_x[:, :, :, kept_dynamic_bands] = repeat(s2, "t c h w -> h w t c")
+        s_t_x[:, :, kept_dynamic_bands] = repeat(s2, "t c h w -> h w t c")
 
         # space only / time only bands are not provided by pastis
         s_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
@@ -245,6 +264,32 @@ class PastisPixelDataset(PyTorchDataset):
         )
 
         return normalize_space_time(s_t_x), s_x, t_x, s_t_m, s_m, t_m, months
+    
+    def get_and_cache_data(self):
+
+        print("Number of parcels: ", self.meta.shape[0])
+
+        s_t_x = np.zeros((self.meta.shape[0], self.input_height_width, self.input_height_width, self.num_timesteps, len(SPACE_TIME_BANDS)))
+        s_x = np.zeros((self.meta.shape[0], self.input_height_width, self.input_height_width, len(SPACE_BANDS)))
+        t_x = np.zeros((self.meta.shape[0], self.num_timesteps, len(TIME_BANDS)))
+        s_t_m = np.zeros((self.meta.shape[0], self.input_height_width, self.input_height_width, self.num_timesteps, len(SPACE_TIME_BANDS)))
+        s_m = np.zeros((self.meta.shape[0], self.input_height_width, self.input_height_width, len(SPACE_BANDS)))
+        t_m = np.zeros((self.meta.shape[0], self.num_timesteps, len(TIME_BANDS)))
+        months = np.zeros((self.meta.shape[0], self.num_timesteps))
+        labels = np.zeros((self.meta.shape[0],))
+
+        for i in range(self.meta.shape[0]):
+            id_parcel = self.id_parcels[i]
+            id_patch = self.id_patches[id_parcel]
+            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = self.get_eo_array_and_masks(id_parcel, id_patch)
+            label = torch.from_numpy(np.array(self.labels[id_parcel] - 1, dtype=int)) # 0-indexed
+
+            if i == 0:
+                data = np.zeros((self.meta.shape[0], *s_t_x.shape))
+                labels = np.zeros((self.meta.shape[0],))
+            s_t_x[i] = s_t_x
+            labels[i] = label
+
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
 
@@ -262,8 +307,6 @@ class PastisPixelDataset(PyTorchDataset):
             s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = self.memory[idx]
             label = torch.from_numpy(np.array(self.labels[id_parcel] - 1, dtype=int)) # 0-indexed
 
-        # sample_pixels
-
         return (
             masked_output_np_to_tensor(
                 s_t_x,
@@ -278,7 +321,7 @@ class PastisPixelDataset(PyTorchDataset):
         )
 
     def __len__(self):
-        return self.meta.shape[0]
+        return self.len
     
 ds = PastisPixelDataset()
 b, l = ds[0]
