@@ -1,25 +1,22 @@
 import argparse
 import json
 import os
-from copy import deepcopy
 from pathlib import Path
 from typing import List, cast
 
 import codecarbon
-import matplotlib.pyplot as plt
 import numpy as np
 import psutil
 import torch
 import torch.nn.functional as F
-from einops import rearrange
+from einops import rearrange, repeat
 from torch.utils.data import DataLoader
 from torchvision.transforms.functional import resize
 from tqdm import tqdm
 
 from src.config import DEFAULT_SEED
 from src.data import Dataset
-from src.data.config import DATA_FOLDER, EE_PROJECT, NUM_TIMESTEPS
-from src.data.dataset import SPACE_TIME_BANDS
+from src.data.config import DATA_FOLDER, EE_PROJECT
 from src.eval import EuroSatEval, So2SatEval, TreeSatEval
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
@@ -35,6 +32,7 @@ from src.utils import (
     data_dir,
     device,
     load_check_config,
+    plot_space_time_predictions,
     seed_everything,
 )
 from wandb.sdk.wandb_run import Run
@@ -61,124 +59,6 @@ argparser = argparse.ArgumentParser()
 argparser.add_argument("--config_file", type=str, default="small.json")
 args = argparser.parse_args().__dict__
 
-
-##################################################################################################
-def plot_space_time_predictions(epoch, encoder, predictor, training_config, examples_to_plot):
-    """
-    Plots MAE input images, MAE predictions and differences for a random subset of the dataset.
-    The number of timesteps, number of images, and bands to plot are defined in the training config.
-    """
-
-    encoder = deepcopy(encoder).requires_grad_(False).eval()
-    predictor = deepcopy(predictor).requires_grad_(False).eval()
-
-    plot_list = []
-
-    for idx, example in enumerate(examples_to_plot):
-        # repeat preprocessing and masking procedure for image to plot
-        example = [ex.to(device) for ex in example]
-        s_t_x, s_x, t_x, months = example
-
-        image_to_plot = s_t_x[:, :, :, :, :].squeeze(0).cpu().numpy()
-
-        # TODO: if to make patch size a random parameter
-        patch_size = 8
-        image_size = patch_size * training_config["spatial_patches_per_dim"]
-        s_t_x, s_x = subset_batch_of_images(s_t_x, s_x, image_size)
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = batch_mask_presto(
-            s_t_x,
-            s_x,
-            t_x,
-            months,
-            training_config["mask_ratio"],
-            patch_size,
-            time_ratio=training_config["time_ratio"],
-            space_ratio=training_config["space_ratio"],
-        )
-
-        input_to_plot = s_t_x[:, :, :, :, :].squeeze(0).cpu().numpy()
-        assert input_to_plot.shape == (
-            image_size,
-            image_size,
-            NUM_TIMESTEPS,
-            len(SPACE_TIME_BANDS),
-        )
-
-        with torch.no_grad():
-            output, _, _ = predictor(
-                *encoder(
-                    s_t_x.float(),
-                    s_x.float(),
-                    t_x.float(),
-                    s_t_m.float(),
-                    s_m.float(),
-                    t_m.float(),
-                    months.long(),
-                    patch_size=patch_size,
-                ),
-                patch_size=patch_size,
-            )
-
-        output_to_plot = output[:, :, :, :, :].squeeze(0).cpu().numpy()
-        assert output_to_plot.shape == (
-            training_config["patch_sizes"][-1] * training_config["spatial_patches_per_dim"],
-            training_config["patch_sizes"][-1] * training_config["spatial_patches_per_dim"],
-            NUM_TIMESTEPS,
-            len(SPACE_TIME_BANDS),
-        )
-
-        if patch_size < training_config["patch_sizes"][-1]:
-            t, d = s_t_x.shape[3], s_t_x.shape[4]
-            interpolated = rearrange(
-                resize(
-                    rearrange(output, "b h w t d -> b (t d) h w"),
-                    size=(s_t_x.shape[1], s_t_x.shape[2]),
-                ),
-                "b (t d) h w -> b h w t d",
-                t=t,
-                d=d,
-            )
-            interpolated_to_plot = interpolated[:, :, :, :, :].squeeze(0).cpu().numpy()
-            assert interpolated_to_plot.shape == (
-                image_size,
-                image_size,
-                NUM_TIMESTEPS,
-                len(SPACE_TIME_BANDS),
-            )
-
-        for c in training_config["band_indeces_to_wandb_plot"]:
-            for t in range(training_config["num_timesteps_to_wandb_plot"]):
-                image = image_to_plot[:, :, t, c]
-                input = input_to_plot[:, :, t, c]
-                output = output_to_plot[:, :, t, c]
-                if patch_size < training_config["patch_sizes"][-1]:
-                    interpolated = interpolated_to_plot[:, :, t, c]
-
-                # plot target, masked, prediction, interpolated
-                fig, axs = plt.subplots(2, 3, figsize=(20, 30))
-                axs[0, 0].imshow(input, cmap="gray")
-                axs[0, 0].set_title(f"Input_image{idx}_epoch{epoch}_timestep{t}_channel{c}")
-                axs[0, 1].imshow(output, cmap="gray")
-                axs[0, 1].set_title(f"Output_image{idx}_epoch{epoch}_timestep{t}_channel{c}")
-                if patch_size < training_config["patch_sizes"][-1]:
-                    axs[1, 0].imshow(interpolated, cmap="gray")
-                    axs[1, 0].set_title(f"Interpolated_image{idx}_epoch{epoch}_timestep{t}_channel{c}")
-                    axs[1, 1].imshow(input - interpolated, cmap="coolwarm")
-                    axs[1, 1].set_title(f"Difference_image{idx}_epoch{epoch}_timestep{t}_channel{c}")
-                else:
-                    axs[1, 0].imshow(input - output, cmap="coolwarm")
-                    axs[1, 0].set_title(f"Difference_image{idx}_epoch{epoch}_timestep{t}_channel{c}")
-                axs[1, 2].imshow(image, cmap="gray")
-
-                fig.tight_layout()
-
-                title = f"plot_image{idx}_epoch{epoch}_timestep{t}_channel{c}"
-                plot = wandb.Image(fig)
-                plot_list.append((title, plot))
-    return plot_list
-
-
-##################################################################################################
 
 config = load_check_config(args["config_file"], "mae")
 training_config = config["training"]
@@ -296,21 +176,37 @@ for e in tqdm(range(training_config["num_epochs"])):
         # resample if its smaller
         if patch_size < training_config["patch_sizes"][-1]:
             t, d = s_t_x.shape[3], s_t_x.shape[4]
-            p_s_t = rearrange(
+            s_t_x = rearrange(
                 resize(
-                    rearrange(p_s_t, "b h w t d -> b (t d) h w"),
-                    size=(s_t_x.shape[1], s_t_x.shape[2]),
+                    rearrange(s_t_x, "b h w t d -> b (t d) h w"),
+                    size=(p_s_t.shape[1], p_s_t.shape[2]),
                 ),
                 "b (t d) h w -> b h w t d",
                 t=t,
                 d=d,
             )
-            p_s = rearrange(
-                resize(
-                    rearrange(p_s, "b h w d -> b d h w"), size=(s_t_x.shape[1], s_t_x.shape[2])
-                ),
+            s_x = rearrange(
+                resize(rearrange(s_x, "b h w d -> b d h w"), size=(p_s.shape[1], p_s.shape[2])),
                 "b d h w -> b h w d",
             )
+
+            # fix the mask too
+            expanded_s_t = expanded_s_t[:, 0::patch_size, 0::patch_size]
+            expanded_s_t = repeat(
+                expanded_s_t,
+                "b h w t c -> b (h h2) (w w2) t c",
+                h2=training_config["patch_sizes"][-1],
+                w2=training_config["patch_sizes"][-1],
+            )
+
+            expanded_s = expanded_s[:, 0::patch_size, 0::patch_size]
+            expanded_s = repeat(
+                expanded_s,
+                "b h w c -> b (h h2) (w w2) c",
+                h2=training_config["patch_sizes"][-1],
+                w2=training_config["patch_sizes"][-1],
+            )
+
         loss = F.mse_loss(
             torch.concat([p_s_t[expanded_s_t], p_s[expanded_s], p_t[expanded_t]]),
             torch.concat([s_t_x[expanded_s_t], s_x[expanded_s], t_x[expanded_t]]).float(),
@@ -336,8 +232,8 @@ for e in tqdm(range(training_config["num_epochs"])):
                 training_config=training_config,
                 examples_to_plot=examples_to_plot,
             )
-            for title, plot in plot_list:
-                wandb.log({"plot": plot})
+            for plot in plot_list:
+                wandb.log({"plot_mae_training": plot})
 
     if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
         e % training_config["eval_eurosat_every_n_epochs"] == 0
