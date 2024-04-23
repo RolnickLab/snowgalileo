@@ -138,13 +138,11 @@ def load_check_config(name: str, mode: str):
 
 def plot_space_time_predictions(epoch, encoder, predictor, training_config, examples_to_plot):
     """
-    Plots MAE input images, MAE predictions, and errors for a random subset of the dataset.
+    Plots MAE input images, masks, MAE predictions, and difference of input and predictions for a random subset of the dataset.
     Patch sizes, number of images, and number of timesteps are defined in the training config.
     """
 
     SPACE_TIME_BAND_EXPANSION_T = torch.tensor(SPACE_TIME_BAND_EXPANSION, device=device).long()
-    SPACE_BAND_EXPANSION_T = torch.tensor(SPACE_BAND_EXPANSION, device=device).long()
-    TIME_BAND_EXPANSION_T = torch.tensor(TIME_BAND_EXPANSION, device=device).long()
 
     encoder = deepcopy(encoder).requires_grad_(False)
     predictor = deepcopy(predictor).requires_grad_(False)
@@ -175,11 +173,9 @@ def plot_space_time_predictions(epoch, encoder, predictor, training_config, exam
             expanded_s_t = torch.repeat_interleave(
                 s_t_m, repeats=SPACE_TIME_BAND_EXPANSION_T, dim=-1
             ).bool()
-            expanded_s = torch.repeat_interleave(s_m, repeats=SPACE_BAND_EXPANSION_T, dim=-1).bool()
-            expanded_t = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION_T, dim=-1).bool()
 
             with torch.no_grad():
-                (p_s_t, p_s, p_t) = predictor(
+                (p_s_t, _, _) = predictor(
                     *encoder(
                         s_t_x.float(),
                         s_x.float(),
@@ -206,24 +202,12 @@ def plot_space_time_predictions(epoch, encoder, predictor, training_config, exam
                     t=t,
                     d=d,
                 )
-                s_x = rearrange(
-                    resize(rearrange(s_x, "b h w d -> b d h w"), size=(p_s.shape[1], p_s.shape[2])),
-                    "b d h w -> b h w d",
-                )
 
                 # fix the mask too
                 expanded_s_t = expanded_s_t[:, 0::patch_size, 0::patch_size]
                 expanded_s_t = repeat(
                     expanded_s_t,
                     "b h w t c -> b (h h2) (w w2) t c",
-                    h2=training_config["patch_sizes"][-1],
-                    w2=training_config["patch_sizes"][-1],
-                )
-
-                expanded_s = expanded_s[:, 0::patch_size, 0::patch_size]
-                expanded_s = repeat(
-                    expanded_s,
-                    "b h w c -> b (h h2) (w w2) c",
                     h2=training_config["patch_sizes"][-1],
                     w2=training_config["patch_sizes"][-1],
                 )
@@ -245,16 +229,19 @@ def plot_space_time_predictions(epoch, encoder, predictor, training_config, exam
                 
                 # figure columns: input, output, error
                 # figure rows: bands
-                fig, axs = plt.subplots(len(subplot_titles), 4, figsize=(15, 45))
+                fig, axs = plt.subplots(len(subplot_titles), 4, figsize=(20, 45))
 
                 for i, band in enumerate(subplot_titles):
                     loss = F.mse_loss(p_to_plot[:, :, :, i][m_to_plot[:, :, :, i]].float(), x_to_plot[:, :, :, i][m_to_plot[:, :, :, i]].float())
-                    axs[i, 0].imshow(x_to_plot[:, :, :, i].squeeze(0).cpu().numpy(), cmap="gray")
+                    input = axs[i, 0].imshow(x_to_plot[:, :, :, i].squeeze(0).cpu().numpy(), cmap="gray")
                     axs[i, 0].set_title(f"Input {band}, loss: {loss:.4f}")
-                    axs[i, 1].imshow(m_to_plot[:, :, :, i].squeeze(0).cpu().numpy(), cmap="gray")
+                    fig.colorbar(input, ax=axs[i, 0])
+                    mask = axs[i, 1].imshow(m_to_plot[:, :, :, i].squeeze(0).cpu().numpy(), cmap="gray")
                     axs[i, 1].set_title(f"Mask {band}")
-                    axs[i, 2].imshow(p_to_plot[:, :, :, i].squeeze(0).cpu().numpy(), cmap="gray", vmin=x_to_plot.min(), vmax=x_to_plot.max())
+                    fig.colorbar(mask, ax=axs[i, 1])
+                    output = axs[i, 2].imshow(p_to_plot[:, :, :, i].squeeze(0).cpu().numpy(), cmap="gray", vmin=x_to_plot[:, :, :, i].min(), vmax=x_to_plot[:, :, :, i].max())
                     axs[i, 2].set_title(f"Output {band}")
+                    fig.colorbar(output, ax=axs[i, 2])
                     error = axs[i, 3].imshow(abs(x_to_plot[:, :, :, i].squeeze(0).cpu().numpy() - p_to_plot[:, :, :, i].squeeze(0).cpu().numpy()), cmap="coolwarm", vmin=0, vmax=1)
                     axs[i, 3].set_title(f"Input - Output {band}")
                     fig.colorbar(error, ax=axs[i, 3])
