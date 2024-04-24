@@ -112,15 +112,16 @@ for e in tqdm(range(training_config["num_epochs"])):
             s_t_x,
             s_x,
             t_x,
-            s_t_m,
-            s_m,
-            t_m,
+            s_t_mask,
+            s_mask,
+            t_mask,
             months,
-            expanded_s_t_x,
-            expanded_s_x,
-            s_t_m_p,
-            s_m_p,
-            t_m_p,
+            s_t_target,
+            s_target,
+            t_target,
+            s_t_mask_pixels,
+            s_mask_pixels,
+            t_mask_pixels,
             patch_size,
         ) = b
 
@@ -141,9 +142,9 @@ for e in tqdm(range(training_config["num_epochs"])):
                 s_t_x,
                 s_x,
                 t_x,
-                s_t_m,
-                s_m,
-                t_m,
+                s_t_mask,
+                s_mask,
+                t_mask,
                 months,
                 patch_size=patch_size,
             ),
@@ -151,8 +152,8 @@ for e in tqdm(range(training_config["num_epochs"])):
         )
 
         loss = F.mse_loss(
-            torch.concat([p_s_t[s_t_m_p], p_s[s_m_p], p_t[t_m_p]]),
-            torch.concat([expanded_s_t_x[s_t_m_p], expanded_s_x[s_m_p], t_x[t_m_p]]).float(),
+            torch.concat([p_s_t[s_t_mask_pixels], p_s[s_mask_pixels], p_t[t_mask_pixels]]),
+            torch.concat([s_t_target, s_target, t_target]).float(),
         )
         loss.backward()
         optimizer.step()
