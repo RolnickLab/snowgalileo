@@ -68,7 +68,7 @@ output_dir = Path(__file__).parent
 
 print("Loading dataset and dataloader")
 dataset = Dataset(
-    DATA_FOLDER / "tifs", download=False, cache_folder=DATA_FOLDER / "npys_spacetime"
+    DATA_FOLDER / "tifs", download=False, cache_folder=DATA_FOLDER / "npys_spacetime_16"
 )
 dataloader = DataLoader(
     dataset,
