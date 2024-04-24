@@ -106,7 +106,7 @@ def collate_fn(batch):
     if patch_size < training_config["patch_sizes"][-1]:
         output_hw = training_config["spatial_patches_per_dim"] * training_config["patch_sizes"][-1]
         t, d = s_t_x.shape[3], s_t_x.shape[4]
-        s_t_x = rearrange(
+        expanded_s_t_x = rearrange(
             resize(
                 rearrange(s_t_x, "b h w t d -> b (t d) h w"),
                 size=(output_hw, output_hw),
@@ -115,7 +115,7 @@ def collate_fn(batch):
             t=t,
             d=d,
         )
-        s_x = rearrange(
+        expanded_s_x = rearrange(
             resize(rearrange(s_x, "b h w d -> b d h w"), size=(output_hw, output_hw)),
             "b d h w -> b h w d",
         )
@@ -145,6 +145,8 @@ def collate_fn(batch):
         s_m,
         t_m,
         months,
+        expanded_s_t_x,
+        expanded_s_x,
         expanded_s_t,
         expanded_s,
         expanded_t,
@@ -191,7 +193,21 @@ for e in tqdm(range(training_config["num_epochs"])):
     train_loss = AverageMeter()
     for i, b in tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
         b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, s_t_m_p, s_m_p, t_m_p, patch_size = b
+        (
+            s_t_x,
+            s_x,
+            t_x,
+            s_t_m,
+            s_m,
+            t_m,
+            months,
+            expanded_s_t_x,
+            expanded_s_x,
+            s_t_m_p,
+            s_m_p,
+            t_m_p,
+            patch_size,
+        ) = b
 
         optimizer.zero_grad()
         adjust_learning_rate(
@@ -221,7 +237,7 @@ for e in tqdm(range(training_config["num_epochs"])):
 
         loss = F.mse_loss(
             torch.concat([p_s_t[s_t_m_p], p_s[s_m_p], p_t[t_m_p]]),
-            torch.concat([s_t_x[s_t_m_p], s_x[s_m_p], t_x[t_m_p]]).float(),
+            torch.concat([expanded_s_t_x[s_t_m_p], expanded_s_x[s_m_p], t_x[t_m_p]]).float(),
         )
         loss.backward()
         optimizer.step()
