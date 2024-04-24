@@ -136,6 +136,9 @@ def collate_fn(batch):
             h2=training_config["patch_sizes"][-1],
             w2=training_config["patch_sizes"][-1],
         )
+    else:
+        expanded_s_t_x = s_t_x
+        expanded_s_x = s_x
 
     return (
         s_t_x,
