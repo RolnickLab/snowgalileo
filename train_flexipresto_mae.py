@@ -244,10 +244,6 @@ for e in tqdm(range(training_config["num_epochs"])):
         )
         loss.backward()
         optimizer.step()
-        print(
-            f"Epoch {e}, iteration {i}: loss = {loss.item()}, memory used: {process.memory_info().rss}",
-            flush=True,
-        )
         train_loss.update(loss.item(), n=s_t_x.shape[0])
 
     if wandb_enabled:
