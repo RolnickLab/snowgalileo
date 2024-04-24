@@ -1,8 +1,11 @@
 import json
 import os
 import random
+from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
+import dateutil.tz
 import numpy as np
 import torch
 
@@ -121,3 +124,8 @@ def load_check_config(name: str, mode: str):
         "embedding_size"
     )
     return config
+
+
+def timestamp_dirname(suffix: Optional[str] = None) -> str:
+    ts = datetime.now(dateutil.tz.tzlocal()).strftime("%Y_%m_%d_%H_%M_%S_%f")
+    return f"{ts}_{suffix}" if suffix is not None else ts

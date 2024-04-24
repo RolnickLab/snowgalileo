@@ -14,3 +14,4 @@ EE_BUCKET_TIFS = "presto-tifs"
 EE_FOLDER_TIFS = "tifs2"
 
 DATA_FOLDER = Path(__file__).parents[2] / "data"
+OUTPUT_FOLDER = DATA_FOLDER / "outputs"

@@ -308,8 +308,9 @@ class EarthEngineExporter:
 
         for _, row in tqdm(latlons.iterrows(), desc="Exporting", total=len(latlons)):
             ee_bbox = EEBoundingBox.from_centre(
-                mid_lat=row[LAT],
-                mid_lon=row[LON],
+                # worldstrat points are strings
+                mid_lat=float(row[LAT]),
+                mid_lon=float(row[LON]),
                 surrounding_metres=int(SURROUNDING_METRES),
             )
 
