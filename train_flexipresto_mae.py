@@ -104,18 +104,19 @@ def collate_fn(batch):
     # p_s_t and p_s always assume the maximum patch size, so we need to
     # resample if its smaller
     if patch_size < training_config["patch_sizes"][-1]:
+        output_hw = training_config["spatial_patches_per_dim"] * training_config["patch_sizes"][-1]
         t, d = s_t_x.shape[3], s_t_x.shape[4]
         s_t_x = rearrange(
             resize(
                 rearrange(s_t_x, "b h w t d -> b (t d) h w"),
-                size=(p_s_t.shape[1], p_s_t.shape[2]),
+                size=(output_hw, output_hw),
             ),
             "b (t d) h w -> b h w t d",
             t=t,
             d=d,
         )
         s_x = rearrange(
-            resize(rearrange(s_x, "b h w d -> b d h w"), size=(p_s.shape[1], p_s.shape[2])),
+            resize(rearrange(s_x, "b h w d -> b d h w"), size=(output_hw, output_hw)),
             "b d h w -> b h w d",
         )
 
