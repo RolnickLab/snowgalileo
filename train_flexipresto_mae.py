@@ -20,19 +20,13 @@ from src.data.config import DATA_FOLDER, EE_PROJECT
 from src.eval import EuroSatEval, So2SatEval, TreeSatEval
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
-from src.masking import (
-    SPACE_BAND_EXPANSION,
-    SPACE_TIME_BAND_EXPANSION,
-    TIME_BAND_EXPANSION,
-    batch_mask_presto,
-    subset_batch_of_images,
-)
 from src.utils import (
     AverageMeter,
     data_dir,
     device,
     load_check_config,
     plot_space_time_predictions,
+    prepare_x_and_m,
     seed_everything,
 )
 from wandb.sdk.wandb_run import Run
@@ -84,10 +78,6 @@ predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
 print("Loading validation task")
 val_task = EuroSatEval(rgb=True)
 
-SPACE_TIME_BAND_EXPANSION_T = torch.tensor(SPACE_TIME_BAND_EXPANSION, device=device).long()
-SPACE_BAND_EXPANSION_T = torch.tensor(SPACE_BAND_EXPANSION, device=device).long()
-TIME_BAND_EXPANSION_T = torch.tensor(TIME_BAND_EXPANSION, device=device).long()
-
 if wandb_enabled:
     import wandb
 
@@ -100,18 +90,29 @@ if wandb_enabled:
     config["training"]["training_samples"] = len(dataset)
     wandb.config.update(config)
 
-    # choose random images to plot during training
+    # prepare random images to plot during training
     if training_config["wandb_plot_every_n_epochs"] > 0:
+        assert training_config["num_images_to_wandb_plot"] > 0
+        assert len(training_config["patch_sizes_to_wandb_plot"]) > 0
+        assert len(training_config["timesteps_to_wandb_plot"]) > 0
+
         plot_dataloader = DataLoader(
             dataset,
             batch_size=1,
             shuffle=False,
         )
-        examples_to_plot = []
 
-        for _ in range(training_config["num_images_to_wandb_plot"]):
-            # extract batches of images to be able to apply batch masking
-            examples_to_plot.append(next(iter(plot_dataloader)))
+        examples_to_plot = {}
+
+        for image_id in range(training_config["num_images_to_wandb_plot"]):
+            prepared_image_to_plot = {}
+            for p in training_config["patch_sizes_to_wandb_plot"]:
+                image = next(iter(plot_dataloader))
+                prepared_image_to_plot[p] = prepare_x_and_m(
+                    image, training_config=training_config, patch_size=p
+                )
+
+            examples_to_plot[image_id] = prepared_image_to_plot
 
 param_groups = [{"params": encoder.parameters()}, {"params": predictor.parameters()}]
 
@@ -121,30 +122,13 @@ iterations_per_epoch = len(dataset)
 for e in tqdm(range(training_config["num_epochs"])):
     train_loss = AverageMeter()
     for i, b in tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
-        b = [t.to(device) for t in b]
-        s_t_x, s_x, t_x, months = b
-
-        # randomly sample a patch size, and a corresponding image size
+        # randomly sample a patch size
         patch_size = np.random.choice(training_config["patch_sizes"])
-        image_size = patch_size * training_config["spatial_patches_per_dim"]
-        s_t_x, s_x = subset_batch_of_images(s_t_x, s_x, image_size)
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = batch_mask_presto(
-            s_t_x,
-            s_x,
-            t_x,
-            months,
-            training_config["mask_ratio"],
-            patch_size,
-            time_ratio=training_config["time_ratio"],
-            space_ratio=training_config["space_ratio"],
+        masked_output, expanded_s_t, expanded_s, expanded_t = prepare_x_and_m(
+            batch=b, training_config=training_config, patch_size=patch_size
         )
 
-        # also transform to pixel
-        expanded_s_t = torch.repeat_interleave(
-            s_t_m, repeats=SPACE_TIME_BAND_EXPANSION_T, dim=-1
-        ).bool()
-        expanded_s = torch.repeat_interleave(s_m, repeats=SPACE_BAND_EXPANSION_T, dim=-1).bool()
-        expanded_t = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION_T, dim=-1).bool()
+        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = masked_output
 
         optimizer.zero_grad()
         adjust_learning_rate(
@@ -225,14 +209,28 @@ for e in tqdm(range(training_config["num_epochs"])):
         if (training_config["wandb_plot_every_n_epochs"] != 0) and (
             e % training_config["wandb_plot_every_n_epochs"] == 0
         ):
-            plot_list = plot_space_time_predictions(
-                epoch=e,
-                encoder=encoder,
-                predictor=predictor,
-                training_config=training_config,
-                examples_to_plot=examples_to_plot,
-            )
-            for plot in plot_list:
+            plot_list = []
+            for image_id, image_dict in examples_to_plot.items():
+                for patch_size, prepared_image in image_dict.items():
+                    (
+                        masked_output,
+                        expanded_s_t,
+                        _,
+                        _,
+                    ) = prepared_image
+                    plot_list.append(
+                        plot_space_time_predictions(
+                            epoch=e,
+                            encoder=encoder,
+                            predictor=predictor,
+                            training_config=training_config,
+                            patch_size=patch_size,
+                            masked_output=masked_output,
+                            expanded_s_t=expanded_s_t,
+                            image_id=image_id,
+                        )
+                    )
+            for plot in [item for sublist in plot_list for item in sublist]:
                 wandb.log({"plot_mae_training": plot})
 
     if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
