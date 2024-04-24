@@ -13,8 +13,22 @@ from torchvision.transforms.functional import resize
 import wandb
 
 from .config import DEFAULT_SEED
-from .data.dataset import SPACE_TIME_BANDS, SPACE_BANDS, TIME_BANDS, SPACE_TIME_BANDS_GROUPS_IDX, SPACE_BAND_GROUPS_IDX, TIME_BAND_GROUPS_IDX
-from .masking import MaskedOutput, batch_mask_presto, subset_batch_of_images, SPACE_BAND_EXPANSION, SPACE_TIME_BAND_EXPANSION, TIME_BAND_EXPANSION
+from .data.dataset import (
+    SPACE_TIME_BANDS,
+    SPACE_BANDS,
+    TIME_BANDS,
+    SPACE_TIME_BANDS_GROUPS_IDX,
+    SPACE_BAND_GROUPS_IDX,
+    TIME_BAND_GROUPS_IDX,
+)
+from .masking import (
+    MaskedOutput,
+    batch_mask_presto,
+    subset_batch_of_images,
+    SPACE_BAND_EXPANSION,
+    SPACE_TIME_BAND_EXPANSION,
+    TIME_BAND_EXPANSION,
+)
 
 import torch.nn.functional as F
 
@@ -93,7 +107,7 @@ def load_check_config(name: str, mode: str):
         "wandb_plot_every_n_epochs": int,
         "num_images_to_wandb_plot": int,
         "timesteps_to_wandb_plot": list,
-        "patch_sizes_to_wandb_plot": list
+        "patch_sizes_to_wandb_plot": list,
     }
     if mode == "jepa":
         expected_training_keys_type["ema"] = list
@@ -213,42 +227,60 @@ def plot_space_time_predictions(epoch, encoder, predictor, training_config, exam
                 )
 
             for t in training_config["timesteps_to_wandb_plot"]:
-
-                x_to_plot = s_t_x[:, :, :, t, :]
-                p_to_plot = p_s_t[:, :, :, t, :]
-                m_to_plot = expanded_s_t[:, :, :, t, :]
+                x = s_t_x[:, :, :, t, :]
+                pred = p_s_t[:, :, :, t, :]
+                mask = expanded_s_t[:, :, :, t, :]
 
                 # normalize x_to_plot and p_to_plot
-                x_to_plot = (x_to_plot - x_to_plot.min()) / (x_to_plot.max() - x_to_plot.min())
-                p_to_plot = (p_to_plot - p_to_plot.min()) / (p_to_plot.max() - p_to_plot.min())
+                x_norm = (x - x.min()) / (x.max() - x.min())
+                p_norm = (pred - x.min()) / (x.max() - x.min())
 
                 subplot_titles = []
                 for band_list in SPACE_TIME_BANDS_GROUPS_IDX.values():
                     for band in band_list:
                         subplot_titles.append(SPACE_TIME_BANDS[band])
-                
+
                 # figure columns: input, output, error
                 # figure rows: bands
                 fig, axs = plt.subplots(len(subplot_titles), 4, figsize=(20, 45))
 
                 for i, band in enumerate(subplot_titles):
-                    loss = F.mse_loss(p_to_plot[:, :, :, i][m_to_plot[:, :, :, i]].float(), x_to_plot[:, :, :, i][m_to_plot[:, :, :, i]].float())
-                    input = axs[i, 0].imshow(x_to_plot[:, :, :, i].squeeze(0).cpu().numpy(), cmap="gray")
+                    x_to_plot = x_norm[:, :, :, i].squeeze(0).cpu().numpy()
+                    pred_to_plot = p_norm[:, :, :, i].squeeze(0).cpu().numpy()
+                    mask_to_plot = mask[:, :, :, i].squeeze(0).cpu().numpy()
+
+                    loss = F.mse_loss(
+                        x[:, :, :, i][mask[:, :, :, i]].float(),
+                        pred[:, :, :, i][mask[:, :, :, i]].float(),
+                    )
+
+                    x_plot = axs[i, 0].imshow(x_to_plot, cmap="gray")
                     axs[i, 0].set_title(f"Input {band}, loss: {loss:.4f}")
-                    fig.colorbar(input, ax=axs[i, 0])
-                    mask = axs[i, 1].imshow(m_to_plot[:, :, :, i].squeeze(0).cpu().numpy(), cmap="gray")
+                    fig.colorbar(x_plot, ax=axs[i, 0])
+                    mask_plot = axs[i, 1].imshow(mask_to_plot, cmap="gray")
                     axs[i, 1].set_title(f"Mask {band}")
-                    fig.colorbar(mask, ax=axs[i, 1])
-                    output = axs[i, 2].imshow(p_to_plot[:, :, :, i].squeeze(0).cpu().numpy(), cmap="gray", vmin=x_to_plot[:, :, :, i].min(), vmax=x_to_plot[:, :, :, i].max())
+                    fig.colorbar(mask_plot, ax=axs[i, 1])
+                    pred_plot = axs[i, 2].imshow(pred_to_plot, cmap="gray")
                     axs[i, 2].set_title(f"Output {band}")
-                    fig.colorbar(output, ax=axs[i, 2])
-                    error = axs[i, 3].imshow(abs(x_to_plot[:, :, :, i].squeeze(0).cpu().numpy() - p_to_plot[:, :, :, i].squeeze(0).cpu().numpy()), cmap="coolwarm", vmin=0, vmax=1)
+                    fig.colorbar(pred_plot, ax=axs[i, 2])
+                    error = axs[i, 3].imshow(
+                        abs(x_norm[:, :, :, i].squeeze(0) - p_norm[:, :, :, i].squeeze(0)),
+                        cmap="coolwarm",
+                        vmin=0,
+                        vmax=1,
+                    )
                     axs[i, 3].set_title(f"Input - Output {band}")
                     fig.colorbar(error, ax=axs[i, 3])
 
-                fig.suptitle(f"Plot image: {idx}, epoch: {epoch}, timestep: {t}", fontsize=20, y=1.0001)
+                fig.suptitle(
+                    f"Plot image: {idx}, epoch: {epoch}, patch_size{p}, timestep: {t}",
+                    fontsize=20,
+                    y=1.0001,
+                )
                 fig.tight_layout()
 
-                plot = wandb.Image(fig, caption=f"plot_image{idx}_epoch{epoch}_timestep{t}")
+                plot = wandb.Image(
+                    fig, caption=f"plot_image{idx}_epoch{epoch}_patch_size{p}_timestep{t}"
+                )
                 plot_list.append(plot)
     return plot_list
