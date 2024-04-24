@@ -1,33 +1,25 @@
 import argparse
 import json
 import os
+from functools import partial
 from pathlib import Path
 from typing import List, cast
 
 import codecarbon
-import numpy as np
 import psutil
 import torch
 import torch.nn.functional as F
-from einops import rearrange, repeat
-from torch.utils.data import DataLoader, default_collate
-from torchvision.transforms.functional import resize
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
+from src.collate_fns import mae_collate_fn
 from src.config import DEFAULT_SEED
 from src.data import Dataset
 from src.data.config import DATA_FOLDER, EE_PROJECT, OUTPUT_FOLDER
 from src.eval import EuroSatEval, So2SatEval, TreeSatEval
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
-from src.masking import (
-    SPACE_BAND_EXPANSION,
-    SPACE_TIME_BAND_EXPANSION,
-    TIME_BAND_EXPANSION,
-    batch_mask_presto,
-    subset_batch_of_images,
-)
 from src.utils import (
     AverageMeter,
     data_dir,
@@ -68,96 +60,6 @@ wandb_org = "nasa-harvest"
 output_dir = Path(__file__).parent
 
 
-### This should live elsewhere; testing
-
-SPACE_TIME_BAND_EXPANSION_T = torch.tensor(SPACE_TIME_BAND_EXPANSION).long()
-SPACE_BAND_EXPANSION_T = torch.tensor(SPACE_BAND_EXPANSION).long()
-TIME_BAND_EXPANSION_T = torch.tensor(TIME_BAND_EXPANSION).long()
-
-
-@torch.no_grad()
-def collate_fn(batch):
-    s_t_x, s_x, t_x, months = default_collate(batch)
-
-    # randomly sample a patch size, and a corresponding image size
-    patch_size = np.random.choice(training_config["patch_sizes"])
-    image_size = patch_size * training_config["spatial_patches_per_dim"]
-    s_t_x, s_x = subset_batch_of_images(s_t_x, s_x, image_size)
-    s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = batch_mask_presto(
-        s_t_x,
-        s_x,
-        t_x,
-        months,
-        training_config["mask_ratio"],
-        patch_size,
-        time_ratio=training_config["time_ratio"],
-        space_ratio=training_config["space_ratio"],
-        channel_ratio=training_config["channel_ratio"],
-    )
-
-    # also transform to pixel
-    expanded_s_t = torch.repeat_interleave(
-        s_t_m, repeats=SPACE_TIME_BAND_EXPANSION_T, dim=-1
-    ).bool()
-    expanded_s = torch.repeat_interleave(s_m, repeats=SPACE_BAND_EXPANSION_T, dim=-1).bool()
-    expanded_t = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION_T, dim=-1).bool()
-
-    # p_s_t and p_s always assume the maximum patch size, so we need to
-    # resample if its smaller
-    if patch_size < training_config["patch_sizes"][-1]:
-        output_hw = training_config["spatial_patches_per_dim"] * training_config["patch_sizes"][-1]
-        t, d = s_t_x.shape[3], s_t_x.shape[4]
-        expanded_s_t_x = rearrange(
-            resize(
-                rearrange(s_t_x, "b h w t d -> b (t d) h w"),
-                size=(output_hw, output_hw),
-            ),
-            "b (t d) h w -> b h w t d",
-            t=t,
-            d=d,
-        )
-        expanded_s_x = rearrange(
-            resize(rearrange(s_x, "b h w d -> b d h w"), size=(output_hw, output_hw)),
-            "b d h w -> b h w d",
-        )
-
-        # fix the mask too
-        expanded_s_t = expanded_s_t[:, 0::patch_size, 0::patch_size]
-        expanded_s_t = repeat(
-            expanded_s_t,
-            "b h w t c -> b (h h2) (w w2) t c",
-            h2=training_config["patch_sizes"][-1],
-            w2=training_config["patch_sizes"][-1],
-        )
-
-        expanded_s = expanded_s[:, 0::patch_size, 0::patch_size]
-        expanded_s = repeat(
-            expanded_s,
-            "b h w c -> b (h h2) (w w2) c",
-            h2=training_config["patch_sizes"][-1],
-            w2=training_config["patch_sizes"][-1],
-        )
-    else:
-        expanded_s_t_x = s_t_x
-        expanded_s_x = s_x
-
-    return (
-        s_t_x.float(),
-        s_x.float(),
-        t_x.float(),
-        s_t_m.float(),
-        s_m.float(),
-        t_m.float(),
-        months.long(),
-        expanded_s_t_x.float(),
-        expanded_s_x.float(),
-        expanded_s_t,
-        expanded_s,
-        expanded_t,
-        patch_size,
-    )
-
-
 print("Loading dataset and dataloader")
 dataset = Dataset(
     DATA_FOLDER / "tifs", download=False, cache_folder=DATA_FOLDER / "npys_spacetime"
@@ -167,7 +69,15 @@ dataloader = DataLoader(
     batch_size=training_config["batch_size"],
     shuffle=True,
     num_workers=Hyperparams.num_workers,
-    collate_fn=collate_fn,
+    collate_fn=partial(
+        mae_collate_fn,
+        patch_sizes=training_config["patch_sizes"],
+        spatial_patches_per_dim=training_config["spatial_patches_per_dim"],
+        mask_ratio=training_config["mask_ratio"],
+        time_ratio=training_config["time_ratio"],
+        space_ratio=training_config["space_ratio"],
+        channel_ratio=training_config["channel_ratio"],
+    ),
     pin_memory=True,
 )
 print("Loading models")
