@@ -69,6 +69,12 @@ output_dir = Path(__file__).parent
 
 
 ### This should live elsewhere; testing
+
+SPACE_TIME_BAND_EXPANSION_T = torch.tensor(SPACE_TIME_BAND_EXPANSION).long()
+SPACE_BAND_EXPANSION_T = torch.tensor(SPACE_BAND_EXPANSION).long()
+TIME_BAND_EXPANSION_T = torch.tensor(TIME_BAND_EXPANSION).long()
+
+
 def collate_fn(batch):
     s_t_x, s_x, t_x, months = default_collate(batch)
 
@@ -161,11 +167,6 @@ encoder = Encoder(**config["model"]["encoder"]).to(device)
 predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
 print("Loading validation task")
 val_task = EuroSatEval(rgb=True)
-
-SPACE_TIME_BAND_EXPANSION_T = torch.tensor(SPACE_TIME_BAND_EXPANSION, device=device).long()
-SPACE_BAND_EXPANSION_T = torch.tensor(SPACE_BAND_EXPANSION, device=device).long()
-TIME_BAND_EXPANSION_T = torch.tensor(TIME_BAND_EXPANSION, device=device).long()
-
 
 if wandb_enabled:
     import wandb
