@@ -10,7 +10,7 @@ import psutil
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, default_collate
 from torchvision.transforms.functional import resize
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
@@ -67,6 +67,84 @@ wandb_enabled = True
 wandb_org = "nasa-harvest"
 output_dir = Path(__file__).parent
 
+
+### This should live elsewhere; testing
+def collate_fn(batch):
+    s_t_x, s_x, t_x, months = default_collate(batch)
+
+    # randomly sample a patch size, and a corresponding image size
+    patch_size = np.random.choice(training_config["patch_sizes"])
+    image_size = patch_size * training_config["spatial_patches_per_dim"]
+    s_t_x, s_x = subset_batch_of_images(s_t_x, s_x, image_size)
+    s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = batch_mask_presto(
+        s_t_x,
+        s_x,
+        t_x,
+        months,
+        training_config["mask_ratio"],
+        patch_size,
+        time_ratio=training_config["time_ratio"],
+        space_ratio=training_config["space_ratio"],
+        channel_ratio=training_config["channel_ratio"],
+    )
+
+    # also transform to pixel
+    expanded_s_t = torch.repeat_interleave(
+        s_t_m, repeats=SPACE_TIME_BAND_EXPANSION_T, dim=-1
+    ).bool()
+    expanded_s = torch.repeat_interleave(s_m, repeats=SPACE_BAND_EXPANSION_T, dim=-1).bool()
+    expanded_t = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION_T, dim=-1).bool()
+
+    # p_s_t and p_s always assume the maximum patch size, so we need to
+    # resample if its smaller
+    if patch_size < training_config["patch_sizes"][-1]:
+        t, d = s_t_x.shape[3], s_t_x.shape[4]
+        s_t_x = rearrange(
+            resize(
+                rearrange(s_t_x, "b h w t d -> b (t d) h w"),
+                size=(p_s_t.shape[1], p_s_t.shape[2]),
+            ),
+            "b (t d) h w -> b h w t d",
+            t=t,
+            d=d,
+        )
+        s_x = rearrange(
+            resize(rearrange(s_x, "b h w d -> b d h w"), size=(p_s.shape[1], p_s.shape[2])),
+            "b d h w -> b h w d",
+        )
+
+        # fix the mask too
+        expanded_s_t = expanded_s_t[:, 0::patch_size, 0::patch_size]
+        expanded_s_t = repeat(
+            expanded_s_t,
+            "b h w t c -> b (h h2) (w w2) t c",
+            h2=training_config["patch_sizes"][-1],
+            w2=training_config["patch_sizes"][-1],
+        )
+
+        expanded_s = expanded_s[:, 0::patch_size, 0::patch_size]
+        expanded_s = repeat(
+            expanded_s,
+            "b h w c -> b (h h2) (w w2) c",
+            h2=training_config["patch_sizes"][-1],
+            w2=training_config["patch_sizes"][-1],
+        )
+
+    return (
+        s_t_x,
+        s_x,
+        t_x,
+        s_t_m,
+        s_m,
+        t_m,
+        months,
+        expanded_s_t,
+        expanded_s,
+        expanded_t,
+        patch_size,
+    )
+
+
 print("Loading dataset and dataloader")
 dataset = Dataset(
     DATA_FOLDER / "tifs", download=False, cache_folder=DATA_FOLDER / "npys_spacetime"
@@ -76,6 +154,7 @@ dataloader = DataLoader(
     batch_size=training_config["batch_size"],
     shuffle=True,
     num_workers=Hyperparams.num_workers,
+    collate_fn=collate_fn,
 )
 print("Loading models")
 encoder = Encoder(**config["model"]["encoder"]).to(device)
@@ -109,31 +188,8 @@ iterations_per_epoch = len(dataset)
 for e in tqdm(range(training_config["num_epochs"])):
     train_loss = AverageMeter()
     for i, b in tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
-        b = [t.to(device) for t in b]
-        s_t_x, s_x, t_x, months = b
-
-        # randomly sample a patch size, and a corresponding image size
-        patch_size = np.random.choice(training_config["patch_sizes"])
-        image_size = patch_size * training_config["spatial_patches_per_dim"]
-        s_t_x, s_x = subset_batch_of_images(s_t_x, s_x, image_size)
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = batch_mask_presto(
-            s_t_x,
-            s_x,
-            t_x,
-            months,
-            training_config["mask_ratio"],
-            patch_size,
-            time_ratio=training_config["time_ratio"],
-            space_ratio=training_config["space_ratio"],
-            channel_ratio=training_config["channel_ratio"],
-        )
-
-        # also transform to pixel
-        expanded_s_t = torch.repeat_interleave(
-            s_t_m, repeats=SPACE_TIME_BAND_EXPANSION_T, dim=-1
-        ).bool()
-        expanded_s = torch.repeat_interleave(s_m, repeats=SPACE_BAND_EXPANSION_T, dim=-1).bool()
-        expanded_t = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION_T, dim=-1).bool()
+        b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
+        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, s_t_m_p, s_m_p, t_m_p, patch_size = b
 
         optimizer.zero_grad()
         adjust_learning_rate(
@@ -161,44 +217,9 @@ for e in tqdm(range(training_config["num_epochs"])):
             patch_size=patch_size,
         )
 
-        # p_s_t and p_s always assume the maximum patch size, so we need to
-        # resample if its smaller
-        if patch_size < training_config["patch_sizes"][-1]:
-            t, d = s_t_x.shape[3], s_t_x.shape[4]
-            s_t_x = rearrange(
-                resize(
-                    rearrange(s_t_x, "b h w t d -> b (t d) h w"),
-                    size=(p_s_t.shape[1], p_s_t.shape[2]),
-                ),
-                "b (t d) h w -> b h w t d",
-                t=t,
-                d=d,
-            )
-            s_x = rearrange(
-                resize(rearrange(s_x, "b h w d -> b d h w"), size=(p_s.shape[1], p_s.shape[2])),
-                "b d h w -> b h w d",
-            )
-
-            # fix the mask too
-            expanded_s_t = expanded_s_t[:, 0::patch_size, 0::patch_size]
-            expanded_s_t = repeat(
-                expanded_s_t,
-                "b h w t c -> b (h h2) (w w2) t c",
-                h2=training_config["patch_sizes"][-1],
-                w2=training_config["patch_sizes"][-1],
-            )
-
-            expanded_s = expanded_s[:, 0::patch_size, 0::patch_size]
-            expanded_s = repeat(
-                expanded_s,
-                "b h w c -> b (h h2) (w w2) c",
-                h2=training_config["patch_sizes"][-1],
-                w2=training_config["patch_sizes"][-1],
-            )
-
         loss = F.mse_loss(
-            torch.concat([p_s_t[expanded_s_t], p_s[expanded_s], p_t[expanded_t]]),
-            torch.concat([s_t_x[expanded_s_t], s_x[expanded_s], t_x[expanded_t]]).float(),
+            torch.concat([p_s_t[s_t_m_p], p_s[s_m_p], p_t[t_m_p]]),
+            torch.concat([s_t_x[s_t_m_p], s_x[s_m_p], t_x[t_m_p]]).float(),
         )
         loss.backward()
         optimizer.step()
