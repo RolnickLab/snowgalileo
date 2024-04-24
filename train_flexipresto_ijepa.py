@@ -16,12 +16,19 @@ from wandb.sdk.wandb_run import Run
 
 from src.config import DEFAULT_SEED
 from src.data import Dataset
-from src.data.config import DATA_FOLDER, EE_PROJECT
+from src.data.config import DATA_FOLDER, EE_PROJECT, OUTPUT_FOLDER
 from src.eval import EuroSatEval, So2SatEval, TreeSatEval
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoRepresentationDecoder, adjust_learning_rate
 from src.masking import batch_mask_presto, subset_batch_of_images
-from src.utils import AverageMeter, data_dir, device, load_check_config, seed_everything
+from src.utils import (
+    AverageMeter,
+    data_dir,
+    device,
+    load_check_config,
+    seed_everything,
+    timestamp_dirname,
+)
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -188,6 +195,9 @@ for e in tqdm(range(training_config["num_epochs"])):
         if wandb_enabled:
             wandb.log(results)
 
+model_path = OUTPUT_FOLDER / timestamp_dirname(run_id)
+torch.save(encoder.state_dict(), model_path / "encoder.pt")
+torch.save(predictor.state_dict(), model_path / "predictor.pt")
 
 eval_tasks: List[EvalTask] = [
     *[TreeSatEval(mode, patch_size) for mode in ["s1", "s2", "combined"] for patch_size in [6, 3]],
