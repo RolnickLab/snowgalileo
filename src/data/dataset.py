@@ -263,7 +263,9 @@ class Dataset(PyTorchDataset):
         space_x = normalize_space(space_x)
 
         months = cls.month_array_from_file(tif_path, int(num_timesteps))
-        return DatasetOutput(space_time_x, space_x, time_x, months)
+        return DatasetOutput(
+            space_time_x.astype(np.half), space_x.astype(np.half), time_x.astype(np.half), months
+        )
 
     def load_tif(self, tif_path: Path) -> DatasetOutput:
         if self.cache_folder is None:
