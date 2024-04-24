@@ -75,6 +75,7 @@ SPACE_BAND_EXPANSION_T = torch.tensor(SPACE_BAND_EXPANSION).long()
 TIME_BAND_EXPANSION_T = torch.tensor(TIME_BAND_EXPANSION).long()
 
 
+@torch.no_grad()
 def collate_fn(batch):
     s_t_x, s_x, t_x, months = default_collate(batch)
 
