@@ -66,6 +66,8 @@ class So2SatDataset(PyTorchDataset):
             label = np.array(data["label"][idx, :])
 
         image = np.concatenate([s1, s2], axis=-1)
+        # reverse one-hot encoding, original labels start from 1
+        label = np.array(np.argmax(label) + 1)
 
         return image, label
 
