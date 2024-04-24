@@ -141,15 +141,15 @@ def collate_fn(batch):
         expanded_s_x = s_x
 
     return (
-        s_t_x,
-        s_x,
-        t_x,
-        s_t_m,
-        s_m,
-        t_m,
-        months,
-        expanded_s_t_x,
-        expanded_s_x,
+        s_t_x.float(),
+        s_x.float(),
+        t_x.float(),
+        s_t_m.float(),
+        s_m.float(),
+        t_m.float(),
+        months.long(),
+        expanded_s_t_x.float(),
+        expanded_s_x.float(),
         expanded_s_t,
         expanded_s,
         expanded_t,
@@ -167,6 +167,7 @@ dataloader = DataLoader(
     shuffle=True,
     num_workers=Hyperparams.num_workers,
     collate_fn=collate_fn,
+    pin_memory=True,
 )
 print("Loading models")
 encoder = Encoder(**config["model"]["encoder"]).to(device)
@@ -226,13 +227,13 @@ for e in tqdm(range(training_config["num_epochs"])):
         # generate the predictions. TODO: add layer norm
         (p_s_t, p_s, p_t) = predictor(
             *encoder(
-                s_t_x.float(),
-                s_x.float(),
-                t_x.float(),
-                s_t_m.float(),
-                s_m.float(),
-                t_m.float(),
-                months.long(),
+                s_t_x,
+                s_x,
+                t_x,
+                s_t_m,
+                s_m,
+                t_m,
+                months,
                 patch_size=patch_size,
             ),
             patch_size=patch_size,
