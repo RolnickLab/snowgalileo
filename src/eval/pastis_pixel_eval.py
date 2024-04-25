@@ -30,6 +30,7 @@ from .eval import EvalTask, Hyperparams
 ### SETUP
 torch.multiprocessing.set_sharing_strategy("file_system")
 
+Masked_Output_and_Label = Tuple[MaskedOutput, torch.Tensor]
 
 class PastisPixelDataset(PyTorchDataset):
     labels_to_int = {
@@ -61,7 +62,7 @@ class PastisPixelDataset(PyTorchDataset):
         self,
         folds: List[int] = [1, 2, 3, 4, 5],
         data_path: Optional[str] = "pastis/PASTIS-R_PixelSet",
-        n_pixel: Optional[int] = 32,
+        n_pixels_per_parcel: Optional[int] = 32,
         ignore_label: Optional[int] = None,
     ):
         """
@@ -72,13 +73,13 @@ class PastisPixelDataset(PyTorchDataset):
             folds: List of numbers specifying which of the 5 official folds to load.
             data_path: Relative path to the data folder starting from the default data path.
             average_s2_over_month: Whether to average the Sentinel-2 data over months.
-            n_pixel: Number of pixels randomly sampled from each parcel.
+            n_pixels_per_parcel: Number of pixels randomly sampled from each parcel.
             ignore_label: If not None, the parcels annotated with this label are removed from the dataset.
         
         """
         self.folds = folds
         assert all(fold in [1, 2, 3, 4, 5] for fold in self.folds)
-        self.n_pixels = n_pixel
+        self.n_pixels_per_parcel = n_pixels_per_parcel
 
         self.data_path = data_path
 
@@ -103,6 +104,7 @@ class PastisPixelDataset(PyTorchDataset):
         self.num_timesteps = 12
 
         self.data, self.labels = self.get_and_cache_data()
+        print(f"Cached data shape: {self.data.shape}")
         self.len = self.data.shape[0]
 
     def create_pastis_masks(
@@ -141,34 +143,34 @@ class PastisPixelDataset(PyTorchDataset):
         return (s_t_m, s_m, t_m)
     
     @staticmethod
-    def repeat_pixel(pixels, n_pixel):
+    def repeat_pixel(pixels, n_pixels_per_parcel):
         """
         Repeats a pixel if the parcel has fewer pixels than n_pixel.
         """
-        if pixels.shape[-1] < n_pixel:
+        if pixels.shape[-1] < n_pixels_per_parcel:
             if pixels.shape[-1] == 0:
-                x = torch.zeros((*pixels.shape[:2], n_pixel))
-                mask = np.array([0 for _ in range(n_pixel)])
-                mask[0] = 1
+                x = torch.zeros((*pixels.shape[:2], n_pixels_per_parcel))
+                pixel_mask = np.array([0 for _ in range(n_pixels_per_parcel)])
+                pixel_mask[0] = 1
             else:
-                x = F.pad(pixels, [0, n_pixel - pixels.shape[-1]], mode="replicate")
-                mask = np.array(
+                x = F.pad(pixels, [0, n_pixels_per_parcel - pixels.shape[-1]], mode="replicate")
+                pixel_mask = np.array(
                     [1 for _ in range(pixels.shape[-1])]
-                    + [0 for _ in range(pixels.shape[-1], n_pixel)]
+                    + [0 for _ in range(pixels.shape[-1], n_pixels_per_parcel)]
                 )
         else:
             x = pixels
-            mask = np.array([1 for _ in range(n_pixel)])
-        return x, mask
+            pixel_mask = np.array([1 for _ in range(n_pixels_per_parcel)])
+        return x, pixel_mask
     
     @staticmethod
-    def sample_pixels(pixels, n_pixel):
+    def sample_pixels(pixels, n_pixels_per_parcel):
         """
         Random sampling of pixels within a parcel.
         """
-        if pixels.shape[-1] > n_pixel:
+        if pixels.shape[-1] > n_pixels_per_parcel:
             idx = np.random.choice(
-                list(range(pixels.shape[-1])), size=n_pixel, replace=False
+                list(range(pixels.shape[-1])), size=n_pixels_per_parcel, replace=False
             )
             x = pixels[:, :, idx]
         else:
@@ -227,8 +229,8 @@ class PastisPixelDataset(PyTorchDataset):
 
         print(f"Data shape after loading: {s2.shape}")
 
-        s2, mask = self.repeat_pixel(s2, self.n_pixels)
-        s2 = self.sample_pixels(s2, self.n_pixels)
+        s2, mask = self.repeat_pixel(s2, self.n_pixels_per_parcel)
+        s2 = self.sample_pixels(s2, self.n_pixels_per_parcel)
 
         print(f"Data shape after repeat: {s2.shape}")
 
@@ -269,15 +271,6 @@ class PastisPixelDataset(PyTorchDataset):
 
         print("Number of parcels: ", self.meta.shape[0])
 
-        s_t_x = np.zeros((self.meta.shape[0], self.input_height_width, self.input_height_width, self.num_timesteps, len(SPACE_TIME_BANDS)))
-        s_x = np.zeros((self.meta.shape[0], self.input_height_width, self.input_height_width, len(SPACE_BANDS)))
-        t_x = np.zeros((self.meta.shape[0], self.num_timesteps, len(TIME_BANDS)))
-        s_t_m = np.zeros((self.meta.shape[0], self.input_height_width, self.input_height_width, self.num_timesteps, len(SPACE_TIME_BANDS)))
-        s_m = np.zeros((self.meta.shape[0], self.input_height_width, self.input_height_width, len(SPACE_BANDS)))
-        t_m = np.zeros((self.meta.shape[0], self.num_timesteps, len(TIME_BANDS)))
-        months = np.zeros((self.meta.shape[0], self.num_timesteps))
-        labels = np.zeros((self.meta.shape[0],))
-
         for i in range(self.meta.shape[0]):
             id_parcel = self.id_parcels[i]
             id_patch = self.id_patches[id_parcel]
@@ -285,10 +278,24 @@ class PastisPixelDataset(PyTorchDataset):
             label = torch.from_numpy(np.array(self.labels[id_parcel] - 1, dtype=int)) # 0-indexed
 
             if i == 0:
-                data = np.zeros((self.meta.shape[0], *s_t_x.shape))
-                labels = np.zeros((self.meta.shape[0],))
-            s_t_x[i] = s_t_x
-            labels[i] = label
+                s_t_x_cache = np.zeros((self.meta.shape[0], s_t_x.shape[0], s_t_x.shape[1], s_t_x.shape[2], s_t_x.shape[3]))
+                s_x_cache = np.zeros((self.meta.shape[0], s_x.shape[0], s_x.shape[1], s_x.shape[2]))
+                t_x_cache = np.zeros((self.meta.shape[0], t_x.shape[0], t_x.shape[1]))
+                s_t_m_cache = np.zeros((self.meta.shape[0], s_t_m.shape[0], s_t_m.shape[1], s_t_m.shape[2], s_t_m.shape[3]))
+                s_m_cache = np.zeros((self.meta.shape[0], s_m.shape[0], s_m.shape[1], s_m.shape[2]))
+                t_m_cache = np.zeros((self.meta.shape[0], t_m.shape[0], t_m.shape[1]))
+                months_cache = np.zeros((self.meta.shape[0], months.shape[0]))
+                label_cache = np.zeros((self.meta.shape[0], 1))
+
+            s_t_x_cache[i] = s_t_x
+            s_x_cache[i] = s_x
+            t_x_cache[i] = t_x
+            s_t_m_cache[i] = s_t_m
+            s_m_cache[i] = s_m
+            t_m_cache[i] = t_m
+            months_cache[i] = months
+            label_cache[i] = label
+        return np.stack([s_t_x_cache, s_x_cache, t_x_cache, s_t_m_cache, s_m_cache, t_m_cache, months_cache, label_cache], axis=0)
 
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
