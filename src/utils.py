@@ -1,9 +1,12 @@
 import json
 import os
 import random
+from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 import matplotlib.pyplot as plt
+import dateutil.tz
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -294,3 +297,7 @@ def plot_space_time_predictions(
         )
         plot_list.append(plot)
     return plot_list
+  
+def timestamp_dirname(suffix: Optional[str] = None) -> str:
+    ts = datetime.now(dateutil.tz.tzlocal()).strftime("%Y_%m_%d_%H_%M_%S_%f")
+    return f"{ts}_{suffix}" if suffix is not None else ts
