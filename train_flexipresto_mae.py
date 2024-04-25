@@ -169,6 +169,7 @@ for e in tqdm(range(training_config["num_epochs"])):
             wandb.log(results)
 
 model_path = OUTPUT_FOLDER / timestamp_dirname(run_id)
+model_path.mkdir()
 torch.save(encoder.state_dict(), model_path / "encoder.pt")
 torch.save(predictor.state_dict(), model_path / "predictor.pt")
 
