@@ -5,8 +5,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-import matplotlib.pyplot as plt
 import dateutil.tz
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -21,9 +21,7 @@ from .data.dataset import (
     SPACE_TIME_BANDS_GROUPS_IDX,
 )
 from .masking import (
-    SPACE_BAND_EXPANSION,
-    SPACE_TIME_BAND_EXPANSION,
-    TIME_BAND_EXPANSION,
+    SPACE_TIME_BAND_EXPANSION_T,
     MaskedOutput,
     batch_mask_presto,
     subset_batch_of_images,
@@ -167,23 +165,7 @@ def prepare_batch(batch, training_config, patch_size):
         space_ratio=training_config["space_ratio"],
     )
 
-    SPACE_TIME_BAND_EXPANSION_T = torch.tensor(SPACE_TIME_BAND_EXPANSION, device=device).long()
-    SPACE_BAND_EXPANSION_T = torch.tensor(SPACE_BAND_EXPANSION, device=device).long()
-    TIME_BAND_EXPANSION_T = torch.tensor(TIME_BAND_EXPANSION, device=device).long()
-
-    # also transform to pixel
-    expanded_s_t = torch.repeat_interleave(
-        s_t_m, repeats=SPACE_TIME_BAND_EXPANSION_T, dim=-1
-    ).bool()
-    expanded_s = torch.repeat_interleave(s_m, repeats=SPACE_BAND_EXPANSION_T, dim=-1).bool()
-    expanded_t = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION_T, dim=-1).bool()
-
-    return (
-        MaskedOutput(s_t_x, s_x, t_x, s_t_m, s_m, t_m, months),
-        expanded_s_t,
-        expanded_s,
-        expanded_t,
-    )
+    return MaskedOutput(s_t_x, s_x, t_x, s_t_m, s_m, t_m, months)
 
 
 @torch.no_grad()
@@ -202,6 +184,10 @@ def plot_space_time_predictions(
     Patch sizes, number of images, and number of timesteps are defined in the training config.
     """
     s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = masked_output
+
+    expanded_s_t = torch.repeat_interleave(
+        s_t_m, repeats=SPACE_TIME_BAND_EXPANSION_T, dim=-1
+    ).bool()
 
     (p_s_t, _, _) = predictor(
         *encoder(
@@ -297,7 +283,8 @@ def plot_space_time_predictions(
         )
         plot_list.append(plot)
     return plot_list
-  
+
+
 def timestamp_dirname(suffix: Optional[str] = None) -> str:
     ts = datetime.now(dateutil.tz.tzlocal()).strftime("%Y_%m_%d_%H_%M_%S_%f")
     return f"{ts}_{suffix}" if suffix is not None else ts

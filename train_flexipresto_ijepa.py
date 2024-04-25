@@ -12,7 +12,6 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from wandb.sdk.wandb_run import Run
 
 from src.config import DEFAULT_SEED
 from src.data import Dataset
@@ -20,15 +19,16 @@ from src.data.config import DATA_FOLDER, EE_PROJECT, OUTPUT_FOLDER
 from src.eval import EuroSatEval, So2SatEval, TreeSatEval
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoRepresentationDecoder, adjust_learning_rate
-from src.masking import batch_mask_presto, subset_batch_of_images
 from src.utils import (
     AverageMeter,
     data_dir,
     device,
     load_check_config,
+    prepare_batch,
     seed_everything,
     timestamp_dirname,
 )
+from wandb.sdk.wandb_run import Run
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -109,23 +109,13 @@ momentum_scheduler = (
 for e in tqdm(range(training_config["num_epochs"])):
     train_loss = AverageMeter()
     for i, b in tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
-        b = [t.to(device) for t in b]
-        s_t_x, s_x, t_x, months = b
-
-        # randomly sample a patch size, and a corresponding image size
+        # randomly sample a patch size
         patch_size = np.random.choice(training_config["patch_sizes"])
-        image_size = patch_size * training_config["spatial_patches_per_dim"]
-        s_t_x, s_x = subset_batch_of_images(s_t_x, s_x, image_size)
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = batch_mask_presto(
-            s_t_x,
-            s_x,
-            t_x,
-            months,
-            training_config["mask_ratio"],
-            patch_size,
-            time_ratio=training_config["time_ratio"],
-            space_ratio=training_config["space_ratio"],
+
+        masked_output = prepare_batch(
+            batch=b, training_config=training_config, patch_size=patch_size
         )
+        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = masked_output
 
         # also transform to patch-space
         patch_s_t = s_t_m[:, 0::patch_size, 0::patch_size].bool()
