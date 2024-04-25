@@ -20,6 +20,11 @@ from src.data.config import DATA_FOLDER, EE_PROJECT, OUTPUT_FOLDER
 from src.eval import EuroSatEval, So2SatEval, TreeSatEval
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
+from src.masking import (
+    SPACE_BAND_EXPANSION_T,
+    SPACE_TIME_BAND_EXPANSION_T,
+    TIME_BAND_EXPANSION_T,
+)
 from src.utils import (
     AverageMeter,
     data_dir,
@@ -30,7 +35,6 @@ from src.utils import (
     seed_everything,
     timestamp_dirname,
 )
-
 from wandb.sdk.wandb_run import Run
 
 seed_everything(DEFAULT_SEED)
@@ -132,6 +136,13 @@ for e in tqdm(range(training_config["num_epochs"])):
 
         s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = masked_output
 
+        # also transform to pixel
+        expanded_s_t = torch.repeat_interleave(
+            s_t_m, repeats=SPACE_TIME_BAND_EXPANSION_T, dim=-1
+        ).bool()
+        expanded_s = torch.repeat_interleave(s_m, repeats=SPACE_BAND_EXPANSION_T, dim=-1).bool()
+        expanded_t = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION_T, dim=-1).bool()
+
         optimizer.zero_grad()
         adjust_learning_rate(
             optimizer,
@@ -214,12 +225,6 @@ for e in tqdm(range(training_config["num_epochs"])):
             plot_list = []
             for image_id, image_dict in examples_to_plot.items():
                 for patch_size, prepared_image in image_dict.items():
-                    (
-                        masked_output,
-                        expanded_s_t,
-                        _,
-                        _,
-                    ) = prepared_image
                     plot_list.append(
                         plot_space_time_predictions(
                             epoch=e,
@@ -227,7 +232,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                             predictor=predictor,
                             training_config=training_config,
                             patch_size=patch_size,
-                            masked_output=masked_output,
+                            masked_output=prepared_image,
                             expanded_s_t=expanded_s_t,
                             image_id=image_id,
                         )
