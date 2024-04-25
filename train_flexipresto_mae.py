@@ -135,7 +135,7 @@ for e in tqdm(range(training_config["num_epochs"])):
             min_lr=training_config["final_lr"],
         )
 
-        with torch.autocast(device_type=device.type, dtype=torch.float16):
+        with torch.autocast(device_type=device.type, dtype=torch.bfloat16):
             (p_s_t, p_s, p_t) = predictor(
                 *encoder(
                     s_t_x,
