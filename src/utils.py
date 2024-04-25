@@ -144,7 +144,7 @@ def load_check_config(name: str, mode: str):
     return config
 
 
-def prepare_x_and_m(batch, training_config, patch_size):
+def prepare_batch(batch, training_config, patch_size):
     """
     Prepare batch for training, including masking and expanding mask dimensions.
     """
@@ -260,16 +260,17 @@ def plot_space_time_predictions(
                 pred_to_plot[mask_to_plot].float(),
             )
 
-            vmin = min(x_to_plot.min(), pred_to_plot.min())
-            vmax = max(x_to_plot.max(), pred_to_plot.max())
-
-            x_plot = axs[i, 0].imshow(x_to_plot.numpy(), cmap="gray", vmin=vmin, vmax=vmax)
+            x_plot = axs[i, 0].imshow(
+                x_to_plot.numpy(), cmap="gray", vmin=x_to_plot.min(), vmax=x_to_plot.max()
+            )
             axs[i, 0].set_title(f"Input {band}, loss: {loss:.4f}")
             fig.colorbar(x_plot, ax=axs[i, 0])
             mask_plot = axs[i, 1].imshow(mask_to_plot.numpy(), cmap="gray")
             axs[i, 1].set_title(f"Mask {band}")
             fig.colorbar(mask_plot, ax=axs[i, 1])
-            pred_plot = axs[i, 2].imshow(pred_to_plot.numpy(), cmap="gray", vmin=vmin, vmax=vmax)
+            pred_plot = axs[i, 2].imshow(
+                pred_to_plot.numpy(), cmap="gray", vmin=x_to_plot.min(), vmax=x_to_plot.max()
+            )
             axs[i, 2].set_title(f"Output {band}")
             fig.colorbar(pred_plot, ax=axs[i, 2])
             error = axs[i, 3].imshow(
