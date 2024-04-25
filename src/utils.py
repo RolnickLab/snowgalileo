@@ -147,7 +147,7 @@ def load_check_config(name: str, mode: str):
 
 def prepare_batch(batch, training_config, patch_size):
     """
-    Prepare batch for training, including masking and expanding mask dimensions.
+    Prepare batch for training, including masking.
     """
     b = [t.to(device) for t in batch]
     s_t_x, s_x, t_x, months = b
@@ -180,7 +180,7 @@ def plot_space_time_predictions(
     image_id,
 ):
     """
-    Plots MAE input images, masks, MAE predictions, and difference of input and predictions for a random subset of the dataset.
+    Plots MAE input images, MAE predictions, and difference of input and predictions for a random subset of the dataset.
     Patch sizes, number of images, and number of timesteps are defined in the training config.
     """
     s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = masked_output
@@ -237,7 +237,7 @@ def plot_space_time_predictions(
     for t in training_config["timesteps_to_wandb_plot"]:
         # figure columns: input, mask, prediction, error
         # figure rows: bands
-        fig, axs = plt.subplots(len(subplot_titles), 4, figsize=(20, 45))
+        fig, axs = plt.subplots(len(subplot_titles), 3, figsize=(15, 45))
 
         for i, band in enumerate(subplot_titles):
             x_to_plot = s_t_x[:, :, :, t, i].squeeze(0).cpu()
@@ -254,16 +254,16 @@ def plot_space_time_predictions(
             )
             axs[i, 0].set_title(f"Input {band}, loss: {loss:.4f}")
             fig.colorbar(x_plot, ax=axs[i, 0])
-            mask_plot = axs[i, 1].imshow(mask_to_plot.numpy(), cmap="gray")
-            axs[i, 1].set_title(f"Mask {band}")
-            fig.colorbar(mask_plot, ax=axs[i, 1])
             pred_plot = axs[i, 2].imshow(
-                pred_to_plot.numpy(), cmap="gray", vmin=x_to_plot.min(), vmax=x_to_plot.max()
+                (pred_to_plot * mask_to_plot).numpy(),
+                cmap="gray",
+                vmin=x_to_plot.min(),
+                vmax=x_to_plot.max(),
             )
             axs[i, 2].set_title(f"Output {band}")
             fig.colorbar(pred_plot, ax=axs[i, 2])
             error = axs[i, 3].imshow(
-                abs(x_to_plot.numpy() - pred_to_plot.numpy()),
+                (abs(x_to_plot.numpy() - pred_to_plot.numpy())) * mask_to_plot.numpy(),
                 cmap="coolwarm",
                 vmin=0,
                 vmax=1,
