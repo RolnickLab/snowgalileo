@@ -243,12 +243,10 @@ def plot_space_time_predictions(
 
         # get min and max values for the error colorbar independent of the channel
         error_min = (
-            s_t_x[:, :, :, t, :][expanded_s_t[:, :, :, t, :]]
-            - p_s_t[:, :, :, t, :][expanded_s_t[:, :, :, t, :]]
+            (abs(s_t_x[:, :, :, t, :] - p_s_t[:, :, :, t, :])) * expanded_s_t[:, :, :, t, :]
         ).min()
         error_max = (
-            s_t_x[:, :, :, t, :][expanded_s_t[:, :, :, t, :]]
-            - p_s_t[:, :, :, t, :][expanded_s_t[:, :, :, t, :]]
+            (abs(s_t_x[:, :, :, t, :] - p_s_t[:, :, :, t, :])) * expanded_s_t[:, :, :, t, :]
         ).max()
 
         for i, band in enumerate(subplot_titles):
