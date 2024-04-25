@@ -261,7 +261,7 @@ def plot_space_time_predictions(
                 vmax=x_to_plot.max(),
             )
             axs[i, 1].set_title(f"Output {band}")
-            fig.colorbar(pred_plot, ax=axs[i, 2])
+            fig.colorbar(pred_plot, ax=axs[i, 1])
             error = axs[i, 2].imshow(
                 (abs(x_to_plot.numpy() - pred_to_plot.numpy())) * mask_to_plot.numpy(),
                 cmap="coolwarm",
@@ -269,7 +269,7 @@ def plot_space_time_predictions(
                 vmax=1,
             )
             axs[i, 2].set_title(f"Input - Output {band}")
-            fig.colorbar(error, ax=axs[i, 3])
+            fig.colorbar(error, ax=axs[i, 2])
 
         fig.suptitle(
             f"Plot image: {image_id}, epoch: {epoch}, patch_size{patch_size}, timestep: {t}",
