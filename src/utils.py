@@ -186,7 +186,7 @@ def plot_space_time_predictions(
     s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = masked_output
 
     expanded_s_t = torch.repeat_interleave(
-        s_t_m, repeats=SPACE_TIME_BAND_EXPANSION_T, dim=-1
+        s_t_m, repeats=SPACE_TIME_BAND_EXPANSION_T.to(device), dim=-1
     ).bool()
 
     (p_s_t, _, _) = predictor(

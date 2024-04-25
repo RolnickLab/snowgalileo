@@ -7,13 +7,14 @@ from einops import rearrange, repeat
 
 from .data.config import NUM_TIMESTEPS
 from .data.dataset import SPACE_BAND_GROUPS_IDX, SPACE_TIME_BANDS_GROUPS_IDX, TIME_BAND_GROUPS_IDX
-from .utils import device
 
 # This is to allow a quick expansion of the mask from
 # group-channel space into real-channel space
-SPACE_TIME_BAND_EXPANSION_T = torch.tensor([len(x) for x in SPACE_TIME_BANDS_GROUPS_IDX.values()], device=device).long()
-SPACE_BAND_EXPANSION_T = torch.tensor([len(x) for x in SPACE_BAND_GROUPS_IDX.values()], device=device).long()
-TIME_BAND_EXPANSION_T = torch.tensor([len(x) for x in TIME_BAND_GROUPS_IDX.values()], device=device).long()
+SPACE_TIME_BAND_EXPANSION_T = torch.tensor(
+    [len(x) for x in SPACE_TIME_BANDS_GROUPS_IDX.values()]
+).long()
+SPACE_BAND_EXPANSION_T = torch.tensor([len(x) for x in SPACE_BAND_GROUPS_IDX.values()]).long()
+TIME_BAND_EXPANSION_T = torch.tensor([len(x) for x in TIME_BAND_GROUPS_IDX.values()]).long()
 
 MaskedOutput = namedtuple(
     "MaskedOutput",
