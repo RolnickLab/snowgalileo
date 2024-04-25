@@ -180,15 +180,17 @@ def plot_space_time_predictions(
     image_id,
 ):
     """
-    Plots MAE input images, MAE predictions, and difference of input and predictions for a random subset of the dataset.
-    Patch sizes, number of images, and number of timesteps are defined in the training config.
+    Plots MAE input images, masks, MAE predictions, and difference of input and predictions.
+    Number of timesteps to plot are defined in the training config.
     """
     s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = masked_output
 
+    # exapnd masks from channel groups to single channels
     expanded_s_t = torch.repeat_interleave(
         s_t_m, repeats=SPACE_TIME_BAND_EXPANSION_T.to(device), dim=-1
     ).bool()
 
+    # get predictions with current model
     (p_s_t, _, _) = predictor(
         *encoder(
             s_t_x.float(),
@@ -237,7 +239,17 @@ def plot_space_time_predictions(
     for t in training_config["timesteps_to_wandb_plot"]:
         # figure columns: input, mask, prediction, error
         # figure rows: bands
-        fig, axs = plt.subplots(len(subplot_titles), 3, figsize=(15, 45))
+        fig, axs = plt.subplots(len(subplot_titles), 4, figsize=(20, 45))
+
+        # get min and max values for the error colorbar independent of the channel
+        error_min = (
+            s_t_x[:, :, :, t, :][expanded_s_t[:, :, :, t, :]]
+            - p_s_t[:, :, :, t, :][expanded_s_t[:, :, :, t, :]]
+        ).min()
+        error_max = (
+            s_t_x[:, :, :, t, :][expanded_s_t[:, :, :, t, :]]
+            - p_s_t[:, :, :, t, :][expanded_s_t[:, :, :, t, :]]
+        ).max()
 
         for i, band in enumerate(subplot_titles):
             x_to_plot = s_t_x[:, :, :, t, i].squeeze(0).cpu()
@@ -254,22 +266,25 @@ def plot_space_time_predictions(
             )
             axs[i, 0].set_title(f"Input {band}, loss: {loss:.4f}")
             fig.colorbar(x_plot, ax=axs[i, 0])
-            pred_plot = axs[i, 1].imshow(
+            mask_plot = axs[i, 1].imshow(mask_to_plot.numpy(), cmap="gray")
+            axs[i, 1].set_title(f"Mask {band}")
+            fig.colorbar(mask_plot, ax=axs[i, 1])
+            pred_plot = axs[i, 2].imshow(
                 (pred_to_plot * mask_to_plot).numpy(),
                 cmap="gray",
                 vmin=x_to_plot.min(),
                 vmax=x_to_plot.max(),
             )
-            axs[i, 1].set_title(f"Output {band}")
-            fig.colorbar(pred_plot, ax=axs[i, 1])
-            error = axs[i, 2].imshow(
+            axs[i, 2].set_title(f"Output {band}")
+            fig.colorbar(pred_plot, ax=axs[i, 2])
+            error = axs[i, 3].imshow(
                 (abs(x_to_plot.numpy() - pred_to_plot.numpy())) * mask_to_plot.numpy(),
                 cmap="coolwarm",
-                vmin=0,
-                vmax=1,
+                vmin=error_min,
+                vmax=error_max,
             )
-            axs[i, 2].set_title(f"Input - Output {band}")
-            fig.colorbar(error, ax=axs[i, 2])
+            axs[i, 3].set_title(f"Input - Output {band}")
+            fig.colorbar(error, ax=axs[i, 3])
 
         fig.suptitle(
             f"Plot image: {image_id}, epoch: {epoch}, patch_size{patch_size}, timestep: {t}",
