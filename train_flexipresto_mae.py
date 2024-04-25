@@ -135,25 +135,25 @@ for e in tqdm(range(training_config["num_epochs"])):
             min_lr=training_config["final_lr"],
         )
 
-        # generate the predictions. TODO: add layer norm
-        (p_s_t, p_s, p_t) = predictor(
-            *encoder(
-                s_t_x,
-                s_x,
-                t_x,
-                s_t_m,
-                s_m,
-                t_m,
-                months,
+        with torch.autocast(device_type=device.type, dtype=torch.bfloat16):
+            (p_s_t, p_s, p_t) = predictor(
+                *encoder(
+                    s_t_x,
+                    s_x,
+                    t_x,
+                    s_t_m,
+                    s_m,
+                    t_m,
+                    months.long(),
+                    patch_size=patch_size,
+                ),
                 patch_size=patch_size,
-            ),
-            patch_size=patch_size,
-        )
+            )
 
-        loss = F.mse_loss(
-            torch.concat([p_s_t[s_t_m_p], p_s[s_m_p], p_t[t_m_p]]),
-            torch.concat([expanded_s_t_x[s_t_m_p], expanded_s_x[s_m_p], t_x[t_m_p]]).float(),
-        )
+            loss = F.mse_loss(
+                torch.concat([p_s_t[s_t_m_p], p_s[s_m_p], p_t[t_m_p]]),
+                torch.concat([expanded_s_t_x[s_t_m_p], expanded_s_x[s_m_p], t_x[t_m_p]]).float(),
+            )
         loss.backward()
         optimizer.step()
         train_loss.update(loss.item(), n=s_t_x.shape[0])
