@@ -254,21 +254,21 @@ def plot_space_time_predictions(
             )
             axs[i, 0].set_title(f"Input {band}, loss: {loss:.4f}")
             fig.colorbar(x_plot, ax=axs[i, 0])
-            pred_plot = axs[i, 2].imshow(
+            pred_plot = axs[i, 1].imshow(
                 (pred_to_plot * mask_to_plot).numpy(),
                 cmap="gray",
                 vmin=x_to_plot.min(),
                 vmax=x_to_plot.max(),
             )
-            axs[i, 2].set_title(f"Output {band}")
+            axs[i, 1].set_title(f"Output {band}")
             fig.colorbar(pred_plot, ax=axs[i, 2])
-            error = axs[i, 3].imshow(
+            error = axs[i, 2].imshow(
                 (abs(x_to_plot.numpy() - pred_to_plot.numpy())) * mask_to_plot.numpy(),
                 cmap="coolwarm",
                 vmin=0,
                 vmax=1,
             )
-            axs[i, 3].set_title(f"Input - Output {band}")
+            axs[i, 2].set_title(f"Input - Output {band}")
             fig.colorbar(error, ax=axs[i, 3])
 
         fig.suptitle(
