@@ -152,7 +152,7 @@ for e in tqdm(range(training_config["num_epochs"])):
 
             loss = F.mse_loss(
                 torch.concat([p_s_t[s_t_m_p], p_s[s_m_p], p_t[t_m_p]]),
-                torch.concat([expanded_s_t_x[s_t_m_p], expanded_s_x[s_m_p], t_x[t_m_p]]).float(),
+                torch.concat([expanded_s_t_x[s_t_m_p], expanded_s_x[s_m_p], t_x[t_m_p]]),
             )
         loss.backward()
         optimizer.step()
