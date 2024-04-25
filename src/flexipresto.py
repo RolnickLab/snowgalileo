@@ -368,7 +368,7 @@ class FlexiPrestoBase(nn.Module):
             ),
             requires_grad=False,
         )
-        month_tab = torch.from_numpy(get_month_encoding_table(int(embedding_size * 0.25)))
+        month_tab = get_month_encoding_table(int(embedding_size * 0.25))
         self.month_embed = nn.Embedding.from_pretrained(month_tab, freeze=True)
         self.s_t_channel_embed = nn.Parameter(
             torch.zeros(len(SPACE_TIME_BANDS_GROUPS_IDX), int(embedding_size * 0.25))
@@ -730,7 +730,6 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         s_t_m_reshaped = repeat(self.mask_token, "d -> b h w t c d", b=B, h=H, w=W, t=T, c=S_T_C)
         s_t_m_add = s_t_m_reshaped * s_t_m.unsqueeze(-1)
         s_t_m = s_t_m * 0  # all values are unmasked now
-
         s_x = s_x * (1 - s_m).unsqueeze(-1)
         S_C = s_x.shape[-2]
         s_m_reshaped = repeat(self.mask_token, "d -> b h w c d", b=B, h=H, w=W, c=S_C)

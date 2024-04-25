@@ -119,8 +119,8 @@ def batch_mask_time(
     # numpy's permuted function
     flat_timesteps = np.concatenate(
         (
-            np.ones(num_timesteps_to_mask),
-            np.zeros(t - num_timesteps_to_mask),
+            np.ones(num_timesteps_to_mask, dtype=np.int_),
+            np.zeros(t - num_timesteps_to_mask, dtype=np.int_),
         )
     )
     b_flat_timesteps = repeat(flat_timesteps, "t -> b t", b=b)
@@ -179,8 +179,8 @@ def batch_mask_space(
     # numpy's permuted function
     flat_patches = np.concatenate(
         (
-            np.ones(num_patches_to_mask),
-            np.zeros(total_patches - num_patches_to_mask),
+            np.ones(num_patches_to_mask, dtype=np.int_),
+            np.zeros(total_patches - num_patches_to_mask, dtype=np.int_),
         )
     )
     b_flat_patches = repeat(flat_patches, "p -> b p", b=b)
@@ -235,8 +235,8 @@ def batch_mask_channels(
             num_channels_to_mask = int(num_channels * mask_ratio)
             flat_channels = np.concatenate(
                 (
-                    np.ones(num_channels_to_mask),
-                    np.zeros(num_channels - num_channels_to_mask),
+                    np.ones(num_channels_to_mask, dtype=np.int_),
+                    np.zeros(num_channels - num_channels_to_mask, dtype=np.int_),
                 )
             )
             b_flat_channels = repeat(flat_channels, "c -> b c", b=b)
@@ -298,8 +298,8 @@ def batch_mask_random(
     # numpy's permuted function
     flat_tokens = np.concatenate(
         (
-            np.ones(num_tokens_to_mask),
-            np.zeros(total_tokens - num_tokens_to_mask),
+            np.ones(num_tokens_to_mask, dtype=np.int_),
+            np.zeros(total_tokens - num_tokens_to_mask, dtype=np.int_),
         )
     )
     b_flat_tokens = repeat(flat_tokens, "t -> b t", b=b)
