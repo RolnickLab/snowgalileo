@@ -138,7 +138,7 @@ for e in tqdm(range(training_config["num_epochs"])):
 
         # also transform to pixel
         expanded_s_t = torch.repeat_interleave(
-            s_t_m, repeats=SPACE_TIME_BAND_EXPANSION_T, dim=-1
+            s_t_m, repeats=SPACE_TIME_BAND_EXPANSION_T.to(device), dim=-1
         ).bool()
         expanded_s = torch.repeat_interleave(
             s_m, repeats=SPACE_BAND_EXPANSION_T.to(device), dim=-1
