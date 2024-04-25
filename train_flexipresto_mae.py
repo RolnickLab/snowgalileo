@@ -130,7 +130,7 @@ for e in tqdm(range(training_config["num_epochs"])):
     for i, b in tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
         # randomly sample a patch size
         patch_size = np.random.choice(training_config["patch_sizes"])
-        masked_output, expanded_s_t, expanded_s, expanded_t = prepare_batch(
+        masked_output = prepare_batch(
             batch=b, training_config=training_config, patch_size=patch_size
         )
 
@@ -140,8 +140,12 @@ for e in tqdm(range(training_config["num_epochs"])):
         expanded_s_t = torch.repeat_interleave(
             s_t_m, repeats=SPACE_TIME_BAND_EXPANSION_T, dim=-1
         ).bool()
-        expanded_s = torch.repeat_interleave(s_m, repeats=SPACE_BAND_EXPANSION_T, dim=-1).bool()
-        expanded_t = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION_T, dim=-1).bool()
+        expanded_s = torch.repeat_interleave(
+            s_m, repeats=SPACE_BAND_EXPANSION_T.to(device), dim=-1
+        ).bool()
+        expanded_t = torch.repeat_interleave(
+            t_m, repeats=TIME_BAND_EXPANSION_T.to(device), dim=-1
+        ).bool()
 
         optimizer.zero_grad()
         adjust_learning_rate(
