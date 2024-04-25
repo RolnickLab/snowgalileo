@@ -26,7 +26,7 @@ from src.utils import (
     device,
     load_check_config,
     plot_space_time_predictions,
-    prepare_x_and_m,
+    prepare_batch,
     seed_everything,
 )
 from wandb.sdk.wandb_run import Run
@@ -108,7 +108,7 @@ if wandb_enabled:
             prepared_image_to_plot = {}
             for p in training_config["patch_sizes_to_wandb_plot"]:
                 image = next(iter(plot_dataloader))
-                prepared_image_to_plot[p] = prepare_x_and_m(
+                prepared_image_to_plot[p] = prepare_batch(
                     image, training_config=training_config, patch_size=p
                 )
 
@@ -124,7 +124,7 @@ for e in tqdm(range(training_config["num_epochs"])):
     for i, b in tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
         # randomly sample a patch size
         patch_size = np.random.choice(training_config["patch_sizes"])
-        masked_output, expanded_s_t, expanded_s, expanded_t = prepare_x_and_m(
+        masked_output, expanded_s_t, expanded_s, expanded_t = prepare_batch(
             batch=b, training_config=training_config, patch_size=patch_size
         )
 
