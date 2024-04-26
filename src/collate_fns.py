@@ -35,7 +35,7 @@ def mae_collate_fn(
         channel_ratio,
     )
 
-    # also transform to pixel
+    # transform the masks from channel-groups to individual channels
     expanded_s_t = torch.repeat_interleave(
         s_t_m, repeats=SPACE_TIME_BAND_EXPANSION.long(), dim=-1
     ).bool()
