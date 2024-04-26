@@ -25,7 +25,6 @@ from src.utils import (
     device,
     load_check_config,
     plot_space_time_predictions,
-    prepare_batch,
     seed_everything,
     timestamp_dirname,
 )
@@ -107,23 +106,36 @@ if wandb_enabled:
         assert len(training_config["patch_sizes_to_wandb_plot"]) > 0
         assert len(training_config["timesteps_to_wandb_plot"]) > 0
 
-        plot_dataloader = DataLoader(
-            dataset,
-            batch_size=1,
-            shuffle=False,
-        )
-
         examples_to_plot = {}
 
-        for image_id in range(training_config["num_images_to_wandb_plot"]):
-            prepared_image_to_plot = {}
-            for p in training_config["patch_sizes_to_wandb_plot"]:
-                image = next(iter(plot_dataloader))
-                prepared_image_to_plot[p] = prepare_batch(
-                    image, training_config=training_config, patch_size=p
-                )
+        for p in training_config["patch_sizes_to_wandb_plot"]:
+            # call collate function with current patch size
+            plot_dataloader = DataLoader(
+                dataset,
+                batch_size=1,
+                shuffle=False,
+                collate_fn=partial(
+                    mae_collate_fn,
+                    patch_sizes=training_config["patch_sizes"],
+                    spatial_patches_per_dim=training_config["spatial_patches_per_dim"],
+                    mask_ratio=training_config["mask_ratio"],
+                    time_ratio=training_config["time_ratio"],
+                    space_ratio=training_config["space_ratio"],
+                    channel_ratio=training_config["channel_ratio"],
+                    fixed_patch_size=p,
+                ),
+            )
 
-            examples_to_plot[image_id] = prepared_image_to_plot
+            prepared_image_to_plot = {}
+            for image_id, b in enumerate(plot_dataloader):
+                b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
+                prepared_image_to_plot[image_id] = b
+                if len(prepared_image_to_plot) >= training_config["num_images_to_wandb_plot"]:
+                    break
+
+            examples_to_plot[p] = prepared_image_to_plot
+            print(f"Prepared {len(prepared_image_to_plot)} images for patch size {p}")
+        print(f"all {len(examples_to_plot)} images for patch size")
 
 param_groups = [{"params": encoder.parameters()}, {"params": predictor.parameters()}]
 
@@ -149,7 +161,7 @@ for e in tqdm(range(training_config["num_epochs"])):
             t_m_p,
             patch_size,
         ) = b
-        
+
         optimizer.zero_grad()
         adjust_learning_rate(
             optimizer,
@@ -191,17 +203,15 @@ for e in tqdm(range(training_config["num_epochs"])):
             e % training_config["wandb_plot_every_n_epochs"] == 0
         ):
             plot_list = []
-            for image_id, image_dict in examples_to_plot.items():
-                for patch_size, prepared_image in image_dict.items():
+            for patch_size, patch_size_dict in examples_to_plot.items():
+                for image_id, prepared_image in patch_size_dict.items():
                     plot_list.append(
                         plot_space_time_predictions(
                             epoch=e,
                             encoder=encoder,
                             predictor=predictor,
                             training_config=training_config,
-                            patch_size=patch_size,
-                            masked_output=prepared_image,
-                            expanded_s_t=expanded_s_t,
+                            prepared_image=prepared_image,
                             image_id=image_id,
                         )
                     )

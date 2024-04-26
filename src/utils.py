@@ -10,8 +10,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn.functional as F
-from einops import rearrange, repeat
-from torchvision.transforms.functional import resize
 
 import wandb
 
@@ -21,10 +19,7 @@ from .data.dataset import (
     SPACE_TIME_BANDS_GROUPS_IDX,
 )
 from .masking import (
-    SPACE_TIME_BAND_EXPANSION_T,
     MaskedOutput,
-    batch_mask_presto,
-    subset_batch_of_images,
 )
 
 data_dir = Path(__file__).parent.parent / "data"
@@ -98,6 +93,7 @@ def load_check_config(name: str, mode: str):
         "eval_eurosat_every_n_epochs": int,
         "time_ratio": float,
         "space_ratio": float,
+        "channel_ratio": float,
         "spatial_patches_per_dim": int,
         "wandb_plot_every_n_epochs": int,
         "num_images_to_wandb_plot": int,
@@ -145,50 +141,34 @@ def load_check_config(name: str, mode: str):
     return config
 
 
-def prepare_batch(batch, training_config, patch_size):
-    """
-    Prepare batch for training, including masking.
-    """
-    b = [t.to(device) for t in batch]
-    s_t_x, s_x, t_x, months = b
-
-    image_size = patch_size * training_config["spatial_patches_per_dim"]
-    s_t_x, s_x = subset_batch_of_images(s_t_x, s_x, image_size)
-    s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = batch_mask_presto(
-        s_t_x,
-        s_x,
-        t_x,
-        months,
-        training_config["mask_ratio"],
-        patch_size,
-        time_ratio=training_config["time_ratio"],
-        space_ratio=training_config["space_ratio"],
-    )
-
-    return MaskedOutput(s_t_x, s_x, t_x, s_t_m, s_m, t_m, months)
-
-
 @torch.no_grad()
 def plot_space_time_predictions(
     epoch,
     encoder,
     predictor,
     training_config,
-    patch_size,
-    masked_output,
-    expanded_s_t,
+    prepared_image,
     image_id,
 ):
     """
     Plots MAE input images, masks, MAE predictions, and difference of input and predictions.
     Number of timesteps to plot are defined in the training config.
     """
-    s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = masked_output
-
-    # exapnd masks from channel groups to single channels
-    expanded_s_t = torch.repeat_interleave(
-        s_t_m, repeats=SPACE_TIME_BAND_EXPANSION_T.to(device), dim=-1
-    ).bool()
+    (
+        s_t_x,
+        s_x,
+        t_x,
+        s_t_m,
+        s_m,
+        t_m,
+        months,
+        expanded_s_t_x,
+        _,
+        expanded_s_t,
+        _,
+        _,
+        patch_size,
+    ) = prepared_image
 
     # get predictions with current model
     (p_s_t, _, _) = predictor(
@@ -205,29 +185,6 @@ def plot_space_time_predictions(
         patch_size=patch_size,
     )
 
-    # p_s_t and p_s always assume the maximum patch size, so we need to
-    # resample if its smaller
-    if patch_size < training_config["patch_sizes"][-1]:
-        t, d = s_t_x.shape[3], s_t_x.shape[4]
-        s_t_x = rearrange(
-            resize(
-                rearrange(s_t_x, "b h w t d -> b (t d) h w"),
-                size=(p_s_t.shape[1], p_s_t.shape[2]),
-            ),
-            "b (t d) h w -> b h w t d",
-            t=t,
-            d=d,
-        )
-
-        # fix the mask too
-        expanded_s_t = expanded_s_t[:, 0::patch_size, 0::patch_size]
-        expanded_s_t = repeat(
-            expanded_s_t,
-            "b h w t c -> b (h h2) (w w2) t c",
-            h2=training_config["patch_sizes"][-1],
-            w2=training_config["patch_sizes"][-1],
-        )
-
     subplot_titles = []
 
     for band_list in SPACE_TIME_BANDS_GROUPS_IDX.values():
@@ -243,14 +200,16 @@ def plot_space_time_predictions(
 
         # get min and max values for the error colorbar independent of the channel
         error_min = (
-            (abs(s_t_x[:, :, :, t, :] - p_s_t[:, :, :, t, :])) * expanded_s_t[:, :, :, t, :]
+            (abs(expanded_s_t_x[:, :, :, t, :] - p_s_t[:, :, :, t, :]))
+            * expanded_s_t[:, :, :, t, :]
         ).min()
         error_max = (
-            (abs(s_t_x[:, :, :, t, :] - p_s_t[:, :, :, t, :])) * expanded_s_t[:, :, :, t, :]
+            (abs(expanded_s_t_x[:, :, :, t, :] - p_s_t[:, :, :, t, :]))
+            * expanded_s_t[:, :, :, t, :]
         ).max()
 
         for i, band in enumerate(subplot_titles):
-            x_to_plot = s_t_x[:, :, :, t, i].squeeze(0).cpu()
+            x_to_plot = expanded_s_t_x[:, :, :, t, i].squeeze(0).cpu()
             pred_to_plot = p_s_t[:, :, :, t, i].squeeze(0).cpu()
             mask_to_plot = expanded_s_t[:, :, :, t, i].squeeze(0).cpu()
 
@@ -285,7 +244,7 @@ def plot_space_time_predictions(
             fig.colorbar(error, ax=axs[i, 3])
 
         fig.suptitle(
-            f"Plot image: {image_id}, epoch: {epoch}, patch_size{patch_size}, timestep: {t}",
+            f"Plot image: {image_id}, epoch: {epoch}, patch size: {patch_size}, timestep: {t}",
             fontsize=20,
             y=1.0001,
         )
