@@ -68,7 +68,7 @@ output_dir = Path(__file__).parent
 
 print("Loading dataset and dataloader")
 dataset = Dataset(
-    DATA_FOLDER / "tifs", download=False, cache_folder=DATA_FOLDER / "npys_spacetime"
+    DATA_FOLDER / "tifs", download=False, cache_folder=DATA_FOLDER / "npys_spacetime_16"
 )
 dataloader = DataLoader(
     dataset,
@@ -111,9 +111,18 @@ for e in tqdm(range(training_config["num_epochs"])):
     for i, b in tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
         # randomly sample a patch size
         patch_size = np.random.choice(training_config["patch_sizes"])
-
-        masked_output = prepare_batch(
-            batch=b, training_config=training_config, patch_size=patch_size
+        image_size = patch_size * training_config["spatial_patches_per_dim"]
+        s_t_x, s_x = subset_batch_of_images(s_t_x, s_x, image_size)
+        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = batch_mask_presto(
+            s_t_x,
+            s_x,
+            t_x,
+            months,
+            training_config["mask_ratio"],
+            patch_size,
+            time_ratio=training_config["time_ratio"],
+            space_ratio=training_config["space_ratio"],
+            channel_ratio=training_config["channel_ratio"],
         )
         s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = masked_output
 
@@ -186,6 +195,7 @@ for e in tqdm(range(training_config["num_epochs"])):
             wandb.log(results)
 
 model_path = OUTPUT_FOLDER / timestamp_dirname(run_id)
+model_path.mkdir()
 torch.save(encoder.state_dict(), model_path / "encoder.pt")
 torch.save(predictor.state_dict(), model_path / "predictor.pt")
 

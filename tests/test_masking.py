@@ -9,6 +9,7 @@ from src.masking import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_BANDS_GROUPS_IDX,
     TIME_BAND_GROUPS_IDX,
+    batch_mask_channels,
     batch_mask_presto,
     batch_mask_random,
     batch_mask_space,
@@ -41,6 +42,27 @@ class TestMasking(unittest.TestCase):
                 space_time_mask_along_t.sum(axis=1) / space_time_mask_along_t.shape[1]
                 == mask_ratio
             ).all()
+        )
+
+    def test_mask_by_channel(self):
+        b, t, h, w = 2, NUM_TIMESTEPS, 16, 16
+        space_time_input = torch.ones((b, h, w, t, 8))
+        space_input = torch.ones((b, h, w, 8))
+        time_input = torch.ones((b, t, 8))
+        months = repeat(torch.arange(0, t), "t -> b t", b=b)
+        mask_ratio = 0.25
+
+        output = batch_mask_channels(space_time_input, space_input, time_input, months, mask_ratio)
+        self.assertEqual(
+            (b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX)), output.space_time_mask.shape
+        )
+        self.assertEqual((b, h, w, len(SPACE_BAND_GROUPS_IDX)), output.space_mask.shape)
+        self.assertEqual((b, t, len(TIME_BAND_GROUPS_IDX)), output.time_mask.shape)
+        # collapse the space_time_mask along the time and space dimensions
+        space_time_mask_along_c = output.space_time_mask.mean(axis=(1, 2, 3))  # b, c
+        expected_num_channels_masked = int(len(SPACE_TIME_BANDS_GROUPS_IDX) * mask_ratio)
+        self.assertTrue(
+            (space_time_mask_along_c.sum(axis=1) == expected_num_channels_masked).all()
         )
 
     def test_mask_by_space(self):
@@ -136,6 +158,7 @@ class TestMasking(unittest.TestCase):
             p,
             time_ratio=0.25,
             space_ratio=0.25,
+            channel_ratio=0.25,
         )
         self.assertEqual(
             (b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX)), output.space_time_mask.shape

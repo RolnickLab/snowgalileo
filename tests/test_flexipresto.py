@@ -56,6 +56,7 @@ class TestPresto(unittest.TestCase):
             patch_size=patch_size,
             time_ratio=0.25,
             space_ratio=0.25,
+            channel_ratio=0.25,
         )
         # for now, we just make sure it all runs
         encoder_output = encoder(
@@ -164,6 +165,7 @@ class TestPresto(unittest.TestCase):
             patch_size=patch_size,
             time_ratio=0.25,
             space_ratio=0.25,
+            channel_ratio=0.25,
         )
 
         # for now, we just make sure it all runs
