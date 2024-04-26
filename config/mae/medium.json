@@ -12,7 +12,7 @@
         "time_ratio": 0.34,
         "space_ratio": 0.34,
         "spatial_patches_per_dim": 4,
-        "norm_pix_loss": false
+        "norm_pix_loss": true
     },
     "model": {
         "encoder": {
