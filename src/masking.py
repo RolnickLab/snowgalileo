@@ -10,9 +10,11 @@ from .data.dataset import SPACE_BAND_GROUPS_IDX, SPACE_TIME_BANDS_GROUPS_IDX, TI
 
 # This is to allow a quick expansion of the mask from
 # group-channel space into real-channel space
-SPACE_TIME_BAND_EXPANSION = [len(x) for x in SPACE_TIME_BANDS_GROUPS_IDX.values()]
-SPACE_BAND_EXPANSION = [len(x) for x in SPACE_BAND_GROUPS_IDX.values()]
-TIME_BAND_EXPANSION = [len(x) for x in TIME_BAND_GROUPS_IDX.values()]
+SPACE_TIME_BAND_EXPANSION = torch.tensor(
+    [len(x) for x in SPACE_TIME_BANDS_GROUPS_IDX.values()]
+).long()
+SPACE_BAND_EXPANSION = torch.tensor([len(x) for x in SPACE_BAND_GROUPS_IDX.values()]).long()
+TIME_BAND_EXPANSION = torch.tensor([len(x) for x in TIME_BAND_GROUPS_IDX.values()]).long()
 
 
 MaskedOutput = namedtuple(
