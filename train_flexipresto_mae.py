@@ -33,9 +33,11 @@ from src.utils import (
     data_dir,
     device,
     load_check_config,
+    mae_loss,
     seed_everything,
     timestamp_dirname,
 )
+from wandb.sdk.wandb_run import Run
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -179,10 +181,21 @@ for e in tqdm(range(training_config["num_epochs"])):
                 ),
                 "b d h w -> b h w d",
             )
-        loss = F.mse_loss(
-            torch.concat([p_s_t[expanded_s_t], p_s[expanded_s], p_t[expanded_t]]),
-            torch.concat([s_t_x[expanded_s_t], s_x[expanded_s], t_x[expanded_t]]).float(),
+
+        loss = mae_loss(
+            s_t_x,
+            s_x,
+            t_x,
+            p_s_t,
+            p_s,
+            p_t,
+            expanded_s_t,
+            expanded_s,
+            expanded_t,
+            patch_size=patch_size,
+            norm_pix_loss=training_config["norm_pix_loss"],
         )
+
         loss.backward()
         optimizer.step()
         print(
