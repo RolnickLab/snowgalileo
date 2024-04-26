@@ -724,6 +724,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
                 for group_name, group in self.time_groups.items()
             }
         )
+        self.norm = nn.LayerNorm(decoder_embedding_size)
 
     def add_masks(self, s_t_x, s_x, t_x, s_t_m, s_m, t_m):
         s_t_x = s_t_x * (1 - s_t_m).unsqueeze(-1)
@@ -769,7 +770,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         output_s_t, output_s, output_t = [], [], []
         for idx, (group_name, c_g) in enumerate(self.space_time_groups.items()):
             # decoded has shape [b, h, w, t, len(c_g) * patch_size ** 2]
-            decoded = self.space_time_embed[group_name](s_t_x[:, :, :, :, idx])
+            decoded = self.space_time_embed[group_name](self.norm(s_t_x[:, :, :, :, idx]))
             output_s_t.append(
                 rearrange(
                     decoded,
@@ -782,7 +783,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
 
         for idx, (group_name, c_g) in enumerate(self.space_groups.items()):
             # decoded has shape [b, h, w, len(c_g) * patch_size ** 2]
-            decoded = self.space_embed[group_name](s_x[:, :, :, idx])
+            decoded = self.space_embed[group_name](self.norm(s_x[:, :, :, idx]))
             output_s.append(
                 rearrange(
                     decoded,
@@ -794,7 +795,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             )
 
         for idx, (group_name, c_g) in enumerate(self.time_groups.items()):
-            decoded = self.time_embed[group_name](t_x[:, :, idx])
+            decoded = self.time_embed[group_name](self.norm(t_x[:, :, idx]))
             output_t.append(decoded)
 
         return (
