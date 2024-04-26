@@ -27,8 +27,8 @@ def patchify_and_concat(space_time_array, space_only_array, time_only_array, pat
 
 
 def mae_loss(
-    s_t_x,
-    s_x,
+    expanded_s_t_x,
+    expanded_s_x,
     t_x,
     p_s_t,
     p_s,
@@ -45,7 +45,7 @@ def mae_loss(
     Inspired by: https://github.com/facebookresearch/mae/blob/efb2a8062c206524e35e47d04501ed4f544c0ae8/models_mae.py#L198
     """
     if norm_pix_loss:
-        target = patchify_and_concat(s_t_x, s_x, t_x, patch_size)
+        target = patchify_and_concat(expanded_s_t_x, expanded_s_x, t_x, patch_size)
         pred = patchify_and_concat(p_s_t, p_s, p_t, patch_size)
         mask = patchify_and_concat(expanded_s_t, expanded_s, expanded_t, patch_size)
 
@@ -61,6 +61,8 @@ def mae_loss(
     else:
         loss = F.mse_loss(
             torch.concat([p_s_t[expanded_s_t], p_s[expanded_s], p_t[expanded_t]]),
-            torch.concat([s_t_x[expanded_s_t], s_x[expanded_s], t_x[expanded_t]]).float(),
+            torch.concat(
+                [expanded_s_t_x[expanded_s_t], expanded_s_x[expanded_s], t_x[expanded_t]]
+            ).float(),
         )
     return loss
