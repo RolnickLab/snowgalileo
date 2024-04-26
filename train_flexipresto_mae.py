@@ -8,12 +8,10 @@ import codecarbon
 import numpy as np
 import psutil
 import torch
-import torch.nn.functional as F
 from einops import rearrange
 from torch.utils.data import DataLoader
 from torchvision.transforms.functional import resize
 from tqdm import tqdm
-from wandb.sdk.wandb_run import Run
 
 from src.config import DEFAULT_SEED
 from src.data import Dataset
