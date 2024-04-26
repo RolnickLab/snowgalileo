@@ -19,6 +19,7 @@ from src.data.config import DATA_FOLDER, EE_PROJECT, OUTPUT_FOLDER
 from src.eval import EuroSatEval, So2SatEval, TreeSatEval
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
+from src.loss import mae_loss
 from src.masking import (
     SPACE_BAND_EXPANSION,
     SPACE_TIME_BAND_EXPANSION,
@@ -31,7 +32,6 @@ from src.utils import (
     data_dir,
     device,
     load_check_config,
-    mae_loss,
     seed_everything,
     timestamp_dirname,
 )
