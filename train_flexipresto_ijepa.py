@@ -12,7 +12,6 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from wandb.sdk.wandb_run import Run
 
 from src.config import DEFAULT_SEED
 from src.data import Dataset
@@ -29,6 +28,7 @@ from src.utils import (
     seed_everything,
     timestamp_dirname,
 )
+from wandb.sdk.wandb_run import Run
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
