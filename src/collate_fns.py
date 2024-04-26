@@ -12,10 +12,6 @@ from src.masking import (
     subset_batch_of_images,
 )
 
-SPACE_TIME_BAND_EXPANSION_T = torch.tensor(SPACE_TIME_BAND_EXPANSION).long()
-SPACE_BAND_EXPANSION_T = torch.tensor(SPACE_BAND_EXPANSION).long()
-TIME_BAND_EXPANSION_T = torch.tensor(TIME_BAND_EXPANSION).long()
-
 
 @torch.no_grad()
 def mae_collate_fn(
@@ -39,12 +35,12 @@ def mae_collate_fn(
         channel_ratio,
     )
 
-    # also transform to pixel
+    # transform the masks from channel-groups to individual channels
     expanded_s_t = torch.repeat_interleave(
-        s_t_m, repeats=SPACE_TIME_BAND_EXPANSION_T, dim=-1
+        s_t_m, repeats=SPACE_TIME_BAND_EXPANSION.long(), dim=-1
     ).bool()
-    expanded_s = torch.repeat_interleave(s_m, repeats=SPACE_BAND_EXPANSION_T, dim=-1).bool()
-    expanded_t = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION_T, dim=-1).bool()
+    expanded_s = torch.repeat_interleave(s_m, repeats=SPACE_BAND_EXPANSION.long(), dim=-1).bool()
+    expanded_t = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION.long(), dim=-1).bool()
 
     # p_s_t and p_s always assume the maximum patch size, so we need to
     # resample if its smaller
