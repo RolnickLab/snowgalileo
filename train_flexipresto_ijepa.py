@@ -24,11 +24,12 @@ from src.utils import (
     data_dir,
     device,
     load_check_config,
-    prepare_batch,
     seed_everything,
     timestamp_dirname,
 )
 from wandb.sdk.wandb_run import Run
+
+from .masking import batch_mask_presto, subset_batch_of_images
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -109,6 +110,9 @@ momentum_scheduler = (
 for e in tqdm(range(training_config["num_epochs"])):
     train_loss = AverageMeter()
     for i, b in tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
+        b = [t.to(device) for t in b]
+        s_t_x, s_x, t_x, months = b
+
         # randomly sample a patch size
         patch_size = np.random.choice(training_config["patch_sizes"])
         image_size = patch_size * training_config["spatial_patches_per_dim"]
@@ -124,7 +128,6 @@ for e in tqdm(range(training_config["num_epochs"])):
             space_ratio=training_config["space_ratio"],
             channel_ratio=training_config["channel_ratio"],
         )
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = masked_output
 
         # also transform to patch-space
         patch_s_t = s_t_m[:, 0::patch_size, 0::patch_size].bool()
