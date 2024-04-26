@@ -9,7 +9,7 @@ import codecarbon
 import psutil
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, BatchSampler
 from tqdm import tqdm
 
 from src.collate_fns import mae_collate_fn
@@ -112,9 +112,8 @@ if wandb_enabled:
             # call the collate function with current patch size
             plot_dataloader = DataLoader(
                 dataset,
-                batch_size=1,
                 shuffle=False,
-                batch_sampler=[1,2,3],
+                batch_sampler=BatchSampler([1, 2, 3], batch_size=1, drop_last=False),
                 collate_fn=partial(
                     mae_collate_fn,
                     patch_sizes=training_config["patch_sizes"],
