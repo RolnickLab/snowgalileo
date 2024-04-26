@@ -109,11 +109,12 @@ if wandb_enabled:
         examples_to_plot = {}
 
         for p in training_config["patch_sizes_to_wandb_plot"]:
-            # call collate function with current patch size
+            # call the collate function with current patch size
             plot_dataloader = DataLoader(
                 dataset,
                 batch_size=1,
                 shuffle=False,
+                batch_sampler=[1,2,3],
                 collate_fn=partial(
                     mae_collate_fn,
                     patch_sizes=training_config["patch_sizes"],
