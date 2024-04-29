@@ -18,7 +18,7 @@ from src.data.config import DATA_FOLDER, EE_PROJECT, OUTPUT_FOLDER
 from src.eval import EuroSatEval, So2SatEval, TreeSatEval
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
-from src.loss import mae_loss
+from src.loss import mse_loss, norm_per_c_g_loss, norm_per_patch_loss
 from src.utils import (
     AverageMeter,
     data_dir,
@@ -55,7 +55,7 @@ config = load_check_config(args["config_file"], "mae")
 training_config = config["training"]
 
 run_id = None
-wandb_enabled = True
+wandb_enabled = False
 wandb_org = "nasa-harvest"
 output_dir = Path(__file__).parent
 
@@ -150,19 +150,43 @@ for e in tqdm(range(training_config["num_epochs"])):
             patch_size=patch_size,
         )
 
-        loss = mae_loss(
-            expanded_s_t_x,
-            expanded_s_x,
-            t_x,
-            p_s_t,
-            p_s,
-            p_t,
-            s_t_m_p,
-            s_m_p,
-            t_m_p,
-            patch_size=patch_size,
-            norm_pix_loss=training_config["norm_pix_loss"],
-        )
+        if training_config["loss"] == "norm_per_patch":
+            loss = norm_per_patch_loss(
+                expanded_s_t_x,
+                expanded_s_x,
+                t_x,
+                p_s_t,
+                p_s,
+                p_t,
+                s_t_m_p,
+                s_m_p,
+                t_m_p,
+                patch_size=patch_size,
+            )
+        elif training_config["loss"] == "norm_per_c_g":
+            loss = norm_per_c_g_loss(
+                expanded_s_t_x,
+                expanded_s_x,
+                t_x,
+                p_s_t,
+                p_s,
+                p_t,
+                s_t_m_p,
+                s_m_p,
+                t_m_p,
+            )
+        else:
+            loss = mse_loss(
+                expanded_s_t_x,
+                expanded_s_x,
+                t_x,
+                p_s_t,
+                p_s,
+                p_t,
+                s_t_m_p,
+                s_m_p,
+                t_m_p,
+            )
 
         loss.backward()
         optimizer.step()

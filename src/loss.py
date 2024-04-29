@@ -1,9 +1,11 @@
 import torch
 import torch.nn.functional as F
-from einops import rearrange, repeat
+from einops import rearrange
+
+from .data import SPACE_BAND_GROUPS_IDX, SPACE_TIME_BANDS_GROUPS_IDX, TIME_BAND_GROUPS_IDX
 
 
-def patchify_and_concat(space_time_array, space_only_array, time_only_array, patch_size):
+def patchify_and_concat_space(space_time_array, space_only_array, patch_size):
     space_time_array = rearrange(
         space_time_array,
         "b (t_h p_h) (t_w p_w) t c -> b t_h t_w (p_h p_w t c)",
@@ -16,17 +18,66 @@ def patchify_and_concat(space_time_array, space_only_array, time_only_array, pat
         p_h=patch_size,
         p_w=patch_size,
     )
-    # repeat time only array for each spatial patch
-    time_only_array = repeat(
-        (rearrange(time_only_array, "b t c -> b (t c)")),
-        "b n -> b t_h t_w n",
-        t_h=space_time_array.shape[1],
-        t_w=space_time_array.shape[2],
+    return torch.concat([space_time_array, space_only_array], dim=-1)
+
+
+def group_channels(space_time_array, space_only_array, time_only_array):
+    s_t_c_g, s_c_g, t_c_g = [], [], []
+    for _, channel_idxs in SPACE_TIME_BANDS_GROUPS_IDX.items():
+        s_t_c_g.append(space_time_array[:, :, :, :, channel_idxs])
+    for _, channel_idxs in SPACE_BAND_GROUPS_IDX.items():
+        s_c_g.append(space_only_array[:, :, :, channel_idxs])
+    for _, channel_idxs in TIME_BAND_GROUPS_IDX.items():
+        t_c_g.append(time_only_array[:, :, channel_idxs])
+
+    s_t_c_g = torch.stack([rearrange(x, "b h w t c_g -> b c_g (h w t)") for x in s_t_c_g], dim=-2)
+    s_c_g = torch.stack([rearrange(x, "b h w c_g -> b c_g (h w)") for x in s_c_g], dim=-2)
+    t_c_g = torch.stack([rearrange(x, "b t c_g -> b c_g t") for x in t_c_g], dim=-2)
+
+    return (s_t_c_g, s_c_g, t_c_g)
+
+
+def normalize(x):
+    return
+
+
+def norm_per_c_g_loss(
+    expanded_s_t_x,
+    expanded_s_x,
+    t_x,
+    p_s_t,
+    p_s,
+    p_t,
+    expanded_s_t,
+    expanded_s,
+    expanded_t,
+):
+    x_s_t_c_g, x_s_c_g, x_t_c_g = group_channels(expanded_s_t_x, expanded_s_x, t_x)
+    pred_s_t_c_g, pred_s_c_g, pred_t_c_g = group_channels(p_s_t, p_s, p_t)
+    mask_s_t_c_g, mask_s_c_g, mask_t_c_g = group_channels(expanded_s_t, expanded_s, expanded_t)
+
+    # normalize the targets per channel group
+    norm_s_t_x_c_g = (x_s_t_c_g - x_s_t_c_g.mean(dim=-1, keepdim=True)) / (
+        x_s_t_c_g.var(dim=-1, keepdim=True) + 1.0e-6
+    ) ** 0.5
+    norm_x_s_c_g = (x_s_c_g - x_s_c_g.mean(dim=-1, keepdim=True)) / (
+        x_s_c_g.var(dim=-1, keepdim=True) + 1.0e-6
+    ) ** 0.5
+    norm_x_t_c_g = (x_t_c_g - x_t_c_g.mean(dim=-1, keepdim=True)) / (
+        x_t_c_g.var(dim=-1, keepdim=True) + 1.0e-6
+    ) ** 0.5
+
+    return F.mse_loss(
+        torch.concat(
+            [norm_s_t_x_c_g[mask_s_t_c_g], norm_x_s_c_g[mask_s_c_g], norm_x_t_c_g[mask_t_c_g]]
+        ),
+        torch.concat(
+            [pred_s_t_c_g[mask_s_t_c_g], pred_s_c_g[mask_s_c_g], pred_t_c_g[mask_t_c_g]]
+        ).float(),
     )
-    return torch.concat([space_time_array, space_only_array, time_only_array], dim=-1)
 
 
-def mae_loss(
+def norm_per_patch_loss(
     expanded_s_t_x,
     expanded_s_x,
     t_x,
@@ -37,32 +88,42 @@ def mae_loss(
     expanded_s,
     expanded_t,
     patch_size,
-    norm_pix_loss=False,
 ):
     """
     If true, returns norm pix loss
     If false, returns MSE loss
     Inspired by: https://github.com/facebookresearch/mae/blob/efb2a8062c206524e35e47d04501ed4f544c0ae8/models_mae.py#L198
     """
-    if norm_pix_loss:
-        target = patchify_and_concat(expanded_s_t_x, expanded_s_x, t_x, patch_size)
-        pred = patchify_and_concat(p_s_t, p_s, p_t, patch_size)
-        mask = patchify_and_concat(expanded_s_t, expanded_s, expanded_t, patch_size)
+    x_per_patch = patchify_and_concat_space(expanded_s_t_x, expanded_s_x, patch_size)
+    pred_per_patch = patchify_and_concat_space(p_s_t, p_s, patch_size)
+    mask_per_patch = patchify_and_concat_space(expanded_s_t, expanded_s, patch_size)
 
-        mean = target.mean(dim=-1, keepdim=True)
-        var = target.var(dim=-1, keepdim=True)
-        target = (target - mean) / (var + 1.0e-6) ** 0.5
+    # normalize the target per patch for dynamic in space variables
+    norm_x_per_patch = (x_per_patch - x_per_patch.mean(dim=-1, keepdim=True)) / (
+        x_per_patch.var(dim=-1, keepdim=True) + 1.0e-6
+    ) ** 0.5
 
-        loss = (pred[mask] - target[mask]) ** 2
-        loss = loss.mean(dim=-1)  # mean loss per patch
+    # concatenate with time only variables
+    return F.mse_loss(
+        torch.concat([pred_per_patch[mask_per_patch], p_t[expanded_t]]),
+        torch.concat([norm_x_per_patch[mask_per_patch], t_x[expanded_t]]).float(),
+    )
 
-        loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
 
-    else:
-        loss = F.mse_loss(
-            torch.concat([p_s_t[expanded_s_t], p_s[expanded_s], p_t[expanded_t]]),
-            torch.concat(
-                [expanded_s_t_x[expanded_s_t], expanded_s_x[expanded_s], t_x[expanded_t]]
-            ).float(),
-        )
-    return loss
+def mse_loss(
+    expanded_s_t_x,
+    expanded_s_x,
+    t_x,
+    p_s_t,
+    p_s,
+    p_t,
+    expanded_s_t,
+    expanded_s,
+    expanded_t,
+):
+    return F.mse_loss(
+        torch.concat([p_s_t[expanded_s_t], p_s[expanded_s], p_t[expanded_t]]),
+        torch.concat(
+            [expanded_s_t_x[expanded_s_t], expanded_s_x[expanded_s], t_x[expanded_t]]
+        ).float(),
+    )
