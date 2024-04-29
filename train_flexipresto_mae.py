@@ -24,6 +24,7 @@ from src.utils import (
     AverageMeter,
     data_dir,
     device,
+    is_bf16_available,
     load_check_config,
     seed_everything,
     timestamp_dirname,
@@ -41,9 +42,8 @@ tracker = codecarbon.EmissionsTracker(
     output_dir=data_dir,
 )
 
-# test:
-# https://pytorch.org/blog/what-every-user-should-know-about-mixed-precision-training-in-pytorch/
 torch.backends.cuda.matmul.allow_tf32 = True
+autocast_device = torch.bfloat16 if is_bf16_available() else torch.float32
 
 tracker.start()
 
@@ -135,7 +135,7 @@ for e in tqdm(range(training_config["num_epochs"])):
             min_lr=training_config["final_lr"],
         )
 
-        with torch.autocast(device_type=device.type, dtype=torch.bfloat16):
+        with torch.autocast(device_type=device.type, dtype=autocast_device):
             (p_s_t, p_s, p_t) = predictor(
                 *encoder(
                     s_t_x,
