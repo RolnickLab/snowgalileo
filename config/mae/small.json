@@ -13,7 +13,7 @@
         "space_ratio": 0.25,
         "channel_ratio": 0.25,
         "spatial_patches_per_dim": 4,
-        "norm_pix_loss": true
+        "loss": "norm_c_g"
     },
     "model": {
         "encoder": {
