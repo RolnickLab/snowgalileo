@@ -191,7 +191,7 @@ def plot_space_time_predictions(
         for band in band_list:
             subplot_titles.append(SPACE_TIME_BANDS[band])
 
-    plot_list = []
+    plot_dict = {}
 
     for t in training_config["timesteps_to_wandb_plot"]:
         # figure columns: input, mask, prediction, error
@@ -253,8 +253,8 @@ def plot_space_time_predictions(
         plot = wandb.Image(
             fig, caption=f"plot_image{image_id}_epoch{epoch}_patch_size{patch_size}_timestep{t}"
         )
-        plot_list.append(plot)
-    return plot_list
+        plot_dict[patch_size] = plot
+    return plot_dict
 
 
 def timestamp_dirname(suffix: Optional[str] = None) -> str:

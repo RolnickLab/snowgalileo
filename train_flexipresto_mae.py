@@ -202,10 +202,10 @@ for e in tqdm(range(training_config["num_epochs"])):
         if (training_config["wandb_plot_every_n_epochs"] != 0) and (
             e % training_config["wandb_plot_every_n_epochs"] == 0
         ):
-            plot_list = []
+            plot_dict = {}
             for patch_size, patch_size_dict in examples_to_plot.items():
                 for image_id, prepared_image in patch_size_dict.items():
-                    plot_list.append(
+                    plot_dict[str(patch_size)](
                         plot_space_time_predictions(
                             epoch=e,
                             encoder=encoder,
@@ -215,8 +215,8 @@ for e in tqdm(range(training_config["num_epochs"])):
                             image_id=image_id,
                         )
                     )
-            for plot in [item for sublist in plot_list for item in sublist]:
-                wandb.log({"plot_mae_training": plot})
+            for patch_size, plot in [item for sublist in plot_dict for item in sublist]:
+                wandb.log({f"plot_mae_patch_size_{patch_size}": plot})
 
     if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
         e % training_config["eval_eurosat_every_n_epochs"] == 0
