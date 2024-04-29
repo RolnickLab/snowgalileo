@@ -84,7 +84,6 @@ def load_check_config(name: str, mode: str):
         "time_ratio": float,
         "space_ratio": float,
         "spatial_patches_per_dim": int,
-        "loss": str,
     }
     if mode == "jepa":
         expected_training_keys_type["ema"] = list
