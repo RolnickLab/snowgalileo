@@ -37,10 +37,6 @@ def group_channels(space_time_array, space_only_array, time_only_array):
     return (s_t_c_g, s_c_g, t_c_g)
 
 
-def normalize(x):
-    return
-
-
 def norm_per_c_g_loss(
     expanded_s_t_x,
     expanded_s_x,
