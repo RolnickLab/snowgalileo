@@ -19,6 +19,7 @@ from src.data.config import DATA_FOLDER, EE_PROJECT, OUTPUT_FOLDER
 from src.eval import EuroSatEval, So2SatEval, TreeSatEval
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoRepresentationDecoder, adjust_learning_rate
+from src.masking import batch_mask_presto, subset_batch_of_images
 from src.utils import (
     AverageMeter,
     data_dir,
@@ -28,8 +29,6 @@ from src.utils import (
     timestamp_dirname,
 )
 from wandb.sdk.wandb_run import Run
-
-from src.masking import batch_mask_presto, subset_batch_of_images
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
