@@ -9,7 +9,7 @@ import codecarbon
 import psutil
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, BatchSampler
+from torch.utils.data import BatchSampler, DataLoader
 from tqdm import tqdm
 
 from src.collate_fns import mae_collate_fn
