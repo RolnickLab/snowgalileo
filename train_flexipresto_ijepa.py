@@ -29,7 +29,7 @@ from src.utils import (
 )
 from wandb.sdk.wandb_run import Run
 
-from .masking import batch_mask_presto, subset_batch_of_images
+from src.masking import batch_mask_presto, subset_batch_of_images
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
