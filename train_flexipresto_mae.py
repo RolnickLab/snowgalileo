@@ -55,7 +55,7 @@ config = load_check_config(args["config_file"], "mae")
 training_config = config["training"]
 
 run_id = None
-wandb_enabled = False
+wandb_enabled = True
 wandb_org = "nasa-harvest"
 output_dir = Path(__file__).parent
 
