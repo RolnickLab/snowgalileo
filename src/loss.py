@@ -30,9 +30,9 @@ def group_channels(space_time_array, space_only_array, time_only_array):
     for _, channel_idxs in TIME_BAND_GROUPS_IDX.items():
         t_c_g.append(time_only_array[:, :, channel_idxs])
 
-    s_t_c_g = torch.stack([rearrange(x, "b h w t c_g -> b c_g (h w t)") for x in s_t_c_g], dim=-2)
-    s_c_g = torch.stack([rearrange(x, "b h w c_g -> b c_g (h w)") for x in s_c_g], dim=-2)
-    t_c_g = torch.stack([rearrange(x, "b t c_g -> b c_g t") for x in t_c_g], dim=-2)
+    s_t_c_g = torch.concat([rearrange(x, "b h w t c_g -> b c_g (h w t)") for x in s_t_c_g], dim=-2)
+    s_c_g = torch.concat([rearrange(x, "b h w c_g -> b c_g (h w)") for x in s_c_g], dim=-2)
+    t_c_g = torch.concat([rearrange(x, "b t c_g -> b c_g t") for x in t_c_g], dim=-2)
 
     return (s_t_c_g, s_c_g, t_c_g)
 
