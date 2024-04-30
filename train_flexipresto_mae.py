@@ -17,7 +17,13 @@ from src.collate_fns import mae_collate_fn
 from src.config import DEFAULT_SEED
 from src.data import Dataset
 from src.data.config import DATA_FOLDER, EE_PROJECT, OUTPUT_FOLDER
-from src.eval import EuroSatEval, So2SatEval, TreeSatEval
+from src.eval import (
+    CropHarvestEval,
+    EuroSatEval,
+    MultiClassCropHarvestEval,
+    So2SatEval,
+    TreeSatEval,
+)
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
 from src.utils import (
@@ -85,6 +91,7 @@ encoder = Encoder(**config["model"]["encoder"]).to(device)
 predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
 print("Loading validation task")
 val_task = EuroSatEval(rgb=True)
+val_task_ts = MultiClassCropHarvestEval()
 
 if wandb_enabled:
     import wandb
@@ -165,6 +172,7 @@ for e in tqdm(range(training_config["num_epochs"])):
         e % training_config["eval_eurosat_every_n_epochs"] == 0
     ):
         results = val_task.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
+        results.update(val_task_ts.evaluate_model_on_task(encoder, model_modes=["KNNat5"]))
         if wandb_enabled:
             wandb.log(results)
 
@@ -176,7 +184,8 @@ torch.save(predictor.state_dict(), model_path / "predictor.pt")
 eval_tasks: List[EvalTask] = [
     *[TreeSatEval(mode, patch_size) for mode in ["s1", "s2", "combined"] for patch_size in [6, 3]],
     *[EuroSatEval(rgb) for rgb in [True, False]],
-    *[So2SatEval()],
+    So2SatEval(),
+    *[CropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil"]],
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)
