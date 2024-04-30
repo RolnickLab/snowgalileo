@@ -78,7 +78,7 @@ class MultiClassCropHarvest(TorchDataset):
     def __len__(self) -> int:
         return len(self.paths_and_y)
 
-    def __getitem__(self, index: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray, int]:
+    def __getitem__(self, index: int) -> Tuple[np.ndarray, np.ndarray, int]:
         paths, y = self.paths_and_y[index]
         satellite_data = h5py.File(paths[0], "r")
         lat = satellite_data.attrs["instance_lat"]
@@ -115,7 +115,7 @@ def get_eval_datasets():
 
 
 def download_cropharvest_data(root_name: str = ""):
-    root = Path(root_name) if root_name != "" else cropharvest_data_dir()
+    root = Path(root_name) if root_name != "" else cropharvest_data_dir
     if not root.exists():
         root.mkdir()
         CropHarvest(root, download=True)
