@@ -13,6 +13,7 @@
         "space_ratio": 0.25,
         "channel_ratio": 0.25,
         "spatial_patches_per_dim": 4,
+        "mae_loss": "norm_per_c_g",
         "wandb_plot_every_n_epochs": 10,
         "num_images_to_wandb_plot": 3,
         "timesteps_to_wandb_plot": [0],
