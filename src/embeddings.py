@@ -13,8 +13,8 @@ def get_2d_sincos_pos_embed_with_resolution(
     pos_embed: [n,grid_size*grid_size, embed_dim] or [n,1+grid_size*grid_size, embed_dim] (w/ or w/o cls_token)
     """
     res = res.to(device)
-    grid_h = torch.arange(grid_size, dtype=torch.float32, device=device)
-    grid_w = torch.arange(grid_size, dtype=torch.float32, device=device)
+    grid_h = torch.arange(grid_size, device=device)
+    grid_w = torch.arange(grid_size, device=device)
     grid = torch.meshgrid(
         grid_w, grid_h, indexing="xy"
     )  # here h goes first,direction reversed for numpy
@@ -28,7 +28,7 @@ def get_2d_sincos_pos_embed_with_resolution(
     if cls_token:
         pos_embed = torch.cat(
             [
-                torch.zeros([n, 1, embed_dim], dtype=torch.float32, device=pos_embed.device),
+                torch.zeros([n, 1, embed_dim], device=pos_embed.device),
                 pos_embed,
             ],
             dim=1,
@@ -54,8 +54,7 @@ def get_1d_sincos_pos_embed_from_grid_torch(embed_dim, pos):
     out: (M, D)
     """
     assert embed_dim % 2 == 0
-    omega = torch.arange(embed_dim // 2, dtype=torch.float32, device=pos.device)
-    omega /= embed_dim / 2.0
+    omega = torch.arange(embed_dim // 2, device=pos.device) / embed_dim / 2.0
     omega = 1.0 / 10000**omega  # (D/2,)
 
     pos = pos.reshape(-1)  # (M,)
@@ -71,10 +70,10 @@ def get_1d_sincos_pos_embed_from_grid_torch(embed_dim, pos):
 def get_month_encoding_table(embed_dim):
     """Sinusoid month encoding table, for 12 months indexed from 0-11"""
     assert embed_dim % 2 == 0
-    angles = np.arange(0, 13) / (12 / (2 * np.pi))
+    angles = torch.arange(0, 13) / (12 / (2 * np.pi))
 
-    sin_table = np.sin(np.stack([angles for _ in range(embed_dim // 2)], axis=-1))
-    cos_table = np.cos(np.stack([angles for _ in range(embed_dim // 2)], axis=-1))
-    month_table = np.concatenate([sin_table[:-1], cos_table[:-1]], axis=-1)
+    sin_table = torch.sin(torch.stack([angles for _ in range(embed_dim // 2)], axis=-1))
+    cos_table = torch.cos(torch.stack([angles for _ in range(embed_dim // 2)], axis=-1))
+    month_table = torch.concatenate([sin_table[:-1], cos_table[:-1]], axis=-1)
 
     return month_table  # (M, D)
