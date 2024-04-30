@@ -50,14 +50,14 @@ def mse_loss(
     p_s_t,
     p_s,
     p_t,
-    expanded_s_t,
-    expanded_s,
-    expanded_t,
+    expanded_s_t_m,
+    expanded_s_m,
+    expanded_t_m,
 ):
     return F.mse_loss(
-        torch.concat([p_s_t[expanded_s_t], p_s[expanded_s], p_t[expanded_t]]),
+        torch.concat([p_s_t[expanded_s_t_m], p_s[expanded_s_m], p_t[expanded_t_m]]),
         torch.concat(
-            [expanded_s_t_x[expanded_s_t], expanded_s_x[expanded_s], t_x[expanded_t]]
+            [expanded_s_t_x[expanded_s_t_m], expanded_s_x[expanded_s_m], t_x[expanded_t_m]]
         ).float(),
     )
 
@@ -69,16 +69,18 @@ def norm_per_channel_loss(
     p_s_t,
     p_s,
     p_t,
-    expanded_s_t,
-    expanded_s,
-    expanded_t,
+    expanded_s_t_m,
+    expanded_s_m,
+    expanded_t_m,
 ):
     """
     MSE loss with target normalization per channel.
     """
     expanded_s_t_x, expanded_s_x, t_x = group_per_channel(expanded_s_t_x, expanded_s_x, t_x)
     p_s_t, p_s, p_t = group_per_channel(p_s_t, p_s, p_t)
-    expanded_s_t, expanded_s, expanded_t = group_per_channel(expanded_s_t, expanded_s, expanded_t)
+    expanded_s_t_m, expanded_s_m, expanded_t_m = group_per_channel(
+        expanded_s_t_m, expanded_s_m, expanded_t_m
+    )
 
     # normalize the targets per channel
     norm_expanded_s_t_x = normalize(expanded_s_t_x)
@@ -92,9 +94,9 @@ def norm_per_channel_loss(
         p_s_t,
         p_s,
         p_t,
-        expanded_s_t,
-        expanded_s,
-        expanded_t,
+        expanded_s_t_m,
+        expanded_s_m,
+        expanded_t_m,
     )
 
 
@@ -105,40 +107,44 @@ def norm_per_c_g_loss(
     p_s_t,
     p_s,
     p_t,
-    expanded_s_t,
-    expanded_s,
-    expanded_t,
+    expanded_s_t_m,
+    expanded_s_m,
+    expanded_t_m,
 ):
     """
     MSE loss with target normalization per channel group.
     """
     target_s_t_l, target_s_l, target_t_l, p_s_t_l, p_s_l, p_t_l = [], [], [], [], [], []
+
+    # group, normalize, and mask arrays per channel group
     for _, channel_idxs in SPACE_TIME_BANDS_GROUPS_IDX.items():
         norm_s_t_x_c_g = normalize(
             rearrange((expanded_s_t_x[:, :, :, :, channel_idxs]), "b h w t c -> b (c h w t)")
         )
-        s_t_c_g = rearrange((expanded_s_t[:, :, :, :, channel_idxs]), "b h w t c -> b (c h w t)")
+        s_t_m_c_g = rearrange(
+            (expanded_s_t_m[:, :, :, :, channel_idxs]), "b h w t c -> b (c h w t)"
+        )
 
         p_s_t_l.append(
-            rearrange((p_s_t[:, :, :, :, channel_idxs]), "b h w t c -> b (c h w t)")[s_t_c_g]
+            rearrange((p_s_t[:, :, :, :, channel_idxs]), "b h w t c -> b (c h w t)")[s_t_m_c_g]
         )
-        target_s_t_l.append(norm_s_t_x_c_g[s_t_c_g])
+        target_s_t_l.append(norm_s_t_x_c_g[s_t_m_c_g])
 
     for _, channel_idxs in SPACE_BAND_GROUPS_IDX.items():
         norm_s_x_c_g = normalize(
             rearrange((expanded_s_x[:, :, :, channel_idxs]), "b h w c -> b (c h w)")
         )
-        s_c_g = rearrange((expanded_s[:, :, :, channel_idxs]), "b h w c -> b (c h w)")
+        s_m_c_g = rearrange((expanded_s_m[:, :, :, channel_idxs]), "b h w c -> b (c h w)")
 
-        p_s_l.append(rearrange((p_s[:, :, :, channel_idxs]), "b h w c -> b (c h w)")[s_c_g])
-        target_s_l.append(norm_s_x_c_g[s_c_g])
+        p_s_l.append(rearrange((p_s[:, :, :, channel_idxs]), "b h w c -> b (c h w)")[s_m_c_g])
+        target_s_l.append(norm_s_x_c_g[s_m_c_g])
 
     for _, channel_idxs in TIME_BAND_GROUPS_IDX.items():
         norm_t_x_c_g = normalize(rearrange((t_x[:, :, channel_idxs]), "b t c -> b (c t)"))
-        t_c_g = rearrange((expanded_t[:, :, channel_idxs]), "b t c -> b (c t)")
+        t_m_c_g = rearrange((expanded_t_m[:, :, channel_idxs]), "b t c -> b (c t)")
 
-        p_t_l.append(rearrange((p_t[:, :, channel_idxs]), "b t c -> b (c t)")[t_c_g])
-        target_t_l.append(norm_t_x_c_g[t_c_g])
+        p_t_l.append(rearrange((p_t[:, :, channel_idxs]), "b t c -> b (c t)")[t_m_c_g])
+        target_t_l.append(norm_t_x_c_g[t_m_c_g])
 
     return mse_loss(
         torch.concat(target_s_t_l),
@@ -147,6 +153,7 @@ def norm_per_c_g_loss(
         torch.concat(p_s_t_l),
         torch.concat(p_s_l),
         torch.concat(p_t_l),
+        # mask has already been applied, so unmask everything for the mse loss
         torch.ones_like(torch.concat(target_s_t_l)).bool(),
         torch.ones_like(torch.concat(target_s_l)).bool(),
         torch.ones_like(torch.concat(target_t_l)).bool(),
@@ -160,9 +167,9 @@ def norm_per_timestep_loss(
     p_s_t,
     p_s,
     p_t,
-    expanded_s_t,
-    expanded_s,
-    expanded_t,
+    expanded_s_t_m,
+    expanded_s_m,
+    expanded_t_m,
 ):
     """
     MSE loss with target normalization per timestep.
@@ -171,7 +178,7 @@ def norm_per_timestep_loss(
     # time only arrays don't need to be rearranged because already in shape (b, t, c)
     expanded_s_t_x = rearrange(expanded_s_t_x, "b h w t c -> b t (h w c)")
     p_s_t = rearrange(p_s_t, "b h w t c -> b t (h w c)")
-    expanded_s_t = rearrange(expanded_s_t, "b h w t c -> b t (h w c)")
+    expanded_s_t_m = rearrange(expanded_s_t_m, "b h w t c -> b t (h w c)")
 
     # normalize the targets per timestep
     norm_expanded_s_t_x = normalize(expanded_s_t_x)
@@ -184,9 +191,9 @@ def norm_per_timestep_loss(
         p_s_t,
         p_s,
         p_t,
-        expanded_s_t,
-        expanded_s,
-        expanded_t,
+        expanded_s_t_m,
+        expanded_s_m,
+        expanded_t_m,
     )
 
 
@@ -197,9 +204,9 @@ def norm_per_patch_loss(
     p_s_t,
     p_s,
     p_t,
-    expanded_s_t,
-    expanded_s,
-    expanded_t,
+    expanded_s_t_m,
+    expanded_s_m,
+    expanded_t_m,
     patch_size,
 ):
     """
@@ -209,7 +216,7 @@ def norm_per_patch_loss(
     # group variable in space arrays per patch
     expanded_s_t_x, expanded_s_x = group_per_patch(expanded_s_t_x, expanded_s_x, patch_size)
     p_s_t, p_s = group_per_patch(p_s_t, p_s, patch_size)
-    expanded_s_t, expanded_s = group_per_patch(expanded_s_t, expanded_s, patch_size)
+    expanded_s_t_m, expanded_s_m = group_per_patch(expanded_s_t_m, expanded_s_m, patch_size)
 
     # normalize the targets per patch
     norm_expanded_s_t_x = (expanded_s_t_x - expanded_s_t_x.mean(dim=-1, keepdim=True)) / (
@@ -226,9 +233,9 @@ def norm_per_patch_loss(
         p_s_t,
         p_s,
         p_t,
-        expanded_s_t,
-        expanded_s,
-        expanded_t,
+        expanded_s_t_m,
+        expanded_s_m,
+        expanded_t_m,
     )
 
 
@@ -239,9 +246,9 @@ def mae_loss(
     p_s_t,
     p_s,
     p_t,
-    expanded_s_t,
-    expanded_s,
-    expanded_t,
+    expanded_s_t_m,
+    expanded_s_m,
+    expanded_t_m,
     patch_size,
     loss_type,
 ):
@@ -261,9 +268,9 @@ def mae_loss(
             p_s_t,
             p_s,
             p_t,
-            expanded_s_t,
-            expanded_s,
-            expanded_t,
+            expanded_s_t_m,
+            expanded_s_m,
+            expanded_t_m,
             patch_size=patch_size,
         )
     elif loss_type == "norm_per_c_g":
@@ -274,9 +281,9 @@ def mae_loss(
             p_s_t,
             p_s,
             p_t,
-            expanded_s_t,
-            expanded_s,
-            expanded_t,
+            expanded_s_t_m,
+            expanded_s_m,
+            expanded_t_m,
         )
     elif loss_type == "norm_per_channel":
         return norm_per_channel_loss(
@@ -286,9 +293,9 @@ def mae_loss(
             p_s_t,
             p_s,
             p_t,
-            expanded_s_t,
-            expanded_s,
-            expanded_t,
+            expanded_s_t_m,
+            expanded_s_m,
+            expanded_t_m,
         )
     elif loss_type == "norm_per_timestep":
         return norm_per_timestep_loss(
@@ -298,9 +305,9 @@ def mae_loss(
             p_s_t,
             p_s,
             p_t,
-            expanded_s_t,
-            expanded_s,
-            expanded_t,
+            expanded_s_t_m,
+            expanded_s_m,
+            expanded_t_m,
         )
     else:
         return mse_loss(
@@ -310,7 +317,7 @@ def mae_loss(
             p_s_t,
             p_s,
             p_t,
-            expanded_s_t,
-            expanded_s,
-            expanded_t,
+            expanded_s_t_m,
+            expanded_s_m,
+            expanded_t_m,
         )
