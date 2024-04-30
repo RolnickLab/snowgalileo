@@ -1,15 +1,21 @@
 import logging
+import tempfile
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import h5py
 import numpy as np
+import torch
 from cropharvest.bands import BANDS
 from cropharvest.columns import NullableColumns, RequiredColumns
-from cropharvest.datasets import CropHarvest, Task
+from cropharvest.datasets import CropHarvest, Task, TestInstance
 from cropharvest.datasets import CropHarvestLabels as OrgCropHarvestLabels
 from cropharvest.utils import NoDataForBoundingBoxError, memoized
 from einops import repeat
+from sklearn.base import BaseEstimator
+from sklearn.metrics import f1_score
+from sklearn.model_selection import train_test_split
+from torch.utils.data import DataLoader, TensorDataset, default_collate
 from torch.utils.data import Dataset as TorchDataset
 
 from ..data.dataset import (
@@ -23,8 +29,10 @@ from ..data.dataset import (
     normalize_space_time,
     normalize_time,
 )
-from ..utils import DEFAULT_SEED, data_dir
-from .eval import EvalTask
+from ..flexipresto import Encoder
+from ..masking import MaskedOutput
+from ..utils import DEFAULT_SEED, data_dir, device
+from .eval import EvalTask, Hyperparams, model_class_name
 
 logger = logging.getLogger("__main__")
 
@@ -121,49 +129,22 @@ def download_cropharvest_data(root_name: str = ""):
         CropHarvest(root, download=True)
 
 
-class CropHarvestEval(EvalTask):
-    regression = False
-    multilabel = False
-    num_outputs = 1
+class CropHarvestEvalBase(EvalTask):
     start_month = 1
-    num_timesteps = None
-
-    country_to_sizes: Dict[str, List] = {
-        "Kenya": [20, 32, 64, 96, 128, 160, 192, 224, 256, None],
-        "Togo": [20, 50, 126, 254, 382, 508, 636, 764, 892, 1020, 1148, None],
-    }
-
-    def __init__(
-        self,
-        country: str,
-        num_timesteps: Optional[int] = None,
-        sample_size: Optional[int] = None,
-        seed: int = DEFAULT_SEED,
-    ):
-        download_cropharvest_data()
-
-        evaluation_datasets = get_eval_datasets()
-        evaluation_datasets = [d for d in evaluation_datasets if country in d.id]
-        assert len(evaluation_datasets) == 1
-        self.dataset = evaluation_datasets[0]
-        assert self.dataset.task.normalize is False
-        self.num_timesteps = num_timesteps
-        self.sample_size = sample_size
-
-        suffix = f"_{sample_size}" if sample_size else ""
-        suffix = f"{suffix}_{num_timesteps}" if num_timesteps is not None else suffix
-
-        self.name = f"CropHarvest_{country}{suffix}"
-        super().__init__(patch_size=1, seed=seed)
-
-    def truncate_timesteps(self, x):
-        if (self.num_timesteps is None) or (x is None):
-            return x
-        else:
-            return x[:, : self.num_timesteps]
+    num_timesteps: Optional[int] = None
 
     @staticmethod
-    def cropharvest_array_to_normalized_presto(array: np.ndarray):
+    def truncate_timesteps(x, num_timesteps: Optional[int]):
+        if (num_timesteps is None) or (x is None):
+            return x
+        else:
+            return x[:, :num_timesteps]
+
+    @classmethod
+    def cropharvest_array_to_normalized_presto(
+        cls, array: np.ndarray, start_month: int, timesteps: Optional[int] = None
+    ):
+        array = cls.truncate_timesteps(array, timesteps)
         b, t, _ = array.shape
 
         s_t_x = np.zeros((b, t, len(SPACE_TIME_BANDS)))
@@ -186,11 +167,218 @@ class CropHarvestEval(EvalTask):
         t_m[:, :, TIME_BANDS_TO_CH_BANDS] = 0
         t_m = t_m[:, :, [g[0] for _, g in TIME_BAND_GROUPS_IDX.items()]]
 
+        months = np.fmod(np.arange(start_month - 1, start_month - 1 + t), 12)
+        months = repeat(months, "t -> b t", b=b)
+
         return (
-            normalize_space_time(s_t_x),
-            normalize_space(s_x),
-            normalize_time(t_x),
-            s_t_m,
-            s_m,
-            t_m,
+            torch.from_numpy(normalize_space_time(s_t_x)),
+            torch.from_numpy(normalize_space(s_x)),
+            torch.from_numpy(normalize_time(t_x)),
+            torch.from_numpy(s_t_m),
+            torch.from_numpy(s_m),
+            torch.from_numpy(t_m),
+            torch.from_numpy(months),
         )
+
+    @staticmethod
+    def collate_fn(batch):
+        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, label = default_collate(batch)
+        return MaskedOutput(s_t_x, s_x, t_x, s_t_m, s_m, t_m, months), label
+
+
+class CropHarvestEval(CropHarvestEvalBase):
+    regression = False
+    multilabel = False
+    num_outputs = 1
+
+    country_to_sizes: Dict[str, List] = {
+        "Kenya": [20, 32, 64, 96, 128, 160, 192, 224, 256, None],
+        "Togo": [20, 50, 126, 254, 382, 508, 636, 764, 892, 1020, 1148, None],
+    }
+
+    def __init__(
+        self,
+        country: str,
+        num_timesteps: Optional[int] = None,
+        sample_size: Optional[int] = None,
+        seed: int = DEFAULT_SEED,
+    ):
+        download_cropharvest_data()
+
+        evaluation_datasets = get_eval_datasets()
+        evaluation_datasets = [d for d in evaluation_datasets if country in d.id]
+        assert len(evaluation_datasets) == 1
+        self.dataset: CropHarvest = evaluation_datasets[0]
+        assert self.dataset.task.normalize is False
+        self.num_timesteps = num_timesteps
+        self.sample_size = sample_size
+
+        suffix = f"_{sample_size}" if sample_size else ""
+        suffix = f"{suffix}_{num_timesteps}" if num_timesteps is not None else suffix
+
+        self.name = f"CropHarvest_{country}{suffix}"
+        super().__init__(patch_size=1, seed=seed)
+
+    @torch.no_grad()
+    def _evaluate_model(self, pretrained_model: Encoder, sklearn_model: BaseEstimator) -> Dict:
+        pretrained_model.eval()
+        with tempfile.TemporaryDirectory() as results_dir:
+            for test_id, test_instance, test_dw_instance in self.dataset.test_data(max_size=10000):
+                savepath = Path(results_dir) / f"{test_id}.nc"
+
+                masked_output = self.cropharvest_array_to_normalized_presto(
+                    test_instance.x, self.start_month, self.num_timesteps
+                )
+                s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
+                s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
+                    s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
+                )
+                encodings = (
+                    pretrained_model.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m).cpu().numpy()
+                )
+                preds = sklearn_model.predict_proba(encodings)[:, 1]
+                ds = test_instance.to_xarray(preds)
+                ds.to_netcdf(savepath)
+
+            all_nc_files = list(Path(results_dir).glob("*.nc"))
+            combined_instance, combined_preds = TestInstance.load_from_nc(all_nc_files)
+            combined_results = combined_instance.evaluate_predictions(combined_preds)
+
+        prefix = sklearn_model.__class__.__name__
+        return {f"{self.name}: {prefix}_{key}": val for key, val in combined_results.items()}
+
+    def evaluate_model_on_task(
+        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
+    ) -> Dict:
+        if model_modes is None:
+            model_modes = self.all_classification_sklearn_models
+        for model_mode in model_modes:
+            assert model_mode in self.all_classification_sklearn_models
+
+        array, labels = self.dataset.as_array()
+        train_dl = DataLoader(
+            TensorDataset(
+                *self.cropharvest_array_to_normalized_presto(
+                    array,
+                    timesteps=self.num_timesteps,
+                    start_month=self.start_month,
+                ),
+                torch.from_numpy(labels),
+            ),
+            batch_size=Hyperparams.batch_size,
+            shuffle=True,
+            num_workers=Hyperparams.num_workers,
+        )
+        trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
+        results_dict = {}
+        for sklearn_model in trained_sklearn_models:
+            results_dict.update(self._evaluate_model(pretrained_model, sklearn_model))
+        return results_dict
+
+
+class MultiClassCropHarvestEval(CropHarvestEvalBase):
+    regression = False
+    num_outputs = 10
+
+    def __init__(
+        self,
+        val_ratio: float = 0.2,
+        n_per_class: Optional[int] = 100,
+        seed: int = DEFAULT_SEED,
+    ):
+        download_cropharvest_data()
+        task = Task(normalize=False)
+        labels = CropHarvestLabels(cropharvest_data_dir)
+        paths_and_y = labels.construct_fao_classification_labels(task, filter_test=True)
+
+        y = [x[1] for x in paths_and_y]
+        unique_ys = np.unique(y)
+        y_string_to_int = {val: idx for idx, val in enumerate(np.unique(y))}
+
+        train_paths_and_y, val_paths_and_y = train_test_split(
+            paths_and_y, test_size=val_ratio, stratify=y, random_state=42
+        )
+
+        if n_per_class is not None:
+            indices_to_keep = []
+            y_train = np.array([x[1] for x in train_paths_and_y])
+            for y_val in unique_ys:
+                y_val_indices = np.where(y_train == y_val)[0]
+                indices_to_keep.append(y_val_indices[:n_per_class])
+            train_paths_and_y = [train_paths_and_y[i] for i in np.concatenate(indices_to_keep)]
+            assert len(train_paths_and_y) <= n_per_class * len(unique_ys)
+        self.dataset = MultiClassCropHarvest(train_paths_and_y, y_string_to_int)
+        self.eval_dataset = MultiClassCropHarvest(val_paths_and_y, y_string_to_int)
+
+        name_suffix = f"_{n_per_class}" if n_per_class is not None else ""
+        self.name = f"CropHarvest_multiclass_global{name_suffix}_{seed}"
+        super().__init__(patch_size=1, seed=seed)
+
+    @torch.no_grad()
+    def _evaluate_models(
+        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator]
+    ) -> Dict:
+        dl = DataLoader(
+            self.eval_dataset,
+            batch_size=Hyperparams.batch_size,
+            shuffle=False,
+            num_workers=Hyperparams.num_workers,
+        )
+
+        test_true = []
+        pred_dict: Dict[str, BaseEstimator] = {
+            model_class_name(model): [] for model in sklearn_models
+        }
+        for x, _, y in dl:
+            masked_output = self.cropharvest_array_to_normalized_presto(
+                x, self.start_month, self.num_timesteps
+            )
+            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
+            s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
+                s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
+            )
+            encodings = (
+                pretrained_model.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m).cpu().numpy()
+            )
+            for model in sklearn_models:
+                pred_dict[model_class_name(model)].append(model.predict(encodings))
+            test_true.append(y)
+
+        test_true_np = np.concatenate(test_true)
+        results_dict = {}
+
+        for model_name_str, pred_list in pred_dict.items():
+            test_preds_np = np.concatenate(pred_list, axis=0)
+            prefix = f"{model_name_str}"
+            results_dict.update(
+                {
+                    f"{self.name}: {prefix}_num_samples": len(test_true_np),
+                    f"{self.name}: {prefix}_f1_score": f1_score(
+                        test_true_np, test_preds_np, average="weighted"
+                    ),
+                }
+            )
+        return results_dict
+
+    def evaluate_model_on_task(
+        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
+    ) -> Dict:
+        if model_modes is None:
+            model_modes = self.all_classification_sklearn_models
+        for model_mode in model_modes:
+            assert model_mode in self.all_classification_sklearn_models
+
+        array, _, labels = self.dataset.as_array()
+        train_dl = DataLoader(
+            TensorDataset(
+                *self.cropharvest_array_to_normalized_presto(
+                    array, self.start_month, timesteps=self.num_timesteps
+                ),
+                torch.from_numpy(labels),
+            ),
+            batch_size=Hyperparams.batch_size,
+            shuffle=True,
+            num_workers=Hyperparams.num_workers,
+        )
+        trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
+        return self._evaluate_models(pretrained_model, trained_sklearn_models)
