@@ -24,7 +24,8 @@ class TestCropHarvest(unittest.TestCase):
             s_t_m,
             s_m,
             t_m,
-        ) = CropHarvestEval.cropharvest_array_to_normalized_presto(array)
+            months,
+        ) = CropHarvestEval.cropharvest_array_to_normalized_presto(array, start_month=1)
 
         self.assertEqual(s_t_x.shape, (b, 1, 1, t, len(SPACE_TIME_BANDS)))
         self.assertEqual(s_t_m.shape, (b, 1, 1, t, len(SPACE_TIME_BANDS_GROUPS_IDX)))
@@ -38,3 +39,4 @@ class TestCropHarvest(unittest.TestCase):
         self.assertEqual(t_x.shape, (b, t, len(TIME_BANDS)))
         self.assertEqual(t_m.shape, (b, t, len(TIME_BAND_GROUPS_IDX)))
         self.assertTrue((t_m == 0).all())
+        self.assertEqual(months.shape, (b, t))
