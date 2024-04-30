@@ -8,7 +8,6 @@ from typing import List, cast
 import codecarbon
 import psutil
 import torch
-import torch.nn.functional as F
 from torch.utils.data import BatchSampler, DataLoader
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
