@@ -112,7 +112,7 @@ for e in tqdm(range(training_config["num_epochs"])):
         b = [t.to(device) for t in b]
         s_t_x, s_x, t_x, months = b
 
-        # randomly sample a patch size, and a corresponding image size
+        # randomly sample a patch size
         patch_size = np.random.choice(training_config["patch_sizes"])
         image_size = patch_size * training_config["spatial_patches_per_dim"]
         s_t_x, s_x = subset_batch_of_images(s_t_x, s_x, image_size)

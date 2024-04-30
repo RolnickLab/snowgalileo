@@ -8,8 +8,7 @@ from typing import List, cast
 import codecarbon
 import psutil
 import torch
-import torch.nn.functional as F
-from torch.utils.data import DataLoader
+from torch.utils.data import BatchSampler, DataLoader
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
@@ -26,11 +25,14 @@ from src.eval import (
 )
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
+from src.loss import mae_loss
 from src.utils import (
     AverageMeter,
     data_dir,
     device,
+    is_bf16_available,
     load_check_config,
+    plot_space_time_predictions,
     seed_everything,
     timestamp_dirname,
 )
@@ -47,15 +49,15 @@ tracker = codecarbon.EmissionsTracker(
     output_dir=data_dir,
 )
 
-# test:
-# https://pytorch.org/blog/what-every-user-should-know-about-mixed-precision-training-in-pytorch/
 torch.backends.cuda.matmul.allow_tf32 = True
+autocast_device = torch.bfloat16 if is_bf16_available() else torch.float32
 
 tracker.start()
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--config_file", type=str, default="small.json")
 args = argparser.parse_args().__dict__
+
 
 config = load_check_config(args["config_file"], "mae")
 training_config = config["training"]
@@ -105,6 +107,42 @@ if wandb_enabled:
     config["training"]["training_samples"] = len(dataset)
     wandb.config.update(config)
 
+    # prepare random images to plot during training
+    if training_config["wandb_plot_every_n_epochs"] > 0:
+        assert training_config["num_images_to_wandb_plot"] > 0
+        assert len(training_config["patch_sizes_to_wandb_plot"]) > 0
+        assert len(training_config["timesteps_to_wandb_plot"]) > 0
+
+        examples_to_plot = {}
+
+        for p in training_config["patch_sizes_to_wandb_plot"]:
+            # call the collate function with current patch size
+            plot_dataloader = DataLoader(
+                dataset,
+                shuffle=False,
+                batch_sampler=BatchSampler([1, 2, 3], batch_size=1, drop_last=False),
+                collate_fn=partial(
+                    mae_collate_fn,
+                    patch_sizes=training_config["patch_sizes"],
+                    spatial_patches_per_dim=training_config["spatial_patches_per_dim"],
+                    mask_ratio=training_config["mask_ratio"],
+                    time_ratio=training_config["time_ratio"],
+                    space_ratio=training_config["space_ratio"],
+                    channel_ratio=training_config["channel_ratio"],
+                    fixed_patch_size=p,
+                ),
+            )
+
+            prepared_image_to_plot = {}
+            for image_id, b in enumerate(plot_dataloader):
+                b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
+                prepared_image_to_plot[image_id] = b
+                if len(prepared_image_to_plot) >= training_config["num_images_to_wandb_plot"]:
+                    break
+
+            examples_to_plot[p] = prepared_image_to_plot
+            print(f"Prepared {len(prepared_image_to_plot)} images for patch size {p}")
+        print(f"all {len(examples_to_plot)} images for patch size")
 
 param_groups = [{"params": encoder.parameters()}, {"params": predictor.parameters()}]
 
@@ -142,31 +180,64 @@ for e in tqdm(range(training_config["num_epochs"])):
             min_lr=training_config["final_lr"],
         )
 
-        # generate the predictions. TODO: add layer norm
-        (p_s_t, p_s, p_t) = predictor(
-            *encoder(
-                s_t_x,
-                s_x,
-                t_x,
-                s_t_m,
-                s_m,
-                t_m,
-                months,
+        with torch.autocast(device_type=device.type, dtype=autocast_device):
+            (p_s_t, p_s, p_t) = predictor(
+                *encoder(
+                    s_t_x,
+                    s_x,
+                    t_x,
+                    s_t_m,
+                    s_m,
+                    t_m,
+                    months.long(),
+                    patch_size=patch_size,
+                ),
                 patch_size=patch_size,
-            ),
-            patch_size=patch_size,
+            )
+
+        loss = mae_loss(
+            expanded_s_t_x,
+            expanded_s_x,
+            t_x,
+            p_s_t,
+            p_s,
+            p_t,
+            s_t_m_p,
+            s_m_p,
+            t_m_p,
+            patch_size=training_config["patch_sizes"][-1],
+            loss_type=training_config["mae_loss"],
         )
 
-        loss = F.mse_loss(
-            torch.concat([p_s_t[s_t_m_p], p_s[s_m_p], p_t[t_m_p]]),
-            torch.concat([expanded_s_t_x[s_t_m_p], expanded_s_x[s_m_p], t_x[t_m_p]]).float(),
-        )
         loss.backward()
         optimizer.step()
         train_loss.update(loss.item(), n=s_t_x.shape[0])
 
     if wandb_enabled:
         wandb.log({"train_loss": train_loss.average})
+
+        if (training_config["wandb_plot_every_n_epochs"] != 0) and (
+            e % training_config["wandb_plot_every_n_epochs"] == 0
+        ):
+            plot_list = []
+            for patch_size, patch_size_dict in examples_to_plot.items():
+                for image_id, prepared_image in patch_size_dict.items():
+                    plot_list.append(
+                        plot_space_time_predictions(
+                            epoch=e,
+                            encoder=encoder,
+                            predictor=predictor,
+                            training_config=training_config,
+                            prepared_image=prepared_image,
+                            image_id=image_id,
+                        )
+                    )
+            for patch_size, plot in [
+                (patch_size, plot)
+                for plot_dict in plot_list
+                for patch_size, plot in plot_dict.items()
+            ]:
+                wandb.log({f"plot_mae_patch_size_{patch_size}": plot})
 
     if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
         e % training_config["eval_eurosat_every_n_epochs"] == 0
