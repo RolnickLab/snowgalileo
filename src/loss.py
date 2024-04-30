@@ -54,17 +54,6 @@ def mse_loss(
     expanded_s,
     expanded_t,
 ):
-    print(
-        expanded_s_t_x.shape,
-        expanded_s_x.shape,
-        t_x.shape,
-        p_s_t.shape,
-        p_s.shape,
-        p_t.shape,
-        expanded_s_t.shape,
-        expanded_s.shape,
-        expanded_t.shape,
-    )
     return F.mse_loss(
         torch.concat([p_s_t[expanded_s_t], p_s[expanded_s], p_t[expanded_t]]),
         torch.concat(
