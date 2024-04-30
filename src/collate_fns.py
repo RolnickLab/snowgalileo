@@ -15,12 +15,22 @@ from src.masking import (
 
 @torch.no_grad()
 def mae_collate_fn(
-    batch, patch_sizes, spatial_patches_per_dim, mask_ratio, time_ratio, space_ratio, channel_ratio
+    batch,
+    patch_sizes,
+    spatial_patches_per_dim,
+    mask_ratio,
+    time_ratio,
+    space_ratio,
+    channel_ratio,
+    fixed_patch_size=None,
 ):
     s_t_x, s_x, t_x, months = default_collate(batch)
 
-    # randomly sample a patch size, and a corresponding image size
-    patch_size = np.random.choice(patch_sizes)
+    if fixed_patch_size is not None:
+        patch_size = fixed_patch_size
+    else:
+        # randomly sample a patch size, and a corresponding image size
+        patch_size = np.random.choice(patch_sizes)
     image_size = patch_size * spatial_patches_per_dim
     s_t_x, s_x = subset_batch_of_images(s_t_x, s_x, image_size)
     s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = batch_mask_presto(
@@ -80,15 +90,15 @@ def mae_collate_fn(
         expanded_s_x = s_x
 
     return (
-        s_t_x.float(),
-        s_x.float(),
-        t_x.float(),
-        s_t_m.float(),
-        s_m.float(),
-        t_m.float(),
-        months.long(),
-        expanded_s_t_x.float(),
-        expanded_s_x.float(),
+        s_t_x,
+        s_x,
+        t_x,
+        s_t_m,
+        s_m,
+        t_m,
+        months,
+        expanded_s_t_x,
+        expanded_s_x,
         expanded_s_t,
         expanded_s,
         expanded_t,

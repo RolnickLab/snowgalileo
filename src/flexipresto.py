@@ -368,7 +368,7 @@ class FlexiPrestoBase(nn.Module):
             ),
             requires_grad=False,
         )
-        month_tab = torch.from_numpy(get_month_encoding_table(int(embedding_size * 0.25))).float()
+        month_tab = get_month_encoding_table(int(embedding_size * 0.25))
         self.month_embed = nn.Embedding.from_pretrained(month_tab, freeze=True)
         self.s_t_channel_embed = nn.Parameter(
             torch.zeros(len(SPACE_TIME_BANDS_GROUPS_IDX), int(embedding_size * 0.25))
@@ -500,9 +500,7 @@ class FlexiPrestoBase(nn.Module):
         t_channel = repeat(self.t_channel_embed, "c_g d -> b t c_g d", b=b, t=t)
         pos_embed_t = repeat(self.pos_embed[:t], "t d -> b t c_g d", b=b, c_g=t_c_g)
         m_embed_t = repeat(self.month_embed(months), "b t d -> b t c_g d", c_g=t_c_g)
-        t_zeros = torch.zeros(
-            b, t, t_c_g, int(self.embedding_size * 0.25), device=t_x.device
-        ).float()
+        t_zeros = torch.zeros(b, t, t_c_g, int(self.embedding_size * 0.25), device=t_x.device)
 
         s_channel = repeat(self.s_channel_embed, "c_g d -> b h w c_g d", b=b, h=h, w=w)
         s_zeros = torch.zeros(
@@ -512,7 +510,7 @@ class FlexiPrestoBase(nn.Module):
             s_c_g,
             s_channel.shape[-1] * 2,
             device=s_channel.device,
-        ).float()
+        )
 
         # find the resolution that each token represents, which will be
         # the number of pixels in a patch * the resolution of each pixel
@@ -732,7 +730,6 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         s_t_m_reshaped = repeat(self.mask_token, "d -> b h w t c d", b=B, h=H, w=W, t=T, c=S_T_C)
         s_t_m_add = s_t_m_reshaped * s_t_m.unsqueeze(-1)
         s_t_m = s_t_m * 0  # all values are unmasked now
-
         s_x = s_x * (1 - s_m).unsqueeze(-1)
         S_C = s_x.shape[-2]
         s_m_reshaped = repeat(self.mask_token, "d -> b h w c d", b=B, h=H, w=W, c=S_C)

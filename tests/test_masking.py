@@ -33,8 +33,8 @@ class TestMasking(unittest.TestCase):
         self.assertEqual((b, h, w, len(SPACE_BAND_GROUPS_IDX)), output.space_mask.shape)
         self.assertEqual((b, t, len(TIME_BAND_GROUPS_IDX)), output.time_mask.shape)
         # collapse the dynamic_mask along the time dimension
-        space_time_mask_along_t = output.space_time_mask.mean(axis=(1, 2, 4))  # b, t
-        time_mask_along_t = output.time_mask.mean(axis=-1)  # b, t
+        space_time_mask_along_t = output.space_time_mask.float().mean(axis=(1, 2, 4))  # b, t
+        time_mask_along_t = output.time_mask.float().mean(axis=-1)  # b, t
         self.assertTrue(torch.equal(space_time_mask_along_t, time_mask_along_t))
         self.assertTrue(np.isin(space_time_mask_along_t, (0, 1)).all())
         self.assertTrue(
@@ -59,7 +59,7 @@ class TestMasking(unittest.TestCase):
         self.assertEqual((b, h, w, len(SPACE_BAND_GROUPS_IDX)), output.space_mask.shape)
         self.assertEqual((b, t, len(TIME_BAND_GROUPS_IDX)), output.time_mask.shape)
         # collapse the space_time_mask along the time and space dimensions
-        space_time_mask_along_c = output.space_time_mask.mean(axis=(1, 2, 3))  # b, c
+        space_time_mask_along_c = output.space_time_mask.float().mean(axis=(1, 2, 3))  # b, c
         expected_num_channels_masked = int(len(SPACE_TIME_BANDS_GROUPS_IDX) * mask_ratio)
         self.assertTrue(
             (space_time_mask_along_c.sum(axis=1) == expected_num_channels_masked).all()
@@ -80,8 +80,8 @@ class TestMasking(unittest.TestCase):
         self.assertEqual((b, h, w, len(SPACE_BAND_GROUPS_IDX)), output.space_mask.shape)
         self.assertEqual((b, t, len(TIME_BAND_GROUPS_IDX)), output.time_mask.shape)
         # collapse the masks along h, w dimensions
-        d_along_hw = output.space_time_mask.mean(axis=(3, 4))  # b, h, w
-        s_along_hw = output.space_mask.mean(axis=(3))  # b, h, w
+        d_along_hw = output.space_time_mask.float().mean(axis=(3, 4))  # b, h, w
+        s_along_hw = output.space_mask.float().mean(axis=(3))  # b, h, w
         self.assertTrue(torch.equal(d_along_hw, s_along_hw))
         self.assertTrue((d_along_hw.sum(axis=1).sum(axis=1) / (h * w) == mask_ratio).all())
 
