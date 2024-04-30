@@ -14,6 +14,7 @@ from src.data.config import NUM_TIMESTEPS
 from src.data.dataset import SPACE_BANDS, SPACE_TIME_BANDS, TIME_BANDS, DatasetOutput
 from src.flexipresto import Encoder, PrestoPixelDecoder, PrestoRepresentationDecoder
 from src.masking import batch_mask_presto, subset_batch_of_images
+from src.utils import device
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/tifs"
 
@@ -56,18 +57,21 @@ class TestPresto(unittest.TestCase):
             patch_size=patch_size,
             time_ratio=0.25,
             space_ratio=0.25,
+            channel_ratio=0.25,
         )
         # for now, we just make sure it all runs
-        encoder_output = encoder(
-            masked_output.space_time_x.float(),
-            masked_output.space_x.float(),
-            masked_output.time_x.float(),
-            masked_output.space_time_mask.float(),
-            masked_output.space_mask.float(),
-            masked_output.time_mask.float(),
-            masked_output.months.long(),
-            patch_size=patch_size,
-        )
+        with torch.autocast(device_type=device.type, dtype=torch.float16):
+            encoder_output = encoder(
+                masked_output.space_time_x.float(),
+                masked_output.space_x.float(),
+                masked_output.time_x.float(),
+                masked_output.space_time_mask.float(),
+                masked_output.space_mask.float(),
+                masked_output.time_mask.float(),
+                masked_output.months.long(),
+                patch_size=patch_size,
+            )
+            output = decoder(*encoder_output)
 
         self.assertTrue(
             list(encoder_output[0].shape)
@@ -103,7 +107,6 @@ class TestPresto(unittest.TestCase):
         self.assertFalse(torch.isnan(encoder_output[1]).any())
         self.assertFalse(torch.isnan(encoder_output[2]).any())
 
-        output = decoder(*encoder_output)
         self.assertTrue(
             list(output[0].shape)
             == [
@@ -164,19 +167,22 @@ class TestPresto(unittest.TestCase):
             patch_size=patch_size,
             time_ratio=0.25,
             space_ratio=0.25,
+            channel_ratio=0.25,
         )
 
         # for now, we just make sure it all runs
-        encoder_output = encoder(
-            masked_output.space_time_x.float(),
-            masked_output.space_x.float(),
-            masked_output.time_x.float(),
-            masked_output.space_time_mask.float(),
-            masked_output.space_mask.float(),
-            masked_output.time_mask.float(),
-            masked_output.months.long(),
-            patch_size=patch_size,
-        )
+        with torch.autocast(device_type=device.type, dtype=torch.float16):
+            encoder_output = encoder(
+                masked_output.space_time_x,
+                masked_output.space_x,
+                masked_output.time_x,
+                masked_output.space_time_mask,
+                masked_output.space_mask,
+                masked_output.time_mask,
+                masked_output.months.long(),
+                patch_size=patch_size,
+            )
+            output = decoder(*encoder_output)
 
         self.assertTrue(
             list(encoder_output[0].shape)
@@ -212,7 +218,6 @@ class TestPresto(unittest.TestCase):
         self.assertFalse(torch.isnan(encoder_output[1]).any())
         self.assertFalse(torch.isnan(encoder_output[2]).any())
 
-        output = decoder(*encoder_output)
         self.assertTrue(
             list(output[0].shape)
             == [
