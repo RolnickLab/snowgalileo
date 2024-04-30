@@ -8,7 +8,6 @@ from typing import List, cast
 import codecarbon
 import psutil
 import torch
-import torch.nn.functional as F
 from torch.utils.data import BatchSampler, DataLoader
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
@@ -20,6 +19,7 @@ from src.data.config import DATA_FOLDER, EE_PROJECT, OUTPUT_FOLDER
 from src.eval import EuroSatEval, So2SatEval, TreeSatEval
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
+from src.loss import mae_loss
 from src.utils import (
     AverageMeter,
     data_dir,
@@ -188,10 +188,20 @@ for e in tqdm(range(training_config["num_epochs"])):
                 patch_size=patch_size,
             )
 
-            loss = F.mse_loss(
-                torch.concat([p_s_t[s_t_m_p], p_s[s_m_p], p_t[t_m_p]]),
-                torch.concat([expanded_s_t_x[s_t_m_p], expanded_s_x[s_m_p], t_x[t_m_p]]),
-            )
+        loss = mae_loss(
+            expanded_s_t_x,
+            expanded_s_x,
+            t_x,
+            p_s_t,
+            p_s,
+            p_t,
+            s_t_m_p,
+            s_m_p,
+            t_m_p,
+            patch_size=training_config["patch_sizes"][-1],
+            loss_type=training_config["mae_loss"],
+        )
+
         loss.backward()
         optimizer.step()
         train_loss.update(loss.item(), n=s_t_x.shape[0])
