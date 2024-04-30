@@ -202,7 +202,7 @@ for e in tqdm(range(training_config["num_epochs"])):
             patch_size=training_config["patch_sizes"][-1],
             loss_type=training_config["mae_loss"],
         )
-        
+
         loss.backward()
         optimizer.step()
         train_loss.update(loss.item(), n=s_t_x.shape[0])
