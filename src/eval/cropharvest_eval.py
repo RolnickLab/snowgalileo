@@ -26,7 +26,7 @@ from ..data.dataset import (
 )
 from ..flexipresto import Encoder
 from ..masking import MaskedOutput
-from ..utils import DEFAULT_SEED, data_dir, device
+from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
 from .cropharvest.bands import BANDS
 from .cropharvest.columns import NullableColumns, RequiredColumns
 from .cropharvest.datasets import CropHarvest, Task, TestInstance
@@ -170,14 +170,14 @@ class CropHarvestEvalBase(EvalTask):
         months = np.fmod(np.arange(start_month - 1, start_month - 1 + t), 12)
         months = repeat(months, "t -> b t", b=b)
 
-        return (
-            torch.from_numpy(normalize_space_time(s_t_x)),
-            torch.from_numpy(normalize_space(s_x)),
-            torch.from_numpy(normalize_time(t_x)),
-            torch.from_numpy(s_t_m),
-            torch.from_numpy(s_m),
-            torch.from_numpy(t_m),
-            torch.from_numpy(months),
+        return masked_output_np_to_tensor(
+            normalize_space_time(s_t_x),
+            normalize_space(s_x),
+            normalize_time(t_x),
+            s_t_m,
+            s_m,
+            t_m,
+            months,
         )
 
     @staticmethod
