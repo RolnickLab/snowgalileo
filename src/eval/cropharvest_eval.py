@@ -132,7 +132,7 @@ def download_cropharvest_data(root_name: str = ""):
 class CropHarvestEvalBase(EvalTask):
     start_month = 1
     num_timesteps: Optional[int] = None
-    multlabel = False
+    multilabel = False
     regression = False
 
     @staticmethod
