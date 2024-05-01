@@ -268,6 +268,7 @@ class CropHarvestEval(CropHarvestEvalBase):
             batch_size=Hyperparams.batch_size,
             shuffle=True,
             num_workers=Hyperparams.num_workers,
+            collate_fn=self.collate_fn,
         )
         trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
         results_dict = {}
@@ -379,6 +380,7 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
             batch_size=Hyperparams.batch_size,
             shuffle=True,
             num_workers=Hyperparams.num_workers,
+            collate_fn=self.collate_fn,
         )
         trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
         return self._evaluate_models(pretrained_model, trained_sklearn_models)
