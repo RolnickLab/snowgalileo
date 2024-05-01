@@ -1,16 +1,11 @@
 import logging
 import tempfile
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple, cast
 
 import h5py
 import numpy as np
 import torch
-from cropharvest.bands import BANDS
-from cropharvest.columns import NullableColumns, RequiredColumns
-from cropharvest.datasets import CropHarvest, Task, TestInstance
-from cropharvest.datasets import CropHarvestLabels as OrgCropHarvestLabels
-from cropharvest.utils import NoDataForBoundingBoxError, memoized
 from einops import repeat
 from sklearn.base import BaseEstimator
 from sklearn.metrics import f1_score
@@ -32,6 +27,11 @@ from ..data.dataset import (
 from ..flexipresto import Encoder
 from ..masking import MaskedOutput
 from ..utils import DEFAULT_SEED, data_dir, device
+from .cropharvest.bands import BANDS
+from .cropharvest.columns import NullableColumns, RequiredColumns
+from .cropharvest.datasets import CropHarvest, Task, TestInstance
+from .cropharvest.datasets import CropHarvestLabels as OrgCropHarvestLabels
+from .cropharvest.utils import NoDataForBoundingBoxError, memoized
 from .eval import EvalTask, Hyperparams, model_class_name
 
 logger = logging.getLogger("__main__")
@@ -52,7 +52,7 @@ TIME_BANDS_TO_CH_BANDS = [idx for idx, s in enumerate(TIME_BANDS) if s in BANDS]
 class CropHarvestLabels(OrgCropHarvestLabels):
     def construct_fao_classification_labels(
         self, task: Task, filter_test: bool = True
-    ) -> List[Tuple[Tuple[Path, Path], int]]:
+    ) -> List[Tuple[Path, int]]:
         gpdf = self.as_geojson()
         if filter_test:
             gpdf = gpdf[gpdf[RequiredColumns.IS_TEST] == False]  # noqa
@@ -71,7 +71,7 @@ class CropHarvestLabels(OrgCropHarvestLabels):
         ys = gpdf[NullableColumns.CLASSIFICATION_LABEL]
         paths = self._dataframe_to_paths(gpdf)
 
-        return [(path, y) for path, y in zip(paths, ys) if (path[0].exists() and path[1].exists())]
+        return [(path, y) for path, y in zip(paths, ys) if path.exists()]
 
 
 class MultiClassCropHarvest(TorchDataset):
@@ -223,11 +223,11 @@ class CropHarvestEval(CropHarvestEvalBase):
     def _evaluate_model(self, pretrained_model: Encoder, sklearn_model: BaseEstimator) -> Dict:
         pretrained_model.eval()
         with tempfile.TemporaryDirectory() as results_dir:
-            for test_id, test_instance, test_dw_instance in self.dataset.test_data(max_size=10000):
+            for test_id, test_instance in self.dataset.test_data(max_size=10000):
                 savepath = Path(results_dir) / f"{test_id}.nc"
 
                 masked_output = self.cropharvest_array_to_normalized_presto(
-                    test_instance.x, self.start_month, self.num_timesteps
+                    cast(np.ndarray, test_instance.x), self.start_month, self.num_timesteps
                 )
                 s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
                 s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
