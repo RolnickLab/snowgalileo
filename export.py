@@ -8,6 +8,7 @@ import geopandas
 
 from src.data import EarthEngineExporter
 from src.data.config import DATA_FOLDER, EE_PROJECT
+from src.data.earthengine.eo import LAT, LON
 from src.utils import DEFAULT_SEED
 
 os.environ["GOOGLE_CLOUD_PROJECT"] = EE_PROJECT
@@ -23,9 +24,9 @@ filepath = DATA_FOLDER / "pretraining_points" / args["filename"]
 assert filepath.exists()
 latlons = geopandas.read_file(filepath).sample(frac=1, random_state=DEFAULT_SEED)
 
-if "lat" not in latlons.columns():
-    latlons["lon"] = latlons.geometry.centroid.x.values
-    latlons["lat"] = latlons.geometry.centroid.y.values
+if LAT not in latlons.columns():
+    latlons[LON] = latlons.geometry.centroid.x.values
+    latlons[LAT] = latlons.geometry.centroid.y.values
 
 exporter = EarthEngineExporter(check_gcp=True)
 exporter.export_for_latlons(latlons[args["start_export_from_idx"] :], args["num_exports"])
