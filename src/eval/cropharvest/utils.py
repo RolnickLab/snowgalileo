@@ -9,7 +9,7 @@ from urllib.request import Request, urlopen
 import geopandas
 import h5py
 import numpy as np
-from cropharvest.config import DATASET_URL
+from .config import DATASET_URL
 from tqdm import tqdm
 
 DATAFOLDER_PATH = Path(__file__).parent.parent / "data"
