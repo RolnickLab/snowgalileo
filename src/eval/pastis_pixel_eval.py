@@ -1,15 +1,15 @@
-from math import sqrt
-from typing import Dict, List, Optional, Tuple, cast
+from typing import Dict, List, Optional, Sequence, Tuple, cast
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import torch.multiprocessing
 from einops import repeat
+from sklearn.base import BaseEstimator
+from sklearn.metrics import accuracy_score
+from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as PyTorchDataset
-from torchmetrics import JaccardIndex
-from torch.nn import functional as F
 from tqdm import tqdm
 
 from ..data.dataset import (
@@ -25,12 +25,13 @@ from ..data.earthengine.s2 import S2_BANDS
 from ..flexipresto import Encoder
 from ..masking import MaskedOutput
 from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
-from .eval import EvalTask, Hyperparams
+from .eval import EvalTask, Hyperparams, model_class_name
 
 ### SETUP
 torch.multiprocessing.set_sharing_strategy("file_system")
 
 Masked_Output_and_Label = Tuple[MaskedOutput, torch.Tensor]
+
 
 class PastisPixelDataset(PyTorchDataset):
     labels_to_int = {
@@ -75,7 +76,7 @@ class PastisPixelDataset(PyTorchDataset):
             average_s2_over_month: Whether to average the Sentinel-2 data over months.
             n_pixels_per_parcel: Number of pixels randomly sampled from each parcel.
             ignore_label: If not None, the parcels annotated with this label are removed from the dataset.
-        
+
         """
         self.folds = folds
         assert all(fold in [1, 2, 3, 4, 5] for fold in self.folds)
@@ -93,7 +94,7 @@ class PastisPixelDataset(PyTorchDataset):
             self.meta = pd.concat([self.meta[self.meta["Fold"] == f] for f in folds])
         if ignore_label is not None:
             self.meta = self.meta[self.meta["Label"] != ignore_label]
-        
+
         self.meta.sort_index(inplace=True)
 
         self.id_parcels = self.meta.index
@@ -141,7 +142,7 @@ class PastisPixelDataset(PyTorchDataset):
         assert (t_m == 1).all()
 
         return (s_t_m, s_m, t_m)
-    
+
     @staticmethod
     def repeat_pixel(pixels, n_pixels_per_parcel):
         """
@@ -162,7 +163,7 @@ class PastisPixelDataset(PyTorchDataset):
             x = pixels
             pixel_mask = np.array([1 for _ in range(n_pixels_per_parcel)])
         return x, pixel_mask
-    
+
     @staticmethod
     def sample_pixels(pixels, n_pixels_per_parcel):
         """
@@ -213,7 +214,6 @@ class PastisPixelDataset(PyTorchDataset):
 
         return averages_all_months, all_months, missing_timestep_indeces
 
-
     def get_eo_array_and_masks(
         self, id_parcel: int, id_patch: int
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -221,11 +221,11 @@ class PastisPixelDataset(PyTorchDataset):
         Loads the image for a given ID, handles missing timesteps and normalizes the data.
         Also provides static and month data, and creates masks for missing data.
         """
-        
+
         # Shape of the data: T x C x NR_PIXELS
-        s2 = np.load(data_dir / cast(str, self.data_path) / "DATA_S2/S2_{}.npy".format(id_parcel)).astype(
-            np.float32
-        )
+        s2 = np.load(
+            data_dir / cast(str, self.data_path) / "DATA_S2/S2_{}.npy".format(id_parcel)
+        ).astype(np.float32)
 
         print(f"Data shape after loading: {s2.shape}")
 
@@ -243,7 +243,7 @@ class PastisPixelDataset(PyTorchDataset):
 
         s2, months, missing_timestep_indeces = self.average_over_month(s2, months)
 
-        print(f"Data shape after month average: {s2.shape}") 
+        print(f"Data shape after month average: {s2.shape}")
 
         kept_dynamic_bands = [idx for idx, x in enumerate(SPACE_TIME_BANDS) if (x in S2_BANDS)]
 
@@ -266,23 +266,44 @@ class PastisPixelDataset(PyTorchDataset):
         )
 
         return normalize_space_time(s_t_x), s_x, t_x, s_t_m, s_m, t_m, months
-    
-    def get_and_cache_data(self):
 
+    def get_and_cache_data(self):
         print("Number of parcels: ", self.meta.shape[0])
 
         for i in range(self.meta.shape[0]):
             id_parcel = self.id_parcels[i]
             id_patch = self.id_patches[id_parcel]
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = self.get_eo_array_and_masks(id_parcel, id_patch)
-            label = torch.from_numpy(np.array(self.labels[id_parcel] - 1, dtype=int)) # 0-indexed
+            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = self.get_eo_array_and_masks(
+                id_parcel, id_patch
+            )
+            label = torch.from_numpy(np.array(self.labels[id_parcel] - 1, dtype=int))  # 0-indexed
 
             if i == 0:
-                s_t_x_cache = np.zeros((self.meta.shape[0], s_t_x.shape[0], s_t_x.shape[1], s_t_x.shape[2], s_t_x.shape[3]))
-                s_x_cache = np.zeros((self.meta.shape[0], s_x.shape[0], s_x.shape[1], s_x.shape[2]))
+                s_t_x_cache = np.zeros(
+                    (
+                        self.meta.shape[0],
+                        s_t_x.shape[0],
+                        s_t_x.shape[1],
+                        s_t_x.shape[2],
+                        s_t_x.shape[3],
+                    )
+                )
+                s_x_cache = np.zeros(
+                    (self.meta.shape[0], s_x.shape[0], s_x.shape[1], s_x.shape[2])
+                )
                 t_x_cache = np.zeros((self.meta.shape[0], t_x.shape[0], t_x.shape[1]))
-                s_t_m_cache = np.zeros((self.meta.shape[0], s_t_m.shape[0], s_t_m.shape[1], s_t_m.shape[2], s_t_m.shape[3]))
-                s_m_cache = np.zeros((self.meta.shape[0], s_m.shape[0], s_m.shape[1], s_m.shape[2]))
+                s_t_m_cache = np.zeros(
+                    (
+                        self.meta.shape[0],
+                        s_t_m.shape[0],
+                        s_t_m.shape[1],
+                        s_t_m.shape[2],
+                        s_t_m.shape[3],
+                    )
+                )
+                s_m_cache = np.zeros(
+                    (self.meta.shape[0], s_m.shape[0], s_m.shape[1], s_m.shape[2])
+                )
                 t_m_cache = np.zeros((self.meta.shape[0], t_m.shape[0], t_m.shape[1]))
                 months_cache = np.zeros((self.meta.shape[0], months.shape[0]))
                 label_cache = np.zeros((self.meta.shape[0], 1))
@@ -295,24 +316,18 @@ class PastisPixelDataset(PyTorchDataset):
             t_m_cache[i] = t_m
             months_cache[i] = months
             label_cache[i] = label
-        return np.stack([s_t_x_cache, s_x_cache, t_x_cache, s_t_m_cache, s_m_cache, t_m_cache, months_cache, label_cache], axis=0)
-
+        return (
+            s_t_x_cache,
+            s_x_cache,
+            t_x_cache,
+            s_t_m_cache,
+            s_m_cache,
+            t_m_cache,
+            months_cache,
+        ), label_cache
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
-
-        id_parcel = self.id_parcels[idx]
-        id_patch = self.id_patches[id_parcel]
-
-        if not self.cache or idx not in self.memory.keys():
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = self.get_eo_array_and_masks(id_parcel, id_patch)
-            label = torch.from_numpy(np.array(self.labels[id_parcel] - 1, dtype=int)) # 0-indexed
-        
-            if self.cache:
-                self.memory[idx] = (s_t_x, s_x, t_x, s_t_m, s_m, t_m, months)
-
-        else:
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = self.memory[idx]
-            label = torch.from_numpy(np.array(self.labels[id_parcel] - 1, dtype=int)) # 0-indexed
+        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = self.data[idx]
 
         return (
             masked_output_np_to_tensor(
@@ -324,100 +339,97 @@ class PastisPixelDataset(PyTorchDataset):
                 t_m,
                 months,
             ),
-            label,
+            self.labels[idx],
         )
 
     def __len__(self):
         return self.len
-    
+
+
 ds = PastisPixelDataset()
 b, l = ds[0]
 
-"""
+
 class PastisEval(EvalTask):
-    name = "pastis"
+    name = "pastis_pixel"
     regression = False
     multilabel = False
-    segmentation = True
-    num_outputs = len(PastisDataset.labels_to_int)
-    input_height_width = PastisDataset.input_height_width
+    segmentation = False
+    num_outputs = len(PastisPixelDataset.labels_to_int)
+    input_height_width = PastisPixelDataset.input_height_width
 
     def __init__(
         self,
         average_months: bool = True,
-        num_subtiles_per_image: int = 4,
-        patch_size: int = 8,
+        patch_size: int = 1,
         seed=DEFAULT_SEED,
     ):
         self.average_months = average_months
-        self.num_subtiles_per_image = num_subtiles_per_image
         super().__init__(patch_size, seed)
-        self.input_height_width = self.input_height_width // int(
-            sqrt(cast(float, self.num_subtiles_per_image))
-        )
-        self.name = f"{self.name}_{'AVERAGED_MONTHS' if self.average_months else 'ALL_MONTHS'}_hw{self.input_height_width}"
+        self.name = f"{self.name}_{'AVERAGED_MONTHS' if self.average_months else 'ALL_MONTHS'}"
+
+    def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
+        return {
+            f"{self.name}: {model_name}_accuracy_score": accuracy_score(target, preds),
+        }
 
     @torch.no_grad()
-    def _evaluate_model(self, finetuned_model: PrestoFineTuningModel) -> Dict:
+    def _evaluate_model(
+        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator]
+    ) -> Dict:
         test_dl = DataLoader(
-            PastisDataset(
-                folds=[1],
-                average_s2_over_month=self.average_months,
-                num_subtiles_per_image=self.num_subtiles_per_image,
-            ),
+            PastisPixelDataset(folds=[1]),
             batch_size=Hyperparams.batch_size,
             shuffle=False,
             num_workers=Hyperparams.num_workers,
         )
+        pred_dict: Dict[str, BaseEstimator] = {
+            model_class_name(model): [] for model in sklearn_models
+        }
 
-        mean_IoU = []
+        labels_list = []
 
         for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
             s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
-            label = label.to(device)
 
-            jaccard_mean = JaccardIndex(task="multiclass", num_classes=self.num_outputs).to(device)
-
-            finetuned_model.eval()
+            pretrained_model.eval()
 
             with torch.no_grad():
-                preds = finetuned_model(
+                s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
                     s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
                 )
-                mean_IoU.append(jaccard_mean(preds, label).item())
+                encodings = (
+                    pretrained_model.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m).cpu().numpy()
+                )
 
-        return {f"{self.name}: finetuned_mean_iou": np.mean(mean_IoU)}
+            labels_list.append(label.cpu().numpy())
+
+            for model in sklearn_models:
+                preds = model.predict(encodings)
+                pred_dict[model_class_name(model)].append(preds)
+
+        target = np.concatenate(labels_list)
+        results_dict = {}
+
+        for model_name_str, pred_list in pred_dict.items():
+            test_preds_np = np.concatenate(pred_list, axis=0)
+            prefix = f"{model_name_str}"
+            results_dict.update(self.compute_metrics(prefix, test_preds_np, target))
+        return results_dict
 
     def evaluate_model_on_task(
         self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
     ) -> Dict:
         if model_modes is None:
-            model_modes = ["finetune"]
+            model_modes = self.all_classification_sklearn_models
         for model_mode in model_modes:
-            assert model_mode in ["finetune"]
+            assert model_mode in self.all_classification_sklearn_models
 
         train_dl = DataLoader(
-            PastisDataset(
-                folds=[3, 4, 5],
-                average_s2_over_month=self.average_months,
-                num_subtiles_per_image=self.num_subtiles_per_image,
-            ),
+            PastisPixelDataset(folds=[2, 3, 4, 5]),
             batch_size=Hyperparams.batch_size,
             shuffle=True,
             num_workers=Hyperparams.num_workers,
         )
-
-        val_dl = DataLoader(
-            PastisDataset(
-                folds=[2],
-                average_s2_over_month=self.average_months,
-                num_subtiles_per_image=self.num_subtiles_per_image,
-            ),
-            batch_size=Hyperparams.batch_size,
-            shuffle=False,
-            num_workers=Hyperparams.num_workers,
-        )
-
-        finetuned_model = self.finetune_presto(train_dl, val_dl, pretrained_model)
-        return self._evaluate_model(finetuned_model)
-"""
+        trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
+        return self._evaluate_model(pretrained_model, trained_sklearn_models)
