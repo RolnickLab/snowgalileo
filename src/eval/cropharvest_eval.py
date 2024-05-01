@@ -87,8 +87,8 @@ class MultiClassCropHarvest(TorchDataset):
         return len(self.paths_and_y)
 
     def __getitem__(self, index: int) -> Tuple[np.ndarray, np.ndarray, int]:
-        paths, y = self.paths_and_y[index]
-        satellite_data = h5py.File(paths[0], "r")
+        path, y = self.paths_and_y[index]
+        satellite_data = h5py.File(path, "r")
         lat = satellite_data.attrs["instance_lat"]
         lon = satellite_data.attrs["instance_lon"]
         return (
