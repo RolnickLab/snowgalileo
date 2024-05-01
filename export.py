@@ -24,7 +24,7 @@ filepath = DATA_FOLDER / "pretraining_points" / args["filename"]
 assert filepath.exists()
 latlons = geopandas.read_file(filepath).sample(frac=1, random_state=DEFAULT_SEED)
 
-if LAT not in latlons.columns():
+if LAT not in latlons.columns:
     latlons[LON] = latlons.geometry.centroid.x.values
     latlons[LAT] = latlons.geometry.centroid.y.values
 
