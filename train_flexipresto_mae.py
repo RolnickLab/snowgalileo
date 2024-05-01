@@ -214,7 +214,7 @@ for e in tqdm(range(training_config["num_epochs"])):
         train_loss.update(loss.item(), n=s_t_x.shape[0])
 
     if wandb_enabled:
-        wandb.log({"train_loss": train_loss.average})
+        to_log = {"train_loss": train_loss.average, "epoch": e}
 
         if (training_config["wandb_plot_every_n_epochs"] != 0) and (
             e % training_config["wandb_plot_every_n_epochs"] == 0
@@ -237,15 +237,15 @@ for e in tqdm(range(training_config["num_epochs"])):
                 for plot_dict in plot_list
                 for patch_size, plot in plot_dict.items()
             ]:
-                wandb.log({f"plot_mae_patch_size_{patch_size}": plot})
+                to_log[f"plot_mae_patch_size_{patch_size}"] = plot
 
-    if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
-        e % training_config["eval_eurosat_every_n_epochs"] == 0
-    ):
-        results = val_task.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
-        results.update(val_task_ts.evaluate_model_on_task(encoder, model_modes=["KNNat5"]))
-        if wandb_enabled:
-            wandb.log(results)
+        if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
+            e % training_config["eval_eurosat_every_n_epochs"] == 0
+        ):
+            results = val_task.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
+            results.update(val_task_ts.evaluate_model_on_task(encoder, model_modes=["KNNat5"]))
+            to_log.update(results)
+        wandb.log(to_log)
 
 model_path = OUTPUT_FOLDER / timestamp_dirname(run_id)
 model_path.mkdir()
