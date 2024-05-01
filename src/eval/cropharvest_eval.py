@@ -132,6 +132,8 @@ def download_cropharvest_data(root_name: str = ""):
 class CropHarvestEvalBase(EvalTask):
     start_month = 1
     num_timesteps: Optional[int] = None
+    multlabel = False
+    regression = False
 
     @staticmethod
     def truncate_timesteps(x, num_timesteps: Optional[int]):
@@ -187,8 +189,6 @@ class CropHarvestEvalBase(EvalTask):
 
 
 class CropHarvestEval(CropHarvestEvalBase):
-    regression = False
-    multilabel = False
     num_outputs = 1
 
     country_to_sizes: Dict[str, List] = {
@@ -278,7 +278,6 @@ class CropHarvestEval(CropHarvestEvalBase):
 
 
 class MultiClassCropHarvestEval(CropHarvestEvalBase):
-    regression = False
     num_outputs = 10
 
     def __init__(
