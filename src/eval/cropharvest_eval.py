@@ -309,13 +309,11 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
             assert len(train_paths_and_y) <= n_per_class * len(unique_ys)
 
         array, _, labels = MultiClassCropHarvest(train_paths_and_y, y_string_to_int).as_array()
-        self.train_dataset = (
-            TensorDataset(
-                *self.cropharvest_array_to_normalized_presto(
-                    array, self.start_month, timesteps=self.num_timesteps
-                ),
-                torch.from_numpy(labels),
+        self.train_dataset = TensorDataset(
+            *self.cropharvest_array_to_normalized_presto(
+                array, self.start_month, timesteps=self.num_timesteps
             ),
+            torch.from_numpy(labels),
         )
         self.eval_dataset = MultiClassCropHarvest(val_paths_and_y, y_string_to_int)
 
