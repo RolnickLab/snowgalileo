@@ -307,7 +307,16 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
                 indices_to_keep.append(y_val_indices[:n_per_class])
             train_paths_and_y = [train_paths_and_y[i] for i in np.concatenate(indices_to_keep)]
             assert len(train_paths_and_y) <= n_per_class * len(unique_ys)
-        self.dataset = MultiClassCropHarvest(train_paths_and_y, y_string_to_int)
+
+        array, _, labels = MultiClassCropHarvest(train_paths_and_y, y_string_to_int).as_array()
+        self.train_dataset = (
+            TensorDataset(
+                *self.cropharvest_array_to_normalized_presto(
+                    array, self.start_month, timesteps=self.num_timesteps
+                ),
+                torch.from_numpy(labels),
+            ),
+        )
         self.eval_dataset = MultiClassCropHarvest(val_paths_and_y, y_string_to_int)
 
         name_suffix = f"_{n_per_class}" if n_per_class is not None else ""
@@ -368,14 +377,8 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
         for model_mode in model_modes:
             assert model_mode in self.all_classification_sklearn_models
 
-        array, _, labels = self.dataset.as_array()
         train_dl = DataLoader(
-            TensorDataset(
-                *self.cropharvest_array_to_normalized_presto(
-                    array, self.start_month, timesteps=self.num_timesteps
-                ),
-                torch.from_numpy(labels),
-            ),
+            self.train_dataset,
             batch_size=Hyperparams.batch_size,
             shuffle=True,
             num_workers=Hyperparams.num_workers,

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, cast
 
 import codecarbon
+import matplotlib.pyplot as plt
 import psutil
 import torch
 from torch.utils.data import BatchSampler, DataLoader
@@ -246,6 +247,7 @@ for e in tqdm(range(training_config["num_epochs"])):
             results.update(val_task_ts.evaluate_model_on_task(encoder, model_modes=["KNNat5"]))
             to_log.update(results)
         wandb.log(to_log)
+        plt.close("all")
 
 model_path = OUTPUT_FOLDER / timestamp_dirname(run_id)
 model_path.mkdir()
