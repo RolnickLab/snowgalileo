@@ -288,8 +288,9 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
     ):
         download_cropharvest_data()
         task = Task(normalize=False)
-        labels = CropHarvestLabels(cropharvest_data_dir)
-        paths_and_y = labels.construct_fao_classification_labels(task, filter_test=True)
+        paths_and_y = CropHarvestLabels(cropharvest_data_dir).construct_fao_classification_labels(
+            task, filter_test=True
+        )
 
         y = [x[1] for x in paths_and_y]
         unique_ys = np.unique(y)
