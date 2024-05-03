@@ -261,14 +261,17 @@ class EarthEngineExporter:
 
         if f"{filename}.tif" in self.cloud_tif_list:
             # checks that we haven't already exported this file
+            print(f"{filename}.tif already in cloud_tif_files")
             return False
 
         # Check if task is already started in EarthEngine
         if description in self.ee_task_list:
+            print(f"{description} already in ee task list")
             return False
 
         if len(self.ee_task_list) >= 3000:
             # we can only have 3000 running exports at once
+            print("3000 exports started")
             return False
 
         img = create_ee_image(polygon, start_date, end_date)
