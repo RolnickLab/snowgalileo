@@ -130,6 +130,10 @@ def download_cropharvest_data(root_name: str = ""):
 
 
 class CropHarvestEvalBase(EvalTask):
+    """
+    Data is automatically downloaded by this class
+    """
+
     start_month = 1
     num_timesteps: Optional[int] = None
     multilabel = False
@@ -188,7 +192,7 @@ class CropHarvestEvalBase(EvalTask):
         return MaskedOutput(s_t_x, s_x, t_x, s_t_m, s_m, t_m, months), label
 
 
-class CropHarvestEval(CropHarvestEvalBase):
+class BinaryCropHarvestEval(CropHarvestEvalBase):
     num_outputs = 1
 
     country_to_sizes: Dict[str, List] = {
@@ -282,7 +286,7 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
 
     def __init__(
         self,
-        val_ratio: float = 0.2,
+        test_ratio: float = 0.2,
         n_per_class: Optional[int] = 100,
         seed: int = DEFAULT_SEED,
     ):
@@ -297,7 +301,7 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
         y_string_to_int = {val: idx for idx, val in enumerate(np.unique(y))}
 
         train_paths_and_y, val_paths_and_y = train_test_split(
-            paths_and_y, test_size=val_ratio, stratify=y, random_state=42
+            paths_and_y, test_size=test_ratio, stratify=y, random_state=42
         )
 
         if n_per_class is not None:

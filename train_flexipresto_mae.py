@@ -18,7 +18,7 @@ from src.config import DEFAULT_SEED
 from src.data import Dataset
 from src.data.config import DATA_FOLDER, EE_PROJECT, OUTPUT_FOLDER
 from src.eval import (
-    CropHarvestEval,
+    BinaryCropHarvestEval,
     EuroSatEval,
     MultiClassCropHarvestEval,
     So2SatEval,
@@ -258,7 +258,7 @@ eval_tasks: List[EvalTask] = [
     *[TreeSatEval(mode, patch_size) for mode in ["s1", "s2", "combined"] for patch_size in [6, 3]],
     *[EuroSatEval(rgb) for rgb in [True, False]],
     So2SatEval(),
-    *[CropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil", "China"]],
+    *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil", "China"]],
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)
