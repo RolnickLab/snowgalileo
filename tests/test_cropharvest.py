@@ -10,7 +10,7 @@ from src.data.dataset import (
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
 )
-from src.eval.cropharvest_eval import BANDS, CropHarvestEval
+from src.eval.cropharvest_eval import BANDS, BinaryCropHarvestEval
 
 
 class TestCropHarvest(unittest.TestCase):
@@ -25,7 +25,7 @@ class TestCropHarvest(unittest.TestCase):
             s_m,
             t_m,
             months,
-        ) = CropHarvestEval.cropharvest_array_to_normalized_presto(array, start_month=1)
+        ) = BinaryCropHarvestEval.cropharvest_array_to_normalized_presto(array, start_month=1)
 
         self.assertEqual(s_t_x.shape, (b, 1, 1, t, len(SPACE_TIME_BANDS)))
         self.assertEqual(s_t_m.shape, (b, 1, 1, t, len(SPACE_TIME_BANDS_GROUPS_IDX)))
