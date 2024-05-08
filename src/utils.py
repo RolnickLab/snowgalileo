@@ -9,7 +9,6 @@ import dateutil.tz
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import torch.nn.functional as F
 import wandb
 
 from .config import DEFAULT_SEED
@@ -212,15 +211,10 @@ def plot_space_time_predictions(
             pred_to_plot = p_s_t[:, :, :, t, i].squeeze(0).cpu()
             mask_to_plot = expanded_s_t[:, :, :, t, i].squeeze(0).cpu()
 
-            loss = F.mse_loss(
-                x_to_plot[mask_to_plot].float(),
-                pred_to_plot[mask_to_plot].float(),
-            )
-
             x_plot = axs[i, 0].imshow(
                 x_to_plot.numpy(), cmap="gray", vmin=x_to_plot.min(), vmax=x_to_plot.max()
             )
-            axs[i, 0].set_title(f"Input {band}, loss: {loss:.4f}")
+            axs[i, 0].set_title(f"Input {band}")
             fig.colorbar(x_plot, ax=axs[i, 0])
             mask_plot = axs[i, 1].imshow(mask_to_plot.numpy(), cmap="gray")
             axs[i, 1].set_title(f"Mask {band}")
@@ -228,8 +222,8 @@ def plot_space_time_predictions(
             pred_plot = axs[i, 2].imshow(
                 (pred_to_plot * mask_to_plot).numpy(),
                 cmap="gray",
-                vmin=x_to_plot.min(),
-                vmax=x_to_plot.max(),
+                vmin=pred_to_plot.min(),
+                vmax=pred_to_plot.max(),
             )
             axs[i, 2].set_title(f"Output {band}")
             fig.colorbar(pred_plot, ax=axs[i, 2])
