@@ -162,7 +162,8 @@ class PastisPixelDataset(PyTorchDataset):
                 pixel_mask = np.array([1 for _ in range(n_pixels_per_parcel)])
                 pixel_mask[0] = 0
             else:
-                x = F.pad(pixels, [0, n_pixels_per_parcel - pixels.shape[-1]], mode="replicate")
+                npad = ((0, 0), (0, 0), (0, n_pixels_per_parcel - pixels.shape[-1]))
+                x = np.pad(x, pad_width=npad, mode='edge')
                 pixel_mask = np.array(
                     [0 for _ in range(pixels.shape[-1])]
                     + [1 for _ in range(pixels.shape[-1], n_pixels_per_parcel)]
@@ -281,7 +282,7 @@ class PastisPixelDataset(PyTorchDataset):
 
             label = torch.from_numpy(
                 repeat(
-                    np.array(self.labels[id_parcel] - 1, dtype=int), "l -> n l", n=s_t_x.shape[0]
+                    np.array([self.labels[id_parcel] - 1], dtype=int), "l -> n l", n=s_t_x.shape[0]
                 )
             )  # 0-indexed
 
