@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, cast
 
 import codecarbon
+import matplotlib.pyplot as plt
 import psutil
 import torch
 from torch.utils.data import BatchSampler, DataLoader
@@ -16,7 +17,14 @@ from src.collate_fns import mae_collate_fn
 from src.config import DEFAULT_SEED
 from src.data import Dataset
 from src.data.config import DATA_FOLDER, EE_PROJECT, OUTPUT_FOLDER
-from src.eval import EuroSatEval, So2SatEval, TreeSatEval, PastisEval
+from src.eval import (
+    BinaryCropHarvestEval,
+    EuroSatEval,
+    MultiClassCropHarvestEval,
+    So2SatEval,
+    TreeSatEval,
+    PastisEval,
+)
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
 from src.loss import mae_loss
@@ -87,6 +95,7 @@ encoder = Encoder(**config["model"]["encoder"]).to(device)
 predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
 print("Loading validation task")
 val_task = EuroSatEval(rgb=True)
+val_task_ts = MultiClassCropHarvestEval()
 
 if wandb_enabled:
     import wandb
@@ -207,7 +216,7 @@ for e in tqdm(range(training_config["num_epochs"])):
         train_loss.update(loss.item(), n=s_t_x.shape[0])
 
     if wandb_enabled:
-        wandb.log({"train_loss": train_loss.average})
+        to_log = {"train_loss": train_loss.average, "epoch": e}
 
         if (training_config["wandb_plot_every_n_epochs"] != 0) and (
             e % training_config["wandb_plot_every_n_epochs"] == 0
@@ -230,14 +239,16 @@ for e in tqdm(range(training_config["num_epochs"])):
                 for plot_dict in plot_list
                 for patch_size, plot in plot_dict.items()
             ]:
-                wandb.log({f"plot_mae_patch_size_{patch_size}": plot})
+                to_log[f"plot_mae_patch_size_{patch_size}"] = plot
 
-    if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
-        e % training_config["eval_eurosat_every_n_epochs"] == 0
-    ):
-        results = val_task.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
-        if wandb_enabled:
-            wandb.log(results)
+        if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
+            e % training_config["eval_eurosat_every_n_epochs"] == 0
+        ):
+            results = val_task.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
+            results.update(val_task_ts.evaluate_model_on_task(encoder, model_modes=["KNNat5"]))
+            to_log.update(results)
+        wandb.log(to_log)
+        plt.close("all")
 
 model_path = OUTPUT_FOLDER / timestamp_dirname(run_id)
 model_path.mkdir()
@@ -249,6 +260,7 @@ eval_tasks: List[EvalTask] = [
     *[EuroSatEval(rgb) for rgb in [True, False]],
     So2SatEval(),
     PastisEval(),
+    *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil", "China"]],
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)
