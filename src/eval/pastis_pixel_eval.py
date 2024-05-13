@@ -7,7 +7,6 @@ import torch.multiprocessing
 from einops import repeat
 from sklearn.base import BaseEstimator
 from sklearn.metrics import accuracy_score
-from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as PyTorchDataset
 from tqdm import tqdm
@@ -248,6 +247,10 @@ class PastisPixelDataset(PyTorchDataset):
             s2 = np.load(
                 data_dir / cast(str, self.data_path) / "DATA_S2/S2_{}.npy".format(id_parcel)
             ).astype(np.float32)
+
+            # filter pixels with NaNs
+            not_nan = ~np.any(np.isnan(s2), (0, 1))
+            s2 = s2[:, :, not_nan]
 
             # Dates are stored patch-wise in format YYYYMMDD
             dates = self.meta_patch["dates-S2"][id_patch]
