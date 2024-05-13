@@ -163,7 +163,7 @@ class PastisPixelDataset(PyTorchDataset):
                 pixel_mask[0] = 0
             else:
                 npad = ((0, 0), (0, 0), (0, n_pixels_per_parcel - pixels.shape[-1]))
-                x = np.pad(x, pad_width=npad, mode='edge')
+                x = np.pad(pixels, pad_width=npad, mode='edge')
                 pixel_mask = np.array(
                     [0 for _ in range(pixels.shape[-1])]
                     + [1 for _ in range(pixels.shape[-1], n_pixels_per_parcel)]
