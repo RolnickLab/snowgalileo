@@ -109,7 +109,7 @@ class PastisPixelDataset(PyTorchDataset):
         self.len = self.data.shape[0]
 
     def create_pastis_masks(
-        self, missing_timestep_indeces: np.ndarray
+        self, missing_timestep_indeces: np.ndarray, pixel_mask: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Masks unavailable channels and timesteps.
@@ -122,20 +122,28 @@ class PastisPixelDataset(PyTorchDataset):
         s_t_m[s_t_channels] = 0
         s_t_m = repeat(
             s_t_m,
-            "d -> h w t d",
+            "d -> n h w t d",
+            n=self.n_pixels_per_parcel,
             h=self.input_height_width,
             w=self.input_height_width,
             t=self.num_timesteps,
         )
 
+        # mask missing pixels
+        s_t_m[pixel_mask == 1] = 1
         # mask missing timesteps
-        s_t_m[:, :, missing_timestep_indeces, :] = 1
+        s_t_m[:, :, :, missing_timestep_indeces, :] = 1
 
         # no space only / time only channels are available
         s_m = np.ones(
-            [self.input_height_width, self.input_height_width, len(SPACE_BAND_GROUPS_IDX)]
+            [
+                s_t_m.shape[0],
+                self.input_height_width,
+                self.input_height_width,
+                len(SPACE_BAND_GROUPS_IDX),
+            ]
         )
-        t_m = np.ones([self.num_timesteps, len(TIME_BAND_GROUPS_IDX)])
+        t_m = np.ones([s_t_m.shape[0], self.num_timesteps, len(TIME_BAND_GROUPS_IDX)])
 
         assert ((s_t_m == 0) | (s_t_m == 1)).all()
         assert (s_m == 1).all()
@@ -151,17 +159,17 @@ class PastisPixelDataset(PyTorchDataset):
         if pixels.shape[-1] < n_pixels_per_parcel:
             if pixels.shape[-1] == 0:
                 x = torch.zeros((*pixels.shape[:2], n_pixels_per_parcel))
-                pixel_mask = np.array([0 for _ in range(n_pixels_per_parcel)])
-                pixel_mask[0] = 1
+                pixel_mask = np.array([1 for _ in range(n_pixels_per_parcel)])
+                pixel_mask[0] = 0
             else:
                 x = F.pad(pixels, [0, n_pixels_per_parcel - pixels.shape[-1]], mode="replicate")
                 pixel_mask = np.array(
-                    [1 for _ in range(pixels.shape[-1])]
-                    + [0 for _ in range(pixels.shape[-1], n_pixels_per_parcel)]
+                    [0 for _ in range(pixels.shape[-1])]
+                    + [1 for _ in range(pixels.shape[-1], n_pixels_per_parcel)]
                 )
         else:
             x = pixels
-            pixel_mask = np.array([1 for _ in range(n_pixels_per_parcel)])
+            pixel_mask = np.array([0 for _ in range(n_pixels_per_parcel)])
         return x, pixel_mask
 
     @staticmethod
@@ -212,110 +220,131 @@ class PastisPixelDataset(PyTorchDataset):
         # fill up with zeros if there are months without observations
         averages_all_months[unique_months] = averages_months_with_data
 
-        return averages_all_months, all_months, missing_timestep_indeces
-
-    def get_eo_array_and_masks(
-        self, id_parcel: int, id_patch: int
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Loads the image for a given ID, handles missing timesteps and normalizes the data.
-        Also provides static and month data, and creates masks for missing data.
-        """
-
-        # Shape of the data: T x C x NR_PIXELS
-        s2 = np.load(
-            data_dir / cast(str, self.data_path) / "DATA_S2/S2_{}.npy".format(id_parcel)
-        ).astype(np.float32)
-
-        print(f"Data shape after loading: {s2.shape}")
-
-        s2, mask = self.repeat_pixel(s2, self.n_pixels_per_parcel)
-        s2 = self.sample_pixels(s2, self.n_pixels_per_parcel)
-
-        print(f"Data shape after repeat: {s2.shape}")
-
-        dates = self.meta_patch["dates-S2"][id_patch]
-        # the dates are in the format YYYYMMDD
-        months = (
-            np.array([int(str(value)[4:6]) for _, value in dates.items()]) - 1
-        )  # 0-indexed months
-        assert all(0 <= month <= 11 for month in months)
-
-        s2, months, missing_timestep_indeces = self.average_over_month(s2, months)
-
-        print(f"Data shape after month average: {s2.shape}")
-
-        kept_dynamic_bands = [idx for idx, x in enumerate(SPACE_TIME_BANDS) if (x in S2_BANDS)]
-
-        s_t_x = np.zeros(
-            [
-                self.input_height_width,
-                self.input_height_width,
-                self.num_timesteps,
-                len(SPACE_TIME_BANDS),
-            ]
+        return (
+            averages_all_months,
+            repeat(all_months, "m -> n m", n=self.n_pixels_per_parcel),
+            missing_timestep_indeces,
         )
-        s_t_x[:, :, kept_dynamic_bands] = repeat(s2, "t c h w -> h w t c")
-
-        # space only / time only bands are not provided by pastis
-        s_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
-        t_x = np.zeros((s_t_x.shape[2], len(TIME_BANDS)))
-
-        s_t_m, s_m, t_m = self.create_pastis_masks(
-            missing_timestep_indeces=missing_timestep_indeces
-        )
-
-        return normalize_space_time(s_t_x), s_x, t_x, s_t_m, s_m, t_m, months
 
     def get_and_cache_data(self):
-        print("Number of parcels: ", self.meta.shape[0])
-
+        """
+        Preprocess and cache data pixel-wise.
+        """
+        # iterate through parcels
         for i in range(self.meta.shape[0]):
             id_parcel = self.id_parcels[i]
             id_patch = self.id_patches[id_parcel]
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = self.get_eo_array_and_masks(
-                id_parcel, id_patch
+
+            # Shape of the data: T x C x NR_PIXELS
+            s2 = np.load(
+                data_dir / cast(str, self.data_path) / "DATA_S2/S2_{}.npy".format(id_parcel)
+            ).astype(np.float32)
+
+            # Dates are stored patch-wise in format YYYYMMDD
+            dates = self.meta_patch["dates-S2"][id_patch]
+            months = (
+                np.array([int(str(value)[4:6]) for _, value in dates.items()]) - 1
+            )  # 0-indexed months
+            assert all(0 <= month <= 11 for month in months)
+
+            # bring to consistent number of pixels per parcel
+            s2, pixel_mask = self.repeat_pixel(s2, self.n_pixels_per_parcel)
+            s2 = self.sample_pixels(s2, self.n_pixels_per_parcel)
+
+            s2, months, missing_timestep_indeces = self.average_over_month(s2, months)
+            s2 = normalize_space_time(repeat(s2, "t c n -> n h w t c", h=1, w=1))
+
+            print(f"Data shape after preprocessing: {s2.shape}")
+
+            s_t_x = np.zeros(
+                (
+                    s2.shape[0],
+                    self.input_height_width,
+                    self.input_height_width,
+                    self.num_timesteps,
+                    len(SPACE_TIME_BANDS),
+                )
             )
-            label = torch.from_numpy(np.array(self.labels[id_parcel] - 1, dtype=int))  # 0-indexed
+
+            kept_dynamic_bands = [idx for idx, x in enumerate(SPACE_TIME_BANDS) if (x in S2_BANDS)]
+
+            s_t_x[:, :, :, :, kept_dynamic_bands] = s2
+            # space only / time only bands are not provided by pastis
+            s_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], s_t_x.shape[2], len(SPACE_BANDS)))
+            t_x = np.zeros((s_t_x.shape[0], s_t_x.shape[3], len(TIME_BANDS)))
+
+            s_t_m, s_m, t_m = self.create_pastis_masks(
+                missing_timestep_indeces=missing_timestep_indeces,
+                pixel_mask=pixel_mask,
+            )
+
+            label = torch.from_numpy(
+                repeat(
+                    np.array(self.labels[id_parcel] - 1, dtype=int), "l -> n l", n=s_t_x.shape[0]
+                )
+            )  # 0-indexed
+
+            num_pixels = self.meta.shape[0] * self.n_pixels_per_parcel
 
             if i == 0:
                 s_t_x_cache = np.zeros(
                     (
-                        self.meta.shape[0],
-                        s_t_x.shape[0],
+                        num_pixels,
                         s_t_x.shape[1],
                         s_t_x.shape[2],
                         s_t_x.shape[3],
+                        s_t_x.shape[4],
                     )
                 )
-                s_x_cache = np.zeros(
-                    (self.meta.shape[0], s_x.shape[0], s_x.shape[1], s_x.shape[2])
-                )
-                t_x_cache = np.zeros((self.meta.shape[0], t_x.shape[0], t_x.shape[1]))
+                s_x_cache = np.zeros((num_pixels, s_x.shape[1], s_x.shape[2], s_x.shape[3]))
+                t_x_cache = np.zeros((num_pixels, t_x.shape[1], t_x.shape[2]))
                 s_t_m_cache = np.zeros(
                     (
-                        self.meta.shape[0],
-                        s_t_m.shape[0],
+                        num_pixels,
                         s_t_m.shape[1],
                         s_t_m.shape[2],
                         s_t_m.shape[3],
+                        s_t_m.shape[4],
                     )
                 )
-                s_m_cache = np.zeros(
-                    (self.meta.shape[0], s_m.shape[0], s_m.shape[1], s_m.shape[2])
-                )
-                t_m_cache = np.zeros((self.meta.shape[0], t_m.shape[0], t_m.shape[1]))
-                months_cache = np.zeros((self.meta.shape[0], months.shape[0]))
-                label_cache = np.zeros((self.meta.shape[0], 1))
+                s_m_cache = np.zeros((num_pixels, s_m.shape[1], s_m.shape[2], s_m.shape[3]))
+                t_m_cache = np.zeros((num_pixels, t_m.shape[1], t_m.shape[2]))
+                months_cache = np.zeros((num_pixels, months.shape[1]))
+                label_cache = np.zeros((num_pixels, 1))
 
-            s_t_x_cache[i] = s_t_x
-            s_x_cache[i] = s_x
-            t_x_cache[i] = t_x
-            s_t_m_cache[i] = s_t_m
-            s_m_cache[i] = s_m
-            t_m_cache[i] = t_m
-            months_cache[i] = months
-            label_cache[i] = label
+            # fill arrays with parcel-wise data
+            s_t_x_cache[
+                i * self.n_pixels_per_parcel : i * self.n_pixels_per_parcel
+                + self.n_pixels_per_parcel
+            ] = s_t_x
+            s_x_cache[
+                i * self.n_pixels_per_parcel : i * self.n_pixels_per_parcel
+                + self.n_pixels_per_parcel
+            ] = s_x
+            t_x_cache[
+                i * self.n_pixels_per_parcel : i * self.n_pixels_per_parcel
+                + self.n_pixels_per_parcel
+            ] = t_x
+            s_t_m_cache[
+                i * self.n_pixels_per_parcel : i * self.n_pixels_per_parcel
+                + self.n_pixels_per_parcel
+            ] = s_t_m
+            s_m_cache[
+                i * self.n_pixels_per_parcel : i * self.n_pixels_per_parcel
+                + self.n_pixels_per_parcel
+            ] = s_m
+            t_m_cache[
+                i * self.n_pixels_per_parcel : i * self.n_pixels_per_parcel
+                + self.n_pixels_per_parcel
+            ] = t_m
+            months_cache[
+                i * self.n_pixels_per_parcel : i * self.n_pixels_per_parcel
+                + self.n_pixels_per_parcel
+            ] = months
+            label_cache[
+                i * self.n_pixels_per_parcel : i * self.n_pixels_per_parcel
+                + self.n_pixels_per_parcel
+            ] = label
         return (
             s_t_x_cache,
             s_x_cache,
