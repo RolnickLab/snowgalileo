@@ -114,9 +114,7 @@ class PastisPixelDataset(PyTorchDataset):
             self.months,
             self.labels,
         ) = self.get_and_cache_data()
-        print(f"Cached s_t_x shape: {self.s_t_x.shape}")
         self.len = self.s_t_x.shape[0]
-        print(f"Number of samples: {self.len}")
 
     def create_pastis_masks(
         self, missing_timestep_indeces: np.ndarray, pixel_mask: np.ndarray
@@ -265,8 +263,6 @@ class PastisPixelDataset(PyTorchDataset):
             s2, months, missing_timestep_indeces = self.average_over_month(s2, months)
             s2 = repeat(s2, "t c n -> n h w t c", h=1, w=1)
 
-            print(f"Data shape after preprocessing: {s2.shape}")
-
             s_t_x = np.zeros(
                 (
                     s2.shape[0],
@@ -384,10 +380,6 @@ class PastisPixelDataset(PyTorchDataset):
 
     def __len__(self):
         return self.len
-
-
-ds = PastisPixelDataset()
-b, l = ds[0]
 
 
 class PastisEval(EvalTask):
