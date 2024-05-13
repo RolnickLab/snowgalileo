@@ -21,9 +21,9 @@ from src.eval import (
     BinaryCropHarvestEval,
     EuroSatEval,
     MultiClassCropHarvestEval,
+    PastisEval,
     So2SatEval,
     TreeSatEval,
-    PastisEval,
 )
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
