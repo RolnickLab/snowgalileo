@@ -104,9 +104,18 @@ class PastisPixelDataset(PyTorchDataset):
         self.input_height_width = 1
         self.num_timesteps = 12
 
-        self.data, self.labels = self.get_and_cache_data()
-        print(f"Cached s_t_x shape: {self.data[0].shape}")
-        self.len = self.data[0].shape[0]
+        (
+            self.s_t_x,
+            self.s_x,
+            self.t_x,
+            self.s_t_m,
+            self.s_m,
+            self.t_m,
+            self.months,
+            self.labels,
+        ) = self.get_and_cache_data()
+        print(f"Cached s_t_x shape: {self.s_t_x.shape}")
+        self.len = self.s_t_x.shape[0]
         print(f"Number of samples: {self.len}")
 
     def create_pastis_masks(
@@ -164,7 +173,7 @@ class PastisPixelDataset(PyTorchDataset):
                 pixel_mask[0] = 0
             else:
                 npad = ((0, 0), (0, 0), (0, n_pixels_per_parcel - pixels.shape[-1]))
-                x = np.pad(pixels, pad_width=npad, mode='edge')
+                x = np.pad(pixels, pad_width=npad, mode="edge")
                 pixel_mask = np.array(
                     [0 for _ in range(pixels.shape[-1])]
                     + [1 for _ in range(pixels.shape[-1], n_pixels_per_parcel)]
@@ -362,15 +371,15 @@ class PastisPixelDataset(PyTorchDataset):
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         return (
             masked_output_np_to_tensor(
-                self.data[0][idx],
-                self.data[1][idx],
-                self.data[2][idx],
-                self.data[3][idx],
-                self.data[4][idx],
-                self.data[5][idx],
-                self.data[6][idx],
+                self.s_t_x[idx],
+                self.s_x[idx],
+                self.t_x[idx],
+                self.s_t_m[idx],
+                self.s_m[idx],
+                self.t_m[idx],
+                self.months[idx],
             ),
-            self.data[7][idx],
+            self.labels[idx],
         )
 
     def __len__(self):
