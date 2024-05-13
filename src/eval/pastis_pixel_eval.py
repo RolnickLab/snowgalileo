@@ -252,7 +252,7 @@ class PastisPixelDataset(PyTorchDataset):
             s2 = self.sample_pixels(s2, self.n_pixels_per_parcel)
 
             s2, months, missing_timestep_indeces = self.average_over_month(s2, months)
-            s2 = normalize_space_time(repeat(s2, "t c n -> n h w t c", h=1, w=1))
+            s2 = repeat(s2, "t c n -> n h w t c", h=1, w=1)
 
             print(f"Data shape after preprocessing: {s2.shape}")
 
@@ -269,6 +269,7 @@ class PastisPixelDataset(PyTorchDataset):
             kept_dynamic_bands = [idx for idx, x in enumerate(SPACE_TIME_BANDS) if (x in S2_BANDS)]
 
             s_t_x[:, :, :, :, kept_dynamic_bands] = s2
+            s_t_x = normalize_space_time(s_t_x)
             # space only / time only bands are not provided by pastis
             s_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], s_t_x.shape[2], len(SPACE_BANDS)))
             t_x = np.zeros((s_t_x.shape[0], s_t_x.shape[3], len(TIME_BANDS)))
