@@ -357,9 +357,9 @@ class PastisPixelDataset(PyTorchDataset):
 
         # remove pixels that are masked out entirely to avoid NaNs during prediction
         pixel_mask = (
-            np.any(~s_t_m, axis=(1, 2, 3, 4))
-            | np.any(~s_m, axis=(1, 2, 3))
-            | np.any(~t_m, axis=(1, 2))
+            np.any(~s_t_m.astype(bool), axis=(1, 2, 3, 4))
+            | np.any(~s_m.astype(bool), axis=(1, 2, 3))
+            | np.any(~t_m.astype(bool), axis=(1, 2))
         )
 
         return (
