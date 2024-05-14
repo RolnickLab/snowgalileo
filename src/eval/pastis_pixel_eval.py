@@ -354,15 +354,23 @@ class PastisPixelDataset(PyTorchDataset):
                 i * self.n_pixels_per_parcel : i * self.n_pixels_per_parcel
                 + self.n_pixels_per_parcel
             ] = label
+
+        # remove pixels that are masked out entirely to avoid NaNs during prediction
+        pixel_mask = (
+            np.any(~s_t_m, axis=(1, 2, 3, 4))
+            | np.any(~s_m, axis=(1, 2, 3))
+            | np.any(~t_m, axis=(1, 2))
+        )
+
         return (
-            s_t_x_cache,
-            s_x_cache,
-            t_x_cache,
-            s_t_m_cache,
-            s_m_cache,
-            t_m_cache,
-            months_cache,
-            label_cache,
+            s_t_x_cache[pixel_mask],
+            s_x_cache[pixel_mask],
+            t_x_cache[pixel_mask],
+            s_t_m_cache[pixel_mask],
+            s_m_cache[pixel_mask],
+            t_m_cache[pixel_mask],
+            months_cache[pixel_mask],
+            label_cache[pixel_mask],
         )
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
