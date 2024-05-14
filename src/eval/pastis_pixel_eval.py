@@ -113,6 +113,21 @@ class PastisPixelDataset(PyTorchDataset):
             self.months,
             self.labels,
         ) = self.get_and_cache_data()
+        # remove pixels that are masked out entirely to avoid NaNs during prediction
+        pixel_mask = (
+            np.any(~self.s_t_m.astype(bool), axis=(1, 2, 3, 4))
+            | np.any(~self.s_m.astype(bool), axis=(1, 2, 3))
+            | np.any(~self.t_m.astype(bool), axis=(1, 2))
+        )
+        self.s_t_x = self.s_t_x[pixel_mask]
+        self.s_x = self.s_x[pixel_mask]
+        self.t_x = self.t_x[pixel_mask]
+        self.s_t_m = self.s_t_m[pixel_mask]
+        self.s_m = self.s_m[pixel_mask]
+        self.t_m = self.t_m[pixel_mask]
+        self.months = self.months[pixel_mask]
+        self.labels = self.labels[pixel_mask]
+
         self.len = self.s_t_x.shape[0]
 
     def create_pastis_masks(
@@ -355,22 +370,15 @@ class PastisPixelDataset(PyTorchDataset):
                 + self.n_pixels_per_parcel
             ] = label
 
-        # remove pixels that are masked out entirely to avoid NaNs during prediction
-        pixel_mask = (
-            np.any(~s_t_m.astype(bool), axis=(1, 2, 3, 4))
-            | np.any(~s_m.astype(bool), axis=(1, 2, 3))
-            | np.any(~t_m.astype(bool), axis=(1, 2))
-        )
-
         return (
-            s_t_x_cache[pixel_mask],
-            s_x_cache[pixel_mask],
-            t_x_cache[pixel_mask],
-            s_t_m_cache[pixel_mask],
-            s_m_cache[pixel_mask],
-            t_m_cache[pixel_mask],
-            months_cache[pixel_mask],
-            label_cache[pixel_mask],
+            s_t_x_cache,
+            s_x_cache,
+            t_x_cache,
+            s_t_m_cache,
+            s_m_cache,
+            t_m_cache,
+            months_cache,
+            label_cache,
         )
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
