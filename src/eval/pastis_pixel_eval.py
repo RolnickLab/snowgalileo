@@ -289,10 +289,8 @@ class PastisPixelDataset(PyTorchDataset):
                 pixel_mask=pixel_mask,
             )
 
-            label = torch.from_numpy(
-                repeat(
-                    np.array([self.labels[id_parcel] - 1], dtype=int), "l -> n l", n=s_t_x.shape[0]
-                )
+            label = repeat(
+                np.array([self.labels[id_parcel] - 1], dtype=int), "l -> n l", n=s_t_x.shape[0]
             )  # 0-indexed
 
             num_pixels = self.meta.shape[0] * self.n_pixels_per_parcel
@@ -378,7 +376,7 @@ class PastisPixelDataset(PyTorchDataset):
                 self.t_m[idx],
                 self.months[idx],
             ),
-            self.labels[idx],
+            torch.tensor(self.labels[idx], dtype=torch.long),
         )
 
     def __len__(self):
