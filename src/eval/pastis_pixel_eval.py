@@ -72,7 +72,6 @@ class PastisPixelDataset(PyTorchDataset):
         Args:
             folds: List of numbers specifying which of the 5 official folds to load.
             data_path: Relative path to the data folder starting from the default data path.
-            average_s2_over_month: Whether to average the Sentinel-2 data over months.
             n_pixels_per_parcel: Number of pixels randomly sampled from each parcel.
             ignore_label: If not None, the parcels annotated with this label are removed from the dataset.
 
@@ -85,6 +84,7 @@ class PastisPixelDataset(PyTorchDataset):
 
         self.meta = pd.read_csv(data_dir / cast(str, self.data_path) / "metadata_parcel.csv")
         self.meta.index = self.meta["ID_PARCEL"].astype(int)
+        # multiple parcels form patches. We need the patch metadata to load the correct dates
         self.meta_patch = gpd.read_file(data_dir / cast(str, self.data_path) / "metadata.geojson")
         self.meta_patch.index = self.meta_patch["ID_PATCH"].astype(int)
         self.meta_patch.sort_index(inplace=True)
