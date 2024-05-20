@@ -17,12 +17,13 @@ from src.masking import (
 def mae_collate_fn(
     batch,
     patch_sizes,
-    spatial_patches_per_dim,
+    shape_time_combinations,
     mask_ratio,
     time_ratio,
     space_ratio,
     channel_ratio,
     fixed_patch_size=None,
+    fixed_space_time_combination=None,
 ):
     s_t_x, s_x, t_x, months = default_collate(batch)
 
@@ -31,8 +32,19 @@ def mae_collate_fn(
     else:
         # randomly sample a patch size, and a corresponding image size
         patch_size = np.random.choice(patch_sizes)
+
+    if fixed_space_time_combination is not None:
+        space_time_combination = shape_time_combinations
+    else:
+        space_time_combination = np.random.choice(patch_sizes)
+
+    spatial_patches_per_dim = space_time_combination["size"]
+    timesteps = space_time_combination["timesteps"]
+
     image_size = patch_size * spatial_patches_per_dim
-    s_t_x, s_x = subset_batch_of_images(s_t_x, s_x, image_size)
+    s_t_x, s_x, t_x, months = subset_batch_of_images(
+        s_t_x, s_x, t_x, months, size=image_size, num_timesteps=timesteps
+    )
     s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = batch_mask_presto(
         s_t_x,
         s_x,

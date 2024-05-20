@@ -98,6 +98,7 @@ def load_check_config(name: str, mode: str):
         "num_images_to_wandb_plot": int,
         "timesteps_to_wandb_plot": list,
         "patch_sizes_to_wandb_plot": list,
+        "shape_time_combinations": list,
     }
     if mode == "jepa":
         expected_training_keys_type["ema"] = list
