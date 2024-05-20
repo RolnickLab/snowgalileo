@@ -93,7 +93,6 @@ def load_check_config(name: str, mode: str):
         "time_ratio": float,
         "space_ratio": float,
         "channel_ratio": float,
-        "spatial_patches_per_dim": int,
         "wandb_plot_every_n_epochs": int,
         "num_images_to_wandb_plot": int,
         "timesteps_to_wandb_plot": list,
