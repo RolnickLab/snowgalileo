@@ -132,7 +132,8 @@ def batch_mask_time(
     Operates over batches where each item in the batch has independently masked timesteps
     """
     b, h, w, t, _ = space_time_x.shape
-    num_timesteps_to_mask = int(t * mask_ratio)
+    # if there is only a single timestep, mask it
+    num_timesteps_to_mask = int(t * mask_ratio) if t > 1 else 1
     # we do this as a numpy array to take advantage of
     # numpy's permuted function
     flat_timesteps = np.concatenate(
