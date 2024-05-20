@@ -34,9 +34,9 @@ def mae_collate_fn(
         patch_size = np.random.choice(patch_sizes)
 
     if fixed_space_time_combination is not None:
-        space_time_combination = shape_time_combinations
+        space_time_combination = fixed_space_time_combination
     else:
-        space_time_combination = np.random.choice(patch_sizes)
+        space_time_combination = np.random.choice(shape_time_combinations)
 
     spatial_patches_per_dim = space_time_combination["size"]
     timesteps = space_time_combination["timesteps"]
