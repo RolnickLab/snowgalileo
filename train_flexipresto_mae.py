@@ -82,11 +82,11 @@ dataloader = DataLoader(
     collate_fn=partial(
         mae_collate_fn,
         patch_sizes=training_config["patch_sizes"],
-        spatial_patches_per_dim=training_config["spatial_patches_per_dim"],
         mask_ratio=training_config["mask_ratio"],
         time_ratio=training_config["time_ratio"],
         space_ratio=training_config["space_ratio"],
         channel_ratio=training_config["channel_ratio"],
+        shape_time_combinations=training_config["shape_time_combinations"],
     ),
     pin_memory=True,
 )
@@ -126,12 +126,13 @@ if wandb_enabled:
                 collate_fn=partial(
                     mae_collate_fn,
                     patch_sizes=training_config["patch_sizes"],
-                    spatial_patches_per_dim=training_config["spatial_patches_per_dim"],
+                    shape_time_combinations=training_config["shape_time_combinations"],
                     mask_ratio=training_config["mask_ratio"],
                     time_ratio=training_config["time_ratio"],
                     space_ratio=training_config["space_ratio"],
                     channel_ratio=training_config["channel_ratio"],
                     fixed_patch_size=p,
+                    fixed_space_time_combination={"size": 4, "timesteps": 12},
                 ),
             )
 
