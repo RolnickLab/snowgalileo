@@ -5,7 +5,6 @@ import numpy as np
 import torch
 from einops import rearrange, repeat
 
-from .data.config import NUM_TIMESTEPS
 from .data.dataset import SPACE_BAND_GROUPS_IDX, SPACE_TIME_BANDS_GROUPS_IDX, TIME_BAND_GROUPS_IDX
 
 # This is to allow a quick expansion of the mask from
@@ -26,14 +25,19 @@ MaskedOutput = namedtuple(
 def subset_batch_of_images(
     space_time_x: torch.Tensor,
     space_x: torch.Tensor,
+    time_x: torch.Tensor,
+    months: torch.Tensor,
     size: int,
+    num_timesteps: int,
 ):
     assert (space_time_x.shape[1] == space_x.shape[1]) & (
         space_time_x.shape[2] == space_x.shape[2]
     )
+    assert time_x.shape[1] == space_time_x.shape[3] == months.shape[1]
     possible_h = space_time_x.shape[1] - size
     possible_w = space_time_x.shape[2] - size
-    assert (possible_h >= 0) & (possible_w >= 0)
+    possible_t = space_time_x.shape[3] - num_timesteps
+    assert (possible_h >= 0) & (possible_w >= 0) & (possible_t >= 0)
 
     if possible_h > 0:
         start_h = np.random.choice(possible_h)
@@ -44,9 +48,22 @@ def subset_batch_of_images(
         start_w = np.random.choice(possible_w)
     else:
         start_w = possible_w
+
+    if possible_t > 0:
+        start_t = np.random.choice(possible_t)
+    else:
+        start_t = possible_t
+
     return (
-        space_time_x[:, start_h : start_h + size, start_w : start_w + size],
+        space_time_x[
+            :,
+            start_h : start_h + size,
+            start_w : start_w + size,
+            start_t : start_t + num_timesteps,
+        ],
         space_x[:, start_h : start_h + size, start_w : start_w + size],
+        time_x[:, start_t : start_t + num_timesteps],
+        months[:, start_t : start_t + num_timesteps],
     )
 
 
@@ -115,8 +132,8 @@ def batch_mask_time(
     Operates over batches where each item in the batch has independently masked timesteps
     """
     b, h, w, t, _ = space_time_x.shape
-    assert t == NUM_TIMESTEPS
-    num_timesteps_to_mask = int(t * mask_ratio)
+    # if there is only a single timestep, mask it
+    num_timesteps_to_mask = int(t * mask_ratio) if t > 1 else 1
     # we do this as a numpy array to take advantage of
     # numpy's permuted function
     flat_timesteps = np.concatenate(
@@ -143,8 +160,11 @@ def batch_mask_time(
         "b t-> b t c_g",
         c_g=len(TIME_BAND_GROUPS_IDX),
     )
-
     space_mask = torch.rand(b, device=space_x.device) <= mask_ratio
+    if t == 1:
+        # can't mask out everything if t == 1, so we make sure the
+        # space only mask remains unmasked
+        space_mask = space_mask * 0
     space_mask = repeat(space_mask, "b -> b h w s", h=h, w=w, s=len(SPACE_BAND_GROUPS_IDX))
 
     return MaskedOutput(
@@ -172,7 +192,6 @@ def batch_mask_space(
     """
     b, h, w, t, _ = space_time_x.shape
     assert (h % patch_size == 0) and (w % patch_size == 0)
-    assert t == NUM_TIMESTEPS
     h_p = int(h / patch_size)
     w_p = int(w / patch_size)
     total_patches = h_p * w_p
@@ -286,7 +305,6 @@ def batch_mask_random(
     c_s = len(SPACE_BAND_GROUPS_IDX)
     c_t = len(TIME_BAND_GROUPS_IDX)
     assert (h % patch_size == 0) and (w % patch_size == 0)
-    assert t == NUM_TIMESTEPS
     h_p = int(h / patch_size)
     w_p = int(w / patch_size)
 
