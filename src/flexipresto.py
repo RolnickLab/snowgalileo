@@ -188,7 +188,7 @@ class Attention(nn.Module):
         attn_drop=0.0,
         proj_drop=0.0,
         norm_layer=nn.LayerNorm,
-        cross: bool = False,
+        cross_attn: bool = False,
     ):
         super().__init__()
         assert dim % num_heads == 0, "dim should be divisible by num_heads"
@@ -197,8 +197,8 @@ class Attention(nn.Module):
         self.scale = self.head_dim**-0.5
         self.fast_attn = hasattr(torch.nn.functional, "scaled_dot_product_attention")  # FIXME
 
-        self.cross = cross
-        if not cross:
+        self.cross_attn = cross_attn
+        if not cross_attn:
             self.qkv: Optional[nn.Linear] = nn.Linear(dim, dim * 3, bias=qkv_bias)
             self.q: Optional[nn.Linear] = None
             self.kv: Optional[nn.Linear] = None
@@ -215,14 +215,14 @@ class Attention(nn.Module):
 
     def forward(self, x, y=None, attn_mask=None):
         if y is None:
-            assert not self.cross
+            assert not self.cross_attn
             B, N, C = x.shape
             qkv = (
                 self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
             )
             q, k, v = qkv.unbind(0)
         else:
-            assert self.cross
+            assert self.cross_attn
             B, N, C = x.shape
             Ny = y.shape[1]
             q = self.q(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
@@ -314,7 +314,7 @@ class Block(nn.Module):
         init_values=None,
         act_layer=nn.GELU,
         norm_layer=nn.LayerNorm,
-        cross: bool = False,
+        cross_attn: bool = False,
     ):
         super().__init__()
         self.norm1 = norm_layer(dim)
@@ -326,7 +326,7 @@ class Block(nn.Module):
             attn_drop=attn_drop,
             proj_drop=drop,
             norm_layer=norm_layer,
-            cross=cross,
+            cross_attn=cross_attn,
         )
         self.ls1 = LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
 
@@ -346,7 +346,7 @@ class Block(nn.Module):
 
 
 class FlexiPrestoBase(nn.Module):
-    cross: bool
+    cross_attn: bool
 
     def __init__(
         self,
@@ -373,7 +373,7 @@ class FlexiPrestoBase(nn.Module):
                     mlp_ratio,
                     qkv_bias=True,
                     norm_layer=nn.LayerNorm,
-                    cross=self.cross,
+                    cross_attn=self.cross_attn,
                 )
                 for _ in range(depth)
             ]
@@ -598,7 +598,7 @@ class FlexiPrestoBase(nn.Module):
         s_c_g, t_c_g = s_x.shape[3], t_x.shape[-2]
         s_t_x, s_x, t_x = self.apply_encodings(s_t_x, s_x, t_x, months, patch_size, input_res)
         x, m = self.collapse_and_combine_hwtc(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
-        if not self.cross:
+        if not self.cross_attn:
             x, indices, m = self.remove_masked_tokens(x, m)
             for blk in self.blocks:
                 # we take the inverse of the mask because a value
@@ -616,7 +616,7 @@ class FlexiPrestoBase(nn.Module):
 
 
 class Encoder(FlexiPrestoBase):
-    cross = False
+    cross_attn = False
 
     def __init__(
         self,
@@ -747,7 +747,7 @@ class Encoder(FlexiPrestoBase):
 
 
 class PrestoPixelDecoder(FlexiPrestoBase):
-    cross = True
+    cross_attn = True
 
     def __init__(
         self,
