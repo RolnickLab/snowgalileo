@@ -253,11 +253,5 @@ class TestPresto(unittest.TestCase):
         mask = torch.tensor([[0, 0, 0, 0, 1, 1], [0, 0, 0, 1, 1, 1]])
         x, y, x_mask, y_mask, indices = Encoder.split_x_y(tokens, mask)
         new_tokens, new_mask = Encoder.combine_x_y(x, y, x_mask, y_mask, indices)
-        self.assertTrue(
-            torch.equal(
-                new_tokens, torch.tensor([[5, 6, 7, 8, 2, 3], [5, 6, 7, 1, 2, 3]]).unsqueeze(-1)
-            )
-        )
-        self.assertTrue(
-            torch.equal(new_mask, torch.tensor([[0, 0, 0, 0, 1, 1], [0, 0, 0, 1, 1, 1]]))
-        )
+        self.assertTrue(torch.equal(new_tokens, tokens))
+        self.assertTrue(torch.equal(new_mask, mask))
