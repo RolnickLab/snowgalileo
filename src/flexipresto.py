@@ -465,7 +465,7 @@ class FlexiPrestoBase(nn.Module):
 
         tokens = torch.zeros((B, T, D), dtype=x.dtype, device=x.device)
         full_mask = torch.zeros((B, T), dtype=x_mask.dtype, device=x_mask.device)
-        tokens[:, : y.shape[1]] = y * y_mask.unsqueeze(-1)
+        tokens[:, : y.shape[1]] = y * (1 - y_mask).unsqueeze(-1)
         tokens[:, -x.shape[1] :] = x * x_mask.unsqueeze(-1)
         full_mask[:, : y_mask.shape[1]] = y_mask
         full_mask[:, -x_mask.shape[1] :] += 1 - x_mask
@@ -473,7 +473,7 @@ class FlexiPrestoBase(nn.Module):
         tokens = tokens.scatter(1, indices[:, :, None].expand_as(tokens), tokens)
         full_mask = full_mask.scatter(1, indices.expand_as(full_mask), full_mask)
 
-        return tokens, full_mask
+        return tokens, torch.clamp(full_mask, max=1)
 
     @staticmethod
     def remove_masked_tokens(x, mask):
