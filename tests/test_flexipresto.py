@@ -217,3 +217,47 @@ class TestPresto(unittest.TestCase):
         self.assertEqual(final_mask.dtype, mask.dtype)
         self.assertTrue(torch.equal(final_x, x))
         self.assertTrue(torch.equal(final_mask, mask))
+
+    def test_combine_x_y(self):
+        # x is the query (i.e. the masked tokens)
+        x = torch.tensor([[1, 2, 3], [1, 2, 3]]).unsqueeze(-1)
+        # y is the keys and values (i.e. the unmasked tokens)
+        y = torch.tensor([[5, 6, 7, 8], [5, 6, 7, 8]]).unsqueeze(-1)
+        x_mask = torch.tensor([[0, 1, 1], [1, 1, 1]])
+        y_mask = torch.tensor([[0, 0, 0, 0], [0, 0, 0, 1]])
+        indices = torch.tensor([[0, 1, 2, 3, 4, 5], [0, 1, 2, 3, 4, 5]])
+
+        tokens, mask = Encoder.combine_x_y(x, y, x_mask, y_mask, indices)
+        self.assertTrue(
+            torch.equal(
+                tokens, torch.tensor([[5, 6, 7, 8, 2, 3], [5, 6, 7, 1, 2, 3]]).unsqueeze(-1)
+            )
+        )
+        self.assertTrue(torch.equal(mask, torch.tensor([[0, 0, 0, 0, 1, 1], [0, 0, 0, 1, 1, 1]])))
+
+    def test_split_x_y(self):
+        tokens = torch.tensor([[5, 6, 7, 8, 2, 3], [5, 6, 7, 1, 2, 3]]).unsqueeze(-1)
+        mask = torch.tensor([[0, 0, 0, 0, 1, 1], [0, 0, 0, 1, 1, 1]])
+
+        x, y, x_mask, y_mask, indices = Encoder.split_x_y(tokens, mask)
+        self.assertTrue(torch.equal(x, torch.tensor([[8, 2, 3], [1, 2, 3]]).unsqueeze(-1)))
+        self.assertTrue(torch.equal(y, torch.tensor([[5, 6, 7, 8], [5, 6, 7, 1]]).unsqueeze(-1)))
+        self.assertTrue(torch.equal(x_mask, torch.tensor([[0, 1, 1], [1, 1, 1]])))
+        self.assertTrue(torch.equal(y_mask, torch.tensor([[0, 0, 0, 0], [0, 0, 0, 1]])))
+        self.assertTrue(
+            torch.equal(indices, torch.tensor([[0, 1, 2, 3, 4, 5], [0, 1, 2, 3, 4, 5]]))
+        )
+
+    def test_x_y_there_and_back_again(self):
+        tokens = torch.tensor([[5, 6, 7, 8, 2, 3], [5, 6, 7, 1, 2, 3]]).unsqueeze(-1)
+        mask = torch.tensor([[0, 0, 0, 0, 1, 1], [0, 0, 0, 1, 1, 1]])
+        x, y, x_mask, y_mask, indices = Encoder.split_x_y(tokens, mask)
+        new_tokens, new_mask = Encoder.combine_x_y(x, y, x_mask, y_mask, indices)
+        self.assertTrue(
+            torch.equal(
+                new_tokens, torch.tensor([[5, 6, 7, 8, 2, 3], [5, 6, 7, 1, 2, 3]]).unsqueeze(-1)
+            )
+        )
+        self.assertTrue(
+            torch.equal(new_mask, torch.tensor([[0, 0, 0, 0, 1, 1], [0, 0, 0, 1, 1, 1]]))
+        )
