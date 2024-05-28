@@ -36,6 +36,7 @@ from .s1 import (
 )
 from .s2 import S2_BANDS, S2_DIV_VALUES, S2_SHIFT_VALUES, get_single_s2_image
 from .srtm import SRTM_BANDS, SRTM_DIV_VALUES, SRTM_SHIFT_VALUES, get_single_srtm_image
+from .worldcereal import WC_BANDS, WC_DIV_VALUES, WC_SHIFT_VALUES, get_single_wc_image
 
 # dataframe constants when exporting the labels
 LAT = "lat"
@@ -58,10 +59,10 @@ TIME_DIV_VALUES = np.array(ERA5_DIV_VALUES)
 
 ALL_DYNAMIC_IN_TIME_BANDS = SPACE_TIME_BANDS + TIME_BANDS
 
-SPACE_BANDS = SRTM_BANDS + DW_BANDS
-SPACE_IMAGE_FUNCTIONS = [get_single_srtm_image, get_single_dw_image]
-SPACE_SHIFT_VALUES = np.array(SRTM_SHIFT_VALUES + DW_SHIFT_VALUES)
-SPACE_DIV_VALUES = np.array(SRTM_DIV_VALUES + DW_DIV_VALUES)
+SPACE_BANDS = SRTM_BANDS + DW_BANDS + WC_BANDS
+SPACE_IMAGE_FUNCTIONS = [get_single_srtm_image, get_single_dw_image, get_single_wc_image]
+SPACE_SHIFT_VALUES = np.array(SRTM_SHIFT_VALUES + DW_SHIFT_VALUES + WC_SHIFT_VALUES)
+SPACE_DIV_VALUES = np.array(SRTM_DIV_VALUES + DW_DIV_VALUES + WC_DIV_VALUES)
 
 
 def get_ee_task_list(key: str = "description") -> List[str]:
