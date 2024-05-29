@@ -27,6 +27,7 @@ from .earthengine.eo import (
     TIME_BANDS,
     TIME_DIV_VALUES,
     TIME_SHIFT_VALUES,
+    VIIRS_BANDS,
     WC_BANDS,
 )
 from .earthengine.eo import SPACE_TIME_BANDS as EO_SPACE_TIME_BANDS
@@ -50,6 +51,7 @@ TIME_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
         "ERA5": [TIME_BANDS.index(b) for b in ERA5_BANDS],
         "TC": [TIME_BANDS.index(b) for b in TC_BANDS],
+        "VIIRS": [TIME_BANDS.index(b) for b in VIIRS_BANDS],
     }
 )
 
