@@ -136,7 +136,7 @@ class Dataset(PyTorchDataset):
         months: np.ndarray,
         size: int,
         num_timesteps: int,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         space_time_x: array of shape [H, W, T, D]
         space_x: array of shape [H, W, D]

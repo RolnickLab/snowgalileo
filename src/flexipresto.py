@@ -938,7 +938,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
 
         for idx, (group_name, c_g) in enumerate(self.static_groups.items()):
             decoded = self.static_embed[group_name](self.norm(st_x[:, idx]))
-            output_t.append(decoded)
+            output_st.append(decoded)
 
         return (
             torch.cat(output_s_t, dim=-1),
