@@ -13,4 +13,4 @@ VIIRS_DIV_VALUES = [100]
 
 
 def get_single_viirs_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
-    return get_monthly_data(image_collection, VIIRS_BANDS, region, start_date)
+    return get_monthly_data(image_collection, VIIRS_BANDS, region, start_date, unmask=True)
