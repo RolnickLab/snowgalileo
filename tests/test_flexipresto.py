@@ -11,7 +11,7 @@ from src.data import (
     TIME_BAND_GROUPS_IDX,
     Dataset,
 )
-from src.data.dataset import SPACE_BANDS, SPACE_TIME_BANDS, TIME_BANDS, STATIC_BANDS, DatasetOutput
+from src.data.dataset import SPACE_BANDS, SPACE_TIME_BANDS, STATIC_BANDS, TIME_BANDS, DatasetOutput
 from src.flexipresto import Encoder, PrestoPixelDecoder
 from src.masking import batch_mask_presto, subset_batch_of_images
 from src.utils import device

@@ -43,7 +43,9 @@ def mae_collate_fn(
     timesteps = space_time_combination["timesteps"]
 
     image_size = patch_size * spatial_patches_per_dim
-    s_t_x, sp_x, t_x, st_x, months = subset_batch_of_images(s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=timesteps)
+    s_t_x, sp_x, t_x, st_x, months = subset_batch_of_images(
+        s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=timesteps
+    )
     s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = batch_mask_presto(
         s_t_x,
         sp_x,

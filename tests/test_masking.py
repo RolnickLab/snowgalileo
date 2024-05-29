@@ -28,7 +28,9 @@ class TestMasking(unittest.TestCase):
             months = repeat(torch.arange(0, t), "t -> b t", b=b)
             mask_ratio = 0.25
 
-            output = batch_mask_time(space_time_input, space_input, time_input, static_input, months, mask_ratio)
+            output = batch_mask_time(
+                space_time_input, space_input, time_input, static_input, months, mask_ratio
+            )
             self.assertEqual(
                 (b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX)), output.space_time_mask.shape
             )
