@@ -142,12 +142,11 @@ class TestMasking(unittest.TestCase):
         )
         space_masked_per_instance = output.space_mask[:, i::p, i::p].sum(dim=(1, 2, 3))
         time_masked_per_instance = output.time_mask.sum(dim=(1, 2))
-        static_masked_per_instance = output.static_mask
+        static_masked_per_instance = output.static_mask.sum(dim=1)
         total_tokens = (
             (h_tokens * w_tokens * t * len(SPACE_TIME_BANDS_GROUPS_IDX))
             + (h_tokens * w_tokens * len(SPACE_BAND_GROUPS_IDX))
             + (t * len(TIME_BAND_GROUPS_IDX))
-            + len(STATIC_BAND_GROUPS_IDX)
         )
         self.assertTrue(
             (
