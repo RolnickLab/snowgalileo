@@ -110,16 +110,17 @@ for e in tqdm(range(training_config["num_epochs"])):
     train_loss = AverageMeter()
     for i, b in tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
         b = [t.to(device) for t in b]
-        s_t_x, s_x, t_x, months = b
+        s_t_x, sp_x, t_x, st_x, months = b
 
         # randomly sample a patch size
         patch_size = np.random.choice(training_config["patch_sizes"])
         image_size = patch_size * training_config["spatial_patches_per_dim"]
-        s_t_x, s_x = subset_batch_of_images(s_t_x, s_x, image_size)
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = batch_mask_presto(
+        s_t_x, sp_x = subset_batch_of_images(s_t_x, sp_x, image_size)
+        s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = batch_mask_presto(
             s_t_x,
-            s_x,
+            sp_x,
             t_x,
+            st_x,
             months,
             training_config["mask_ratio"],
             patch_size,
@@ -130,7 +131,7 @@ for e in tqdm(range(training_config["num_epochs"])):
 
         # also transform to patch-space
         patch_s_t = s_t_m[:, 0::patch_size, 0::patch_size].bool()
-        patch_s = s_m[:, 0::patch_size, 0::patch_size].bool()
+        patch_sp = sp_m[:, 0::patch_size, 0::patch_size].bool()
 
         optimizer.zero_grad()
         adjust_learning_rate(
@@ -144,14 +145,16 @@ for e in tqdm(range(training_config["num_epochs"])):
         )
 
         # generate the predictions. TODO: add layer norm
-        p_s_t, p_s, p_t, _, _, _ = predictor(
+        p_s_t, p_sp, p_t, p_st, _, _, _, _ = predictor(
             *encoder(
                 s_t_x.float(),
-                s_x.float(),
+                sp_x.float(),
                 t_x.float(),
+                st_x.float(),
                 s_t_m.float(),
-                s_m.float(),
+                sp_m.float(),
                 t_m.float(),
+                st_m.float(),
                 months.long(),
                 patch_size=patch_size,
             ),
@@ -159,20 +162,22 @@ for e in tqdm(range(training_config["num_epochs"])):
         )
         # generate the targets
         with torch.no_grad():
-            t_s_t, t_s, t_t, _, _, _, _ = target_encoder(
+            t_s_t, t_sp, t_t, t_st, _, _, _, _, _ = target_encoder(
                 s_t_x.float(),
-                s_x.float(),
+                sp_x.float(),
                 t_x.float(),
+                st_x.float(),
                 torch.zeros_like(s_t_m),
-                torch.zeros_like(s_m),
+                torch.zeros_like(sp_m),
                 torch.zeros_like(t_m),
+                torch.zeros_like(st_m),
                 months.long(),
                 patch_size=patch_size,
             )
 
         loss = F.smooth_l1_loss(
-            torch.concat([p_s_t[patch_s_t], p_s[patch_s], p_t[t_m]]),
-            torch.concat([t_s_t[patch_s_t], t_s[patch_s], t_t[t_m]]),
+            torch.concat([p_s_t[patch_s_t], p_sp[patch_sp], p_t[t_m], p_st[st_m]]),
+            torch.concat([t_s_t[patch_s_t], t_sp[patch_sp], t_t[t_m], p_st[st_m]]),
         )
         loss.backward()
         optimizer.step()

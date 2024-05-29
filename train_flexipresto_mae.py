@@ -157,17 +157,20 @@ for e in tqdm(range(training_config["num_epochs"])):
         b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
         (
             s_t_x,
-            s_x,
+            sp_x,
             t_x,
+            st_x,
             s_t_m,
-            s_m,
+            sp_m,
             t_m,
+            st_m,
             months,
             expanded_s_t_x,
-            expanded_s_x,
+            expanded_sp_x,
             s_t_m_p,
-            s_m_p,
+            sp_m_p,
             t_m_p,
+            st_m_p,
             patch_size,
         ) = b
 
@@ -183,14 +186,16 @@ for e in tqdm(range(training_config["num_epochs"])):
         )
 
         with torch.autocast(device_type=device.type, dtype=autocast_device):
-            (p_s_t, p_s, p_t) = predictor(
+            (p_s_t, p_sp, p_t, p_st) = predictor(
                 *encoder(
                     s_t_x,
-                    s_x,
+                    sp_x,
                     t_x,
+                    st_x,
                     s_t_m,
-                    s_m,
+                    sp_m,
                     t_m,
+                    st_m,
                     months.long(),
                     patch_size=patch_size,
                 ),
@@ -199,14 +204,16 @@ for e in tqdm(range(training_config["num_epochs"])):
 
         loss = mae_loss(
             expanded_s_t_x,
-            expanded_s_x,
+            expanded_sp_x,
             t_x,
             p_s_t,
-            p_s,
+            p_sp,
             p_t,
+            p_st,
             s_t_m_p,
-            s_m_p,
+            sp_m_p,
             t_m_p,
+            st_m_p,
             patch_size=training_config["patch_sizes"][-1],
             loss_type=training_config["mae_loss"],
         )

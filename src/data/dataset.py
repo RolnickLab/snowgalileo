@@ -16,6 +16,7 @@ from .earthengine.eo import (
     ALL_DYNAMIC_IN_TIME_BANDS,
     DW_BANDS,
     ERA5_BANDS,
+    LANDSCAN_BANDS,
     S1_BANDS,
     SPACE_BANDS,
     SPACE_DIV_VALUES,
@@ -23,6 +24,9 @@ from .earthengine.eo import (
     SPACE_TIME_DIV_VALUES,
     SPACE_TIME_SHIFT_VALUES,
     SRTM_BANDS,
+    STATIC_BANDS,
+    STATIC_DIV_VALUES,
+    STATIC_SHIFT_VALUES,
     TIME_BANDS,
     TIME_DIV_VALUES,
     TIME_SHIFT_VALUES,
@@ -57,8 +61,15 @@ SPACE_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     }
 )
 
+STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
+    {
+        "LS": [STATIC_BANDS.index(b) for b in LANDSCAN_BANDS],
+    }
+)
 
-DatasetOutput = namedtuple("DatasetOutput", ["space_time_x", "space_x", "time_x", "months"])
+DatasetOutput = namedtuple(
+    "DatasetOutput", ["space_time_x", "space_x", "time_x", "static_x", "months"]
+)
 
 
 def _normalize(x: np.ndarray, shift_values: np.ndarray, div_values: np.ndarray) -> np.ndarray:
@@ -86,6 +97,11 @@ def normalize_space(x: np.ndarray) -> np.ndarray:
 def normalize_time(x: np.ndarray) -> np.ndarray:
     assert isinstance(x, np.ndarray)
     return _normalize(x, TIME_SHIFT_VALUES, TIME_DIV_VALUES)
+
+
+def normalize_static(x: np.ndarray) -> np.ndarray:
+    assert isinstance(x, np.ndarray)
+    return _normalize(x, STATIC_SHIFT_VALUES, STATIC_DIV_VALUES)
 
 
 class Dataset(PyTorchDataset):
@@ -116,6 +132,7 @@ class Dataset(PyTorchDataset):
         space_time_x: np.ndarray,
         space_x: np.ndarray,
         time_x: np.ndarray,
+        static_x: np.ndarray,
         months: np.ndarray,
         size: int,
         num_timesteps: int,
@@ -124,6 +141,7 @@ class Dataset(PyTorchDataset):
         space_time_x: array of shape [H, W, T, D]
         space_x: array of shape [H, W, D]
         time_x: array of shape [T, D]
+        static_x: array of shape [D]
 
         size must be greater or equal to H & W
         """
@@ -160,6 +178,7 @@ class Dataset(PyTorchDataset):
             ],
             space_x[start_h : start_h + size, start_w : start_w + size],
             time_x[start_t : start_t + num_timesteps],
+            static_x,
             months[start_t : start_t + num_timesteps],
         )
 
@@ -172,7 +191,7 @@ class Dataset(PyTorchDataset):
             has_time = True
         else:
             raise ValueError(
-                f"Expected data to be 3 or 4D (x, y, (time), band) - got {data.shape}"
+                f"Expected data to be 3D or 4D (x, y, (time), band) - got {data.shape}"
             )
         if data.shape[-1] != len(bands_np):
             raise ValueError(f"Expected data to have {len(bands_np)} bands - got {data.shape[-1]}")
@@ -208,13 +227,14 @@ class Dataset(PyTorchDataset):
             data = np.nan_to_num(data, nan=0) + means_to_fill
         return data
 
-    def tif_to_npy_paths(self, tif_path: Path) -> Tuple[Path, Path, Path]:
+    def tif_to_npy_paths(self, tif_path: Path) -> Tuple[Path, Path, Path, Path]:
         assert self.cache_folder is not None
         tif_name = tif_path.stem
         return (
             self.cache_folder / f"{tif_name}_space_time.npy",
             self.cache_folder / f"{tif_name}_space.npy",
             self.cache_folder / f"{tif_name}_time.npy",
+            self.cache_folder / f"{tif_name}_static.npy",
         )
 
     @classmethod
@@ -258,34 +278,54 @@ class Dataset(PyTorchDataset):
         time_x = np.nanmean(time_x, axis=(0, 1))
         time_x = normalize_time(time_x)
 
-        space_x = rearrange(values[-len(SPACE_BANDS) :], "c h w -> h w c")
+        space_x = rearrange(
+            values[-(len(SPACE_BANDS) + len(STATIC_BANDS)) : -len(STATIC_BANDS)], "c h w -> h w c"
+        )
         space_x = cls._fillna(space_x, np.array(SPACE_BANDS))
         space_x = normalize_space(space_x)
 
+        static_x = values[-len(STATIC_BANDS) :]
+        static_x = np.nanmean(static_x)
+        static_x = normalize_static(static_x)
+
         months = cls.month_array_from_file(tif_path, int(num_timesteps))
         return DatasetOutput(
-            space_time_x.astype(np.half), space_x.astype(np.half), time_x.astype(np.half), months
+            space_time_x.astype(np.half),
+            space_x.astype(np.half),
+            time_x.astype(np.half),
+            static_x.astype(np.half),
+            months,
         )
 
     def load_tif(self, tif_path: Path) -> DatasetOutput:
         if self.cache_folder is None:
             return self._tif_to_array(tif_path)
         else:
-            cache_path_s_t, cache_path_s, cache_path_t = self.tif_to_npy_paths(tif_path)
+            cache_path_s_t, cache_path_sp, cache_path_t, cache_path_st = self.tif_to_npy_paths(
+                tif_path
+            )
             if cache_path_s_t.exists():
-                assert cache_path_s.exists()
+                assert cache_path_sp.exists()
                 assert cache_path_t.exists()
+                assert cache_path_st.exists()
                 # check if the files exists in cache
                 s_t_x = np.load(cache_path_s_t)
                 num_timesteps = s_t_x.shape[2]
                 months = self.month_array_from_file(tif_path, num_timesteps)
-                return DatasetOutput(s_t_x, np.load(cache_path_s), np.load(cache_path_t), months)
+                return DatasetOutput(
+                    s_t_x,
+                    np.load(cache_path_sp),
+                    np.load(cache_path_t),
+                    np.load(cache_path_st),
+                    months,
+                )
             else:
-                s_t_x, s_x, t_x, months = self._tif_to_array(tif_path)
+                s_t_x, sp_x, t_x, st_x, months = self._tif_to_array(tif_path)
                 np.save(cache_path_s_t, s_t_x)
-                np.save(cache_path_s, s_x)
+                np.save(cache_path_sp, sp_x)
                 np.save(cache_path_t, t_x)
-                return DatasetOutput(s_t_x, s_x, t_x, months)
+                np.save(cache_path_st, st_x)
+                return DatasetOutput(s_t_x, sp_x, t_x, st_x, months)
 
     @staticmethod
     def calculate_ndvi(input_array: np.ndarray) -> np.ndarray:
@@ -315,8 +355,8 @@ class Dataset(PyTorchDataset):
             )
 
     def __getitem__(self, idx):
-        s_t_x, s_x, t_x, months = self.load_tif(self.tifs[idx])
-        s_t_x, s_x, t_x, months = self.subset_image(
-            s_t_x, s_x, t_x, months, DATASET_OUTPUT_HW, NUM_TIMESTEPS
+        s_t_x, sp_x, t_x, st_x, months = self.load_tif(self.tifs[idx])
+        s_t_x, sp_x, t_x, st_x, months = self.subset_image(
+            s_t_x, sp_x, t_x, st_x, months, DATASET_OUTPUT_HW, NUM_TIMESTEPS
         )
-        return DatasetOutput(s_t_x, s_x, t_x, months)
+        return DatasetOutput(s_t_x, sp_x, t_x, st_x, months)

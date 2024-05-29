@@ -27,6 +27,12 @@ from .dynamic_world import (
 )
 from .ee_bbox import EEBoundingBox
 from .era5 import ERA5_BANDS, ERA5_DIV_VALUES, ERA5_SHIFT_VALUES, get_single_era5_image
+from .landscan import (
+    LANDSCAN_BANDS,
+    LANDSCAN_DIV_VALUES,
+    LANDSCAN_SHIFT_VALUES,
+    get_single_landscan_image,
+)
 from .s1 import (
     S1_BANDS,
     S1_DIV_VALUES,
@@ -58,10 +64,15 @@ TIME_DIV_VALUES = np.array(ERA5_DIV_VALUES)
 
 ALL_DYNAMIC_IN_TIME_BANDS = SPACE_TIME_BANDS + TIME_BANDS
 
-SPACE_BANDS = SRTM_BANDS + DW_BANDS
 SPACE_IMAGE_FUNCTIONS = [get_single_srtm_image, get_single_dw_image]
+SPACE_BANDS = SRTM_BANDS + DW_BANDS
 SPACE_SHIFT_VALUES = np.array(SRTM_SHIFT_VALUES + DW_SHIFT_VALUES)
 SPACE_DIV_VALUES = np.array(SRTM_DIV_VALUES + DW_DIV_VALUES)
+
+STATIC_IMAGE_FUNCTION = [get_single_landscan_image]
+STATIC_BANDS = LANDSCAN_BANDS
+STATIC_SHIFT_VALUES = np.array(LANDSCAN_SHIFT_VALUES)
+STATIC_DIV_VALUES = np.array(LANDSCAN_DIV_VALUES)
 
 
 def get_ee_task_list(key: str = "description") -> List[str]:
@@ -191,7 +202,15 @@ def create_ee_image(
 
     # finally, we add the static in time images
     total_image_list: List[ee.Image] = [img]
-    for static_image_function in SPACE_IMAGE_FUNCTIONS:
+    for space_image_function in SPACE_IMAGE_FUNCTIONS:
+        total_image_list.append(
+            space_image_function(
+                region=polygon,
+                start_date=start_date - timedelta(days=31),
+                end_date=end_date + timedelta(days=31),
+            )
+        )
+    for static_image_function in STATIC_IMAGE_FUNCTION:
         total_image_list.append(
             static_image_function(
                 region=polygon,
