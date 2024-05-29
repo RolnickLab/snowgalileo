@@ -38,7 +38,7 @@ def get_closest_dates(mid_date: date, imcol: ee.ImageCollection) -> ee.ImageColl
 
 
 def get_monthly_data(
-    collection: str, bands: List[str], region: ee.Geometry, start_date: date
+    collection: str, bands: List[str], region: ee.Geometry, start_date: date, unmask: bool = False
 ) -> ee.Image:
     # This only really works with the values currently in config.
     # What happens is that the images are associated with the first day of the month,
@@ -65,6 +65,8 @@ def get_monthly_data(
     endDate = ee.DateRange(dates).end()  # type: ignore
 
     imcol = ee.ImageCollection(collection).filterDate(startDate, endDate).filterBounds(region)
+    if unmask:
+        imcol = imcol.unmask(0)
 
     # there should only be one timestep per daterange, so a mean shouldn't change the values
     return imcol.select(bands).mean().toDouble()
