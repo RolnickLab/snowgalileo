@@ -11,9 +11,8 @@ from src.data import (
     TIME_BAND_GROUPS_IDX,
     Dataset,
 )
-from src.data.config import NUM_TIMESTEPS
-from src.data.dataset import SPACE_BANDS, SPACE_TIME_BANDS, STATIC_BANDS, TIME_BANDS, DatasetOutput
-from src.flexipresto import Encoder, PrestoPixelDecoder, PrestoRepresentationDecoder
+from src.data.dataset import SPACE_BANDS, SPACE_TIME_BANDS, TIME_BANDS, STATIC_BANDS, DatasetOutput
+from src.flexipresto import Encoder, PrestoPixelDecoder
 from src.masking import batch_mask_presto, subset_batch_of_images
 from src.utils import device
 
@@ -32,145 +31,14 @@ class TestPresto(unittest.TestCase):
         )
 
     def test_end_to_end(self):
-        self._end_to_end_run_ijepa(32, 16, 8)
         self._end_to_end_run_mae(16, 8)
 
     def test_end_to_end_different_inputs_per_dim_than_default(self):
-        self._end_to_end_run_ijepa(32, 16, 4)
         self._end_to_end_run_mae(16, 4)
-
-    def _end_to_end_run_ijepa(self, encoder_embedding_size, decoder_embedding_size, patch_size):
-        image_size = patch_size * 4
-        encoder = Encoder(embedding_size=encoder_embedding_size, num_heads=1)
-        decoder = PrestoRepresentationDecoder(
-            encoder_embedding_size=encoder_embedding_size,
-            decoder_embedding_size=decoder_embedding_size,
-            num_heads=1,
-        )
-        ds = Dataset(DATA_FOLDER, False)
-        s_t_x, sp_x, t_x, st_x, months = self.to_tensor_with_batch_d(ds[0])
-        s_t_x, sp_x = subset_batch_of_images(s_t_x, sp_x, size=image_size)
-        masked_output = batch_mask_presto(
-            s_t_x,
-            sp_x,
-            t_x,
-            st_x,
-            months,
-            mask_ratio=0.5,
-            patch_size=patch_size,
-            time_ratio=0.25,
-            space_ratio=0.25,
-            channel_ratio=0.25,
-        )
-        # for now, we just make sure it all runs
-        with torch.autocast(device_type=device.type, dtype=torch.float16):
-            encoder_output = encoder(
-                masked_output.space_time_x.float(),
-                masked_output.space_x.float(),
-                masked_output.time_x.float(),
-                masked_output.static_x.float(),
-                masked_output.space_time_mask.float(),
-                masked_output.space_mask.float(),
-                masked_output.time_mask.float(),
-                masked_output.static_mask.float(),
-                masked_output.months.long(),
-                patch_size=patch_size,
-            )
-            output = decoder(*encoder_output)
-
-        self.assertTrue(
-            list(encoder_output[0].shape)
-            == [
-                1,
-                image_size / patch_size,
-                image_size / patch_size,
-                NUM_TIMESTEPS,
-                len(SPACE_TIME_BANDS_GROUPS_IDX),
-                encoder_embedding_size,
-            ]
-        )
-        self.assertTrue(
-            list(encoder_output[1].shape)
-            == [
-                1,
-                image_size / patch_size,
-                image_size / patch_size,
-                len(SPACE_BAND_GROUPS_IDX),
-                encoder_embedding_size,
-            ]
-        )
-        self.assertTrue(
-            list(encoder_output[2].shape)
-            == [
-                1,
-                NUM_TIMESTEPS,
-                len(TIME_BAND_GROUPS_IDX),
-                encoder_embedding_size,
-            ]
-        )
-        self.assertTrue(
-            list(encoder_output[3].shape)
-            == [
-                1,
-                len(STATIC_BAND_GROUPS_IDX),
-                encoder_embedding_size,
-            ]
-        )
-        self.assertFalse(torch.isnan(encoder_output[0]).any())
-        self.assertFalse(torch.isnan(encoder_output[1]).any())
-        self.assertFalse(torch.isnan(encoder_output[2]).any())
-        self.assertFalse(torch.isnan(encoder_output[3]).any())
-
-        self.assertTrue(
-            list(output[0].shape)
-            == [
-                1,
-                image_size / patch_size,
-                image_size / patch_size,
-                NUM_TIMESTEPS,
-                len(SPACE_TIME_BANDS_GROUPS_IDX),
-                # decoder outputs should be mapped back to the encoder embedding size
-                encoder_embedding_size,
-            ]
-        )
-        self.assertTrue(
-            list(output[1].shape)
-            == [
-                1,
-                image_size / patch_size,
-                image_size / patch_size,
-                len(SPACE_BAND_GROUPS_IDX),
-                encoder_embedding_size,
-            ]
-        )
-        self.assertTrue(
-            list(output[2].shape)
-            == [
-                1,
-                NUM_TIMESTEPS,
-                len(TIME_BAND_GROUPS_IDX),
-                encoder_embedding_size,
-            ]
-        )
-        self.assertTrue(
-            list(output[3].shape)
-            == [
-                1,
-                len(STATIC_BAND_GROUPS_IDX),
-                encoder_embedding_size,
-            ]
-        )
-        self.assertFalse(torch.isnan(output[0]).any())
-        self.assertFalse(torch.isnan(output[1]).any())
-        self.assertFalse(torch.isnan(output[2]).any())
-        self.assertFalse(torch.isnan(output[3]).any())
-
-        # check we can call backwards
-        summed_output = sum([torch.sum(o) for o in output])
-        summed_output.backward()
 
     def _end_to_end_run_mae(self, embedding_size, patch_size):
         image_size = patch_size * 4
+        num_timesteps = 3
         encoder = Encoder(embedding_size=embedding_size, num_heads=1)
         decoder = PrestoPixelDecoder(
             encoder_embedding_size=embedding_size,
@@ -180,7 +48,9 @@ class TestPresto(unittest.TestCase):
         max_patch_size = decoder.max_patch_size
         ds = Dataset(DATA_FOLDER, False)
         s_t_x, sp_x, t_x, st_x, months = self.to_tensor_with_batch_d(ds[0])
-        s_t_x, sp_x = subset_batch_of_images(s_t_x, sp_x, size=image_size)
+        s_t_x, sp_x, t_x, st_x, months = subset_batch_of_images(
+            s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=num_timesteps
+        )
         masked_output = batch_mask_presto(
             s_t_x,
             sp_x,
@@ -216,7 +86,7 @@ class TestPresto(unittest.TestCase):
                 1,
                 image_size / patch_size,
                 image_size / patch_size,
-                NUM_TIMESTEPS,
+                num_timesteps,
                 len(SPACE_TIME_BANDS_GROUPS_IDX),
                 embedding_size,
             ]
@@ -235,7 +105,7 @@ class TestPresto(unittest.TestCase):
             list(encoder_output[2].shape)
             == [
                 1,
-                NUM_TIMESTEPS,
+                num_timesteps,
                 len(TIME_BAND_GROUPS_IDX),
                 embedding_size,
             ]
@@ -259,7 +129,7 @@ class TestPresto(unittest.TestCase):
                 1,
                 image_size * (max_patch_size / patch_size),
                 image_size * (max_patch_size / patch_size),
-                NUM_TIMESTEPS,
+                num_timesteps,
                 len(SPACE_TIME_BANDS),
             ]
         )
@@ -272,7 +142,7 @@ class TestPresto(unittest.TestCase):
                 len(SPACE_BANDS),
             ]
         )
-        self.assertTrue(list(output[2].shape) == [1, NUM_TIMESTEPS, len(TIME_BANDS)])
+        self.assertTrue(list(output[2].shape) == [1, num_timesteps, len(TIME_BANDS)])
         self.assertTrue(list(output[3].shape) == [1, len(STATIC_BANDS)])
 
         self.assertFalse(torch.isnan(output[0]).any())
@@ -283,45 +153,6 @@ class TestPresto(unittest.TestCase):
         # check we can call backwards
         summed_output = sum([torch.sum(o) for o in output])
         summed_output.backward()
-
-    def test_presto_representation_decoder_add_masks(self):
-        enc_embedding_size = 16
-        dec_embedding_size = 8
-        decoder = PrestoRepresentationDecoder(
-            encoder_embedding_size=enc_embedding_size,
-            decoder_embedding_size=dec_embedding_size,
-            num_heads=1,
-        )
-        b, h, w, t = 5, 6, 7, 8
-        s_t_x = torch.ones(b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX), dec_embedding_size)
-        s_t_m = torch.zeros(b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX))
-        s_t_m[:, :, :, 0] = 1  # mask the first timestep
-
-        sp_x = torch.ones(b, h, w, len(SPACE_BAND_GROUPS_IDX), dec_embedding_size)
-        sp_m = torch.zeros(b, h, w, len(SPACE_BAND_GROUPS_IDX))
-        sp_m[:, 0] = 1
-
-        t_x = torch.ones(b, t, len(TIME_BAND_GROUPS_IDX), dec_embedding_size)
-        t_m = torch.zeros(b, t, len(TIME_BAND_GROUPS_IDX))
-        t_m[:, 0] = 1
-
-        st_x = torch.ones(b, len(STATIC_BAND_GROUPS_IDX), dec_embedding_size)
-        st_m = torch.zeros(b, len(STATIC_BAND_GROUPS_IDX))
-        st_m[:, 0] = 1
-
-        with torch.no_grad():
-            o = decoder.add_masks(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
-        for i in range(4):
-            self.assertTrue((o[i + 4] == 0).all())
-
-        self.assertTrue((o[0][:, :, :, 0] == 0).all())
-        self.assertTrue((o[0][:, :, :, 1:] == 1).all())
-        self.assertTrue((o[1][:, 0] == 0).all())
-        self.assertTrue((o[1][:, 1:] == 1).all())
-        self.assertTrue((o[2][:, 0] == 0).all())
-        self.assertTrue((o[2][:, 1:] == 1).all())
-        self.assertTrue((o[3][:, 0] == 0).all())
-        self.assertTrue((o[3][:, 1:] == 1).all())
 
     def test_presto_pixel_decoder_add_masks(self):
         embedding_size = 16
@@ -349,8 +180,6 @@ class TestPresto(unittest.TestCase):
 
         with torch.no_grad():
             o = decoder.add_masks(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
-        for i in range(4):
-            self.assertTrue((o[i + 4] == 0).all())
 
         self.assertTrue((o[0][:, :, :, 0] == 0).all())
         self.assertTrue((o[0][:, :, :, 1:] == 1).all())
@@ -418,6 +247,40 @@ class TestPresto(unittest.TestCase):
         self.assertTrue(torch.equal(final_x, x))
         self.assertTrue(torch.equal(final_mask, mask))
 
+    def test_combine_x_y(self):
+        # x is the query (i.e. the masked tokens)
+        x = torch.tensor([[1, 2, 3], [1, 2, 3]]).unsqueeze(-1)
+        # y is the keys and values (i.e. the unmasked tokens)
+        y = torch.tensor([[5, 6, 7, 8], [5, 6, 7, 8]]).unsqueeze(-1)
+        x_mask = torch.tensor([[0, 1, 1], [1, 1, 1]])
+        y_mask = torch.tensor([[0, 0, 0, 0], [0, 0, 0, 1]])
+        indices = torch.tensor([[0, 1, 2, 3, 4, 5], [0, 1, 2, 3, 4, 5]])
 
-if __name__ == "__main__":
-    unittest.main()
+        tokens, mask = Encoder.combine_x_y(x, y, x_mask, y_mask, indices)
+        self.assertTrue(
+            torch.equal(
+                tokens, torch.tensor([[5, 6, 7, 8, 2, 3], [5, 6, 7, 1, 2, 3]]).unsqueeze(-1)
+            )
+        )
+        self.assertTrue(torch.equal(mask, torch.tensor([[0, 0, 0, 0, 1, 1], [0, 0, 0, 1, 1, 1]])))
+
+    def test_split_x_y(self):
+        tokens = torch.tensor([[5, 6, 7, 8, 2, 3], [5, 6, 7, 1, 2, 3]]).unsqueeze(-1)
+        mask = torch.tensor([[0, 0, 0, 0, 1, 1], [0, 0, 0, 1, 1, 1]])
+
+        x, y, x_mask, y_mask, indices = Encoder.split_x_y(tokens, mask)
+        self.assertTrue(torch.equal(x, torch.tensor([[8, 2, 3], [1, 2, 3]]).unsqueeze(-1)))
+        self.assertTrue(torch.equal(y, torch.tensor([[5, 6, 7, 8], [5, 6, 7, 1]]).unsqueeze(-1)))
+        self.assertTrue(torch.equal(x_mask, torch.tensor([[0, 1, 1], [1, 1, 1]])))
+        self.assertTrue(torch.equal(y_mask, torch.tensor([[0, 0, 0, 0], [0, 0, 0, 1]])))
+        self.assertTrue(
+            torch.equal(indices, torch.tensor([[0, 1, 2, 3, 4, 5], [0, 1, 2, 3, 4, 5]]))
+        )
+
+    def test_x_y_there_and_back_again(self):
+        tokens = torch.tensor([[5, 6, 7, 8, 2, 3], [5, 6, 7, 1, 2, 3]]).unsqueeze(-1)
+        mask = torch.tensor([[0, 0, 0, 0, 1, 1], [0, 0, 0, 1, 1, 1]])
+        x, y, x_mask, y_mask, indices = Encoder.split_x_y(tokens, mask)
+        new_tokens, new_mask = Encoder.combine_x_y(x, y, x_mask, y_mask, indices)
+        self.assertTrue(torch.equal(new_tokens, tokens))
+        self.assertTrue(torch.equal(new_mask, mask))
