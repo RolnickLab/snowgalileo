@@ -188,6 +188,7 @@ class Attention(nn.Module):
         attn_drop=0.0,
         proj_drop=0.0,
         norm_layer=nn.LayerNorm,
+        cross_attn: bool = False,
     ):
         super().__init__()
         assert dim % num_heads == 0, "dim should be divisible by num_heads"
@@ -196,32 +197,46 @@ class Attention(nn.Module):
         self.scale = self.head_dim**-0.5
         self.fast_attn = hasattr(torch.nn.functional, "scaled_dot_product_attention")  # FIXME
 
-        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        self.cross_attn = cross_attn
+        if not cross_attn:
+            self.qkv: Optional[nn.Linear] = nn.Linear(dim, dim * 3, bias=qkv_bias)
+            self.q: Optional[nn.Linear] = None
+            self.kv: Optional[nn.Linear] = None
+        else:
+            self.qkv = None
+            self.q = nn.Linear(dim, dim, bias=qkv_bias)
+            self.kv = nn.Linear(dim, dim * 2, bias=qkv_bias)
+
         self.q_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
         self.k_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
-    def forward(self, x, attn_mask=None):
-        B, N, C = x.shape
-        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv.unbind(0)
-        q, k = self.q_norm(q), self.k_norm(k)
+    def forward(self, x, y=None, attn_mask=None):
+        if y is None:
+            assert not self.cross_attn
+            B, N, C = x.shape
+            qkv = (
+                self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
+            )
+            q, k, v = qkv.unbind(0)
+        else:
+            assert self.cross_attn
+            B, N, C = x.shape
+            Ny = y.shape[1]
+            q = self.q(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
+            kv = (
+                self.kv(y)
+                .reshape(B, Ny, 2, self.num_heads, C // self.num_heads)
+                .permute(2, 0, 3, 1, 4)
+            )
+            k, v = kv[0], kv[1]
 
+        q, k = self.q_norm(q), self.k_norm(k)
         if self.fast_attn:
             if attn_mask is not None:
                 attn_mask = attn_mask[:, None, None].repeat((1, self.num_heads, N, 1))
-                # attn_mask will have shape [batch, num_heads, N, N]
-                # we want to make sure the trace is unmasked; otherwise
-                # we get NaNs
-                diagonal = repeat(
-                    torch.eye(N, device=attn_mask.device).bool(),
-                    "s1 s2 -> b h s1 s2",
-                    b=B,
-                    h=self.num_heads,
-                )
-                attn_mask = attn_mask + diagonal
             x = F.scaled_dot_product_attention(
                 q,
                 k,
@@ -299,6 +314,7 @@ class Block(nn.Module):
         init_values=None,
         act_layer=nn.GELU,
         norm_layer=nn.LayerNorm,
+        cross_attn: bool = False,
     ):
         super().__init__()
         self.norm1 = norm_layer(dim)
@@ -310,6 +326,7 @@ class Block(nn.Module):
             attn_drop=attn_drop,
             proj_drop=drop,
             norm_layer=norm_layer,
+            cross_attn=cross_attn,
         )
         self.ls1 = LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
 
@@ -322,13 +339,15 @@ class Block(nn.Module):
         )
         self.ls2 = LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
 
-    def forward(self, x, attn_mask):
-        x = x + self.ls1(self.attn(self.norm1(x), attn_mask))
+    def forward(self, x, y, attn_mask):
+        x = x + self.ls1(self.attn(self.norm1(x), y, attn_mask))
         x = x + self.ls2(self.mlp(self.norm2(x)))
         return x
 
 
 class FlexiPrestoBase(nn.Module):
+    cross_attn: bool
+
     def __init__(
         self,
         embedding_size: int = 128,
@@ -354,6 +373,7 @@ class FlexiPrestoBase(nn.Module):
                     mlp_ratio,
                     qkv_bias=True,
                     norm_layer=nn.LayerNorm,
+                    cross_attn=self.cross_attn,
                 )
                 for _ in range(depth)
             ]
@@ -416,7 +436,44 @@ class FlexiPrestoBase(nn.Module):
             dim=1,
         )
         m = torch.cat([s_t_m, s_m, t_m], dim=1)
-        return cls.remove_masked_tokens(x, m)
+        return x, m
+
+    @staticmethod
+    def split_x_y(tokens, mask):
+        org_mask_dtype = mask.dtype
+        mask = mask.bool()
+        # https://stackoverflow.com/a/68621610/2332296
+        # move all non-masked values to the front of their rows
+        sorted_mask, indices = torch.sort((~mask).int(), dim=1, descending=True, stable=True)
+        tokens = tokens.gather(1, indices[:, :, None].expand_as(tokens))
+
+        # cut off to the length of the longest sequence
+        max_length = sorted_mask.sum(-1).max()
+        min_length = sorted_mask.sum(-1).min()
+        y = tokens[:, :max_length]
+        x = tokens[:, min_length:]
+
+        x_mask = 1 - sorted_mask[:, min_length:].to(dtype=org_mask_dtype)
+        y_mask = 1 - sorted_mask[:, :max_length].to(dtype=org_mask_dtype)
+        return x, y, x_mask, y_mask, indices
+
+    @staticmethod
+    def combine_x_y(x, y, x_mask, y_mask, indices):
+        # multiply by mask to zero out, then add
+        B, T = indices.shape[0], indices.shape[1]
+        D = x.shape[-1]
+
+        tokens = torch.zeros((B, T, D), dtype=x.dtype, device=x.device)
+        full_mask = torch.zeros((B, T), dtype=x_mask.dtype, device=x_mask.device)
+        tokens[:, : y.shape[1]] = y * (1 - y_mask).unsqueeze(-1)
+        tokens[:, -x.shape[1] :] += x * x_mask.unsqueeze(-1)
+        full_mask[:, : y_mask.shape[1]] = y_mask
+        full_mask[:, -x_mask.shape[1] :] += x_mask
+
+        tokens = tokens.scatter(1, indices[:, :, None].expand_as(tokens), tokens)
+        full_mask = full_mask.scatter(1, indices.expand_as(full_mask), full_mask)
+
+        return tokens, torch.clamp(full_mask, max=1)
 
     @staticmethod
     def remove_masked_tokens(x, mask):
@@ -463,7 +520,6 @@ class FlexiPrestoBase(nn.Module):
     def split_and_expand_hwtc(
         cls,
         x: torch.Tensor,
-        indices: torch.Tensor,
         m: torch.Tensor,
         h: int,
         w: int,
@@ -472,7 +528,6 @@ class FlexiPrestoBase(nn.Module):
         s_c_g: int,
         t_c_g: int,
     ):
-        x, m = cls.add_removed_tokens(x, indices, m)
         n_s_t_t = h * w * t * s_t_c_g
         n_t_t = t * t_c_g
 
@@ -542,16 +597,27 @@ class FlexiPrestoBase(nn.Module):
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
         s_c_g, t_c_g = s_x.shape[3], t_x.shape[-2]
         s_t_x, s_x, t_x = self.apply_encodings(s_t_x, s_x, t_x, months, patch_size, input_res)
-        x, indices, m = self.collapse_and_combine_hwtc(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
-        for blk in self.blocks:
-            # we take the inverse of the mask because a value
-            # of True indicates the value *should* take part in
-            # attention
-            x = blk(x, attn_mask=~m.bool())
-        return self.split_and_expand_hwtc(x, indices, m, h, w, t, s_t_c_g, s_c_g, t_c_g)
+        x, m = self.collapse_and_combine_hwtc(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
+        if not self.cross_attn:
+            x, indices, m = self.remove_masked_tokens(x, m)
+            for blk in self.blocks:
+                # we take the inverse of the mask because a value
+                # of True indicates the value *should* take part in
+                # attention
+                x = blk(x=x, y=None, attn_mask=~m.bool())
+            x, m = self.add_removed_tokens(x, indices, m)
+            return self.split_and_expand_hwtc(x, m, h, w, t, s_t_c_g, s_c_g, t_c_g)
+        else:
+            x, y, x_mask, y_mask, indices = self.split_x_y(x, m)
+            for blk in self.blocks:
+                x = blk(x=x, y=y, attn_mask=~y_mask.bool())
+            x, m = self.combine_x_y(x, y, x_mask, y_mask, indices)
+            return self.split_and_expand_hwtc(x, m, h, w, t, s_t_c_g, s_c_g, t_c_g)
 
 
 class Encoder(FlexiPrestoBase):
+    cross_attn = False
+
     def __init__(
         self,
         max_patch_size: int = 8,
@@ -653,7 +719,8 @@ class Encoder(FlexiPrestoBase):
 
     @classmethod
     def average_tokens(cls, s_t_x, s_x, t_x, s_t_m, s_m, t_m):
-        x, _, m = cls.collapse_and_combine_hwtc(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
+        x, m = cls.collapse_and_combine_hwtc(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
+        x, _, m = cls.remove_masked_tokens(x, m)
         x_for_mean = x * (1 - m.unsqueeze(-1))
         return x_for_mean.sum(dim=1) / torch.sum(1 - m, -1, keepdim=True)
 
@@ -680,6 +747,8 @@ class Encoder(FlexiPrestoBase):
 
 
 class PrestoPixelDecoder(FlexiPrestoBase):
+    cross_attn = True
+
     def __init__(
         self,
         encoder_embedding_size: int = 128,
@@ -729,20 +798,18 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         B, H, W, T, S_T_C, _ = s_t_x.shape
         s_t_m_reshaped = repeat(self.mask_token, "d -> b h w t c d", b=B, h=H, w=W, t=T, c=S_T_C)
         s_t_m_add = s_t_m_reshaped * s_t_m.unsqueeze(-1)
-        s_t_m = s_t_m * 0  # all values are unmasked now
+
         s_x = s_x * (1 - s_m).unsqueeze(-1)
         S_C = s_x.shape[-2]
         s_m_reshaped = repeat(self.mask_token, "d -> b h w c d", b=B, h=H, w=W, c=S_C)
         s_m_add = s_m_reshaped * s_m.unsqueeze(-1)
-        s_m = s_m * 0
 
         t_x = t_x * (1 - t_m).unsqueeze(-1)
         T_C = t_x.shape[-2]
         t_m_reshaped = repeat(self.mask_token, "d -> b t c d", b=B, t=T, c=T_C)
         t_m_add = t_m_reshaped * t_m.unsqueeze(-1)
-        t_m = t_m * 0
 
-        return s_t_x + s_t_m_add, s_x + s_m_add, t_x + t_m_add, s_t_m, s_m, t_m
+        return s_t_x + s_t_m_add, s_x + s_m_add, t_x + t_m_add
 
     def forward(
         self,
@@ -760,7 +827,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         s_x = self.encoder_to_decoder_embed(s_x)
         t_x = self.encoder_to_decoder_embed(t_x)
 
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m = self.add_masks(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
+        s_t_x, s_x, t_x = self.add_masks(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
         s_t_x, s_x, t_x, s_t_m, s_m, t_m = self.apply_attn(
             s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size, input_resolution_m
         )
@@ -799,83 +866,4 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             torch.cat(output_s_t, dim=-1),
             torch.cat(output_s, dim=-1),
             torch.cat(output_t, dim=-1),
-        )
-
-
-class PrestoRepresentationDecoder(FlexiPrestoBase):
-    def __init__(
-        self,
-        encoder_embedding_size: int = 128,
-        decoder_embedding_size: int = 128,
-        depth=2,
-        mlp_ratio=2,
-        num_heads=8,
-        max_sequence_length=24,
-        max_patch_size=8,
-    ):
-        super().__init__(
-            decoder_embedding_size,
-            depth,
-            mlp_ratio,
-            num_heads,
-            max_sequence_length,
-            max_patch_size,
-        )
-
-        self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
-        self.encoder_to_decoder_embed = nn.Linear(
-            encoder_embedding_size, decoder_embedding_size, bias=True
-        )
-        self.decoder_to_encoder_embed = nn.Linear(
-            decoder_embedding_size, encoder_embedding_size, bias=True
-        )
-
-    def add_masks(self, s_t_x, s_x, t_x, s_t_m, s_m, t_m):
-        s_t_x = s_t_x * (1 - s_t_m).unsqueeze(-1)
-        B, H, W, T, S_T_C, _ = s_t_x.shape
-        s_t_m_reshaped = repeat(self.mask_token, "d -> b h w t c d", b=B, h=H, w=W, t=T, c=S_T_C)
-        s_t_m_add = s_t_m_reshaped * s_t_m.unsqueeze(-1)
-        s_t_m = s_t_m * 0  # all values are unmasked now
-
-        s_x = s_x * (1 - s_m).unsqueeze(-1)
-        S_C = s_x.shape[-2]
-        s_m_reshaped = repeat(self.mask_token, "d -> b h w c d", b=B, h=H, w=W, c=S_C)
-        s_m_add = s_m_reshaped * s_m.unsqueeze(-1)
-        s_m = s_m * 0
-
-        t_x = t_x * (1 - t_m).unsqueeze(-1)
-        T_C = t_x.shape[-2]
-        t_m_reshaped = repeat(self.mask_token, "d -> b t c d", b=B, t=T, c=T_C)
-        t_m_add = t_m_reshaped * t_m.unsqueeze(-1)
-        t_m = t_m * 0
-
-        return s_t_x + s_t_m_add, s_x + s_m_add, t_x + t_m_add, s_t_m, s_m, t_m
-
-    def forward(
-        self,
-        s_t_x: torch.Tensor,
-        s_x: torch.Tensor,
-        t_x: torch.Tensor,
-        s_t_m: torch.Tensor,
-        s_m: torch.Tensor,
-        t_m: torch.Tensor,
-        months: torch.Tensor,
-        patch_size: Optional[int] = None,
-        input_resolution_m: Optional[int] = BASE_GSD,
-    ):
-        s_t_x = self.encoder_to_decoder_embed(s_t_x)
-        s_x = self.encoder_to_decoder_embed(s_x)
-        t_x = self.encoder_to_decoder_embed(t_x)
-
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m = self.add_masks(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m = self.apply_attn(
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size, input_resolution_m
-        )
-        return (
-            self.decoder_to_encoder_embed(s_t_x),
-            self.decoder_to_encoder_embed(s_x),
-            self.decoder_to_encoder_embed(t_x),
-            s_t_m,
-            s_m,
-            t_m,
         )
