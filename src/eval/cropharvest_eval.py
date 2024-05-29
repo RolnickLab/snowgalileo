@@ -18,6 +18,7 @@ from ..data.dataset import (
     SPACE_BANDS,
     SPACE_TIME_BANDS,
     SPACE_TIME_BANDS_GROUPS_IDX,
+    STATIC_BANDS,
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
     normalize_space,
@@ -160,12 +161,12 @@ class CropHarvestEvalBase(EvalTask):
         s_t_m[:, :, :, :, SPACE_TIME_BANDS_TO_CH_BANDS] = 0
         s_t_m = s_t_m[:, :, :, :, [g[0] for _, g in SPACE_TIME_BANDS_GROUPS_IDX.items()]]
 
-        s_x = np.zeros((b, t, len(SPACE_BANDS)))
-        s_x[:, :, SPACE_BANDS_TO_CH_BANDS] = array[:, :, CH_BANDS_TO_SPACE_BANDS]
-        s_x = repeat(s_x[:, 0], "b d -> b h w d", h=1, w=1)
-        s_m = np.ones((b, 1, 1, len(SPACE_BANDS)))
-        s_m[:, :, :, SPACE_BANDS_TO_CH_BANDS] = 0
-        s_m = s_m[:, :, :, [g[0] for _, g in SPACE_BAND_GROUPS_IDX.items()]]
+        sp_x = np.zeros((b, t, len(SPACE_BANDS)))
+        sp_x[:, :, SPACE_BANDS_TO_CH_BANDS] = array[:, :, CH_BANDS_TO_SPACE_BANDS]
+        sp_x = repeat(sp_x[:, 0], "b d -> b h w d", h=1, w=1)
+        sp_m = np.ones((b, 1, 1, len(SPACE_BANDS)))
+        sp_m[:, :, :, SPACE_BANDS_TO_CH_BANDS] = 0
+        sp_m = sp_m[:, :, :, [g[0] for _, g in SPACE_BAND_GROUPS_IDX.items()]]
 
         t_x = np.zeros((b, t, len(TIME_BANDS)))
         t_x[:, :, TIME_BANDS_TO_CH_BANDS] = array[:, :, CH_BANDS_TO_TIME_BANDS]
@@ -173,23 +174,29 @@ class CropHarvestEvalBase(EvalTask):
         t_m[:, :, TIME_BANDS_TO_CH_BANDS] = 0
         t_m = t_m[:, :, [g[0] for _, g in TIME_BAND_GROUPS_IDX.items()]]
 
+        # no static channels in cropharvest
+        st_x = np.zeros((b, len(STATIC_BANDS)))
+        st_m = np.ones((b, len(STATIC_BANDS)))
+
         months = np.fmod(np.arange(start_month - 1, start_month - 1 + t), 12)
         months = repeat(months, "t -> b t", b=b)
 
         return masked_output_np_to_tensor(
             normalize_space_time(s_t_x),
-            normalize_space(s_x),
+            normalize_space(sp_x),
             normalize_time(t_x),
+            st_x,
             s_t_m,
-            s_m,
+            sp_m,
             t_m,
+            st_m,
             months,
         )
 
     @staticmethod
     def collate_fn(batch):
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, label = default_collate(batch)
-        return MaskedOutput(s_t_x, s_x, t_x, s_t_m, s_m, t_m, months), label
+        s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, label = default_collate(batch)
+        return MaskedOutput(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months), label
 
 
 class BinaryCropHarvestEval(CropHarvestEvalBase):
@@ -233,12 +240,25 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
                 masked_output = self.cropharvest_array_to_normalized_presto(
                     cast(np.ndarray, test_instance.x), self.start_month, self.num_timesteps
                 )
-                s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
-                s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
-                    s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
+                s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = [
+                    t.to(device) for t in masked_output
+                ]
+                s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = pretrained_model(
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                    patch_size=self.patch_size,
                 )
                 encodings = (
-                    pretrained_model.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m).cpu().numpy()
+                    pretrained_model.average_tokens(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
+                    .cpu()
+                    .numpy()
                 )
                 preds = sklearn_model.predict_proba(encodings)[:, 1]
                 ds = test_instance.to_xarray(preds)
@@ -345,12 +365,16 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
             masked_output = self.cropharvest_array_to_normalized_presto(
                 x, self.start_month, self.num_timesteps
             )
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
-                s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = [
+                t.to(device) for t in masked_output
+            ]
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = pretrained_model(
+                s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size=self.patch_size
             )
             encodings = (
-                pretrained_model.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m).cpu().numpy()
+                pretrained_model.average_tokens(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
+                .cpu()
+                .numpy()
             )
             for model in sklearn_models:
                 pred_dict[model_class_name(model)].append(model.predict(encodings))
