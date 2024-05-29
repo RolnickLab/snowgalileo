@@ -620,7 +620,9 @@ class FlexiPrestoBase(nn.Module):
         # todo - add encodings
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
         sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
-        s_t_x, sp_x, t_x, st_x = self.apply_encodings(s_t_x, sp_x, t_x, st_x, months, patch_size, input_res)
+        s_t_x, sp_x, t_x, st_x = self.apply_encodings(
+            s_t_x, sp_x, t_x, st_x, months, patch_size, input_res
+        )
         x, m = self.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
         if not self.cross_attn:
             x, indices, m = self.remove_masked_tokens(x, m)
