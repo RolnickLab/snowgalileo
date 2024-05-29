@@ -207,6 +207,7 @@ for e in tqdm(range(training_config["num_epochs"])):
             expanded_s_t_x,
             expanded_sp_x,
             t_x,
+            st_x,
             p_s_t,
             p_sp,
             p_t,

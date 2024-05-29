@@ -73,7 +73,7 @@ class So2SatDataset(PyTorchDataset):
 
         return image, label
 
-    def create_so2sat_masks(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def create_so2sat_masks(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         s_t_channels = [idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S" in key]
 
         # everything is masked by default
