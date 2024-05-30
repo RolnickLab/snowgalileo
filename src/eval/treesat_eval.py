@@ -26,6 +26,8 @@ from ..data.dataset import (
     SPACE_BANDS,
     SPACE_TIME_BANDS,
     SPACE_TIME_BANDS_GROUPS_IDX,
+    STATIC_BAND_GROUPS_IDX,
+    STATIC_BANDS,
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
     normalize_space_time,
@@ -176,30 +178,36 @@ class TreeSatDataset(Dataset):
             s_t_m, "d -> h w t d", h=self.input_height_width, w=self.input_height_width, t=1
         )
 
-        s_m = np.ones(
+        sp_m = np.ones(
             [self.input_height_width, self.input_height_width, len(SPACE_BAND_GROUPS_IDX)]
         )
         t_m = np.ones([self.num_timesteps, len(TIME_BAND_GROUPS_IDX)])
+        st_m = np.ones([len(STATIC_BAND_GROUPS_IDX)])
 
         assert ((s_t_m == 0) | (s_t_m == 1)).all()
-        assert (s_m == 1).all()
+        assert (sp_m == 1).all()
         assert (t_m == 1).all()
+        assert (st_m == 1).all()
 
-        return (s_t_m, s_m, t_m)
+        return (s_t_m, sp_m, t_m, st_m)
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         image = self.images[idx]
         s_t_x, label = self.image_to_space_time_array(image.strip())
 
-        s_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
+        sp_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
         t_x = np.zeros((s_t_x.shape[2], len(TIME_BANDS)))
+        st_x = np.zeros((len(STATIC_BANDS)))
 
-        s_t_m, s_m, t_m = self.masks
+        s_t_m, sp_m, t_m, st_m = self.masks
         month = np.ones((self.num_timesteps,)) * self.start_month
 
         label_torch = torch.tensor(label, dtype=torch.long)
 
-        return (masked_output_np_to_tensor(s_t_x, s_x, t_x, s_t_m, s_m, t_m, month), label_torch)
+        return (
+            masked_output_np_to_tensor(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, month),
+            label_torch,
+        )
 
     def __len__(self):
         return len(self.images)
@@ -272,13 +280,26 @@ class TreeSatEval(EvalTask):
 
         labels_list = []
         for masked_output, labels in tqdm(test_dl, desc="Computing test predictions"):
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = [
+                t.to(device) for t in masked_output
+            ]
             with torch.no_grad():
-                s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
-                    s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
+                s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = pretrained_model(
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                    patch_size=self.patch_size,
                 )
                 encodings = (
-                    pretrained_model.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m).cpu().numpy()
+                    pretrained_model.average_tokens(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
+                    .cpu()
+                    .numpy()
                 )
             labels_list.append(labels.cpu().numpy())
             for model in sklearn_models:
