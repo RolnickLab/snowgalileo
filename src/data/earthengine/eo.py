@@ -74,7 +74,7 @@ SPACE_IMAGE_FUNCTIONS = [get_single_srtm_image, get_single_dw_image, get_single_
 SPACE_SHIFT_VALUES = np.array(SRTM_SHIFT_VALUES + DW_SHIFT_VALUES + WC_SHIFT_VALUES)
 SPACE_DIV_VALUES = np.array(SRTM_DIV_VALUES + DW_DIV_VALUES + WC_DIV_VALUES)
 
-STATIC_IMAGE_FUNCTION = [get_single_landscan_image]
+STATIC_IMAGE_FUNCTIONS = [get_single_landscan_image]
 STATIC_BANDS = LANDSCAN_BANDS
 STATIC_SHIFT_VALUES = np.array(LANDSCAN_SHIFT_VALUES)
 STATIC_DIV_VALUES = np.array(LANDSCAN_DIV_VALUES)
@@ -215,7 +215,7 @@ def create_ee_image(
                 end_date=end_date + timedelta(days=31),
             )
         )
-    for static_image_function in STATIC_IMAGE_FUNCTION:
+    for static_image_function in STATIC_IMAGE_FUNCTIONS:
         total_image_list.append(
             static_image_function(
                 region=polygon,

@@ -19,4 +19,4 @@ def get_single_landscan_image(region: ee.Geometry, start_date: date, end_date: d
         # unmask ocean values
         .unmask(0)
     )
-    return ls_collection
+    return ls_collection.toDouble()
