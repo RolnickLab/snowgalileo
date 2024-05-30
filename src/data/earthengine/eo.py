@@ -42,6 +42,9 @@ from .s1 import (
 )
 from .s2 import S2_BANDS, S2_DIV_VALUES, S2_SHIFT_VALUES, get_single_s2_image
 from .srtm import SRTM_BANDS, SRTM_DIV_VALUES, SRTM_SHIFT_VALUES, get_single_srtm_image
+from .terraclimate import TC_BANDS, TC_DIV_VALUES, TC_SHIFT_VALUES, get_single_terraclimate_image
+from .viirs import VIIRS_BANDS, VIIRS_DIV_VALUES, VIIRS_SHIFT_VALUES, get_single_viirs_image
+from .worldcereal import WC_BANDS, WC_DIV_VALUES, WC_SHIFT_VALUES, get_single_wc_image
 
 # dataframe constants when exporting the labels
 LAT = "lat"
@@ -53,21 +56,23 @@ END_DATE = date(END_YEAR, 12, 31)
 TIME_IMAGE_FUNCTIONS = [
     get_single_s2_image,
     get_single_era5_image,
+    get_single_terraclimate_image,
+    get_single_viirs_image,
 ]
 SPACE_TIME_BANDS = S1_BANDS + S2_BANDS
 SPACE_TIME_SHIFT_VALUES = np.array(S1_SHIFT_VALUES + S2_SHIFT_VALUES)
 SPACE_TIME_DIV_VALUES = np.array(S1_DIV_VALUES + S2_DIV_VALUES)
 
-TIME_BANDS = ERA5_BANDS
-TIME_SHIFT_VALUES = np.array(ERA5_SHIFT_VALUES)
-TIME_DIV_VALUES = np.array(ERA5_DIV_VALUES)
+TIME_BANDS = ERA5_BANDS + TC_BANDS + VIIRS_BANDS
+TIME_SHIFT_VALUES = np.array(ERA5_SHIFT_VALUES + TC_SHIFT_VALUES + VIIRS_SHIFT_VALUES)
+TIME_DIV_VALUES = np.array(ERA5_DIV_VALUES + TC_DIV_VALUES + VIIRS_DIV_VALUES)
 
 ALL_DYNAMIC_IN_TIME_BANDS = SPACE_TIME_BANDS + TIME_BANDS
 
-SPACE_IMAGE_FUNCTIONS = [get_single_srtm_image, get_single_dw_image]
-SPACE_BANDS = SRTM_BANDS + DW_BANDS
-SPACE_SHIFT_VALUES = np.array(SRTM_SHIFT_VALUES + DW_SHIFT_VALUES)
-SPACE_DIV_VALUES = np.array(SRTM_DIV_VALUES + DW_DIV_VALUES)
+SPACE_BANDS = SRTM_BANDS + DW_BANDS + WC_BANDS
+SPACE_IMAGE_FUNCTIONS = [get_single_srtm_image, get_single_dw_image, get_single_wc_image]
+SPACE_SHIFT_VALUES = np.array(SRTM_SHIFT_VALUES + DW_SHIFT_VALUES + WC_SHIFT_VALUES)
+SPACE_DIV_VALUES = np.array(SRTM_DIV_VALUES + DW_DIV_VALUES + WC_DIV_VALUES)
 
 STATIC_IMAGE_FUNCTION = [get_single_landscan_image]
 STATIC_BANDS = LANDSCAN_BANDS
