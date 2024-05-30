@@ -25,8 +25,8 @@ def get_single_wc_image(region: ee.Geometry, start_date: date, end_date: date) -
             .unmask(0)
             .select("confidence")
             .rename(product)
+            for product in ORIGINAL_BANDS
         ]
-        for product in ORIGINAL_BANDS
     ).clip(region)
 
     return composite
