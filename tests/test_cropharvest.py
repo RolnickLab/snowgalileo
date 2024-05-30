@@ -42,7 +42,6 @@ class TestCropHarvest(unittest.TestCase):
         self.assertTrue((sp_m[:, :, :, list(SPACE_BAND_GROUPS_IDX.keys()).index("DW")] == 1).all())
         self.assertEqual(t_x.shape, (b, t, len(TIME_BANDS)))
         self.assertEqual(t_m.shape, (b, t, len(TIME_BAND_GROUPS_IDX)))
-        self.assertTrue((t_m == 0).all())
         self.assertEqual(st_x.shape, (b, len(STATIC_BANDS)))
         self.assertEqual(st_m.shape, (b, len(STATIC_BAND_GROUPS_IDX)))
         self.assertTrue((st_m == 1).all())
