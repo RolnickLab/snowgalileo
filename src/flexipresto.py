@@ -562,6 +562,7 @@ class FlexiPrestoBase(nn.Module):
     def apply_encodings(self, s_t_x, sp_x, t_x, st_x, months, patch_size, input_res):
         b, h, w, t, s_t_c_g, _ = s_t_x.shape
         sp_c_g, t_c_g = sp_x.shape[-2], t_x.shape[-2]
+        st_c_g = st_x.shape[-2]
 
         s_t_channel = repeat(self.s_t_channel_embed, "c_g d -> b h w t c_g d", b=b, h=h, w=w, t=t)
         pos_embed_s_t = repeat(
@@ -576,7 +577,7 @@ class FlexiPrestoBase(nn.Module):
         m_embed_t = repeat(self.month_embed(months), "b t d -> b t c_g d", c_g=t_c_g)
         t_zeros = torch.zeros(b, t, t_c_g, int(self.embedding_size * 0.25), device=t_x.device)
 
-        sp_channel = repeat(self.s_channel_embed, "c_g d -> b h w c_g d", b=b, h=h, w=w)
+        sp_channel = repeat(self.sp_channel_embed, "c_g d -> b h w c_g d", b=b, h=h, w=w)
         sp_zeros = torch.zeros(
             b,
             h,
@@ -587,6 +588,7 @@ class FlexiPrestoBase(nn.Module):
         )
 
         st_channel = repeat(self.st_channel_embed, "c_g d -> b c_g d", b=b)
+        st_zeros = torch.zeros(b, st_c_g, st_channel.shape[-1] * 3, device=st_channel.device)
 
         # find the resolution that each token represents, which will be
         # the number of pixels in a patch * the resolution of each pixel
@@ -611,13 +613,12 @@ class FlexiPrestoBase(nn.Module):
         s_t_embed = torch.cat([s_t_channel, pos_embed_s_t, m_embed_s_t, spatial_embed_s_t], dim=-1)
         sp_embed = torch.cat([sp_channel, sp_zeros, spatial_embed_s], dim=-1)
         t_embed = torch.cat([t_channel, pos_embed_t, m_embed_t, t_zeros], dim=-1)
-        st_embed = torch.cat([st_channel, sp_zeros, t_zeros], dim=-1)
+        st_embed = torch.cat([st_channel, st_zeros], dim=-1)
         return s_t_x + s_t_embed, sp_x + sp_embed, t_x + t_embed, st_x + st_embed
 
     def apply_attn(
         self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_res
     ):
-        # todo - add encodings
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
         sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
         s_t_x, sp_x, t_x, st_x = self.apply_encodings(
@@ -778,10 +779,19 @@ class Encoder(FlexiPrestoBase):
         patch_size: Optional[int] = None,
         input_resolution_m: Optional[int] = BASE_GSD,
     ):
-        s_t_x, sp_x, t_x, s_t_m, st_m, t_m = self.apply_linear_projection(
+        (
+            s_t_x,
+            sp_x,
+            t_x,
+            st_x,
+            s_t_m,
+            sp_m,
+            t_m,
+            st_m,
+        ) = self.apply_linear_projection(
             s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, patch_size
         )
-        s_t_x, sp_x, t_x, s_t_m, st_m, t_m = self.apply_attn(
+        s_t_x, sp_x, t_x, st_x, s_t_m, st_m, t_m, st_m = self.apply_attn(
             s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_resolution_m
         )
 
