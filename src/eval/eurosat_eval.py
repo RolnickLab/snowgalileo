@@ -19,6 +19,8 @@ from ..data.dataset import (
     SPACE_BANDS,
     SPACE_TIME_BANDS,
     SPACE_TIME_BANDS_GROUPS_IDX,
+    STATIC_BAND_GROUPS_IDX,
+    STATIC_BANDS,
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
     normalize_space_time,
@@ -120,7 +122,7 @@ class EuroSatDataset(PyTorchDataset):
             json.dump(train_test_split, split_path.open("w"))
         return train_test_split
 
-    def create_eurosat_masks(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def create_eurosat_masks(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         if self.rgb:
             space_time_channels = [
                 idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S2_RGB" in key
@@ -148,12 +150,14 @@ class EuroSatDataset(PyTorchDataset):
             [self.input_height_width, self.input_height_width, len(SPACE_BAND_GROUPS_IDX)]
         )
         time_mask = np.ones([self.num_timesteps, len(TIME_BAND_GROUPS_IDX)])
+        static_mask = np.ones([len(STATIC_BAND_GROUPS_IDX)])
 
         assert ((space_time_mask == 0) | (space_time_mask == 1)).all()
         assert (space_mask == 1).all()
         assert (time_mask == 1).all()
+        assert (static_mask == 1).all()
 
-        return (space_time_mask, space_mask, time_mask)
+        return (space_time_mask, space_mask, time_mask, static_mask)
 
     def image_to_space_time_array(self, tif_filename: str) -> Tuple[np.ndarray, np.ndarray]:
         indices_to_remove = []
@@ -192,15 +196,19 @@ class EuroSatDataset(PyTorchDataset):
         s_t_x, label = self.image_to_space_time_array(image.strip())
 
         # static bands are not provided by eurosat
-        s_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
+        sp_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
         t_x = np.zeros((s_t_x.shape[2], len(TIME_BANDS)))
+        st_x = np.zeros((len([STATIC_BANDS])))
 
-        s_t_m, s_m, t_m = self.masks
+        s_t_m, sp_m, t_m, st_m = self.masks
         month = np.zeros((self.num_timesteps,))
 
         label_torch = torch.tensor(label, dtype=torch.long)
 
-        return (masked_output_np_to_tensor(s_t_x, s_x, t_x, s_t_m, s_m, t_m, month), label_torch)
+        return (
+            masked_output_np_to_tensor(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, month),
+            label_torch,
+        )
 
     def __len__(self):
         return len(self.images)
@@ -238,16 +246,29 @@ class EuroSatEval(EvalTask):
         labels_list = []
 
         for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = [
+                t.to(device) for t in masked_output
+            ]
 
             pretrained_model.eval()
 
             with torch.no_grad():
-                s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
-                    s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
+                s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = pretrained_model(
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                    patch_size=self.patch_size,
                 )
                 encodings = (
-                    pretrained_model.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m).cpu().numpy()
+                    pretrained_model.average_tokens(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
+                    .cpu()
+                    .numpy()
                 )
 
             labels_list.append(label.cpu().numpy())
