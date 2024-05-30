@@ -190,8 +190,8 @@ def batch_mask_time(
         # space only mask remains unmasked
         space_mask = space_mask * 0
     space_mask = repeat(space_mask, "b -> b h w c_g", h=h, w=w, c_g=len(SPACE_BAND_GROUPS_IDX))
-    static_mask = torch.rand(b, device=space_x.device) <= mask_ratio
-    static_mask = repeat(space_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX))
+    static_mask = torch.rand(b, device=static_x.device) <= mask_ratio
+    static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX))
 
     return MaskedOutput(
         space_time_x,
