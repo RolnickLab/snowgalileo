@@ -32,21 +32,23 @@ class TestDataset(unittest.TestCase):
 
     def test_subset_image_with_minimum_size(self):
         input = np.ones((3, 3, 1))
-        months = np.ones(1)
-        output = Dataset.subset_image(input, input, months, months, 3, 1)
+        months = static = np.ones(1)
+        output = Dataset.subset_image(input, input, months, static, months, 3, 1)
         self.assertTrue(np.equal(input, output[0]).all())
         self.assertTrue(np.equal(input, output[1]).all())
         self.assertTrue(np.equal(months, output[2]).all())
 
     def test_subset_with_too_small_image(self):
         input = np.ones((2, 2, 1))
-        months = np.ones(1)
-        self.assertRaises(AssertionError, Dataset.subset_image, input, input, months, months, 3, 1)
+        months = static = np.ones(1)
+        self.assertRaises(
+            AssertionError, Dataset.subset_image, input, input, months, static, months, 3, 1
+        )
 
     def test_subset_with_larger_images(self):
         input = np.ones((5, 5, 1))
-        months = np.ones(1)
-        output = Dataset.subset_image(input, input, months, months, 3, 1)
+        months = static = np.ones(1)
+        output = Dataset.subset_image(input, input, months, static, months, 3, 1)
         self.assertTrue(np.equal(np.ones((3, 3, 1)), output[0]).all())
         self.assertTrue(np.equal(np.ones((3, 3, 1)), output[1]).all())
         self.assertTrue(np.equal(months, output[2]).all())
