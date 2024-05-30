@@ -4,7 +4,7 @@ import ee
 
 LANDSCAN_BANDS = ["b1"]
 # LANDSCAN values range from approximately 0 to 185000 in 2022: https://code.earthengine.google.com/?scriptPath=users/sat-io/awesome-gee-catalog-examples:population-socioeconomics/LANDSCAN-GLOBAL
-LANDSCAN_SHIFT_VALUES = [-92500]
+LANDSCAN_SHIFT_VALUES = [92500]
 LANDSCAN_DIV_VALUES = [92500]
 
 
