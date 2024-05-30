@@ -267,10 +267,12 @@ class Dataset(PyTorchDataset):
             # followed by the static-in-time bands
             values = cast(np.ndarray, data.values)
 
-        num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(ALL_DYNAMIC_IN_TIME_BANDS)
+        num_timesteps = (values.shape[0] - len(SPACE_BANDS) - len(STATIC_BANDS)) / len(
+            ALL_DYNAMIC_IN_TIME_BANDS
+        )
         assert num_timesteps % 1 == 0
         dynamic_in_time_x = rearrange(
-            values[: -len(SPACE_BANDS)],
+            values[: -(len(SPACE_BANDS) + len(STATIC_BANDS))],
             "(t c) h w -> h w t c",
             c=len(ALL_DYNAMIC_IN_TIME_BANDS),
             t=int(num_timesteps),
@@ -291,7 +293,7 @@ class Dataset(PyTorchDataset):
         space_x = normalize_space(space_x)
 
         static_x = values[-len(STATIC_BANDS) :]
-        static_x = np.nanmean(static_x)
+        static_x = np.nanmean(static_x, axis=(1, 2))
         static_x = normalize_static(static_x)
 
         months = cls.month_array_from_file(tif_path, int(num_timesteps))

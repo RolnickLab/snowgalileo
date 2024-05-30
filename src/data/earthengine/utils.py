@@ -59,7 +59,6 @@ def get_monthly_data(
         raise ValueError(
             f"Cannot get data for range {start} - {end}, please set an earlier end date"
         )
-
     dates = ee.DateRange(date_to_string(start), date_to_string(end))
     startDate = ee.DateRange(dates).start()  # type: ignore
     endDate = ee.DateRange(dates).end()  # type: ignore

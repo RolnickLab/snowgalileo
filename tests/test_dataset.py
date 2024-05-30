@@ -7,7 +7,7 @@ from src.data.dataset import SPACE_BANDS, SPACE_TIME_BANDS, STATIC_BANDS, TIME_B
 
 TEST_FILE = (
     Path(__file__).parents[1]
-    / "data/tifs/tifs_min_lat=20.7599_min_lon=-98.2104_max_lat=20.7726_max_lon=-98.197_dates=2022-01-01_2023-12-31.tiff"
+    / "data/tifs/tifs3_min_lat=51.8108_min_lon=89.6892_max_lat=51.8234_max_lon=89.7095_dates=2022-01-01_2023-12-31.tiff"
 )
 
 
@@ -52,7 +52,3 @@ class TestDataset(unittest.TestCase):
         self.assertTrue(np.equal(np.ones((3, 3, 1)), output[0]).all())
         self.assertTrue(np.equal(np.ones((3, 3, 1)), output[1]).all())
         self.assertTrue(np.equal(months, output[2]).all())
-
-
-if __name__ == "__main__":
-    unittest.main()
