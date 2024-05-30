@@ -5,9 +5,9 @@ import ee
 from .utils import get_monthly_data
 
 image_collection = "IDAHO_EPSCOR/TERRACLIMATE"
-TC_BANDS = ["def", "soil"]
-TC_SHIFT_VALUES = [0.0, 0.0]
-TC_DIV_VALUES = [4548, 8882]
+TC_BANDS = ["def", "soil", "aet"]
+TC_SHIFT_VALUES = [0.0, 0.0, 0.0]
+TC_DIV_VALUES = [4548, 8882, 2000]
 
 
 def get_single_terraclimate_image(
