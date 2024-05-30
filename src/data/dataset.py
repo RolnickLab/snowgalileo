@@ -24,12 +24,15 @@ from .earthengine.eo import (
     SPACE_TIME_DIV_VALUES,
     SPACE_TIME_SHIFT_VALUES,
     SRTM_BANDS,
+    TC_BANDS,
     STATIC_BANDS,
     STATIC_DIV_VALUES,
     STATIC_SHIFT_VALUES,
     TIME_BANDS,
     TIME_DIV_VALUES,
     TIME_SHIFT_VALUES,
+    VIIRS_BANDS,
+    WC_BANDS,
 )
 from .earthengine.eo import SPACE_TIME_BANDS as EO_SPACE_TIME_BANDS
 
@@ -51,6 +54,8 @@ SPACE_TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
 TIME_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
         "ERA5": [TIME_BANDS.index(b) for b in ERA5_BANDS],
+        "TC": [TIME_BANDS.index(b) for b in TC_BANDS],
+        "VIIRS": [TIME_BANDS.index(b) for b in VIIRS_BANDS],
     }
 )
 
@@ -58,6 +63,7 @@ SPACE_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
         "SRTM": [SPACE_BANDS.index(b) for b in SRTM_BANDS],
         "DW": [SPACE_BANDS.index(b) for b in DW_BANDS],
+        "WC": [SPACE_BANDS.index(b) for b in WC_BANDS],
     }
 )
 
