@@ -78,7 +78,7 @@ class AverageMeter:
 
 
 def load_check_config(name: str, mode: str):
-    assert mode in ["mae", "jepa"]
+    assert mode in ["mae"]
 
     with (config_dir / mode / name).open("r") as f:
         config = json.load(f)
@@ -102,8 +102,6 @@ def load_check_config(name: str, mode: str):
         "patch_sizes_to_wandb_plot": list,
         "shape_time_combinations": list,
     }
-    if mode == "jepa":
-        expected_training_keys_type["ema"] = list
     training_dict = config["training"]
 
     for key, val in expected_training_keys_type.items():

@@ -17,7 +17,7 @@ os.environ["GOOGLE_CLOUD_PROJECT"] = EE_PROJECT
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--start_export_from_idx", type=int, default=0)
 argparser.add_argument("--num_exports", type=int, default=3000)
-argparser.add_argument("--filename", type=str, default="glance_locations_only.geojson")
+argparser.add_argument("--filename", type=str, default="dynamic_world_samples.geojson")
 args = argparser.parse_args().__dict__
 
 filepath = DATA_FOLDER / "pretraining_points" / args["filename"]
