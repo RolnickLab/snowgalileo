@@ -66,7 +66,7 @@ def get_monthly_data(
 
     imcol = ee.ImageCollection(collection).filterDate(startDate, endDate).filterBounds(region)
     if unmask:
-        imcol = imcol.unmask(0)
+        imcol = imcol.map(lambda x: x.unmask(0))
 
     # there should only be one timestep per daterange, so a mean shouldn't change the values
     return imcol.select(bands).mean().toDouble()
