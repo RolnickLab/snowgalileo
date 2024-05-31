@@ -24,7 +24,7 @@ def get_single_wc_image(region: ee.Geometry, start_date: date, end_date: date) -
                 wc_collection.filter(f"product == '{product}'")
                 .mosaic()
                 .unmask(0)
-                .select("confidence")
+                .select("classification")
                 .rename(product)
                 for product in ORIGINAL_BANDS
             ]
