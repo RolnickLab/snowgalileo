@@ -17,7 +17,7 @@ WC_DIV_VALUES = [100] * len(WC_BANDS)
 
 def get_single_wc_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
     # we start by getting all the data for the range
-    wc_collection = ee.ImageCollection("ESA/WorldCereal/2021/MODELS/v100").filterBounds(region)
+    wc_collection = ee.ImageCollection("ESA/WorldCereal/2021/MODELS/v100")
     composite = (
         ee.Image.cat(
             [
