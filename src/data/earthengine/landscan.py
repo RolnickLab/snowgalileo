@@ -11,7 +11,6 @@ LANDSCAN_DIV_VALUES = [92500]
 def get_single_landscan_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
     ls_collection = (
         ee.ImageCollection("projects/sat-io/open-datasets/ORNL/LANDSCAN_GLOBAL")
-        .filterBounds(region)
         .filterDate(ee.DateRange(str(start_date), str(end_date)))
         .select(LANDSCAN_BANDS)
         # reduce to a single image
