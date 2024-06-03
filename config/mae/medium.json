@@ -29,7 +29,7 @@
         },
         "decoder": {
             "embedding_size": 128,
-            "depth": 2,
+            "depth": 4,
             "mlp_ratio": 4,
             "num_heads": 8,
             "max_sequence_length": 24
