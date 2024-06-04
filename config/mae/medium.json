@@ -1,7 +1,7 @@
 {
     "training": {
         "num_epochs": 300,
-        "batch_size": 64,
+        "batch_size": 128,
         "effective_batch_size": 512,
         "mask_ratio": 0.75,
         "patch_sizes": [1, 2, 3, 4, 5, 6, 7, 8],
@@ -30,7 +30,7 @@
         },
         "decoder": {
             "embedding_size": 128,
-            "depth": 2,
+            "depth": 4,
             "mlp_ratio": 4,
             "num_heads": 8,
             "max_sequence_length": 24
