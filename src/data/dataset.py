@@ -242,7 +242,7 @@ class Dataset(PyTorchDataset):
             values = cast(np.ndarray, data.values)
 
         num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(ALL_DYNAMIC_IN_TIME_BANDS)
-        assert num_timesteps % 1 == 0
+        assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
         dynamic_in_time_x = rearrange(
             values[: -len(SPACE_BANDS)],
             "(t c) h w -> h w t c",
