@@ -3,7 +3,7 @@ import os
 import warnings
 from collections import OrderedDict, namedtuple
 from pathlib import Path
-from typing import List, Optional, Tuple, cast
+from typing import List, Optional, Tuple, Union, cast
 from typing import OrderedDict as OrderedDictType
 
 import numpy as np
@@ -113,14 +113,23 @@ def normalize_static(x: np.ndarray) -> np.ndarray:
     return _normalize(x, STATIC_SHIFT_VALUES, STATIC_DIV_VALUES)
 
 
-def to_cartesian(lat: float, lon: float) -> np.ndarray:
+def to_cartesian(lat: Union[float, np.ndarray], lon: Union[float, np.ndarray]) -> np.ndarray:
     # transform to radians
     lat = lat * math.pi / 180
     lon = lon * math.pi / 180
-    x = math.cos(lat) * math.cos(lon)
-    y = math.cos(lat) * math.sin(lon)
-    z = math.sin(lat)
-    return np.array([x, y, z])
+    if isinstance(lat, float):
+        assert isinstance(lon, float)
+        x = math.cos(lat) * math.cos(lon)
+        y = math.cos(lat) * math.sin(lon)
+        z = math.sin(lat)
+        return np.array([x, y, z])
+    else:
+        assert isinstance(lon, np.ndarray)
+        assert isinstance(lat, np.ndarray)
+        x = np.cos(lat) * np.cos(lon)
+        y = np.cos(lat) * np.sin(lon)
+        z = np.sin(lat)
+        return np.stack([x, y, z], axis=-1)
 
 
 class Dataset(PyTorchDataset):
