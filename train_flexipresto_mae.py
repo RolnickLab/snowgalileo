@@ -21,7 +21,8 @@ from src.eval import (
     BinaryCropHarvestEval,
     EuroSatEval,
     MultiClassCropHarvestEval,
-    PastisEval,
+    PastisPatchEval,
+    PastisPixelEval,
     So2SatEval,
     TreeSatEval,
 )
@@ -262,7 +263,7 @@ torch.save(predictor.state_dict(), model_path / "predictor.pt")
 
 eval_tasks: List[EvalTask] = [
     *[
-        PastisEval(
+        PastisPatchEval(
             average_months=average_s2_over_month,
             num_subtiles_per_image=num_subtiles_per_image,
         )
@@ -272,7 +273,7 @@ eval_tasks: List[EvalTask] = [
     *[TreeSatEval(mode, patch_size) for mode in ["s1", "s2", "combined"] for patch_size in [6, 3]],
     *[EuroSatEval(rgb) for rgb in [True, False]],
     So2SatEval(),
-    PastisEval(),
+    PastisPixelEval(),
     *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil", "China"]],
 ]
 for task in eval_tasks:
