@@ -72,7 +72,7 @@ SPACE_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
 STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
         "LS": [STATIC_BANDS.index(b) for b in LANDSCAN_BANDS],
-        "locations": [STATIC_BANDS.index(b) for b in LOCATION_BANDS],
+        "location": [STATIC_BANDS.index(b) for b in LOCATION_BANDS],
     }
 )
 
@@ -111,6 +111,16 @@ def normalize_time(x: np.ndarray) -> np.ndarray:
 def normalize_static(x: np.ndarray) -> np.ndarray:
     assert isinstance(x, np.ndarray)
     return _normalize(x, STATIC_SHIFT_VALUES, STATIC_DIV_VALUES)
+
+
+def to_cartesian(lat: float, lon: float) -> np.ndarray:
+    # transform to radians
+    lat = lat * math.pi / 180
+    lon = lon * math.pi / 180
+    x = math.cos(lat) * math.cos(lon)
+    y = math.cos(lat) * math.sin(lon)
+    z = math.sin(lat)
+    return np.array([x, y, z])
 
 
 class Dataset(PyTorchDataset):
@@ -261,16 +271,6 @@ class Dataset(PyTorchDataset):
         # - 1 because we want to index from 0
         return np.fmod(np.arange(start_month - 1, start_month - 1 + num_timesteps), 12)
 
-    @staticmethod
-    def to_cartesian(lat: float, lon: float) -> np.ndarray:
-        # transform to radians
-        lat = lat * math.pi / 180
-        lon = lon * math.pi / 180
-        x = math.cos(lat) * math.cos(lon)
-        y = math.cos(lat) * math.sin(lon)
-        z = math.sin(lat)
-        return np.array([x, y, z])
-
     @classmethod
     def _tif_to_array(cls, tif_path: Path) -> DatasetOutput:
         with cast(xr.Dataset, rioxarray.open_rasterio(tif_path)) as data:
@@ -314,7 +314,7 @@ class Dataset(PyTorchDataset):
         space_x = normalize_space(space_x)
 
         static_x = values[-static_bands_in_tif:]
-        static_x = np.concatenate([np.nanmean(static_x, axis=(1, 2)), cls.to_cartesian(lat, lon)])
+        static_x = np.concatenate([np.nanmean(static_x, axis=(1, 2)), to_cartesian(lat, lon)])
         static_x = normalize_static(static_x)
 
         months = cls.month_array_from_file(tif_path, int(num_timesteps))
