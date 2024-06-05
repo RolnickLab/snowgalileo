@@ -26,6 +26,7 @@ from ..data.dataset import (
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
     normalize_space_time,
+    normalize_static,
     to_cartesian,
 )
 from ..data.earthengine.s2 import ALL_S2_BANDS, REMOVED_BANDS
@@ -167,7 +168,9 @@ class EuroSatDataset(PyTorchDataset):
 
         return (space_time_mask, space_mask, time_mask, static_mask)
 
-    def image_to_space_time_array(self, tif_filename: str) -> Tuple[np.ndarray, np.ndarray]:
+    def image_to_space_time_array(
+        self, tif_filename: str
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         indices_to_remove = []
         for band in REMOVED_BANDS:
             indices_to_remove.append(ALL_S2_BANDS.index(band))
@@ -195,27 +198,29 @@ class EuroSatDataset(PyTorchDataset):
                 image_kept_bands, "c h w -> h w t c", t=self.num_timesteps
             )
             # from (e.g.) +init=epsg:32630 to epsg:32630
-            crs = image.rio.crs.split("=")[-1]
+            crs = image.rio.crs.data["init"]
             transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
             lon, lat = transformer.transform(np.mean(image.x).item(), np.mean(image.y).item())
             cartesian_array = to_cartesian(lat, lon)
 
-            static_array = np.zeros(len(STATIC_BANDS))
+            static_array = np.zeros(
+                len(STATIC_BANDS),
+            )
             static_array[kept_static_bands] = cartesian_array
 
         return (
             normalize_space_time(eo_style_array),
+            normalize_static(static_array),
             np.array([self.labels_to_int[tif_file.parents[0].name]]),
         )
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         image = self.images[idx]
-        s_t_x, label = self.image_to_space_time_array(image.strip())
+        s_t_x, st_x, label = self.image_to_space_time_array(image.strip())
 
         # static bands are not provided by eurosat
         sp_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
         t_x = np.zeros((s_t_x.shape[2], len(TIME_BANDS)))
-        st_x = np.zeros((len([STATIC_BANDS])))
 
         s_t_m, sp_m, t_m, st_m = self.masks
         month = np.zeros((self.num_timesteps,))
