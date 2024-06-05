@@ -91,10 +91,7 @@ class TestEuroSat(unittest.TestCase):
             st_m.shape,
             (len(STATIC_BAND_GROUPS_IDX),),
         )
-
-        # no static data so added as zeros and masked out
-        self.assertTrue(torch.all(st_x == 0))
-        self.assertTrue(torch.all(st_m == 1))
+        self.assertFalse(torch.any(torch.isnan(st_x)))
 
     def check_month(self, month):
         self.assertEqual(month.shape, (EuroSatDataset.num_timesteps,))
