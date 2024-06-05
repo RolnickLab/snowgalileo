@@ -75,9 +75,11 @@ SPACE_SHIFT_VALUES = np.array(SRTM_SHIFT_VALUES + DW_SHIFT_VALUES + WC_SHIFT_VAL
 SPACE_DIV_VALUES = np.array(SRTM_DIV_VALUES + DW_DIV_VALUES + WC_DIV_VALUES)
 
 STATIC_IMAGE_FUNCTIONS = [get_single_landscan_image]
-STATIC_BANDS = LANDSCAN_BANDS
-STATIC_SHIFT_VALUES = np.array(LANDSCAN_SHIFT_VALUES)
-STATIC_DIV_VALUES = np.array(LANDSCAN_DIV_VALUES)
+# we will add latlons in dataset.py function
+LOCATION_BANDS = ["x", "y", "z"]
+STATIC_BANDS = LANDSCAN_BANDS + LOCATION_BANDS
+STATIC_SHIFT_VALUES = np.array(LANDSCAN_SHIFT_VALUES + [0, 0, 0])
+STATIC_DIV_VALUES = np.array(LANDSCAN_DIV_VALUES + [1, 1, 1])
 
 
 def get_ee_task_list(key: str = "description") -> List[str]:

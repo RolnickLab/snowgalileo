@@ -1,3 +1,4 @@
+import math
 import os
 import warnings
 from collections import OrderedDict, namedtuple
@@ -17,6 +18,7 @@ from .earthengine.eo import (
     DW_BANDS,
     ERA5_BANDS,
     LANDSCAN_BANDS,
+    LOCATION_BANDS,
     S1_BANDS,
     SPACE_BANDS,
     SPACE_DIV_VALUES,
@@ -70,6 +72,7 @@ SPACE_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
 STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
         "LS": [STATIC_BANDS.index(b) for b in LANDSCAN_BANDS],
+        "locations": [STATIC_BANDS.index(b) for b in LOCATION_BANDS],
     }
 )
 
@@ -258,6 +261,16 @@ class Dataset(PyTorchDataset):
         # - 1 because we want to index from 0
         return np.fmod(np.arange(start_month - 1, start_month - 1 + num_timesteps), 12)
 
+    @staticmethod
+    def to_cartesian(lat: float, lon: float) -> np.ndarray:
+        # transform to radians
+        lat = lat * math.pi / 180
+        lon = lon * math.pi / 180
+        x = math.cos(lat) * math.cos(lon)
+        y = math.cos(lat) * math.sin(lon)
+        z = math.sin(lat)
+        return np.array([x, y, z])
+
     @classmethod
     def _tif_to_array(cls, tif_path: Path) -> DatasetOutput:
         with cast(xr.Dataset, rioxarray.open_rasterio(tif_path)) as data:
@@ -266,13 +279,20 @@ class Dataset(PyTorchDataset):
             # interleaved for all timesteps
             # followed by the static-in-time bands
             values = cast(np.ndarray, data.values)
+            lon = np.mean(cast(np.ndarray, data.x)).item()
+            lat = np.mean(cast(np.ndarray, data.y)).item()
 
-        num_timesteps = (values.shape[0] - len(SPACE_BANDS) - len(STATIC_BANDS)) / len(
+        # this is a bit hackey but is a unique edge case for locations,
+        # which are not part of the exported bands but are instead
+        # computed here
+        static_bands_in_tif = len(STATIC_BANDS) - len(LOCATION_BANDS)
+
+        num_timesteps = (values.shape[0] - len(SPACE_BANDS) - static_bands_in_tif) / len(
             ALL_DYNAMIC_IN_TIME_BANDS
         )
         assert num_timesteps % 1 == 0
         dynamic_in_time_x = rearrange(
-            values[: -(len(SPACE_BANDS) + len(STATIC_BANDS))],
+            values[: -(len(SPACE_BANDS) + static_bands_in_tif)],
             "(t c) h w -> h w t c",
             c=len(ALL_DYNAMIC_IN_TIME_BANDS),
             t=int(num_timesteps),
@@ -287,13 +307,14 @@ class Dataset(PyTorchDataset):
         time_x = normalize_time(time_x)
 
         space_x = rearrange(
-            values[-(len(SPACE_BANDS) + len(STATIC_BANDS)) : -len(STATIC_BANDS)], "c h w -> h w c"
+            values[-(len(SPACE_BANDS) + static_bands_in_tif) : -static_bands_in_tif],
+            "c h w -> h w c",
         )
         space_x = cls._fillna(space_x, np.array(SPACE_BANDS))
         space_x = normalize_space(space_x)
 
-        static_x = values[-len(STATIC_BANDS) :]
-        static_x = np.nanmean(static_x, axis=(1, 2))
+        static_x = values[-static_bands_in_tif:]
+        static_x = np.concatenate([np.nanmean(static_x, axis=(1, 2)), cls.to_cartesian(lat, lon)])
         static_x = normalize_static(static_x)
 
         months = cls.month_array_from_file(tif_path, int(num_timesteps))
@@ -363,8 +384,18 @@ class Dataset(PyTorchDataset):
             )
 
     def __getitem__(self, idx):
-        s_t_x, sp_x, t_x, st_x, months = self.load_tif(self.tifs[idx])
-        s_t_x, sp_x, t_x, st_x, months = self.subset_image(
-            s_t_x, sp_x, t_x, st_x, months, DATASET_OUTPUT_HW, NUM_TIMESTEPS
-        )
+        (
+            s_t_x,
+            sp_x,
+            t_x,
+            st_x,
+            months,
+        ) = self.load_tif(self.tifs[idx])
+        (
+            s_t_x,
+            sp_x,
+            t_x,
+            st_x,
+            months,
+        ) = self.subset_image(s_t_x, sp_x, t_x, st_x, months, DATASET_OUTPUT_HW, NUM_TIMESTEPS)
         return DatasetOutput(s_t_x, sp_x, t_x, st_x, months)
