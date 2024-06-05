@@ -9,6 +9,7 @@ import rioxarray
 import torch
 import xarray as xr
 from einops import repeat
+from pyproj import Transformer
 from sklearn.base import BaseEstimator
 from sklearn.metrics import (
     accuracy_score,
@@ -21,6 +22,7 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from ..data.dataset import (
+    LOCATION_BANDS,
     S1_BANDS,
     SPACE_BAND_GROUPS_IDX,
     SPACE_BANDS,
@@ -31,6 +33,8 @@ from ..data.dataset import (
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
     normalize_space_time,
+    normalize_static,
+    to_cartesian,
 )
 from ..data.earthengine.s2 import S2_BANDS
 from ..flexipresto import Encoder
@@ -78,9 +82,15 @@ class TreeSatDataset(Dataset):
     # data too
     input_height_width = 6
 
-    def __init__(self, mode: str = "s2", split: str = "train"):
+    def __init__(
+        self,
+        mode: str = "s2",
+        split: str = "train",
+        include_latlons: bool = True,
+    ):
         assert mode in ["s2", "s1", "combined"]
         self.mode = mode
+        self.include_latlons = include_latlons
         self.split = split
         self.masks = self.make_masks()
 
@@ -106,6 +116,7 @@ class TreeSatDataset(Dataset):
         self.treesat_to_presto_s1_map = [
             SPACE_TIME_BANDS.index(val) for val in kept_kept_treesat_s1_band_names
         ]
+        self.kept_static_bands = [idx for idx, x in enumerate(STATIC_BANDS) if x in LOCATION_BANDS]
 
     def train_val_split(self, val_ratio: float = 0.1, seed=None):
         if seed is not None:
@@ -132,16 +143,27 @@ class TreeSatDataset(Dataset):
             labels_np[self.labels_to_int[name]] = percentage
 
         s_t_x = np.zeros([len(SPACE_TIME_BANDS), self.input_height_width, self.input_height_width])
-        if self.mode in ["s2", "combined"]:
-            with cast(xr.DataArray, rioxarray.open_rasterio(s2_image)) as s2:
+        with cast(xr.DataArray, rioxarray.open_rasterio(s2_image)) as s2:
+            if self.mode in ["s2", "combined"]:
                 s_t_x[self.treesat_to_presto_s2_map] = s2.values[self.kept_treesat_s2_band_idx]
+            # from (e.g.) +init=epsg:32630 to epsg:32630
+            crs = s2.rio.crs.data["init"]
+            transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
+            lon, lat = transformer.transform(np.mean(s2.x).item(), np.mean(s2.y).item())
+            cartesian_array = to_cartesian(lat, lon)
+
+            st_x = np.zeros(
+                len(STATIC_BANDS),
+            )
+            st_x[self.kept_static_bands] = cartesian_array
+
         if self.mode in ["s1", "combined"]:
             with cast(xr.DataArray, rioxarray.open_rasterio(s1_image)) as s1:
                 s_t_x[self.treesat_to_presto_s1_map] = s1.values[self.kept_treesat_s1_band_idx]
 
         s_t_x = repeat(s_t_x, "c h w -> h w t c", t=self.num_timesteps)
 
-        return normalize_space_time(s_t_x), self.min_threshold(labels_np)
+        return normalize_space_time(s_t_x), normalize_static(st_x), self.min_threshold(labels_np)
 
     @staticmethod
     def min_threshold(labels: np.ndarray, binarize: bool = True):
@@ -183,21 +205,27 @@ class TreeSatDataset(Dataset):
         )
         t_m = np.ones([self.num_timesteps, len(TIME_BAND_GROUPS_IDX)])
         st_m = np.ones([len(STATIC_BAND_GROUPS_IDX)])
+        if self.include_latlons:
+            location_channels = [
+                idx for idx, key in enumerate(STATIC_BAND_GROUPS_IDX) if "location" in key
+            ]
+            st_m[location_channels] = 0
+            assert ((st_m == 0) | (st_m == 1)).all()
+        else:
+            assert (st_m == 1).all()
 
         assert ((s_t_m == 0) | (s_t_m == 1)).all()
         assert (sp_m == 1).all()
         assert (t_m == 1).all()
-        assert (st_m == 1).all()
 
         return (s_t_m, sp_m, t_m, st_m)
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         image = self.images[idx]
-        s_t_x, label = self.image_to_space_time_array(image.strip())
+        s_t_x, st_x, label = self.image_to_space_time_array(image.strip())
 
         sp_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
         t_x = np.zeros((s_t_x.shape[2], len(TIME_BANDS)))
-        st_x = np.zeros((len(STATIC_BANDS)))
 
         s_t_m, sp_m, t_m, st_m = self.masks
         month = np.ones((self.num_timesteps,)) * self.start_month
@@ -222,10 +250,17 @@ class TreeSatEval(EvalTask):
     # (above)
     num_outputs = 15
 
-    def __init__(self, mode: str = "s2", patch_size: int = 6, seed: int = DEFAULT_SEED):
+    def __init__(
+        self,
+        mode: str = "s2",
+        include_latlons: bool = True,
+        patch_size: int = 6,
+        seed: int = DEFAULT_SEED,
+    ):
         self.mode = mode
+        self.include_latlons = include_latlons
         super().__init__(patch_size, seed)
-        self.name = f"{self.name}_{self.mode}"
+        self.name = f"{self.name}_{self.mode}{'_latlons' if include_latlons else ''}"
 
     def compute_metrics(
         self, model_name: str, preds: np.ndarray, target: np.ndarray, threshold: float = 0.5
@@ -269,7 +304,7 @@ class TreeSatEval(EvalTask):
         pretrained_model.eval()
 
         test_dl = DataLoader(
-            TreeSatDataset(split="test", mode=self.mode),
+            TreeSatDataset(split="test", include_latlons=self.include_latlons, mode=self.mode),
             batch_size=Hyperparams.batch_size,
             shuffle=False,
             num_workers=Hyperparams.num_workers,
@@ -330,7 +365,7 @@ class TreeSatEval(EvalTask):
         for model_mode in model_modes:
             assert model_mode in self.all_classification_sklearn_models
         dl = DataLoader(
-            TreeSatDataset(split="train", mode=self.mode),
+            TreeSatDataset(split="train", include_latlons=self.include_latlons, mode=self.mode),
             shuffle=False,
             batch_size=Hyperparams.batch_size,
             num_workers=Hyperparams.num_workers,
