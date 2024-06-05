@@ -350,10 +350,10 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
             train_paths_and_y = [train_paths_and_y[i] for i in np.concatenate(indices_to_keep)]
             assert len(train_paths_and_y) <= n_per_class * len(unique_ys)
 
-        array, _, labels = MultiClassCropHarvest(train_paths_and_y, y_string_to_int).as_array()
+        array, latlons, labels = MultiClassCropHarvest(train_paths_and_y, y_string_to_int).as_array()
         self.train_dataset = TensorDataset(
             *self.cropharvest_array_to_normalized_presto(
-                array, self.start_month, timesteps=self.num_timesteps
+                array, latlons, self.start_month, timesteps=self.num_timesteps
             ),
             torch.from_numpy(labels),
         )
@@ -378,9 +378,9 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
         pred_dict: Dict[str, BaseEstimator] = {
             model_class_name(model): [] for model in sklearn_models
         }
-        for x, _, y in dl:
+        for x, latlons, y in dl:
             masked_output = self.cropharvest_array_to_normalized_presto(
-                x, self.start_month, self.num_timesteps
+                x, latlons, self.start_month, self.num_timesteps
             )
             s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = [
                 t.to(device) for t in masked_output
