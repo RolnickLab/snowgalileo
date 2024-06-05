@@ -102,7 +102,6 @@ class EvalTask(ABC):
             # take the most common label per token
             label = rearrange(grouped_label.mode(dim=2).values, "b n_t -> (b n_t)")
 
-
         elif mode == "all-targets-per-token":
             label = rearrange(grouped_label, "b n_t h w -> (b n_t) (h w)")
 
@@ -160,7 +159,7 @@ class EvalTask(ABC):
                     )
 
         # do stratified sampling (10% of all vectors), sample by keeping the same
-        # class balance as the original dataset 
+        # class balance as the original dataset
         # only targets need to be stratified
         if self.segmentation:
             print("len target list before sampling: " + str(len(targets_list)))

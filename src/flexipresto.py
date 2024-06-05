@@ -897,6 +897,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             torch.cat(output_t, dim=-1),
         )
 
+
 class FinetuningHead(FlexiPrestoBase):
     def __init__(
         self,

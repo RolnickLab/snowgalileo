@@ -1,7 +1,6 @@
 import unittest
 from pathlib import Path
 
-import numpy as np
 import torch
 
 from src.data.dataset import (
@@ -12,7 +11,7 @@ from src.data.dataset import (
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
 )
-from src.eval.pastis_eval import PastisDataset, PastisEval
+from src.eval.pastis_patch_eval import PastisPatchDataset
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/pastis/pastis_test"
 
@@ -22,8 +21,8 @@ class TestPastis(unittest.TestCase):
         self.assertEqual(
             s_t_x.shape,
             (
-                PastisDataset.input_height_width // 2,
-                PastisDataset.input_height_width // 2,
+                PastisPatchDataset.input_height_width // 2,
+                PastisPatchDataset.input_height_width // 2,
                 num_timesteps,
                 len(SPACE_TIME_BANDS),
             ),
@@ -31,8 +30,8 @@ class TestPastis(unittest.TestCase):
         self.assertEqual(
             s_t_m.shape,
             (
-                PastisDataset.input_height_width // 2,
-                PastisDataset.input_height_width // 2,
+                PastisPatchDataset.input_height_width // 2,
+                PastisPatchDataset.input_height_width // 2,
                 num_timesteps,
                 len(SPACE_TIME_BANDS_GROUPS_IDX),
             ),
@@ -43,16 +42,16 @@ class TestPastis(unittest.TestCase):
         self.assertEqual(
             s_x.shape,
             (
-                PastisDataset.input_height_width // 2,
-                PastisDataset.input_height_width // 2,
+                PastisPatchDataset.input_height_width // 2,
+                PastisPatchDataset.input_height_width // 2,
                 len(SPACE_BANDS),
             ),
         )
         self.assertEqual(
             s_m.shape,
             (
-                PastisDataset.input_height_width // 2,
-                PastisDataset.input_height_width // 2,
+                PastisPatchDataset.input_height_width // 2,
+                PastisPatchDataset.input_height_width // 2,
                 len(SPACE_BAND_GROUPS_IDX),
             ),
         )
@@ -86,11 +85,15 @@ class TestPastis(unittest.TestCase):
 
     def check_target(self, labels):
         self.assertTrue(
-            torch.all(torch.isin(labels, torch.tensor(list(PastisDataset.labels_to_int.values()))))
+            torch.all(
+                torch.isin(labels, torch.tensor(list(PastisPatchDataset.labels_to_int.values())))
+            )
         )
 
     def test_pastis_month_average(self):
-        dataset = PastisDataset(folds=[1, 2, 3], data_path=DATA_FOLDER, average_s2_over_month=True)
+        dataset = PastisPatchDataset(
+            folds=[1, 2, 3], data_path=DATA_FOLDER, average_s2_over_month=True
+        )
         sample = dataset[1]
         s_t_x, s_x, t_x, s_t_m, s_m, t_m, m = sample[0]
         label = sample[1]
@@ -109,7 +112,7 @@ class TestPastis(unittest.TestCase):
         self.assertTrue(torch.all(s_t_m[:, :, :, unpresent_bands] == 1))
 
     def test_pastis_max_timesteps(self):
-        dataset = PastisDataset(
+        dataset = PastisPatchDataset(
             folds=[1, 2, 3], data_path=DATA_FOLDER, average_s2_over_month=False
         )
         sample = dataset[1]
@@ -132,7 +135,4 @@ class TestPastis(unittest.TestCase):
         # 38 is the minimum number of timesteps present in all observations
         self.assertTrue(torch.all(s_t_m[:, :, :38, present_bands] == 0))
         self.assertTrue(torch.all(s_t_m[:, :, :38, unpresent_bands] == 1))
-
-
-if __name__ == "__main__":
-    unittest.main()
+        print("Finishing the test")
