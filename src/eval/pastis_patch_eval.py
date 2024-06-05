@@ -32,7 +32,7 @@ from .eval import EvalTask, Hyperparams, model_class_name
 torch.multiprocessing.set_sharing_strategy("file_system")
 
 
-class PastisDataset(PyTorchDataset):
+class PastisPatchDataset(PyTorchDataset):
     labels_to_int = {
         "Background": 0,
         "Meadow": 1,
@@ -290,13 +290,13 @@ class PastisDataset(PyTorchDataset):
         return self.metadata.shape[0] * self.num_subtiles_per_image
 
 
-class PastisEval(EvalTask):
-    name = "pastis"
+class PastisPatchEval(EvalTask):
+    name = "pastis_patch"
     regression = False
     multilabel = False
     segmentation = True
-    num_outputs = len(PastisDataset.labels_to_int)
-    input_height_width = PastisDataset.input_height_width
+    num_outputs = len(PastisPatchDataset.labels_to_int)
+    input_height_width = PastisPatchDataset.input_height_width
 
     def __init__(
         self,
@@ -321,7 +321,7 @@ class PastisEval(EvalTask):
     @torch.no_grad()
     def _evaluate_model(self, model, sklearn_models: Optional[Sequence[BaseEstimator]]) -> Dict:
         test_dl = DataLoader(
-            PastisDataset(
+            PastisPatchDataset(
                 folds=[1],
                 average_s2_over_month=self.average_months,
                 num_subtiles_per_image=self.num_subtiles_per_image,
@@ -398,7 +398,7 @@ class PastisEval(EvalTask):
             )
 
         train_dl = DataLoader(
-            PastisDataset(
+            PastisPatchDataset(
                 folds=[3, 4, 5],
                 average_s2_over_month=self.average_months,
                 num_subtiles_per_image=self.num_subtiles_per_image,
@@ -412,7 +412,7 @@ class PastisEval(EvalTask):
 
         if "finetune" in model_modes:
             val_dl = DataLoader(
-                PastisDataset(
+                PastisPatchDataset(
                     folds=[2],
                     average_s2_over_month=self.average_months,
                     num_subtiles_per_image=self.num_subtiles_per_image,

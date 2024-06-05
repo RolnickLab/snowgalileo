@@ -399,7 +399,7 @@ class PastisPixelDataset(PyTorchDataset):
         return self.len
 
 
-class PastisEval(EvalTask):
+class PastisPixelEval(EvalTask):
     name = "pastis_pixel"
     regression = False
     multilabel = False
