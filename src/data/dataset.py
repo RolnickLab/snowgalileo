@@ -242,7 +242,7 @@ class Dataset(PyTorchDataset):
             values = cast(np.ndarray, data.values)
 
         num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(ALL_DYNAMIC_IN_TIME_BANDS)
-        assert num_timesteps % 1 == 0
+        assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
         dynamic_in_time_x = rearrange(
             values[: -len(SPACE_BANDS)],
             "(t c) h w -> h w t c",
@@ -273,8 +273,8 @@ class Dataset(PyTorchDataset):
         else:
             cache_path_s_t, cache_path_s, cache_path_t = self.tif_to_npy_paths(tif_path)
             if cache_path_s_t.exists():
-                assert cache_path_s.exists()
-                assert cache_path_t.exists()
+                assert cache_path_s.exists(), f"Missing static in time data for {tif_path}"
+                assert cache_path_t.exists(), f"Missing static in space data for {tif_path}"
                 # check if the files exists in cache
                 s_t_x = np.load(cache_path_s_t)
                 num_timesteps = s_t_x.shape[2]
