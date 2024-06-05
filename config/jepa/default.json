@@ -1,17 +1,18 @@
 {
     "training": {
-        "num_epochs": 50,
-        "batch_size": 16,
+        "num_epochs": 300,
+        "batch_size": 64,
         "ema": [0.996, 1.0],
         "patch_sizes": [1, 2, 3, 4, 5, 6, 7, 8],
+        "shape_time_combinations": [{"size": 4, "timesteps": 12}, {"size": 5, "timesteps": 6}, {"size": 7, "timesteps": 4}, {"size": 8, "timesteps": 3}, {"size": 9, "timesteps": 2}, {"size": 12, "timesteps": 1}],
         "start_lr": 0.0002,
         "max_lr": 0.001,
         "final_lr": 1.0e-06,
         "warmup_epochs": 3,
         "eval_eurosat_every_n_epochs": 10,
-        "time_ratio": 0.34,
-        "space_ratio": 0.34,
-        "spatial_patches_per_dim": 4
+        "time_ratio": 0.25,
+        "space_ratio": 0.25,
+        "channel_ratio": 0.25
     },
     "model": {
         "encoder": {

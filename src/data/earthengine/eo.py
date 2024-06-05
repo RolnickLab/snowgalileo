@@ -261,14 +261,17 @@ class EarthEngineExporter:
 
         if f"{filename}.tif" in self.cloud_tif_list:
             # checks that we haven't already exported this file
+            print(f"{filename}.tif already in cloud_tif_files")
             return False
 
         # Check if task is already started in EarthEngine
         if description in self.ee_task_list:
+            print(f"{description} already in ee task list")
             return False
 
         if len(self.ee_task_list) >= 3000:
             # we can only have 3000 running exports at once
+            print("3000 exports started")
             return False
 
         img = create_ee_image(polygon, start_date, end_date)
@@ -308,8 +311,9 @@ class EarthEngineExporter:
 
         for _, row in tqdm(latlons.iterrows(), desc="Exporting", total=len(latlons)):
             ee_bbox = EEBoundingBox.from_centre(
-                mid_lat=row[LAT],
-                mid_lon=row[LON],
+                # worldstrat points are strings
+                mid_lat=float(row[LAT]),
+                mid_lon=float(row[LON]),
                 surrounding_metres=int(SURROUNDING_METRES),
             )
 
