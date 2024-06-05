@@ -1,13 +1,24 @@
 import json
 import os
 import random
+from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
+import dateutil.tz
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import wandb
 
 from .config import DEFAULT_SEED
-from .masking import MaskedOutput
+from .data.dataset import (
+    SPACE_TIME_BANDS,
+    SPACE_TIME_BANDS_GROUPS_IDX,
+)
+from .masking import (
+    MaskedOutput,
+)
 
 data_dir = Path(__file__).parent.parent / "data"
 logging_dir = Path(__file__).parent.parent / "logs"
@@ -63,7 +74,7 @@ class AverageMeter:
 
 
 def load_check_config(name: str, mode: str):
-    assert mode in ["mae", "jepa"]
+    assert mode == "mae"
 
     with (config_dir / mode / name).open("r") as f:
         config = json.load(f)
@@ -71,6 +82,7 @@ def load_check_config(name: str, mode: str):
     expected_training_keys_type = {
         "num_epochs": int,
         "batch_size": int,
+        "effective_batch_size": int,
         "mask_ratio": float,
         "patch_sizes": list,
         "start_lr": float,
@@ -80,10 +92,13 @@ def load_check_config(name: str, mode: str):
         "eval_eurosat_every_n_epochs": int,
         "time_ratio": float,
         "space_ratio": float,
-        "spatial_patches_per_dim": int,
+        "channel_ratio": float,
+        "wandb_plot_every_n_epochs": int,
+        "num_images_to_wandb_plot": int,
+        "timesteps_to_wandb_plot": list,
+        "patch_sizes_to_wandb_plot": list,
+        "shape_time_combinations": list,
     }
-    if mode == "jepa":
-        expected_training_keys_type["ema"] = list
     training_dict = config["training"]
 
     for key, val in expected_training_keys_type.items():
@@ -121,3 +136,142 @@ def load_check_config(name: str, mode: str):
         "embedding_size"
     )
     return config
+
+
+@torch.no_grad()
+def plot_space_time_predictions(
+    epoch,
+    encoder,
+    predictor,
+    training_config,
+    prepared_image,
+    image_id,
+):
+    """
+    Plots MAE input images, masks, MAE predictions, and difference of input and predictions.
+    Number of timesteps to plot are defined in the training config.
+    """
+    (
+        s_t_x,
+        s_x,
+        t_x,
+        s_t_m,
+        s_m,
+        t_m,
+        months,
+        expanded_s_t_x,
+        _,
+        expanded_s_t,
+        _,
+        _,
+        patch_size,
+    ) = prepared_image
+
+    # get predictions with current model
+    (p_s_t, _, _) = predictor(
+        *encoder(
+            s_t_x.float(),
+            s_x.float(),
+            t_x.float(),
+            s_t_m.float(),
+            s_m.float(),
+            t_m.float(),
+            months.long(),
+            patch_size=patch_size,
+        ),
+        patch_size=patch_size,
+    )
+
+    subplot_titles = []
+
+    for band_list in SPACE_TIME_BANDS_GROUPS_IDX.values():
+        for band in band_list:
+            subplot_titles.append(SPACE_TIME_BANDS[band])
+
+    plot_dict = {}
+
+    for t in training_config["timesteps_to_wandb_plot"]:
+        # figure columns: input, mask, prediction, error
+        # figure rows: bands
+        fig, axs = plt.subplots(len(subplot_titles), 4, figsize=(20, 45))
+
+        # get min and max values for the error colorbar independent of the channel
+        error_min = (
+            (abs(expanded_s_t_x[:, :, :, t, :] - p_s_t[:, :, :, t, :]))
+            * expanded_s_t[:, :, :, t, :]
+        ).min()
+        error_max = (
+            (abs(expanded_s_t_x[:, :, :, t, :] - p_s_t[:, :, :, t, :]))
+            * expanded_s_t[:, :, :, t, :]
+        ).max()
+
+        for i, band in enumerate(subplot_titles):
+            x_to_plot = expanded_s_t_x[:, :, :, t, i].squeeze(0).cpu()
+            pred_to_plot = p_s_t[:, :, :, t, i].squeeze(0).cpu()
+            mask_to_plot = expanded_s_t[:, :, :, t, i].squeeze(0).cpu()
+
+            x_plot = axs[i, 0].imshow(
+                x_to_plot.numpy(), cmap="gray", vmin=x_to_plot.min(), vmax=x_to_plot.max()
+            )
+            axs[i, 0].set_title(f"Input {band}")
+            fig.colorbar(x_plot, ax=axs[i, 0])
+            mask_plot = axs[i, 1].imshow(mask_to_plot.numpy(), cmap="gray")
+            axs[i, 1].set_title(f"Mask {band}")
+            fig.colorbar(mask_plot, ax=axs[i, 1])
+            pred_plot = axs[i, 2].imshow(
+                (pred_to_plot * mask_to_plot).numpy(),
+                cmap="gray",
+                vmin=pred_to_plot.min(),
+                vmax=pred_to_plot.max(),
+            )
+            axs[i, 2].set_title(f"Output {band}")
+            fig.colorbar(pred_plot, ax=axs[i, 2])
+            error = axs[i, 3].imshow(
+                (abs(x_to_plot.numpy() - pred_to_plot.numpy())) * mask_to_plot.numpy(),
+                cmap="coolwarm",
+                vmin=error_min,
+                vmax=error_max,
+            )
+            axs[i, 3].set_title(f"Input - Output {band}")
+            fig.colorbar(error, ax=axs[i, 3])
+
+        fig.suptitle(
+            f"Plot image: {image_id}, epoch: {epoch}, patch size: {patch_size}, timestep: {t}",
+            fontsize=20,
+            y=1.0001,
+        )
+        fig.tight_layout()
+
+        plot = wandb.Image(
+            fig, caption=f"plot_image{image_id}_epoch{epoch}_patch_size{patch_size}_timestep{t}"
+        )
+        plot_dict[patch_size] = plot
+    return plot_dict
+
+
+def timestamp_dirname(suffix: Optional[str] = None) -> str:
+    ts = datetime.now(dateutil.tz.tzlocal()).strftime("%Y_%m_%d_%H_%M_%S_%f")
+    return f"{ts}_{suffix}" if suffix is not None else ts
+
+
+def is_bf16_available():
+    # https://github.com/huggingface/transformers/blob/d91841315aab55cf1347f4eb59332858525fad0f/src/transformers/utils/import_utils.py#L275
+    # https://github.com/pytorch/pytorch/blob/2289a12f21c54da93bf5d696e3f9aea83dd9c10d/torch/testing/_internal/common_cuda.py#L51
+    # to succeed:
+    # 1. the hardware needs to support bf16 (arch >= Ampere)
+    # 2. torch >= 1.10 (1.9 should be enough for AMP API has changed in 1.10, so using 1.10 as minimal)
+    # 3. CUDA >= 11
+    # 4. torch.autocast exists
+    # XXX: one problem here is that it may give invalid results on mixed gpus setup, so it's
+    # really only correct for the 0th gpu (or currently set default device if different from 0)
+
+    if not torch.cuda.is_available() or torch.version.cuda is None:
+        return False
+    if torch.cuda.get_device_properties(torch.cuda.current_device()).major < 8:
+        return False
+    if int(torch.version.cuda.split(".")[0]) < 11:
+        return False
+    if not hasattr(torch, "autocast"):
+        return False
+
+    return True

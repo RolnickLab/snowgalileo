@@ -1,34 +1,43 @@
 import argparse
 import json
 import os
+from functools import partial
 from pathlib import Path
 from typing import List, cast
 
 import codecarbon
-import numpy as np
+import matplotlib.pyplot as plt
 import psutil
 import torch
-import torch.nn.functional as F
-from einops import rearrange
-from torch.utils.data import DataLoader
-from torchvision.transforms.functional import resize
+from torch.utils.data import BatchSampler, DataLoader
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
+from src.collate_fns import mae_collate_fn
 from src.config import DEFAULT_SEED
 from src.data import Dataset
-from src.data.config import DATA_FOLDER, EE_PROJECT
-from src.eval import EuroSatEval, PastisEval, So2SatEval, TreeSatEval
+from src.data.config import DATA_FOLDER, EE_PROJECT, OUTPUT_FOLDER
+from src.eval import (
+    BinaryCropHarvestEval,
+    EuroSatEval,
+    MultiClassCropHarvestEval,
+    PastisEval,
+    So2SatEval,
+    TreeSatEval,
+)
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
-from src.masking import (
-    SPACE_BAND_EXPANSION,
-    SPACE_TIME_BAND_EXPANSION,
-    TIME_BAND_EXPANSION,
-    batch_mask_presto,
-    subset_batch_of_images,
+from src.loss import mae_loss
+from src.utils import (
+    AverageMeter,
+    data_dir,
+    device,
+    is_bf16_available,
+    load_check_config,
+    plot_space_time_predictions,
+    seed_everything,
+    timestamp_dirname,
 )
-from src.utils import AverageMeter, data_dir, device, load_check_config, seed_everything
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -42,15 +51,15 @@ tracker = codecarbon.EmissionsTracker(
     output_dir=data_dir,
 )
 
-# test:
-# https://pytorch.org/blog/what-every-user-should-know-about-mixed-precision-training-in-pytorch/
 torch.backends.cuda.matmul.allow_tf32 = True
+autocast_device = torch.bfloat16 if is_bf16_available() else torch.float32
 
 tracker.start()
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--config_file", type=str, default="small.json")
 args = argparser.parse_args().__dict__
+
 
 config = load_check_config(args["config_file"], "mae")
 training_config = config["training"]
@@ -60,26 +69,33 @@ wandb_enabled = True
 wandb_org = "nasa-harvest"
 output_dir = Path(__file__).parent
 
+
 print("Loading dataset and dataloader")
 dataset = Dataset(
-    DATA_FOLDER / "tifs", download=False, cache_folder=DATA_FOLDER / "npys_spacetime"
+    DATA_FOLDER / "tifs", download=False, cache_folder=DATA_FOLDER / "npys_spacetime_16"
 )
 dataloader = DataLoader(
     dataset,
     batch_size=training_config["batch_size"],
     shuffle=True,
     num_workers=Hyperparams.num_workers,
+    collate_fn=partial(
+        mae_collate_fn,
+        patch_sizes=training_config["patch_sizes"],
+        mask_ratio=training_config["mask_ratio"],
+        time_ratio=training_config["time_ratio"],
+        space_ratio=training_config["space_ratio"],
+        channel_ratio=training_config["channel_ratio"],
+        shape_time_combinations=training_config["shape_time_combinations"],
+    ),
+    pin_memory=True,
 )
 print("Loading models")
 encoder = Encoder(**config["model"]["encoder"]).to(device)
 predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
 print("Loading validation task")
 val_task = EuroSatEval(rgb=True)
-
-SPACE_TIME_BAND_EXPANSION_T = torch.tensor(SPACE_TIME_BAND_EXPANSION, device=device).long()
-SPACE_BAND_EXPANSION_T = torch.tensor(SPACE_BAND_EXPANSION, device=device).long()
-TIME_BAND_EXPANSION_T = torch.tensor(TIME_BAND_EXPANSION, device=device).long()
-
+val_task_ts = MultiClassCropHarvestEval()
 
 if wandb_enabled:
     import wandb
@@ -93,107 +109,156 @@ if wandb_enabled:
     config["training"]["training_samples"] = len(dataset)
     wandb.config.update(config)
 
+    # prepare random images to plot during training
+    if training_config["wandb_plot_every_n_epochs"] > 0:
+        assert training_config["num_images_to_wandb_plot"] > 0
+        assert len(training_config["patch_sizes_to_wandb_plot"]) > 0
+        assert len(training_config["timesteps_to_wandb_plot"]) > 0
+
+        examples_to_plot = {}
+
+        for p in training_config["patch_sizes_to_wandb_plot"]:
+            # call the collate function with current patch size
+            plot_dataloader = DataLoader(
+                dataset,
+                shuffle=False,
+                batch_sampler=BatchSampler([1, 2, 3], batch_size=1, drop_last=False),
+                collate_fn=partial(
+                    mae_collate_fn,
+                    patch_sizes=training_config["patch_sizes"],
+                    shape_time_combinations=training_config["shape_time_combinations"],
+                    mask_ratio=training_config["mask_ratio"],
+                    time_ratio=training_config["time_ratio"],
+                    space_ratio=training_config["space_ratio"],
+                    channel_ratio=training_config["channel_ratio"],
+                    fixed_patch_size=p,
+                    fixed_space_time_combination={"size": 4, "timesteps": 12},
+                ),
+            )
+
+            prepared_image_to_plot = {}
+            for image_id, b in enumerate(plot_dataloader):
+                b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
+                prepared_image_to_plot[image_id] = b
+                if len(prepared_image_to_plot) >= training_config["num_images_to_wandb_plot"]:
+                    break
+
+            examples_to_plot[p] = prepared_image_to_plot
+            print(f"Prepared {len(prepared_image_to_plot)} images for patch size {p}")
+        print(f"all {len(examples_to_plot)} images for patch size")
 
 param_groups = [{"params": encoder.parameters()}, {"params": predictor.parameters()}]
 
 optimizer = torch.optim.AdamW(param_groups, lr=training_config["start_lr"])  # type: ignore
 iterations_per_epoch = len(dataset)
+assert training_config["effective_batch_size"] % training_config["batch_size"] == 0
+iters_to_accumulate = training_config["effective_batch_size"] / training_config["batch_size"]
 
 for e in tqdm(range(training_config["num_epochs"])):
     train_loss = AverageMeter()
     for i, b in tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
-        b = [t.to(device) for t in b]
-        s_t_x, s_x, t_x, months = b
-
-        # randomly sample a patch size, and a corresponding image size
-        patch_size = np.random.choice(training_config["patch_sizes"])
-        image_size = patch_size * training_config["spatial_patches_per_dim"]
-        s_t_x, s_x = subset_batch_of_images(s_t_x, s_x, image_size)
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = batch_mask_presto(
+        b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
+        (
             s_t_x,
             s_x,
             t_x,
+            s_t_m,
+            s_m,
+            t_m,
             months,
-            training_config["mask_ratio"],
+            expanded_s_t_x,
+            expanded_s_x,
+            s_t_m_p,
+            s_m_p,
+            t_m_p,
             patch_size,
-            time_ratio=training_config["time_ratio"],
-            space_ratio=training_config["space_ratio"],
-        )
+        ) = b
 
-        # also transform to pixel
-        expanded_s_t = torch.repeat_interleave(
-            s_t_m, repeats=SPACE_TIME_BAND_EXPANSION_T, dim=-1
-        ).bool()
-        expanded_s = torch.repeat_interleave(s_m, repeats=SPACE_BAND_EXPANSION_T, dim=-1).bool()
-        expanded_t = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION_T, dim=-1).bool()
-
-        optimizer.zero_grad()
-        adjust_learning_rate(
-            optimizer,
-            epoch=i / len(dataloader) + e,
-            warmup_epochs=training_config["warmup_epochs"],
-            total_epochs=training_config["num_epochs"],
-            max_lr=training_config["max_lr"],
-            start_lr=training_config["start_lr"],
-            min_lr=training_config["final_lr"],
-        )
-
-        # generate the predictions. TODO: add layer norm
-        (p_s_t, p_s, p_t) = predictor(
-            *encoder(
-                s_t_x.float(),
-                s_x.float(),
-                t_x.float(),
-                s_t_m.float(),
-                s_m.float(),
-                t_m.float(),
-                months.long(),
+        with torch.autocast(device_type=device.type, dtype=autocast_device):
+            (p_s_t, p_s, p_t) = predictor(
+                *encoder(
+                    s_t_x,
+                    s_x,
+                    t_x,
+                    s_t_m,
+                    s_m,
+                    t_m,
+                    months.long(),
+                    patch_size=patch_size,
+                ),
                 patch_size=patch_size,
-            ),
-            patch_size=patch_size,
+            )
+
+        loss = mae_loss(
+            expanded_s_t_x,
+            expanded_s_x,
+            t_x,
+            p_s_t,
+            p_s,
+            p_t,
+            s_t_m_p,
+            s_m_p,
+            t_m_p,
+            patch_size=training_config["patch_sizes"][-1],
+            loss_type=training_config["mae_loss"],
         )
 
-        # p_s_t and p_s always assume the maximum patch size, so we need to
-        # resample if its smaller
-        if patch_size < training_config["patch_sizes"][-1]:
-            t, d = s_t_x.shape[3], s_t_x.shape[4]
-            p_s_t = rearrange(
-                resize(
-                    rearrange(p_s_t, "b h w t d -> b (t d) h w"),
-                    size=(s_t_x.shape[1], s_t_x.shape[2]),
-                ),
-                "b (t d) h w -> b h w t d",
-                t=t,
-                d=d,
-            )
-            p_s = rearrange(
-                resize(
-                    rearrange(p_s, "b h w d -> b d h w"), size=(s_t_x.shape[1], s_t_x.shape[2])
-                ),
-                "b d h w -> b h w d",
-            )
-        loss = F.mse_loss(
-            torch.concat([p_s_t[expanded_s_t], p_s[expanded_s], p_t[expanded_t]]),
-            torch.concat([s_t_x[expanded_s_t], s_x[expanded_s], t_x[expanded_t]]).float(),
-        )
-        loss.backward()
-        optimizer.step()
-        print(
-            f"Epoch {e}, iteration {i}: loss = {loss.item()}, memory used: {process.memory_info().rss}",
-            flush=True,
-        )
         train_loss.update(loss.item(), n=s_t_x.shape[0])
+        loss = loss / iters_to_accumulate
+        loss.backward()
+
+        if ((i + 1) % iters_to_accumulate == 0) or (i + 1 == len(dataloader)):
+            optimizer.step()
+            optimizer.zero_grad()
+            adjust_learning_rate(
+                optimizer,
+                epoch=i / len(dataloader) + e,
+                warmup_epochs=training_config["warmup_epochs"],
+                total_epochs=training_config["num_epochs"],
+                max_lr=training_config["max_lr"],
+                start_lr=training_config["start_lr"],
+                min_lr=training_config["final_lr"],
+            )
 
     if wandb_enabled:
-        wandb.log({"train_loss": train_loss.average})
+        to_log = {"train_loss": train_loss.average, "epoch": e}
 
-    if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
-        e % training_config["eval_eurosat_every_n_epochs"] == 0
-    ):
-        results = val_task.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
-        if wandb_enabled:
-            wandb.log(results)
+        if (training_config["wandb_plot_every_n_epochs"] != 0) and (
+            e % training_config["wandb_plot_every_n_epochs"] == 0
+        ):
+            plot_list = []
+            for patch_size, patch_size_dict in examples_to_plot.items():
+                for image_id, prepared_image in patch_size_dict.items():
+                    plot_list.append(
+                        plot_space_time_predictions(
+                            epoch=e,
+                            encoder=encoder,
+                            predictor=predictor,
+                            training_config=training_config,
+                            prepared_image=prepared_image,
+                            image_id=image_id,
+                        )
+                    )
+            for patch_size, plot in [
+                (patch_size, plot)
+                for plot_dict in plot_list
+                for patch_size, plot in plot_dict.items()
+            ]:
+                to_log[f"plot_mae_patch_size_{patch_size}"] = plot
 
+        if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
+            e % training_config["eval_eurosat_every_n_epochs"] == 0
+        ):
+            results = val_task.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
+            results.update(val_task_ts.evaluate_model_on_task(encoder, model_modes=["KNNat5"]))
+            to_log.update(results)
+        wandb.log(to_log)
+        plt.close("all")
+
+model_path = OUTPUT_FOLDER / timestamp_dirname(run_id)
+model_path.mkdir()
+torch.save(encoder.state_dict(), model_path / "encoder.pt")
+torch.save(predictor.state_dict(), model_path / "predictor.pt")
 
 eval_tasks: List[EvalTask] = [
     *[
@@ -206,7 +271,9 @@ eval_tasks: List[EvalTask] = [
     ],
     *[TreeSatEval(mode, patch_size) for mode in ["s1", "s2", "combined"] for patch_size in [6, 3]],
     *[EuroSatEval(rgb) for rgb in [True, False]],
-    *[So2SatEval()],
+    So2SatEval(),
+    PastisEval(),
+    *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil", "China"]],
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)
