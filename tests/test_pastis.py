@@ -11,7 +11,8 @@ from src.data.dataset import (
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
 )
-from src.eval.pastis_eval import PastisDataset
+from src.eval.pastis_eval import PastisDataset, PastisEval
+import numpy as np
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/pastis/pastis_test"
 
@@ -131,6 +132,18 @@ class TestPastis(unittest.TestCase):
         # 38 is the minimum number of timesteps present in all observations
         self.assertTrue(torch.all(s_t_m[:, :, :38, present_bands] == 0))
         self.assertTrue(torch.all(s_t_m[:, :, :38, unpresent_bands] == 1))
+
+    def test_pastis_eval(self):
+        dataset = PastisDataset(folds=[1, 2, 3], data_path=DATA_FOLDER, average_s2_over_month=True)
+        eval = PastisEval()
+
+        # add batch dimension
+        lengths = []
+        for i in range(len(dataset)):
+            target = torch.unsqueeze(dataset[i][1], dim=0)  # (1, 64, 64)
+            m = eval.group_and_reduce_targets_per_token(target, mode="unique-targets-per-token")
+            lengths.append(m)
+        print(np.mean(np.array(lengths)))
 
 
 if __name__ == "__main__":
