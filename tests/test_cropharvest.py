@@ -44,9 +44,4 @@ class TestCropHarvest(unittest.TestCase):
         self.assertEqual(t_m.shape, (b, t, len(TIME_BAND_GROUPS_IDX)))
         self.assertEqual(st_x.shape, (b, len(STATIC_BANDS)))
         self.assertEqual(st_m.shape, (b, len(STATIC_BAND_GROUPS_IDX)))
-        self.assertTrue((st_m == 1).all())
         self.assertEqual(months.shape, (b, t))
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader, TensorDataset, default_collate
 from torch.utils.data import Dataset as TorchDataset
 
 from ..data.dataset import (
+    LOCATION_BANDS,
     SPACE_BAND_GROUPS_IDX,
     SPACE_BANDS,
     SPACE_TIME_BANDS,
@@ -23,7 +24,9 @@ from ..data.dataset import (
     TIME_BANDS,
     normalize_space,
     normalize_space_time,
+    normalize_static,
     normalize_time,
+    to_cartesian,
 )
 from ..flexipresto import Encoder
 from ..masking import MaskedOutput
@@ -48,6 +51,8 @@ SPACE_BANDS_TO_CH_BANDS = [idx for idx, s in enumerate(SPACE_BANDS) if s in BAND
 
 CH_BANDS_TO_TIME_BANDS = [BANDS.index(s) for s in TIME_BANDS if s in BANDS]
 TIME_BANDS_TO_CH_BANDS = [idx for idx, s in enumerate(TIME_BANDS) if s in BANDS]
+
+LOCATION_BAND_MAPPING = [idx for idx, x in enumerate(STATIC_BANDS) if x in LOCATION_BANDS]
 
 
 class CropHarvestLabels(OrgCropHarvestLabels):
@@ -140,6 +145,11 @@ class CropHarvestEvalBase(EvalTask):
     multilabel = False
     regression = False
 
+    def __init__(self, patch_size: int, include_latlons: bool = True, seed: int = DEFAULT_SEED):
+        self.include_latlons = include_latlons
+        super().__init__(patch_size, seed)
+        self.name = f"{self.name}{'_latlons' if include_latlons else ''}"
+
     @staticmethod
     def truncate_timesteps(x, num_timesteps: Optional[int]):
         if (num_timesteps is None) or (x is None):
@@ -147,11 +157,14 @@ class CropHarvestEvalBase(EvalTask):
         else:
             return x[:, :num_timesteps]
 
-    @classmethod
     def cropharvest_array_to_normalized_presto(
-        cls, array: np.ndarray, start_month: int, timesteps: Optional[int] = None
+        self,
+        array: np.ndarray,
+        latlons: np.ndarray,
+        start_month: int,
+        timesteps: Optional[int] = None,
     ):
-        array = cls.truncate_timesteps(array, timesteps)
+        array = self.truncate_timesteps(array, timesteps)
         b, t, _ = array.shape
 
         s_t_x = np.zeros((b, t, len(SPACE_TIME_BANDS)))
@@ -174,9 +187,11 @@ class CropHarvestEvalBase(EvalTask):
         t_m[:, :, TIME_BANDS_TO_CH_BANDS] = 0
         t_m = t_m[:, :, [g[0] for _, g in TIME_BAND_GROUPS_IDX.items()]]
 
-        # no static channels in cropharvest
         st_x = np.zeros((b, len(STATIC_BANDS)))
         st_m = np.ones((b, len(STATIC_BANDS)))
+        if self.include_latlons:
+            st_m[:, LOCATION_BAND_MAPPING] = 0
+            st_x[:, LOCATION_BAND_MAPPING] = to_cartesian(latlons[:, 0], latlons[:, 1])
 
         months = np.fmod(np.arange(start_month - 1, start_month - 1 + t), 12)
         months = repeat(months, "t -> b t", b=b)
@@ -185,7 +200,7 @@ class CropHarvestEvalBase(EvalTask):
             normalize_space_time(s_t_x),
             normalize_space(sp_x),
             normalize_time(t_x),
-            st_x,
+            normalize_static(st_x),
             s_t_m,
             sp_m,
             t_m,
@@ -213,6 +228,7 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         num_timesteps: Optional[int] = None,
         sample_size: Optional[int] = None,
         seed: int = DEFAULT_SEED,
+        include_latlons: bool = True,
     ):
         download_cropharvest_data()
 
@@ -228,7 +244,7 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         suffix = f"{suffix}_{num_timesteps}" if num_timesteps is not None else suffix
 
         self.name = f"CropHarvest_{country}{suffix}"
-        super().__init__(patch_size=1, seed=seed)
+        super().__init__(include_latlons=include_latlons, patch_size=1, seed=seed)
 
     @torch.no_grad()
     def _evaluate_model(self, pretrained_model: Encoder, sklearn_model: BaseEstimator) -> Dict:
@@ -309,6 +325,7 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
         test_ratio: float = 0.2,
         n_per_class: Optional[int] = 100,
         seed: int = DEFAULT_SEED,
+        include_latlons: bool = True,
     ):
         download_cropharvest_data()
         task = Task(normalize=False)
@@ -344,7 +361,7 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
 
         name_suffix = f"_{n_per_class}" if n_per_class is not None else ""
         self.name = f"CropHarvest_multiclass_global{name_suffix}_{seed}"
-        super().__init__(patch_size=1, seed=seed)
+        super().__init__(patch_size=1, seed=seed, include_latlons=include_latlons)
 
     @torch.no_grad()
     def _evaluate_models(
