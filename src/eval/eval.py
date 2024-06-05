@@ -5,16 +5,16 @@ from typing import Dict, List, Optional, Sequence
 
 import numpy as np
 import torch
+from einops import rearrange
 from sklearn.base import BaseEstimator, clone
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.multioutput import MultiOutputClassifier
 from torch import nn
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from einops import rearrange
-from collections import Counter
 
 from ..flexipresto import Encoder, FinetuningHead, PrestoFineTuningModel
 from ..utils import DEFAULT_SEED, device
@@ -82,7 +82,9 @@ class EvalTask(ABC):
         return model
 
     @torch.no_grad()
-    def group_and_reduce_targets_per_token(self, target: torch.Tensor, mode: str = "one-target-per-token") -> torch.Tensor:
+    def group_and_reduce_targets_per_token(
+        self, target: torch.Tensor, mode: str = "one-target-per-token"
+    ) -> torch.Tensor:
         # group labels per token for segmentation and reduce their dimensionality
         # grouped_label shape will be (batch_size, n_tokens, t_height * t_width)
         grouped_label = (
@@ -100,36 +102,19 @@ class EvalTask(ABC):
             # take the most common label per token
             label = rearrange(grouped_label.mode(dim=2).values, "b n_t -> (b n_t)")
 
-        elif mode == "unique-targets-per-token":
-            # print number of unique labels per token
-            flattened_labels = rearrange(grouped_label, "b n_t n -> (b n_t) n")
-            length = []
-            for token in flattened_labels:
-                length.append(len(Counter(token.cpu().numpy())))
-                #print(Counter(token.cpu().numpy()))
-            # get the mean length
-            print(np.mean(np.array(length)))
-
-            # TODO: implement this
-            # one-hot encode classes for each token, resulting in a tensor of shape (batch_size, n_tokens, n_classes)
-
-            # label = torch.zeros(grouped_label.shape[0], grouped_label.shape[1], self.num_outputs, dtype=torch.long, device=device)
-            # label = rearrange(grouped_label.mode(dim=2).values, "b n_t n_cl -> (b n_t) n_cl")
 
         elif mode == "all-targets-per-token":
             label = rearrange(grouped_label, "b n_t h w -> (b n_t) (h w)")
-        return length
-    
+
+        return label
+
     @torch.no_grad()
-    def group_encodings_per_token(
-        self, model, s_t_x, s_x, t_x, s_t_m, s_m, t_m
-    ) -> np.ndarray:
+    def group_encodings_per_token(self, model, s_t_x, s_x, t_x, s_t_m, s_m, t_m) -> np.ndarray:
         encodings = rearrange(
             model.apply_mask_and_average_tokens_per_patch(s_t_x, s_x, t_x, s_t_m, s_m, t_m),
             "b n_t n_f -> (b n_t) n_f",
         )
         return encodings
-    
 
     @torch.no_grad()
     def train_sklearn_model(
@@ -145,22 +130,22 @@ class EvalTask(ABC):
                 assert model_mode in self.all_classification_sklearn_models
         pretrained_model.eval()
 
-        encoding_list, target_list = [], []
+        encodings_list, targets_list = [], []
 
         for masked_output, label in tqdm(train_dl, desc="Computing encodings for sklearn"):
             s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
 
             if self.segmentation:
-                target_list.append(self.group_and_reduce_targets_per_token(label).cpu().numpy())
+                targets_list.append(self.group_and_reduce_targets_per_token(label).cpu().numpy())
             else:
-                target_list.append(label.cpu().numpy())
+                targets_list.append(label.cpu().numpy())
 
             with torch.no_grad():
                 s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
                     s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
                 )
                 if self.segmentation:
-                    encoding_list.append(
+                    encodings_list.append(
                         self.group_encodings_per_token(
                             pretrained_model, s_t_x, s_x, t_x, s_t_m, s_m, t_m
                         )
@@ -168,20 +153,30 @@ class EvalTask(ABC):
                         .numpy()
                     )
                 else:
-                    encoding_list.append(
+                    encodings_list.append(
                         pretrained_model.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
                         .cpu()
                         .numpy()
                     )
 
-        # TODO: implement stratified sampling
-        # do stratified sampling (10% of all vectors), sample by keeping the same 
-        # class balance as the original dataset or have it class-balanced
-        # ideally don't compute unnecessary encodings
+        # do stratified sampling (10% of all vectors), sample by keeping the same
+        # class balance as the original dataset 
         # only targets need to be stratified
-        
-        encodings_np = np.concatenate(encoding_list)
-        targets = np.concatenate(target_list)
+        if self.segmentation:
+            print("len target list before sampling: " + str(len(targets_list)))
+            targets = np.concatenate(targets_list)
+            print("target np shape before sampling: " + str(targets.shape))
+            sss = StratifiedShuffleSplit(n_splits=1, test_size=0.1, random_state=self.seed)
+            # first argument to split is a placeholder
+            for _, idx in sss.split(targets, targets):
+                targets_list = [targets_list[i] for i in idx]
+                encodings_list = [encodings_list[i] for i in idx]
+
+        targets_np = np.concatenate(targets_list)
+        encodings_np = np.concatenate(encodings_list)
+
+        print("target np shape after sampling: " + str(targets_np.shape))
+
         if len(targets.shape) == 2 and targets.shape[1] == 1:
             # from [[0], [0], [1]] to [0, 0, 1]
             targets = targets.ravel()
@@ -207,7 +202,9 @@ class EvalTask(ABC):
             },
         }
         for model in models:
-            fit_models.append(clone(model_dict[self.regression][model]).fit(encodings_np, targets))
+            fit_models.append(
+                clone(model_dict[self.regression][model]).fit(encodings_np, targets_np)
+            )
         return fit_models
 
     def finetune_presto(
