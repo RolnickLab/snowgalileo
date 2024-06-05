@@ -660,7 +660,7 @@ class Encoder(FlexiPrestoBase):
         x, _, m = cls.collapse_and_combine_hwtc(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
         x_for_mean = x * (1 - m.unsqueeze(-1))
         return x_for_mean.sum(dim=1) / torch.sum(1 - m, -1, keepdim=True)
-    
+
     @classmethod
     def apply_mask_and_average_tokens_per_patch(
         cls,
@@ -687,7 +687,6 @@ class Encoder(FlexiPrestoBase):
         x_for_mean = x * (1 - m.unsqueeze(-1))
 
         return x_for_mean.sum(dim=2) / torch.sum(1 - m, -1, keepdim=True)
-    
 
     def forward(
         self,

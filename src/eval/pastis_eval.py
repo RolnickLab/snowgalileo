@@ -1,11 +1,13 @@
 from math import sqrt
-from typing import Dict, List, Optional, Tuple, cast
+from typing import Dict, List, Optional, Sequence, Tuple, cast
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import torch.multiprocessing
 from einops import repeat
+from sklearn.base import BaseEstimator
+from sklearn.metrics import accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as PyTorchDataset
 from torchmetrics import JaccardIndex
@@ -21,10 +23,10 @@ from ..data.dataset import (
     normalize_space_time,
 )
 from ..data.earthengine.s2 import S2_BANDS
-from ..flexipresto import Encoder, PrestoFineTuningModel
+from ..flexipresto import Encoder
 from ..masking import MaskedOutput
 from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
-from .eval import EvalTask, Hyperparams
+from .eval import EvalTask, Hyperparams, model_class_name
 
 ### SETUP
 torch.multiprocessing.set_sharing_strategy("file_system")
@@ -311,8 +313,13 @@ class PastisEval(EvalTask):
         )
         self.name = f"{self.name}_{'AVERAGED_MONTHS' if self.average_months else 'ALL_MONTHS'}_hw{self.input_height_width}"
 
+    def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
+        return {
+            f"{self.name}: {model_name}_accuracy_score": accuracy_score(target, preds),
+        }
+
     @torch.no_grad()
-    def _evaluate_model(self, finetuned_model: PrestoFineTuningModel) -> Dict:
+    def _evaluate_model(self, model, sklearn_models: Optional[Sequence[BaseEstimator]]) -> Dict:
         test_dl = DataLoader(
             PastisDataset(
                 folds=[1],
@@ -324,31 +331,71 @@ class PastisEval(EvalTask):
             num_workers=Hyperparams.num_workers,
         )
 
-        mean_IoU = []
+        if sklearn_models is not None:
+            results_dict = {}
+            pred_dict: Dict[str, BaseEstimator] = {
+                model_class_name(model): [] for model in sklearn_models
+            }
+            labels_list = []
 
-        for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
-            label = label.to(device)
+            for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
+                s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
 
-            jaccard_mean = JaccardIndex(task="multiclass", num_classes=self.num_outputs).to(device)
+                labels_list.append(self.group_and_reduce_targets_per_token(label).cpu().numpy())
 
-            finetuned_model.eval()
+                model.eval()
+                with torch.no_grad():
+                    s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = model(
+                        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
+                    )
+                    encodings = (
+                        self.group_encodings_per_token(model, s_t_x, s_x, t_x, s_t_m, s_m, t_m)
+                        .cpu()
+                        .numpy()
+                    )
 
-            with torch.no_grad():
-                preds = finetuned_model(
-                    s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
+                    for model in sklearn_models:
+                        preds = model.predict(encodings)
+                        pred_dict[model_class_name(model)].append(preds)
+
+            for model_name_str, pred_list in pred_dict.items():
+                results_dict.update(
+                    self.compute_metrics(
+                        model_name_str, np.concatenate(pred_list), np.concatenate(labels_list)
+                    )
                 )
-                mean_IoU.append(jaccard_mean(preds, label).item())
+            return results_dict
 
-        return {f"{self.name}: finetuned_mean_iou": np.mean(mean_IoU)}
+        # finetuning
+        else:
+            mean_IoU = []
+
+            for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
+                s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
+                label = label.to(device)
+
+                jaccard_mean = JaccardIndex(task="multiclass", num_classes=self.num_outputs).to(
+                    device
+                )
+
+                model.eval()
+                with torch.no_grad():
+                    preds = model(
+                        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
+                    )
+                    mean_IoU.append(jaccard_mean(preds, label).item())
+
+            return {f"{self.name}: finetuned_mean_iou": np.mean(mean_IoU)}
 
     def evaluate_model_on_task(
         self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
     ) -> Dict:
         if model_modes is None:
-            model_modes = ["finetune"]
+            model_modes = self.all_classification_sklearn_models
         for model_mode in model_modes:
-            assert model_mode in ["finetune"]
+            assert (
+                model_mode in ["finetune"] or model_mode in self.all_classification_sklearn_models
+            )
 
         train_dl = DataLoader(
             PastisDataset(
@@ -361,16 +408,29 @@ class PastisEval(EvalTask):
             num_workers=Hyperparams.num_workers,
         )
 
-        val_dl = DataLoader(
-            PastisDataset(
-                folds=[2],
-                average_s2_over_month=self.average_months,
-                num_subtiles_per_image=self.num_subtiles_per_image,
-            ),
-            batch_size=Hyperparams.batch_size,
-            shuffle=False,
-            num_workers=Hyperparams.num_workers,
-        )
+        results_dict = {}
 
-        finetuned_model = self.finetune_presto(train_dl, val_dl, pretrained_model)
-        return self._evaluate_model(finetuned_model)
+        if "finetune" in model_modes:
+            val_dl = DataLoader(
+                PastisDataset(
+                    folds=[2],
+                    average_s2_over_month=self.average_months,
+                    num_subtiles_per_image=self.num_subtiles_per_image,
+                ),
+                batch_size=Hyperparams.batch_size,
+                shuffle=False,
+                num_workers=Hyperparams.num_workers,
+            )
+
+            finetuned_model = self.finetune_presto(train_dl, val_dl, pretrained_model)
+            results_dict.update(self._evaluate_model(finetuned_model))
+
+        if model_mode in self.all_classification_sklearn_models:
+            trained_sklearn_models = self.train_sklearn_model(
+                train_dl,
+                pretrained_model,
+                models=model_modes,
+            )
+            results_dict.update(self._evaluate_model(pretrained_model, trained_sklearn_models))
+
+        return results_dict
