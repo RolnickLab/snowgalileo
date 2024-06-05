@@ -86,6 +86,18 @@ class EuroSatDataset(PyTorchDataset):
         self.images = self.split_images(merge_train_val)[split]
         self.masks = self.create_eurosat_masks()
 
+        # used in the tif_to_array function
+        indices_to_remove = []
+        for band in REMOVED_BANDS:
+            indices_to_remove.append(ALL_S2_BANDS.index(band))
+        self.kept_s2_bands = [i for i in range(len(ALL_S2_BANDS)) if i not in indices_to_remove]
+        self.kept_dynamic_bands = [
+            idx
+            for idx, x in enumerate(SPACE_TIME_BANDS)
+            if ((x in ALL_S2_BANDS) and (x not in REMOVED_BANDS))
+        ]
+        self.kept_static_bands = [idx for idx, x in enumerate(STATIC_BANDS) if x in LOCATION_BANDS]
+
     def image_name_to_path(self, name: str) -> Path:
         class_name = name.split("_")[0]
         if name.endswith("jpg"):
@@ -171,17 +183,6 @@ class EuroSatDataset(PyTorchDataset):
     def image_to_space_time_array(
         self, tif_filename: str
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        indices_to_remove = []
-        for band in REMOVED_BANDS:
-            indices_to_remove.append(ALL_S2_BANDS.index(band))
-        kept_s2_bands = [i for i in range(len(ALL_S2_BANDS)) if i not in indices_to_remove]
-        kept_dynamic_bands = [
-            idx
-            for idx, x in enumerate(SPACE_TIME_BANDS)
-            if ((x in ALL_S2_BANDS) and (x not in REMOVED_BANDS))
-        ]
-        kept_static_bands = [idx for idx, x in enumerate(STATIC_BANDS) if x in LOCATION_BANDS]
-
         tif_file = self.image_name_to_path(tif_filename)
 
         with cast(xarray.DataArray, xr.open_rasterio(tif_file)) as image:
@@ -193,8 +194,8 @@ class EuroSatDataset(PyTorchDataset):
                     len(SPACE_TIME_BANDS),
                 ]
             )
-            image_kept_bands = image.values[kept_s2_bands]
-            eo_style_array[:, :, :, kept_dynamic_bands] = repeat(
+            image_kept_bands = image.values[self.kept_s2_bands]
+            eo_style_array[:, :, :, self.kept_dynamic_bands] = repeat(
                 image_kept_bands, "c h w -> h w t c", t=self.num_timesteps
             )
             # from (e.g.) +init=epsg:32630 to epsg:32630
@@ -206,7 +207,7 @@ class EuroSatDataset(PyTorchDataset):
             static_array = np.zeros(
                 len(STATIC_BANDS),
             )
-            static_array[kept_static_bands] = cartesian_array
+            static_array[self.kept_static_bands] = cartesian_array
 
         return (
             normalize_space_time(eo_style_array),
