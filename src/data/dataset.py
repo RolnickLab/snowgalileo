@@ -273,8 +273,8 @@ class Dataset(PyTorchDataset):
         else:
             cache_path_s_t, cache_path_s, cache_path_t = self.tif_to_npy_paths(tif_path)
             if cache_path_s_t.exists():
-                assert cache_path_s.exists()
-                assert cache_path_t.exists()
+                assert cache_path_s.exists(), f"Missing static in time data for {tif_path}"
+                assert cache_path_t.exists(), f"Missing static in space data for {tif_path}"
                 # check if the files exists in cache
                 s_t_x = np.load(cache_path_s_t)
                 num_timesteps = s_t_x.shape[2]
