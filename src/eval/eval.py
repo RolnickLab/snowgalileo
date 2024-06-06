@@ -169,15 +169,22 @@ class EvalTask(ABC):
             sss = StratifiedShuffleSplit(n_splits=1, test_size=0.1, random_state=self.seed)
             # first argument to split is a placeholder
             for _, idx in sss.split(targets, targets):
-                print(idx)
                 targets_sample.append(targets[idx])
-                encodings_sample.append(encodings_list[idx])
+                for i in idx:
+                    j = i // (Hyperparams.batch_size * self.patch_size**2)
+                    encodings_sample.append(np.concatenate(encodings_list)[j])
 
-        print("target np shape after sampling: " + str(len(targets_sample)))
+            print("target np shape after sampling: " + str(len(targets_sample)))
+            targets_np = np.concatenate(targets_sample)
+            encodings_np = np.concatenate(encodings_sample)
 
-        if len(targets.shape) == 2 and targets.shape[1] == 1:
+        else:
+            targets_np = np.concatenate(targets_list)
+            encodings_np = np.concatenate(encodings_list)
+
+        if len(targets_np.shape) == 2 and targets_np.shape[1] == 1:
             # from [[0], [0], [1]] to [0, 0, 1]
-            targets = targets.ravel()
+            targets_np = targets_np.ravel()
 
         fit_models = []
         model_dict = {
@@ -201,9 +208,7 @@ class EvalTask(ABC):
         }
         for model in models:
             fit_models.append(
-                clone(model_dict[self.regression][model]).fit(
-                    np.concatenate(encodings_sample), np.concatenate(targets_sample)
-                )
+                clone(model_dict[self.regression][model]).fit(encodings_np, targets_np)
             )
         return fit_models
 

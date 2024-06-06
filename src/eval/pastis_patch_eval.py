@@ -319,7 +319,9 @@ class PastisPatchEval(EvalTask):
         }
 
     @torch.no_grad()
-    def _evaluate_model(self, model, sklearn_models: Optional[Sequence[BaseEstimator]]) -> Dict:
+    def _evaluate_model(
+        self, pretrained_model, sklearn_models: Optional[Sequence[BaseEstimator]]
+    ) -> Dict:
         test_dl = DataLoader(
             PastisPatchDataset(
                 folds=[1],
@@ -343,13 +345,15 @@ class PastisPatchEval(EvalTask):
 
                 labels_list.append(self.group_and_reduce_targets_per_token(label).cpu().numpy())
 
-                model.eval()
+                pretrained_model.eval()
                 with torch.no_grad():
-                    s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = model(
+                    s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
                         s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
                     )
                     encodings = (
-                        self.group_encodings_per_token(model, s_t_x, s_x, t_x, s_t_m, s_m, t_m)
+                        self.group_encodings_per_token(
+                            pretrained_model, s_t_x, s_x, t_x, s_t_m, s_m, t_m
+                        )
                         .cpu()
                         .numpy()
                     )
