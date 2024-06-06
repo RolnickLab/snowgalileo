@@ -272,10 +272,7 @@ class Dataset(PyTorchDataset):
             return self._tif_to_array(tif_path)
         else:
             cache_path_s_t, cache_path_s, cache_path_t = self.tif_to_npy_paths(tif_path)
-            if cache_path_s_t.exists():
-                assert cache_path_s.exists(), f"Missing static in time data for {tif_path}"
-                assert cache_path_t.exists(), f"Missing static in space data for {tif_path}"
-                # check if the files exists in cache
+            if cache_path_s_t.exists() & cache_path_s.exists() & cache_path_t.exists():
                 s_t_x = np.load(cache_path_s_t)
                 num_timesteps = s_t_x.shape[2]
                 months = self.month_array_from_file(tif_path, num_timesteps)
