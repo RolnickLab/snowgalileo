@@ -19,6 +19,7 @@ from ..data.dataset import (
     SPACE_BANDS,
     SPACE_TIME_BANDS,
     SPACE_TIME_BANDS_GROUPS_IDX,
+    STATIC_BAND_GROUPS_IDX,
     STATIC_BANDS,
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
@@ -188,9 +189,9 @@ class CropHarvestEvalBase(EvalTask):
         t_m = t_m[:, :, [g[0] for _, g in TIME_BAND_GROUPS_IDX.items()]]
 
         st_x = np.zeros((b, len(STATIC_BANDS)))
-        st_m = np.ones((b, len(STATIC_BANDS)))
+        st_m = np.ones((b, len(STATIC_BAND_GROUPS_IDX)))
         if self.include_latlons:
-            st_m[:, LOCATION_BAND_MAPPING] = 0
+            st_m[:, list(STATIC_BAND_GROUPS_IDX).index("location")] = 0
             st_x[:, LOCATION_BAND_MAPPING] = to_cartesian(latlons[:, 0], latlons[:, 1])
 
         months = np.fmod(np.arange(start_month - 1, start_month - 1 + t), 12)
