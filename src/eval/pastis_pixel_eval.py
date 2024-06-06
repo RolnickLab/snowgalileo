@@ -12,6 +12,7 @@ from torch.utils.data import Dataset as PyTorchDataset
 from tqdm import tqdm
 
 from ..data.dataset import (
+    LOCATION_BANDS,
     SPACE_BAND_GROUPS_IDX,
     SPACE_BANDS,
     SPACE_TIME_BANDS,
@@ -21,6 +22,7 @@ from ..data.dataset import (
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
     normalize_space_time,
+    to_cartesian,
 )
 from ..data.earthengine.s2 import S2_BANDS
 from ..flexipresto import Encoder
@@ -63,9 +65,10 @@ class PastisPixelDataset(PyTorchDataset):
     def __init__(
         self,
         folds: List[int] = [1, 2, 3, 4, 5],
-        data_path: Optional[str] = "pastis/PASTIS-R_PixelSet",
-        n_pixels_per_parcel: Optional[int] = 32,
+        data_path: str = "pastis/PASTIS-R_PixelSet",
+        n_pixels_per_parcel: int = 32,
         ignore_label: Optional[int] = None,
+        include_latlons: bool = True,
     ):
         """
         Dataset class to load PASTIS pixel-level data.
@@ -83,13 +86,15 @@ class PastisPixelDataset(PyTorchDataset):
         self.n_pixels_per_parcel = n_pixels_per_parcel
 
         self.data_path = data_path
+        self.include_latlons = include_latlons
 
-        self.meta = pd.read_csv(data_dir / cast(str, self.data_path) / "metadata_parcel.csv")
+        self.meta = pd.read_csv(data_dir / self.data_path / "metadata_parcel.csv")
         self.meta.index = self.meta["ID_PARCEL"].astype(int)
         # multiple parcels form patches. We need the patch metadata to load the correct dates
-        self.meta_patch = gpd.read_file(data_dir / cast(str, self.data_path) / "metadata.geojson")
+        self.meta_patch = gpd.read_file(data_dir / self.data_path / "metadata.geojson")
         self.meta_patch.index = self.meta_patch["ID_PATCH"].astype(int)
         self.meta_patch.sort_index(inplace=True)
+        self.meta_patch.to_crs("EPSG:4326")
 
         if folds is not [1, 2, 3, 4, 5]:
             self.meta = pd.concat([self.meta[self.meta["Fold"] == f] for f in folds])
@@ -173,12 +178,20 @@ class PastisPixelDataset(PyTorchDataset):
             ]
         )
         t_m = np.ones([s_t_m.shape[0], self.num_timesteps, len(TIME_BAND_GROUPS_IDX)])
+
         st_m = np.ones([len(STATIC_BAND_GROUPS_IDX)])
+        if self.include_latlons:
+            location_channels = [
+                idx for idx, key in enumerate(STATIC_BAND_GROUPS_IDX) if "location" in key
+            ]
+            st_m[location_channels] = 0
+            assert ((st_m == 0) | (st_m == 1)).all()
+        else:
+            assert (st_m == 1).all()
 
         assert ((s_t_m == 0) | (s_t_m == 1)).all()
         assert (sp_m == 1).all()
         assert (t_m == 1).all()
-        assert (st_m == 1).all()
 
         return (s_t_m, sp_m, t_m, st_m)
 
@@ -278,6 +291,9 @@ class PastisPixelDataset(PyTorchDataset):
 
             # Dates are stored patch-wise in format YYYYMMDD
             dates = self.meta_patch["dates-S2"][id_patch]
+            geometry = self.meta_patch.geometry[id_patch]
+            lon, lat = geometry.centroid.x, geometry.centroid.y
+
             months = (
                 np.array([int(str(value)[4:6]) for _, value in dates.items()]) - 1
             )  # 0-indexed months
@@ -301,6 +317,7 @@ class PastisPixelDataset(PyTorchDataset):
             )
 
             kept_dynamic_bands = [idx for idx, x in enumerate(SPACE_TIME_BANDS) if (x in S2_BANDS)]
+            kept_static_bands = [idx for idx, x in enumerate(STATIC_BANDS) if x in LOCATION_BANDS]
 
             s_t_x[:, :, :, :, kept_dynamic_bands] = s2
             s_t_x = normalize_space_time(s_t_x)
@@ -308,6 +325,7 @@ class PastisPixelDataset(PyTorchDataset):
             sp_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], s_t_x.shape[2], len(SPACE_BANDS)))
             t_x = np.zeros((s_t_x.shape[0], s_t_x.shape[3], len(TIME_BANDS)))
             st_x = np.zeros((len(STATIC_BANDS)))
+            st_x[kept_static_bands] = to_cartesian(lat, lon)
 
             s_t_m, sp_m, t_m, st_m = self.create_pastis_masks(
                 missing_timestep_indeces=missing_timestep_indeces,
