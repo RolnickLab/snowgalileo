@@ -25,7 +25,7 @@ logger = logging.getLogger("__main__")
 
 @dataclass
 class Hyperparams:
-    batch_size: int = 64
+    batch_size: int = 32
     num_workers: int = 4
     max_epochs: int = 1
     patience: int = 10
@@ -162,19 +162,18 @@ class EvalTask(ABC):
         # class balance as the original dataset
         # only targets need to be stratified
         if self.segmentation:
-            print("len target list before sampling: " + str(len(targets_list)))
+            targets_sample = []
+            encodings_sample = []
+
             targets = np.concatenate(targets_list)
-            print("target np shape before sampling: " + str(targets.shape))
             sss = StratifiedShuffleSplit(n_splits=1, test_size=0.1, random_state=self.seed)
             # first argument to split is a placeholder
             for _, idx in sss.split(targets, targets):
-                targets_list = [targets_list[i] for i in idx]
-                encodings_list = [encodings_list[i] for i in idx]
+                print(idx)
+                targets_sample.append(targets[idx])
+                encodings_sample.append(encodings_list[idx])
 
-        targets_np = np.concatenate(targets_list)
-        encodings_np = np.concatenate(encodings_list)
-
-        print("target np shape after sampling: " + str(targets_np.shape))
+        print("target np shape after sampling: " + str(len(targets_sample)))
 
         if len(targets.shape) == 2 and targets.shape[1] == 1:
             # from [[0], [0], [1]] to [0, 0, 1]
@@ -202,7 +201,9 @@ class EvalTask(ABC):
         }
         for model in models:
             fit_models.append(
-                clone(model_dict[self.regression][model]).fit(encodings_np, targets_np)
+                clone(model_dict[self.regression][model]).fit(
+                    np.concatenate(encodings_sample), np.concatenate(targets_sample)
+                )
             )
         return fit_models
 
