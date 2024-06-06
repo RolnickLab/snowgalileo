@@ -350,7 +350,9 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
             train_paths_and_y = [train_paths_and_y[i] for i in np.concatenate(indices_to_keep)]
             assert len(train_paths_and_y) <= n_per_class * len(unique_ys)
 
-        array, latlons, labels = MultiClassCropHarvest(train_paths_and_y, y_string_to_int).as_array()
+        array, latlons, labels = MultiClassCropHarvest(
+            train_paths_and_y, y_string_to_int
+        ).as_array()
         self.train_dataset = TensorDataset(
             *self.cropharvest_array_to_normalized_presto(
                 array, latlons, self.start_month, timesteps=self.num_timesteps
