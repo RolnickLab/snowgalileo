@@ -10,6 +10,7 @@ import rioxarray
 import xarray as xr
 from einops import rearrange, repeat
 from torch.utils.data import Dataset as PyTorchDataset
+import logging
 
 from .config import DATASET_OUTPUT_HW, EE_BUCKET_TIFS, EE_FOLDER_TIFS, NUM_TIMESTEPS
 from .earthengine.eo import (
@@ -28,6 +29,9 @@ from .earthengine.eo import (
     TIME_SHIFT_VALUES,
 )
 from .earthengine.eo import SPACE_TIME_BANDS as EO_SPACE_TIME_BANDS
+
+logger = logging.getLogger("__main__")
+
 
 EO_DYNAMIC_IN_TIME_BANDS_NP = np.array(EO_SPACE_TIME_BANDS + TIME_BANDS)
 SPACE_TIME_BANDS = EO_SPACE_TIME_BANDS + ["NDVI"]
@@ -273,10 +277,18 @@ class Dataset(PyTorchDataset):
         else:
             cache_path_s_t, cache_path_s, cache_path_t = self.tif_to_npy_paths(tif_path)
             if cache_path_s_t.exists() & cache_path_s.exists() & cache_path_t.exists():
-                s_t_x = np.load(cache_path_s_t)
-                num_timesteps = s_t_x.shape[2]
-                months = self.month_array_from_file(tif_path, num_timesteps)
-                return DatasetOutput(s_t_x, np.load(cache_path_s), np.load(cache_path_t), months)
+                try:
+                    s_t_x = np.load(cache_path_s_t)
+                    num_timesteps = s_t_x.shape[2]
+                    months = self.month_array_from_file(tif_path, num_timesteps)
+                    return DatasetOutput(s_t_x, np.load(cache_path_s), np.load(cache_path_t), months)
+                except Exception as e:
+                    logger.warn(f"Exception {e} for {tif_path}")
+                    s_t_x, s_x, t_x, months = self._tif_to_array(tif_path)
+                    np.save(cache_path_s_t, s_t_x)
+                    np.save(cache_path_s, s_x)
+                    np.save(cache_path_t, t_x)
+                    return DatasetOutput(s_t_x, s_x, t_x, months)
             else:
                 s_t_x, s_x, t_x, months = self._tif_to_array(tif_path)
                 np.save(cache_path_s_t, s_t_x)
