@@ -1,3 +1,4 @@
+import logging
 import os
 import warnings
 from collections import OrderedDict, namedtuple
@@ -10,7 +11,6 @@ import rioxarray
 import xarray as xr
 from einops import rearrange, repeat
 from torch.utils.data import Dataset as PyTorchDataset
-import logging
 
 from .config import DATASET_OUTPUT_HW, EE_BUCKET_TIFS, EE_FOLDER_TIFS, NUM_TIMESTEPS
 from .earthengine.eo import (
@@ -281,7 +281,9 @@ class Dataset(PyTorchDataset):
                     s_t_x = np.load(cache_path_s_t)
                     num_timesteps = s_t_x.shape[2]
                     months = self.month_array_from_file(tif_path, num_timesteps)
-                    return DatasetOutput(s_t_x, np.load(cache_path_s), np.load(cache_path_t), months)
+                    return DatasetOutput(
+                        s_t_x, np.load(cache_path_s), np.load(cache_path_t), months
+                    )
                 except Exception as e:
                     logger.warn(f"Exception {e} for {tif_path}")
                     s_t_x, s_x, t_x, months = self._tif_to_array(tif_path)
