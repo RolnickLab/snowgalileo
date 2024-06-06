@@ -253,8 +253,12 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
             for test_id, test_instance in self.dataset.test_data(max_size=10000):
                 savepath = Path(results_dir) / f"{test_id}.nc"
 
+                latlons = np.stack((test_instance.lats, test_instance.lons), axis=-1)
                 masked_output = self.cropharvest_array_to_normalized_presto(
-                    cast(np.ndarray, test_instance.x), self.start_month, self.num_timesteps
+                    cast(np.ndarray, test_instance.x),
+                    latlons,
+                    self.start_month,
+                    self.num_timesteps,
                 )
                 s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = [
                     t.to(device) for t in masked_output
@@ -295,11 +299,12 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         for model_mode in model_modes:
             assert model_mode in self.all_classification_sklearn_models
 
-        array, labels = self.dataset.as_array()
+        array, latlons, labels = self.dataset.as_array()
         train_dl = DataLoader(
             TensorDataset(
                 *self.cropharvest_array_to_normalized_presto(
                     array,
+                    latlons,
                     timesteps=self.num_timesteps,
                     start_month=self.start_month,
                 ),
