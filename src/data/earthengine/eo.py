@@ -1,12 +1,15 @@
 # https://github.com/nasaharvest/openmapflow/blob/main/openmapflow/ee_exporter.py
 import json
 import os
+import shutil
 from datetime import date, timedelta
+from pathlib import Path
 from typing import List, Optional, Union
 
 import ee
 import numpy as np
 import pandas as pd
+import requests
 from pandas.compat._optional import import_optional_dependency
 from tqdm import tqdm
 
@@ -18,6 +21,7 @@ from ..config import (
     END_YEAR,
     EXPORTED_HEIGHT_WIDTH_METRES,
     START_YEAR,
+    TIFS_FOLDER,
 )
 from .dynamic_world import (
     DW_BANDS,
@@ -262,15 +266,27 @@ class EarthEngineExporter:
         check_ee: bool = False,
         check_gcp: bool = False,
         credentials=None,
+        mode: Optional[str] = "batch",
     ) -> None:
+        assert mode in ["batch", "url"]
+        self.mode = mode
         self.dest_bucket = dest_bucket
-        ee.Initialize(
-            credentials=credentials if credentials else get_ee_credentials(), project=EE_PROJECT
-        )
+        initialize_args = {
+            "credentials": credentials if credentials else get_ee_credentials(),
+            "project": EE_PROJECT,
+        }
+        if mode == "url":
+            initialize_args["opt_url"] = "https://earthengine-highvolume.googleapis.com"
+        ee.Initialize(**initialize_args)
         self.check_ee = check_ee
         self.ee_task_list = get_ee_task_list() if self.check_ee else []
         self.check_gcp = check_gcp
         self.cloud_tif_list = get_cloud_tif_list(dest_bucket) if self.check_gcp else []
+
+    def sync_local_and_gcloud(self):
+        os.system(
+            f"gcloud storage rsync -r {TIFS_FOLDER}/* gs://{EE_BUCKET_TIFS}/{EE_FOLDER_TIFS}"
+        )
 
     def _export_for_polygon(
         self,
@@ -302,21 +318,39 @@ class EarthEngineExporter:
 
         img = create_ee_image(polygon, start_date, end_date)
 
-        try:
-            ee.batch.Export.image.toCloudStorage(
-                bucket=self.dest_bucket,
-                fileNamePrefix=filename,
-                image=img.clip(polygon),
-                description=description,
-                scale=10,
-                region=polygon,
-                maxPixels=1e13,
-                fileDimensions=file_dimensions,
-            ).start()
-            self.ee_task_list.append(description)
-        except ee.ee_exception.EEException as e:
-            print(f"Task not started! Got exception {e}")
-
+        if self.mode == "batch":
+            try:
+                ee.batch.Export.image.toCloudStorage(
+                    bucket=self.dest_bucket,
+                    fileNamePrefix=filename,
+                    image=img.clip(polygon),
+                    description=description,
+                    scale=10,
+                    region=polygon,
+                    maxPixels=1e13,
+                    fileDimensions=file_dimensions,
+                ).start()
+                self.ee_task_list.append(description)
+            except ee.ee_exception.EEException as e:
+                print(f"Task not started! Got exception {e}")
+                return False
+        elif self.mode == "url":
+            url = img.getDownloadURL(
+                {
+                    "region": polygon,
+                    "scale": 10,
+                    "filePerBand": False,
+                    "format": "GEO_TIFF",
+                }
+            )
+            r = requests.get(url, stream=True)
+            if r.status_code != 200:
+                print(f"Task failed with status {r.status_code()}")
+                return False
+            else:
+                local_path = Path(TIFS_FOLDER / f"{str(polygon_identifier).replace('/', '_')}.tif")
+                with local_path.open("wb") as f:
+                    shutil.copyfileobj(r.raw, f)
         return True
 
     def export_for_latlons(
@@ -354,3 +388,5 @@ class EarthEngineExporter:
                 if num_exports_to_start is not None and exports_started >= num_exports_to_start:
                     print(f"Started {exports_started} exports. Ending export")
                     return None
+        if self.mode == "url":
+            self.sync_local_and_gcloud()
