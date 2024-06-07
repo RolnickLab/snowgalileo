@@ -1,5 +1,6 @@
 import random
 from collections import namedtuple
+from typing import List, Optional
 
 import numpy as np
 import torch
@@ -15,11 +16,35 @@ SPACE_TIME_BAND_EXPANSION = torch.tensor(
 SPACE_BAND_EXPANSION = torch.tensor([len(x) for x in SPACE_BAND_GROUPS_IDX.values()]).long()
 TIME_BAND_EXPANSION = torch.tensor([len(x) for x in TIME_BAND_GROUPS_IDX.values()]).long()
 
+NON_S2_BANDS = [
+    idx for idx, val in enumerate(list(SPACE_TIME_BANDS_GROUPS_IDX.keys())) if "S2" not in val
+]
+NON_S1_BANDS = [
+    idx for idx, val in enumerate(list(SPACE_TIME_BANDS_GROUPS_IDX.keys())) if "S1" not in val
+]
+NON_S1_S2_BANDS = [
+    idx
+    for idx, val in enumerate(list(SPACE_TIME_BANDS_GROUPS_IDX.keys()))
+    if (("S1" not in val) and ("S2" not in val))
+]
+
 
 MaskedOutput = namedtuple(
     "MaskedOutput",
     ["space_time_x", "space_x", "time_x", "space_time_mask", "space_mask", "time_mask", "months"],
 )
+
+
+def check_mode_and_return_channels(mode: Optional[str]) -> Optional[List[int]]:
+    assert mode in [None, "s2", "s1", "s1+s2"]
+    if mode is None:
+        return None
+    elif mode == "s2":
+        return NON_S2_BANDS
+    elif mode == "s1":
+        return NON_S1_BANDS
+    else:
+        return NON_S1_S2_BANDS
 
 
 def subset_batch_of_images(
@@ -179,6 +204,7 @@ def batch_mask_space(
     months: torch.Tensor,
     mask_ratio: float,
     patch_size: int,
+    mode: Optional[str] = None,
 ):
     """
     Masks out patches (blocks of of pxpxtxBAND_GROUPs).
@@ -190,6 +216,7 @@ def batch_mask_space(
     repeated over all dynamic timesteps + channel groups and static channel groups
     Operates over batches where each item in the batch is independently masked
     """
+    bands_to_mask = check_mode_and_return_channels(mode)
     b, h, w, t, _ = space_time_x.shape
     assert (h % patch_size == 0) and (w % patch_size == 0)
     h_p = int(h / patch_size)
@@ -221,16 +248,25 @@ def batch_mask_space(
         )
     ).to(space_time_x.device)
 
-    space_mask = torch.from_numpy(
-        repeat(
-            two_d_mask,
-            "b h w -> b h w c_g",
-            c_g=len(SPACE_BAND_GROUPS_IDX),
-        )
-    ).to(space_x.device)
+    if bands_to_mask is not None:
+        space_time_mask[:, :, :, :, bands_to_mask] = 1
 
-    time_mask = torch.rand(b, device=time_x.device) <= mask_ratio
-    time_mask = repeat(time_mask, "b -> b t c_g", t=t, c_g=len(TIME_BAND_GROUPS_IDX))
+    if bands_to_mask is None:
+        space_mask = torch.from_numpy(
+            repeat(
+                two_d_mask,
+                "b h w -> b h w c_g",
+                c_g=len(SPACE_BAND_GROUPS_IDX),
+            )
+        ).to(space_x.device)
+
+        time_mask = torch.rand(b, device=time_x.device) <= mask_ratio
+        time_mask = repeat(time_mask, "b -> b t c_g", t=t, c_g=len(TIME_BAND_GROUPS_IDX))
+    else:
+        space_time_mask[:, :, :, :, bands_to_mask] = 1
+        # we only want S2 and / or S1, so we mask everything else
+        space_mask = torch.ones((b, h, w, len(SPACE_BAND_GROUPS_IDX))).to(space_x.device)
+        time_mask = torch.ones((b, t, len(TIME_BAND_GROUPS_IDX))).to(time_x.device)
 
     return MaskedOutput(
         space_time_x, space_x, time_x, space_time_mask, space_mask, time_mask, months
