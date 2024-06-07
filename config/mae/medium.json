@@ -1,7 +1,8 @@
 {
     "training": {
         "num_epochs": 300,
-        "batch_size": 64,
+        "batch_size": 128,
+        "effective_batch_size": 512,
         "mask_ratio": 0.75,
         "patch_sizes": [1, 2, 3, 4, 5, 6, 7, 8],
         "shape_time_combinations": [{"size": 4, "timesteps": 12}, {"size": 5, "timesteps": 6}, {"size": 6, "timesteps": 4}, {"size": 7, "timesteps": 3}, {"size": 9, "timesteps": 2}, {"size": 12, "timesteps": 1}],

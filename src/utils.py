@@ -78,7 +78,7 @@ class AverageMeter:
 
 
 def load_check_config(name: str, mode: str):
-    assert mode in ["mae"]
+    assert mode == "mae"
 
     with (config_dir / mode / name).open("r") as f:
         config = json.load(f)
@@ -86,6 +86,7 @@ def load_check_config(name: str, mode: str):
     expected_training_keys_type = {
         "num_epochs": int,
         "batch_size": int,
+        "effective_batch_size": int,
         "mask_ratio": float,
         "patch_sizes": list,
         "start_lr": float,
