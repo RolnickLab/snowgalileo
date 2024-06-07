@@ -19,7 +19,8 @@ from ..config import (
     EE_FOLDER_TIFS,
     EE_PROJECT,
     END_YEAR,
-    EXPORTED_HEIGHT_WIDTH_METRES,
+    EXPORTED_HEIGHT_WIDTH_METRES_BATCH,
+    EXPORTED_HEIGHT_WIDTH_METRES_URL,
     START_YEAR,
     TIFS_FOLDER,
 )
@@ -53,7 +54,6 @@ from .worldcereal import WC_BANDS, WC_DIV_VALUES, WC_SHIFT_VALUES, get_single_wc
 # dataframe constants when exporting the labels
 LAT = "lat"
 LON = "lon"
-SURROUNDING_METRES = EXPORTED_HEIGHT_WIDTH_METRES / 2
 START_DATE = date(START_YEAR, 1, 1)
 END_DATE = date(END_YEAR, 12, 31)
 
@@ -270,6 +270,11 @@ class EarthEngineExporter:
     ) -> None:
         assert mode in ["batch", "url"]
         self.mode = mode
+        self.surrounding_metres = (
+            EXPORTED_HEIGHT_WIDTH_METRES_BATCH / 2
+            if mode == "batch"
+            else EXPORTED_HEIGHT_WIDTH_METRES_URL
+        )
         self.dest_bucket = dest_bucket
         initialize_args = {
             "credentials": credentials if credentials else get_ee_credentials(),
@@ -374,7 +379,7 @@ class EarthEngineExporter:
                 # worldstrat points are strings
                 mid_lat=float(row[LAT]),
                 mid_lon=float(row[LON]),
-                surrounding_metres=int(SURROUNDING_METRES),
+                surrounding_metres=int(self.surrounding_metres),
             )
 
             export_started = self._export_for_polygon(
