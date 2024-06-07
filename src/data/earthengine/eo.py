@@ -289,9 +289,7 @@ class EarthEngineExporter:
         self.cloud_tif_list = get_cloud_tif_list(dest_bucket) if self.check_gcp else []
 
     def sync_local_and_gcloud(self):
-        os.system(
-            f"gcloud storage rsync -r {TIFS_FOLDER} gs://{EE_BUCKET_TIFS}/{EE_FOLDER_TIFS}"
-        )
+        os.system(f"gcloud storage rsync -r {TIFS_FOLDER} gs://{EE_BUCKET_TIFS}/{EE_FOLDER_TIFS}")
 
     def _export_for_polygon(
         self,
