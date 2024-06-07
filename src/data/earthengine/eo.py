@@ -345,7 +345,7 @@ class EarthEngineExporter:
             )
             r = requests.get(url, stream=True)
             if r.status_code != 200:
-                print(f"Task failed with status {r.status_code()}")
+                print(f"Task failed with status {r.status_code}")
                 return False
             else:
                 local_path = Path(TIFS_FOLDER / f"{str(polygon_identifier).replace('/', '_')}.tif")
