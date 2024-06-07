@@ -1,3 +1,4 @@
+import logging
 import math
 import os
 import warnings
@@ -37,6 +38,9 @@ from .earthengine.eo import (
     WC_BANDS,
 )
 from .earthengine.eo import SPACE_TIME_BANDS as EO_SPACE_TIME_BANDS
+
+logger = logging.getLogger("__main__")
+
 
 EO_DYNAMIC_IN_TIME_BANDS_NP = np.array(EO_SPACE_TIME_BANDS + TIME_BANDS)
 SPACE_TIME_BANDS = EO_SPACE_TIME_BANDS + ["NDVI"]
@@ -299,7 +303,7 @@ class Dataset(PyTorchDataset):
         num_timesteps = (values.shape[0] - len(SPACE_BANDS) - static_bands_in_tif) / len(
             ALL_DYNAMIC_IN_TIME_BANDS
         )
-        assert num_timesteps % 1 == 0
+        assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
         dynamic_in_time_x = rearrange(
             values[: -(len(SPACE_BANDS) + static_bands_in_tif)],
             "(t c) h w -> h w t c",
@@ -342,21 +346,31 @@ class Dataset(PyTorchDataset):
             cache_path_s_t, cache_path_sp, cache_path_t, cache_path_st = self.tif_to_npy_paths(
                 tif_path
             )
-            if cache_path_s_t.exists():
-                assert cache_path_sp.exists()
-                assert cache_path_t.exists()
-                assert cache_path_st.exists()
-                # check if the files exists in cache
-                s_t_x = np.load(cache_path_s_t)
-                num_timesteps = s_t_x.shape[2]
-                months = self.month_array_from_file(tif_path, num_timesteps)
-                return DatasetOutput(
-                    s_t_x,
-                    np.load(cache_path_sp),
-                    np.load(cache_path_t),
-                    np.load(cache_path_st),
-                    months,
-                )
+            if (
+                cache_path_s_t.exists()
+                & cache_path_sp.exists()
+                & cache_path_t.exists()
+                & cache_path_st.exists()
+            ):
+                try:
+                    s_t_x = np.load(cache_path_s_t)
+                    num_timesteps = s_t_x.shape[2]
+                    months = self.month_array_from_file(tif_path, num_timesteps)
+                    return DatasetOutput(
+                        s_t_x,
+                        np.load(cache_path_sp),
+                        np.load(cache_path_t),
+                        np.load(cache_path_st),
+                        months,
+                    )
+                except Exception as e:
+                    logger.warn(f"Exception {e} for {tif_path}")
+                    s_t_x, sp_x, t_x, st_x, months = self._tif_to_array(tif_path)
+                    np.save(cache_path_s_t, s_t_x)
+                    np.save(cache_path_sp, sp_x)
+                    np.save(cache_path_t, t_x)
+                    np.save(cache_path_st, st_x)
+                    return DatasetOutput(s_t_x, sp_x, t_x, st_x, months)
             else:
                 s_t_x, sp_x, t_x, st_x, months = self._tif_to_array(tif_path)
                 np.save(cache_path_s_t, s_t_x)

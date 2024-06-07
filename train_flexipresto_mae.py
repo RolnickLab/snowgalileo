@@ -151,6 +151,8 @@ param_groups = [{"params": encoder.parameters()}, {"params": predictor.parameter
 
 optimizer = torch.optim.AdamW(param_groups, lr=training_config["start_lr"])  # type: ignore
 iterations_per_epoch = len(dataset)
+assert training_config["effective_batch_size"] % training_config["batch_size"] == 0
+iters_to_accumulate = training_config["effective_batch_size"] / training_config["batch_size"]
 
 for e in tqdm(range(training_config["num_epochs"])):
     train_loss = AverageMeter()
@@ -174,17 +176,6 @@ for e in tqdm(range(training_config["num_epochs"])):
             st_m_p,
             patch_size,
         ) = b
-
-        optimizer.zero_grad()
-        adjust_learning_rate(
-            optimizer,
-            epoch=i / len(dataloader) + e,
-            warmup_epochs=training_config["warmup_epochs"],
-            total_epochs=training_config["num_epochs"],
-            max_lr=training_config["max_lr"],
-            start_lr=training_config["start_lr"],
-            min_lr=training_config["final_lr"],
-        )
 
         with torch.autocast(device_type=device.type, dtype=autocast_device):
             (p_s_t, p_sp, p_t, p_st) = predictor(
@@ -220,9 +211,22 @@ for e in tqdm(range(training_config["num_epochs"])):
             loss_type=training_config["mae_loss"],
         )
 
-        loss.backward()
-        optimizer.step()
         train_loss.update(loss.item(), n=s_t_x.shape[0])
+        loss = loss / iters_to_accumulate
+        loss.backward()
+
+        if ((i + 1) % iters_to_accumulate == 0) or (i + 1 == len(dataloader)):
+            optimizer.step()
+            optimizer.zero_grad()
+            adjust_learning_rate(
+                optimizer,
+                epoch=i / len(dataloader) + e,
+                warmup_epochs=training_config["warmup_epochs"],
+                total_epochs=training_config["num_epochs"],
+                max_lr=training_config["max_lr"],
+                start_lr=training_config["start_lr"],
+                min_lr=training_config["final_lr"],
+            )
 
     if wandb_enabled:
         to_log = {"train_loss": train_loss.average, "epoch": e}
