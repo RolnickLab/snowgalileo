@@ -290,7 +290,7 @@ class EarthEngineExporter:
 
     def sync_local_and_gcloud(self):
         os.system(
-            f"gcloud storage rsync -r {TIFS_FOLDER}/* gs://{EE_BUCKET_TIFS}/{EE_FOLDER_TIFS}"
+            f"gcloud storage rsync -r {TIFS_FOLDER} gs://{EE_BUCKET_TIFS}/{EE_FOLDER_TIFS}"
         )
 
     def _export_for_polygon(
