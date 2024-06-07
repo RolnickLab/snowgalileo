@@ -156,7 +156,7 @@ class Dataset(PyTorchDataset):
     def download(data_folder):
         # Download files (faster than using Python API)
         os.system(
-            f"gcloud storage cp -n -r gs://{EE_BUCKET_TIFS}/{EE_FOLDER_TIFS}/* {data_folder}"
+            f"gcloud storage rsync -r gs://{EE_BUCKET_TIFS}/{EE_FOLDER_TIFS}/* {data_folder}"
         )
 
     @staticmethod
