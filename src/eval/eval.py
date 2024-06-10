@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Sequence
 
 import numpy as np
 import torch
+import tqdm
 from einops import rearrange
 from sklearn.base import BaseEstimator, clone
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
@@ -13,7 +14,6 @@ from sklearn.multioutput import MultiOutputClassifier
 from torch import nn
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
-from tqdm import tqdm
 
 from ..flexipresto import Encoder, FinetuningHead, PrestoFineTuningModel
 from ..utils import DEFAULT_SEED, device
@@ -42,7 +42,7 @@ class EvalTask(ABC):
     name: str
     num_outputs: int
     regression: bool
-    segmentation: bool
+    segmentation: bool0
     multilabel: bool
     input_height_width: int
 
@@ -81,8 +81,8 @@ class EvalTask(ABC):
         return model
 
     @torch.no_grad()
-    def group_and_reduce_targets_per_token(self, target: torch.Tensor) -> torch.Tensor:
-        # group labels per token for segmentation and reduce their dimensionality
+    def group_targets_per_token(self, target: torch.Tensor) -> torch.Tensor:
+        # group labels per token for segmentation
         # grouped_label shape will be (batch_size, n_tokens, t_height * t_width)
         grouped_label = (
             target.reshape(
@@ -95,47 +95,42 @@ class EvalTask(ABC):
             .permute(0, 1, 3, 2, 4)
             .reshape(target.shape[0], -1, self.patch_size * self.patch_size)
         )
+        return rearrange(grouped_label, "b n_t hw -> (b n_t) hw")
+
+    @torch.no_grad()
+    def group_encodings_per_token(self, model, s_t_x, s_x, t_x, s_t_m, s_m, t_m) -> np.ndarray:
+        encodings = rearrange(
+            model.apply_mask_and_average_tokens_per_patch(s_t_0x, s_x, t_x, s_t_m, s_m, t_m),
+            "b n_t n_f -> (b n_t) n_f",
+        )
+        return encodings
+
+    def reduce_targets_per_token(self, grouped_label: torch.Tensor) -> torch.Tensor:
         if self.num_outputs == 1:
             # take the most common label per token
-            label = rearrange(grouped_label.mode(dim=2).values, "b n_t -> (b n_t)")
+            label = grouped_label.mode(dim=1).values
+            print("Label shape after taking the mode: " + str(label.shape))
 
         # one hot encode the labels
         else:
-            label = torch.zeros(grouped_label.shape[0] * grouped_label.shape[1], self.num_outputs)
-            grouped_label = rearrange(grouped_label, "b n_t hw -> (b n_t) hw")
+            label = torch.zeros(grouped_label.shape[0], self.num_outputs)
 
             for i in range(grouped_label.shape[0]):
                 classes = torch.unique(grouped_label)
                 label[i][classes] = 1
 
             assert torch.unique(label).shape[0] == 2
-            print("label shape after one-hot encoding: " + str(label.shape))
-
+            print("Label shape after one-hot encoding: " + str(label.shape))
         return label
-
-    @torch.no_grad()
-    def group_encodings_per_token(self, model, s_t_x, s_x, t_x, s_t_m, s_m, t_m) -> np.ndarray:
-        encodings = rearrange(
-            model.apply_mask_and_average_tokens_per_patch(s_t_x, s_x, t_x, s_t_m, s_m, t_m),
-            "b n_t n_f -> (b n_t) n_f",
-        )
-        return encodings
 
     def remove_void_class(self, targets_np, encodings_np):
         """
         Remove tokens labeled with the void class. Code 19 is the void class.
         """
-        nr_tokens = targets_np.shape[0]
-
-        idx_to_delete = []
-
-        for i in range(nr_tokens):
-            # works for both shape (nr_samples) and (nr_samples, nr_classes)
-            if torch.any(targets_np[i] == 19):
-                idx_to_delete.append(i)
-
-        targets_np = np.delete(targets_np, i, axis=0)
-        encodings_np = np.delete(encodings_np, i, axis=0)
+        # incoming shape is (nr_tokens, nr_pixels_per_token)
+        mask = torch.any(targets_np == 19, dim=1)
+        targets_np = targets_np[~mask]
+        encodings_np = targets_np[~mask]
 
         return targets_np, encodings_np
 
@@ -166,7 +161,7 @@ class EvalTask(ABC):
             s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
 
             if self.segmentation:
-                targets_list.append(self.group_and_reduce_targets_per_token(label).cpu().numpy())
+                targets_list.append(self.group_targets_per_token(label).cpu().numpy())
             else:
                 targets_list.append(label.cpu().numpy())
 
@@ -192,12 +187,18 @@ class EvalTask(ABC):
         targets_np = np.concatenate(targets_list)
         encodings_np = np.concatenate(encodings_list)
 
+        print("Targets_np shape before removing void: " + str(targets_np.shape))
+        print("Encodings_np shape before removing void: " + str(encodings_np.shape))
+
         # move to somewhere else ?
         if self.name == "pastis_patch":
             targets_np, encodings_np = self.remove_void_class(targets_np, encodings_np)
 
-        print("targets_np shape: " + str(targets_np.shape))
-        print("encodings_np shape: " + str(encodings_np.shape))
+        print("Targets_np shape after removing void: " + str(targets_np.shape))
+        print("Encodings_np shape after removing void: " + str(encodings_np.shape))
+
+        if self.segmentation:
+            targets_np = self.reduce_targets_per_token(targets_np)
 
         if len(targets_np.shape) == 2 and targets_np.shape[1] == 1:
             # from [[0], [0], [1]] to [0, 0, 1]
