@@ -9,7 +9,6 @@ from einops import rearrange
 from sklearn.base import BaseEstimator, clone
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression
-from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.multioutput import MultiOutputClassifier
 from torch import nn
 from torch.optim import AdamW
@@ -62,9 +61,9 @@ class EvalTask(ABC):
         self.name = f"{self.name}_s{self.seed}_ps{self.patch_size}"
 
     @classmethod
-    def _construct_sklearn_model(cls, model) -> BaseEstimator:
-        if cls.multilabel or (cls.segmentation and cls.num_outputs > 1):
-            model = MultiOutputClassifier(model, n_jobs=cls.num_outputs)
+    def _construct_sklearn_model(cls, model, num_outputs=1) -> BaseEstimator:
+        if cls.multilabel or (cls.segmentation and num_outputs > 1):
+            model = MultiOutputClassifier(model, n_jobs=num_outputs)
         return model
 
     def _construct_finetuning_model(
@@ -82,9 +81,7 @@ class EvalTask(ABC):
         return model
 
     @torch.no_grad()
-    def group_and_reduce_targets_per_token(
-        self, target: torch.Tensor
-    ) -> torch.Tensor:
+    def group_and_reduce_targets_per_token(self, target: torch.Tensor) -> torch.Tensor:
         # group labels per token for segmentation and reduce their dimensionality
         # grouped_label shape will be (batch_size, n_tokens, t_height * t_width)
         grouped_label = (
@@ -110,10 +107,9 @@ class EvalTask(ABC):
             for i in range(grouped_label.shape[0]):
                 classes = torch.unique(grouped_label)
                 label[i][classes] = 1
-            
+
             assert torch.unique(label).shape[0] == 2
             print("label shape after one-hot encoding: " + str(label.shape))
-            
 
         return label
 
@@ -124,15 +120,24 @@ class EvalTask(ABC):
             "b n_t n_f -> (b n_t) n_f",
         )
         return encodings
-    
-    def remove_void_class(self, targets_list, encodings_list):
-        """Remove void class from the dataset. Code 19 is the void class."""
-        targets_list_copy = targets_list.copy()
-        for i in range(len(targets_list_copy)):
-            if targets_list[i] == 19:
-                targets_list[i] = np.delete(targets_list, i)
-                encodings_list[i] = np.delete(encodings_list, i)
-        return targets_list, encodings_list
+
+    def remove_void_class(self, targets_np, encodings_np):
+        """
+        Remove tokens labeled with the void class. Code 19 is the void class.
+        """
+        nr_tokens = targets_np.shape[0]
+
+        idx_to_delete = []
+
+        for i in range(nr_tokens):
+            # works for both shape (nr_samples) and (nr_samples, nr_classes)
+            if torch.any(targets_np[i] == 19):
+                idx_to_delete.append(i)
+
+        targets_np = np.delete(targets_np, i, axis=0)
+        encodings_np = np.delete(encodings_np, i, axis=0)
+
+        return targets_np, encodings_np
 
     @torch.no_grad()
     def train_sklearn_model(
@@ -141,6 +146,13 @@ class EvalTask(ABC):
         pretrained_model: Encoder,
         models: List[str] = ["Random Forest"],
     ) -> Sequence[BaseEstimator]:
+        """
+        Fit sklearn models on the encodings of the pretrained model.
+        For segmentation tasks, encodings and targets are grouped token-wise.
+        Either the mode class will be taken or the classes will be one-hot encoded.
+        This is controlled by the num_outputs attribute which can be changed in the subclass.
+        """
+
         for model_mode in models:
             if self.regression:
                 assert model_mode in self.all_regression_sklearn_models
@@ -177,36 +189,15 @@ class EvalTask(ABC):
                         .numpy()
                     )
 
-        # define somewhere else
+        targets_np = np.concatenate(targets_list)
+        encodings_np = np.concatenate(encodings_list)
+
+        # move to somewhere else ?
         if self.name == "pastis_patch":
-            targets_list, encodings_list = self.remove_void_class(targets_list, encodings_list)
+            targets_np, encodings_np = self.remove_void_class(targets_np, encodings_np)
 
-        # do stratified sampling (10% of all vectors), sample by keeping the same
-        # class balance as the original dataset
-        # only targets need to be stratified
-        if self.segmentation:
-            targets_sample = []
-            encodings_sample = []
-
-            targets = np.concatenate(targets_list)
-            sss = StratifiedShuffleSplit(n_splits=1, test_size=0.1, random_state=self.seed)
-            # first argument to split is a placeholder
-            #for _, idx in sss.split(targets, targets):
-                #targets_sample.append(targets[idx])
-                #for i in idx:
-                    #j = i // (Hyperparams.batch_size * self.patch_size**2)
-                    #encodings_sample.append(np.concatenate(encodings_list)[j])
-
-            targets_sample.append(targets)
-            encodings_sample.append(np.concatenate(encodings_list))
-
-            print("target np shape after sampling: " + str(len(targets_sample[0])))
-            targets_np = np.concatenate(targets_sample)
-            encodings_np = np.concatenate(encodings_sample)
-
-        else:
-            targets_np = np.concatenate(targets_list)
-            encodings_np = np.concatenate(encodings_list)
+        print("targets_np shape: " + str(targets_np.shape))
+        print("encodings_np shape: " + str(encodings_np.shape))
 
         if len(targets_np.shape) == 2 and targets_np.shape[1] == 1:
             # from [[0], [0], [1]] to [0, 0, 1]
