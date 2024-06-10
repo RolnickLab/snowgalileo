@@ -7,7 +7,7 @@ import pandas as pd
 import torch.multiprocessing
 from einops import repeat
 from sklearn.base import BaseEstimator
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, balanced_accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as PyTorchDataset
 from torchmetrics import JaccardIndex
@@ -178,9 +178,9 @@ class PastisPatchDataset(PyTorchDataset):
 
         return s2_all_months, all_months, missing_timestep_indeces
 
-    def get_eo_array_and_masks(
+    def get_eo_array_masks_and_targets(
         self, id: int
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         Loads the image for a given ID, handles missing timesteps and normalizes the data.
         Also provides static and month data, and creates masks for missing data.
@@ -223,13 +223,13 @@ class PastisPatchDataset(PyTorchDataset):
             missing_timestep_indeces=missing_timestep_indeces
         )
 
-        return normalize_space_time(s_t_x), s_x, t_x, s_t_m, s_m, t_m, months
-
-    def get_target(self, id: int) -> torch.Tensor:
-        target = np.load(
+        targets = np.load(
             data_dir / cast(str, self.data_path) / "ANNOTATIONS/TARGET_{}.npy".format(id)
         )
-        return torch.from_numpy(target[0].astype(int)).long()
+        targets = torch.from_numpy(targets[0].astype(int)).long()
+
+        return normalize_space_time(s_t_x), s_x, t_x, s_t_m, s_m, t_m, months, targets
+
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         """
@@ -239,8 +239,7 @@ class PastisPatchDataset(PyTorchDataset):
 
         id = self.id[img_idx]
 
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = self.get_eo_array_and_masks(id)
-        target = self.get_target(id)
+        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, targets = self.get_eo_array_masks_and_targets(id)
 
         subtiles_per_dim = int(sqrt(cast(float, self.num_subtiles_per_image)))
         h, w = s_t_x.shape[:2]
@@ -280,7 +279,7 @@ class PastisPatchDataset(PyTorchDataset):
                 t_m,
                 months,
             ),
-            target[
+            targets[
                 row_idx * pixels_per_dim : (row_idx + 1) * pixels_per_dim,
                 col_idx * pixels_per_dim : (col_idx + 1) * pixels_per_dim,
             ],
@@ -315,7 +314,8 @@ class PastisPatchEval(EvalTask):
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         return {
-            f"{self.name}: {model_name}_accuracy_score": accuracy_score(target, preds),
+            f"{self.name}: {model_name}_overall_accuracy": accuracy_score(target, preds),
+            f"{self.name}: {model_name}_mean_accuracy": balanced_accuracy_score(target, preds),
         }
 
     @torch.no_grad()
