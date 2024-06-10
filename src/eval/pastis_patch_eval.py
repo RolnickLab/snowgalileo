@@ -307,7 +307,8 @@ class PastisPatchEval(EvalTask):
 
     def __init__(
         self,
-        num_outputs: int = len(PastisPatchDataset.labels_to_int),
+        # we will remove the void label
+        num_outputs: int = len(PastisPatchDataset.labels_to_int) - 1,
         average_months: bool = True,
         num_subtiles_per_image: int = 4,
         patch_size: int = 8,
