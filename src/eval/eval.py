@@ -1,7 +1,7 @@
 import logging
 from abc import ABC
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
@@ -42,7 +42,7 @@ class EvalTask(ABC):
     name: str
     num_outputs: int
     regression: bool
-    segmentation: bool0
+    segmentation: bool
     multilabel: bool
     input_height_width: int
 
@@ -100,12 +100,12 @@ class EvalTask(ABC):
     @torch.no_grad()
     def group_encodings_per_token(self, model, s_t_x, s_x, t_x, s_t_m, s_m, t_m) -> np.ndarray:
         encodings = rearrange(
-            model.apply_mask_and_average_tokens_per_patch(s_t_0x, s_x, t_x, s_t_m, s_m, t_m),
+            model.apply_mask_and_average_tokens_per_patch(s_t_x, s_x, t_x, s_t_m, s_m, t_m),
             "b n_t n_f -> (b n_t) n_f",
         )
         return encodings
 
-    def reduce_targets_per_token(self, grouped_label: torch.Tensor) -> torch.Tensor:
+    def reduce_targets_per_token(self, grouped_label: np.ndarray) -> np.ndarray:
         if self.num_outputs == 1:
             # take the most common label per token
             label = grouped_label.mode(dim=1).values
@@ -123,7 +123,7 @@ class EvalTask(ABC):
             print("Label shape after one-hot encoding: " + str(label.shape))
         return label
 
-    def remove_void_class(self, targets_np, encodings_np):
+    def remove_void_class(self, targets_np: np.ndarray, encodings_np: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         Remove tokens labeled with the void class. Code 19 is the void class.
         """
