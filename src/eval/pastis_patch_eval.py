@@ -299,11 +299,13 @@ class PastisPatchEval(EvalTask):
 
     def __init__(
         self,
+        num_outputs = len(PastisPatchDataset.labels_to_int),
         average_months: bool = True,
         num_subtiles_per_image: int = 4,
         patch_size: int = 8,
         seed=DEFAULT_SEED,
     ):
+        self.num_outputs = num_outputs
         self.average_months = average_months
         self.num_subtiles_per_image = num_subtiles_per_image
         super().__init__(patch_size, seed)

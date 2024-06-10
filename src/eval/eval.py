@@ -63,7 +63,7 @@ class EvalTask(ABC):
 
     @classmethod
     def _construct_sklearn_model(cls, model) -> BaseEstimator:
-        if cls.multilabel:
+        if cls.multilabel or (cls.segmentation and cls.num_outputs > 1):
             model = MultiOutputClassifier(model, n_jobs=cls.num_outputs)
         return model
 
@@ -83,7 +83,7 @@ class EvalTask(ABC):
 
     @torch.no_grad()
     def group_and_reduce_targets_per_token(
-        self, target: torch.Tensor, mode: str = "one-target-per-token"
+        self, target: torch.Tensor
     ) -> torch.Tensor:
         # group labels per token for segmentation and reduce their dimensionality
         # grouped_label shape will be (batch_size, n_tokens, t_height * t_width)
@@ -98,12 +98,22 @@ class EvalTask(ABC):
             .permute(0, 1, 3, 2, 4)
             .reshape(target.shape[0], -1, self.patch_size * self.patch_size)
         )
-        if mode == "one-target-per-token":
+        if self.num_outputs == 1:
             # take the most common label per token
             label = rearrange(grouped_label.mode(dim=2).values, "b n_t -> (b n_t)")
 
-        elif mode == "all-targets-per-token":
-            label = rearrange(grouped_label, "b n_t hw -> (b n_t) hw")
+        # one hot encode the labels
+        else:
+            label = torch.zeros(grouped_label.shape[0] * grouped_label.shape[1], self.num_outputs)
+            grouped_label = rearrange(grouped_label, "b n_t hw -> (b n_t) hw")
+
+            for i in range(grouped_label.shape[0]):
+                classes = torch.unique(grouped_label)
+                label[i][classes] = 1
+            
+            assert torch.unique(label).shape[0] == 2
+            print("label shape after one-hot encoding: " + str(label.shape))
+            
 
         return label
 
@@ -190,7 +200,7 @@ class EvalTask(ABC):
             targets_sample.append(targets)
             encodings_sample.append(np.concatenate(encodings_list))
 
-            print("target np shape after sampling: " + str(len(targets_sample)))
+            print("target np shape after sampling: " + str(len(targets_sample[0])))
             targets_np = np.concatenate(targets_sample)
             encodings_np = np.concatenate(encodings_sample)
 
