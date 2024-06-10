@@ -103,7 +103,7 @@ class EvalTask(ABC):
             label = rearrange(grouped_label.mode(dim=2).values, "b n_t -> (b n_t)")
 
         elif mode == "all-targets-per-token":
-            label = rearrange(grouped_label, "b n_t h w -> (b n_t) (h w)")
+            label = rearrange(grouped_label, "b n_t hw -> (b n_t) hw")
 
         return label
 
@@ -114,6 +114,15 @@ class EvalTask(ABC):
             "b n_t n_f -> (b n_t) n_f",
         )
         return encodings
+    
+    def remove_void_class(self, targets_list, encodings_list):
+        """Remove void class from the dataset. Code 19 is the void class."""
+        targets_list_copy = targets_list.copy()
+        for i in range(len(targets_list_copy)):
+            if targets_list[i] == 19:
+                targets_list[i] = np.delete(targets_list, i)
+                encodings_list[i] = np.delete(encodings_list, i)
+        return targets_list, encodings_list
 
     @torch.no_grad()
     def train_sklearn_model(
@@ -158,6 +167,10 @@ class EvalTask(ABC):
                         .numpy()
                     )
 
+        # define somewhere else
+        if self.name == "pastis_patch":
+            targets_list, encodings_list = self.remove_void_class(targets_list, encodings_list)
+
         # do stratified sampling (10% of all vectors), sample by keeping the same
         # class balance as the original dataset
         # only targets need to be stratified
@@ -168,11 +181,14 @@ class EvalTask(ABC):
             targets = np.concatenate(targets_list)
             sss = StratifiedShuffleSplit(n_splits=1, test_size=0.1, random_state=self.seed)
             # first argument to split is a placeholder
-            for _, idx in sss.split(targets, targets):
-                targets_sample.append(targets[idx])
-                for i in idx:
-                    j = i // (Hyperparams.batch_size * self.patch_size**2)
-                    encodings_sample.append(np.concatenate(encodings_list)[j])
+            #for _, idx in sss.split(targets, targets):
+                #targets_sample.append(targets[idx])
+                #for i in idx:
+                    #j = i // (Hyperparams.batch_size * self.patch_size**2)
+                    #encodings_sample.append(np.concatenate(encodings_list)[j])
+
+            targets_sample.append(targets)
+            encodings_sample.append(np.concatenate(encodings_list))
 
             print("target np shape after sampling: " + str(len(targets_sample)))
             targets_np = np.concatenate(targets_sample)
