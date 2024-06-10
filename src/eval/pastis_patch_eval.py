@@ -7,7 +7,7 @@ import pandas as pd
 import torch.multiprocessing
 from einops import repeat
 from sklearn.base import BaseEstimator
-from sklearn.metrics import accuracy_score, balanced_accuracy_score
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, jaccard_score
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as PyTorchDataset
 from torchmetrics import JaccardIndex
@@ -324,10 +324,17 @@ class PastisPatchEval(EvalTask):
         self.name = f"{self.name}_{'AVERAGED_MONTHS' if self.average_months else 'ALL_MONTHS'}_hw{self.input_height_width}"
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
-        return {
-            f"{self.name}: {model_name}_overall_accuracy": accuracy_score(target, preds),
-            f"{self.name}: {model_name}_mean_accuracy": balanced_accuracy_score(target, preds),
-        }
+        if self.num_outputs == 1:
+            return {
+                f"{self.name}: {model_name}_overall_accuracy": accuracy_score(target, preds),
+                f"{self.name}: {model_name}_mean_accuracy": balanced_accuracy_score(target, preds),
+            }
+        else:
+            return {
+                f"{self.name}: {model_name}_overall_accuracy": accuracy_score(target, preds),
+                f"{self.name}: {model_name}_mean_accuracy": balanced_accuracy_score(target, preds),
+                f"{self.name}: {model_name}_mean_iou": jaccard_score(target, preds, average="weighted"),
+            }
 
     @torch.no_grad()
     def _evaluate_model(
@@ -349,34 +356,33 @@ class PastisPatchEval(EvalTask):
             pred_dict: Dict[str, BaseEstimator] = {
                 model_class_name(model): [] for model in sklearn_models
             }
-            labels_list = []
+
+            encodings_list = []
+            targets_list = []
 
             for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
                 s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
 
-                labels_list.append(self.group_and_reduce_targets_per_token(label).cpu().numpy())
+                targets_list.append(self.group_targets_per_token(label).cpu().numpy())
 
                 pretrained_model.eval()
                 with torch.no_grad():
                     s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
                         s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
                     )
-                    encodings = (
-                        self.group_encodings_per_token(
-                            pretrained_model, s_t_x, s_x, t_x, s_t_m, s_m, t_m
-                        )
-                        .cpu()
-                        .numpy()
-                    )
 
-                    for model in sklearn_models:
-                        preds = model.predict(encodings)
-                        pred_dict[model_class_name(model)].append(preds)
+                    encodings_list.append(self.group_encodings_per_token(pretrained_model, s_t_x, s_x, t_x, s_t_m, s_m, t_m).cpu().numpy())
+
+            encodings_np, targets_np = self.remove_void_class(np.concatenate(encodings_list), np.concatenate(targets_list))
+
+            for model in sklearn_models:
+                preds = model.predict(encodings_np)
+                pred_dict[model_class_name(model)].append(preds)
 
             for model_name_str, pred_list in pred_dict.items():
                 results_dict.update(
                     self.compute_metrics(
-                        model_name_str, np.concatenate(pred_list), np.concatenate(labels_list)
+                        model_name_str, np.concatenate(pred_list), self.reduce_targets_per_token(targets_np)
                     )
                 )
             return results_dict
