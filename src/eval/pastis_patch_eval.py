@@ -180,7 +180,16 @@ class PastisPatchDataset(PyTorchDataset):
 
     def get_eo_array_masks_and_targets(
         self, id: int
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    ) -> Tuple[
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+        np.ndarray,
+    ]:
         """
         Loads the image for a given ID, handles missing timesteps and normalizes the data.
         Also provides static and month data, and creates masks for missing data.
@@ -229,7 +238,6 @@ class PastisPatchDataset(PyTorchDataset):
         targets = torch.from_numpy(targets[0].astype(int)).long()
 
         return normalize_space_time(s_t_x), s_x, t_x, s_t_m, s_m, t_m, months, targets
-
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         """
@@ -299,7 +307,7 @@ class PastisPatchEval(EvalTask):
 
     def __init__(
         self,
-        num_outputs = len(PastisPatchDataset.labels_to_int),
+        num_outputs: int = len(PastisPatchDataset.labels_to_int),
         average_months: bool = True,
         num_subtiles_per_image: int = 4,
         patch_size: int = 8,
