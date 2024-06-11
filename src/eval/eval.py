@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
-import tqdm
+from tqdm import tqdm
 from einops import rearrange
 from sklearn.base import BaseEstimator, clone
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
@@ -14,6 +14,7 @@ from sklearn.multioutput import MultiOutputClassifier
 from torch import nn
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
+from scipy.stats import mode
 
 from ..flexipresto import Encoder, FinetuningHead, PrestoFineTuningModel
 from ..utils import DEFAULT_SEED, device
@@ -108,18 +109,18 @@ class EvalTask(ABC):
     def reduce_targets_per_token(self, grouped_label: np.ndarray) -> np.ndarray:
         if self.num_outputs == 1:
             # take the most common label per token
-            label = grouped_label.mode(dim=1).values
+            label = mode(grouped_label, axis=1).mode
             print("Label shape after taking the mode: " + str(label.shape))
 
         # one hot encode the labels
         else:
-            label = torch.zeros(grouped_label.shape[0], self.num_outputs)
+            label = np.zeros((grouped_label.shape[0], self.num_outputs))
 
             for i in range(grouped_label.shape[0]):
-                classes = torch.unique(grouped_label)
+                classes = np.unique(grouped_label)
                 label[i][classes] = 1
 
-            assert torch.unique(label).shape[0] == 2
+            assert np.unique(label).shape[0] == 2
             print("Label shape after one-hot encoding: " + str(label.shape))
         return label
 
@@ -128,9 +129,9 @@ class EvalTask(ABC):
         Remove tokens labeled with the void class. Code 19 is the void class.
         """
         # incoming shape is (nr_tokens, nr_pixels_per_token)
-        mask = torch.any(targets_np == 19, dim=1)
+        mask = np.any(targets_np == 19, axis=1)
         targets_np = targets_np[~mask]
-        encodings_np = targets_np[~mask]
+        encodings_np = encodings_np[~mask]
 
         return targets_np, encodings_np
 
@@ -191,7 +192,8 @@ class EvalTask(ABC):
         print("Encodings_np shape before removing void: " + str(encodings_np.shape))
 
         # move to somewhere else ?
-        if self.name == "pastis_patch":
+        if "pastis_patch" in self.name:
+            print("Removing void class")
             targets_np, encodings_np = self.remove_void_class(targets_np, encodings_np)
 
         print("Targets_np shape after removing void: " + str(targets_np.shape))
