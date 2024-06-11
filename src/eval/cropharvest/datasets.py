@@ -388,9 +388,10 @@ class CropHarvest(BaseDataset):
     def __len__(self) -> int:
         return len(self.filepaths)
 
-    def __getitem__(self, index: int) -> Tuple[np.ndarray, int]:
+    def __getitem__(self, index: int) -> Tuple[np.ndarray, np.ndarray, int]:
         hf = h5py.File(self.filepaths[index], "r")
-        return self._normalize(hf.get("array")[:]), self.y_vals[index]
+        latlon = np.array([hf.attrs["instance_lat"], hf.attrs["instance_lon"]])
+        return self._normalize(hf.get("array")[:]), latlon, self.y_vals[index]
 
     @property
     def k(self) -> int:
@@ -403,7 +404,7 @@ class CropHarvest(BaseDataset):
 
     def as_array(
         self, flatten_x: bool = False, num_samples: Optional[int] = None
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         r"""
         Return the training data as a tuple of
         np.ndarrays
@@ -428,12 +429,12 @@ class CropHarvest(BaseDataset):
                 )
             indices_to_sample = pos_indices[:k] + neg_indices[:k]
 
-        X, Y = zip(*[self[i] for i in indices_to_sample])
-        X_np, y_np = np.stack(X), np.stack(Y)
+        X, latlons, Y = zip(*[self[i] for i in indices_to_sample])
+        X_np, latlons_np, y_np = np.stack(X), np.stack(latlons), np.stack(Y)
 
         if flatten_x:
             X_np = self._flatten_array(X_np)
-        return X_np, y_np
+        return X_np, latlons_np, y_np
 
     def test_data(
         self, flatten_x: bool = False, max_size: Optional[int] = None

@@ -12,13 +12,17 @@ from torch.utils.data import Dataset as PyTorchDataset
 from tqdm import tqdm
 
 from ..data.dataset import (
+    LOCATION_BANDS,
     SPACE_BAND_GROUPS_IDX,
     SPACE_BANDS,
     SPACE_TIME_BANDS,
     SPACE_TIME_BANDS_GROUPS_IDX,
+    STATIC_BAND_GROUPS_IDX,
+    STATIC_BANDS,
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
     normalize_space_time,
+    to_cartesian,
 )
 from ..data.earthengine.s2 import S2_BANDS
 from ..flexipresto import Encoder
@@ -61,9 +65,10 @@ class PastisPixelDataset(PyTorchDataset):
     def __init__(
         self,
         folds: List[int] = [1, 2, 3, 4, 5],
-        data_path: Optional[str] = "pastis/PASTIS-R_PixelSet",
-        n_pixels_per_parcel: Optional[int] = 32,
+        data_path: str = "pastis/PASTIS-R_PixelSet",
+        n_pixels_per_parcel: int = 32,
         ignore_label: Optional[int] = None,
+        include_latlons: bool = True,
     ):
         """
         Dataset class to load PASTIS pixel-level data.
@@ -81,13 +86,15 @@ class PastisPixelDataset(PyTorchDataset):
         self.n_pixels_per_parcel = n_pixels_per_parcel
 
         self.data_path = data_path
+        self.include_latlons = include_latlons
 
-        self.meta = pd.read_csv(data_dir / cast(str, self.data_path) / "metadata_parcel.csv")
+        self.meta = pd.read_csv(data_dir / self.data_path / "metadata_parcel.csv")
         self.meta.index = self.meta["ID_PARCEL"].astype(int)
         # multiple parcels form patches. We need the patch metadata to load the correct dates
-        self.meta_patch = gpd.read_file(data_dir / cast(str, self.data_path) / "metadata.geojson")
+        self.meta_patch = gpd.read_file(data_dir / self.data_path / "metadata.geojson")
         self.meta_patch.index = self.meta_patch["ID_PATCH"].astype(int)
         self.meta_patch.sort_index(inplace=True)
+        self.meta_patch.to_crs("EPSG:4326")
 
         if folds is not [1, 2, 3, 4, 5]:
             self.meta = pd.concat([self.meta[self.meta["Fold"] == f] for f in folds])
@@ -105,26 +112,31 @@ class PastisPixelDataset(PyTorchDataset):
 
         (
             self.s_t_x,
-            self.s_x,
+            self.sp_x,
             self.t_x,
+            self.st_x,
             self.s_t_m,
-            self.s_m,
+            self.sp_m,
             self.t_m,
+            self.st_m,
             self.months,
             self.labels,
         ) = self.get_and_cache_data()
         # remove pixels that are masked out entirely to avoid NaNs during prediction
         pixel_mask = (
             np.any(~self.s_t_m.astype(bool), axis=(1, 2, 3, 4))
-            | np.any(~self.s_m.astype(bool), axis=(1, 2, 3))
+            | np.any(~self.sp_m.astype(bool), axis=(1, 2, 3))
             | np.any(~self.t_m.astype(bool), axis=(1, 2))
+            | np.any(~self.st_m.astype(bool))
         )
         self.s_t_x = self.s_t_x[pixel_mask]
-        self.s_x = self.s_x[pixel_mask]
+        self.sp_x = self.sp_x[pixel_mask]
         self.t_x = self.t_x[pixel_mask]
+        self.st_x = self.st_x[pixel_mask]
         self.s_t_m = self.s_t_m[pixel_mask]
-        self.s_m = self.s_m[pixel_mask]
+        self.sp_m = self.sp_m[pixel_mask]
         self.t_m = self.t_m[pixel_mask]
+        self.st_m = self.st_m[pixel_mask]
         self.months = self.months[pixel_mask]
         self.labels = self.labels[pixel_mask]
 
@@ -132,7 +144,7 @@ class PastisPixelDataset(PyTorchDataset):
 
     def create_pastis_masks(
         self, missing_timestep_indeces: np.ndarray, pixel_mask: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         Masks unavailable channels and timesteps.
         """
@@ -157,7 +169,7 @@ class PastisPixelDataset(PyTorchDataset):
         s_t_m[:, :, :, missing_timestep_indeces, :] = 1
 
         # no space only / time only channels are available
-        s_m = np.ones(
+        sp_m = np.ones(
             [
                 s_t_m.shape[0],
                 self.input_height_width,
@@ -167,11 +179,21 @@ class PastisPixelDataset(PyTorchDataset):
         )
         t_m = np.ones([s_t_m.shape[0], self.num_timesteps, len(TIME_BAND_GROUPS_IDX)])
 
+        st_m = np.ones([len(STATIC_BAND_GROUPS_IDX)])
+        if self.include_latlons:
+            location_channels = [
+                idx for idx, key in enumerate(STATIC_BAND_GROUPS_IDX) if "location" in key
+            ]
+            st_m[location_channels] = 0
+            assert ((st_m == 0) | (st_m == 1)).all()
+        else:
+            assert (st_m == 1).all()
+
         assert ((s_t_m == 0) | (s_t_m == 1)).all()
-        assert (s_m == 1).all()
+        assert (sp_m == 1).all()
         assert (t_m == 1).all()
 
-        return (s_t_m, s_m, t_m)
+        return (s_t_m, sp_m, t_m, st_m)
 
     @staticmethod
     def repeat_pixel(pixels, n_pixels_per_parcel):
@@ -269,6 +291,9 @@ class PastisPixelDataset(PyTorchDataset):
 
             # Dates are stored patch-wise in format YYYYMMDD
             dates = self.meta_patch["dates-S2"][id_patch]
+            geometry = self.meta_patch.geometry[id_patch]
+            lon, lat = geometry.centroid.x, geometry.centroid.y
+
             months = (
                 np.array([int(str(value)[4:6]) for _, value in dates.items()]) - 1
             )  # 0-indexed months
@@ -292,14 +317,17 @@ class PastisPixelDataset(PyTorchDataset):
             )
 
             kept_dynamic_bands = [idx for idx, x in enumerate(SPACE_TIME_BANDS) if (x in S2_BANDS)]
+            kept_static_bands = [idx for idx, x in enumerate(STATIC_BANDS) if x in LOCATION_BANDS]
 
             s_t_x[:, :, :, :, kept_dynamic_bands] = s2
             s_t_x = normalize_space_time(s_t_x)
             # space only / time only bands are not provided by pastis
-            s_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], s_t_x.shape[2], len(SPACE_BANDS)))
+            sp_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], s_t_x.shape[2], len(SPACE_BANDS)))
             t_x = np.zeros((s_t_x.shape[0], s_t_x.shape[3], len(TIME_BANDS)))
+            st_x = np.zeros((len(STATIC_BANDS)))
+            st_x[kept_static_bands] = to_cartesian(lat, lon)
 
-            s_t_m, s_m, t_m = self.create_pastis_masks(
+            s_t_m, sp_m, t_m, st_m = self.create_pastis_masks(
                 missing_timestep_indeces=missing_timestep_indeces,
                 pixel_mask=pixel_mask,
             )
@@ -320,8 +348,9 @@ class PastisPixelDataset(PyTorchDataset):
                         s_t_x.shape[4],
                     )
                 )
-                s_x_cache = np.zeros((num_pixels, s_x.shape[1], s_x.shape[2], s_x.shape[3]))
+                sp_x_cache = np.zeros((num_pixels, sp_x.shape[1], sp_x.shape[2], sp_x.shape[3]))
                 t_x_cache = np.zeros((num_pixels, t_x.shape[1], t_x.shape[2]))
+                st_x_cache = np.zeros((num_pixels, st_x.shape[1]))
                 s_t_m_cache = np.zeros(
                     (
                         num_pixels,
@@ -331,8 +360,9 @@ class PastisPixelDataset(PyTorchDataset):
                         s_t_m.shape[4],
                     )
                 )
-                s_m_cache = np.zeros((num_pixels, s_m.shape[1], s_m.shape[2], s_m.shape[3]))
+                sp_m_cache = np.zeros((num_pixels, sp_m.shape[1], sp_m.shape[2], sp_m.shape[3]))
                 t_m_cache = np.zeros((num_pixels, t_m.shape[1], t_m.shape[2]))
+                st_m_cache = np.zeros((num_pixels, st_m.shape[1]))
                 months_cache = np.zeros((num_pixels, months.shape[1]))
                 label_cache = np.zeros((num_pixels, 1))
 
@@ -341,26 +371,34 @@ class PastisPixelDataset(PyTorchDataset):
                 i * self.n_pixels_per_parcel : i * self.n_pixels_per_parcel
                 + self.n_pixels_per_parcel
             ] = s_t_x
-            s_x_cache[
+            sp_x_cache[
                 i * self.n_pixels_per_parcel : i * self.n_pixels_per_parcel
                 + self.n_pixels_per_parcel
-            ] = s_x
+            ] = sp_x
             t_x_cache[
                 i * self.n_pixels_per_parcel : i * self.n_pixels_per_parcel
                 + self.n_pixels_per_parcel
             ] = t_x
+            st_x_cache[
+                i * self.n_pixels_per_parcel : i * self.n_pixels_per_parcel
+                + self.n_pixels_per_parcel
+            ] = st_x
             s_t_m_cache[
                 i * self.n_pixels_per_parcel : i * self.n_pixels_per_parcel
                 + self.n_pixels_per_parcel
             ] = s_t_m
-            s_m_cache[
+            sp_m_cache[
                 i * self.n_pixels_per_parcel : i * self.n_pixels_per_parcel
                 + self.n_pixels_per_parcel
-            ] = s_m
+            ] = sp_m
             t_m_cache[
                 i * self.n_pixels_per_parcel : i * self.n_pixels_per_parcel
                 + self.n_pixels_per_parcel
             ] = t_m
+            st_m_cache[
+                i * self.n_pixels_per_parcel : i * self.n_pixels_per_parcel
+                + self.n_pixels_per_parcel
+            ] = st_m
             months_cache[
                 i * self.n_pixels_per_parcel : i * self.n_pixels_per_parcel
                 + self.n_pixels_per_parcel
@@ -372,11 +410,13 @@ class PastisPixelDataset(PyTorchDataset):
 
         return (
             s_t_x_cache,
-            s_x_cache,
+            sp_x_cache,
             t_x_cache,
+            st_x_cache,
             s_t_m_cache,
-            s_m_cache,
+            sp_m_cache,
             t_m_cache,
+            st_m_cache,
             months_cache,
             label_cache,
         )
@@ -385,11 +425,13 @@ class PastisPixelDataset(PyTorchDataset):
         return (
             masked_output_np_to_tensor(
                 self.s_t_x[idx],
-                self.s_x[idx],
+                self.sp_x[idx],
                 self.t_x[idx],
+                self.st_x[idx],
                 self.s_t_m[idx],
-                self.s_m[idx],
+                self.sp_m[idx],
                 self.t_m[idx],
+                self.st_m[idx],
                 self.months[idx],
             ),
             torch.tensor(self.labels[idx], dtype=torch.long),
@@ -439,16 +481,29 @@ class PastisEval(EvalTask):
         labels_list = []
 
         for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = [
+                t.to(device) for t in masked_output
+            ]
 
             pretrained_model.eval()
 
             with torch.no_grad():
-                s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
-                    s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
+                s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = pretrained_model(
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                    patch_size=self.patch_size,
                 )
                 encodings = (
-                    pretrained_model.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m).cpu().numpy()
+                    pretrained_model.average_tokens(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
+                    .cpu()
+                    .numpy()
                 )
 
             labels_list.append(label.cpu().numpy())
