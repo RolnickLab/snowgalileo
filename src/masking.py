@@ -224,7 +224,7 @@ def batch_mask_time(
         h=h,
         w=w,
         c_g=len(SPACE_TIME_BANDS_GROUPS_IDX),
-    )
+    ).clone()
     if bands_to_mask is None:
         time_mask = repeat(
             b_flat_timesteps_t,
@@ -313,7 +313,6 @@ def batch_mask_space(
         )
     ).to(space_time_x.device)
 
-    print(mode, bands_to_mask)
     if bands_to_mask is None:
         space_mask = torch.from_numpy(
             repeat(
