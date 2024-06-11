@@ -84,6 +84,12 @@ class TestMasking(unittest.TestCase):
                         .float()
                         .mean(axis=(1, 2, 4))
                     )
+                    self.assertTrue(
+                        (
+                            space_time_unmasked.sum(axis=1) / space_time_unmasked.shape[1]
+                            == (mask_ratio if t > 1 else 0)
+                        ).all()
+                    )
                     self.assertTrue(np.isin(space_time_unmasked, (0, 1)).all())
                     self.assertTrue((output.space_mask == 1).all())
                     self.assertTrue((output.time_mask == 1).all())
