@@ -24,6 +24,13 @@ from src.masking import (
     batch_mask_time,
 )
 
+MASK_TO_BANDS = {
+    "s2rgb": {"masked": NON_S2_RGB_BANDS, "unmasked": S2_RGB_BANDS},
+    "s2": {"masked": NON_S2_BANDS, "unmasked": S2_BANDS},
+    "s1": {"masked": NON_S1_BANDS, "unmasked": S1_BANDS},
+    "s1+s2": {"masked": NON_S1_S2_BANDS, "unmasked": S1_S2_BANDS},
+}
+
 
 class TestMasking(unittest.TestCase):
     def test_mask_by_time(self):
@@ -36,26 +43,51 @@ class TestMasking(unittest.TestCase):
             months = repeat(torch.arange(0, t), "t -> b t", b=b)
             mask_ratio = 0.25
 
-            output = batch_mask_time(
-                space_time_input, space_input, time_input, static_input, months, mask_ratio
-            )
-            self.assertEqual(
-                (b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX)), output.space_time_mask.shape
-            )
-            self.assertEqual((b, h, w, len(SPACE_BAND_GROUPS_IDX)), output.space_mask.shape)
-            self.assertEqual((b, t, len(TIME_BAND_GROUPS_IDX)), output.time_mask.shape)
-            self.assertEqual((b, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
-            # collapse the dynamic_mask along the time dimension
-            space_time_mask_along_t = output.space_time_mask.float().mean(axis=(1, 2, 4))  # b, t
-            time_mask_along_t = output.time_mask.float().mean(axis=-1)  # b, t
-            self.assertTrue(torch.equal(space_time_mask_along_t, time_mask_along_t))
-            self.assertTrue(np.isin(space_time_mask_along_t, (0, 1)).all())
-            self.assertTrue(
-                (
-                    space_time_mask_along_t.sum(axis=1) / space_time_mask_along_t.shape[1]
-                    == (mask_ratio if t > 1 else 1)
-                ).all()
-            )
+            for mode in [None, "s2rgb", "s2", "s1", "s1+s2"]:
+                output = batch_mask_time(
+                    space_time_input,
+                    space_input,
+                    time_input,
+                    static_input,
+                    months,
+                    mask_ratio,
+                    mode=mode,
+                )
+                self.assertEqual(
+                    (b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX)), output.space_time_mask.shape
+                )
+                self.assertEqual((b, h, w, len(SPACE_BAND_GROUPS_IDX)), output.space_mask.shape)
+                self.assertEqual((b, t, len(TIME_BAND_GROUPS_IDX)), output.time_mask.shape)
+                self.assertEqual((b, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
+                if mode is None:
+                    # collapse the dynamic_mask along the time dimension
+                    space_time_mask_along_t = output.space_time_mask.float().mean(
+                        axis=(1, 2, 4)
+                    )  # b, t
+                    time_mask_along_t = output.time_mask.float().mean(axis=-1)  # b, t
+                    self.assertTrue(torch.equal(space_time_mask_along_t, time_mask_along_t))
+                    self.assertTrue(np.isin(space_time_mask_along_t, (0, 1)).all())
+                    self.assertTrue(
+                        (
+                            space_time_mask_along_t.sum(axis=1) / space_time_mask_along_t.shape[1]
+                            == (mask_ratio if t > 1 else 1)
+                        ).all()
+                    )
+                else:
+                    self.assertTrue(
+                        (
+                            output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["masked"]] == 1
+                        ).all()
+                    )
+                    space_time_unmasked = (
+                        output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["unmasked"]]
+                        .float()
+                        .mean(axis=(1, 2, 4))
+                    )
+                    self.assertTrue(np.isin(space_time_unmasked, (0, 1)).all())
+                    self.assertTrue((output.space_mask == 1).all())
+                    self.assertTrue((output.time_mask == 1).all())
+                    self.assertTrue((output.static_mask == 1).all())
 
     def test_mask_by_channel(self):
         b, t, h, w = 2, 8, 16, 16
@@ -116,23 +148,17 @@ class TestMasking(unittest.TestCase):
             else:
                 self.assertTrue((output.space_mask == 1).all())
                 self.assertTrue((output.time_mask == 1).all())
-                if mode == "s2rgb":
-                    self.assertTrue(
-                        (output.space_time_mask[:, :, :, :, NON_S2_RGB_BANDS] == 1).all()
-                    )
-                    self.assertFalse((output.space_time_mask[:, :, :, :, S2_RGB_BANDS] == 1).all())
-                if mode == "s2":
-                    self.assertTrue((output.space_time_mask[:, :, :, :, NON_S2_BANDS] == 1).all())
-                    self.assertFalse((output.space_time_mask[:, :, :, :, S2_BANDS] == 1).all())
-                elif mode == "s1":
-                    self.assertTrue((output.space_time_mask[:, :, :, :, NON_S1_BANDS] == 1).all())
-                    self.assertFalse((output.space_time_mask[:, :, :, :, S1_BANDS] == 1).all())
-                elif mode == "s1+s2":
-                    self.assertTrue(
-                        (output.space_time_mask[:, :, :, :, NON_S1_S2_BANDS] == 1).all()
-                    )
-                    self.assertFalse((output.space_time_mask[:, :, :, :, S1_S2_BANDS] == 1).all())
-
+                self.assertTrue(
+                    (output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["masked"]] == 1).all()
+                )
+                self.assertFalse(
+                    (
+                        output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["unmasked"]] == 1
+                    ).all()
+                )
+                self.assertTrue((output.space_mask == 1).all())
+                self.assertTrue((output.time_mask == 1).all())
+                self.assertTrue((output.static_mask == 1).all())
             for i in range(1, p):
                 self.assertTrue(
                     torch.equal(s_along_hw[:, i::p, i::p], s_along_hw[:, i - 1 :: p, i - 1 :: p])
