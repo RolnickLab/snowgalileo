@@ -5,6 +5,7 @@ import torch
 from einops import repeat
 
 from src.masking import (
+    MASKING_MODES,
     NON_S1_BANDS,
     NON_S1_S2_BANDS,
     NON_S2_BANDS,
@@ -18,10 +19,10 @@ from src.masking import (
     STATIC_BAND_GROUPS_IDX,
     TIME_BAND_GROUPS_IDX,
     batch_mask_channels,
-    batch_mask_presto,
     batch_mask_random,
     batch_mask_space,
     batch_mask_time,
+    batch_subset_mask_presto_8x,
 )
 
 MASK_TO_BANDS = {
@@ -43,7 +44,7 @@ class TestMasking(unittest.TestCase):
             months = repeat(torch.arange(0, t), "t -> b t", b=b)
             mask_ratio = 0.25
 
-            for mode in [None, "s2rgb", "s2", "s1", "s1+s2"]:
+            for mode in MASKING_MODES:
                 output = batch_mask_time(
                     space_time_input,
                     space_input,
@@ -129,7 +130,7 @@ class TestMasking(unittest.TestCase):
         months = repeat(torch.arange(0, t), "t -> b t", b=b)
         mask_ratio = 0.25
 
-        for mode in [None, "s2rgb", "s2", "s1", "s1+s2"]:
+        for mode in MASKING_MODES:
             output = batch_mask_space(
                 space_time_input,
                 space_input,
@@ -227,6 +228,7 @@ class TestMasking(unittest.TestCase):
 
     def test_mask_combined(self):
         b, t, h, w, p = 4, 8, 16, 16, 4
+        i, t_o = 8, 4
         space_time_input = torch.ones((b, h, w, t, 8))
         space_input = torch.ones((b, h, w, 8))
         time_input = torch.ones((b, t, 8))
@@ -234,7 +236,7 @@ class TestMasking(unittest.TestCase):
         months = repeat(torch.arange(0, t), "t -> b t", b=b)
         mask_ratio = 0.25
 
-        output = batch_mask_presto(
+        output = batch_subset_mask_presto_8x(
             space_time_input,
             space_input,
             time_input,
@@ -242,17 +244,12 @@ class TestMasking(unittest.TestCase):
             months,
             mask_ratio,
             p,
-            time_ratio=0.25,
-            space_ratio=0.25,
-            channel_ratio=0.25,
+            image_size=i,
+            num_timesteps=t_o,
         )
         self.assertEqual(
-            (b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX)), output.space_time_mask.shape
+            (b * 8, i, i, t_o, len(SPACE_TIME_BANDS_GROUPS_IDX)), output.space_time_mask.shape
         )
-        self.assertEqual((b, h, w, len(SPACE_BAND_GROUPS_IDX)), output.space_mask.shape)
-        self.assertEqual((b, t, len(TIME_BAND_GROUPS_IDX)), output.time_mask.shape)
-        self.assertEqual((b, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        self.assertEqual((b * 8, i, i, len(SPACE_BAND_GROUPS_IDX)), output.space_mask.shape)
+        self.assertEqual((b * 8, t_o, len(TIME_BAND_GROUPS_IDX)), output.time_mask.shape)
+        self.assertEqual((b * 8, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)

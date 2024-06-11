@@ -48,6 +48,8 @@ S1_S2_BANDS = [
     if (("S1" in val) or ("S2" in val))
 ]
 
+MASKING_MODES = [None, "s2", "s2rgb", "s1", "s1+s2"]
+
 
 @dataclass
 class MaskedOutput:
@@ -79,7 +81,7 @@ class MaskedOutput:
 def check_mode_and_return_channels(
     mode: Optional[str],
 ) -> Tuple[Optional[List[int]], Optional[List[int]]]:
-    assert mode in [None, "s2", "s2rgb", "s1", "s1+s2"]
+    assert mode in MASKING_MODES
     if mode is None:
         return None, None
     elif mode == "s2rgb":
@@ -139,7 +141,7 @@ def subset_batch_of_images(
     )
 
 
-def batch_mask_presto(
+def batch_subset_mask_presto_8x(
     s_t_x: torch.Tensor,
     sp_x: torch.Tensor,
     t_x: torch.Tensor,
@@ -147,42 +149,54 @@ def batch_mask_presto(
     months: torch.Tensor,
     mask_ratio: float,
     patch_size: int,
-    time_ratio: float,
-    space_ratio: float,
-    channel_ratio: float,
+    image_size: int,
+    num_timesteps: int,
 ) -> MaskedOutput:
-    b = s_t_x.shape[0]
-    t_r = int(b * time_ratio)
-    s_r = int(b * space_ratio)
-    c_r = int(b * channel_ratio)
-    o_t = batch_mask_time(s_t_x[:t_r], sp_x[:t_r], t_x[:t_r], st_x[:t_r], months[:t_r], mask_ratio)
-    o_s = batch_mask_space(
-        s_t_x[t_r : t_r + s_r],
-        sp_x[t_r : t_r + s_r],
-        t_x[t_r : t_r + s_r],
-        st_x[t_r : t_r + s_r],
-        months[t_r : t_r + s_r],
-        mask_ratio,
-        patch_size,
+    """
+    Given an input batch size of x, this function will
+    return 8x as many points (e.g. 16 -> 128)
+    """
+    maskedoutputs: List[MaskedOutput] = []
+
+    for mode in random.sample(MASKING_MODES, k=3):
+        maskedoutputs.append(
+            batch_mask_time(
+                *subset_batch_of_images(
+                    s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=num_timesteps
+                ),
+                mask_ratio,
+                mode=mode,
+            )
+        )
+    for mode in random.sample(MASKING_MODES, k=3):
+        maskedoutputs.append(
+            batch_mask_space(
+                *subset_batch_of_images(
+                    s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=num_timesteps
+                ),
+                mask_ratio,
+                patch_size,
+                mode=mode,
+            )
+        )
+
+    maskedoutputs.append(
+        batch_mask_channels(
+            *subset_batch_of_images(
+                s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=num_timesteps
+            ),
+            mask_ratio,
+        )
     )
-    o_c = batch_mask_channels(
-        s_t_x[t_r + s_r : t_r + s_r + c_r],
-        sp_x[t_r + s_r : t_r + s_r + c_r],
-        t_x[t_r + s_r : t_r + s_r + c_r],
-        st_x[t_r + s_r : t_r + s_r + c_r],
-        months[t_r + s_r : t_r + s_r + c_r],
-        mask_ratio,
+    maskedoutputs.append(
+        batch_mask_channels(
+            *subset_batch_of_images(
+                s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=num_timesteps
+            ),
+            mask_ratio,
+        )
     )
-    o_r = batch_mask_random(
-        s_t_x[t_r + s_r + c_r :],
-        sp_x[t_r + s_r + c_r :],
-        t_x[t_r + s_r + c_r :],
-        st_x[t_r + s_r + c_r :],
-        months[t_r + s_r + c_r :],
-        mask_ratio,
-        patch_size,
-    )
-    return MaskedOutput.concatenate([o_t, o_s, o_c, o_r])
+    return MaskedOutput.concatenate(maskedoutputs)
 
 
 def batch_mask_time(
