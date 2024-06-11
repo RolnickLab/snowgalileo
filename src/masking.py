@@ -1,6 +1,6 @@
 import random
 from collections import namedtuple
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -16,16 +16,31 @@ SPACE_TIME_BAND_EXPANSION = torch.tensor(
 SPACE_BAND_EXPANSION = torch.tensor([len(x) for x in SPACE_BAND_GROUPS_IDX.values()]).long()
 TIME_BAND_EXPANSION = torch.tensor([len(x) for x in TIME_BAND_GROUPS_IDX.values()]).long()
 
+
+NON_S2_RGB_BANDS = [
+    idx for idx, val in enumerate(list(SPACE_TIME_BANDS_GROUPS_IDX.keys())) if val != "S2_RGB"
+]
+S2_RGB_BANDS = [
+    idx for idx, val in enumerate(list(SPACE_TIME_BANDS_GROUPS_IDX.keys())) if val == "S2_RGB"
+]
+
 NON_S2_BANDS = [
     idx for idx, val in enumerate(list(SPACE_TIME_BANDS_GROUPS_IDX.keys())) if "S2" not in val
 ]
+S2_BANDS = [idx for idx, val in enumerate(list(SPACE_TIME_BANDS_GROUPS_IDX.keys())) if "S2" in val]
 NON_S1_BANDS = [
     idx for idx, val in enumerate(list(SPACE_TIME_BANDS_GROUPS_IDX.keys())) if "S1" not in val
 ]
+S1_BANDS = [idx for idx, val in enumerate(list(SPACE_TIME_BANDS_GROUPS_IDX.keys())) if "S1" in val]
 NON_S1_S2_BANDS = [
     idx
     for idx, val in enumerate(list(SPACE_TIME_BANDS_GROUPS_IDX.keys()))
     if (("S1" not in val) and ("S2" not in val))
+]
+S1_S2_BANDS = [
+    idx
+    for idx, val in enumerate(list(SPACE_TIME_BANDS_GROUPS_IDX.keys()))
+    if (("S1" in val) or ("S2" in val))
 ]
 
 
@@ -35,16 +50,20 @@ MaskedOutput = namedtuple(
 )
 
 
-def check_mode_and_return_channels(mode: Optional[str]) -> Optional[List[int]]:
-    assert mode in [None, "s2", "s1", "s1+s2"]
+def check_mode_and_return_channels(
+    mode: Optional[str],
+) -> Tuple[Optional[List[int]], Optional[List[int]]]:
+    assert mode in [None, "s2", "s2rgb", "s1", "s1+s2"]
     if mode is None:
-        return None
+        return None, None
+    elif mode == "s2rgb":
+        S2_RGB_BANDS, NON_S2_RGB_BANDS
     elif mode == "s2":
-        return NON_S2_BANDS
+        return S2_BANDS, NON_S2_BANDS
     elif mode == "s1":
-        return NON_S1_BANDS
+        return S1_BANDS, NON_S1_BANDS
     else:
-        return NON_S1_S2_BANDS
+        return S1_S2_BANDS, NON_S1_S2_BANDS
 
 
 def subset_batch_of_images(
@@ -148,6 +167,7 @@ def batch_mask_time(
     time_x: torch.Tensor,
     months: torch.Tensor,
     mask_ratio: float,
+    mode: Optional[str] = None,
 ):
     """
     Masks out blocks of hxwx1xBAND_GROUPs.
@@ -156,6 +176,7 @@ def batch_mask_time(
 
     Operates over batches where each item in the batch has independently masked timesteps
     """
+    bands_to_keep, bands_to_mask = check_mode_and_return_channels(mode)
     b, h, w, t, _ = space_time_x.shape
     # if there is only a single timestep, mask it
     num_timesteps_to_mask = int(t * mask_ratio) if t > 1 else 1
@@ -180,17 +201,21 @@ def batch_mask_time(
         w=w,
         c_g=len(SPACE_TIME_BANDS_GROUPS_IDX),
     )
-    time_mask = repeat(
-        b_flat_timesteps_t,
-        "b t-> b t c_g",
-        c_g=len(TIME_BAND_GROUPS_IDX),
-    )
-    space_mask = torch.rand(b, device=space_x.device) <= mask_ratio
-    if t == 1:
-        # can't mask out everything if t == 1, so we make sure the
-        # space only mask remains unmasked
-        space_mask = space_mask * 0
-    space_mask = repeat(space_mask, "b -> b h w s", h=h, w=w, s=len(SPACE_BAND_GROUPS_IDX))
+
+    if bands_to_mask is None:
+        time_mask = repeat(
+            b_flat_timesteps_t,
+            "b t-> b t c_g",
+            c_g=len(TIME_BAND_GROUPS_IDX),
+        )
+        space_mask = torch.rand(b, device=space_x.device) <= mask_ratio
+        if t == 1:
+            # can't mask out everything if t == 1, so we make sure the
+            # space only mask remains unmasked
+            space_mask = space_mask * 0
+        space_mask = repeat(space_mask, "b -> b h w s", h=h, w=w, s=len(SPACE_BAND_GROUPS_IDX))
+    else:
+        raise NotImplementedError
 
     return MaskedOutput(
         space_time_x, space_x, time_x, space_time_mask, space_mask, time_mask, months
@@ -216,7 +241,7 @@ def batch_mask_space(
     repeated over all dynamic timesteps + channel groups and static channel groups
     Operates over batches where each item in the batch is independently masked
     """
-    bands_to_mask = check_mode_and_return_channels(mode)
+    _, bands_to_mask = check_mode_and_return_channels(mode)
     b, h, w, t, _ = space_time_x.shape
     assert (h % patch_size == 0) and (w % patch_size == 0)
     h_p = int(h / patch_size)
@@ -247,9 +272,6 @@ def batch_mask_space(
             c_g=len(SPACE_TIME_BANDS_GROUPS_IDX),
         )
     ).to(space_time_x.device)
-
-    if bands_to_mask is not None:
-        space_time_mask[:, :, :, :, bands_to_mask] = 1
 
     if bands_to_mask is None:
         space_mask = torch.from_numpy(
