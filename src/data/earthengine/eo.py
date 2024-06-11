@@ -266,10 +266,12 @@ class EarthEngineExporter:
         check_ee: bool = False,
         check_gcp: bool = False,
         credentials=None,
-        mode: Optional[str] = "batch",
+        mode: str = "batch",
     ) -> None:
         assert mode in ["batch", "url"]
         self.mode = mode
+        if mode == "url":
+            print(f"Mode: url. Files will be saved to {TIFS_FOLDER} and rsynced to google cloud")
         self.surrounding_metres = (
             EXPORTED_HEIGHT_WIDTH_METRES_BATCH / 2
             if mode == "batch"
@@ -349,10 +351,10 @@ class EarthEngineExporter:
                 )
                 r = requests.get(url, stream=True)
             except ee.ee_exception.EEException as e:
-                print(f"Task not started! Got exception {e}")
+                print(f"Task not started! Got exception {e}", flush=True)
                 return False
             if r.status_code != 200:
-                print(f"Task failed with status {r.status_code}")
+                print(f"Task failed with status {r.status_code}", flush=True)
                 return False
             else:
                 local_path = Path(TIFS_FOLDER / f"{str(polygon_identifier).replace('/', '_')}.tif")
