@@ -16,7 +16,7 @@ from wandb.sdk.wandb_run import Run
 from src.collate_fns import mae_collate_fn
 from src.config import DEFAULT_SEED
 from src.data import Dataset
-from src.data.config import DATA_FOLDER, EE_PROJECT, OUTPUT_FOLDER
+from src.data.config import DATA_FOLDER, EE_PROJECT, OUTPUT_FOLDER, TIFS_FOLDER
 from src.eval import (
     BinaryCropHarvestEval,
     EuroSatEval,
@@ -71,9 +71,7 @@ output_dir = Path(__file__).parent
 
 
 print("Loading dataset and dataloader")
-dataset = Dataset(
-    DATA_FOLDER / "tifs", download=False, cache_folder=DATA_FOLDER / "npys_spacetime_16"
-)
+dataset = Dataset(TIFS_FOLDER, download=False, cache_folder=DATA_FOLDER / "npys_spacetime_16")
 assert training_config["batch_size"] % 8 == 0
 dataloader = DataLoader(
     dataset,
