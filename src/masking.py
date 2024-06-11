@@ -250,10 +250,10 @@ def batch_mask_time(
         static_mask = torch.ones((b, len(STATIC_BAND_GROUPS_IDX))).to(static_x.device)
 
     return MaskedOutput(
-        space_time_x,
-        space_x,
-        time_x,
-        static_x,
+        space_time_x.clone(),
+        space_x.clone(),
+        time_x.clone(),
+        static_x.clone(),
         space_time_mask,
         space_mask,
         time_mask,
@@ -335,10 +335,10 @@ def batch_mask_space(
         static_mask = torch.ones((b, len(STATIC_BAND_GROUPS_IDX))).to(static_x.device)
 
     return MaskedOutput(
-        space_time_x,
-        space_x,
-        time_x,
-        static_x,
+        space_time_x.clone(),
+        space_x.clone(),
+        time_x.clone(),
+        static_x.clone(),
         space_time_mask,
         space_mask,
         time_mask,
@@ -390,10 +390,10 @@ def batch_mask_channels(
     time_mask = repeat(time_channel_mask, "b c_g -> b t c_g", t=t)
 
     return MaskedOutput(
-        space_time_x,
-        space_x,
-        time_x,
-        static_x,
+        space_time_x.clone(),
+        space_x.clone(),
+        time_x.clone(),
+        static_x.clone(),
         space_time_mask,
         space_mask,
         time_mask,
@@ -471,10 +471,10 @@ def batch_mask_random(
     static_mask = torch.from_numpy(static_tokens).to(static_x.device)
 
     return MaskedOutput(
-        space_time_x,
-        space_x,
-        time_x,
-        static_x,
+        space_time_x.clone(),
+        space_x.clone(),
+        time_x.clone(),
+        static_x.clone(),
         space_time_mask,
         space_mask,
         time_mask,
