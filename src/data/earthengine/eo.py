@@ -275,7 +275,7 @@ class EarthEngineExporter:
         self.surrounding_metres = (
             EXPORTED_HEIGHT_WIDTH_METRES_BATCH / 2
             if mode == "batch"
-            else EXPORTED_HEIGHT_WIDTH_METRES_URL
+            else EXPORTED_HEIGHT_WIDTH_METRES_URL / 2
         )
         self.dest_bucket = dest_bucket
         initialize_args = {
