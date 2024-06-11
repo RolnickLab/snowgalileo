@@ -72,7 +72,7 @@ def check_mode_and_return_channels(
     if mode is None:
         return None, None
     elif mode == "s2rgb":
-        S2_RGB_BANDS, NON_S2_RGB_BANDS
+        return S2_RGB_BANDS, NON_S2_RGB_BANDS
     elif mode == "s2":
         return S2_BANDS, NON_S2_BANDS
     elif mode == "s1":
@@ -225,19 +225,28 @@ def batch_mask_time(
         w=w,
         c_g=len(SPACE_TIME_BANDS_GROUPS_IDX),
     )
-    time_mask = repeat(
-        b_flat_timesteps_t,
-        "b t-> b t c_g",
-        c_g=len(TIME_BAND_GROUPS_IDX),
-    )
-    space_mask = torch.rand(b, device=space_x.device) <= mask_ratio
-    if t == 1:
-        # can't mask out everything if t == 1, so we make sure the
-        # space only mask remains unmasked
-        space_mask = space_mask * 0
-    space_mask = repeat(space_mask, "b -> b h w c_g", h=h, w=w, c_g=len(SPACE_BAND_GROUPS_IDX))
-    static_mask = torch.rand(b, device=static_x.device) <= mask_ratio
-    static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX))
+    if bands_to_mask is None:
+        time_mask = repeat(
+            b_flat_timesteps_t,
+            "b t-> b t c_g",
+            c_g=len(TIME_BAND_GROUPS_IDX),
+        )
+        space_mask = torch.rand(b, device=space_x.device) <= mask_ratio
+        if t == 1:
+            # can't mask out everything if t == 1, so we make sure the
+            # space only mask remains unmasked
+            space_mask = space_mask * 0
+        space_mask = repeat(space_mask, "b -> b h w c_g", h=h, w=w, c_g=len(SPACE_BAND_GROUPS_IDX))
+        static_mask = torch.rand(b, device=static_x.device) <= mask_ratio
+        static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX))
+    else:
+        space_time_mask[:, :, :, :, bands_to_mask] = 1
+        if t == 1:
+            assert bands_to_keep is not None
+            space_time_mask[:, :, :, :, bands_to_keep] = 0
+        space_mask = torch.ones((b, h, w, len(SPACE_BAND_GROUPS_IDX))).to(space_x.device)
+        time_mask = torch.ones((b, t, len(TIME_BAND_GROUPS_IDX))).to(time_x.device)
+        static_mask = torch.ones((b, len(STATIC_BAND_GROUPS_IDX))).to(static_x.device)
 
     return MaskedOutput(
         space_time_x,
@@ -304,6 +313,7 @@ def batch_mask_space(
         )
     ).to(space_time_x.device)
 
+    print(mode, bands_to_mask)
     if bands_to_mask is None:
         space_mask = torch.from_numpy(
             repeat(
