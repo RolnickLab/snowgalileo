@@ -392,4 +392,6 @@ class EarthEngineExporter:
                     print(f"Started {exports_started} exports. Ending export")
                     return None
         if self.mode == "url":
+            print("Export finished. Syncing to google cloud")
             self.sync_local_and_gcloud()
+            print("Finished sync")
