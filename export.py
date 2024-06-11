@@ -18,6 +18,7 @@ argparser = argparse.ArgumentParser()
 argparser.add_argument("--start_export_from_idx", type=int, default=0)
 argparser.add_argument("--num_exports", type=int, default=3000)
 argparser.add_argument("--filename", type=str, default="dynamic_world_samples.geojson")
+argparser.add_argument("--mode", type=str, default="batch")
 args = argparser.parse_args().__dict__
 
 filepath = DATA_FOLDER / "pretraining_points" / args["filename"]
@@ -28,5 +29,5 @@ if LAT not in latlons.columns:
     latlons[LON] = latlons.geometry.centroid.x.values
     latlons[LAT] = latlons.geometry.centroid.y.values
 
-exporter = EarthEngineExporter(check_gcp=True)
+exporter = EarthEngineExporter(check_gcp=True, mode=args["mode"])
 exporter.export_for_latlons(latlons[args["start_export_from_idx"] :], args["num_exports"])
