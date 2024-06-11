@@ -1,5 +1,5 @@
 import random
-from collections import namedtuple
+from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -49,20 +49,31 @@ S1_S2_BANDS = [
 ]
 
 
-MaskedOutput = namedtuple(
-    "MaskedOutput",
-    [
-        "space_time_x",
-        "space_x",
-        "time_x",
-        "static_x",
-        "space_time_mask",
-        "space_mask",
-        "time_mask",
-        "static_mask",
-        "months",
-    ],
-)
+@dataclass
+class MaskedOutput:
+    space_time_x: torch.Tensor
+    space_x: torch.Tensor
+    time_x: torch.Tensor
+    static_x: torch.Tensor
+    space_time_mask: torch.Tensor
+    space_mask: torch.Tensor
+    time_mask: torch.Tensor
+    static_mask: torch.Tensor
+    months: torch.Tensor
+
+    @staticmethod
+    def concatenate(x: List["MaskedOutput"]) -> "MaskedOutput":
+        return MaskedOutput(
+            torch.cat([x_i.space_time_x for x_i in x], 0),
+            torch.cat([x_i.space_x for x_i in x], 0),
+            torch.cat([x_i.time_x for x_i in x], 0),
+            torch.cat([x_i.static_x for x_i in x], 0),
+            torch.cat([x_i.space_time_mask for x_i in x], 0),
+            torch.cat([x_i.space_mask for x_i in x], 0),
+            torch.cat([x_i.time_mask for x_i in x], 0),
+            torch.cat([x_i.static_mask for x_i in x], 0),
+            torch.cat([x_i.months for x_i in x], 0),
+        )
 
 
 def check_mode_and_return_channels(
@@ -171,17 +182,7 @@ def batch_mask_presto(
         mask_ratio,
         patch_size,
     )
-    return MaskedOutput(
-        torch.cat((o_t[0], o_s[0], o_r[0], o_c[0]), 0),
-        torch.cat((o_t[1], o_s[1], o_r[1], o_c[1]), 0),
-        torch.cat((o_t[2], o_s[2], o_r[2], o_c[2]), 0),
-        torch.cat((o_t[3], o_s[3], o_r[3], o_c[3]), 0),
-        torch.cat((o_t[4], o_s[4], o_r[4], o_c[4]), 0),
-        torch.cat((o_t[5], o_s[5], o_r[5], o_c[5]), 0),
-        torch.cat((o_t[6], o_s[6], o_r[6], o_c[6]), 0),
-        torch.cat((o_t[7], o_s[7], o_r[7], o_c[7]), 0),
-        torch.cat((o_t[8], o_s[8], o_r[8], o_c[8]), 0),
-    )
+    return MaskedOutput.concatenate([o_t, o_s, o_c, o_r])
 
 
 def batch_mask_time(
