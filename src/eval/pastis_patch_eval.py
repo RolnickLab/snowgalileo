@@ -362,7 +362,9 @@ class PastisPatchEval(EvalTask):
             for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
                 s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
 
-                targets_list.append(self.group_targets_per_token(label).cpu().numpy())
+                targets = self.group_targets_per_token(label).cpu().numpy()
+                void_mask = np.any(targets == 19, axis=1)
+                targets_list.append(self.reduce_targets_per_token(targets[~void_mask]))
 
                 pretrained_model.eval()
                 with torch.no_grad():
@@ -370,13 +372,10 @@ class PastisPatchEval(EvalTask):
                         s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
                     )
 
-                    encodings_list.append(
-                        self.group_encodings_per_token(
-                            pretrained_model, s_t_x, s_x, t_x, s_t_m, s_m, t_m
-                        )
-                        .cpu()
-                        .numpy()
-                    )
+                    encodings = self.group_encodings_per_token(
+                        pretrained_model, s_t_x, s_x, t_x, s_t_m, s_m, t_m
+                    ).cpu().numpy()
+                    encodings_list.append(encodings[~void_mask])
 
             encodings_np, targets_np = self.remove_void_class(
                 np.concatenate(encodings_list), np.concatenate(targets_list)
