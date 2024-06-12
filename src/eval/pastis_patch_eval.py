@@ -10,7 +10,6 @@ from sklearn.base import BaseEstimator
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, jaccard_score
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as PyTorchDataset
-from torchmetrics import JaccardIndex
 from tqdm import tqdm
 
 from ..data.dataset import (
@@ -302,19 +301,17 @@ class PastisPatchEval(EvalTask):
     regression = False
     multilabel = False
     segmentation = True
-    num_outputs = len(PastisPatchDataset.labels_to_int)
+    # we remove the void class
+    num_outputs = len(PastisPatchDataset.labels_to_int) - 1
     input_height_width = PastisPatchDataset.input_height_width
 
     def __init__(
         self,
-        # we will remove the void label
-        num_outputs: int = len(PastisPatchDataset.labels_to_int) - 1,
         average_months: bool = True,
         num_subtiles_per_image: int = 4,
         patch_size: int = 8,
         seed=DEFAULT_SEED,
     ):
-        self.num_outputs = num_outputs
         self.average_months = average_months
         self.num_subtiles_per_image = num_subtiles_per_image
         super().__init__(patch_size, seed)
@@ -333,7 +330,9 @@ class PastisPatchEval(EvalTask):
             return {
                 f"{self.name}: {model_name}_overall_accuracy": accuracy_score(target, preds),
                 f"{self.name}: {model_name}_mean_accuracy": balanced_accuracy_score(target, preds),
-                f"{self.name}: {model_name}_mean_iou": jaccard_score(target, preds, average="weighted"),
+                f"{self.name}: {model_name}_mean_iou": jaccard_score(
+                    target, preds, average="weighted"
+                ),
             }
 
     @torch.no_grad()
@@ -371,9 +370,17 @@ class PastisPatchEval(EvalTask):
                         s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
                     )
 
-                    encodings_list.append(self.group_encodings_per_token(pretrained_model, s_t_x, s_x, t_x, s_t_m, s_m, t_m).cpu().numpy())
+                    encodings_list.append(
+                        self.group_encodings_per_token(
+                            pretrained_model, s_t_x, s_x, t_x, s_t_m, s_m, t_m
+                        )
+                        .cpu()
+                        .numpy()
+                    )
 
-            encodings_np, targets_np = self.remove_void_class(np.concatenate(encodings_list), np.concatenate(targets_list))
+            encodings_np, targets_np = self.remove_void_class(
+                np.concatenate(encodings_list), np.concatenate(targets_list)
+            )
 
             for model in sklearn_models:
                 preds = model.predict(encodings_np)
@@ -382,31 +389,12 @@ class PastisPatchEval(EvalTask):
             for model_name_str, pred_list in pred_dict.items():
                 results_dict.update(
                     self.compute_metrics(
-                        model_name_str, np.concatenate(pred_list), self.reduce_targets_per_token(targets_np)
+                        model_name_str,
+                        np.concatenate(pred_list),
+                        self.reduce_targets_per_token(targets_np),
                     )
                 )
             return results_dict
-
-        # finetuning
-        else:
-            mean_IoU = []
-
-            for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
-                s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
-                label = label.to(device)
-
-                jaccard_mean = JaccardIndex(task="multiclass", num_classes=self.num_outputs).to(
-                    device
-                )
-
-                model.eval()
-                with torch.no_grad():
-                    preds = model(
-                        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
-                    )
-                    mean_IoU.append(jaccard_mean(preds, label).item())
-
-            return {f"{self.name}: finetuned_mean_iou": np.mean(mean_IoU)}
 
     def evaluate_model_on_task(
         self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
@@ -414,13 +402,11 @@ class PastisPatchEval(EvalTask):
         if model_modes is None:
             model_modes = self.all_classification_sklearn_models
         for model_mode in model_modes:
-            assert (
-                model_mode in ["finetune"] or model_mode in self.all_classification_sklearn_models
-            )
+            assert model_mode in self.all_classification_sklearn_models
 
         train_dl = DataLoader(
             PastisPatchDataset(
-                folds=[3, 4, 5],
+                folds=[2, 3, 4, 5],
                 average_s2_over_month=self.average_months,
                 num_subtiles_per_image=self.num_subtiles_per_image,
             ),
@@ -430,21 +416,6 @@ class PastisPatchEval(EvalTask):
         )
 
         results_dict = {}
-
-        if "finetune" in model_modes:
-            val_dl = DataLoader(
-                PastisPatchDataset(
-                    folds=[2],
-                    average_s2_over_month=self.average_months,
-                    num_subtiles_per_image=self.num_subtiles_per_image,
-                ),
-                batch_size=Hyperparams.batch_size,
-                shuffle=False,
-                num_workers=Hyperparams.num_workers,
-            )
-
-            finetuned_model = self.finetune_presto(train_dl, val_dl, pretrained_model)
-            results_dict.update(self._evaluate_model(finetuned_model))
 
         if model_mode in self.all_classification_sklearn_models:
             trained_sklearn_models = self.train_sklearn_model(
