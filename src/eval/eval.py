@@ -1,7 +1,7 @@
 import logging
 from abc import ABC
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence
 
 import numpy as np
 import torch
@@ -108,19 +108,6 @@ class EvalTask(ABC):
             print("Label shape after one-hot encoding: " + str(label.shape))
         return label
 
-    def remove_void_class(
-        self, targets_np: np.ndarray, encodings_np: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Remove tokens labeled with the void class. Code 19 is the void class.
-        """
-        # incoming shape is (nr_tokens, nr_pixels_per_token)
-        mask = np.any(targets_np == 19, axis=1)
-        targets_np = targets_np[~mask]
-        encodings_np = encodings_np[~mask]
-
-        return targets_np, encodings_np
-
     @torch.no_grad()
     def train_sklearn_model(
         self,
@@ -148,7 +135,13 @@ class EvalTask(ABC):
             s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
 
             if self.segmentation:
-                targets_list.append(self.group_targets_per_token(label).cpu().numpy())
+                targets = self.group_targets_per_token(label).cpu().numpy()
+
+                if "pastis_patch" in self.name:
+                    void_mask = np.any(targets == 19, axis=1)
+                    targets = targets[~void_mask]
+
+                targets_list.append(self.reduce_targets_per_token(targets))
             else:
                 targets_list.append(label.cpu().numpy())
 
@@ -157,13 +150,19 @@ class EvalTask(ABC):
                     s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
                 )
                 if self.segmentation:
-                    encodings_list.append(
+                    encodings = (
                         self.group_encodings_per_token(
                             pretrained_model, s_t_x, s_x, t_x, s_t_m, s_m, t_m
                         )
                         .cpu()
                         .numpy()
                     )
+
+                    if "pastis_patch" in self.name:
+                        assert void_mask in locals()
+                        encodings = encodings[~void_mask]
+
+                    encodings_list.append(encodings)
                 else:
                     encodings_list.append(
                         pretrained_model.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
@@ -174,19 +173,13 @@ class EvalTask(ABC):
         targets_np = np.concatenate(targets_list)
         encodings_np = np.concatenate(encodings_list)
 
-        print("Targets_np shape before removing void: " + str(targets_np.shape))
-        print("Encodings_np shape before removing void: " + str(encodings_np.shape))
-
-        # move to somewhere else ?
-        if "pastis_patch" in self.name:
-            print("Removing void class")
-            targets_np, encodings_np = self.remove_void_class(targets_np, encodings_np)
-
-        print("Targets_np shape after removing void: " + str(targets_np.shape))
-        print("Encodings_np shape after removing void: " + str(encodings_np.shape))
-
-        if self.segmentation:
-            targets_np = self.reduce_targets_per_token(targets_np)
+        print(
+            "Targets_np shape after removing void and one hot encoding: " + str(targets_np.shape)
+        )
+        print(
+            "Encodings_np shape after removing void and one hot encoding: "
+            + str(encodings_np.shape)
+        )
 
         if len(targets_np.shape) == 2 and targets_np.shape[1] == 1:
             # from [[0], [0], [1]] to [0, 0, 1]
