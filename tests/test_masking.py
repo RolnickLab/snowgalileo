@@ -148,11 +148,27 @@ class TestMasking(unittest.TestCase):
             self.assertEqual((b, t, len(TIME_BAND_GROUPS_IDX)), output.time_mask.shape)
             self.assertEqual((b, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
             if mode is None:
-                d_along_hw = output.space_time_mask.float().mean(axis=(3, 4))  # b, h, w
+                sp_along_hw = output.space_time_mask.float().mean(axis=(3, 4))  # b, h, w
                 s_along_hw = output.space_mask.float().mean(axis=(3))  # b, h, w
-                self.assertTrue(torch.equal(d_along_hw, s_along_hw))
-                self.assertTrue((d_along_hw.sum(axis=1).sum(axis=1) / (h * w) == mask_ratio).all())
+                self.assertTrue(torch.equal(sp_along_hw, s_along_hw))
+                self.assertTrue(
+                    (sp_along_hw.sum(axis=1).sum(axis=1) / (h * w) == mask_ratio).all()
+                )
+                for i in range(1, p):
+                    self.assertTrue(
+                        torch.equal(
+                            s_along_hw[:, i::p, i::p], s_along_hw[:, i - 1 :: p, i - 1 :: p]
+                        )
+                    )
+                    self.assertTrue(
+                        torch.equal(
+                            sp_along_hw[:, i::p, i::p], sp_along_hw[:, i - 1 :: p, i - 1 :: p]
+                        )
+                    )
             else:
+                sp_along_hw = output.space_time_mask.float()[
+                    :, :, :, :, MASK_TO_BANDS[mode]["unmasked"]
+                ].mean(axis=(3, 4))  # b, h, w
                 self.assertTrue((output.space_mask == 1).all())
                 self.assertTrue((output.time_mask == 1).all())
                 self.assertTrue(
@@ -166,10 +182,12 @@ class TestMasking(unittest.TestCase):
                 self.assertTrue((output.space_mask == 1).all())
                 self.assertTrue((output.time_mask == 1).all())
                 self.assertTrue((output.static_mask == 1).all())
-            for i in range(1, p):
-                self.assertTrue(
-                    torch.equal(s_along_hw[:, i::p, i::p], s_along_hw[:, i - 1 :: p, i - 1 :: p])
-                )
+                for i in range(1, p):
+                    self.assertTrue(
+                        torch.equal(
+                            sp_along_hw[:, i::p, i::p], sp_along_hw[:, i - 1 :: p, i - 1 :: p]
+                        )
+                    )
 
     def test_mask_by_random(self):
         b, t, h, w, p = 2, 8, 16, 16, 4
