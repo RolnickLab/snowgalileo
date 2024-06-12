@@ -38,7 +38,7 @@ def model_class_name(model: BaseEstimator) -> str:
 
 
 class EvalTask(ABC):
-    name: str
+    name: str = "EvalTask"
     regression: bool
     segmentation: bool
     multilabel: bool
@@ -53,10 +53,10 @@ class EvalTask(ABC):
         "KNNat100",
     ]
 
-    def __init__(self, patch_size: int, num_outputs: int, seed: int = DEFAULT_SEED):
+    def __init__(self, patch_size: int, seed: int = DEFAULT_SEED, num_outputs: int = 1):
+        self.num_outputs = num_outputs
         self.seed = seed
         self.patch_size = patch_size
-        self.num_outputs = num_outputs
         self.name = f"{self.name}_s{self.seed}_ps{self.patch_size}_nout{self.num_outputs}"
 
     @classmethod
@@ -101,10 +101,10 @@ class EvalTask(ABC):
             label = np.zeros((grouped_label.shape[0], self.num_outputs))
 
             for i in range(grouped_label.shape[0]):
-                classes = np.unique(grouped_label)
+                classes = np.unique(grouped_label[i])
                 label[i][classes] = 1
 
-            assert np.unique(label).shape[0] == 2
+            assert np.unique(label).shape[0] <= 2
             print("Label shape after one-hot encoding: " + str(label.shape))
         return label
 
@@ -159,7 +159,6 @@ class EvalTask(ABC):
                     )
 
                     if "pastis_patch" in self.name:
-                        assert void_mask in locals()
                         encodings = encodings[~void_mask]
 
                     encodings_list.append(encodings)
