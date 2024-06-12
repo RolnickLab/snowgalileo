@@ -5,18 +5,16 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
-from tqdm import tqdm
 from einops import rearrange
+from scipy.stats import mode
 from sklearn.base import BaseEstimator, clone
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.multioutput import MultiOutputClassifier
-from torch import nn
-from torch.optim import AdamW
 from torch.utils.data import DataLoader
-from scipy.stats import mode
+from tqdm import tqdm
 
-from ..flexipresto import Encoder, FinetuningHead, PrestoFineTuningModel
+from ..flexipresto import Encoder
 from ..utils import DEFAULT_SEED, device
 from .knn import KNNat5, KNNat20, KNNat100
 
@@ -41,7 +39,6 @@ def model_class_name(model: BaseEstimator) -> str:
 
 class EvalTask(ABC):
     name: str
-    num_outputs: int
     regression: bool
     segmentation: bool
     multilabel: bool
@@ -56,29 +53,16 @@ class EvalTask(ABC):
         "KNNat100",
     ]
 
-    def __init__(self, patch_size: int, seed: int = DEFAULT_SEED):
+    def __init__(self, patch_size: int, num_outputs: int, seed: int = DEFAULT_SEED):
         self.seed = seed
         self.patch_size = patch_size
-        self.name = f"{self.name}_s{self.seed}_ps{self.patch_size}"
+        self.num_outputs = num_outputs
+        self.name = f"{self.name}_s{self.seed}_ps{self.patch_size}_nout{self.num_outputs}"
 
     @classmethod
     def _construct_sklearn_model(cls, model, num_outputs=1) -> BaseEstimator:
         if cls.multilabel or (cls.segmentation and num_outputs > 1):
             model = MultiOutputClassifier(model, n_jobs=num_outputs)
-        return model
-
-    def _construct_finetuning_model(
-        self,
-        pretrained_model: Encoder,
-    ) -> PrestoFineTuningModel:
-        head = FinetuningHead(
-            regression=self.regression,
-            segmentation=self.segmentation,
-            input_height_width=self.input_height_width,
-            num_outputs=self.num_outputs,
-        )
-        model = PrestoFineTuningModel(pretrained_model, head)
-        model.train()
         return model
 
     @torch.no_grad()
@@ -124,7 +108,9 @@ class EvalTask(ABC):
             print("Label shape after one-hot encoding: " + str(label.shape))
         return label
 
-    def remove_void_class(self, targets_np: np.ndarray, encodings_np: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def remove_void_class(
+        self, targets_np: np.ndarray, encodings_np: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Remove tokens labeled with the void class. Code 19 is the void class.
         """
@@ -231,78 +217,6 @@ class EvalTask(ABC):
                 clone(model_dict[self.regression][model]).fit(encodings_np, targets_np)
             )
         return fit_models
-
-    def finetune_presto(
-        self, train_dl: DataLoader, val_dl: DataLoader, pretrained_model: Encoder
-    ) -> PrestoFineTuningModel:
-        model = self._construct_finetuning_model(pretrained_model)
-
-        optimizer = AdamW(model.parameters(), lr=Hyperparams.finetuning_lr)
-
-        # TODO: change when binary tasks are added
-        train_loss_fn = val_loss_fn = nn.CrossEntropyLoss(reduction="mean")
-
-        train_loss = []
-        val_loss = []
-        best_loss = None
-        best_model_dict = None
-        epochs_since_improvement = 0
-
-        for _ in tqdm(range(Hyperparams.max_epochs), desc="Finetuning"):
-            model.train()
-            epoch_train_loss = 0.0
-            num_updates = 0
-            for masked_output, label in tqdm(
-                train_dl, desc="Training model for batch", leave=False
-            ):
-                s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
-                y = label.to(device)
-
-                optimizer.zero_grad()
-                preds = model(s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size)
-
-                loss = train_loss_fn(preds, y)
-                epoch_train_loss += loss.item()
-                num_updates += 1
-                loss.backward()
-                optimizer.step()
-
-            train_loss.append(epoch_train_loss / num_updates)
-
-            model.eval()
-            all_preds, all_y = [], []
-
-            for masked_output, label in tqdm(
-                val_dl, desc="Validating model for batch", leave=False
-            ):
-                s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
-                y = label.to(device)
-
-                with torch.no_grad():
-                    preds = model(
-                        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
-                    )
-                    all_preds.append(preds)
-                    all_y.append(y)
-
-            val_loss.append(val_loss_fn(torch.cat(all_preds).cpu(), torch.cat(all_y).cpu()))
-            if best_loss is None:
-                best_loss = val_loss[-1]
-                best_model_dict = model.state_dict()
-            else:
-                if val_loss[-1] < best_loss:
-                    best_loss = val_loss[-1]
-                    best_model_dict = model.state_dict()
-                    epochs_since_improvement = 0
-                else:
-                    epochs_since_improvement += 1
-                    if epochs_since_improvement >= Hyperparams.patience:
-                        logger.info("Early stopping!")
-                        break
-        assert best_model_dict is not None
-        model.load_state_dict(best_model_dict)
-
-        return model
 
     def evaluate_model_on_task(
         self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
