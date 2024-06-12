@@ -301,8 +301,6 @@ class PastisPatchEval(EvalTask):
     regression = False
     multilabel = False
     segmentation = True
-    # we remove the void class
-    num_outputs = len(PastisPatchDataset.labels_to_int) - 1
     input_height_width = PastisPatchDataset.input_height_width
 
     def __init__(
@@ -311,10 +309,11 @@ class PastisPatchEval(EvalTask):
         num_subtiles_per_image: int = 4,
         patch_size: int = 8,
         seed=DEFAULT_SEED,
+        num_outputs = len(PastisPatchDataset.labels_to_int) - 1
     ):
         self.average_months = average_months
         self.num_subtiles_per_image = num_subtiles_per_image
-        super().__init__(patch_size, seed)
+        super().__init__(patch_size, seed, num_outputs)
         self.input_height_width = self.input_height_width // int(
             sqrt(cast(float, self.num_subtiles_per_image))
         )
