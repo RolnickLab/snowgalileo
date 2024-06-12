@@ -65,7 +65,9 @@ def mae_collate_fn(
     ).bool()
     expanded_sp = torch.repeat_interleave(sp_m, repeats=SPACE_BAND_EXPANSION.long(), dim=-1).bool()
     expanded_t = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION.long(), dim=-1).bool()
-    expanded_st = torch.repeat_interleave(st_m, repeat=STATIC_BAND_EXPANSION.long(), dim=-1).bool()
+    expanded_st = torch.repeat_interleave(
+        st_m, repeats=STATIC_BAND_EXPANSION.long(), dim=-1
+    ).bool()
 
     # p_s_t and p_sp always assume the maximum patch size, so we need to
     # resample if its smaller
