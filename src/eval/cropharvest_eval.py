@@ -146,10 +146,12 @@ class CropHarvestEvalBase(EvalTask):
     multilabel = False
     regression = False
 
-    def __init__(self, patch_size: int, include_latlons: bool = True, seed: int = DEFAULT_SEED):
+    def __init__(
+        self, name: str, patch_size: int, include_latlons: bool = True, seed: int = DEFAULT_SEED
+    ):
         self.include_latlons = include_latlons
+        self.name = f"{name}{'_latlons' if include_latlons else ''}"
         super().__init__(patch_size, seed)
-        self.name = f"{self.name}{'_latlons' if include_latlons else ''}"
 
     @staticmethod
     def truncate_timesteps(x, num_timesteps: Optional[int]):
@@ -231,6 +233,15 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         seed: int = DEFAULT_SEED,
         include_latlons: bool = True,
     ):
+        suffix = f"_{sample_size}" if sample_size else ""
+        suffix = f"{suffix}_{num_timesteps}" if num_timesteps is not None else suffix
+        super().__init__(
+            name=f"CropHarvest_{country}{suffix}",
+            include_latlons=include_latlons,
+            patch_size=1,
+            seed=seed,
+        )
+
         download_cropharvest_data()
 
         evaluation_datasets = get_eval_datasets()
@@ -240,12 +251,6 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         assert self.dataset.task.normalize is False
         self.num_timesteps = num_timesteps
         self.sample_size = sample_size
-
-        suffix = f"_{sample_size}" if sample_size else ""
-        suffix = f"{suffix}_{num_timesteps}" if num_timesteps is not None else suffix
-
-        self.name = f"CropHarvest_{country}{suffix}"
-        super().__init__(include_latlons=include_latlons, patch_size=1, seed=seed)
 
     @torch.no_grad()
     def _evaluate_model(self, pretrained_model: Encoder, sklearn_model: BaseEstimator) -> Dict:
@@ -333,6 +338,14 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
         seed: int = DEFAULT_SEED,
         include_latlons: bool = True,
     ):
+        name_suffix = f"_{n_per_class}" if n_per_class is not None else ""
+        super().__init__(
+            name=f"CropHarvest_multiclass_global{name_suffix}_{seed}",
+            patch_size=1,
+            seed=seed,
+            include_latlons=include_latlons,
+        )
+
         download_cropharvest_data()
         task = Task(normalize=False)
         paths_and_y = CropHarvestLabels(cropharvest_data_dir).construct_fao_classification_labels(
@@ -366,10 +379,6 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
             torch.from_numpy(labels),
         )
         self.eval_dataset = MultiClassCropHarvest(val_paths_and_y, y_string_to_int)
-
-        name_suffix = f"_{n_per_class}" if n_per_class is not None else ""
-        self.name = f"CropHarvest_multiclass_global{name_suffix}_{seed}"
-        super().__init__(patch_size=1, seed=seed, include_latlons=include_latlons)
 
     @torch.no_grad()
     def _evaluate_models(

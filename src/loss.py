@@ -187,10 +187,10 @@ def norm_per_c_g_loss(
         target_t_l.append(norm_t_x_c_g[t_m_c_g])
 
     for _, channel_idxs in STATIC_BAND_GROUPS_IDX.items():
-        norm_st_x_c_g = normalize(st_x[:, :, channel_idxs])
-        st_m_c_g = expanded_st_m[:, :, channel_idxs]
+        norm_st_x_c_g = normalize(st_x[:, channel_idxs])
+        st_m_c_g = expanded_st_m[:, channel_idxs]
 
-        p_st_l.append(p_st[:, :, channel_idxs][st_m_c_g])
+        p_st_l.append(p_st[:, channel_idxs][st_m_c_g])
         target_st_l.append(norm_st_x_c_g[st_m_c_g])
 
     return mse_loss(
