@@ -179,6 +179,10 @@ for e in tqdm(range(training_config["num_epochs"])):
         assert not torch.isnan(sp_x).any(), "NaNs in sp_x"
         assert not torch.isnan(t_x).any(), "NaNs in t_x"
         assert not torch.isnan(st_x).any(), "NaNs in st_x"
+        assert not torch.isinf(s_t_x).any(), "Infs in s_t_x"
+        assert not torch.isinf(sp_x).any(), "Infs in sp_x"
+        assert not torch.isinf(t_x).any(), "Infs in t_x"
+        assert not torch.isinf(st_x).any(), "Infs in st_x"
 
         with torch.autocast(device_type=device.type, dtype=autocast_device):
             (p_s_t, p_sp, p_t, p_st) = predictor(
