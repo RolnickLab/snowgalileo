@@ -215,6 +215,15 @@ class Dataset(PyTorchDataset):
     @staticmethod
     def _fillna(data: np.ndarray, bands_np: np.ndarray):
         """Fill in the missing values in the data array"""
+        if data.shape[-1] != len(bands_np):
+            raise ValueError(f"Expected data to have {len(bands_np)} bands - got {data.shape[-1]}")
+        is_nan = np.isnan(data)
+        if not is_nan.any():
+            return data
+
+        if len(data.shape) == 2:
+            return np.nan_to_num(data, nan=0)
+
         if len(data.shape) == 3:
             has_time = False
         elif len(data.shape) == 4:
@@ -223,12 +232,6 @@ class Dataset(PyTorchDataset):
             raise ValueError(
                 f"Expected data to be 3D or 4D (x, y, (time), band) - got {data.shape}"
             )
-        if data.shape[-1] != len(bands_np):
-            raise ValueError(f"Expected data to have {len(bands_np)} bands - got {data.shape[-1]}")
-
-        is_nan = np.isnan(data)
-        if not is_nan.any():
-            return data
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)
@@ -326,6 +329,7 @@ class Dataset(PyTorchDataset):
 
         static_x = values[-static_bands_in_tif:]
         static_x = np.concatenate([np.nanmean(static_x, axis=(1, 2)), to_cartesian(lat, lon)])
+        static_x = cls._fillna(static_x, np.array(STATIC_BANDS))
         static_x = normalize_static(static_x)
 
         months = cls.month_array_from_file(tif_path, int(num_timesteps))
