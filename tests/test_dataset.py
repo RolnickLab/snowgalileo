@@ -5,30 +5,33 @@ import numpy as np
 
 from src.data.dataset import SPACE_BANDS, SPACE_TIME_BANDS, STATIC_BANDS, TIME_BANDS, Dataset
 
-TEST_FILE = (
-    Path(__file__).parents[1]
-    / "data/tifs/tifs3_min_lat=51.8108_min_lon=89.6892_max_lat=51.8234_max_lon=89.7095_dates=2022-01-01_2023-12-31.tiff"
-)
+TEST_FILENAMES = [
+    "min_lat=5.4427_min_lon=101.4016_max_lat=5.4518_max_lon=101.4107_dates=2022-01-01_2023-12-31.tif",
+    "min_lat=-27.6721_min_lon=25.6796_max_lat=-27.663_max_lon=25.6897_dates=2022-01-01_2023-12-31.tif",
+]
+TEST_FILES = [Path(__file__).parents[1] / f"data/tifs/{x}" for x in TEST_FILENAMES]
 
 
 class TestDataset(unittest.TestCase):
     def test_tif_to_array(self):
-        s_t_x, sp_x, t_x, st_x, months = Dataset._tif_to_array(TEST_FILE)
-        self.assertFalse(np.isnan(s_t_x).any())
-        self.assertFalse(np.isnan(sp_x).any())
-        self.assertFalse(np.isnan(t_x).any())
-        self.assertFalse(np.isnan(st_x).any())
-        self.assertEqual(sp_x.shape[0], s_t_x.shape[0])
-        self.assertEqual(sp_x.shape[1], s_t_x.shape[1])
-        self.assertEqual(t_x.shape[0], s_t_x.shape[2])
-        self.assertEqual(len(SPACE_TIME_BANDS), s_t_x.shape[-1])
-        self.assertEqual(len(SPACE_BANDS), sp_x.shape[-1])
-        self.assertEqual(len(TIME_BANDS), t_x.shape[-1])
-        self.assertEqual(len(STATIC_BANDS), st_x.shape[-1])
-        # visual test with the filepath above. The assert
-        # makes sure that file hasn't changed.
-        assert "dates=2022-01-01_2023-12-31" in TEST_FILE.name
-        self.assertEqual(months[0], 0)
+        for test_file in TEST_FILES:
+            s_t_x, sp_x, t_x, st_x, months = Dataset._tif_to_array(test_file)
+            self.assertFalse(np.isnan(s_t_x).any())
+            self.assertFalse(np.isnan(sp_x).any())
+            self.assertFalse(np.isnan(t_x).any())
+            self.assertFalse(np.isnan(st_x).any())
+            self.assertFalse(np.isinf(s_t_x).any())
+            self.assertFalse(np.isinf(sp_x).any())
+            self.assertFalse(np.isinf(t_x).any())
+            self.assertFalse(np.isinf(st_x).any())
+            self.assertEqual(sp_x.shape[0], s_t_x.shape[0])
+            self.assertEqual(sp_x.shape[1], s_t_x.shape[1])
+            self.assertEqual(t_x.shape[0], s_t_x.shape[2])
+            self.assertEqual(len(SPACE_TIME_BANDS), s_t_x.shape[-1])
+            self.assertEqual(len(SPACE_BANDS), sp_x.shape[-1])
+            self.assertEqual(len(TIME_BANDS), t_x.shape[-1])
+            self.assertEqual(len(STATIC_BANDS), st_x.shape[-1])
+            self.assertEqual(months[0], 0)
 
     def test_subset_image_with_minimum_size(self):
         input = np.ones((3, 3, 1))
