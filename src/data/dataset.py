@@ -122,14 +122,14 @@ def to_cartesian(lat: Union[float, np.ndarray], lon: Union[float, np.ndarray]) -
     lat = lat * math.pi / 180
     lon = lon * math.pi / 180
     if isinstance(lat, float):
-        assert isinstance(lon, float)
+        assert isinstance(lon, float), f"Expected float got {type(lon)}"
         x = math.cos(lat) * math.cos(lon)
         y = math.cos(lat) * math.sin(lon)
         z = math.sin(lat)
         return np.array([x, y, z])
     else:
-        assert isinstance(lon, np.ndarray)
-        assert isinstance(lat, np.ndarray)
+        assert isinstance(lon, np.ndarray), f"Expected np.ndarray got {type(lon)}"
+        assert isinstance(lat, np.ndarray), f"Expected np.ndarray got {type(lat)}"
         x = np.cos(lat) * np.cos(lon)
         y = np.cos(lat) * np.sin(lon)
         z = np.sin(lat)
