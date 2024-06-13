@@ -118,7 +118,9 @@ def normalize_static(x: np.ndarray) -> np.ndarray:
     return _normalize(x, STATIC_SHIFT_VALUES, STATIC_DIV_VALUES)
 
 
-def to_cartesian(lat: Union[float, np.ndarray], lon: Union[float, np.ndarray]) -> np.ndarray:
+def to_cartesian(
+    lat: Union[float, np.ndarray, torch.Tensor], lon: Union[float, np.ndarray, torch.Tensor]
+) -> Union[np.ndarray, torch.Tensor]:
     # transform to radians
     lat = lat * math.pi / 180
     lon = lon * math.pi / 180
