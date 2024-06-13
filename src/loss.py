@@ -48,6 +48,7 @@ def group_per_channel(space_time_array, space_only_array, time_only_array, stati
 def normalize(x):
     if x.shape[-1] == 1:
         return x
+    if torch.isnan(x).any(): print("Warning! NaNs in the x before normalization", flush=True)
     x = (x - x.mean(dim=-1, keepdim=True)) / (x.var(dim=-1, keepdim=True) + 1.0e-6) ** 0.5
     if torch.isnan(x).any():
         print(x.shape, x.mean(dim=-1, keepdim=True), x.var(dim=-1, keepdim=True), flush=True)
