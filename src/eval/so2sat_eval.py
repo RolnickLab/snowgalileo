@@ -145,12 +145,17 @@ class So2SatEval(EvalTask):
     regression = False
     segmentation = False
     multilabel = False
-    num_outputs = So2SatDataset.num_classes
     input_height_width = So2SatDataset.input_height_width
 
-    def __init__(self, rgb: bool = True, patch_size: int = 8, seed=DEFAULT_SEED):
+    def __init__(
+        self,
+        rgb: bool = True,
+        patch_size: int = 8,
+        seed=DEFAULT_SEED,
+        num_outputs=So2SatDataset.num_classes,
+    ):
         self.rgb = rgb
-        super().__init__(patch_size, seed)
+        super().__init__(patch_size, seed, num_outputs)
         self.name = f"{self.name}_{self.rgb}"
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:

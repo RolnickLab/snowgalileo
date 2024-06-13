@@ -211,12 +211,17 @@ class EuroSatEval(EvalTask):
     regression = False
     segmentation = False
     multilabel = False
-    num_outputs = len(EuroSatDataset.labels_to_int)
     input_height_width = EuroSatDataset.input_height_width
 
-    def __init__(self, rgb: bool = True, patch_size: int = 8, seed=DEFAULT_SEED):
+    def __init__(
+        self,
+        rgb: bool = True,
+        patch_size: int = 8,
+        seed=DEFAULT_SEED,
+        num_outputs=len(EuroSatDataset.labels_to_int),
+    ):
         self.rgb = rgb
-        super().__init__(patch_size, seed)
+        super().__init__(patch_size, seed, num_outputs)
         self.name = f"{self.name}_{'RGB' if self.rgb else 'MS'}"
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:

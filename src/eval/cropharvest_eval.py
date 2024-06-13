@@ -193,8 +193,6 @@ class CropHarvestEvalBase(EvalTask):
 
 
 class BinaryCropHarvestEval(CropHarvestEvalBase):
-    num_outputs = 1
-
     country_to_sizes: Dict[str, List] = {
         "Kenya": [20, 32, 64, 96, 128, 160, 192, 224, 256, None],
         "Togo": [20, 50, 126, 254, 382, 508, 636, 764, 892, 1020, 1148, None],
@@ -206,6 +204,7 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         num_timesteps: Optional[int] = None,
         sample_size: Optional[int] = None,
         seed: int = DEFAULT_SEED,
+        num_outputs: int = 1,
     ):
         download_cropharvest_data()
 
@@ -221,7 +220,7 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         suffix = f"{suffix}_{num_timesteps}" if num_timesteps is not None else suffix
 
         self.name = f"CropHarvest_{country}{suffix}"
-        super().__init__(patch_size=1, seed=seed)
+        super().__init__(patch_size=1, seed=seed, num_outputs=num_outputs)
 
     @torch.no_grad()
     def _evaluate_model(self, pretrained_model: Encoder, sklearn_model: BaseEstimator) -> Dict:
@@ -282,13 +281,12 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
 
 
 class MultiClassCropHarvestEval(CropHarvestEvalBase):
-    num_outputs = 10
-
     def __init__(
         self,
         test_ratio: float = 0.2,
         n_per_class: Optional[int] = 100,
         seed: int = DEFAULT_SEED,
+        num_outputs=10,
     ):
         download_cropharvest_data()
         task = Task(normalize=False)
@@ -324,7 +322,7 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
 
         name_suffix = f"_{n_per_class}" if n_per_class is not None else ""
         self.name = f"CropHarvest_multiclass_global{name_suffix}_{seed}"
-        super().__init__(patch_size=1, seed=seed)
+        super().__init__(patch_size=1, seed=seed, num_outputs=num_outputs)
 
     @torch.no_grad()
     def _evaluate_models(
