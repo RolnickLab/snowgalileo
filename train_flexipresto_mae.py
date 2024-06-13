@@ -255,7 +255,7 @@ for e in tqdm(range(training_config["num_epochs"])):
         if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
             e % training_config["eval_eurosat_every_n_epochs"] == 0
         ):
-            results = val_task.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
+            results = val_task.evaluate_model_on_task(encoder, model_modes=["KNNat5", "KNNat20"])
             results.update(val_task_ts.evaluate_model_on_task(encoder, model_modes=["KNNat5"]))
             to_log.update(results)
         wandb.log(to_log)
