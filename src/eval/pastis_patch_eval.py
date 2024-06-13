@@ -286,7 +286,7 @@ class PastisPatchDataset(PyTorchDataset):
                 t_m,
                 months,
             ),
-            torch.Tensor(
+            torch.tensor(
                 targets[
                     row_idx * pixels_per_dim : (row_idx + 1) * pixels_per_dim,
                     col_idx * pixels_per_dim : (col_idx + 1) * pixels_per_dim,
