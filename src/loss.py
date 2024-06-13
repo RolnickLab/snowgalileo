@@ -178,7 +178,9 @@ def norm_per_c_g_loss(
         norm_sp_x_c_g = normalize(
             rearrange((expanded_sp_x[:, :, :, channel_idxs]), "b h w c -> b (c h w)")
         )
-        assert not torch.isnan(norm_sp_x_c_g).any(), f"NaNs when normalizing {band} in space"
+        assert not torch.isnan(
+            norm_sp_x_c_g
+        ).any(), f"NaNs when normalizing {band} in space, input shape: {expanded_sp_x[:, :, :, channel_idxs].shape}"
         sp_m_c_g = rearrange((expanded_sp_m[:, :, :, channel_idxs]), "b h w c -> b (c h w)")
 
         p_sp_l.append(rearrange((p_sp[:, :, :, channel_idxs]), "b h w c -> b (c h w)")[sp_m_c_g])
@@ -192,7 +194,7 @@ def norm_per_c_g_loss(
         p_t_l.append(rearrange((p_t[:, :, channel_idxs]), "b t c -> b (c t)")[t_m_c_g])
         target_t_l.append(norm_t_x_c_g[t_m_c_g])
 
-    for _, channel_idxs in STATIC_BAND_GROUPS_IDX.items():
+    for band, channel_idxs in STATIC_BAND_GROUPS_IDX.items():
         norm_st_x_c_g = st_x[:, channel_idxs]
         assert not torch.isnan(norm_st_x_c_g).any(), f"NaNs when not normalizing {band} in static"
         st_m_c_g = expanded_st_m[:, channel_idxs]
