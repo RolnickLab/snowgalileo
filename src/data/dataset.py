@@ -221,7 +221,7 @@ class Dataset(PyTorchDataset):
         if not is_nan_inf.any():
             return data
 
-        if len(data.shape) == 2:
+        if len(data.shape) >= 2:
             return np.nan_to_num(data, nan=0)
         if len(data.shape) == 3:
             has_time = False
