@@ -309,7 +309,7 @@ class PastisPatchEval(EvalTask):
         num_subtiles_per_image: int = 4,
         patch_size: int = 8,
         seed=DEFAULT_SEED,
-        num_outputs = len(PastisPatchDataset.labels_to_int) - 1
+        num_outputs=len(PastisPatchDataset.labels_to_int) - 1,
     ):
         self.average_months = average_months
         self.num_subtiles_per_image = num_subtiles_per_image
@@ -327,8 +327,7 @@ class PastisPatchEval(EvalTask):
             }
         else:
             return {
-                #f"{self.name}: {model_name}_overall_accuracy": accuracy_score(target, preds),
-                #f"{self.name}: {model_name}_mean_accuracy": balanced_accuracy_score(target, preds),
+                f"{self.name}: {model_name}_overall_accuracy": accuracy_score(target, preds),
                 f"{self.name}: {model_name}_mean_iou": jaccard_score(
                     target, preds, average="weighted"
                 ),
@@ -371,9 +370,13 @@ class PastisPatchEval(EvalTask):
                         s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
                     )
 
-                    encodings = self.group_encodings_per_token(
-                        pretrained_model, s_t_x, s_x, t_x, s_t_m, s_m, t_m
-                    ).cpu().numpy()
+                    encodings = (
+                        self.group_encodings_per_token(
+                            pretrained_model, s_t_x, s_x, t_x, s_t_m, s_m, t_m
+                        )
+                        .cpu()
+                        .numpy()
+                    )
                     encodings_list.append(encodings[~void_mask])
 
             encodings_np, targets_np = np.concatenate(encodings_list), np.concatenate(targets_list)

@@ -94,7 +94,6 @@ class EvalTask(ABC):
         if self.num_outputs == 1:
             # take the most common label per token
             label = mode(grouped_label, axis=1).mode
-            print("Label shape after taking the mode: " + str(label.shape))
 
         # one hot encode the labels
         else:
@@ -105,7 +104,6 @@ class EvalTask(ABC):
                 label[i][classes] = 1
 
             assert np.unique(label).shape[0] <= 2
-            print("Label shape after one-hot encoding: " + str(label.shape))
         return label
 
     @torch.no_grad()
@@ -171,14 +169,6 @@ class EvalTask(ABC):
 
         targets_np = np.concatenate(targets_list)
         encodings_np = np.concatenate(encodings_list)
-
-        print(
-            "Targets_np shape after removing void and one hot encoding: " + str(targets_np.shape)
-        )
-        print(
-            "Encodings_np shape after removing void and one hot encoding: "
-            + str(encodings_np.shape)
-        )
 
         if len(targets_np.shape) == 2 and targets_np.shape[1] == 1:
             # from [[0], [0], [1]] to [0, 0, 1]
