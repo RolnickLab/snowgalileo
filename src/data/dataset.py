@@ -9,6 +9,7 @@ from typing import OrderedDict as OrderedDictType
 
 import numpy as np
 import rioxarray
+import torch
 import xarray as xr
 from einops import rearrange, repeat
 from torch.utils.data import Dataset as PyTorchDataset
@@ -127,13 +128,18 @@ def to_cartesian(lat: Union[float, np.ndarray], lon: Union[float, np.ndarray]) -
         y = math.cos(lat) * math.sin(lon)
         z = math.sin(lat)
         return np.array([x, y, z])
-    else:
-        assert isinstance(lon, np.ndarray), f"Expected np.ndarray got {type(lon)}"
+    elif isinstance(lon, np.ndarray):
         assert isinstance(lat, np.ndarray), f"Expected np.ndarray got {type(lat)}"
         x = np.cos(lat) * np.cos(lon)
         y = np.cos(lat) * np.sin(lon)
         z = np.sin(lat)
         return np.stack([x, y, z], axis=-1)
+    elif isinstance(lon, torch.Tensor):
+        assert isinstance(lat, torch.Tensor), f"Expected torch.Tensor got {type(lat)}"
+        x = torch.cos(lat) * torch.cos(lon)
+        y = torch.cos(lat) * torch.sin(lon)
+        z = torch.sin(lat)
+        return torch.stack([x, y, z], dim=-1)
 
 
 class Dataset(PyTorchDataset):
