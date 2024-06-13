@@ -264,9 +264,12 @@ torch.save(predictor.state_dict(), model_path / "predictor.pt")
 eval_tasks: List[EvalTask] = [
     *[
         PastisPatchEval(
+            num_outputs=num_outputs,
             average_months=average_s2_over_month,
             num_subtiles_per_image=num_subtiles_per_image,
         )
+        # 19 will one-hot encode classes per token, 1 will use the mode class
+        for num_outputs in [19, 1]
         for average_s2_over_month in [True, False]
         for num_subtiles_per_image in [4, 16]
     ],
