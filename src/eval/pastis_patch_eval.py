@@ -338,9 +338,7 @@ class PastisPatchEval(EvalTask):
         return {}
 
     @torch.no_grad()
-    def _evaluate_model(
-        self, pretrained_model, sklearn_models: Optional[Sequence[BaseEstimator]]
-    ) -> Dict:
+    def _evaluate_model(self, pretrained_model, sklearn_models: Sequence[BaseEstimator]) -> Dict:
         test_dl = DataLoader(
             PastisPatchDataset(
                 folds=[1],
@@ -352,52 +350,51 @@ class PastisPatchEval(EvalTask):
             num_workers=Hyperparams.num_workers,
         )
 
-        if sklearn_models is not None:
-            results_dict = {}
-            pred_dict: Dict[str, BaseEstimator] = {
-                model_class_name(model): [] for model in sklearn_models
-            }
+        results_dict = {}
+        pred_dict: Dict[str, BaseEstimator] = {
+            model_class_name(model): [] for model in sklearn_models
+        }
 
-            encodings_list = []
-            targets_list = []
+        encodings_list = []
+        targets_list = []
 
-            for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
-                s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
+        for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
+            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
 
-                targets = self.group_targets_per_token(label).cpu().numpy()
-                void_mask = np.any(targets == 19, axis=1)
-                targets_list.append(self.reduce_targets_per_token(targets[~void_mask]))
+            targets = self.group_targets_per_token(label).cpu().numpy()
+            void_mask = np.any(targets == 19, axis=1)
+            targets_list.append(self.reduce_targets_per_token(targets[~void_mask]))
 
-                pretrained_model.eval()
-                with torch.no_grad():
-                    s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
-                        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
-                    )
-
-                    encodings = (
-                        self.group_encodings_per_token(
-                            pretrained_model, s_t_x, s_x, t_x, s_t_m, s_m, t_m
-                        )
-                        .cpu()
-                        .numpy()
-                    )
-                    encodings_list.append(encodings[~void_mask])
-
-            encodings_np, targets_np = np.concatenate(encodings_list), np.concatenate(targets_list)
-
-            for model in sklearn_models:
-                preds = model.predict(encodings_np)
-                pred_dict[model_class_name(model)].append(preds)
-
-            for model_name_str, pred_list in pred_dict.items():
-                results_dict.update(
-                    self.compute_metrics(
-                        model_name_str,
-                        np.concatenate(pred_list),
-                        targets_np,
-                    )
+            pretrained_model.eval()
+            with torch.no_grad():
+                s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
+                    s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
                 )
-            return results_dict
+
+                encodings = (
+                    self.group_encodings_per_token(
+                        pretrained_model, s_t_x, s_x, t_x, s_t_m, s_m, t_m
+                    )
+                    .cpu()
+                    .numpy()
+                )
+                encodings_list.append(encodings[~void_mask])
+
+        encodings_np, targets_np = np.concatenate(encodings_list), np.concatenate(targets_list)
+
+        for model in sklearn_models:
+            preds = model.predict(encodings_np)
+            pred_dict[model_class_name(model)].append(preds)
+
+        for model_name_str, pred_list in pred_dict.items():
+            results_dict.update(
+                self.compute_metrics(
+                    model_name_str,
+                    np.concatenate(pred_list),
+                    targets_np,
+                )
+            )
+        return results_dict
 
     def evaluate_model_on_task(
         self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
