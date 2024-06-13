@@ -50,7 +50,7 @@ def normalize(x):
         return x
     if torch.isnan(x).any(): print("Warning! NaNs in the x before normalization", flush=True)
     normed_x = (x - x.mean(dim=-1, keepdim=True)) / (x.var(dim=-1, keepdim=True) + 1.0e-6) ** 0.5
-    if torch.isnan(x).any():
+    if torch.isnan(normed_x).any():
         print(x, x.mean(dim=-1, keepdim=True), x.var(dim=-1, keepdim=True), flush=True)
     return normed_x
 
