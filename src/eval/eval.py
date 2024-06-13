@@ -25,9 +25,6 @@ logger = logging.getLogger("__main__")
 class Hyperparams:
     batch_size: int = 32
     num_workers: int = 4
-    max_epochs: int = 1
-    patience: int = 10
-    finetuning_lr: float = 3e-4
 
 
 def model_class_name(model: BaseEstimator) -> str:
@@ -40,7 +37,7 @@ def model_class_name(model: BaseEstimator) -> str:
 class EvalTask(ABC):
     name: str = "EvalTask"
     regression: bool
-    segmentation: bool
+    segmentation: bool = False
     multilabel: bool
     input_height_width: int
 
