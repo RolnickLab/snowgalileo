@@ -132,16 +132,18 @@ def to_cartesian(
         return np.array([x, y, z])
     elif isinstance(lon, np.ndarray):
         assert isinstance(lat, np.ndarray), f"Expected np.ndarray got {type(lat)}"
-        x = np.cos(lat) * np.cos(lon)
-        y = np.cos(lat) * np.sin(lon)
-        z = np.sin(lat)
-        return np.stack([x, y, z], axis=-1)
+        x_np = np.cos(lat) * np.cos(lon)
+        y_np = np.cos(lat) * np.sin(lon)
+        z_np = np.sin(lat)
+        return np.stack([x_np, y_np, z_np], axis=-1)
     elif isinstance(lon, torch.Tensor):
         assert isinstance(lat, torch.Tensor), f"Expected torch.Tensor got {type(lat)}"
-        x = torch.cos(lat) * torch.cos(lon)
-        y = torch.cos(lat) * torch.sin(lon)
-        z = torch.sin(lat)
-        return torch.stack([x, y, z], dim=-1)
+        x_t = torch.cos(lat) * torch.cos(lon)
+        y_t = torch.cos(lat) * torch.sin(lon)
+        z_t = torch.sin(lat)
+        return torch.stack([x_t, y_t, z_t], dim=-1)
+    else:
+        raise AssertionError(f"Unexpected input type {type(lon)}")
 
 
 class Dataset(PyTorchDataset):
