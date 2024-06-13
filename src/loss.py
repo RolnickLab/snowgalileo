@@ -110,7 +110,8 @@ def norm_per_channel_loss(
     norm_expanded_s_t_x = normalize(expanded_s_t_x)
     norm_expanded_sp_x = normalize(expanded_sp_x)
     norm_t_x = normalize(t_x)
-    norm_st_x = normalize(st_x)
+    # no need to normalize the static data
+    norm_st_x = st_x
 
     return mse_loss(
         norm_expanded_s_t_x,
@@ -187,7 +188,7 @@ def norm_per_c_g_loss(
         target_t_l.append(norm_t_x_c_g[t_m_c_g])
 
     for _, channel_idxs in STATIC_BAND_GROUPS_IDX.items():
-        norm_st_x_c_g = normalize(st_x[:, channel_idxs])
+        norm_st_x_c_g = st_x[:, channel_idxs]
         st_m_c_g = expanded_st_m[:, channel_idxs]
 
         p_st_l.append(p_st[:, channel_idxs][st_m_c_g])
