@@ -9,6 +9,7 @@ from typing import OrderedDict as OrderedDictType
 
 import numpy as np
 import rioxarray
+import torch
 import xarray as xr
 from einops import rearrange, repeat
 from torch.utils.data import Dataset as PyTorchDataset
@@ -117,23 +118,32 @@ def normalize_static(x: np.ndarray) -> np.ndarray:
     return _normalize(x, STATIC_SHIFT_VALUES, STATIC_DIV_VALUES)
 
 
-def to_cartesian(lat: Union[float, np.ndarray], lon: Union[float, np.ndarray]) -> np.ndarray:
+def to_cartesian(
+    lat: Union[float, np.ndarray, torch.Tensor], lon: Union[float, np.ndarray, torch.Tensor]
+) -> Union[np.ndarray, torch.Tensor]:
     # transform to radians
     lat = lat * math.pi / 180
     lon = lon * math.pi / 180
     if isinstance(lat, float):
-        assert isinstance(lon, float)
+        assert isinstance(lon, float), f"Expected float got {type(lon)}"
         x = math.cos(lat) * math.cos(lon)
         y = math.cos(lat) * math.sin(lon)
         z = math.sin(lat)
         return np.array([x, y, z])
+    elif isinstance(lon, np.ndarray):
+        assert isinstance(lat, np.ndarray), f"Expected np.ndarray got {type(lat)}"
+        x_np = np.cos(lat) * np.cos(lon)
+        y_np = np.cos(lat) * np.sin(lon)
+        z_np = np.sin(lat)
+        return np.stack([x_np, y_np, z_np], axis=-1)
+    elif isinstance(lon, torch.Tensor):
+        assert isinstance(lat, torch.Tensor), f"Expected torch.Tensor got {type(lat)}"
+        x_t = torch.cos(lat) * torch.cos(lon)
+        y_t = torch.cos(lat) * torch.sin(lon)
+        z_t = torch.sin(lat)
+        return torch.stack([x_t, y_t, z_t], dim=-1)
     else:
-        assert isinstance(lon, np.ndarray)
-        assert isinstance(lat, np.ndarray)
-        x = np.cos(lat) * np.cos(lon)
-        y = np.cos(lat) * np.sin(lon)
-        z = np.sin(lat)
-        return np.stack([x, y, z], axis=-1)
+        raise AssertionError(f"Unexpected input type {type(lon)}")
 
 
 class Dataset(PyTorchDataset):
@@ -221,7 +231,7 @@ class Dataset(PyTorchDataset):
         if not is_nan_inf.any():
             return data
 
-        if len(data.shape) == 2:
+        if len(data.shape) <= 2:
             return np.nan_to_num(data, nan=0)
         if len(data.shape) == 3:
             has_time = False
@@ -233,15 +243,14 @@ class Dataset(PyTorchDataset):
             )
 
         # treat infinities as NaNs
-        data[data == np.inf] = np.nan
-        data[data == -np.inf] = np.nan
+        data = np.nan_to_num(data, nan=np.nan, posinf=np.nan, neginf=np.nan)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)
             mean_per_time_band = np.nanmean(data, axis=(0, 1))  # t, b or b
 
-        if np.isnan(mean_per_time_band).any():
-            # If a band has all nan values, fill with default: 0
-            mean_per_time_band = np.nan_to_num(mean_per_time_band, nan=0)
+        mean_per_time_band = np.nan_to_num(mean_per_time_band, nan=0, posinf=0, neginf=0)
+        assert not (np.isnan(mean_per_time_band).any() | np.isinf(mean_per_time_band).any())
+
         if is_nan_inf.any():
             if has_time:
                 means_to_fill = (
@@ -259,7 +268,7 @@ class Dataset(PyTorchDataset):
                     repeat(mean_per_time_band, "b -> h w b", h=data.shape[0], w=data.shape[1])
                     * is_nan_inf
                 )
-            data = np.nan_to_num(data, nan=0) + means_to_fill
+            data = np.nan_to_num(data, nan=0, posinf=0, neginf=0) + means_to_fill
         return data
 
     def tif_to_npy_paths(self, tif_path: Path) -> Tuple[Path, Path, Path, Path]:
@@ -326,7 +335,6 @@ class Dataset(PyTorchDataset):
             values[-(len(SPACE_BANDS) + static_bands_in_tif) : -static_bands_in_tif],
             "c h w -> h w c",
         )
-
         space_x = cls._fillna(space_x, np.array(SPACE_BANDS))
         space_x = normalize_space(space_x)
 
@@ -337,29 +345,45 @@ class Dataset(PyTorchDataset):
 
         months = cls.month_array_from_file(tif_path, int(num_timesteps))
 
-        assert not np.isnan(space_time_x).any(), f"NaNs in s_t_x for {tif_path}"
-        assert not np.isnan(space_x).any(), f"NaNs in sp_x for {tif_path}"
-        assert not np.isnan(time_x).any(), f"NaNs in t_x for {tif_path}"
-        assert not np.isnan(static_x).any(), f"NaNs in st_x for {tif_path}"
-        assert not np.isinf(space_time_x).any(), f"Infs in s_t_x for {tif_path}"
-        assert not np.isinf(space_x).any(), f"Infs in sp_x for {tif_path}"
-        assert not np.isinf(time_x).any(), f"Infs in t_x for {tif_path}"
-        assert not np.isinf(static_x).any(), f"Infs in st_x for {tif_path}"
+        try:
+            assert not np.isnan(space_time_x).any(), f"NaNs in s_t_x for {tif_path}"
+            assert not np.isnan(space_x).any(), f"NaNs in sp_x for {tif_path}"
+            assert not np.isnan(time_x).any(), f"NaNs in t_x for {tif_path}"
+            assert not np.isnan(static_x).any(), f"NaNs in st_x for {tif_path}"
+            assert not np.isinf(space_time_x).any(), f"Infs in s_t_x for {tif_path}"
+            assert not np.isinf(space_x).any(), f"Infs in sp_x for {tif_path}"
+            assert not np.isinf(time_x).any(), f"Infs in t_x for {tif_path}"
+            assert not np.isinf(static_x).any(), f"Infs in st_x for {tif_path}"
+            return DatasetOutput(
+                space_time_x.astype(np.half),
+                space_x.astype(np.half),
+                time_x.astype(np.half),
+                static_x.astype(np.half),
+                months,
+            )
+        except AssertionError as e:
+            raise e
 
-        return DatasetOutput(
-            space_time_x.astype(np.half),
-            space_x.astype(np.half),
-            time_x.astype(np.half),
-            static_x.astype(np.half),
-            months,
-        )
-
-    def load_tif(self, tif_path: Path) -> DatasetOutput:
-        if self.cache_folder is None:
+    def _tif_to_array_with_checks(self, idx):
+        tif_path = self.tifs[idx]
+        try:
             return self._tif_to_array(tif_path)
+        except Exception as e:
+            print(f"Replacing tif {tif_path} due to {e}")
+            if idx == 0:
+                new_idx = idx + 1
+            else:
+                new_idx = idx - 1
+            self.tifs[idx] = self.tifs[new_idx]
+            tif_path = self.tifs[idx]
+        return self._tif_to_array(tif_path)
+
+    def load_tif(self, idx: int) -> DatasetOutput:
+        if self.cache_folder is None:
+            return self._tif_to_array_with_checks(idx)
         else:
             cache_path_s_t, cache_path_sp, cache_path_t, cache_path_st = self.tif_to_npy_paths(
-                tif_path
+                self.tifs[idx]
             )
             if (
                 cache_path_s_t.exists()
@@ -370,7 +394,7 @@ class Dataset(PyTorchDataset):
                 try:
                     s_t_x = np.load(cache_path_s_t)
                     num_timesteps = s_t_x.shape[2]
-                    months = self.month_array_from_file(tif_path, num_timesteps)
+                    months = self.month_array_from_file(self.tifs[idx], num_timesteps)
                     return DatasetOutput(
                         s_t_x,
                         np.load(cache_path_sp),
@@ -379,15 +403,16 @@ class Dataset(PyTorchDataset):
                         months,
                     )
                 except Exception as e:
-                    logger.warn(f"Exception {e} for {tif_path}")
-                    s_t_x, sp_x, t_x, st_x, months = self._tif_to_array(tif_path)
+                    logger.warn(f"Exception {e} for {self.tifs[idx]}")
+
+                    s_t_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
                     np.save(cache_path_s_t, s_t_x)
                     np.save(cache_path_sp, sp_x)
                     np.save(cache_path_t, t_x)
                     np.save(cache_path_st, st_x)
                     return DatasetOutput(s_t_x, sp_x, t_x, st_x, months)
             else:
-                s_t_x, sp_x, t_x, st_x, months = self._tif_to_array(tif_path)
+                s_t_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
                 np.save(cache_path_s_t, s_t_x)
                 np.save(cache_path_sp, sp_x)
                 np.save(cache_path_t, t_x)
@@ -428,7 +453,7 @@ class Dataset(PyTorchDataset):
             t_x,
             st_x,
             months,
-        ) = self.load_tif(self.tifs[idx])
+        ) = self.load_tif(idx)
         (
             s_t_x,
             sp_x,
