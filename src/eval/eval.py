@@ -83,7 +83,7 @@ class EvalTask(ABC):
         return rearrange(grouped_label, "b n_t hw -> (b n_t) hw")
 
     @torch.no_grad()
-    def group_encodings_per_token(self, model, s_t_x, s_x, t_x, s_t_m, s_m, t_m) -> np.ndarray:
+    def group_encodings_per_token(self, model, s_t_x, s_x, t_x, s_t_m, s_m, t_m) -> torch.Tensor:
         encodings = rearrange(
             model.apply_mask_and_average_tokens_per_patch(s_t_x, s_x, t_x, s_t_m, s_m, t_m),
             "b n_t n_f -> (b n_t) n_f",

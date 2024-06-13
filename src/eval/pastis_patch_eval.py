@@ -286,10 +286,13 @@ class PastisPatchDataset(PyTorchDataset):
                 t_m,
                 months,
             ),
-            targets[
-                row_idx * pixels_per_dim : (row_idx + 1) * pixels_per_dim,
-                col_idx * pixels_per_dim : (col_idx + 1) * pixels_per_dim,
-            ],
+            torch.Tensor(
+                targets[
+                    row_idx * pixels_per_dim : (row_idx + 1) * pixels_per_dim,
+                    col_idx * pixels_per_dim : (col_idx + 1) * pixels_per_dim,
+                ],
+                dtype=torch.long,
+            ),
         )
 
     def __len__(self):
@@ -332,6 +335,7 @@ class PastisPatchEval(EvalTask):
                     target, preds, average="weighted"
                 ),
             }
+        return {}
 
     @torch.no_grad()
     def _evaluate_model(
