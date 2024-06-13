@@ -62,7 +62,6 @@ class PastisPatchDataset(PyTorchDataset):
         folds: List[int],
         data_path: Optional[str] = "pastis/PASTIS-R",
         num_subtiles_per_image: Optional[int] = 4,
-        average_s2_over_month: Optional[bool] = True,
     ):
         self.folds = folds
         assert all(fold in [1, 2, 3, 4, 5] for fold in self.folds)
@@ -82,13 +81,7 @@ class PastisPatchDataset(PyTorchDataset):
         self.num_subtiles_per_image = num_subtiles_per_image
         assert sqrt(cast(float, self.num_subtiles_per_image)).is_integer()
 
-        self.average_s2_over_month = average_s2_over_month
-
-        if average_s2_over_month:
-            self.num_timesteps = 12
-        else:
-            # max number of timesteps in PASTIS
-            self.num_timesteps = 61
+        self.num_timesteps = 12
 
     def create_pastis_masks(
         self, missing_timestep_indeces: np.ndarray
@@ -161,22 +154,6 @@ class PastisPatchDataset(PyTorchDataset):
 
         return averages_all_months, all_months, missing_timestep_indeces
 
-    def zero_pad_missing_timesteps(
-        self, s2: np.ndarray, months: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Pads input image and months with zeros to reach the maximum number of timesteps available in PASTIS.
-        """
-
-        s2_all_months = np.zeros((self.num_timesteps, s2.shape[1], s2.shape[2], s2.shape[3]))
-        s2_all_months[np.arange(s2.shape[0])] = s2
-
-        all_months = np.zeros(self.num_timesteps)
-        all_months[np.arange(months.shape[0])] = months
-        missing_timestep_indeces = np.where(~np.isin(all_months, months))[0]
-
-        return s2_all_months, all_months, missing_timestep_indeces
-
     def get_eo_array_masks_and_targets(
         self, id: int
     ) -> Tuple[
@@ -204,12 +181,7 @@ class PastisPatchDataset(PyTorchDataset):
         )  # 0-indexed months
         assert all(0 <= month <= 11 for month in months)
 
-        if self.average_s2_over_month:
-            s2, months, missing_timestep_indeces = self.average_over_month(s2, months)
-
-        # pad missing timesteps, will be masked out later
-        else:
-            s2, months, missing_timestep_indeces = self.zero_pad_missing_timesteps(s2, months)
+        s2, months, missing_timestep_indeces = self.average_over_month(s2, months)
 
         kept_dynamic_bands = [idx for idx, x in enumerate(SPACE_TIME_BANDS) if (x in S2_BANDS)]
 
@@ -308,19 +280,17 @@ class PastisPatchEval(EvalTask):
 
     def __init__(
         self,
-        average_months: bool = True,
         num_subtiles_per_image: int = 4,
         patch_size: int = 8,
         seed=DEFAULT_SEED,
         num_outputs=len(PastisPatchDataset.labels_to_int) - 1,
     ):
-        self.average_months = average_months
         self.num_subtiles_per_image = num_subtiles_per_image
         super().__init__(patch_size, seed, num_outputs)
         self.input_height_width = self.input_height_width // int(
             sqrt(cast(float, self.num_subtiles_per_image))
         )
-        self.name = f"{self.name}_{'AVERAGED_MONTHS' if self.average_months else 'ALL_MONTHS'}_hw{self.input_height_width}"
+        self.name = f"{self.name}_hw{self.input_height_width}"
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         if self.num_outputs == 1:
@@ -342,7 +312,6 @@ class PastisPatchEval(EvalTask):
         test_dl = DataLoader(
             PastisPatchDataset(
                 folds=[1],
-                average_s2_over_month=self.average_months,
                 num_subtiles_per_image=self.num_subtiles_per_image,
             ),
             batch_size=Hyperparams.batch_size,
@@ -407,7 +376,6 @@ class PastisPatchEval(EvalTask):
         train_dl = DataLoader(
             PastisPatchDataset(
                 folds=[2, 3, 4, 5],
-                average_s2_over_month=self.average_months,
                 num_subtiles_per_image=self.num_subtiles_per_image,
             ),
             batch_size=Hyperparams.batch_size,
