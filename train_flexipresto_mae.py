@@ -175,6 +175,11 @@ for e in tqdm(range(training_config["num_epochs"])):
             patch_size,
         ) = b
 
+        assert not torch.isnan(s_t_x).any(), "NaNs in s_t_x"
+        assert not torch.isnan(sp_x).any(), "NaNs in sp_x"
+        assert not torch.isnan(t_x).any(), "NaNs in t_x"
+        assert not torch.isnan(st_x).any(), "NaNs in st_x"
+
         with torch.autocast(device_type=device.type, dtype=autocast_device):
             (p_s_t, p_sp, p_t, p_st) = predictor(
                 *encoder(
