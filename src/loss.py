@@ -46,6 +46,8 @@ def group_per_channel(space_time_array, space_only_array, time_only_array, stati
 
 
 def normalize(x):
+    if x.shape[-1] == 1:
+        return x
     return (x - x.mean(dim=-1, keepdim=True)) / (x.var(dim=-1, keepdim=True) + 1.0e-6) ** 0.5
 
 
