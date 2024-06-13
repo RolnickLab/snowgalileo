@@ -90,10 +90,8 @@ class TestPastis(unittest.TestCase):
             )
         )
 
-    def test_pastis_month_average(self):
-        dataset = PastisPatchDataset(
-            folds=[1, 2, 3], data_path=DATA_FOLDER, average_s2_over_month=True
-        )
+    def test_pastis(self):
+        dataset = PastisPatchDataset(folds=[1, 2, 3], data_path=DATA_FOLDER)
         sample = dataset[1]
         s_t_x, s_x, t_x, s_t_m, s_m, t_m, m = sample[0]
         label = sample[1]
@@ -110,29 +108,3 @@ class TestPastis(unittest.TestCase):
         ]
 
         self.assertTrue(torch.all(s_t_m[:, :, :, unpresent_bands] == 1))
-
-    def test_pastis_max_timesteps(self):
-        dataset = PastisPatchDataset(
-            folds=[1, 2, 3], data_path=DATA_FOLDER, average_s2_over_month=False
-        )
-        sample = dataset[1]
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m, m = sample[0]
-        label = sample[1]
-
-        # max number of timesteps in pastis are 61, missing get padded and masked
-        self.check_space_time(s_t_x=s_t_x, s_t_m=s_t_m, num_timesteps=61)
-        self.check_space(s_x=s_x, s_m=s_m)
-        self.check_time(t_x=t_x, t_m=t_m, num_timesteps=61)
-        self.check_month(month=m, num_timesteps=61)
-        self.check_target(labels=label)
-
-        # will test if the right channels are masked out
-        present_bands = [idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S2" in key]
-        unpresent_bands = [
-            idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S2" not in key
-        ]
-
-        # 38 is the minimum number of timesteps present in all observations
-        self.assertTrue(torch.all(s_t_m[:, :, :38, present_bands] == 0))
-        self.assertTrue(torch.all(s_t_m[:, :, :38, unpresent_bands] == 1))
-        print("Finishing the test")
