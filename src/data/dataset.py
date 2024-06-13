@@ -324,6 +324,17 @@ class Dataset(PyTorchDataset):
             values[-(len(SPACE_BANDS) + static_bands_in_tif) : -static_bands_in_tif],
             "c h w -> h w c",
         )
+
+        # this is specific to the slope, which seems to be +/-inf when
+        # exported using the high volume API. We limit it to the maximum
+        # and minimum values it can be (since its in degrees)
+        # https://developers.google.com/earth-engine/apidocs/ee-terrain-slope
+        slope_index = SPACE_BANDS.index("slope")
+        slope = space_x[:, :, slope_index]
+        slope[slope == -np.inf] = 0
+        slope[slope == np.inf] = 90
+        space_x[:, :, slope_index] = slope
+
         space_x = cls._fillna(space_x, np.array(SPACE_BANDS))
         space_x = normalize_space(space_x)
 
