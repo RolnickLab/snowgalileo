@@ -210,15 +210,18 @@ class TreeSatEval(EvalTask):
     regression = False
     segmentation = False
     multilabel = True
-    # different than the paper but this is
-    # from all the unique classes in the labels json
-    # (above)
-    num_outputs = len(TreeSatDataset.labels_to_int)
     input_height_width = TreeSatDataset.input_height_width
 
-    def __init__(self, mode: str = "s2", patch_size: int = 6, seed: int = DEFAULT_SEED):
+    def __init__(
+        self,
+        mode: str = "s2",
+        patch_size: int = 6,
+        seed: int = DEFAULT_SEED,
+        num_outputs=len(TreeSatDataset.labels_to_int),
+    ):
         self.mode = mode
-        super().__init__(patch_size, seed)
+        # num_outputs different than the paper but this is from all the unique classes in the labels json (above)
+        super().__init__(patch_size, seed, num_outputs)
         self.name = f"{self.name}_{self.mode}"
 
     def compute_metrics(
