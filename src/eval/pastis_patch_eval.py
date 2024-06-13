@@ -327,8 +327,8 @@ class PastisPatchEval(EvalTask):
             }
         else:
             return {
-                f"{self.name}: {model_name}_overall_accuracy": accuracy_score(target, preds),
-                f"{self.name}: {model_name}_mean_accuracy": balanced_accuracy_score(target, preds),
+                #f"{self.name}: {model_name}_overall_accuracy": accuracy_score(target, preds),
+                #f"{self.name}: {model_name}_mean_accuracy": balanced_accuracy_score(target, preds),
                 f"{self.name}: {model_name}_mean_iou": jaccard_score(
                     target, preds, average="weighted"
                 ),
@@ -376,9 +376,7 @@ class PastisPatchEval(EvalTask):
                     ).cpu().numpy()
                     encodings_list.append(encodings[~void_mask])
 
-            encodings_np, targets_np = self.remove_void_class(
-                np.concatenate(encodings_list), np.concatenate(targets_list)
-            )
+            encodings_np, targets_np = np.concatenate(encodings_list), np.concatenate(targets_list)
 
             for model in sklearn_models:
                 preds = model.predict(encodings_np)
@@ -389,7 +387,7 @@ class PastisPatchEval(EvalTask):
                     self.compute_metrics(
                         model_name_str,
                         np.concatenate(pred_list),
-                        self.reduce_targets_per_token(targets_np),
+                        targets_np,
                     )
                 )
             return results_dict
