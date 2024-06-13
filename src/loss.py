@@ -48,11 +48,7 @@ def group_per_channel(space_time_array, space_only_array, time_only_array, stati
 def normalize(x):
     if x.shape[-1] == 1:
         return x
-    if torch.isnan(x).any(): print("Warning! NaNs in the x before normalization", flush=True)
-    normed_x = (x - x.mean(dim=-1, keepdim=True)) / (x.var(dim=-1, keepdim=True) + 1.0e-6) ** 0.5
-    if torch.isnan(normed_x).any():
-        print(x, x.mean(dim=-1, keepdim=True), x.var(dim=-1, keepdim=True), flush=True)
-    return normed_x
+    return (x - x.mean(dim=-1, keepdim=True)) / (x.var(dim=-1, keepdim=True) + 1.0e-6) ** 0.5
 
 
 def mse_loss(
@@ -182,9 +178,7 @@ def norm_per_c_g_loss(
         norm_sp_x_c_g = normalize(
             rearrange((expanded_sp_x[:, :, :, channel_idxs]), "b h w c -> b (c h w)")
         )
-        assert not torch.isnan(
-            norm_sp_x_c_g
-        ).any(), f"NaNs when normalizing {band} in space, input shape: {expanded_sp_x[:, :, :, channel_idxs].shape}"
+        assert not torch.isnan(norm_sp_x_c_g).any(), f"NaNs when normalizing {band} in space"
         sp_m_c_g = rearrange((expanded_sp_m[:, :, :, channel_idxs]), "b h w c -> b (c h w)")
 
         p_sp_l.append(rearrange((p_sp[:, :, :, channel_idxs]), "b h w c -> b (c h w)")[sp_m_c_g])
