@@ -217,13 +217,12 @@ class Dataset(PyTorchDataset):
         """Fill in the missing values in the data array"""
         if data.shape[-1] != len(bands_np):
             raise ValueError(f"Expected data to have {len(bands_np)} bands - got {data.shape[-1]}")
-        is_nan = np.isnan(data)
-        if not is_nan.any():
+        is_nan_inf = np.isnan(data) | np.isinf(data)
+        if not is_nan_inf.any():
             return data
 
         if len(data.shape) == 2:
             return np.nan_to_num(data, nan=0)
-
         if len(data.shape) == 3:
             has_time = False
         elif len(data.shape) == 4:
@@ -233,6 +232,9 @@ class Dataset(PyTorchDataset):
                 f"Expected data to be 3D or 4D (x, y, (time), band) - got {data.shape}"
             )
 
+        # treat infinities as NaNs
+        data[data == np.inf] = np.nan
+        data[data == -np.inf] = np.nan
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)
             mean_per_time_band = np.nanmean(data, axis=(0, 1))  # t, b or b
@@ -240,7 +242,7 @@ class Dataset(PyTorchDataset):
         if np.isnan(mean_per_time_band).any():
             # If a band has all nan values, fill with default: 0
             mean_per_time_band = np.nan_to_num(mean_per_time_band, nan=0)
-        if is_nan.any():
+        if is_nan_inf.any():
             if has_time:
                 means_to_fill = (
                     repeat(
@@ -250,12 +252,12 @@ class Dataset(PyTorchDataset):
                         w=data.shape[1],
                         t=data.shape[2],
                     )
-                    * is_nan
+                    * is_nan_inf
                 )
             else:
                 means_to_fill = (
                     repeat(mean_per_time_band, "b -> h w b", h=data.shape[0], w=data.shape[1])
-                    * is_nan
+                    * is_nan_inf
                 )
             data = np.nan_to_num(data, nan=0) + means_to_fill
         return data
@@ -324,16 +326,6 @@ class Dataset(PyTorchDataset):
             values[-(len(SPACE_BANDS) + static_bands_in_tif) : -static_bands_in_tif],
             "c h w -> h w c",
         )
-
-        # this is specific to the slope, which seems to be +/-inf when
-        # exported using the high volume API. We limit it to the maximum
-        # and minimum values it can be (since its in degrees)
-        # https://developers.google.com/earth-engine/apidocs/ee-terrain-slope
-        slope_index = SPACE_BANDS.index("slope")
-        slope = space_x[:, :, slope_index]
-        slope[slope == -np.inf] = 0
-        slope[slope == np.inf] = 90
-        space_x[:, :, slope_index] = slope
 
         space_x = cls._fillna(space_x, np.array(SPACE_BANDS))
         space_x = normalize_space(space_x)
