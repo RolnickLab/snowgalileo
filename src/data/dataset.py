@@ -344,6 +344,16 @@ class Dataset(PyTorchDataset):
         static_x = normalize_static(static_x)
 
         months = cls.month_array_from_file(tif_path, int(num_timesteps))
+
+        assert not np.isnan(space_time_x).any(), f"NaNs in s_t_x for {tif_path}"
+        assert not np.isnan(space_x).any(), f"NaNs in sp_x for {tif_path}"
+        assert not np.isnan(time_x).any(), f"NaNs in t_x for {tif_path}"
+        assert not np.isnan(static_x).any(), f"NaNs in st_x for {tif_path}"
+        assert not np.isinf(space_time_x).any(), f"Infs in s_t_x for {tif_path}"
+        assert not np.isinf(space_x).any(), f"Infs in sp_x for {tif_path}"
+        assert not np.isinf(time_x).any(), f"Infs in t_x for {tif_path}"
+        assert not np.isinf(static_x).any(), f"Infs in st_x for {tif_path}"
+
         return DatasetOutput(
             space_time_x.astype(np.half),
             space_x.astype(np.half),
