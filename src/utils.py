@@ -212,9 +212,9 @@ def plot_space_time_predictions(
         ).max()
 
         for i, band in enumerate(subplot_titles):
-            x_to_plot = expanded_s_t_x[:, :, :, t, i].squeeze(0).cpu()
-            pred_to_plot = p_s_t[:, :, :, t, i].squeeze(0).cpu()
-            mask_to_plot = expanded_s_t[:, :, :, t, i].squeeze(0).cpu()
+            x_to_plot = expanded_s_t_x[0, :, :, t, i].squeeze(0).cpu()
+            pred_to_plot = p_s_t[0, :, :, t, i].squeeze(0).cpu()
+            mask_to_plot = expanded_s_t[0, :, :, t, i].squeeze(0).cpu()
 
             x_plot = axs[i, 0].imshow(
                 x_to_plot.numpy(), cmap="gray", vmin=x_to_plot.min(), vmax=x_to_plot.max()
