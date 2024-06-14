@@ -19,9 +19,6 @@ def mae_collate_fn(
     patch_sizes,
     shape_time_combinations,
     mask_ratio,
-    time_ratio,
-    space_ratio,
-    channel_ratio,
     fixed_patch_size=None,
     fixed_space_time_combination=None,
 ):
@@ -50,9 +47,6 @@ def mae_collate_fn(
         months,
         mask_ratio,
         patch_size,
-        time_ratio,
-        space_ratio,
-        channel_ratio,
         image_size=image_size,
         num_timesteps=timesteps,
     )
