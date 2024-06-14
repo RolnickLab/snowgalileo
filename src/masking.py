@@ -1,6 +1,5 @@
 import random
-from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, NamedTuple, Optional, Tuple
 
 import numpy as np
 import torch
@@ -56,8 +55,7 @@ MASKING_MODES = [None, "s2", "s2rgb", "s1", "s1+s2"]
 MASKING_MULTIPLIER = 8
 
 
-@dataclass
-class MaskedOutput:
+class MaskedOutput(NamedTuple):
     space_time_x: torch.Tensor
     space_x: torch.Tensor
     time_x: torch.Tensor
