@@ -83,6 +83,7 @@ dataloader = DataLoader(
         mae_collate_fn,
         patch_sizes=training_config["patch_sizes"],
         shape_time_combinations=training_config["shape_time_combinations"],
+        mask_ratio=training_config["mask_ratio"],
     ),
     pin_memory=True,
 )
@@ -125,6 +126,7 @@ if wandb_enabled:
                     shape_time_combinations=training_config["shape_time_combinations"],
                     fixed_patch_size=p,
                     fixed_space_time_combination={"size": 4, "timesteps": 12},
+                    mask_ratio=training_config["mask_ratio"],
                 ),
             )
 
