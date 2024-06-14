@@ -18,7 +18,6 @@ def mae_collate_fn(
     batch,
     patch_sizes,
     shape_time_combinations,
-    mask_ratio,
     fixed_patch_size=None,
     fixed_space_time_combination=None,
 ):
