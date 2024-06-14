@@ -6,6 +6,7 @@ from einops import repeat
 
 from src.masking import (
     MASKING_MODES,
+    MASKING_MULTIPLIER,
     NON_S1_BANDS,
     NON_S1_S2_BANDS,
     NON_S2_BANDS,
@@ -22,7 +23,7 @@ from src.masking import (
     batch_mask_random,
     batch_mask_space,
     batch_mask_time,
-    batch_subset_mask_presto_8x,
+    batch_subset_mask_presto_augmented,
 )
 
 MASK_TO_BANDS = {
@@ -254,7 +255,7 @@ class TestMasking(unittest.TestCase):
         months = repeat(torch.arange(0, t), "t -> b t", b=b)
         mask_ratio = 0.25
 
-        output = batch_subset_mask_presto_8x(
+        output = batch_subset_mask_presto_augmented(
             space_time_input,
             space_input,
             time_input,
@@ -266,8 +267,15 @@ class TestMasking(unittest.TestCase):
             num_timesteps=t_o,
         )
         self.assertEqual(
-            (b * 8, i, i, t_o, len(SPACE_TIME_BANDS_GROUPS_IDX)), output.space_time_mask.shape
+            (b * MASKING_MULTIPLIER, i, i, t_o, len(SPACE_TIME_BANDS_GROUPS_IDX)),
+            output.space_time_mask.shape,
         )
-        self.assertEqual((b * 8, i, i, len(SPACE_BAND_GROUPS_IDX)), output.space_mask.shape)
-        self.assertEqual((b * 8, t_o, len(TIME_BAND_GROUPS_IDX)), output.time_mask.shape)
-        self.assertEqual((b * 8, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
+        self.assertEqual(
+            (b * MASKING_MULTIPLIER, i, i, len(SPACE_BAND_GROUPS_IDX)), output.space_mask.shape
+        )
+        self.assertEqual(
+            (b * MASKING_MULTIPLIER, t_o, len(TIME_BAND_GROUPS_IDX)), output.time_mask.shape
+        )
+        self.assertEqual(
+            (b * MASKING_MULTIPLIER, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape
+        )

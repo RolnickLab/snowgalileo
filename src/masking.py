@@ -52,7 +52,7 @@ MASKING_MODES = [None, "s2", "s2rgb", "s1", "s1+s2"]
 # masking function (batch_subset_mask_presto_8x) will augment
 # each instance in the batch 8 times (with different subsetting and
 # masking).
-MASKING_MULTIPLIER = 8
+MASKING_MULTIPLIER = 4
 
 
 class MaskedOutput(NamedTuple):
@@ -144,7 +144,7 @@ def subset_batch_of_images(
     )
 
 
-def batch_subset_mask_presto_8x(
+def batch_subset_mask_presto_augmented(
     s_t_x: torch.Tensor,
     sp_x: torch.Tensor,
     t_x: torch.Tensor,
@@ -161,7 +161,7 @@ def batch_subset_mask_presto_8x(
     """
     maskedoutputs: List[MaskedOutput] = []
 
-    for mode in random.sample(MASKING_MODES, k=3):
+    for mode in random.sample(MASKING_MODES, k=1):
         maskedoutputs.append(
             batch_mask_time(
                 *subset_batch_of_images(
@@ -171,7 +171,7 @@ def batch_subset_mask_presto_8x(
                 mode=mode,
             )
         )
-    for mode in random.sample(MASKING_MODES, k=3):
+    for mode in random.sample(MASKING_MODES, k=1):
         maskedoutputs.append(
             batch_mask_space(
                 *subset_batch_of_images(
