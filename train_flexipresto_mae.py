@@ -28,6 +28,7 @@ from src.eval import (
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
 from src.loss import mae_loss
+from src.masking import MASKING_MULTIPLIER
 from src.utils import (
     AverageMeter,
     data_dir,
@@ -72,14 +73,10 @@ output_dir = Path(__file__).parent
 
 print("Loading dataset and dataloader")
 dataset = Dataset(TIFS_FOLDER, download=False, cache_folder=DATA_FOLDER / "npys_spacetime_16")
-assert training_config["batch_size"] % 8 == 0
+assert training_config["batch_size"] % MASKING_MULTIPLIER == 0
 dataloader = DataLoader(
     dataset,
-    # we divide the dataloader's batch size by 8 because the
-    # masking function (batch_subset_mask_presto_8x) will augment
-    # each instance in the batch 8 times (with different subsetting and
-    # masking.
-    batch_size=training_config["batch_size"] / 8,
+    batch_size=int(training_config["batch_size"] / MASKING_MULTIPLIER),
     shuffle=True,
     num_workers=Hyperparams.num_workers,
     collate_fn=partial(

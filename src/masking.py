@@ -49,6 +49,11 @@ S1_S2_BANDS = [
 ]
 
 MASKING_MODES = [None, "s2", "s2rgb", "s1", "s1+s2"]
+# we divide the dataloader's batch size by 8 because the
+# masking function (batch_subset_mask_presto_8x) will augment
+# each instance in the batch 8 times (with different subsetting and
+# masking).
+MASKING_MULTIPLIER = 8
 
 
 @dataclass
