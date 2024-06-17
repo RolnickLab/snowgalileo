@@ -16,4 +16,9 @@ EE_BUCKET_TIFS = "presto-tifs"
 EE_FOLDER_TIFS = "tifs2"
 
 DATA_FOLDER = Path(__file__).parents[2] / "data"
+
+# OUTPUT FOLDER CONFIGS
 OUTPUT_FOLDER = DATA_FOLDER / "outputs"
+ENCODER_FILENAME = "encoder.pt"
+DECODER_FILENAME = "decoder.pt"
+CONFIG_FILENAME = "config.json"

@@ -3,7 +3,7 @@ import os
 import random
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 
 import dateutil.tz
 import matplotlib.pyplot as plt
@@ -73,7 +73,7 @@ class AverageMeter:
         self.average = self.sum / self.count
 
 
-def load_check_config(name: str, mode: str):
+def load_check_config(name: str, mode: str) -> Dict:
     assert mode == "mae"
 
     with (config_dir / mode / name).open("r") as f:
