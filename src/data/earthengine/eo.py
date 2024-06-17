@@ -19,8 +19,7 @@ from ..config import (
     EE_FOLDER_TIFS,
     EE_PROJECT,
     END_YEAR,
-    EXPORTED_HEIGHT_WIDTH_METRES_BATCH,
-    EXPORTED_HEIGHT_WIDTH_METRES_URL,
+    EXPORTED_HEIGHT_WIDTH_METRES,
     START_YEAR,
     TIFS_FOLDER,
 )
@@ -272,11 +271,7 @@ class EarthEngineExporter:
         self.mode = mode
         if mode == "url":
             print(f"Mode: url. Files will be saved to {TIFS_FOLDER} and rsynced to google cloud")
-        self.surrounding_metres = (
-            EXPORTED_HEIGHT_WIDTH_METRES_BATCH / 2
-            if mode == "batch"
-            else EXPORTED_HEIGHT_WIDTH_METRES_URL / 2
-        )
+        self.surrounding_metres = EXPORTED_HEIGHT_WIDTH_METRES / 2
         self.dest_bucket = dest_bucket
         initialize_args = {
             "credentials": credentials if credentials else get_ee_credentials(),
@@ -289,6 +284,7 @@ class EarthEngineExporter:
         self.ee_task_list = get_ee_task_list() if self.check_ee else []
         self.check_gcp = check_gcp
         self.cloud_tif_list = get_cloud_tif_list(dest_bucket) if self.check_gcp else []
+        self.local_tif_list = [x.name for x in TIFS_FOLDER.glob("*.tif*")]
 
     def sync_local_and_gcloud(self):
         os.system(f"gcloud storage rsync -r {TIFS_FOLDER} gs://{EE_BUCKET_TIFS}/{EE_FOLDER_TIFS}")
@@ -309,6 +305,11 @@ class EarthEngineExporter:
         if f"{filename}.tif" in self.cloud_tif_list:
             # checks that we haven't already exported this file
             print(f"{filename}.tif already in cloud_tif_files")
+            return False
+
+        if f"{filename}.tif" in self.local_tif_list:
+            # checks that we haven't already exported this file
+            print(f"{filename}.tif already in local_tif_files, but not in the cloud")
             return False
 
         # Check if task is already started in EarthEngine
