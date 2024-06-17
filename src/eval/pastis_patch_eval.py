@@ -86,7 +86,9 @@ class PastisPatchDataset(PyTorchDataset):
         self.include_s1 = include_s1
 
     def create_pastis_masks(
-        self, missing_timestep_indeces_s2: np.ndarray, missing_timestep_indeces_s1: np.ndarray
+        self,
+        missing_timestep_indeces_s2: np.ndarray,
+        missing_timestep_indeces_s1: np.ndarray = None,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Masks unavailable channels and timesteps.
@@ -115,10 +117,10 @@ class PastisPatchDataset(PyTorchDataset):
         )
 
         # mask missing timesteps
-        s_t_m[:, :, missing_timestep_indeces_s2, s_t_channels_s2] = 1
+        s_t_m[:, :, :, s_t_channels_s2][:, :, missing_timestep_indeces_s2, :] = 1
 
         if self.include_s1:
-            s_t_m[:, :, missing_timestep_indeces_s1, s_t_channels_s1] = 1
+            s_t_m[:, :, :, s_t_channels_s1][:, :, missing_timestep_indeces_s1, :] = 1
 
         # no space only / time only channels are available
         s_m = np.ones(
@@ -261,6 +263,11 @@ class PastisPatchDataset(PyTorchDataset):
             s_t_m, s_m, t_m = self.create_pastis_masks(
                 missing_timestep_indeces_s2=missing_timestep_indeces_s2,
                 missing_timestep_indeces_s1=missing_timestep_indeces_s1,
+            )
+
+        else:
+            s_t_m, s_m, t_m = self.create_pastis_masks(
+                missing_timestep_indeces_s2=missing_timestep_indeces_s2,
             )
 
         targets = np.load(
