@@ -86,24 +86,26 @@ class PastisPatchDataset(PyTorchDataset):
         self.include_s1 = include_s1
 
     def create_pastis_masks(
-        self, missing_timestep_indeces: np.ndarray
+        self, missing_timestep_indeces_s2: np.ndarray, missing_timestep_indeces_s1: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Masks unavailable channels and timesteps.
         """
-        if self.include_s1:
-            s_t_channels = [
-                idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S" in key
-            ]
-        else:
-            s_t_channels = [
-                idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S2" in key
-            ]
+        s_t_channels_s2 = [
+            idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S2" in key
+        ]
 
         # everything is masked by default
         s_t_m = np.ones([len(SPACE_TIME_BANDS_GROUPS_IDX)])
         # unmask available bands
-        s_t_m[s_t_channels] = 0
+        s_t_m[s_t_channels_s2] = 0
+
+        if self.include_s1:
+            s_t_channels_s1 = [
+                idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S1" in key
+            ]
+            s_t_m[s_t_channels_s1] = 0
+
         s_t_m = repeat(
             s_t_m,
             "d -> h w t d",
@@ -113,7 +115,10 @@ class PastisPatchDataset(PyTorchDataset):
         )
 
         # mask missing timesteps
-        s_t_m[:, :, missing_timestep_indeces, :] = 1
+        s_t_m[:, :, missing_timestep_indeces_s2, s_t_channels_s2] = 1
+
+        if self.include_s1:
+            s_t_m[:, :, missing_timestep_indeces_s1, s_t_channels_s1] = 1
 
         # no space only / time only channels are available
         s_m = np.ones(
@@ -212,7 +217,7 @@ class PastisPatchDataset(PyTorchDataset):
         )  # 0-indexed months
         assert all(0 <= month <= 11 for month in months_s2)
 
-        s2, months_s2, missing_timestep_indeces = self.average_over_month(s2, months_s2)
+        s2, months_s2, missing_timestep_indeces_s2 = self.average_over_month(s2, months_s2)
 
         kept_dynamic_bands_s2 = [idx for idx, x in enumerate(SPACE_TIME_BANDS) if (x in S2_BANDS)]
         s_t_x[:, :, :, kept_dynamic_bands_s2] = repeat(s2, "t c h w -> h w t c")
@@ -245,11 +250,6 @@ class PastisPatchDataset(PyTorchDataset):
 
             s1, months_s1, missing_timestep_indeces_s1 = self.average_over_month(s1, months_s1)
 
-            # update missing timesteps with s1 missing timesteps
-            missing_timestep_indeces = np.union1d(
-                missing_timestep_indeces, missing_timestep_indeces_s1
-            )
-
             # PASTIS s1 includes channels VV, VH, and VV/VH ratio, we only want VV and VH
             s1 = s1[:, :1, :, :]
 
@@ -258,9 +258,10 @@ class PastisPatchDataset(PyTorchDataset):
             ]
             s_t_x[:, :, :, kept_dynamic_bands_s1] = repeat(s1, "t c h w -> h w t c")
 
-        s_t_m, s_m, t_m = self.create_pastis_masks(
-            missing_timestep_indeces=missing_timestep_indeces
-        )
+            s_t_m, s_m, t_m = self.create_pastis_masks(
+                missing_timestep_indeces_s2=missing_timestep_indeces_s2,
+                missing_timestep_indeces_s1=missing_timestep_indeces_s1,
+            )
 
         targets = np.load(
             data_dir / cast(str, self.data_path) / "ANNOTATIONS/TARGET_{}.npy".format(id)
