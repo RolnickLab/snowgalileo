@@ -16,7 +16,7 @@ from wandb.sdk.wandb_run import Run
 from src.collate_fns import mae_collate_fn
 from src.config import DEFAULT_SEED
 from src.data import Dataset
-from src.data.config import DATA_FOLDER, EE_PROJECT, OUTPUT_FOLDER
+from src.data.config import DATA_FOLDER, EE_PROJECT, OUTPUT_FOLDER, TIFS_FOLDER
 from src.eval import (
     BinaryCropHarvestEval,
     EuroSatEval,
@@ -71,9 +71,7 @@ output_dir = Path(__file__).parent
 
 
 print("Loading dataset and dataloader")
-dataset = Dataset(
-    DATA_FOLDER / "tifs", download=False, cache_folder=DATA_FOLDER / "npys_spacetime_16"
-)
+dataset = Dataset(TIFS_FOLDER, download=False, cache_folder=DATA_FOLDER / "npys_spacetime_16")
 dataloader = DataLoader(
     dataset,
     batch_size=training_config["batch_size"],
@@ -94,8 +92,10 @@ print("Loading models")
 encoder = Encoder(**config["model"]["encoder"]).to(device)
 predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
 print("Loading validation task")
-val_task = EuroSatEval(rgb=True)
-val_task_ts = MultiClassCropHarvestEval()
+val_task_latlons = EuroSatEval(rgb=True, include_latlons=True)
+val_task_no_latlons = EuroSatEval(rgb=True, include_latlons=False)
+val_task_ts_latlons = MultiClassCropHarvestEval(include_latlons=True)
+val_task_ts_no_latlons = MultiClassCropHarvestEval(include_latlons=False)
 
 if wandb_enabled:
     import wandb
@@ -160,29 +160,34 @@ for e in tqdm(range(training_config["num_epochs"])):
         b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
         (
             s_t_x,
-            s_x,
+            sp_x,
             t_x,
+            st_x,
             s_t_m,
-            s_m,
+            sp_m,
             t_m,
+            st_m,
             months,
             expanded_s_t_x,
-            expanded_s_x,
+            expanded_sp_x,
             s_t_m_p,
-            s_m_p,
+            sp_m_p,
             t_m_p,
+            st_m_p,
             patch_size,
         ) = b
 
         with torch.autocast(device_type=device.type, dtype=autocast_device):
-            (p_s_t, p_s, p_t) = predictor(
+            (p_s_t, p_sp, p_t, p_st) = predictor(
                 *encoder(
                     s_t_x,
-                    s_x,
+                    sp_x,
                     t_x,
+                    st_x,
                     s_t_m,
-                    s_m,
+                    sp_m,
                     t_m,
+                    st_m,
                     months.long(),
                     patch_size=patch_size,
                 ),
@@ -191,14 +196,17 @@ for e in tqdm(range(training_config["num_epochs"])):
 
         loss = mae_loss(
             expanded_s_t_x,
-            expanded_s_x,
+            expanded_sp_x,
             t_x,
+            st_x,
             p_s_t,
-            p_s,
+            p_sp,
             p_t,
+            p_st,
             s_t_m_p,
-            s_m_p,
+            sp_m_p,
             t_m_p,
+            st_m_p,
             patch_size=training_config["patch_sizes"][-1],
             loss_type=training_config["mae_loss"],
         )
@@ -249,8 +257,18 @@ for e in tqdm(range(training_config["num_epochs"])):
         if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
             e % training_config["eval_eurosat_every_n_epochs"] == 0
         ):
-            results = val_task.evaluate_model_on_task(encoder, model_modes=["KNNat5", "KNNat20"])
-            results.update(val_task_ts.evaluate_model_on_task(encoder, model_modes=["KNNat5"]))
+            results = val_task_latlons.evaluate_model_on_task(
+                encoder, model_modes=["KNNat5", "KNNat20"]
+            )
+            results.update(
+                val_task_no_latlons.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
+            )
+            results.update(
+                val_task_ts_latlons.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
+            )
+            results.update(
+                val_task_ts_no_latlons.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
+            )
             to_log.update(results)
         wandb.log(to_log)
         plt.close("all")
@@ -261,8 +279,16 @@ torch.save(encoder.state_dict(), model_path / "encoder.pt")
 torch.save(predictor.state_dict(), model_path / "predictor.pt")
 
 eval_tasks: List[EvalTask] = [
-    *[TreeSatEval(mode, patch_size) for mode in ["s1", "s2", "combined"] for patch_size in [6, 3]],
-    *[EuroSatEval(rgb) for rgb in [True, False]],
+    *[
+        TreeSatEval(mode=mode, patch_size=patch_size)
+        for mode in ["s1", "s2", "combined"]
+        for patch_size in [6, 3]
+    ],
+    *[
+        EuroSatEval(rgb=rgb, include_latlons=include_latlons)
+        for rgb in [True, False]
+        for include_latlons in [True, False]
+    ],
     So2SatEval(),
     PastisEval(),
     *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil", "China"]],

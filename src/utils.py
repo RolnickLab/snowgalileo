@@ -42,15 +42,19 @@ def seed_everything(seed: int = DEFAULT_SEED):
     torch.backends.cudnn.benchmark = True
 
 
-def masked_output_np_to_tensor(s_t_x, s_x, t_x, s_t_m, s_m, t_m, month) -> MaskedOutput:
+def masked_output_np_to_tensor(
+    s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, month
+) -> MaskedOutput:
     """converts eval task"""
     return MaskedOutput(
         torch.as_tensor(s_t_x, dtype=torch.float32),
-        torch.as_tensor(s_x, dtype=torch.float32),
+        torch.as_tensor(sp_x, dtype=torch.float32),
         torch.as_tensor(t_x, dtype=torch.float32),
+        torch.as_tensor(st_x, dtype=torch.float32),
         torch.as_tensor(s_t_m, dtype=torch.float32),
-        torch.as_tensor(s_m, dtype=torch.float32),
+        torch.as_tensor(sp_m, dtype=torch.float32),
         torch.as_tensor(t_m, dtype=torch.float32),
+        torch.as_tensor(st_m, dtype=torch.float32),
         torch.as_tensor(month, dtype=torch.long),
     )
 
@@ -153,29 +157,34 @@ def plot_space_time_predictions(
     """
     (
         s_t_x,
-        s_x,
+        sp_x,
         t_x,
+        st_x,
         s_t_m,
-        s_m,
+        sp_m,
         t_m,
+        st_m,
         months,
         expanded_s_t_x,
         _,
         expanded_s_t,
         _,
         _,
+        _,
         patch_size,
     ) = prepared_image
 
     # get predictions with current model
-    (p_s_t, _, _) = predictor(
+    (p_s_t, _, _, _) = predictor(
         *encoder(
             s_t_x.float(),
-            s_x.float(),
+            sp_x.float(),
             t_x.float(),
+            st_x.float(),
             s_t_m.float(),
-            s_m.float(),
+            sp_m.float(),
             t_m.float(),
+            st_m.float(),
             months.long(),
             patch_size=patch_size,
         ),
