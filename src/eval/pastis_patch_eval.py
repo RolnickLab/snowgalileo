@@ -412,6 +412,7 @@ class PastisPatchEval(EvalTask):
         self.input_height_width = self.input_height_width // int(
             sqrt(cast(float, self.num_subtiles_per_image))
         )
+        self.include_latlons = include_latlons
         self.name = f"{self.name}_{self.band_mode}{'_latlons' if include_latlons else ''}_{self.input_height_width}"
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
