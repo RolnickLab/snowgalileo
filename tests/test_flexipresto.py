@@ -62,9 +62,6 @@ class TestPresto(unittest.TestCase):
             months,
             mask_ratio=0.5,
             patch_size=patch_size,
-            time_ratio=0.25,
-            space_ratio=0.25,
-            channel_ratio=0.25,
         )
 
         # for now, we just make sure it all runs
