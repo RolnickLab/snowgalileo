@@ -8,6 +8,8 @@ from src.data.dataset import (
     SPACE_BANDS,
     SPACE_TIME_BANDS,
     SPACE_TIME_BANDS_GROUPS_IDX,
+    STATIC_BAND_GROUPS_IDX,
+    STATIC_BANDS,
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
 )
@@ -80,6 +82,16 @@ class TestPastis(unittest.TestCase):
         self.assertTrue(torch.all(t_x == 0))
         self.assertTrue(torch.all(t_m == 1))
 
+    def check_static(self, st_x, st_m):
+        self.assertEqual(
+            st_x.shape,
+            (len(STATIC_BANDS),),
+        )
+        self.assertEqual(
+            st_m.shape,
+            (len(STATIC_BAND_GROUPS_IDX),),
+        )
+
     def check_month(self, month, num_timesteps):
         self.assertEqual(month.shape, (num_timesteps,))
 
@@ -90,14 +102,14 @@ class TestPastis(unittest.TestCase):
             )
         )
 
-    def test_pastis(self):
-        dataset = PastisPatchDataset(folds=[1, 2, 3], data_path=DATA_FOLDER)
+    def test_pastis_s2(self):
+        dataset = PastisPatchDataset(folds=[1, 2, 3], data_path=DATA_FOLDER, band_mode="s2")
         sample = dataset[1]
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m, m = sample[0]
+        s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, m = sample[0]
         label = sample[1]
 
         self.check_space_time(s_t_x=s_t_x, s_t_m=s_t_m, num_timesteps=12)
-        self.check_space(s_x=s_x, s_m=s_m)
+        self.check_space(s_x=sp_x, s_m=sp_m)
         self.check_time(t_x=t_x, t_m=t_m, num_timesteps=12)
         self.check_month(month=m, num_timesteps=12)
         self.check_target(labels=label)
