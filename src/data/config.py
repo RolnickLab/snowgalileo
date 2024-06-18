@@ -9,15 +9,14 @@ DATASET_OUTPUT_HW = 96
 # TODO: Update when ERA5 gets updated
 START_YEAR = 2022
 END_YEAR = 2023
-EXPORTED_HEIGHT_WIDTH_METRES = 1400
+EXPORTED_HEIGHT_WIDTH_METRES = 1000
 
 EE_PROJECT = "large-earth-model"
 EE_BUCKET_TIFS = "presto-tifs"
-EE_FOLDER_TIFS = "tifs2"
+EE_FOLDER_TIFS = "tifs4"
 
 DATA_FOLDER = Path(__file__).parents[2] / "data"
-
-# OUTPUT FOLDER CONFIGS
+TIFS_FOLDER = DATA_FOLDER / "tifs"
 OUTPUT_FOLDER = DATA_FOLDER / "outputs"
 ENCODER_FILENAME = "encoder.pt"
 DECODER_FILENAME = "decoder.pt"
