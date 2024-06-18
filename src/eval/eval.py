@@ -37,7 +37,7 @@ def model_class_name(model: BaseEstimator) -> str:
 class EvalTask(ABC):
     name: str = "EvalTask"
     regression: bool
-    segmentation: bool = False
+    token_segmentation: bool = False
     multilabel: bool
     input_height_width: int
 
@@ -58,7 +58,7 @@ class EvalTask(ABC):
 
     @classmethod
     def _construct_sklearn_model(cls, model, num_outputs=1) -> BaseEstimator:
-        if cls.multilabel or (cls.segmentation and num_outputs > 1):
+        if cls.multilabel or (cls.token_segmentation and num_outputs > 1):
             model = MultiOutputClassifier(model, n_jobs=num_outputs)
         return model
 
@@ -126,7 +126,7 @@ class EvalTask(ABC):
                 t.to(device) for t in masked_output
             ]
 
-            if self.segmentation:
+            if self.token_segmentation:
                 targets = self.group_targets_per_token(label).cpu().numpy()
 
                 if "pastis_patch" in self.name:
@@ -150,7 +150,7 @@ class EvalTask(ABC):
                     months,
                     patch_size=self.patch_size,
                 )
-                if self.segmentation:
+                if self.token_segmentation:
                     encodings = (
                         self.group_encodings_per_token(
                             pretrained_model, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m

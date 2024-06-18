@@ -151,7 +151,7 @@ class So2SatDataset(PyTorchDataset):
 class So2SatEval(EvalTask):
     name = "so2sat"
     regression = False
-    segmentation = False
+    token_segmentation = False
     multilabel = False
     input_height_width = So2SatDataset.input_height_width
 
