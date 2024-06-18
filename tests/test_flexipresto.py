@@ -16,7 +16,7 @@ from src.data import (
 from src.data.config import CONFIG_FILENAME, ENCODER_FILENAME
 from src.data.dataset import SPACE_BANDS, SPACE_TIME_BANDS, STATIC_BANDS, TIME_BANDS, DatasetOutput
 from src.flexipresto import Encoder, PrestoPixelDecoder
-from src.masking import batch_subset_mask_presto_augmented
+from src.masking import MASKING_MULTIPLIER, batch_subset_mask_presto_augmented
 from src.utils import device, load_check_config
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/tifs"
@@ -82,7 +82,7 @@ class TestPresto(unittest.TestCase):
         self.assertTrue(
             list(encoder_output[0].shape)
             == [
-                1,
+                MASKING_MULTIPLIER,
                 image_size / patch_size,
                 image_size / patch_size,
                 num_timesteps,
@@ -93,7 +93,7 @@ class TestPresto(unittest.TestCase):
         self.assertTrue(
             list(encoder_output[1].shape)
             == [
-                1,
+                MASKING_MULTIPLIER,
                 image_size / patch_size,
                 image_size / patch_size,
                 len(SPACE_BAND_GROUPS_IDX),
@@ -103,7 +103,7 @@ class TestPresto(unittest.TestCase):
         self.assertTrue(
             list(encoder_output[2].shape)
             == [
-                1,
+                MASKING_MULTIPLIER,
                 num_timesteps,
                 len(TIME_BAND_GROUPS_IDX),
                 embedding_size,
@@ -112,7 +112,7 @@ class TestPresto(unittest.TestCase):
         self.assertTrue(
             list(encoder_output[3].shape)
             == [
-                1,
+                MASKING_MULTIPLIER,
                 len(STATIC_BAND_GROUPS_IDX),
                 embedding_size,
             ]
@@ -125,7 +125,7 @@ class TestPresto(unittest.TestCase):
         self.assertTrue(
             list(output[0].shape)
             == [
-                1,
+                MASKING_MULTIPLIER,
                 image_size * (max_patch_size / patch_size),
                 image_size * (max_patch_size / patch_size),
                 num_timesteps,
@@ -135,14 +135,16 @@ class TestPresto(unittest.TestCase):
         self.assertTrue(
             list(output[1].shape)
             == [
-                1,
+                MASKING_MULTIPLIER,
                 image_size * (max_patch_size / patch_size),
                 image_size * (max_patch_size / patch_size),
                 len(SPACE_BANDS),
             ]
         )
-        self.assertTrue(list(output[2].shape) == [1, num_timesteps, len(TIME_BANDS)])
-        self.assertTrue(list(output[3].shape) == [1, len(STATIC_BANDS)])
+        self.assertTrue(
+            list(output[2].shape) == [MASKING_MULTIPLIER, num_timesteps, len(TIME_BANDS)]
+        )
+        self.assertTrue(list(output[3].shape) == [MASKING_MULTIPLIER, len(STATIC_BANDS)])
 
         self.assertFalse(torch.isnan(output[0]).any())
         self.assertFalse(torch.isnan(output[1]).any())
