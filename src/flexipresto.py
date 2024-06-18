@@ -12,7 +12,12 @@ from torch import Tensor, vmap
 from torch.jit import Final
 
 from .config import BASE_GSD
-from .data import SPACE_BAND_GROUPS_IDX, SPACE_TIME_BANDS_GROUPS_IDX, TIME_BAND_GROUPS_IDX
+from .data import (
+    SPACE_BAND_GROUPS_IDX,
+    SPACE_TIME_BANDS_GROUPS_IDX,
+    STATIC_BAND_GROUPS_IDX,
+    TIME_BAND_GROUPS_IDX,
+)
 from .embeddings import (
     get_1d_sincos_pos_embed_from_grid_torch,
     get_2d_sincos_pos_embed_with_resolution,
@@ -362,6 +367,7 @@ class FlexiPrestoBase(nn.Module):
         self.space_time_groups = SPACE_TIME_BANDS_GROUPS_IDX
         self.space_groups = SPACE_BAND_GROUPS_IDX
         self.time_groups = TIME_BAND_GROUPS_IDX
+        self.static_groups = STATIC_BAND_GROUPS_IDX
         self.embedding_size = embedding_size
         self.base_patch_size = base_patch_size
 
@@ -393,11 +399,14 @@ class FlexiPrestoBase(nn.Module):
         self.s_t_channel_embed = nn.Parameter(
             torch.zeros(len(SPACE_TIME_BANDS_GROUPS_IDX), int(embedding_size * 0.25))
         )
-        self.s_channel_embed = nn.Parameter(
+        self.sp_channel_embed = nn.Parameter(
             torch.zeros(len(SPACE_BAND_GROUPS_IDX), int(embedding_size * 0.25))
         )
         self.t_channel_embed = nn.Parameter(
             torch.zeros(len(TIME_BAND_GROUPS_IDX), int(embedding_size * 0.25))
+        )
+        self.st_channel_embed = nn.Parameter(
+            torch.zeros(len(STATIC_BAND_GROUPS_IDX), int(embedding_size * 0.25))
         )
 
         self.apply(self._init_weights)
@@ -413,29 +422,32 @@ class FlexiPrestoBase(nn.Module):
     def collapse_and_combine_hwtc(
         cls,
         s_t_x: torch.Tensor,
-        s_x: torch.Tensor,
+        sp_x: torch.Tensor,
         t_x: torch.Tensor,
+        st_x: torch.Tensor,
         s_t_m: torch.Tensor,
-        s_m: torch.Tensor,
+        sp_m: torch.Tensor,
         t_m: torch.Tensor,
+        st_m: torch.Tensor,
     ):
         s_t_x = rearrange(s_t_x, "b h w t c_g d -> b (h w t c_g) d")
-        s_x = rearrange(s_x, "b h w c_g d -> b (h w c_g) d")
+        sp_x = rearrange(sp_x, "b h w c_g d -> b (h w c_g) d")
         t_x = rearrange(t_x, "b t c_g d -> b (t c_g) d")
 
         s_t_m = rearrange(s_t_m, "b h w t c_g-> b (h w t c_g)")
-        s_m = rearrange(s_m, "b h w c_g-> b (h w c_g)")
+        sp_m = rearrange(sp_m, "b h w c_g-> b (h w c_g)")
         t_m = rearrange(t_m, "b t c_g -> b (t c_g)")
 
         x = torch.cat(
             [
                 s_t_x,
-                s_x,
+                sp_x,
                 t_x,
+                st_x,
             ],
             dim=1,
         )
-        m = torch.cat([s_t_m, s_m, t_m], dim=1)
+        m = torch.cat([s_t_m, sp_m, t_m, st_m], dim=1)
         return x, m
 
     @staticmethod
@@ -525,24 +537,32 @@ class FlexiPrestoBase(nn.Module):
         w: int,
         t: int,
         s_t_c_g: int,
-        s_c_g: int,
+        sp_c_g: int,
         t_c_g: int,
+        st_c_g: int,
     ):
         n_s_t_t = h * w * t * s_t_c_g
         n_t_t = t * t_c_g
 
         s_t_x = rearrange(x[:, :n_s_t_t], "b (h w t c) d -> b h w t c d", h=h, w=w, t=t, c=s_t_c_g)
-        s_x = rearrange(x[:, n_s_t_t:-n_t_t], "b (h w c) d -> b h w c d", h=h, w=w, c=s_c_g)
-        t_x = rearrange(x[:, -n_t_t:], "b (t c) d -> b t c d", t=t, c=t_c_g)
+        sp_x = rearrange(
+            x[:, n_s_t_t : -(n_t_t + st_c_g)], "b (h w c) d -> b h w c d", h=h, w=w, c=sp_c_g
+        )
+        t_x = rearrange(x[:, -(n_t_t + st_c_g) : -st_c_g], "b (t c) d -> b t c d", t=t, c=t_c_g)
+        st_x = x[:, -st_c_g:]
 
         s_t_m = rearrange(m[:, :n_s_t_t], "b (h w t c) -> b h w t c", h=h, w=w, t=t, c=s_t_c_g)
-        s_m = rearrange(m[:, n_s_t_t:-n_t_t], "b (h w c) -> b h w c", h=h, w=w, c=s_c_g)
-        t_m = rearrange(m[:, -n_t_t:], "b (t c) -> b t c", t=t, c=t_c_g)
-        return s_t_x, s_x, t_x, s_t_m, s_m, t_m
+        sp_m = rearrange(
+            m[:, n_s_t_t : -(n_t_t + st_c_g)], "b (h w c) -> b h w c", h=h, w=w, c=sp_c_g
+        )
+        t_m = rearrange(m[:, -(n_t_t + st_c_g) : -st_c_g], "b (t c) -> b t c", t=t, c=t_c_g)
+        st_m = m[:, -st_c_g:]
+        return s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m
 
-    def apply_encodings(self, s_t_x, s_x, t_x, months, patch_size, input_res):
+    def apply_encodings(self, s_t_x, sp_x, t_x, st_x, months, patch_size, input_res):
         b, h, w, t, s_t_c_g, _ = s_t_x.shape
-        s_c_g, t_c_g = s_x.shape[-2], t_x.shape[-2]
+        sp_c_g, t_c_g = sp_x.shape[-2], t_x.shape[-2]
+        st_c_g = st_x.shape[-2]
 
         s_t_channel = repeat(self.s_t_channel_embed, "c_g d -> b h w t c_g d", b=b, h=h, w=w, t=t)
         pos_embed_s_t = repeat(
@@ -557,15 +577,18 @@ class FlexiPrestoBase(nn.Module):
         m_embed_t = repeat(self.month_embed(months), "b t d -> b t c_g d", c_g=t_c_g)
         t_zeros = torch.zeros(b, t, t_c_g, int(self.embedding_size * 0.25), device=t_x.device)
 
-        s_channel = repeat(self.s_channel_embed, "c_g d -> b h w c_g d", b=b, h=h, w=w)
-        s_zeros = torch.zeros(
+        sp_channel = repeat(self.sp_channel_embed, "c_g d -> b h w c_g d", b=b, h=h, w=w)
+        sp_zeros = torch.zeros(
             b,
             h,
             w,
-            s_c_g,
-            s_channel.shape[-1] * 2,
-            device=s_channel.device,
+            sp_c_g,
+            sp_channel.shape[-1] * 2,
+            device=sp_channel.device,
         )
+
+        st_channel = repeat(self.st_channel_embed, "c_g d -> b c_g d", b=b)
+        st_zeros = torch.zeros(b, st_c_g, st_channel.shape[-1] * 3, device=st_channel.device)
 
         # find the resolution that each token represents, which will be
         # the number of pixels in a patch * the resolution of each pixel
@@ -585,19 +608,23 @@ class FlexiPrestoBase(nn.Module):
         spatial_embed_s_t = repeat(
             spatial_embed, "b h w d -> b h w t c_g d", h=h, w=w, t=t, c_g=s_t_c_g
         )
-        spatial_embed_s = repeat(spatial_embed, "b h w d -> b h w c_g d", h=h, w=w, c_g=s_c_g)
+        spatial_embed_s = repeat(spatial_embed, "b h w d -> b h w c_g d", h=h, w=w, c_g=sp_c_g)
 
         s_t_embed = torch.cat([s_t_channel, pos_embed_s_t, m_embed_s_t, spatial_embed_s_t], dim=-1)
-        s_embed = torch.cat([s_channel, s_zeros, spatial_embed_s], dim=-1)
+        sp_embed = torch.cat([sp_channel, sp_zeros, spatial_embed_s], dim=-1)
         t_embed = torch.cat([t_channel, pos_embed_t, m_embed_t, t_zeros], dim=-1)
-        return s_t_x + s_t_embed, s_x + s_embed, t_x + t_embed
+        st_embed = torch.cat([st_channel, st_zeros], dim=-1)
+        return s_t_x + s_t_embed, sp_x + sp_embed, t_x + t_embed, st_x + st_embed
 
-    def apply_attn(self, s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size, input_res):
-        # todo - add encodings
+    def apply_attn(
+        self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_res
+    ):
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
-        s_c_g, t_c_g = s_x.shape[3], t_x.shape[-2]
-        s_t_x, s_x, t_x = self.apply_encodings(s_t_x, s_x, t_x, months, patch_size, input_res)
-        x, m = self.collapse_and_combine_hwtc(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
+        sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
+        s_t_x, sp_x, t_x, st_x = self.apply_encodings(
+            s_t_x, sp_x, t_x, st_x, months, patch_size, input_res
+        )
+        x, m = self.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
         if not self.cross_attn:
             x, indices, m = self.remove_masked_tokens(x, m)
             for blk in self.blocks:
@@ -606,13 +633,13 @@ class FlexiPrestoBase(nn.Module):
                 # attention
                 x = blk(x=x, y=None, attn_mask=~m.bool())
             x, m = self.add_removed_tokens(x, indices, m)
-            return self.split_and_expand_hwtc(x, m, h, w, t, s_t_c_g, s_c_g, t_c_g)
+            return self.split_and_expand_hwtc(x, m, h, w, t, s_t_c_g, sp_c_g, t_c_g, st_c_g)
         else:
             x, y, x_mask, y_mask, indices = self.split_x_y(x, m)
             for blk in self.blocks:
                 x = blk(x=x, y=y, attn_mask=~y_mask.bool())
             x, m = self.combine_x_y(x, y, x_mask, y_mask, indices)
-            return self.split_and_expand_hwtc(x, m, h, w, t, s_t_c_g, s_c_g, t_c_g)
+            return self.split_and_expand_hwtc(x, m, h, w, t, s_t_c_g, sp_c_g, t_c_g, st_c_g)
 
 
 class Encoder(FlexiPrestoBase):
@@ -658,6 +685,12 @@ class Encoder(FlexiPrestoBase):
                 for group_name, group in self.time_groups.items()
             }
         )
+        self.static_embed = nn.ModuleDict(
+            {
+                group_name: nn.Linear(in_features=len(group), out_features=embedding_size)
+                for group_name, group in self.static_groups.items()
+            }
+        )
 
         self.norm = nn.LayerNorm(embedding_size)
 
@@ -673,11 +706,13 @@ class Encoder(FlexiPrestoBase):
     def apply_linear_projection(
         self,
         s_t_x: torch.Tensor,
-        s_x: torch.Tensor,
+        sp_x: torch.Tensor,
         t_x: torch.Tensor,
+        st_x: torch.Tensor,
         s_t_m: torch.Tensor,
-        s_m: torch.Tensor,
+        sp_m: torch.Tensor,
         t_m: torch.Tensor,
+        st_m: torch.Tensor,
         patch_size: Optional[int],
     ):
         """
@@ -690,7 +725,7 @@ class Encoder(FlexiPrestoBase):
         [1, 1, 0, 0]
         for the H, W dimensions
         """
-        s_t_l, s_l, t_l, s_t_m_l, s_m_l, t_m_l = [], [], [], [], [], []
+        s_t_l, sp_l, t_l, st_l, s_t_m_l, sp_m_l, t_m_l, st_m_l = [], [], [], [], [], [], [], []
         for idx, (channel_group, channel_idxs) in enumerate(self.space_time_groups.items()):
             s_t_l.append(
                 self.space_time_embed[channel_group](
@@ -699,27 +734,33 @@ class Encoder(FlexiPrestoBase):
             )
             s_t_m_l.append(s_t_m[:, 0::patch_size, 0::patch_size, :, idx])
         for idx, (channel_group, channel_idxs) in enumerate(self.space_groups.items()):
-            s_l.append(
-                self.space_embed[channel_group](s_x[:, :, :, channel_idxs], patch_size=patch_size)
+            sp_l.append(
+                self.space_embed[channel_group](sp_x[:, :, :, channel_idxs], patch_size=patch_size)
             )
-            s_m_l.append(s_m[:, 0::patch_size, 0::patch_size, idx])
+            sp_m_l.append(sp_m[:, 0::patch_size, 0::patch_size, idx])
 
         for idx, (channel_group, channel_idxs) in enumerate(self.time_groups.items()):
             t_l.append(self.time_embed[channel_group](t_x[:, :, channel_idxs]))
             t_m_l.append(t_m[:, :, idx])
 
+        for idx, (channel_group, channel_idxs) in enumerate(self.static_groups.items()):
+            st_l.append(self.static_embed[channel_group](st_x[:, channel_idxs]))
+            st_m_l.append(st_m[:, idx])
+
         return (
             torch.stack(s_t_l, dim=-2),
-            torch.stack(s_l, dim=-2),
+            torch.stack(sp_l, dim=-2),
             torch.stack(t_l, dim=-2),
+            torch.stack(st_l, dim=-2),
             torch.stack(s_t_m_l, dim=-1),
-            torch.stack(s_m_l, dim=-1),
+            torch.stack(sp_m_l, dim=-1),
             torch.stack(t_m_l, dim=-1),
+            torch.stack(st_m_l, dim=-1),
         )
 
     @classmethod
-    def average_tokens(cls, s_t_x, s_x, t_x, s_t_m, s_m, t_m):
-        x, m = cls.collapse_and_combine_hwtc(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
+    def average_tokens(cls, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m):
+        x, m = cls.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
         x, _, m = cls.remove_masked_tokens(x, m)
         x_for_mean = x * (1 - m.unsqueeze(-1))
         return x_for_mean.sum(dim=1) / torch.sum(1 - m, -1, keepdim=True)
@@ -754,23 +795,44 @@ class Encoder(FlexiPrestoBase):
     def forward(
         self,
         s_t_x: torch.Tensor,
-        s_x: torch.Tensor,
+        sp_x: torch.Tensor,
         t_x: torch.Tensor,
+        st_x: torch.Tensor,
         s_t_m: torch.Tensor,
-        s_m: torch.Tensor,
+        sp_m: torch.Tensor,
         t_m: torch.Tensor,
+        st_m: torch.Tensor,
         months: torch.Tensor,
         patch_size: Optional[int] = None,
         input_resolution_m: Optional[int] = BASE_GSD,
     ):
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m = self.apply_linear_projection(
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, patch_size
+        (
+            s_t_x,
+            sp_x,
+            t_x,
+            st_x,
+            s_t_m,
+            sp_m,
+            t_m,
+            st_m,
+        ) = self.apply_linear_projection(
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, patch_size
         )
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m = self.apply_attn(
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size, input_resolution_m
+        s_t_x, sp_x, t_x, st_x, s_t_m, st_m, t_m, st_m = self.apply_attn(
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_resolution_m
         )
 
-        return self.norm(s_t_x), self.norm(s_x), self.norm(t_x), s_t_m, s_m, t_m, months
+        return (
+            self.norm(s_t_x),
+            self.norm(sp_x),
+            self.norm(t_x),
+            self.norm(st_x),
+            s_t_m,
+            sp_m,
+            t_m,
+            st_m,
+            months,
+        )
 
 
 class PrestoPixelDecoder(FlexiPrestoBase):
@@ -818,47 +880,69 @@ class PrestoPixelDecoder(FlexiPrestoBase):
                 for group_name, group in self.time_groups.items()
             }
         )
+        self.static_embed = nn.ModuleDict(
+            {
+                group_name: nn.Linear(decoder_embedding_size, len(group))
+                for group_name, group in self.static_groups.items()
+            }
+        )
         self.norm = nn.LayerNorm(decoder_embedding_size)
 
-    def add_masks(self, s_t_x, s_x, t_x, s_t_m, s_m, t_m):
+    def add_masks(self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m):
         s_t_x = s_t_x * (1 - s_t_m).unsqueeze(-1)
         B, H, W, T, S_T_C, _ = s_t_x.shape
         s_t_m_reshaped = repeat(self.mask_token, "d -> b h w t c d", b=B, h=H, w=W, t=T, c=S_T_C)
         s_t_m_add = s_t_m_reshaped * s_t_m.unsqueeze(-1)
 
-        s_x = s_x * (1 - s_m).unsqueeze(-1)
-        S_C = s_x.shape[-2]
-        s_m_reshaped = repeat(self.mask_token, "d -> b h w c d", b=B, h=H, w=W, c=S_C)
-        s_m_add = s_m_reshaped * s_m.unsqueeze(-1)
+        sp_x = sp_x * (1 - sp_m).unsqueeze(-1)
+        SP_C = sp_x.shape[-2]
+        sp_m_reshaped = repeat(self.mask_token, "d -> b h w c d", b=B, h=H, w=W, c=SP_C)
+        sp_m_add = sp_m_reshaped * sp_m.unsqueeze(-1)
 
         t_x = t_x * (1 - t_m).unsqueeze(-1)
         T_C = t_x.shape[-2]
         t_m_reshaped = repeat(self.mask_token, "d -> b t c d", b=B, t=T, c=T_C)
         t_m_add = t_m_reshaped * t_m.unsqueeze(-1)
 
-        return s_t_x + s_t_m_add, s_x + s_m_add, t_x + t_m_add
+        st_x = st_x * (1 - st_m).unsqueeze(-1)
+        ST_C = st_x.shape[-2]
+        st_m_reshaped = repeat(self.mask_token, "d -> b c d", b=B, c=ST_C)
+        st_m_add = st_m_reshaped * st_m.unsqueeze(-1)
+
+        return (
+            s_t_x + s_t_m_add,
+            sp_x + sp_m_add,
+            t_x + t_m_add,
+            st_x + st_m_add,
+        )
 
     def forward(
         self,
         s_t_x: torch.Tensor,
-        s_x: torch.Tensor,
+        sp_x: torch.Tensor,
         t_x: torch.Tensor,
+        st_x: torch.Tensor,
         s_t_m: torch.Tensor,
-        s_m: torch.Tensor,
+        sp_m: torch.Tensor,
         t_m: torch.Tensor,
+        st_m: torch.Tensor,
         months: torch.Tensor,
         patch_size: Optional[int] = None,
         input_resolution_m: Optional[int] = BASE_GSD,
     ):
         s_t_x = self.encoder_to_decoder_embed(s_t_x)
-        s_x = self.encoder_to_decoder_embed(s_x)
+        sp_x = self.encoder_to_decoder_embed(sp_x)
         t_x = self.encoder_to_decoder_embed(t_x)
+        st_x = self.encoder_to_decoder_embed(st_x)
 
-        s_t_x, s_x, t_x = self.add_masks(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m = self.apply_attn(
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size, input_resolution_m
+        s_t_x, sp_x, t_x, st_x = self.add_masks(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
+        s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m = self.apply_attn(
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_resolution_m
         )
-        output_s_t, output_s, output_t = [], [], []
+        s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m = self.apply_attn(
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_resolution_m
+        )
+        output_s_t, output_sp, output_t, output_st = [], [], [], []
         for idx, (group_name, c_g) in enumerate(self.space_time_groups.items()):
             # decoded has shape [b, h, w, t, len(c_g) * patch_size ** 2]
             decoded = self.space_time_embed[group_name](self.norm(s_t_x[:, :, :, :, idx]))
@@ -874,8 +958,8 @@ class PrestoPixelDecoder(FlexiPrestoBase):
 
         for idx, (group_name, c_g) in enumerate(self.space_groups.items()):
             # decoded has shape [b, h, w, len(c_g) * patch_size ** 2]
-            decoded = self.space_embed[group_name](self.norm(s_x[:, :, :, idx]))
-            output_s.append(
+            decoded = self.space_embed[group_name](self.norm(sp_x[:, :, :, idx]))
+            output_sp.append(
                 rearrange(
                     decoded,
                     "b t_h t_w (c_g p_h p_w) -> b (t_h p_h) (t_w p_w) c_g",
@@ -889,8 +973,13 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             decoded = self.time_embed[group_name](self.norm(t_x[:, :, idx]))
             output_t.append(decoded)
 
+        for idx, (group_name, c_g) in enumerate(self.static_groups.items()):
+            decoded = self.static_embed[group_name](self.norm(st_x[:, idx]))
+            output_st.append(decoded)
+
         return (
             torch.cat(output_s_t, dim=-1),
-            torch.cat(output_s, dim=-1),
+            torch.cat(output_sp, dim=-1),
             torch.cat(output_t, dim=-1),
+            torch.cat(output_st, dim=-1),
         )

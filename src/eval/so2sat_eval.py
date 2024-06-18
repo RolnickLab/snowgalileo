@@ -16,6 +16,8 @@ from ..data.dataset import (
     SPACE_BANDS,
     SPACE_TIME_BANDS,
     SPACE_TIME_BANDS_GROUPS_IDX,
+    STATIC_BAND_GROUPS_IDX,
+    STATIC_BANDS,
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
     normalize_space_time,
@@ -72,7 +74,7 @@ class So2SatDataset(PyTorchDataset):
 
         return image, label
 
-    def create_so2sat_masks(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def create_so2sat_masks(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         s_t_channels = [idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S" in key]
 
         # everything is masked by default
@@ -88,16 +90,18 @@ class So2SatDataset(PyTorchDataset):
         )
 
         # no static channels are available
-        s_m = np.ones(
+        sp_m = np.ones(
             [self.input_height_width, self.input_height_width, len(SPACE_BAND_GROUPS_IDX)]
         )
         t_m = np.ones([self.num_timesteps, len(TIME_BAND_GROUPS_IDX)])
+        st_m = np.ones([len(STATIC_BAND_GROUPS_IDX)])
 
         assert ((s_t_m == 0) | (s_t_m == 1)).all()
-        assert (s_m == 1).all()
+        assert (sp_m == 1).all()
         assert (t_m == 1).all()
+        assert (st_m == 1).all()
 
-        return (s_t_m, s_m, t_m)
+        return (s_t_m, sp_m, t_m, st_m)
 
     def image_to_space_time_array(self, image: np.ndarray) -> np.ndarray:
         kept_dynamic_bands = [
@@ -123,15 +127,19 @@ class So2SatDataset(PyTorchDataset):
         s_t_x = self.image_to_space_time_array(image)
 
         # space only / time only bands are not provided by so2sat
-        s_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
+        sp_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
         t_x = np.zeros((s_t_x.shape[2], len(TIME_BANDS)))
+        st_x = np.zeros((len(STATIC_BANDS)))
 
-        s_t_m, s_m, t_m = self.masks
+        s_t_m, sp_m, t_m, st_m = self.masks
         month = np.zeros((self.num_timesteps,))
 
         label_torch = torch.tensor(label, dtype=torch.long)
 
-        return (masked_output_np_to_tensor(s_t_x, s_x, t_x, s_t_m, s_m, t_m, month), label_torch)
+        return (
+            masked_output_np_to_tensor(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, month),
+            label_torch,
+        )
 
     def __len__(self) -> int:
         if self._len is None:
@@ -180,16 +188,29 @@ class So2SatEval(EvalTask):
         labels_list = []
 
         for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = [
+                t.to(device) for t in masked_output
+            ]
 
             pretrained_model.eval()
 
             with torch.no_grad():
-                s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
-                    s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
+                s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = pretrained_model(
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                    patch_size=self.patch_size,
                 )
                 encodings = (
-                    pretrained_model.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m).cpu().numpy()
+                    pretrained_model.average_tokens(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
+                    .cpu()
+                    .numpy()
                 )
 
             labels_list.append(label.cpu().numpy())
