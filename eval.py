@@ -30,8 +30,16 @@ args = argparser.parse_args().__dict__
 encoder = Encoder.load_from_folder(Path(args["output_folder"]))
 
 eval_tasks: List[EvalTask] = [
-    *[TreeSatEval(mode, patch_size) for mode in ["s1", "s2", "combined"] for patch_size in [6, 3]],
-    *[EuroSatEval(rgb) for rgb in [True, False]],
+    *[
+        TreeSatEval(mode=mode, patch_size=patch_size)
+        for mode in ["s1", "s2", "combined"]
+        for patch_size in [6, 3]
+    ],
+    *[
+        EuroSatEval(rgb=rgb, include_latlons=include_latlons)
+        for rgb in [True, False]
+        for include_latlons in [True, False]
+    ],
     So2SatEval(),
     PastisEval(),
     *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil", "China"]],
