@@ -1,6 +1,8 @@
 import collections.abc
 import itertools
+import json
 import math
+from pathlib import Path
 from typing import Any, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -18,11 +20,13 @@ from .data import (
     STATIC_BAND_GROUPS_IDX,
     TIME_BAND_GROUPS_IDX,
 )
+from .data.config import CONFIG_FILENAME, ENCODER_FILENAME
 from .embeddings import (
     get_1d_sincos_pos_embed_from_grid_torch,
     get_2d_sincos_pos_embed_with_resolution,
     get_month_encoding_table,
 )
+from .utils import device
 
 
 def adjust_learning_rate(optimizer, epoch, warmup_epochs, total_epochs, start_lr, max_lr, min_lr):
@@ -837,6 +841,18 @@ class Encoder(FlexiPrestoBase):
             st_m,
             months,
         )
+
+    @classmethod
+    def load_from_folder(cls, folder: Path):
+        assert (folder / CONFIG_FILENAME).exists(), f"Missing {CONFIG_FILENAME}"
+        assert (folder / ENCODER_FILENAME).exists(), f"Missing {ENCODER_FILENAME}"
+
+        with (folder / CONFIG_FILENAME).open("r") as f:
+            encoder_config = json.load(f)["model"]["encoder"]
+
+        encoder = cls(**encoder_config)
+        encoder.load_state_dict(torch.load(folder / ENCODER_FILENAME, map_location=device))
+        return encoder
 
 
 class PrestoPixelDecoder(FlexiPrestoBase):

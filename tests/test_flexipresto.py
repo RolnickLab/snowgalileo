@@ -1,3 +1,5 @@
+import json
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -11,10 +13,11 @@ from src.data import (
     TIME_BAND_GROUPS_IDX,
     Dataset,
 )
+from src.data.config import CONFIG_FILENAME, ENCODER_FILENAME
 from src.data.dataset import SPACE_BANDS, SPACE_TIME_BANDS, STATIC_BANDS, TIME_BANDS, DatasetOutput
 from src.flexipresto import Encoder, PrestoPixelDecoder
 from src.masking import batch_mask_presto, subset_batch_of_images
-from src.utils import device
+from src.utils import device, load_check_config
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/tifs"
 
@@ -284,3 +287,17 @@ class TestPresto(unittest.TestCase):
         new_tokens, new_mask = Encoder.combine_x_y(x, y, x_mask, y_mask, indices)
         self.assertTrue(torch.equal(new_tokens, tokens))
         self.assertTrue(torch.equal(new_mask, mask))
+
+    def test_load_from_device(self):
+        config = load_check_config("medium.json", "mae")
+        original_encoder = Encoder(**config["model"]["encoder"])
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            torch.save(original_encoder.state_dict(), Path(tempdir) / ENCODER_FILENAME)
+            with (Path(tempdir) / CONFIG_FILENAME).open("w") as f:
+                json.dump(config, f)
+
+            new_encoder = Encoder.load_from_folder(Path(tempdir))
+
+        for key, val in new_encoder.state_dict().items():
+            self.assertTrue(torch.equal(val, original_encoder.state_dict()[key]))
