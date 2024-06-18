@@ -394,7 +394,7 @@ class PastisPatchEval(EvalTask):
     name = "pastis_patch"
     regression = False
     multilabel = False
-    segmentation = True
+    token_segmentation = True
     input_height_width = PastisPatchDataset.input_height_width
 
     def __init__(

@@ -445,7 +445,7 @@ class PastisPixelEval(EvalTask):
     name = "pastis_pixel"
     regression = False
     multilabel = False
-    segmentation = False
+    token_segmentation = False
     input_height_width = PastisPixelDataset.input_height_width
 
     def __init__(

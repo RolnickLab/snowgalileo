@@ -244,7 +244,7 @@ class TreeSatDataset(Dataset):
 class TreeSatEval(EvalTask):
     name = "treesat"
     regression = False
-    segmentation = False
+    token_segmentation = False
     multilabel = True
     input_height_width = TreeSatDataset.input_height_width
 
