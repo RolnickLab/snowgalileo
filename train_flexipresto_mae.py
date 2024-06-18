@@ -16,7 +16,15 @@ from wandb.sdk.wandb_run import Run
 from src.collate_fns import mae_collate_fn
 from src.config import DEFAULT_SEED
 from src.data import Dataset
-from src.data.config import DATA_FOLDER, EE_PROJECT, OUTPUT_FOLDER, TIFS_FOLDER
+from src.data.config import (
+    CONFIG_FILENAME,
+    DATA_FOLDER,
+    DECODER_FILENAME,
+    EE_PROJECT,
+    ENCODER_FILENAME,
+    OUTPUT_FOLDER,
+    TIFS_FOLDER,
+)
 from src.eval import (
     BinaryCropHarvestEval,
     EuroSatEval,
@@ -275,8 +283,10 @@ for e in tqdm(range(training_config["num_epochs"])):
 
 model_path = OUTPUT_FOLDER / timestamp_dirname(run_id)
 model_path.mkdir()
-torch.save(encoder.state_dict(), model_path / "encoder.pt")
-torch.save(predictor.state_dict(), model_path / "predictor.pt")
+torch.save(encoder.state_dict(), model_path / ENCODER_FILENAME)
+torch.save(predictor.state_dict(), model_path / DECODER_FILENAME)
+with (model_path / CONFIG_FILENAME).open("w") as f:
+    json.dump(config, f)
 
 eval_tasks: List[EvalTask] = [
     *[
