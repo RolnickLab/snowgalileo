@@ -71,9 +71,13 @@ class EvalTask(ABC):
         )
 
     @torch.no_grad()
-    def group_encodings_per_token(self, model, s_t_x, s_x, t_x, s_t_m, s_m, t_m) -> torch.Tensor:
+    def group_encodings_per_token(
+        self, model, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m
+    ) -> torch.Tensor:
         encodings = rearrange(
-            model.apply_mask_and_average_tokens_per_patch(s_t_x, s_x, t_x, s_t_m, s_m, t_m),
+            model.apply_mask_and_average_tokens_per_patch(
+                s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m
+            ),
             "b n_t n_f -> (b n_t) n_f",
         )
         return encodings
@@ -118,7 +122,9 @@ class EvalTask(ABC):
         encodings_list, targets_list = [], []
 
         for masked_output, label in tqdm(train_dl, desc="Computing encodings for sklearn"):
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = [
+                t.to(device) for t in masked_output
+            ]
 
             if self.segmentation:
                 targets = self.group_targets_per_token(label).cpu().numpy()
@@ -147,7 +153,7 @@ class EvalTask(ABC):
                 if self.segmentation:
                     encodings = (
                         self.group_encodings_per_token(
-                            pretrained_model, s_t_x, s_x, t_x, s_t_m, s_m, t_m
+                            pretrained_model, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m
                         )
                         .cpu()
                         .numpy()
@@ -159,7 +165,9 @@ class EvalTask(ABC):
                     encodings_list.append(encodings)
                 else:
                     encodings_list.append(
-                        pretrained_model.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
+                        pretrained_model.average_tokens(
+                            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m
+                        )
                         .cpu()
                         .numpy()
                     )

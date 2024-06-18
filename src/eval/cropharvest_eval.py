@@ -239,6 +239,7 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
             include_latlons=include_latlons,
             patch_size=1,
             seed=seed,
+            num_outputs=num_outputs,
         )
 
         download_cropharvest_data()
@@ -342,6 +343,7 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
             patch_size=1,
             seed=seed,
             include_latlons=include_latlons,
+            num_outputs=num_outputs,
         )
 
         download_cropharvest_data()

@@ -83,7 +83,7 @@ class TestEval(unittest.TestCase):
                 model_dim,
             )
         )
-        s_x = torch.zeros(
+        sp_x = torch.zeros(
             (
                 batch_size,
                 height // int(sqrt(nr_pixels_per_token)),
@@ -93,6 +93,7 @@ class TestEval(unittest.TestCase):
             )
         )
         t_x = torch.zeros((batch_size, nr_timesteps, 4, model_dim))
+        st_x = torch.zeros((batch_size, 2, model_dim))
         s_t_m = torch.zeros(
             (
                 batch_size,
@@ -102,7 +103,7 @@ class TestEval(unittest.TestCase):
                 2,
             )
         )
-        s_m = torch.zeros(
+        sp_m = torch.zeros(
             (
                 batch_size,
                 height // int(sqrt(nr_pixels_per_token)),
@@ -111,19 +112,24 @@ class TestEval(unittest.TestCase):
             )
         )
         t_m = torch.zeros((batch_size, nr_timesteps, 4))
+        st_m = torch.zeros((batch_size, 2))
 
         # insert ones to check if they are at the right place
         tar_torch[0][0][0] = 1
         tar_torch[1][5][2] = 1
         s_t_x[0][0][0] = 1
         s_t_x[1][1][0] = 1
-        s_x[0][0][0] = 1
-        s_x[1][1][0] = 1
+        sp_x[0][0][0] = 1
+        sp_x[1][1][0] = 1
         t_x[0] = 1
         t_x[1] = 1
+        st_x[0] = 1
+        st_x[1] = 1
 
         tar_torch = eval.group_targets_per_token(tar_torch)
-        enc_torch = eval.group_encodings_per_token(model, s_t_x, s_x, t_x, s_t_m, s_m, t_m)
+        enc_torch = eval.group_encodings_per_token(
+            model, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m
+        )
 
         assert tar_torch.shape == (nr_tokens, nr_pixels_per_token)
         assert 1 in np.nditer(tar_torch[0])

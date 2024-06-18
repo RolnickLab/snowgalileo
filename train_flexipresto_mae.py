@@ -284,16 +284,24 @@ eval_tasks: List[EvalTask] = [
         PastisPatchEval(
             num_outputs=num_outputs,
             num_subtiles_per_image=num_subtiles_per_image,
-            include_s1=include_s1,
+            band_mode=band_mode,
         )
         # 19 will one-hot encode classes per token, 1 will use the mode class
         for num_outputs in [19, 1]
         # 4 has input hw 64, 16 has input hw 32
         for num_subtiles_per_image in [4, 16]
-        for include_s1 in [True, False]
+        for band_mode in ["combined", "s2"]
     ],
-    *[TreeSatEval(mode=mode, patch_size=patch_size) for mode in ["s1", "s2", "combined"] for patch_size in [6, 3]],
-    *[EuroSatEval(rgb=rgb, include_latlons=include_latlons) for rgb in [True, False] for include_latlons in [True, False]],
+    *[
+        TreeSatEval(mode=mode, patch_size=patch_size)
+        for mode in ["s1", "s2", "combined"]
+        for patch_size in [6, 3]
+    ],
+    *[
+        EuroSatEval(rgb=rgb, include_latlons=include_latlons)
+        for rgb in [True, False]
+        for include_latlons in [True, False]
+    ],
     So2SatEval(),
     PastisPixelEval(),
     *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil", "China"]],
