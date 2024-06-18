@@ -1,12 +1,15 @@
 # https://github.com/nasaharvest/openmapflow/blob/main/openmapflow/ee_exporter.py
 import json
 import os
+import shutil
 from datetime import date, timedelta
+from pathlib import Path
 from typing import List, Optional, Union
 
 import ee
 import numpy as np
 import pandas as pd
+import requests
 from pandas.compat._optional import import_optional_dependency
 from tqdm import tqdm
 
@@ -18,6 +21,7 @@ from ..config import (
     END_YEAR,
     EXPORTED_HEIGHT_WIDTH_METRES,
     START_YEAR,
+    TIFS_FOLDER,
 )
 from .dynamic_world import (
     DW_BANDS,
@@ -27,6 +31,12 @@ from .dynamic_world import (
 )
 from .ee_bbox import EEBoundingBox
 from .era5 import ERA5_BANDS, ERA5_DIV_VALUES, ERA5_SHIFT_VALUES, get_single_era5_image
+from .landscan import (
+    LANDSCAN_BANDS,
+    LANDSCAN_DIV_VALUES,
+    LANDSCAN_SHIFT_VALUES,
+    get_single_landscan_image,
+)
 from .s1 import (
     S1_BANDS,
     S1_DIV_VALUES,
@@ -36,32 +46,43 @@ from .s1 import (
 )
 from .s2 import S2_BANDS, S2_DIV_VALUES, S2_SHIFT_VALUES, get_single_s2_image
 from .srtm import SRTM_BANDS, SRTM_DIV_VALUES, SRTM_SHIFT_VALUES, get_single_srtm_image
+from .terraclimate import TC_BANDS, TC_DIV_VALUES, TC_SHIFT_VALUES, get_single_terraclimate_image
+from .viirs import VIIRS_BANDS, VIIRS_DIV_VALUES, VIIRS_SHIFT_VALUES, get_single_viirs_image
+from .worldcereal import WC_BANDS, WC_DIV_VALUES, WC_SHIFT_VALUES, get_single_wc_image
 
 # dataframe constants when exporting the labels
 LAT = "lat"
 LON = "lon"
-SURROUNDING_METRES = EXPORTED_HEIGHT_WIDTH_METRES / 2
 START_DATE = date(START_YEAR, 1, 1)
 END_DATE = date(END_YEAR, 12, 31)
 
 TIME_IMAGE_FUNCTIONS = [
     get_single_s2_image,
     get_single_era5_image,
+    get_single_terraclimate_image,
+    get_single_viirs_image,
 ]
 SPACE_TIME_BANDS = S1_BANDS + S2_BANDS
 SPACE_TIME_SHIFT_VALUES = np.array(S1_SHIFT_VALUES + S2_SHIFT_VALUES)
 SPACE_TIME_DIV_VALUES = np.array(S1_DIV_VALUES + S2_DIV_VALUES)
 
-TIME_BANDS = ERA5_BANDS
-TIME_SHIFT_VALUES = np.array(ERA5_SHIFT_VALUES)
-TIME_DIV_VALUES = np.array(ERA5_DIV_VALUES)
+TIME_BANDS = ERA5_BANDS + TC_BANDS + VIIRS_BANDS
+TIME_SHIFT_VALUES = np.array(ERA5_SHIFT_VALUES + TC_SHIFT_VALUES + VIIRS_SHIFT_VALUES)
+TIME_DIV_VALUES = np.array(ERA5_DIV_VALUES + TC_DIV_VALUES + VIIRS_DIV_VALUES)
 
 ALL_DYNAMIC_IN_TIME_BANDS = SPACE_TIME_BANDS + TIME_BANDS
 
-SPACE_BANDS = SRTM_BANDS + DW_BANDS
-SPACE_IMAGE_FUNCTIONS = [get_single_srtm_image, get_single_dw_image]
-SPACE_SHIFT_VALUES = np.array(SRTM_SHIFT_VALUES + DW_SHIFT_VALUES)
-SPACE_DIV_VALUES = np.array(SRTM_DIV_VALUES + DW_DIV_VALUES)
+SPACE_BANDS = SRTM_BANDS + DW_BANDS + WC_BANDS
+SPACE_IMAGE_FUNCTIONS = [get_single_srtm_image, get_single_dw_image, get_single_wc_image]
+SPACE_SHIFT_VALUES = np.array(SRTM_SHIFT_VALUES + DW_SHIFT_VALUES + WC_SHIFT_VALUES)
+SPACE_DIV_VALUES = np.array(SRTM_DIV_VALUES + DW_DIV_VALUES + WC_DIV_VALUES)
+
+STATIC_IMAGE_FUNCTIONS = [get_single_landscan_image]
+# we will add latlons in dataset.py function
+LOCATION_BANDS = ["x", "y", "z"]
+STATIC_BANDS = LANDSCAN_BANDS + LOCATION_BANDS
+STATIC_SHIFT_VALUES = np.array(LANDSCAN_SHIFT_VALUES + [0, 0, 0])
+STATIC_DIV_VALUES = np.array(LANDSCAN_DIV_VALUES + [1, 1, 1])
 
 
 def get_ee_task_list(key: str = "description") -> List[str]:
@@ -191,7 +212,15 @@ def create_ee_image(
 
     # finally, we add the static in time images
     total_image_list: List[ee.Image] = [img]
-    for static_image_function in SPACE_IMAGE_FUNCTIONS:
+    for space_image_function in SPACE_IMAGE_FUNCTIONS:
+        total_image_list.append(
+            space_image_function(
+                region=polygon,
+                start_date=start_date - timedelta(days=31),
+                end_date=end_date + timedelta(days=31),
+            )
+        )
+    for static_image_function in STATIC_IMAGE_FUNCTIONS:
         total_image_list.append(
             static_image_function(
                 region=polygon,
@@ -236,15 +265,29 @@ class EarthEngineExporter:
         check_ee: bool = False,
         check_gcp: bool = False,
         credentials=None,
+        mode: str = "batch",
     ) -> None:
+        assert mode in ["batch", "url"]
+        self.mode = mode
+        if mode == "url":
+            print(f"Mode: url. Files will be saved to {TIFS_FOLDER} and rsynced to google cloud")
+        self.surrounding_metres = EXPORTED_HEIGHT_WIDTH_METRES / 2
         self.dest_bucket = dest_bucket
-        ee.Initialize(
-            credentials=credentials if credentials else get_ee_credentials(), project=EE_PROJECT
-        )
+        initialize_args = {
+            "credentials": credentials if credentials else get_ee_credentials(),
+            "project": EE_PROJECT,
+        }
+        if mode == "url":
+            initialize_args["opt_url"] = "https://earthengine-highvolume.googleapis.com"
+        ee.Initialize(**initialize_args)
         self.check_ee = check_ee
         self.ee_task_list = get_ee_task_list() if self.check_ee else []
         self.check_gcp = check_gcp
         self.cloud_tif_list = get_cloud_tif_list(dest_bucket) if self.check_gcp else []
+        self.local_tif_list = [x.name for x in TIFS_FOLDER.glob("*.tif*")]
+
+    def sync_local_and_gcloud(self):
+        os.system(f"gcloud storage rsync -r {TIFS_FOLDER} gs://{EE_BUCKET_TIFS}/{EE_FOLDER_TIFS}")
 
     def _export_for_polygon(
         self,
@@ -264,6 +307,11 @@ class EarthEngineExporter:
             print(f"{filename}.tif already in cloud_tif_files")
             return False
 
+        if f"{filename}.tif" in self.local_tif_list:
+            # checks that we haven't already exported this file
+            print(f"{filename}.tif already in local_tif_files, but not in the cloud")
+            return False
+
         # Check if task is already started in EarthEngine
         if description in self.ee_task_list:
             print(f"{description} already in ee task list")
@@ -276,21 +324,43 @@ class EarthEngineExporter:
 
         img = create_ee_image(polygon, start_date, end_date)
 
-        try:
-            ee.batch.Export.image.toCloudStorage(
-                bucket=self.dest_bucket,
-                fileNamePrefix=filename,
-                image=img.clip(polygon),
-                description=description,
-                scale=10,
-                region=polygon,
-                maxPixels=1e13,
-                fileDimensions=file_dimensions,
-            ).start()
-            self.ee_task_list.append(description)
-        except ee.ee_exception.EEException as e:
-            print(f"Task not started! Got exception {e}")
-
+        if self.mode == "batch":
+            try:
+                ee.batch.Export.image.toCloudStorage(
+                    bucket=self.dest_bucket,
+                    fileNamePrefix=filename,
+                    image=img.clip(polygon),
+                    description=description,
+                    scale=10,
+                    region=polygon,
+                    maxPixels=1e13,
+                    fileDimensions=file_dimensions,
+                ).start()
+                self.ee_task_list.append(description)
+            except ee.ee_exception.EEException as e:
+                print(f"Task not started! Got exception {e}")
+                return False
+        elif self.mode == "url":
+            try:
+                url = img.getDownloadURL(
+                    {
+                        "region": polygon,
+                        "scale": 10,
+                        "filePerBand": False,
+                        "format": "GEO_TIFF",
+                    }
+                )
+                r = requests.get(url, stream=True)
+            except ee.ee_exception.EEException as e:
+                print(f"Task not started! Got exception {e}", flush=True)
+                return False
+            if r.status_code != 200:
+                print(f"Task failed with status {r.status_code}", flush=True)
+                return False
+            else:
+                local_path = Path(TIFS_FOLDER / f"{str(polygon_identifier).replace('/', '_')}.tif")
+                with local_path.open("wb") as f:
+                    shutil.copyfileobj(r.raw, f)
         return True
 
     def export_for_latlons(
@@ -314,7 +384,7 @@ class EarthEngineExporter:
                 # worldstrat points are strings
                 mid_lat=float(row[LAT]),
                 mid_lon=float(row[LON]),
-                surrounding_metres=int(SURROUNDING_METRES),
+                surrounding_metres=int(self.surrounding_metres),
             )
 
             export_started = self._export_for_polygon(
@@ -328,3 +398,7 @@ class EarthEngineExporter:
                 if num_exports_to_start is not None and exports_started >= num_exports_to_start:
                     print(f"Started {exports_started} exports. Ending export")
                     return None
+        if self.mode == "url":
+            print("Export finished. Syncing to google cloud")
+            self.sync_local_and_gcloud()
+            print("Finished sync")

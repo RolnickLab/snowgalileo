@@ -7,6 +7,7 @@ from torchvision.transforms.functional import resize
 from src.masking import (
     SPACE_BAND_EXPANSION,
     SPACE_TIME_BAND_EXPANSION,
+    STATIC_BAND_EXPANSION,
     TIME_BAND_EXPANSION,
     batch_mask_presto,
     subset_batch_of_images,
@@ -25,7 +26,7 @@ def mae_collate_fn(
     fixed_patch_size=None,
     fixed_space_time_combination=None,
 ):
-    s_t_x, s_x, t_x, months = default_collate(batch)
+    s_t_x, sp_x, t_x, st_x, months = default_collate(batch)
 
     if fixed_patch_size is not None:
         patch_size = fixed_patch_size
@@ -42,13 +43,14 @@ def mae_collate_fn(
     timesteps = space_time_combination["timesteps"]
 
     image_size = patch_size * spatial_patches_per_dim
-    s_t_x, s_x, t_x, months = subset_batch_of_images(
-        s_t_x, s_x, t_x, months, size=image_size, num_timesteps=timesteps
+    s_t_x, sp_x, t_x, st_x, months = subset_batch_of_images(
+        s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=timesteps
     )
-    s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = batch_mask_presto(
+    s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = batch_mask_presto(
         s_t_x,
-        s_x,
+        sp_x,
         t_x,
+        st_x,
         months,
         mask_ratio,
         patch_size,
@@ -61,10 +63,13 @@ def mae_collate_fn(
     expanded_s_t = torch.repeat_interleave(
         s_t_m, repeats=SPACE_TIME_BAND_EXPANSION.long(), dim=-1
     ).bool()
-    expanded_s = torch.repeat_interleave(s_m, repeats=SPACE_BAND_EXPANSION.long(), dim=-1).bool()
+    expanded_sp = torch.repeat_interleave(sp_m, repeats=SPACE_BAND_EXPANSION.long(), dim=-1).bool()
     expanded_t = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION.long(), dim=-1).bool()
+    expanded_st = torch.repeat_interleave(
+        st_m, repeats=STATIC_BAND_EXPANSION.long(), dim=-1
+    ).bool()
 
-    # p_s_t and p_s always assume the maximum patch size, so we need to
+    # p_s_t and p_sp always assume the maximum patch size, so we need to
     # resample if its smaller
     if patch_size < patch_sizes[-1]:
         output_hw = spatial_patches_per_dim * patch_sizes[-1]
@@ -78,8 +83,8 @@ def mae_collate_fn(
             t=t,
             d=d,
         )
-        expanded_s_x = rearrange(
-            resize(rearrange(s_x, "b h w d -> b d h w"), size=(output_hw, output_hw)),
+        expanded_sp_x = rearrange(
+            resize(rearrange(sp_x, "b h w d -> b d h w"), size=(output_hw, output_hw)),
             "b d h w -> b h w d",
         )
 
@@ -91,28 +96,31 @@ def mae_collate_fn(
             w2=patch_sizes[-1],
         )
 
-        expanded_s = repeat(
-            expanded_s[:, 0::patch_size, 0::patch_size],
+        expanded_sp = repeat(
+            expanded_sp[:, 0::patch_size, 0::patch_size],
             "b h w c -> b (h h2) (w w2) c",
             h2=patch_sizes[-1],
             w2=patch_sizes[-1],
         )
     else:
         expanded_s_t_x = s_t_x
-        expanded_s_x = s_x
+        expanded_sp_x = sp_x
 
     return (
         s_t_x,
-        s_x,
+        sp_x,
         t_x,
+        st_x,
         s_t_m,
-        s_m,
+        sp_m,
         t_m,
+        st_m,
         months,
         expanded_s_t_x,
-        expanded_s_x,
+        expanded_sp_x,
         expanded_s_t,
-        expanded_s,
+        expanded_sp,
         expanded_t,
+        expanded_st,
         patch_size,
     )

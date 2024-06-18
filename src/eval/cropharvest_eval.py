@@ -14,15 +14,20 @@ from torch.utils.data import DataLoader, TensorDataset, default_collate
 from torch.utils.data import Dataset as TorchDataset
 
 from ..data.dataset import (
+    LOCATION_BANDS,
     SPACE_BAND_GROUPS_IDX,
     SPACE_BANDS,
     SPACE_TIME_BANDS,
     SPACE_TIME_BANDS_GROUPS_IDX,
+    STATIC_BAND_GROUPS_IDX,
+    STATIC_BANDS,
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
     normalize_space,
     normalize_space_time,
+    normalize_static,
     normalize_time,
+    to_cartesian,
 )
 from ..flexipresto import Encoder
 from ..masking import MaskedOutput
@@ -47,6 +52,8 @@ SPACE_BANDS_TO_CH_BANDS = [idx for idx, s in enumerate(SPACE_BANDS) if s in BAND
 
 CH_BANDS_TO_TIME_BANDS = [BANDS.index(s) for s in TIME_BANDS if s in BANDS]
 TIME_BANDS_TO_CH_BANDS = [idx for idx, s in enumerate(TIME_BANDS) if s in BANDS]
+
+LOCATION_BAND_MAPPING = [idx for idx, x in enumerate(STATIC_BANDS) if x in LOCATION_BANDS]
 
 
 class CropHarvestLabels(OrgCropHarvestLabels):
@@ -139,6 +146,13 @@ class CropHarvestEvalBase(EvalTask):
     multilabel = False
     regression = False
 
+    def __init__(
+        self, name: str, patch_size: int, include_latlons: bool = True, seed: int = DEFAULT_SEED
+    ):
+        self.include_latlons = include_latlons
+        self.name = f"{name}{'_latlons' if include_latlons else ''}"
+        super().__init__(patch_size, seed)
+
     @staticmethod
     def truncate_timesteps(x, num_timesteps: Optional[int]):
         if (num_timesteps is None) or (x is None):
@@ -146,11 +160,14 @@ class CropHarvestEvalBase(EvalTask):
         else:
             return x[:, :num_timesteps]
 
-    @classmethod
     def cropharvest_array_to_normalized_presto(
-        cls, array: np.ndarray, start_month: int, timesteps: Optional[int] = None
+        self,
+        array: np.ndarray,
+        latlons: np.ndarray,
+        start_month: int,
+        timesteps: Optional[int] = None,
     ):
-        array = cls.truncate_timesteps(array, timesteps)
+        array = self.truncate_timesteps(array, timesteps)
         b, t, _ = array.shape
 
         s_t_x = np.zeros((b, t, len(SPACE_TIME_BANDS)))
@@ -160,12 +177,12 @@ class CropHarvestEvalBase(EvalTask):
         s_t_m[:, :, :, :, SPACE_TIME_BANDS_TO_CH_BANDS] = 0
         s_t_m = s_t_m[:, :, :, :, [g[0] for _, g in SPACE_TIME_BANDS_GROUPS_IDX.items()]]
 
-        s_x = np.zeros((b, t, len(SPACE_BANDS)))
-        s_x[:, :, SPACE_BANDS_TO_CH_BANDS] = array[:, :, CH_BANDS_TO_SPACE_BANDS]
-        s_x = repeat(s_x[:, 0], "b d -> b h w d", h=1, w=1)
-        s_m = np.ones((b, 1, 1, len(SPACE_BANDS)))
-        s_m[:, :, :, SPACE_BANDS_TO_CH_BANDS] = 0
-        s_m = s_m[:, :, :, [g[0] for _, g in SPACE_BAND_GROUPS_IDX.items()]]
+        sp_x = np.zeros((b, t, len(SPACE_BANDS)))
+        sp_x[:, :, SPACE_BANDS_TO_CH_BANDS] = array[:, :, CH_BANDS_TO_SPACE_BANDS]
+        sp_x = repeat(sp_x[:, 0], "b d -> b h w d", h=1, w=1)
+        sp_m = np.ones((b, 1, 1, len(SPACE_BANDS)))
+        sp_m[:, :, :, SPACE_BANDS_TO_CH_BANDS] = 0
+        sp_m = sp_m[:, :, :, [g[0] for _, g in SPACE_BAND_GROUPS_IDX.items()]]
 
         t_x = np.zeros((b, t, len(TIME_BANDS)))
         t_x[:, :, TIME_BANDS_TO_CH_BANDS] = array[:, :, CH_BANDS_TO_TIME_BANDS]
@@ -173,23 +190,31 @@ class CropHarvestEvalBase(EvalTask):
         t_m[:, :, TIME_BANDS_TO_CH_BANDS] = 0
         t_m = t_m[:, :, [g[0] for _, g in TIME_BAND_GROUPS_IDX.items()]]
 
+        st_x = np.zeros((b, len(STATIC_BANDS)))
+        st_m = np.ones((b, len(STATIC_BAND_GROUPS_IDX)))
+        if self.include_latlons:
+            st_m[:, list(STATIC_BAND_GROUPS_IDX).index("location")] = 0
+            st_x[:, LOCATION_BAND_MAPPING] = to_cartesian(latlons[:, 0], latlons[:, 1])
+
         months = np.fmod(np.arange(start_month - 1, start_month - 1 + t), 12)
         months = repeat(months, "t -> b t", b=b)
 
         return masked_output_np_to_tensor(
             normalize_space_time(s_t_x),
-            normalize_space(s_x),
+            normalize_space(sp_x),
             normalize_time(t_x),
+            normalize_static(st_x),
             s_t_m,
-            s_m,
+            sp_m,
             t_m,
+            st_m,
             months,
         )
 
     @staticmethod
     def collate_fn(batch):
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, label = default_collate(batch)
-        return MaskedOutput(s_t_x, s_x, t_x, s_t_m, s_m, t_m, months), label
+        s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, label = default_collate(batch)
+        return MaskedOutput(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months), label
 
 
 class BinaryCropHarvestEval(CropHarvestEvalBase):
@@ -206,7 +231,17 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         num_timesteps: Optional[int] = None,
         sample_size: Optional[int] = None,
         seed: int = DEFAULT_SEED,
+        include_latlons: bool = True,
     ):
+        suffix = f"_{sample_size}" if sample_size else ""
+        suffix = f"{suffix}_{num_timesteps}" if num_timesteps is not None else suffix
+        super().__init__(
+            name=f"CropHarvest_{country}{suffix}",
+            include_latlons=include_latlons,
+            patch_size=1,
+            seed=seed,
+        )
+
         download_cropharvest_data()
 
         evaluation_datasets = get_eval_datasets()
@@ -217,12 +252,6 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         self.num_timesteps = num_timesteps
         self.sample_size = sample_size
 
-        suffix = f"_{sample_size}" if sample_size else ""
-        suffix = f"{suffix}_{num_timesteps}" if num_timesteps is not None else suffix
-
-        self.name = f"CropHarvest_{country}{suffix}"
-        super().__init__(patch_size=1, seed=seed)
-
     @torch.no_grad()
     def _evaluate_model(self, pretrained_model: Encoder, sklearn_model: BaseEstimator) -> Dict:
         pretrained_model.eval()
@@ -230,15 +259,32 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
             for test_id, test_instance in self.dataset.test_data(max_size=10000):
                 savepath = Path(results_dir) / f"{test_id}.nc"
 
+                latlons = np.stack((test_instance.lats, test_instance.lons), axis=-1)
                 masked_output = self.cropharvest_array_to_normalized_presto(
-                    cast(np.ndarray, test_instance.x), self.start_month, self.num_timesteps
+                    cast(np.ndarray, test_instance.x),
+                    latlons,
+                    self.start_month,
+                    self.num_timesteps,
                 )
-                s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
-                s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
-                    s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
+                s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = [
+                    t.to(device) for t in masked_output
+                ]
+                s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = pretrained_model(
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                    patch_size=self.patch_size,
                 )
                 encodings = (
-                    pretrained_model.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m).cpu().numpy()
+                    pretrained_model.average_tokens(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
+                    .cpu()
+                    .numpy()
                 )
                 preds = sklearn_model.predict_proba(encodings)[:, 1]
                 ds = test_instance.to_xarray(preds)
@@ -259,11 +305,12 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         for model_mode in model_modes:
             assert model_mode in self.all_classification_sklearn_models
 
-        array, labels = self.dataset.as_array()
+        array, latlons, labels = self.dataset.as_array()
         train_dl = DataLoader(
             TensorDataset(
                 *self.cropharvest_array_to_normalized_presto(
                     array,
+                    latlons,
                     timesteps=self.num_timesteps,
                     start_month=self.start_month,
                 ),
@@ -289,7 +336,16 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
         test_ratio: float = 0.2,
         n_per_class: Optional[int] = 100,
         seed: int = DEFAULT_SEED,
+        include_latlons: bool = True,
     ):
+        name_suffix = f"_{n_per_class}" if n_per_class is not None else ""
+        super().__init__(
+            name=f"CropHarvest_multiclass_global{name_suffix}_{seed}",
+            patch_size=1,
+            seed=seed,
+            include_latlons=include_latlons,
+        )
+
         download_cropharvest_data()
         task = Task(normalize=False)
         paths_and_y = CropHarvestLabels(cropharvest_data_dir).construct_fao_classification_labels(
@@ -313,18 +369,16 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
             train_paths_and_y = [train_paths_and_y[i] for i in np.concatenate(indices_to_keep)]
             assert len(train_paths_and_y) <= n_per_class * len(unique_ys)
 
-        array, _, labels = MultiClassCropHarvest(train_paths_and_y, y_string_to_int).as_array()
+        array, latlons, labels = MultiClassCropHarvest(
+            train_paths_and_y, y_string_to_int
+        ).as_array()
         self.train_dataset = TensorDataset(
             *self.cropharvest_array_to_normalized_presto(
-                array, self.start_month, timesteps=self.num_timesteps
+                array, latlons, self.start_month, timesteps=self.num_timesteps
             ),
             torch.from_numpy(labels),
         )
         self.eval_dataset = MultiClassCropHarvest(val_paths_and_y, y_string_to_int)
-
-        name_suffix = f"_{n_per_class}" if n_per_class is not None else ""
-        self.name = f"CropHarvest_multiclass_global{name_suffix}_{seed}"
-        super().__init__(patch_size=1, seed=seed)
 
     @torch.no_grad()
     def _evaluate_models(
@@ -341,16 +395,20 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
         pred_dict: Dict[str, BaseEstimator] = {
             model_class_name(model): [] for model in sklearn_models
         }
-        for x, _, y in dl:
+        for x, latlons, y in dl:
             masked_output = self.cropharvest_array_to_normalized_presto(
-                x, self.start_month, self.num_timesteps
+                x, latlons, self.start_month, self.num_timesteps
             )
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
-                s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = [
+                t.to(device) for t in masked_output
+            ]
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = pretrained_model(
+                s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size=self.patch_size
             )
             encodings = (
-                pretrained_model.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m).cpu().numpy()
+                pretrained_model.average_tokens(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
+                .cpu()
+                .numpy()
             )
             for model in sklearn_models:
                 pred_dict[model_class_name(model)].append(model.predict(encodings))
