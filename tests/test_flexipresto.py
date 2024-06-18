@@ -16,7 +16,7 @@ from src.data import (
 from src.data.config import CONFIG_FILENAME, ENCODER_FILENAME
 from src.data.dataset import SPACE_BANDS, SPACE_TIME_BANDS, STATIC_BANDS, TIME_BANDS, DatasetOutput
 from src.flexipresto import Encoder, PrestoPixelDecoder
-from src.masking import batch_mask_presto, subset_batch_of_images
+from src.masking import batch_subset_mask_presto_augmented, subset_batch_of_images
 from src.utils import device, load_check_config
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/tifs"
@@ -54,7 +54,7 @@ class TestPresto(unittest.TestCase):
         s_t_x, sp_x, t_x, st_x, months = subset_batch_of_images(
             s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=num_timesteps
         )
-        masked_output = batch_mask_presto(
+        masked_output = batch_subset_mask_presto_augmented(
             s_t_x,
             sp_x,
             t_x,

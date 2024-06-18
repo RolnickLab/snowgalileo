@@ -105,7 +105,7 @@ def subset_batch_of_images(
     months: torch.Tensor,
     size: int,
     num_timesteps: int,
-):
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     assert (space_time_x.shape[1] == space_x.shape[1]) & (
         space_time_x.shape[2] == space_x.shape[2]
     )
@@ -192,11 +192,12 @@ def batch_subset_mask_presto_augmented(
         )
     )
     maskedoutputs.append(
-        batch_mask_channels(
+        batch_mask_random(
             *subset_batch_of_images(
                 s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=num_timesteps
             ),
             mask_ratio,
+            patch_size,
         )
     )
     return MaskedOutput.concatenate(maskedoutputs)
