@@ -147,11 +147,16 @@ class CropHarvestEvalBase(EvalTask):
     regression = False
 
     def __init__(
-        self, name: str, patch_size: int, include_latlons: bool = True, seed: int = DEFAULT_SEED
+        self,
+        name: str,
+        patch_size: int,
+        include_latlons: bool = True,
+        seed: int = DEFAULT_SEED,
+        num_outputs: int = 1,
     ):
         self.include_latlons = include_latlons
         self.name = f"{name}{'_latlons' if include_latlons else ''}"
-        super().__init__(patch_size, seed)
+        super().__init__(patch_size, seed, num_outputs=num_outputs)
 
     @staticmethod
     def truncate_timesteps(x, num_timesteps: Optional[int]):
