@@ -55,7 +55,7 @@ class EvalTask(ABC):
         self, patch_size: int, seed: int = DEFAULT_SEED, output_mode: Optional[str] = None
     ):
         if self.spatial_token_prediction:
-            assert self.output_mode in ["mode", "norm_counts"]
+            assert output_mode in ["mode", "norm_counts"]
 
         self.output_mode = output_mode
         self.seed = seed
@@ -132,7 +132,7 @@ class EvalTask(ABC):
                 t.to(device) for t in masked_output
             ]
 
-            if self.token_segmentation:
+            if self.spatial_token_prediction:
                 targets = self.group_targets_per_token(label).cpu().numpy()
 
                 if "pastis_patch" in self.name:

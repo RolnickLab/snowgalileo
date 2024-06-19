@@ -156,7 +156,7 @@ class PastisPatchDataset(PyTorchDataset):
 
     def average_over_month(
         self, observations: np.ndarray, months: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Returns the month-wise mean of an input image, pixel- and channel-specific.
         Months without observations are filled with zeros.
@@ -414,7 +414,7 @@ class PastisPatchEval(EvalTask):
 
         self.num_subtiles_per_image = num_subtiles_per_image
         self.band_mode = band_mode
-        super().__init__(patch_size, seed, output_mode)
+        super().__init__(patch_size=patch_size, seed=seed, output_mode=output_mode)
         self.input_height_width = self.input_height_width // int(
             sqrt(cast(float, self.num_subtiles_per_image))
         )
