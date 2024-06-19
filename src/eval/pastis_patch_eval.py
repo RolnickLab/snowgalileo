@@ -394,8 +394,9 @@ class PastisPatchEval(EvalTask):
     name = "pastis_patch"
     regression = False
     multilabel = False
-    token_segmentation = True
+    spatial_token_prediction = True
     input_height_width = PastisPatchDataset.input_height_width
+    num_outputs = len(PastisPatchDataset.labels_to_int) - 1
 
     def __init__(
         self,
@@ -404,19 +405,22 @@ class PastisPatchEval(EvalTask):
         include_latlons: bool = True,
         patch_size: int = 8,
         seed=DEFAULT_SEED,
-        num_outputs=len(PastisPatchDataset.labels_to_int) - 1,
+        output_mode: str = "norm_counts",
     ):
+        assert output_mode in ["mode", "norm_counts"]
+        assert band_mode in ["s2", "s1", "combined"]
+
         self.num_subtiles_per_image = num_subtiles_per_image
         self.band_mode = band_mode
-        super().__init__(patch_size, seed, num_outputs)
+        super().__init__(patch_size, seed, output_mode)
         self.input_height_width = self.input_height_width // int(
             sqrt(cast(float, self.num_subtiles_per_image))
         )
         self.include_latlons = include_latlons
-        self.name = f"{self.name}_{self.band_mode}{'_latlons' if include_latlons else ''}_{self.input_height_width}"
+        self.name = f"{self.name}_{self.band_mode}_{self.output_mode}{'_latlons' if include_latlons else ''}_{self.input_height_width}"
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
-        if self.num_outputs == 1:
+        if self.output_mode == "mode":
             return {
                 f"{self.name}: {model_name}_overall_accuracy": accuracy_score(target, preds),
                 f"{self.name}: {model_name}_mean_accuracy": balanced_accuracy_score(target, preds),

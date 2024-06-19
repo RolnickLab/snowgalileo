@@ -152,11 +152,10 @@ class CropHarvestEvalBase(EvalTask):
         patch_size: int,
         include_latlons: bool = True,
         seed: int = DEFAULT_SEED,
-        num_outputs: int = 1,
     ):
         self.include_latlons = include_latlons
         self.name = f"{name}{'_latlons' if include_latlons else ''}"
-        super().__init__(patch_size, seed, num_outputs=num_outputs)
+        super().__init__(patch_size, seed)
 
     @staticmethod
     def truncate_timesteps(x, num_timesteps: Optional[int]):
@@ -223,6 +222,8 @@ class CropHarvestEvalBase(EvalTask):
 
 
 class BinaryCropHarvestEval(CropHarvestEvalBase):
+    num_outputs = 1
+
     country_to_sizes: Dict[str, List] = {
         "Kenya": [20, 32, 64, 96, 128, 160, 192, 224, 256, None],
         "Togo": [20, 50, 126, 254, 382, 508, 636, 764, 892, 1020, 1148, None],
@@ -234,7 +235,6 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         num_timesteps: Optional[int] = None,
         sample_size: Optional[int] = None,
         seed: int = DEFAULT_SEED,
-        num_outputs: int = 1,
         include_latlons: bool = True,
     ):
         suffix = f"_{sample_size}" if sample_size else ""
@@ -244,7 +244,6 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
             include_latlons=include_latlons,
             patch_size=1,
             seed=seed,
-            num_outputs=num_outputs,
         )
 
         download_cropharvest_data()
@@ -334,12 +333,13 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
 
 
 class MultiClassCropHarvestEval(CropHarvestEvalBase):
+    num_outputs = 10
+
     def __init__(
         self,
         test_ratio: float = 0.2,
         n_per_class: Optional[int] = 100,
         seed: int = DEFAULT_SEED,
-        num_outputs=10,
         include_latlons: bool = True,
     ):
         name_suffix = f"_{n_per_class}" if n_per_class is not None else ""
@@ -348,7 +348,6 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
             patch_size=1,
             seed=seed,
             include_latlons=include_latlons,
-            num_outputs=num_outputs,
         )
 
         download_cropharvest_data()

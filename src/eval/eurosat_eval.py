@@ -240,9 +240,10 @@ class EuroSatDataset(PyTorchDataset):
 class EuroSatEval(EvalTask):
     name = "eurosat"
     regression = False
-    token_segmentation = False
+    spatial_token_prediction = False
     multilabel = False
     input_height_width = EuroSatDataset.input_height_width
+    num_outputs = len(EuroSatDataset.labels_to_int)
 
     def __init__(
         self,
@@ -250,11 +251,10 @@ class EuroSatEval(EvalTask):
         include_latlons: bool = True,
         patch_size: int = 8,
         seed=DEFAULT_SEED,
-        num_outputs=len(EuroSatDataset.labels_to_int),
     ):
         self.rgb = rgb
         self.include_latlons = include_latlons
-        super().__init__(patch_size, seed, num_outputs)
+        super().__init__(patch_size, seed)
         self.name = (
             f"{self.name}_{'RGB' if self.rgb else 'MS'}{'_latlons' if include_latlons else ''}"
         )

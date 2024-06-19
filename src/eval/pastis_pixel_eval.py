@@ -445,18 +445,18 @@ class PastisPixelEval(EvalTask):
     name = "pastis_pixel"
     regression = False
     multilabel = False
-    token_segmentation = False
+    spatial_token_prediction = False
     input_height_width = PastisPixelDataset.input_height_width
+    num_outputs = len(PastisPixelDataset.labels_to_int)
 
     def __init__(
         self,
         average_months: bool = True,
         patch_size: int = 1,
         seed=DEFAULT_SEED,
-        num_outputs=len(PastisPixelDataset.labels_to_int),
     ):
         self.average_months = average_months
-        super().__init__(patch_size, seed, num_outputs)
+        super().__init__(patch_size, seed)
         self.name = f"{self.name}_{'AVERAGED_MONTHS' if self.average_months else 'ALL_MONTHS'}"
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:

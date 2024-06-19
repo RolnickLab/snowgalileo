@@ -244,9 +244,10 @@ class TreeSatDataset(Dataset):
 class TreeSatEval(EvalTask):
     name = "treesat"
     regression = False
-    token_segmentation = False
+    spatial_token_prediction = False
     multilabel = True
     input_height_width = TreeSatDataset.input_height_width
+    num_outputs = len(TreeSatDataset.labels_to_int)
 
     def __init__(
         self,
@@ -254,12 +255,11 @@ class TreeSatEval(EvalTask):
         include_latlons: bool = True,
         patch_size: int = 6,
         seed: int = DEFAULT_SEED,
-        num_outputs=len(TreeSatDataset.labels_to_int),
     ):
         self.mode = mode
         self.include_latlons = include_latlons
         # num_outputs different than the paper but this is from all the unique classes in the labels json (above)
-        super().__init__(patch_size, seed, num_outputs)
+        super().__init__(patch_size, seed)
         self.name = f"{self.name}_{self.mode}{'_latlons' if include_latlons else ''}"
 
     def compute_metrics(

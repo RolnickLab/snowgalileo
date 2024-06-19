@@ -151,19 +151,19 @@ class So2SatDataset(PyTorchDataset):
 class So2SatEval(EvalTask):
     name = "so2sat"
     regression = False
-    token_segmentation = False
+    spatial_token_prediction = False
     multilabel = False
     input_height_width = So2SatDataset.input_height_width
+    num_outputs = So2SatDataset.num_classes
 
     def __init__(
         self,
         rgb: bool = True,
         patch_size: int = 8,
         seed=DEFAULT_SEED,
-        num_outputs=So2SatDataset.num_classes,
     ):
         self.rgb = rgb
-        super().__init__(patch_size, seed, num_outputs)
+        super().__init__(patch_size, seed)
         self.name = f"{self.name}_{self.rgb}"
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
