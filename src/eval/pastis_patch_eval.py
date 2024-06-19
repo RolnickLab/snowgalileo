@@ -197,7 +197,7 @@ class PastisPatchDataset(PyTorchDataset):
         # fill up with zeros if there are months without observations
         averages_all_months[unique_months] = averages_months_with_data
 
-        return averages_all_months, all_months, missing_timestep_indeces
+        return averages_all_months, missing_timestep_indeces
 
     def get_eo_array_masks_and_targets(
         self, id: int
@@ -234,6 +234,8 @@ class PastisPatchDataset(PyTorchDataset):
         missing_timestep_indeces_s1 = None
         missing_timestep_indeces_s2 = None
 
+        all_months = np.arange(self.num_timesteps)
+
         if self.band_mode in ["combined", "s2"]:
             s2 = np.load(
                 data_dir / cast(str, self.data_path) / "DATA_S2/S2_{}.npy".format(id)
@@ -246,7 +248,7 @@ class PastisPatchDataset(PyTorchDataset):
             )  # 0-indexed months
             assert all(0 <= month <= 11 for month in months_s2)
 
-            s2, months_s2, missing_timestep_indeces_s2 = self.average_over_month(s2, months_s2)
+            s2, missing_timestep_indeces_s2 = self.average_over_month(s2, months_s2)
 
             kept_dynamic_bands_s2 = [
                 idx for idx, x in enumerate(SPACE_TIME_BANDS) if (x in S2_BANDS)
@@ -279,7 +281,7 @@ class PastisPatchDataset(PyTorchDataset):
             )  # 0-indexed months
             assert all(0 <= month <= 11 for month in months_s1)
 
-            s1, months_s1, missing_timestep_indeces_s1 = self.average_over_month(s1, months_s1)
+            s1, missing_timestep_indeces_s1 = self.average_over_month(s1, months_s1)
 
             # PASTIS s1 includes channels VV, VH, and VV/VH ratio, we only want VV and VH
             s1 = s1[:, :1, :, :]
@@ -315,7 +317,7 @@ class PastisPatchDataset(PyTorchDataset):
             sp_m,
             t_m,
             st_m,
-            months_s2 if self.band_mode == "s2" else months_s1,
+            all_months,
             targets,
         )
 
