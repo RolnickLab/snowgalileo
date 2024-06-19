@@ -11,6 +11,7 @@ from .data.dataset import (
     STATIC_BAND_GROUPS_IDX,
     TIME_BAND_GROUPS_IDX,
 )
+from .data_augmentation import Augmentation
 
 # This is to allow a quick expansion of the mask from
 # group-channel space into real-channel space
@@ -45,6 +46,7 @@ def subset_batch_of_images(
     months: torch.Tensor,
     size: int,
     num_timesteps: int,
+    augment: Augmentation,
 ):
     assert (space_time_x.shape[1] == space_x.shape[1]) & (
         space_time_x.shape[2] == space_x.shape[2]
@@ -70,18 +72,18 @@ def subset_batch_of_images(
     else:
         start_t = possible_t
 
-    return (
-        space_time_x[
-            :,
-            start_h : start_h + size,
-            start_w : start_w + size,
-            start_t : start_t + num_timesteps,
-        ],
-        space_x[:, start_h : start_h + size, start_w : start_w + size],
-        time_x[:, start_t : start_t + num_timesteps],
-        static_x,
-        months[:, start_t : start_t + num_timesteps],
-    )
+    # do augmentations, if enabled
+    space_time_x = space_time_x[
+        :,
+        start_h : start_h + size,
+        start_w : start_w + size,
+        start_t : start_t + num_timesteps,
+    ]
+    space_x = space_x[:, start_h : start_h + size, start_w : start_w + size]
+    time_x = time_x[:, start_t : start_t + num_timesteps]
+    months = months[:, start_t : start_t + num_timesteps]
+
+    return augment.apply(space_time_x, space_x, time_x, static_x, months)
 
 
 def batch_mask_presto(

@@ -24,6 +24,7 @@ from src.data.config import (
     OUTPUT_FOLDER,
     TIFS_FOLDER,
 )
+from src.data_augmentation import Augmentation
 from src.eval import (
     BinaryCropHarvestEval,
     EuroSatEval,
@@ -92,6 +93,7 @@ dataloader = DataLoader(
         time_ratio=training_config["time_ratio"],
         space_ratio=training_config["space_ratio"],
         channel_ratio=training_config["channel_ratio"],
+        augment=Augmentation(training_config["augmentation"]),
         shape_time_combinations=training_config["shape_time_combinations"],
     ),
     pin_memory=True,
