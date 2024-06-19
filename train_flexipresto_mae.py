@@ -292,12 +292,11 @@ with (model_path / CONFIG_FILENAME).open("w") as f:
 eval_tasks: List[EvalTask] = [
     *[
         PastisPatchEval(
-            num_outputs=num_outputs,
+            output_mode=output_mode,
             num_subtiles_per_image=num_subtiles_per_image,
             band_mode=band_mode,
         )
-        # 19 will one-hot encode classes per token, 1 will use the mode class
-        for num_outputs in [19, 1]
+        for output_mode in ["mode", "norm_counts"]
         # 4 has input hw 64, 16 has input hw 32
         for num_subtiles_per_image in [4, 16]
         for band_mode in ["combined", "s2"]

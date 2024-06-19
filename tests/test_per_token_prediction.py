@@ -31,30 +31,31 @@ class TestEval(unittest.TestCase):
         assert np.all(enc_np == 0)
         assert np.all(enc_np == 0)
 
-    def check_reduce_targets_per_token(self, nr_outputs):
-        nr_tokens = 8
-        nr_pixels_per_token = 9
-        max_class = 8
+    def check_reduce_targets_per_token(self, output_mode):
+        nr_tokens = 3
+        nr_outputs = 10
 
-        eval = EvalTask(patch_size=3, num_outputs=nr_outputs)
+        eval = EvalTask(patch_size=3, output_mode=output_mode)
+        eval.__setattr__("num_outputs", nr_outputs)
 
-        # each token should contain a unique class value
-        values = np.arange(0, max_class, dtype=np.uint8)
-        tar_np = np.repeat(values, nr_pixels_per_token).reshape(nr_tokens, nr_pixels_per_token)
+        # test array of with 3 tokens and 4 pixels per token
+        tar_np = np.array([[1, 1, 5, 1], [0, 9, 9, 1], [2, 5, 4, 5]])
 
         tar_np = eval.reduce_targets_per_token(tar_np)
 
-        if nr_outputs == 1:
+        if output_mode == "mode":
             assert tar_np.shape == (nr_tokens,)
-            assert tar_np[1] == 1
-            assert tar_np[7] == 7
+            assert tar_np[0] == 1
+            assert tar_np[2] == 5
         else:
             assert tar_np.shape == (nr_tokens, nr_outputs)
-            # each token should contain a unique class value
+            # each token's values should be summed to 1
             assert np.all(np.sum(tar_np, axis=1) == 1)
-            # second token should contain class 1
-            assert tar_np[1][1] == 1
-            assert tar_np[1][~1] == 0
+            # third token has 4 pixels, half of them are 5
+            assert tar_np[2][5] == 0.5
+            # first token has 4 pixels, 3 of them are 1
+            assert tar_np[0][1] == 0.75
+            assert tar_np[0][~1 and ~5] == 0
 
     def test_pastis_patch_eval(self):
         # create test arrays
@@ -144,5 +145,5 @@ class TestEval(unittest.TestCase):
         )
 
         self.check_remove_void(enc_np, tar_np)
-        self.check_reduce_targets_per_token(nr_outputs=9)
-        self.check_reduce_targets_per_token(nr_outputs=1)
+        self.check_reduce_targets_per_token(output_mode="mode")
+        self.check_reduce_targets_per_token(output_mode="norm_counts")

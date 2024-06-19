@@ -37,9 +37,10 @@ def model_class_name(model: BaseEstimator) -> str:
 class EvalTask(ABC):
     name: str = "EvalTask"
     regression: bool
-    token_segmentation: bool = False
+    spatial_token_prediction: bool = False
     multilabel: bool
     input_height_width: int
+    num_outputs: int = 1
 
     all_regression_sklearn_models = ["Regression", "Random Forest"]
     all_classification_sklearn_models = [
@@ -50,16 +51,21 @@ class EvalTask(ABC):
         "KNNat100",
     ]
 
-    def __init__(self, patch_size: int, seed: int = DEFAULT_SEED, num_outputs: int = 1):
-        self.num_outputs = num_outputs
+    def __init__(
+        self, patch_size: int, seed: int = DEFAULT_SEED, output_mode: Optional[str] = None
+    ):
+        if self.spatial_token_prediction:
+            assert self.output_mode in ["mode", "norm_counts"]
+
+        self.output_mode = output_mode
         self.seed = seed
         self.patch_size = patch_size
-        self.name = f"{self.name}_s{self.seed}_ps{self.patch_size}_nout{self.num_outputs}"
+        self.name = f"{self.name}_s{self.seed}_ps{self.patch_size}"
 
     @classmethod
-    def _construct_sklearn_model(cls, model, num_outputs=1) -> BaseEstimator:
-        if cls.multilabel or (cls.token_segmentation and num_outputs > 1):
-            model = MultiOutputClassifier(model, n_jobs=num_outputs)
+    def _construct_sklearn_model(self, model) -> BaseEstimator:
+        if self.multilabel or self.output_mode == "norm_counts":
+            model = MultiOutputClassifier(model, n_jobs=self.num_outputs)
         return model
 
     @torch.no_grad()
@@ -83,19 +89,19 @@ class EvalTask(ABC):
         return encodings
 
     def reduce_targets_per_token(self, grouped_label: np.ndarray) -> np.ndarray:
-        if self.num_outputs == 1:
+        if self.output_mode == "mode":
             # take the most common label per token
             label = mode(grouped_label, axis=1).mode
 
-        # one hot encode the labels
+        # get normalized counts of each class per token
         else:
             label = np.zeros((grouped_label.shape[0], self.num_outputs))
 
             for i in range(grouped_label.shape[0]):
-                classes = np.unique(grouped_label[i])
-                label[i][classes] = 1
+                class_counts = np.bincount(grouped_label[i], minlength=self.num_outputs)
+                norm_counts = class_counts / np.sum(class_counts)
+                label[i] = norm_counts
 
-            assert np.unique(label).shape[0] <= 2
         return label
 
     @torch.no_grad()
@@ -107,9 +113,9 @@ class EvalTask(ABC):
     ) -> Sequence[BaseEstimator]:
         """
         Fit sklearn models on the encodings of the pretrained model.
-        For segmentation tasks, encodings and targets are grouped token-wise.
-        Either the mode class will be taken or the classes will be one-hot encoded.
-        This is controlled by the num_outputs attribute which can be changed in the subclass.
+        For spatial token prediction tasks, encodings and targets are grouped token-wise.
+        Either the mode class will be computed or the normalized counts of each class per token.
+        This is controlled by the output_mode attribute which can be changed in the subclass.
         """
 
         for model_mode in models:
@@ -150,7 +156,7 @@ class EvalTask(ABC):
                     months,
                     patch_size=self.patch_size,
                 )
-                if self.token_segmentation:
+                if self.spatial_token_prediction:
                     encodings = (
                         self.group_encodings_per_token(
                             pretrained_model, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m
