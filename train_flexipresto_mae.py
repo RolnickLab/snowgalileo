@@ -93,6 +93,7 @@ dataloader = DataLoader(
         patch_sizes=training_config["patch_sizes"],
         shape_time_combinations=training_config["shape_time_combinations"],
         mask_ratio=training_config["mask_ratio"],
+        augment=Augmentation(training_config["augmentation"])
     ),
     pin_memory=True,
 )
@@ -104,6 +105,8 @@ val_task_latlons = EuroSatEval(rgb=True, include_latlons=True)
 val_task_no_latlons = EuroSatEval(rgb=True, include_latlons=False)
 val_task_ts_latlons = MultiClassCropHarvestEval(include_latlons=True)
 val_task_ts_no_latlons = MultiClassCropHarvestEval(include_latlons=False)
+
+no_augmentation_cfg = {"flip+rotate": False}
 
 if wandb_enabled:
     import wandb
@@ -138,6 +141,7 @@ if wandb_enabled:
                     fixed_patch_size=p,
                     fixed_space_time_combination={"size": 4, "timesteps": 12},
                     mask_ratio=training_config["mask_ratio"],
+                    augment=Augmentation(no_augmentation_cfg)
                 ),
             )
 
