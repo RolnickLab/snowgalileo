@@ -42,7 +42,7 @@ class EvalTask(ABC):
     input_height_width: int
     num_outputs: int = 1
 
-    all_regression_sklearn_models = ["Regression", "Random Forest"]
+    all_regression_sklearn_models = ["Regression", "Random Forest", "KNNat5"]
     all_classification_sklearn_models = [
         "Logistic Regression",
         "Random Forest",
