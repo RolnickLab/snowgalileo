@@ -21,8 +21,8 @@ class FlipAndRotateSpace(object):
             lambda x: F.rotate(x, 270),  # 270-degree rotation
             lambda x: F.hflip(x),  # Horizontal flip
             lambda x: F.vflip(x),  # Vertical flip
-            lambda x: F.rotate(x, 90),  # Horizontal flip of 90-degree rotated image
-            lambda x: F.rotate(x, 90),  # Vertical flip of 90-degree rotated image
+            lambda x: F.rotate(F.hflip(x), 90),  # Horizontal flip of 90-degree rotated image
+            lambda x: F.rotate(F.vflip(x), 90),  # Vertical flip of 90-degree rotated image
         ]
 
     def apply(
