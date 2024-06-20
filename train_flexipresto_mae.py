@@ -36,6 +36,7 @@ from src.eval import (
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
 from src.loss import mae_loss
+from src.masking import MASKING_MULTIPLIER
 from src.utils import (
     AverageMeter,
     data_dir,
@@ -80,19 +81,17 @@ output_dir = Path(__file__).parent
 
 print("Loading dataset and dataloader")
 dataset = Dataset(TIFS_FOLDER, download=False, cache_folder=DATA_FOLDER / "npys_spacetime_16")
+assert training_config["batch_size"] % MASKING_MULTIPLIER == 0
 dataloader = DataLoader(
     dataset,
-    batch_size=training_config["batch_size"],
+    batch_size=int(training_config["batch_size"] / MASKING_MULTIPLIER),
     shuffle=True,
     num_workers=Hyperparams.num_workers,
     collate_fn=partial(
         mae_collate_fn,
         patch_sizes=training_config["patch_sizes"],
-        mask_ratio=training_config["mask_ratio"],
-        time_ratio=training_config["time_ratio"],
-        space_ratio=training_config["space_ratio"],
-        channel_ratio=training_config["channel_ratio"],
         shape_time_combinations=training_config["shape_time_combinations"],
+        mask_ratio=training_config["mask_ratio"],
     ),
     pin_memory=True,
 )
@@ -135,12 +134,9 @@ if wandb_enabled:
                     mae_collate_fn,
                     patch_sizes=training_config["patch_sizes"],
                     shape_time_combinations=training_config["shape_time_combinations"],
-                    mask_ratio=training_config["mask_ratio"],
-                    time_ratio=training_config["time_ratio"],
-                    space_ratio=training_config["space_ratio"],
-                    channel_ratio=training_config["channel_ratio"],
                     fixed_patch_size=p,
                     fixed_space_time_combination={"size": 4, "timesteps": 12},
+                    mask_ratio=training_config["mask_ratio"],
                 ),
             )
 
