@@ -34,9 +34,9 @@ class FlipAndRotateSpace(object):
             return space_time_x, space_x
 
         space_time_x = rearrange(
-            space_time_x, "b h w t c -> b t c h w"
+            space_time_x.float(), "b h w t c -> b t c h w"
         )  # rearrange for transforms
-        space_x = rearrange(space_x, "b h w c -> b c h w")  # rearrange for transforms
+        space_x = rearrange(space_x.float(), "b h w c -> b c h w")  # rearrange for transforms
 
         transformation = random.choice(self.transformations)
 
@@ -45,7 +45,7 @@ class FlipAndRotateSpace(object):
         )  # rearrange back
         space_x = rearrange(transformation(space_x), "b c h w -> b h w c")  # rearrange back
 
-        return space_time_x, space_x
+        return space_time_x.half(), space_x.half()
 
 
 class Augmentation(object):
