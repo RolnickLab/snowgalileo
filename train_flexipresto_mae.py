@@ -11,7 +11,6 @@ import psutil
 import torch
 from torch.utils.data import BatchSampler, DataLoader
 from tqdm import tqdm
-from wandb.sdk.wandb_run import Run
 
 from src.collate_fns import mae_collate_fn
 from src.config import DEFAULT_SEED
@@ -48,6 +47,7 @@ from src.utils import (
     seed_everything,
     timestamp_dirname,
 )
+from wandb.sdk.wandb_run import Run
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -93,7 +93,7 @@ dataloader = DataLoader(
         patch_sizes=training_config["patch_sizes"],
         shape_time_combinations=training_config["shape_time_combinations"],
         mask_ratio=training_config["mask_ratio"],
-        augment=Augmentation(training_config["augmentation"])
+        augment=Augmentation(training_config["augmentation"]),
     ),
     pin_memory=True,
 )
@@ -141,7 +141,7 @@ if wandb_enabled:
                     fixed_patch_size=p,
                     fixed_space_time_combination={"size": 4, "timesteps": 12},
                     mask_ratio=training_config["mask_ratio"],
-                    augment=Augmentation(no_augmentation_cfg)
+                    augment=Augmentation(no_augmentation_cfg),
                 ),
             )
 

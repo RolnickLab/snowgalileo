@@ -167,7 +167,14 @@ def batch_subset_mask_presto_augmented(
         maskedoutputs.append(
             batch_mask_time(
                 *subset_batch_of_images(
-                    s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=num_timesteps, augment=augment
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    months,
+                    size=image_size,
+                    num_timesteps=num_timesteps,
+                    augment=augment,
                 ),
                 mask_ratio,
                 mode=mode,
@@ -177,7 +184,14 @@ def batch_subset_mask_presto_augmented(
         maskedoutputs.append(
             batch_mask_space(
                 *subset_batch_of_images(
-                    s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=num_timesteps, augment=augment
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    months,
+                    size=image_size,
+                    num_timesteps=num_timesteps,
+                    augment=augment,
                 ),
                 mask_ratio,
                 patch_size,
@@ -188,7 +202,14 @@ def batch_subset_mask_presto_augmented(
     maskedoutputs.append(
         batch_mask_channels(
             *subset_batch_of_images(
-                s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=num_timesteps, augment=augment
+                s_t_x,
+                sp_x,
+                t_x,
+                st_x,
+                months,
+                size=image_size,
+                num_timesteps=num_timesteps,
+                augment=augment,
             ),
             mask_ratio,
         )
@@ -196,7 +217,14 @@ def batch_subset_mask_presto_augmented(
     maskedoutputs.append(
         batch_mask_random(
             *subset_batch_of_images(
-                s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=num_timesteps, augment=augment
+                s_t_x,
+                sp_x,
+                t_x,
+                st_x,
+                months,
+                size=image_size,
+                num_timesteps=num_timesteps,
+                augment=augment,
             ),
             mask_ratio,
             patch_size,
