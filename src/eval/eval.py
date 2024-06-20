@@ -42,13 +42,13 @@ class EvalTask(ABC):
     input_height_width: int
     num_outputs: int = 1
 
-    all_regression_sklearn_models = ["Regression", "Random Forest", "KNNat5"]
+    all_regression_sklearn_models = ["Regression", "Random Forest", "KNNat5 Regressor"]
     all_classification_sklearn_models = [
         "Logistic Regression",
         "Random Forest",
-        "KNNat5",
-        "KNNat20",
-        "KNNat100",
+        "KNNat5 Classifier",
+        "KNNat20 Classifier",
+        "KNNat100 Classifier",
     ]
 
     def __init__(
@@ -191,14 +191,14 @@ class EvalTask(ABC):
                 "Random Forest": self._construct_sklearn_model(
                     RandomForestClassifier(class_weight="balanced", random_state=self.seed)
                 ),
-                "KNNat5": self._construct_sklearn_model(KNNat5Classifier()),
-                "KNNat20": self._construct_sklearn_model(KNNat20Classifier()),
-                "KNNat100": self._construct_sklearn_model(KNNat100Classifier()),
+                "KNNat5 Classifier": self._construct_sklearn_model(KNNat5Classifier()),
+                "KNNat20 Classifier": self._construct_sklearn_model(KNNat20Classifier()),
+                "KNNat100 Classifier": self._construct_sklearn_model(KNNat100Classifier()),
             },
             True: {
                 "Regression": LinearRegression(),
                 "Random Forest": RandomForestRegressor(random_state=self.seed),
-                "KNNat5": self._construct_sklearn_model(KNNat5Regressor()),
+                "KNNat5 Regressor": self._construct_sklearn_model(KNNat5Regressor()),
             },
         }
         for model in models:
