@@ -6,7 +6,9 @@ import numpy as np
 import pandas as pd
 import torch.multiprocessing
 from einops import repeat
-from sklearn.base import BaseEstimator
+from sklearn.base import BaseEstimator, clone
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, jaccard_score
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as PyTorchDataset
@@ -30,6 +32,7 @@ from ..flexipresto import Encoder
 from ..masking import MaskedOutput
 from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
 from .eval import EvalTask, Hyperparams, model_class_name
+from .knn import KNNat5Classifier, KNNat5Regressor, KNNat20Classifier, KNNat100Classifier
 
 ### SETUP
 torch.multiprocessing.set_sharing_strategy("file_system")
@@ -394,7 +397,6 @@ class PastisPatchDataset(PyTorchDataset):
 
 class PastisPatchEval(EvalTask):
     name = "pastis_patch"
-    regression = False
     multilabel = False
     spatial_token_prediction = True
     input_height_width = PastisPatchDataset.input_height_width
@@ -420,6 +422,97 @@ class PastisPatchEval(EvalTask):
         )
         self.include_latlons = include_latlons
         self.name = f"{self.name}_{self.band_mode}_{self.output_mode}{'_latlons' if include_latlons else ''}_{self.input_height_width}"
+
+    @torch.no_grad()
+    def train_sklearn_model(
+        self,
+        train_dl: DataLoader,
+        pretrained_model: Encoder,
+        models: List[str] = ["Random Forest"],
+    ) -> Sequence[BaseEstimator]:
+        """
+        Patch Pastis specific training of sklearn models.
+        This includes spatial token wise predictions and the removal of void labels.
+        """
+
+        for model_mode in models:
+            # normalized counts are in range [0, 1], so we use regression models
+            if self.output_mode == "norm_counts":
+                assert model_mode in self.all_regression_sklearn_models
+            # mode output mode predicts classes, so we use classification models
+            else:
+                assert model_mode in self.all_classification_sklearn_models
+        pretrained_model.eval()
+
+        encodings_list, targets_list = [], []
+
+        for masked_output, label in tqdm(train_dl, desc="Computing encodings for sklearn"):
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = [
+                t.to(device) for t in masked_output
+            ]
+
+            targets = self.group_targets_per_token(label).cpu().numpy()
+
+            void_mask = np.any(targets == 19, axis=1)  # 19 is the void class
+
+            targets_list.append(self.reduce_targets_per_token(targets[~void_mask]))
+
+            with torch.no_grad():
+                s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = pretrained_model(
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                    patch_size=self.patch_size,
+                )
+                encodings = (
+                    self.group_encodings_per_token(
+                        pretrained_model, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m
+                    )
+                    .cpu()
+                    .numpy()
+                )
+
+                encodings_list.append(encodings[~void_mask])
+
+        targets_np = np.concatenate(targets_list)
+        encodings_np = np.concatenate(encodings_list)
+
+        if len(targets_np.shape) == 2 and targets_np.shape[1] == 1:
+            # from [[0], [0], [1]] to [0, 0, 1]
+            targets_np = targets_np.ravel()
+
+        fit_models = []
+        model_dict = {
+            False: {
+                "Logistic Regression": self._construct_sklearn_model(
+                    LogisticRegression(
+                        class_weight="balanced", max_iter=1000, random_state=self.seed
+                    )
+                ),
+                "Random Forest": self._construct_sklearn_model(
+                    RandomForestClassifier(class_weight="balanced", random_state=self.seed)
+                ),
+                "KNNat5": self._construct_sklearn_model(KNNat5Classifier()),
+                "KNNat20": self._construct_sklearn_model(KNNat20Classifier()),
+                "KNNat100": self._construct_sklearn_model(KNNat100Classifier()),
+            },
+            True: {
+                "Regression": LinearRegression(),
+                "Random Forest": RandomForestRegressor(random_state=self.seed),
+                "KNNat5": self._construct_sklearn_model(KNNat5Regressor()),
+            },
+        }
+        for model in models:
+            fit_models.append(
+                clone(model_dict[self.regression][model]).fit(encodings_np, targets_np)
+            )
+        return fit_models
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         if self.output_mode == "mode":
@@ -510,10 +603,16 @@ class PastisPatchEval(EvalTask):
     def evaluate_model_on_task(
         self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
     ) -> Dict:
-        if model_modes is None:
-            model_modes = self.all_classification_sklearn_models
-        for model_mode in model_modes:
-            assert model_mode in self.all_classification_sklearn_models
+        if self.output_mode == "norm_counts":
+            if model_modes is None:
+                model_modes = self.all_regression_sklearn_models
+            for model_mode in model_modes:
+                assert model_mode in self.all_regression_sklearn_models
+        else:
+            if model_modes is None:
+                model_modes = self.all_classification_sklearn_models
+            for model_mode in model_modes:
+                assert model_mode in self.all_classification_sklearn_models
 
         train_dl = DataLoader(
             PastisPatchDataset(
@@ -529,12 +628,11 @@ class PastisPatchEval(EvalTask):
 
         results_dict = {}
 
-        if model_mode in self.all_classification_sklearn_models:
-            trained_sklearn_models = self.train_sklearn_model(
-                train_dl,
-                pretrained_model,
-                models=model_modes,
-            )
-            results_dict.update(self._evaluate_model(pretrained_model, trained_sklearn_models))
+        trained_sklearn_models = self.train_sklearn_model(
+            train_dl,
+            pretrained_model,
+            models=model_modes,
+        )
+        results_dict.update(self._evaluate_model(pretrained_model, trained_sklearn_models))
 
         return results_dict

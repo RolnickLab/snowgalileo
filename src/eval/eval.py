@@ -10,20 +10,20 @@ from scipy.stats import mode
 from sklearn.base import BaseEstimator, clone
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression
-from sklearn.multioutput import MultiOutputClassifier
+from sklearn.multioutput import MultiOutputClassifier, MultiOutputRegressor
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from ..flexipresto import Encoder
 from ..utils import DEFAULT_SEED, device
-from .knn import KNNat5, KNNat20, KNNat100
+from .knn import KNNat5Classifier, KNNat5Regressor, KNNat20Classifier, KNNat100Classifier
 
 logger = logging.getLogger("__main__")
 
 
 @dataclass
 class Hyperparams:
-    batch_size: int = 32
+    batch_size: int = 16
     num_workers: int = 4
 
 
@@ -64,8 +64,10 @@ class EvalTask(ABC):
 
     @classmethod
     def _construct_sklearn_model(self, model) -> BaseEstimator:
-        if self.multilabel or self.output_mode == "norm_counts":
+        if self.multilabel:
             model = MultiOutputClassifier(model, n_jobs=self.num_outputs)
+        if self.output_mode == "norm_counts":
+            model = MultiOutputRegressor(model, n_jobs=self.num_outputs)
         return model
 
     @torch.no_grad()
@@ -135,10 +137,6 @@ class EvalTask(ABC):
             if self.spatial_token_prediction:
                 targets = self.group_targets_per_token(label).cpu().numpy()
 
-                if "pastis_patch" in self.name:
-                    void_mask = np.any(targets == 19, axis=1)
-                    targets = targets[~void_mask]
-
                 targets_list.append(self.reduce_targets_per_token(targets))
             else:
                 targets_list.append(label.cpu().numpy())
@@ -164,9 +162,6 @@ class EvalTask(ABC):
                         .cpu()
                         .numpy()
                     )
-
-                    if "pastis_patch" in self.name:
-                        encodings = encodings[~void_mask]
 
                     encodings_list.append(encodings)
                 else:
@@ -196,13 +191,14 @@ class EvalTask(ABC):
                 "Random Forest": self._construct_sklearn_model(
                     RandomForestClassifier(class_weight="balanced", random_state=self.seed)
                 ),
-                "KNNat5": self._construct_sklearn_model(KNNat5()),
-                "KNNat20": self._construct_sklearn_model(KNNat20()),
-                "KNNat100": self._construct_sklearn_model(KNNat100()),
+                "KNNat5": self._construct_sklearn_model(KNNat5Classifier()),
+                "KNNat20": self._construct_sklearn_model(KNNat20Classifier()),
+                "KNNat100": self._construct_sklearn_model(KNNat100Classifier()),
             },
             True: {
                 "Regression": LinearRegression(),
                 "Random Forest": RandomForestRegressor(random_state=self.seed),
+                "KNNat5": self._construct_sklearn_model(KNNat5Regressor()),
             },
         }
         for model in models:
