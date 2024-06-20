@@ -498,14 +498,14 @@ class PastisPatchEval(EvalTask):
                 "Random Forest": self._construct_sklearn_model(
                     RandomForestClassifier(class_weight="balanced", random_state=self.seed)
                 ),
-                "KNNat5": self._construct_sklearn_model(KNNat5Classifier()),
-                "KNNat20": self._construct_sklearn_model(KNNat20Classifier()),
-                "KNNat100": self._construct_sklearn_model(KNNat100Classifier()),
+                "KNNat5 Classifier": self._construct_sklearn_model(KNNat5Classifier()),
+                "KNNat20 Classifier": self._construct_sklearn_model(KNNat20Classifier()),
+                "KNNat100 Classifier": self._construct_sklearn_model(KNNat100Classifier()),
             },
             True: {
                 "Regression": LinearRegression(),
                 "Random Forest": RandomForestRegressor(random_state=self.seed),
-                "KNNat5": self._construct_sklearn_model(KNNat5Regressor()),
+                "KNNat5 Regressor": self._construct_sklearn_model(KNNat5Regressor()),
             },
         }
         for model in models:
