@@ -14,7 +14,3 @@ class TestConfigs(unittest.TestCase):
             # check we can load the models
             _ = Encoder(**loaded_config["model"]["encoder"])
             _ = PrestoPixelDecoder(**loaded_config["model"]["decoder"])
-
-
-if __name__ == "__main__":
-    unittest.main()

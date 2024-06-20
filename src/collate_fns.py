@@ -9,8 +9,7 @@ from src.masking import (
     SPACE_TIME_BAND_EXPANSION,
     STATIC_BAND_EXPANSION,
     TIME_BAND_EXPANSION,
-    batch_mask_presto,
-    subset_batch_of_images,
+    batch_subset_mask_presto_augmented,
 )
 
 
@@ -20,9 +19,6 @@ def mae_collate_fn(
     patch_sizes,
     shape_time_combinations,
     mask_ratio,
-    time_ratio,
-    space_ratio,
-    channel_ratio,
     augment,
     fixed_patch_size=None,
     fixed_space_time_combination=None,
@@ -44,10 +40,7 @@ def mae_collate_fn(
     timesteps = space_time_combination["timesteps"]
 
     image_size = patch_size * spatial_patches_per_dim
-    s_t_x, sp_x, t_x, st_x, months = subset_batch_of_images(
-        s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=timesteps, augment=augment
-    )
-    s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = batch_mask_presto(
+    s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = batch_subset_mask_presto_augmented(
         s_t_x,
         sp_x,
         t_x,
@@ -55,9 +48,9 @@ def mae_collate_fn(
         months,
         mask_ratio,
         patch_size,
-        time_ratio,
-        space_ratio,
-        channel_ratio,
+        image_size=image_size,
+        num_timesteps=timesteps,
+        augment=augment,
     )
 
     # transform the masks from channel-groups to individual channels

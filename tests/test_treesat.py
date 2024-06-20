@@ -174,7 +174,3 @@ class TestTreeSat(unittest.TestCase):
         self.assertTrue(torch.all(s_t_x[:, :, :, present_bands] != 0))
         self.assertTrue(torch.all(s_t_m[:, :, :, present_band_groups] == 0))
         self.assertTrue(torch.all(s_t_m[:, :, :, absent_band_groups] == 1))
-
-
-if __name__ == "__main__":
-    unittest.main()
