@@ -16,7 +16,14 @@ from tqdm import tqdm
 
 from ..flexipresto import Encoder
 from ..utils import DEFAULT_SEED, device
-from .knn import KNNat5Classifier, KNNat5Regressor, KNNat20Classifier, KNNat100Classifier
+from .knn import (
+    KNNat5Classifier,
+    KNNat5Regressor,
+    KNNat20Classifier,
+    KNNat20Regressor,
+    KNNat100Classifier,
+    KNNat100Regressor,
+)
 
 logger = logging.getLogger("__main__")
 
@@ -42,7 +49,13 @@ class EvalTask(ABC):
     input_height_width: int
     num_outputs: int = 1
 
-    all_regression_sklearn_models = ["Regression", "Random Forest", "KNNat5 Regressor"]
+    all_regression_sklearn_models = [
+        "Regression",
+        "Random Forest",
+        "KNNat5 Regressor",
+        "KNNat20 Regressor",
+        "KNNat100 Regressor",
+    ]
     all_classification_sklearn_models = [
         "Logistic Regression",
         "Random Forest",
@@ -199,6 +212,8 @@ class EvalTask(ABC):
                 "Regression": LinearRegression(),
                 "Random Forest": RandomForestRegressor(random_state=self.seed),
                 "KNNat5 Regressor": self._construct_sklearn_model(KNNat5Regressor()),
+                "KNNat20 Regressor": self._construct_sklearn_model(KNNat20Regressor()),
+                "KNNat100 Regressor": self._construct_sklearn_model(KNNat100Regressor()),
             },
         }
         for model in models:
