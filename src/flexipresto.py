@@ -454,84 +454,6 @@ class FlexiPrestoBase(nn.Module):
         m = torch.cat([s_t_m, sp_m, t_m, st_m], dim=1)
         return x, m
 
-    @staticmethod
-    def split_x_y(tokens, mask):
-        org_mask_dtype = mask.dtype
-        mask = mask.bool()
-        # https://stackoverflow.com/a/68621610/2332296
-        # move all non-masked values to the front of their rows
-        sorted_mask, indices = torch.sort((~mask).int(), dim=1, descending=True, stable=True)
-        tokens = tokens.gather(1, indices[:, :, None].expand_as(tokens))
-
-        # cut off to the length of the longest sequence
-        max_length = sorted_mask.sum(-1).max()
-        min_length = sorted_mask.sum(-1).min()
-        y = tokens[:, :max_length]
-        x = tokens[:, min_length:]
-
-        x_mask = 1 - sorted_mask[:, min_length:].to(dtype=org_mask_dtype)
-        y_mask = 1 - sorted_mask[:, :max_length].to(dtype=org_mask_dtype)
-        return x, y, x_mask, y_mask, indices
-
-    @staticmethod
-    def combine_x_y(x, y, x_mask, y_mask, indices):
-        # multiply by mask to zero out, then add
-        B, T = indices.shape[0], indices.shape[1]
-        D = x.shape[-1]
-
-        tokens = torch.zeros((B, T, D), dtype=x.dtype, device=x.device)
-        full_mask = torch.zeros((B, T), dtype=x_mask.dtype, device=x_mask.device)
-        tokens[:, : y.shape[1]] = y * (1 - y_mask).unsqueeze(-1)
-        tokens[:, -x.shape[1] :] += x * x_mask.unsqueeze(-1)
-        full_mask[:, : y_mask.shape[1]] = y_mask
-        full_mask[:, -x_mask.shape[1] :] += x_mask
-
-        tokens = tokens.scatter(1, indices[:, :, None].expand_as(tokens), tokens)
-        full_mask = full_mask.scatter(1, indices.expand_as(full_mask), full_mask)
-
-        return tokens, torch.clamp(full_mask, max=1)
-
-    @staticmethod
-    def remove_masked_tokens(x, mask):
-        org_mask_dtype = mask.dtype
-        mask = mask.bool()
-        # https://stackoverflow.com/a/68621610/2332296
-        # move all non-masked values to the front of their rows
-        sorted_mask, indices = torch.sort((~mask).int(), dim=1, descending=True, stable=True)
-        x = x.gather(1, indices[:, :, None].expand_as(x))
-        # set masked values to 0 (not really necessary since we'll ignore them anyway)
-        x = x * sorted_mask.unsqueeze(-1)
-
-        # cut off to the length of the longest sequence
-        max_length = sorted_mask.sum(-1).max()
-        x = x[:, :max_length]
-        updated_mask = 1 - sorted_mask[:, :max_length]
-
-        return x, indices, updated_mask.to(dtype=org_mask_dtype)
-
-    @staticmethod
-    def add_removed_tokens(x, indices, mask):
-        masked_tokens = repeat(
-            torch.zeros_like(x[0, 0, :]), "d -> b t d", b=x.shape[0], t=indices.shape[1]
-        )
-        full_mask = torch.cat(
-            (
-                mask,
-                torch.ones(
-                    (x.shape[0], indices.shape[1] - x.shape[1]), device=x.device, dtype=mask.dtype
-                ),
-            ),
-            dim=-1,
-        )
-        # can't set value on leaf variable
-        out = masked_tokens.clone()
-        # put tokens in full masked tensor (at the first N positions in every row)
-        out[~full_mask.bool()] = x[~mask.bool()]
-        # then move them to their original positions
-        out = out.scatter(1, indices[:, :, None].expand_as(out), out)
-        full_mask = full_mask.scatter(1, indices.expand_as(full_mask), full_mask)
-        return out, full_mask
-
     @classmethod
     def split_and_expand_hwtc(
         cls,
@@ -619,31 +541,6 @@ class FlexiPrestoBase(nn.Module):
         t_embed = torch.cat([t_channel, pos_embed_t, m_embed_t, t_zeros], dim=-1)
         st_embed = torch.cat([st_channel, st_zeros], dim=-1)
         return s_t_x + s_t_embed, sp_x + sp_embed, t_x + t_embed, st_x + st_embed
-
-    def apply_attn(
-        self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_res
-    ):
-        _, h, w, t, s_t_c_g, _ = s_t_x.shape
-        sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
-        s_t_x, sp_x, t_x, st_x = self.apply_encodings(
-            s_t_x, sp_x, t_x, st_x, months, patch_size, input_res
-        )
-        x, m = self.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
-        if not self.cross_attn:
-            x, indices, m = self.remove_masked_tokens(x, m)
-            for blk in self.blocks:
-                # we take the inverse of the mask because a value
-                # of True indicates the value *should* take part in
-                # attention
-                x = blk(x=x, y=None, attn_mask=~m.bool())
-            x, m = self.add_removed_tokens(x, indices, m)
-            return self.split_and_expand_hwtc(x, m, h, w, t, s_t_c_g, sp_c_g, t_c_g, st_c_g)
-        else:
-            x, y, x_mask, y_mask, indices = self.split_x_y(x, m)
-            for blk in self.blocks:
-                x = blk(x=x, y=y, attn_mask=~y_mask.bool())
-            x, m = self.combine_x_y(x, y, x_mask, y_mask, indices)
-            return self.split_and_expand_hwtc(x, m, h, w, t, s_t_c_g, sp_c_g, t_c_g, st_c_g)
 
 
 class Encoder(FlexiPrestoBase):
@@ -768,6 +665,65 @@ class Encoder(FlexiPrestoBase):
         x, _, m = cls.remove_masked_tokens(x, m)
         x_for_mean = x * (1 - m.unsqueeze(-1))
         return x_for_mean.sum(dim=1) / torch.sum(1 - m, -1, keepdim=True)
+
+    @staticmethod
+    def remove_masked_tokens(x, mask):
+        org_mask_dtype = mask.dtype
+        mask = mask.bool()
+        # https://stackoverflow.com/a/68621610/2332296
+        # move all non-masked values to the front of their rows
+        sorted_mask, indices = torch.sort((~mask).int(), dim=1, descending=True, stable=True)
+        x = x.gather(1, indices[:, :, None].expand_as(x))
+        # set masked values to 0 (not really necessary since we'll ignore them anyway)
+        x = x * sorted_mask.unsqueeze(-1)
+
+        # cut off to the length of the longest sequence
+        max_length = sorted_mask.sum(-1).max()
+        x = x[:, :max_length]
+        updated_mask = 1 - sorted_mask[:, :max_length]
+
+        return x, indices, updated_mask.to(dtype=org_mask_dtype)
+
+    @staticmethod
+    def add_removed_tokens(x, indices, mask):
+        masked_tokens = repeat(
+            torch.zeros_like(x[0, 0, :]), "d -> b t d", b=x.shape[0], t=indices.shape[1]
+        )
+        full_mask = torch.cat(
+            (
+                mask,
+                torch.ones(
+                    (x.shape[0], indices.shape[1] - x.shape[1]), device=x.device, dtype=mask.dtype
+                ),
+            ),
+            dim=-1,
+        )
+        # can't set value on leaf variable
+        out = masked_tokens.clone()
+        # put tokens in full masked tensor (at the first N positions in every row)
+        out[~full_mask.bool()] = x[~mask.bool()]
+        # then move them to their original positions
+        out = out.scatter(1, indices[:, :, None].expand_as(out), out)
+        full_mask = full_mask.scatter(1, indices.expand_as(full_mask), full_mask)
+        return out, full_mask
+
+    def apply_attn(
+        self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_res
+    ):
+        _, h, w, t, s_t_c_g, _ = s_t_x.shape
+        sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
+        s_t_x, sp_x, t_x, st_x = self.apply_encodings(
+            s_t_x, sp_x, t_x, st_x, months, patch_size, input_res
+        )
+        x, m = self.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
+        x, indices, m = self.remove_masked_tokens(x, m)
+        for blk in self.blocks:
+            # we take the inverse of the mask because a value
+            # of True indicates the value *should* take part in
+            # attention
+            x = blk(x=x, y=None, attn_mask=~m.bool())
+        x, m = self.add_removed_tokens(x, indices, m)
+        return self.split_and_expand_hwtc(x, m, h, w, t, s_t_c_g, sp_c_g, t_c_g, st_c_g)
 
     def forward(
         self,
@@ -904,6 +860,58 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             t_x + t_m_add,
             st_x + st_m_add,
         )
+
+    @staticmethod
+    def split_x_y(tokens, mask):
+        org_mask_dtype = mask.dtype
+        mask = mask.bool()
+        # https://stackoverflow.com/a/68621610/2332296
+        # move all non-masked values to the front of their rows
+        sorted_mask, indices = torch.sort((~mask).int(), dim=1, descending=True, stable=True)
+        tokens = tokens.gather(1, indices[:, :, None].expand_as(tokens))
+
+        # cut off to the length of the longest sequence
+        max_length = sorted_mask.sum(-1).max()
+        min_length = sorted_mask.sum(-1).min()
+        y = tokens[:, :max_length]
+        x = tokens[:, min_length:]
+
+        x_mask = 1 - sorted_mask[:, min_length:].to(dtype=org_mask_dtype)
+        y_mask = 1 - sorted_mask[:, :max_length].to(dtype=org_mask_dtype)
+        return x, y, x_mask, y_mask, indices
+
+    @staticmethod
+    def combine_x_y(x, y, x_mask, y_mask, indices):
+        # multiply by mask to zero out, then add
+        B, T = indices.shape[0], indices.shape[1]
+        D = x.shape[-1]
+
+        tokens = torch.zeros((B, T, D), dtype=x.dtype, device=x.device)
+        full_mask = torch.zeros((B, T), dtype=x_mask.dtype, device=x_mask.device)
+        tokens[:, : y.shape[1]] = y * (1 - y_mask).unsqueeze(-1)
+        tokens[:, -x.shape[1] :] += x * x_mask.unsqueeze(-1)
+        full_mask[:, : y_mask.shape[1]] = y_mask
+        full_mask[:, -x_mask.shape[1] :] += x_mask
+
+        tokens = tokens.scatter(1, indices[:, :, None].expand_as(tokens), tokens)
+        full_mask = full_mask.scatter(1, indices.expand_as(full_mask), full_mask)
+
+        return tokens, torch.clamp(full_mask, max=1)
+
+    def apply_attn(
+        self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_res
+    ):
+        _, h, w, t, s_t_c_g, _ = s_t_x.shape
+        sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
+        s_t_x, sp_x, t_x, st_x = self.apply_encodings(
+            s_t_x, sp_x, t_x, st_x, months, patch_size, input_res
+        )
+        x, m = self.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
+        x, y, x_mask, y_mask, indices = self.split_x_y(x, m)
+        for blk in self.blocks:
+            x = blk(x=x, y=y, attn_mask=~y_mask.bool())
+        x, m = self.combine_x_y(x, y, x_mask, y_mask, indices)
+        return self.split_and_expand_hwtc(x, m, h, w, t, s_t_c_g, sp_c_g, t_c_g, st_c_g)
 
     def forward(
         self,
