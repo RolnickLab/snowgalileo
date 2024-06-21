@@ -165,19 +165,23 @@ class TestPresto(unittest.TestCase):
         b, h, w, t = 5, 6, 7, 8
         s_t_x = torch.ones(b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX), embedding_size)
         s_t_m = torch.zeros(b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX))
-        s_t_m[:, :, :, 0] = 1  # mask the first timestep
+        s_t_m[:, :, :, 0] = -1  # the firs timestep will get processed by the decoder
+        s_t_m[:, :, :, 1] = 1  # the second timestep gets masked but not processed
 
         sp_x = torch.ones(b, h, w, len(SPACE_BAND_GROUPS_IDX), embedding_size)
         sp_m = torch.zeros(b, h, w, len(SPACE_BAND_GROUPS_IDX))
-        sp_m[:, 0] = 1
+        sp_m[:, 0] = 2
+        sp_m[:, 1] = 1
 
         t_x = torch.ones(b, t, len(TIME_BAND_GROUPS_IDX), embedding_size)
         t_m = torch.zeros(b, t, len(TIME_BAND_GROUPS_IDX))
-        t_m[:, 0] = 1
+        t_m[:, 0] = 2
+        t_m[:, 1] = 1
 
         st_x = torch.ones(b, len(STATIC_BAND_GROUPS_IDX), embedding_size)
         st_m = torch.zeros(b, len(STATIC_BAND_GROUPS_IDX))
-        st_m[:, 0] = 1
+        st_m[:, 0] = 2
+        st_m[:, 1] = 1
 
         with torch.no_grad():
             o = decoder.add_masks(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)

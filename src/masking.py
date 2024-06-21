@@ -56,6 +56,13 @@ MASKING_MULTIPLIER = 4
 
 
 class MaskedOutput(NamedTuple):
+    """
+    A mask can take 3 values:
+    0: seen by the encoder (i.e. makes the key and value tokens in the decoder)
+    1: not seen by the encoder, and ignored by the decoder
+    2: not seen by the encoder, and processed by the decoder (the decoder's query values)
+    """
+
     space_time_x: torch.Tensor
     space_x: torch.Tensor
     time_x: torch.Tensor
@@ -427,6 +434,7 @@ def batch_mask_random(
     static_x: torch.Tensor,
     months: torch.Tensor,
     mask_ratio: float,
+    decoder_unmask_ratio: float,
     patch_size: int,
 ):
     """
@@ -454,13 +462,18 @@ def batch_mask_random(
     num_static_tokens = c_st
 
     total_tokens = num_space_time_tokens + num_space_tokens + num_time_tokens + num_static_tokens
-    num_tokens_to_mask = int(total_tokens * mask_ratio)
+    tokens_the_decoder_will_unmask = int(total_tokens * decoder_unmask_ratio)
+    unused_tokens = int(total_tokens * mask_ratio) - tokens_the_decoder_will_unmask
     # we do this as a numpy array to take advantage of
     # numpy's permuted function
     flat_tokens = np.concatenate(
         (
-            np.ones(num_tokens_to_mask, dtype=np.int_),
-            np.zeros(total_tokens - num_tokens_to_mask, dtype=np.int_),
+            np.ones(unused_tokens, dtype=np.int_),
+            np.ones(tokens_the_decoder_will_unmask, dtype=np.int_) * 2,
+            np.zeros(
+                total_tokens - (tokens_the_decoder_will_unmask + tokens_the_decoder_will_unmask),
+                dtype=np.int_,
+            ),
         )
     )
     b_flat_tokens = repeat(flat_tokens, "t -> b t", b=b)
