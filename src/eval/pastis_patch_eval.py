@@ -32,7 +32,14 @@ from ..flexipresto import Encoder
 from ..masking import MaskedOutput
 from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
 from .eval import EvalTask, Hyperparams, model_class_name
-from .knn import KNNat5Classifier, KNNat5Regressor, KNNat20Classifier, KNNat100Classifier
+from .knn import (
+    KNNat5Classifier,
+    KNNat5Regressor,
+    KNNat20Classifier,
+    KNNat20Regressor,
+    KNNat100Classifier,
+    KNNat100Regressor,
+)
 
 ### SETUP
 torch.multiprocessing.set_sharing_strategy("file_system")
@@ -398,6 +405,7 @@ class PastisPatchDataset(PyTorchDataset):
 class PastisPatchEval(EvalTask):
     name = "pastis_patch"
     multilabel = False
+    regression = False
     spatial_token_prediction = True
     input_height_width = PastisPatchDataset.input_height_width
     num_outputs = len(PastisPatchDataset.labels_to_int) - 1
@@ -414,9 +422,12 @@ class PastisPatchEval(EvalTask):
         assert output_mode in ["mode", "norm_counts"]
         assert band_mode in ["s2", "s1", "combined"]
 
+        self.output_mode = output_mode
+        if self.output_mode == "norm_counts":
+            self.regression = True
         self.num_subtiles_per_image = num_subtiles_per_image
         self.band_mode = band_mode
-        super().__init__(patch_size=patch_size, seed=seed, output_mode=output_mode)
+        super().__init__(patch_size=patch_size, seed=seed, output_mode=self.output_mode)
         self.input_height_width = self.input_height_width // int(
             sqrt(cast(float, self.num_subtiles_per_image))
         )
@@ -506,6 +517,8 @@ class PastisPatchEval(EvalTask):
                 "Regression": LinearRegression(),
                 "Random Forest": RandomForestRegressor(random_state=self.seed),
                 "KNNat5 Regressor": self._construct_sklearn_model(KNNat5Regressor()),
+                "KNNat20 Regressor": self._construct_sklearn_model(KNNat20Regressor()),
+                "KNNat100 Regressor": self._construct_sklearn_model(KNNat100Regressor()),
             },
         }
         for model in models:
