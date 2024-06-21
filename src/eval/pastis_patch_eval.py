@@ -9,7 +9,13 @@ from einops import repeat
 from sklearn.base import BaseEstimator, clone
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression
-from sklearn.metrics import accuracy_score, balanced_accuracy_score, jaccard_score
+from sklearn.metrics import (
+    accuracy_score,
+    balanced_accuracy_score,
+    jaccard_score,
+    mean_squared_error,
+    r2_score,
+)
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as PyTorchDataset
 from tqdm import tqdm
@@ -534,8 +540,10 @@ class PastisPatchEval(EvalTask):
                 f"{self.name}: {model_name}_mean_accuracy": balanced_accuracy_score(target, preds),
             }
         else:
+            # regression metrics
             return {
-                f"{self.name}: {model_name}_overall_accuracy": accuracy_score(target, preds),
+                f"{self.name}_{model_name}_rmse": mean_squared_error(target, preds, squared=False),
+                f"{self.name}_{model_name}_r2": r2_score(target, preds),
                 f"{self.name}: {model_name}_mean_iou": jaccard_score(
                     target, preds, average="weighted"
                 ),
