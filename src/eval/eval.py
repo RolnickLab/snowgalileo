@@ -75,7 +75,6 @@ class EvalTask(ABC):
         self.patch_size = patch_size
         self.name = f"{self.name}_s{self.seed}_ps{self.patch_size}"
 
-    @classmethod
     def _construct_sklearn_model(self, model) -> BaseEstimator:
         if self.multilabel:
             model = MultiOutputClassifier(model, n_jobs=self.num_outputs)
