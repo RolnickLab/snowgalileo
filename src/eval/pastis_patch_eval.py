@@ -12,7 +12,6 @@ from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.metrics import (
     accuracy_score,
     balanced_accuracy_score,
-    jaccard_score,
     mean_squared_error,
     r2_score,
 )
@@ -544,9 +543,6 @@ class PastisPatchEval(EvalTask):
             return {
                 f"{self.name}_{model_name}_rmse": mean_squared_error(target, preds, squared=False),
                 f"{self.name}_{model_name}_r2": r2_score(target, preds),
-                f"{self.name}: {model_name}_mean_iou": jaccard_score(
-                    target, preds, average="weighted"
-                ),
             }
         return {}
 
