@@ -98,6 +98,7 @@ class PastisPatchDataset(PyTorchDataset):
         self.metadata.sort_index(inplace=True)
 
         self.metadata = pd.concat([self.metadata[self.metadata["Fold"] == f] for f in folds])
+        self.metadata = self.metadata.to_crs(epsg=4326)
 
         self.id = self.metadata.index
 
