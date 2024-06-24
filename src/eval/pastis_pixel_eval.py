@@ -179,12 +179,12 @@ class PastisPixelDataset(PyTorchDataset):
         )
         t_m = np.ones([s_t_m.shape[0], self.num_timesteps, len(TIME_BAND_GROUPS_IDX)])
 
-        st_m = np.ones([len(STATIC_BAND_GROUPS_IDX)])
+        st_m = np.ones([s_t_m.shape[0], len(STATIC_BAND_GROUPS_IDX)])
         if self.include_latlons:
             location_channels = [
                 idx for idx, key in enumerate(STATIC_BAND_GROUPS_IDX) if "location" in key
             ]
-            st_m[location_channels] = 0
+            st_m[:, location_channels] = 0
             assert ((st_m == 0) | (st_m == 1)).all()
         else:
             assert (st_m == 1).all()
