@@ -11,6 +11,7 @@ import psutil
 import torch
 from torch.utils.data import BatchSampler, DataLoader
 from tqdm import tqdm
+from wandb.sdk.wandb_run import Run
 
 from src.collate_fns import mae_collate_fn
 from src.config import DEFAULT_SEED
@@ -47,7 +48,6 @@ from src.utils import (
     seed_everything,
     timestamp_dirname,
 )
-from wandb.sdk.wandb_run import Run
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
