@@ -5,7 +5,6 @@ import torch
 import torchvision.transforms.v2.functional as F
 from einops import rearrange
 
-
 class FlipAndRotateSpace(object):
     """
     For now, lets have no parameters
@@ -15,15 +14,39 @@ class FlipAndRotateSpace(object):
     def __init__(self, enabled: bool):
         self.enabled = enabled
         self.transformations = [
-            lambda x: x,  # No transformation
-            lambda x: F.rotate(x, 90),  # 90-degree rotation
-            lambda x: F.rotate(x, 180),  # 180-degree rotation
-            lambda x: F.rotate(x, 270),  # 270-degree rotation
-            lambda x: F.hflip(x),  # Horizontal flip
-            lambda x: F.vflip(x),  # Vertical flip
-            lambda x: F.hflip(F.rotate(x, 90)),  # Horizontal flip of 90-degree rotated image
-            lambda x: F.vflip(F.rotate(x, 90)),  # Vertical flip of 90-degree rotated image
+            self.no_transform,  # No transformation
+            self.rotate_90,  # 90-degree rotation
+            self.rotate_180,  # 180-degree rotation
+            self.rotate_270,  # 270-degree rotation
+            self.hflip,  # Horizontal flip
+            self.vflip,  # Vertical flip
+            self.hflip_rotate_90,  # Horizontal flip of 90-degree rotated image
+            self.vflip_rotate_90,  # Vertical flip of 90-degree rotated image
         ]
+
+    def no_transform(self, x):
+        return x
+
+    def rotate_90(self, x):
+        return F.rotate(x, 90)
+
+    def rotate_180(self, x):
+        return F.rotate(x, 180)
+
+    def rotate_270(self, x):
+        return F.rotate(x, 270)
+
+    def hflip(self, x):
+        return F.hflip(x)
+
+    def vflip(self, x):
+        return F.vflip(x)
+
+    def hflip_rotate_90(self, x):
+        return F.hflip(F.rotate(x, 90))
+
+    def vflip_rotate_90(self, x):
+        return F.vflip(F.rotate(x, 90))
 
     def apply(
         self,
