@@ -215,9 +215,9 @@ for e in tqdm(range(training_config["num_epochs"])):
                 loss_type=training_config["mae_loss"],
             )
 
-            train_loss.update(loss.item(), n=s_t_x.shape[0])
-            loss = loss / iters_to_accumulate
-            loss.backward()
+        train_loss.update(loss.item(), n=s_t_x.shape[0])
+        loss = loss / iters_to_accumulate
+        loss.backward()
 
         if ((i + 1) % iters_to_accumulate == 0) or (i + 1 == len(dataloader)):
             optimizer.step()
