@@ -122,25 +122,35 @@ def to_cartesian(
     lat: Union[float, np.ndarray, torch.Tensor], lon: Union[float, np.ndarray, torch.Tensor]
 ) -> Union[np.ndarray, torch.Tensor]:
     # transform to radians
-    lat = lat * math.pi / 180
-    lon = lon * math.pi / 180
+    lat_r = lat * math.pi / 180
+    lon_r = lon * math.pi / 180
     if isinstance(lat, float):
+        assert -90 <= lat <= 90, f"lat out of range ({lat}). Make sure you are in EPSG:4326"
+        assert -180 <= lon <= 180, f"lon out of range ({lon}). Make sure you are in EPSG:4326"
         assert isinstance(lon, float), f"Expected float got {type(lon)}"
-        x = math.cos(lat) * math.cos(lon)
-        y = math.cos(lat) * math.sin(lon)
-        z = math.sin(lat)
+        x = math.cos(lat_r) * math.cos(lon_r)
+        y = math.cos(lat_r) * math.sin(lon_r)
+        z = math.sin(lat_r)
         return np.array([x, y, z])
     elif isinstance(lon, np.ndarray):
+        assert -90 <= lat.min(), f"lat out of range ({lat.min()}). Make sure you are in EPSG:4326"
+        assert 90 >= lat.max(), f"lat out of range ({lat.max()}). Make sure you are in EPSG:4326"
+        assert -180 <= lon.min(), f"lon out of range ({lon.min()}). Make sure you are in EPSG:4326"
+        assert 180 >= lon.max(), f"lon out of range ({lon.max()}). Make sure you are in EPSG:4326"
         assert isinstance(lat, np.ndarray), f"Expected np.ndarray got {type(lat)}"
-        x_np = np.cos(lat) * np.cos(lon)
-        y_np = np.cos(lat) * np.sin(lon)
-        z_np = np.sin(lat)
+        x_np = np.cos(lat_r) * np.cos(lon_r)
+        y_np = np.cos(lat_r) * np.sin(lon_r)
+        z_np = np.sin(lat_r)
         return np.stack([x_np, y_np, z_np], axis=-1)
     elif isinstance(lon, torch.Tensor):
+        assert -90 <= lat.min(), f"lat out of range ({lat.min()}). Make sure you are in EPSG:4326"
+        assert 90 >= lat.max(), f"lat out of range ({lat.max()}). Make sure you are in EPSG:4326"
+        assert -180 <= lon.min(), f"lon out of range ({lon.min()}). Make sure you are in EPSG:4326"
+        assert 180 >= lon.max(), f"lon out of range ({lon.max()}). Make sure you are in EPSG:4326"
         assert isinstance(lat, torch.Tensor), f"Expected torch.Tensor got {type(lat)}"
-        x_t = torch.cos(lat) * torch.cos(lon)
-        y_t = torch.cos(lat) * torch.sin(lon)
-        z_t = torch.sin(lat)
+        x_t = torch.cos(lat_r) * torch.cos(lon_r)
+        y_t = torch.cos(lat_r) * torch.sin(lon_r)
+        z_t = torch.sin(lat_r)
         return torch.stack([x_t, y_t, z_t], dim=-1)
     else:
         raise AssertionError(f"Unexpected input type {type(lon)}")
