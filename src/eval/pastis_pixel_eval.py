@@ -94,7 +94,7 @@ class PastisPixelDataset(PyTorchDataset):
         self.meta_patch = gpd.read_file(data_dir / self.data_path / "metadata.geojson")
         self.meta_patch.index = self.meta_patch["ID_PATCH"].astype(int)
         self.meta_patch.sort_index(inplace=True)
-        self.meta_patch.to_crs("EPSG:4326")
+        self.meta_patch = self.meta_patch.to_crs("EPSG:4326")
 
         if folds is not [1, 2, 3, 4, 5]:
             self.meta = pd.concat([self.meta[self.meta["Fold"] == f] for f in folds])
