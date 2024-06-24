@@ -198,26 +198,26 @@ for e in tqdm(range(training_config["num_epochs"])):
                 patch_size=patch_size,
             )
 
-        loss = mae_loss(
-            expanded_s_t_x,
-            expanded_sp_x,
-            t_x,
-            st_x,
-            p_s_t,
-            p_sp,
-            p_t,
-            p_st,
-            s_t_m_p,
-            sp_m_p,
-            t_m_p,
-            st_m_p,
-            patch_size=training_config["patch_sizes"][-1],
-            loss_type=training_config["mae_loss"],
-        )
+            loss = mae_loss(
+                expanded_s_t_x,
+                expanded_sp_x,
+                t_x,
+                st_x,
+                p_s_t,
+                p_sp,
+                p_t,
+                p_st,
+                s_t_m_p,
+                sp_m_p,
+                t_m_p,
+                st_m_p,
+                patch_size=training_config["patch_sizes"][-1],
+                loss_type=training_config["mae_loss"],
+            )
 
-        train_loss.update(loss.item(), n=s_t_x.shape[0])
-        loss = loss / iters_to_accumulate
-        loss.backward()
+            train_loss.update(loss.item(), n=s_t_x.shape[0])
+            loss = loss / iters_to_accumulate
+            loss.backward()
 
         if ((i + 1) % iters_to_accumulate == 0) or (i + 1 == len(dataloader)):
             optimizer.step()
