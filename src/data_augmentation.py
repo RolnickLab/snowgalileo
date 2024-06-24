@@ -5,6 +5,7 @@ import torch
 import torchvision.transforms.v2.functional as F
 from einops import rearrange
 
+
 class FlipAndRotateSpace(object):
     """
     For now, lets have no parameters
