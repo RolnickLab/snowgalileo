@@ -2,8 +2,16 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+import torch
 
-from src.data.dataset import SPACE_BANDS, SPACE_TIME_BANDS, STATIC_BANDS, TIME_BANDS, Dataset
+from src.data.dataset import (
+    SPACE_BANDS,
+    SPACE_TIME_BANDS,
+    STATIC_BANDS,
+    TIME_BANDS,
+    Dataset,
+    to_cartesian,
+)
 
 BROKEN_FILE = "min_lat=24.7979_min_lon=-105.1508_max_lat=24.8069_max_lon=-105.141_dates=2022-01-01_2023-12-31.tif"
 TEST_FILENAMES = [
@@ -65,3 +73,24 @@ class TestDataset(unittest.TestCase):
         self.assertTrue(np.equal(np.ones((3, 3, 1)), output[0]).all())
         self.assertTrue(np.equal(np.ones((3, 3, 1)), output[1]).all())
         self.assertTrue(np.equal(months, output[2]).all())
+
+    def test_latlon_checks_float(self):
+        # just checking it runs
+        _ = to_cartesian(
+            30.0,
+            40.0,
+        )
+        with self.assertRaises(AssertionError):
+            to_cartesian(1000.0, 1000.0)
+
+    def test_latlon_checks_np(self):
+        # just checking it runs
+        _ = to_cartesian(np.array([30.0]), np.array([40.0]))
+        with self.assertRaises(AssertionError):
+            to_cartesian(np.array([1000.0]), np.array([1000.0]))
+
+    def test_latlon_checks_tensor(self):
+        # just checking it runs
+        _ = to_cartesian(torch.tensor([30.0]), torch.tensor([40.0]))
+        with self.assertRaises(AssertionError):
+            to_cartesian(torch.tensor([1000.0]), torch.tensor([1000.0]))

@@ -324,8 +324,10 @@ class PastisPixelDataset(PyTorchDataset):
             # space only / time only bands are not provided by pastis
             sp_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], s_t_x.shape[2], len(SPACE_BANDS)))
             t_x = np.zeros((s_t_x.shape[0], s_t_x.shape[3], len(TIME_BANDS)))
+
             st_x = np.zeros((len(STATIC_BANDS)))
             st_x[kept_static_bands] = to_cartesian(lat, lon)
+            st_x = repeat(st_x, "d -> b d", b=s_t_x.shape[0])
 
             s_t_m, sp_m, t_m, st_m = self.create_pastis_masks(
                 missing_timestep_indeces=missing_timestep_indeces,
