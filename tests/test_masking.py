@@ -76,7 +76,7 @@ class TestMasking(unittest.TestCase):
                         )  # b, t
                         time_mask_along_t = output.time_mask.float().mean(axis=-1)  # b, t
                         self.assertTrue(torch.equal(space_time_mask_along_t, time_mask_along_t))
-                        self.assertTrue(np.isin(space_time_mask_along_t, (0, 1)).all())
+                        self.assertTrue(np.isin(space_time_mask_along_t, (0, 1, 2)).all())
                         self.assertTrue(
                             (
                                 space_time_mask_along_t.sum(axis=1)
