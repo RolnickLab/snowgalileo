@@ -254,41 +254,45 @@ class TestPresto(unittest.TestCase):
 
     def test_combine_x_y(self):
         # x is the query (i.e. the masked tokens)
-        x = torch.tensor([[1, 2, 3], [1, 2, 3]]).unsqueeze(-1)
+        x = torch.tensor([[14, 15, 16], [15, 16, 1]]).unsqueeze(-1)
         # y is the keys and values (i.e. the unmasked tokens)
-        y = torch.tensor([[5, 6, 7, 8], [5, 6, 7, 8]]).unsqueeze(-1)
-        x_mask = torch.tensor([[0, 1, 1], [1, 1, 1]])
-        y_mask = torch.tensor([[0, 0, 0, 0], [0, 0, 0, 1]])
-        indices = torch.tensor([[0, 1, 2, 3, 4, 5], [0, 1, 2, 3, 4, 5]])
+        y = torch.tensor([[5, 6, 7, 8], [4, 5, 6, 7]]).unsqueeze(-1)
+        x_mask = torch.tensor([[1, 1, 1], [1, 1, 0]])
+        y_mask = torch.tensor([[1, 1, 1, 1], [0, 1, 1, 1]])
+        indices = torch.tensor([[6, 7, 8, 4, 5, 0, 1, 2, 3], [7, 8, 3, 4, 5, 6, 0, 1, 2]])
 
-        tokens, mask = PrestoPixelDecoder.combine_x_y(x, y, x_mask, y_mask, indices)
+        tokens = PrestoPixelDecoder.combine_x_y(x, y, x_mask, y_mask, indices)
         self.assertTrue(
             torch.equal(
-                tokens, torch.tensor([[5, 6, 7, 8, 2, 3], [5, 6, 7, 1, 2, 3]]).unsqueeze(-1)
+                tokens,
+                torch.tensor(
+                    [[5, 6, 7, 8, 0, 0, 14, 15, 16], [5, 6, 7, 0, 0, 0, 0, 15, 16]]
+                ).unsqueeze(-1),
             )
         )
-        self.assertTrue(torch.equal(mask, torch.tensor([[0, 0, 0, 0, 1, 1], [0, 0, 0, 1, 1, 1]])))
 
     def test_split_x_y(self):
-        tokens = torch.tensor([[5, 6, 7, 8, 2, 3], [5, 6, 7, 1, 2, 3]]).unsqueeze(-1)
-        mask = torch.tensor([[0, 0, 0, 0, 1, 1], [0, 0, 0, 1, 1, 1]])
+        tokens = torch.tensor(
+            [[5, 6, 7, 8, 2, 13, 14, 15, 16], [5, 6, 7, 1, 2, 3, 4, 15, 16]]
+        ).unsqueeze(-1)
+        mask = torch.tensor([[0, 0, 0, 0, 1, 1, 2, 2, 2], [0, 0, 0, 1, 1, 1, 1, 2, 2]])
 
         x, y, x_mask, y_mask, indices = PrestoPixelDecoder.split_x_y(tokens, mask)
-        self.assertTrue(torch.equal(x, torch.tensor([[8, 2, 3], [1, 2, 3]]).unsqueeze(-1)))
-        self.assertTrue(torch.equal(y, torch.tensor([[5, 6, 7, 8], [5, 6, 7, 1]]).unsqueeze(-1)))
-        self.assertTrue(torch.equal(x_mask, torch.tensor([[0, 1, 1], [1, 1, 1]])))
-        self.assertTrue(torch.equal(y_mask, torch.tensor([[0, 0, 0, 0], [0, 0, 0, 1]])))
-        self.assertTrue(
-            torch.equal(indices, torch.tensor([[0, 1, 2, 3, 4, 5], [0, 1, 2, 3, 4, 5]]))
-        )
+        self.assertTrue(False)
+        self.assertTrue(torch.equal(x, torch.tensor([[14, 15, 16], [15, 16, 1]]).unsqueeze(-1)))
+        self.assertTrue(torch.equal(y, torch.tensor([[5, 6, 7, 8], [4, 5, 6, 7]]).unsqueeze(-1)))
+        self.assertTrue(torch.equal(x_mask, torch.tensor([[1, 1, 1], [1, 1, 0]])))
+        self.assertTrue(torch.equal(y_mask, torch.tensor([[1, 1, 1, 1], [0, 1, 1, 1]])))
 
     def test_x_y_there_and_back_again(self):
-        tokens = torch.tensor([[5, 6, 7, 8, 2, 3], [5, 6, 7, 1, 2, 3]]).unsqueeze(-1)
-        mask = torch.tensor([[0, 0, 0, 0, 1, 1], [0, 0, 0, 1, 1, 1]])
+        tokens = torch.tensor(
+            [[5, 6, 7, 8, 2, 13, 14, 15, 16], [5, 6, 7, 1, 2, 3, 4, 15, 16]]
+        ).unsqueeze(-1)
+        mask = torch.tensor([[0, 0, 0, 0, 1, 1, 2, 2, 2], [0, 0, 0, 1, 1, 1, 1, 2, 2]])
         x, y, x_mask, y_mask, indices = PrestoPixelDecoder.split_x_y(tokens, mask)
-        new_tokens, new_mask = PrestoPixelDecoder.combine_x_y(x, y, x_mask, y_mask, indices)
-        self.assertTrue(torch.equal(new_tokens, tokens))
-        self.assertTrue(torch.equal(new_mask, mask))
+        new_tokens = PrestoPixelDecoder.combine_x_y(x, y, x_mask, y_mask, indices)
+        tokens[mask == 1] = 0
+        self.assertTrue(torch.equal(tokens, new_tokens))
 
     def test_load_from_device(self):
         config = load_check_config("medium.json", "mae")

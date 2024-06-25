@@ -879,24 +879,25 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         # move all non-masked values to the front of their rows
         # and all masked values to be decoded to the end of their rows
         # since we multiply by -1, we now have that -2: to be decoded, -1: masked and ignored, 0: unmasked
-        sorted_mask, indices = torch.sort((mask * -1).int(), dim=1, descending=True, stable=True)
+        sorted_mask, indices = torch.sort(mask.int(), dim=1, descending=True, stable=True)
         tokens = tokens.gather(1, indices[:, :, None].expand_as(tokens))
-
         # cut off to the length of the longest sequence
-        max_length_to_be_decoded = (sorted_mask == -2).sum(-1).max()
-        max_length_of_unmasked_tokens = (sorted_mask == 0).sum(-1).min()
+        max_length_to_be_decoded = (sorted_mask == 2).sum(-1).max()
+        max_length_of_unmasked_tokens = (sorted_mask == 0).sum(-1).max()
         # x will be the query tokens, and y will be the key / value tokens
         x = tokens[:, :max_length_to_be_decoded]
-        y = tokens[:, max_length_of_unmasked_tokens:]
+        y = tokens[:, max_length_of_unmasked_tokens + 1 :]
 
         # the x_mask is just going to be used in the reconstruction, to know which
         # x tokens to add back into the token list. TODO is this even necessary? it could
         # get padded with noise tokens since we don't care about reconstruction at all
         # for a whole bunch of tokens
-        x_mask = (sorted_mask == -2)[:, max_length_of_unmasked_tokens:].to(dtype=org_mask_dtype)
+        x_mask = (sorted_mask == 2)[:, :max_length_to_be_decoded].to(dtype=org_mask_dtype)
         # the y mask is going to be used to determine which of the y values take. True values
         # take part in the attention (we don't take the inverse here, unlike in the decoder)
-        y_mask = (sorted_mask == 0)[:, :max_length_to_be_decoded].to(dtype=org_mask_dtype)
+        y_mask = (sorted_mask == 0)[:, max_length_of_unmasked_tokens + 1 :].to(
+            dtype=org_mask_dtype
+        )
         return x, y, x_mask, y_mask, indices
 
     @staticmethod
@@ -905,8 +906,8 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         B, T = indices.shape[0], indices.shape[1]
         D = x.shape[-1]
         tokens = torch.zeros((B, T, D), dtype=x.dtype, device=x.device)
-        tokens[:, : y.shape[1]] = y * y_mask.unsqueeze(-1)
-        tokens[:, -x.shape[1] :] += x * x_mask.unsqueeze(-1)
+        tokens[:, y.shape[1] + 1 :] = y * y_mask.unsqueeze(-1)
+        tokens[:, : x.shape[1]] += x * x_mask.unsqueeze(-1)
         tokens = tokens.scatter(1, indices[:, :, None].expand_as(tokens), tokens)
         return tokens
 
@@ -921,6 +922,8 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         x, m = self.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
         x, y, x_mask, y_mask, indices = self.split_x_y(x, m)
         for blk in self.blocks:
+            # note that we are not taking the inverse of the mask, since split_x_y gives us
+            # true values for values we want to take part in attention
             x = blk(x=x, y=y, attn_mask=y_mask.bool())
         x = self.combine_x_y(x, y, x_mask, y_mask, indices)
         return (
