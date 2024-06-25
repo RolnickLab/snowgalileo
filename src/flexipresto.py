@@ -886,7 +886,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         max_length_of_unmasked_tokens = (sorted_mask == 0).sum(-1).max()
         # x will be the query tokens, and y will be the key / value tokens
         x = tokens[:, :max_length_to_be_decoded]
-        y = tokens[:, max_length_of_unmasked_tokens + 1 :]
+        y = tokens[:, -max_length_of_unmasked_tokens:]
 
         # the x_mask is just going to be used in the reconstruction, to know which
         # x tokens to add back into the token list. TODO is this even necessary? it could
@@ -895,9 +895,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         x_mask = (sorted_mask == 2)[:, :max_length_to_be_decoded].to(dtype=org_mask_dtype)
         # the y mask is going to be used to determine which of the y values take. True values
         # take part in the attention (we don't take the inverse here, unlike in the decoder)
-        y_mask = (sorted_mask == 0)[:, max_length_of_unmasked_tokens + 1 :].to(
-            dtype=org_mask_dtype
-        )
+        y_mask = (sorted_mask == 0)[:, -max_length_of_unmasked_tokens:].to(dtype=org_mask_dtype)
         return x, y, x_mask, y_mask, indices
 
     @staticmethod
@@ -906,7 +904,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         B, T = indices.shape[0], indices.shape[1]
         D = x.shape[-1]
         tokens = torch.zeros((B, T, D), dtype=x.dtype, device=x.device)
-        tokens[:, y.shape[1] + 1 :] = y * y_mask.unsqueeze(-1)
+        tokens[:, -y.shape[1] :] = y * y_mask.unsqueeze(-1)
         tokens[:, : x.shape[1]] += x * x_mask.unsqueeze(-1)
         tokens = tokens.scatter(1, indices[:, :, None].expand_as(tokens), tokens)
         return tokens
