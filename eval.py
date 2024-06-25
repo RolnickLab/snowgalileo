@@ -17,7 +17,7 @@ from src.eval import (
 )
 from src.eval.eval import EvalTask
 from src.flexipresto import Encoder
-from src.utils import seed_everything
+from src.utils import seed_everything, device
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -28,7 +28,7 @@ argparser = argparse.ArgumentParser()
 argparser.add_argument("--output_folder", type=str)
 args = argparser.parse_args().__dict__
 
-encoder = Encoder.load_from_folder(Path(args["output_folder"]))
+encoder = Encoder.load_from_folder(Path(args["output_folder"])).to(device)
 
 eval_tasks: List[EvalTask] = [
     *[
