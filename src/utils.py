@@ -88,6 +88,7 @@ def load_check_config(name: str, mode: str) -> Dict:
         "batch_size": int,
         "effective_batch_size": int,
         "mask_ratio": float,
+        "decoder_unmask_ratio": float,
         "patch_sizes": list,
         "start_lr": float,
         "max_lr": float,
