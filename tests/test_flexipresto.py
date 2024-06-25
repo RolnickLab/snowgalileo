@@ -165,7 +165,7 @@ class TestPresto(unittest.TestCase):
         b, h, w, t = 5, 6, 7, 8
         s_t_x = torch.ones(b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX), embedding_size)
         s_t_m = torch.zeros(b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX))
-        s_t_m[:, :, :, 0] = -1  # the firs timestep will get processed by the decoder
+        s_t_m[:, :, :, 0] = 2  # the firs timestep will get processed by the decoder
         s_t_m[:, :, :, 1] = 1  # the second timestep gets masked but not processed
 
         sp_x = torch.ones(b, h, w, len(SPACE_BAND_GROUPS_IDX), embedding_size)
@@ -277,8 +277,7 @@ class TestPresto(unittest.TestCase):
         ).unsqueeze(-1)
         mask = torch.tensor([[0, 0, 0, 0, 1, 1, 2, 2, 2], [0, 0, 0, 1, 1, 1, 1, 2, 2]])
 
-        x, y, x_mask, y_mask, indices = PrestoPixelDecoder.split_x_y(tokens, mask)
-        self.assertTrue(False)
+        x, y, x_mask, y_mask, _ = PrestoPixelDecoder.split_x_y(tokens, mask)
         self.assertTrue(torch.equal(x, torch.tensor([[14, 15, 16], [15, 16, 1]]).unsqueeze(-1)))
         self.assertTrue(torch.equal(y, torch.tensor([[5, 6, 7, 8], [4, 5, 6, 7]]).unsqueeze(-1)))
         self.assertTrue(torch.equal(x_mask, torch.tensor([[1, 1, 1], [1, 1, 0]])))
