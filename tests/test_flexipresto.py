@@ -58,6 +58,7 @@ class TestPresto(unittest.TestCase):
             st_x,
             months,
             mask_ratio=0.5,
+            decoder_unmask_ratio=0.25,
             patch_size=patch_size,
             image_size=image_size,
             num_timesteps=num_timesteps,

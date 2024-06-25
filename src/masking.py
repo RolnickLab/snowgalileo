@@ -111,7 +111,7 @@ def check_mode_and_return_channels(
 def check_unmasking_mode_and_return_channels(unmasking_mode: Optional[str]):
     assert unmasking_mode in UNMASKING_MODES
     if unmasking_mode is None:
-        return None, None
+        return None
     elif unmasking_mode == "WC":
         return WC_BANDS
     elif unmasking_mode == "DW":
@@ -195,27 +195,32 @@ def batch_subset_mask_presto_augmented(
     """
     maskedoutputs: List[MaskedOutput] = []
 
-    for mode in random.sample(MASKING_MODES, k=1):
-        maskedoutputs.append(
-            batch_mask_time(
-                *subset_batch_of_images(
-                    s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=num_timesteps
-                ),
-                mask_ratio,
-                mode=mode,
-            )
+    maskedoutputs.append(
+        batch_mask_time(
+            *subset_batch_of_images(
+                s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=num_timesteps
+            ),
+            mask_ratio=mask_ratio,
+            decoder_unmask_ratio=decoder_unmask_ratio,
+            mode=random.choice(MASKING_MODES),
+            decoder_mode=random.choice(UNMASKING_MODES),
         )
-    for mode in random.sample(MASKING_MODES, k=1):
-        maskedoutputs.append(
-            batch_mask_space(
-                *subset_batch_of_images(
-                    s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=num_timesteps
-                ),
-                mask_ratio,
-                patch_size,
-                mode=mode,
-            )
+    )
+    print(maskedoutputs[-1].space_time_mask.shape)
+
+    maskedoutputs.append(
+        batch_mask_space(
+            *subset_batch_of_images(
+                s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=num_timesteps
+            ),
+            patch_size=patch_size,
+            mask_ratio=mask_ratio,
+            decoder_unmask_ratio=decoder_unmask_ratio,
+            mode=random.choice(MASKING_MODES),
+            decoder_mode=random.choice(UNMASKING_MODES),
         )
+    )
+    print(maskedoutputs[-1].space_time_mask.shape)
 
     maskedoutputs.append(
         batch_mask_channels(
@@ -226,6 +231,7 @@ def batch_subset_mask_presto_augmented(
             decoder_unmask_ratio,
         )
     )
+    print(maskedoutputs[-1].space_time_mask.shape)
     maskedoutputs.append(
         batch_mask_random(
             *subset_batch_of_images(
@@ -236,6 +242,7 @@ def batch_subset_mask_presto_augmented(
             patch_size=patch_size,
         )
     )
+    print(maskedoutputs[-1].space_time_mask.shape)
     return MaskedOutput.concatenate(maskedoutputs)
 
 
@@ -318,7 +325,7 @@ def batch_mask_time(
             space_time_mask[:, :, :, b_flat_timesteps_t == 0, bands_to_keep] = 1
     if bands_to_decode is not None:
         # ignore all previous calculations about what should be decoded
-        space_time_mask = torch.clamp(space_time_mask[:, :, :, :, bands_to_mask], max=1)
+        space_time_mask = torch.clamp(space_time_mask, max=1)
         space_mask = torch.clamp(space_mask, max=1)
         time_mask = torch.clamp(time_mask, max=1)
         static_mask = torch.clamp(static_mask, max=1)
@@ -343,9 +350,11 @@ def batch_mask_space(
     time_x: torch.Tensor,
     static_x: torch.Tensor,
     months: torch.Tensor,
-    mask_ratio: float,
     patch_size: int,
+    mask_ratio: float,
+    decoder_unmask_ratio: float,
     mode: Optional[str] = None,
+    decoder_mode: Optional[str] = None,
 ):
     """
     Masks out patches (blocks of of pxpxtxBAND_GROUPs).
@@ -358,6 +367,7 @@ def batch_mask_space(
     Operates over batches where each item in the batch is independently masked
     """
     _, bands_to_mask = check_mode_and_return_channels(mode)
+    bands_to_decode = check_unmasking_mode_and_return_channels(decoder_mode)
     b, h, w, t, _ = space_time_x.shape
     assert (h % patch_size == 0) and (w % patch_size == 0)
     h_p = int(h / patch_size)
@@ -389,25 +399,32 @@ def batch_mask_space(
         )
     ).to(space_time_x.device)
 
-    if bands_to_mask is None:
-        space_mask = torch.from_numpy(
-            repeat(
-                two_d_mask,
-                "b h w -> b h w c_g",
-                c_g=len(SPACE_BAND_GROUPS_IDX),
-            )
-        ).to(space_x.device)
+    space_mask = torch.from_numpy(
+        repeat(
+            two_d_mask,
+            "b h w -> b h w c_g",
+            c_g=len(SPACE_BAND_GROUPS_IDX),
+        )
+    ).to(space_x.device)
 
-        time_mask = torch.rand(b, device=time_x.device) <= mask_ratio
-        time_mask = repeat(time_mask, "b -> b t c_g", t=t, c_g=len(TIME_BAND_GROUPS_IDX))
-        static_mask = torch.rand(b, device=static_x.device) <= mask_ratio
-        static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX))
-    else:
+    time_mask = _random_mask_for_b(b, time_x.device, mask_ratio, decoder_unmask_ratio)
+    time_mask = repeat(time_mask, "b -> b t c_g", t=t, c_g=len(TIME_BAND_GROUPS_IDX))
+    static_mask = torch.rand(b, device=static_x.device) <= mask_ratio
+    static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX))
+
+    if bands_to_mask is not None:
         space_time_mask[:, :, :, :, bands_to_mask] = 1
         # we only want S2 and / or S1, so we mask everything else
-        space_mask = torch.ones((b, h, w, len(SPACE_BAND_GROUPS_IDX))).to(space_x.device)
-        time_mask = torch.ones((b, t, len(TIME_BAND_GROUPS_IDX))).to(time_x.device)
-        static_mask = torch.ones((b, len(STATIC_BAND_GROUPS_IDX))).to(static_x.device)
+        space_mask = torch.clamp(space_mask, min=1)
+        time_mask = torch.clamp(time_mask, min=1)
+        static_mask = torch.clamp(static_mask, min=1)
+    if bands_to_decode is not None:
+        # ignore all previous calculations about what should be decoded
+        space_time_mask = torch.clamp(space_time_mask, max=1)
+        space_mask = torch.clamp(space_mask, max=1)
+        time_mask = torch.clamp(time_mask, max=1)
+        static_mask = torch.clamp(static_mask, max=1)
+        space_mask[:, :, :, bands_to_decode] = 2
 
     return MaskedOutput(
         space_time_x.clone(),
@@ -538,7 +555,7 @@ def batch_mask_random(
             np.ones(unused_tokens, dtype=np.int_),
             np.ones(tokens_the_decoder_will_unmask, dtype=np.int_) * 2,
             np.zeros(
-                total_tokens - (tokens_the_decoder_will_unmask + tokens_the_decoder_will_unmask),
+                total_tokens - (unused_tokens + tokens_the_decoder_will_unmask),
                 dtype=np.int_,
             ),
         )
