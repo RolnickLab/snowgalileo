@@ -39,6 +39,22 @@ class So2SatGeobenchDataset(PyTorchDataset):
     label: [n, 17] (one-hot encoded labels for 17 LCV classes)
     """
 
+    band_names = [
+        "02 - Blue",
+        "02 - Blue",
+        "03 - Green",
+        "04 - Red",
+        "05 - Vegetation Red Edge",
+        "06 - Vegetation Red Edge",
+        "07 - Vegetation Red Edge",
+        "08 - NIR",
+        "08A - Vegetation Red Edge",
+        "08A - Vegetation Red Edge",
+        "11 - SWIR",
+        "12 - SWIR"
+    ],
+
+
     input_height_width = 32
     num_timesteps = 1
     num_classes = 17
@@ -47,42 +63,36 @@ class So2SatGeobenchDataset(PyTorchDataset):
         self,
         split: str = "training",
         so2sat_dir: str = "so2sat/block/",
-        geobench: bool = True,
     ):
-        assert split in ["training", "testing"]
-
-        self.geobench = geobench
-        self.split = split
-        self.so2sat_dir = so2sat_dir
-        self._len = None
-        self.masks = self.create_so2sat_masks()
-
-    def geobench_to_eo_array_and_label(self, idx) -> Tuple[np.ndarray, np.ndarray]:
         import geobench
         import json
-        from torchgeo.datasets import So2Sat
 
-        BAND_NAMES = json.load(open("BAND_NAMES.json", "r"))
-        dataset_name = "m-so2sat"
+        assert split in ["train", "test"]
+        self.split = split
 
-        if self.split == "training":
-            self.split = "train"
-        elif self.split == "testing":
-            self.split = "test"
+        self.dataset_name = "m-so2sat"
 
-        for task in geobench.task_iterator(benchmark_name="classification_v0.9.1/"):
-            if task.dataset_name == dataset_name:
+        for task in geobench.task_iterator(benchmark_name="classification_v1.0/"):
+            if task.dataset_name == self.dataset_name:
                 break
 
-        self.dataset = task.get_dataset(split=self.split, band_names=BAND_NAMES[dataset_name])
+        self.dataset = task.get_dataset(split=self.split, band_names=self.band_names)
         self.label_map = task.get_label_map()
         self.label_stats = task.label_stats()
         self.dataset_dir = task.get_dataset_dir()
         self.tmp_band_names = [self.dataset[0].bands[i].band_info.name for i in range(len(self.dataset[0].bands))]
         # get the tmp bands in the same order as the ones present in the BAND_NAMES.json file
-        self.tmp_band_indices = [self.tmp_band_names.index(band_name) for band_name in BAND_NAMES[dataset_name]]
+        self.tmp_band_indices = [self.tmp_band_names.index(band_name) for band_name in self.BAND_NAMES[self.dataset_name]]
         self.norm_stats = self.dataset.normalization_stats()
         self.in_channels = len(self.tmp_band_indices)
+
+        self.so2sat_dir = so2sat_dir
+        self._len = None
+        self.masks = self.create_so2sat_masks()
+
+    def geobench_to_eo_array_and_label(self, idx) -> Tuple[np.ndarray, np.ndarray]:
+
+        from torchgeo.datasets import So2Sat
 
         from custom_dataset import geobench_dataset
         if dataset_name in ["m-eurosat", "m-so2sat", "m-bigearthnet", "m-brick-kiln"]:
@@ -158,9 +168,25 @@ class So2SatGeobenchDataset(PyTorchDataset):
         return normalize_space_time(eo_style_array)
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
-        if self.geobench:
-            image, label = self.geobench_to_eo_array_and_label(idx)
-        else:
+
+        label = self.dataset[idx].label
+        x = []
+
+        for band_idx in self.tmp_band_indices:
+            x.append(self.dataset[idx].bands[band_idx].data)
+
+        x = np.stack(x, axis=0)
+        x = torch.from_numpy(x).float()
+
+
+        # check if label is an object or a number
+        if not (isinstance(label, int) or isinstance(label, list)):
+            print("Condition applies")
+            label = label.data
+            # label is a memoryview object, convert it to a list, and then to a numpy array
+            label = np.array(list(label))
+
+
             image, label = self.h5_to_eo_array_and_label(idx)
         s_t_x = self.image_to_space_time_array(image)
 
@@ -180,10 +206,7 @@ class So2SatGeobenchDataset(PyTorchDataset):
         )
 
     def __len__(self) -> int:
-        if self._len is None:
-            with h5py.File(data_dir / self.so2sat_dir / f"{self.split}.h5", "r") as data:
-                self._len = data["sen1"].shape[0]
-        return cast(int, self._len)
+        return len(self.dataset)
 
 
 class So2SatTUMDataset(PyTorchDataset):
@@ -212,39 +235,6 @@ class So2SatTUMDataset(PyTorchDataset):
         self._len = None
         self.masks = self.create_so2sat_masks()
 
-    def geobench_to_eo_array_and_label(self, idx) -> Tuple[np.ndarray, np.ndarray]:
-        import geobench
-        import json
-        from torchgeo.datasets import So2Sat
-
-        BAND_NAMES = json.load(open("BAND_NAMES.json", "r"))
-        dataset_name = "m-so2sat"
-
-        if self.split == "training":
-            self.split = "train"
-        elif self.split == "testing":
-            self.split = "test"
-
-        for task in geobench.task_iterator(benchmark_name="classification_v0.9.1/"):
-            if task.dataset_name == dataset_name:
-                break
-
-        self.dataset = task.get_dataset(split=self.split, band_names=BAND_NAMES[dataset_name])
-        self.label_map = task.get_label_map()
-        self.label_stats = task.label_stats()
-        self.dataset_dir = task.get_dataset_dir()
-        self.tmp_band_names = [self.dataset[0].bands[i].band_info.name for i in range(len(self.dataset[0].bands))]
-        # get the tmp bands in the same order as the ones present in the BAND_NAMES.json file
-        self.tmp_band_indices = [self.tmp_band_names.index(band_name) for band_name in BAND_NAMES[dataset_name]]
-        self.norm_stats = self.dataset.normalization_stats()
-        self.in_channels = len(self.tmp_band_indices)
-
-        from custom_dataset import geobench_dataset
-        if dataset_name in ["m-eurosat", "m-so2sat", "m-bigearthnet", "m-brick-kiln"]:
-            dataset = geobench_dataset(dataset_name=dataset_name, split=split, transform=None, benchmark_name="classification")
-        elif dataset_name in ["m-cashew-plantation", "m-SA-crop-type"]:
-            dataset = geobench_dataset(dataset_name=dataset_name, split=split, transform=None, benchmark_name="segmentation")
-
     def h5_to_eo_array_and_label(self, idx) -> Tuple[np.ndarray, np.ndarray]:
         with h5py.File(data_dir / self.so2sat_dir / f"{self.split}.h5", "r") as data:
             assert data["sen1"].shape == (self.__len__(), 32, 32, 8)
@@ -313,10 +303,8 @@ class So2SatTUMDataset(PyTorchDataset):
         return normalize_space_time(eo_style_array)
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
-        if self.geobench:
-            image, label = self.geobench_to_eo_array_and_label(idx)
-        else:
-            image, label = self.h5_to_eo_array_and_label(idx)
+            
+        image, label = self.h5_to_eo_array_and_label(idx)
         s_t_x = self.image_to_space_time_array(image)
 
         # space only / time only bands are not provided by so2sat
@@ -346,8 +334,8 @@ class So2SatEval(EvalTask):
     regression = False
     spatial_token_prediction = False
     multilabel = False
-    input_height_width = So2SatDataset.input_height_width
-    num_outputs = So2SatDataset.num_classes
+    input_height_width = So2SatTUMDataset.input_height_width
+    num_outputs = So2SatTUMDataset.num_classes
 
     def __init__(
         self,
@@ -357,10 +345,11 @@ class So2SatEval(EvalTask):
     ):
         self.geobench = geobench
         super().__init__(patch_size, seed)
+
         if self.geobench:
             self.name = f"{self.name}_geobench"
         else:
-            self.name = f"{self.name}"
+            self.name = f"{self.name}_tum"
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         return {
@@ -371,12 +360,20 @@ class So2SatEval(EvalTask):
     def _evaluate_model(
         self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator]
     ) -> Dict:
-        test_dl = DataLoader(
-            So2SatDataset(split="testing", geobench=self.geobench),
-            batch_size=Hyperparams.batch_size,
-            shuffle=False,
-            num_workers=Hyperparams.num_workers,
-        )
+        if self.geobench:
+            test_dl = DataLoader(
+                So2SatGeobenchDataset(split="test"),
+                batch_size=Hyperparams.batch_size,
+                shuffle=False,
+                num_workers=Hyperparams.num_workers,
+            )
+        else:
+            test_dl = DataLoader(
+                So2SatTUMDataset(split="testing"),
+                batch_size=Hyperparams.batch_size,
+                shuffle=False,
+                num_workers=Hyperparams.num_workers,
+            )
         pred_dict: Dict[str, BaseEstimator] = {
             model_class_name(model): [] for model in sklearn_models
         }
@@ -432,11 +429,19 @@ class So2SatEval(EvalTask):
         for model_mode in model_modes:
             assert model_mode in self.all_classification_sklearn_models
 
-        train_dl = DataLoader(
-            So2SatDataset(split="training", geobench=self.geobench),
-            batch_size=Hyperparams.batch_size,
-            shuffle=True,
-            num_workers=Hyperparams.num_workers,
-        )
+        if self.geobench:
+            train_dl = DataLoader(
+                So2SatGeobenchDataset(split="train"),
+                batch_size=Hyperparams.batch_size,
+                shuffle=True,
+                num_workers=Hyperparams.num_workers,
+            )
+        else:   # TUM version
+            train_dl = DataLoader(
+                So2SatTUMDataset(split="training"),
+                batch_size=Hyperparams.batch_size,
+                shuffle=True,
+                num_workers=Hyperparams.num_workers,
+            )
         trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
         return self._evaluate_model(pretrained_model, trained_sklearn_models)
