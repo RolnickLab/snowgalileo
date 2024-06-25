@@ -206,8 +206,6 @@ def batch_subset_mask_presto_augmented(
             decoder_mode=random.choice(UNMASKING_MODES),
         )
     )
-    print(maskedoutputs[-1].space_time_mask.shape)
-
     maskedoutputs.append(
         batch_mask_space(
             *subset_batch_of_images(
@@ -220,8 +218,6 @@ def batch_subset_mask_presto_augmented(
             decoder_mode=random.choice(UNMASKING_MODES),
         )
     )
-    print(maskedoutputs[-1].space_time_mask.shape)
-
     maskedoutputs.append(
         batch_mask_channels(
             *subset_batch_of_images(
@@ -231,7 +227,6 @@ def batch_subset_mask_presto_augmented(
             decoder_unmask_ratio,
         )
     )
-    print(maskedoutputs[-1].space_time_mask.shape)
     maskedoutputs.append(
         batch_mask_random(
             *subset_batch_of_images(
@@ -242,7 +237,6 @@ def batch_subset_mask_presto_augmented(
             patch_size=patch_size,
         )
     )
-    print(maskedoutputs[-1].space_time_mask.shape)
     return MaskedOutput.concatenate(maskedoutputs)
 
 
