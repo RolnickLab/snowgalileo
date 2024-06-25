@@ -211,6 +211,7 @@ def batch_subset_mask_presto_augmented(
                 s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=num_timesteps
             ),
             mask_ratio,
+            decoder_unmask_ratio,
         )
     )
     maskedoutputs.append(
@@ -418,11 +419,15 @@ def batch_mask_channels(
             mask[(mask != 0) | (mask != 2)] = 1
             return (torch.rand(b, device=device) <= mask_ratio).unsqueeze(-1)
         else:
+            num_channels_to_decode = int(num_channels * decoder_unmask_ratio)
             num_channels_to_mask = int(num_channels * mask_ratio)
             flat_channels = np.concatenate(
                 (
                     np.ones(num_channels_to_mask, dtype=np.int_),
-                    np.zeros(num_channels - num_channels_to_mask, dtype=np.int_),
+                    np.ones(num_channels_to_decode, dtype=np.int_) * 2,
+                    np.zeros(
+                        num_channels - num_channels_to_mask - num_channels_to_decode, dtype=np.int_
+                    ),
                 )
             )
             b_flat_channels = repeat(flat_channels, "c -> b c", b=b)
