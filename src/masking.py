@@ -165,6 +165,18 @@ def subset_batch_of_images(
     )
 
 
+def _random_mask_for_b(
+    b: int, device: torch.device, mask_ratio: float, decoder_unmask_ratio: float
+) -> torch.Tensor:
+    mask = torch.rand(b, device=device)
+    total_masked_tokens_ratio = mask_ratio + decoder_unmask_ratio
+    mask[mask >= total_masked_tokens_ratio] = 0
+    mask[mask <= decoder_unmask_ratio] = 2
+    # all the rest is ignored by both the encoder and decoder
+    mask[(mask != 0) | (mask != 2)] = 1
+    return mask
+
+
 def batch_subset_mask_presto_augmented(
     s_t_x: torch.Tensor,
     sp_x: torch.Tensor,
@@ -246,6 +258,7 @@ def batch_mask_time(
     Operates over batches where each item in the batch has independently masked timesteps
     """
     bands_to_keep, bands_to_mask = check_mode_and_return_channels(mode)
+    bands_to_decode = check_unmasking_mode_and_return_channels(decoder_mode)
     b, h, w, t, _ = space_time_x.shape
     # if there is only a single timestep, it will get a mask
     # value of 2
@@ -274,28 +287,42 @@ def batch_mask_time(
         w=w,
         c_g=len(SPACE_TIME_BANDS_GROUPS_IDX),
     ).clone()
+
+    # make the mask as if bands_to_mask and bands_to_decode both = None
+    time_mask = repeat(
+        b_flat_timesteps_t,
+        "b t-> b t c_g",
+        c_g=len(TIME_BAND_GROUPS_IDX),
+    )
+    space_mask = _random_mask_for_b(b, space_x.device, mask_ratio, decoder_unmask_ratio)
+    if t == 1:
+        # can't mask out everything if t == 1, so we make sure the
+        # space only mask remains unmasked
+        space_mask = space_mask * 0
+    space_mask = repeat(space_mask, "b -> b h w c_g", h=h, w=w, c_g=len(SPACE_BAND_GROUPS_IDX))
+    static_mask = _random_mask_for_b(b, static_x.device, mask_ratio, decoder_unmask_ratio)
+    static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX))
+
     if bands_to_mask is None:
-        time_mask = repeat(
-            b_flat_timesteps_t,
-            "b t-> b t c_g",
-            c_g=len(TIME_BAND_GROUPS_IDX),
+        space_time_mask[:, :, :, :, bands_to_mask] = torch.clamp(
+            space_time_mask[:, :, :, :, bands_to_mask], min=1
         )
-        space_mask = torch.rand(b, device=space_x.device) <= mask_ratio
-        if t == 1:
-            # can't mask out everything if t == 1, so we make sure the
-            # space only mask remains unmasked
-            space_mask = space_mask * 0
-        space_mask = repeat(space_mask, "b -> b h w c_g", h=h, w=w, c_g=len(SPACE_BAND_GROUPS_IDX))
-        static_mask = torch.rand(b, device=static_x.device) <= mask_ratio
-        static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX))
-    else:
-        space_time_mask[:, :, :, :, bands_to_mask] = 1
+        space_mask = torch.clamp(space_mask, min=1)
+        time_mask = torch.clamp(time_mask, min=1)
+        static_mask = torch.clamp(static_mask, min=1)
         if t == 1:
             assert bands_to_keep is not None
             space_time_mask[:, :, :, :, bands_to_keep] = 0
-        space_mask = torch.ones((b, h, w, len(SPACE_BAND_GROUPS_IDX))).to(space_x.device)
-        time_mask = torch.ones((b, t, len(TIME_BAND_GROUPS_IDX))).to(time_x.device)
-        static_mask = torch.ones((b, len(STATIC_BAND_GROUPS_IDX))).to(static_x.device)
+        else:
+            space_time_mask[:, :, :, b_flat_timesteps_t == 0, bands_to_keep] = 0
+            space_time_mask[:, :, :, b_flat_timesteps_t == 0, bands_to_keep] = 1
+    if bands_to_decode is not None:
+        # ignore all previous calculations about what should be decoded
+        space_time_mask = torch.clamp(space_time_mask[:, :, :, :, bands_to_mask], max=1)
+        space_mask = torch.clamp(space_mask, max=1)
+        time_mask = torch.clamp(time_mask, max=1)
+        static_mask = torch.clamp(static_mask, max=1)
+        space_mask[:, :, :, bands_to_decode] = 2
 
     return MaskedOutput(
         space_time_x.clone(),
@@ -409,15 +436,15 @@ def batch_mask_channels(
     with probability mask_ratio
     """
 
-    def channel_mask(b: int, num_channels: int, mask_ratio: float, device: torch.device):
+    def channel_mask(
+        b: int,
+        num_channels: int,
+        mask_ratio: float,
+        decoder_unmask_ratio: float,
+        device: torch.device,
+    ):
         if num_channels == 1:
-            mask = torch.rand(b, device=device)
-            total_masked_tokens_ratio = mask_ratio + decoder_unmask_ratio
-            mask[mask >= total_masked_tokens_ratio] = 0
-            mask[mask <= decoder_unmask_ratio] = 2
-            # all the rest is ignored by both the encoder and decoder
-            mask[(mask != 0) | (mask != 2)] = 1
-            return (torch.rand(b, device=device) <= mask_ratio).unsqueeze(-1)
+            return _random_mask_for_b(b, device, mask_ratio, decoder_unmask_ratio).unsqueeze(-1)
         else:
             num_channels_to_decode = int(num_channels * decoder_unmask_ratio)
             num_channels_to_mask = int(num_channels * mask_ratio)
@@ -438,11 +465,17 @@ def batch_mask_channels(
 
     b, h, w, t, _ = space_time_x.shape
     space_time_channel_mask = channel_mask(
-        b, len(SPACE_TIME_BANDS_GROUPS_IDX), mask_ratio, space_time_x.device
+        b, len(SPACE_TIME_BANDS_GROUPS_IDX), mask_ratio, decoder_unmask_ratio, space_time_x.device
     )
-    space_channel_mask = channel_mask(b, len(SPACE_BAND_GROUPS_IDX), mask_ratio, space_x.device)
-    time_channel_mask = channel_mask(b, len(TIME_BAND_GROUPS_IDX), mask_ratio, time_x.device)
-    static_mask = channel_mask(b, len(STATIC_BAND_GROUPS_IDX), mask_ratio, static_x.device)
+    space_channel_mask = channel_mask(
+        b, len(SPACE_BAND_GROUPS_IDX), mask_ratio, decoder_unmask_ratio, space_x.device
+    )
+    time_channel_mask = channel_mask(
+        b, len(TIME_BAND_GROUPS_IDX), mask_ratio, decoder_unmask_ratio, time_x.device
+    )
+    static_mask = channel_mask(
+        b, len(STATIC_BAND_GROUPS_IDX), mask_ratio, decoder_unmask_ratio, static_x.device
+    )
 
     space_time_mask = repeat(space_time_channel_mask, "b c_g -> b h w t c_g", h=h, w=w, t=t)
     space_mask = repeat(space_channel_mask, "b c_g -> b h w c_g", h=h, w=w)
