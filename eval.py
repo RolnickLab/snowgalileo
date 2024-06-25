@@ -37,7 +37,7 @@ eval_tasks: List[EvalTask] = [
             num_subtiles_per_image=num_subtiles_per_image,
             band_mode=band_mode,
         )
-        for output_mode in ["mode, norm_counts"]
+        for output_mode in ["mode", "norm_counts"]
         # 4 has input hw 64, 16 has input hw 32
         for num_subtiles_per_image in [4, 16]
         for band_mode in ["combined", "s2"]
