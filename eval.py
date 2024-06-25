@@ -40,7 +40,7 @@ eval_tasks: List[EvalTask] = [
         for rgb in [True, False]
         for include_latlons in [True, False]
     ],
-    So2SatEval(),
+    *[So2SatEval(geobench=geobench) for geobench in [True, False]],
     PastisEval(),
     *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil", "China"]],
 ]
