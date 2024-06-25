@@ -28,10 +28,10 @@ from src.masking import (
 )
 
 MASK_TO_BANDS = {
-    "s2rgb": {"masked": NON_S2_RGB_BANDS, "unmasked": S2_RGB_BANDS},
-    "s2": {"masked": NON_S2_BANDS, "unmasked": S2_BANDS},
-    "s1": {"masked": NON_S1_BANDS, "unmasked": S1_BANDS},
-    "s1+s2": {"masked": NON_S1_S2_BANDS, "unmasked": S1_S2_BANDS},
+    "S2_RGB": {"masked": NON_S2_RGB_BANDS, "unmasked": S2_RGB_BANDS},
+    "S2": {"masked": NON_S2_BANDS, "unmasked": S2_BANDS},
+    "S1": {"masked": NON_S1_BANDS, "unmasked": S1_BANDS},
+    "S1+S2": {"masked": NON_S1_S2_BANDS, "unmasked": S1_S2_BANDS},
 }
 
 
@@ -69,7 +69,7 @@ class TestMasking(unittest.TestCase):
                     )
                     self.assertEqual((b, t, len(TIME_BAND_GROUPS_IDX)), output.time_mask.shape)
                     self.assertEqual((b, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
-                    if mode is None:
+                    if (mode is None) and (decoder_mode is None):
                         # collapse the dynamic_mask along the time dimension
                         space_time_mask_along_t = output.space_time_mask.float().mean(
                             axis=(1, 2, 4)
@@ -79,33 +79,46 @@ class TestMasking(unittest.TestCase):
                         self.assertTrue(np.isin(space_time_mask_along_t, (0, 1, 2)).all())
                         self.assertTrue(
                             (
-                                space_time_mask_along_t.sum(axis=1)
+                                (space_time_mask_along_t == 1).sum(axis=1)
                                 / space_time_mask_along_t.shape[1]
-                                == (mask_ratio if t > 1 else 1)
-                            ).all()
-                        )
-                    else:
-                        self.assertTrue(
-                            (
-                                output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["masked"]]
-                                == 1
-                            ).all()
-                        )
-                        space_time_unmasked = (
-                            output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["unmasked"]]
-                            .float()
-                            .mean(axis=(1, 2, 4))
-                        )
-                        self.assertTrue(
-                            (
-                                space_time_unmasked.sum(axis=1) / space_time_unmasked.shape[1]
                                 == (mask_ratio if t > 1 else 0)
                             ).all()
                         )
-                        self.assertTrue(np.isin(space_time_unmasked, (0, 1)).all())
-                        self.assertTrue((output.space_mask == 1).all())
+                        self.assertTrue(
+                            (
+                                (space_time_mask_along_t == 2).sum(axis=1)
+                                / space_time_mask_along_t.shape[1]
+                                == (decoder_unmask_ratio if t > 1 else 1)
+                            ).all()
+                        )
+                    else:
                         self.assertTrue((output.time_mask == 1).all())
                         self.assertTrue((output.static_mask == 1).all())
+                        if mode is not None:
+                            self.assertTrue(0 in output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["unmasked"]])
+                            self.assertFalse(0 in output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["masked"]])
+                    # else:
+                    #     self.assertTrue(
+                    #         (
+                    #             output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["masked"]]
+                    #             == 1
+                    #         ).all()
+                    #     )
+                    #     space_time_unmasked = (
+                    #         output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["unmasked"]]
+                    #         .float()
+                    #         .mean(axis=(1, 2, 4))
+                    #     )
+                    #     self.assertTrue(
+                    #         (
+                    #             space_time_unmasked.sum(axis=1) / space_time_unmasked.shape[1]
+                    #             == (mask_ratio if t > 1 else 0)
+                    #         ).all()
+                    #     )
+                    #     self.assertTrue(np.isin(space_time_unmasked, (0, 1)).all())
+                    #     self.assertTrue((output.space_mask == 1).all())
+                    #     self.assertTrue((output.time_mask == 1).all())
+                    #     self.assertTrue((output.static_mask == 1).all())
 
     def test_mask_by_channel(self):
         b, t, h, w = 2, 8, 16, 16

@@ -314,10 +314,6 @@ def batch_mask_time(
         if t == 1:
             assert bands_to_keep is not None
             space_time_mask[:, :, :, :, bands_to_keep] = 0
-        else:
-            expanded_timesteps = repeat(b_flat_timesteps_t, "b t-> b h w t", h=h, w=w).clone()
-            space_time_mask[expanded_timesteps == 0, bands_to_keep] = 0
-            space_time_mask[expanded_timesteps == 0, bands_to_mask] = 1
     if bands_to_decode is not None:
         # ignore all previous calculations about what should be decoded
         space_time_mask = torch.clamp(space_time_mask, max=1)
