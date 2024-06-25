@@ -153,65 +153,72 @@ class TestMasking(unittest.TestCase):
         static_input = torch.ones((b, 8))
         months = repeat(torch.arange(0, t), "t -> b t", b=b)
         mask_ratio = 0.25
+        decoder_unmask_ratio = 0.25
 
         for mode in MASKING_MODES:
-            output = batch_mask_space(
-                space_time_input,
-                space_input,
-                time_input,
-                static_input,
-                months,
-                mask_ratio,
-                p,
-                mode=mode,
-            )
-            self.assertEqual(
-                (b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX)), output.space_time_mask.shape
-            )
-            self.assertEqual((b, h, w, len(SPACE_BAND_GROUPS_IDX)), output.space_mask.shape)
-            self.assertEqual((b, t, len(TIME_BAND_GROUPS_IDX)), output.time_mask.shape)
-            self.assertEqual((b, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
-            if mode is None:
-                sp_along_hw = output.space_time_mask.float().mean(axis=(3, 4))  # b, h, w
-                s_along_hw = output.space_mask.float().mean(axis=(3))  # b, h, w
-                self.assertTrue(torch.equal(sp_along_hw, s_along_hw))
-                self.assertTrue(
-                    (sp_along_hw.sum(axis=1).sum(axis=1) / (h * w) == mask_ratio).all()
+            for decoder_mode in UNMASKING_MODES:
+                output = batch_mask_space(
+                    space_time_input,
+                    space_input,
+                    time_input,
+                    static_input,
+                    months,
+                    p,
+                    mask_ratio,
+                    decoder_unmask_ratio,
+                    mode=mode,
+                    decoder_mode=decoder_mode,
                 )
-                for i in range(1, p):
-                    self.assertTrue(
-                        torch.equal(
-                            s_along_hw[:, i::p, i::p], s_along_hw[:, i - 1 :: p, i - 1 :: p]
-                        )
-                    )
-                    self.assertTrue(
-                        torch.equal(
-                            sp_along_hw[:, i::p, i::p], sp_along_hw[:, i - 1 :: p, i - 1 :: p]
-                        )
-                    )
-            else:
-                sp_along_hw = output.space_time_mask.float()[
-                    :, :, :, :, MASK_TO_BANDS[mode]["unmasked"]
-                ].mean(axis=(3, 4))  # b, h, w
-                self.assertTrue((output.space_mask == 1).all())
-                self.assertTrue((output.time_mask == 1).all())
-                self.assertTrue(
-                    (output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["masked"]] == 1).all()
+                self.assertEqual(
+                    (b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX)), output.space_time_mask.shape
                 )
-                self.assertFalse(
-                    (
-                        output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["unmasked"]] == 1
-                    ).all()
-                )
-                self.assertTrue((output.space_mask == 1).all())
-                self.assertTrue((output.time_mask == 1).all())
-                self.assertTrue((output.static_mask == 1).all())
-                for i in range(1, p):
+                self.assertEqual((b, h, w, len(SPACE_BAND_GROUPS_IDX)), output.space_mask.shape)
+                self.assertEqual((b, t, len(TIME_BAND_GROUPS_IDX)), output.time_mask.shape)
+                self.assertEqual((b, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
+                if (mode is None) and (decoder_mode is None):
+                    sp_along_hw = output.space_time_mask.float().mean(axis=(3, 4))  # b, h, w
+                    s_along_hw = output.space_mask.float().mean(axis=(3))  # b, h, w
+                    self.assertTrue(torch.equal(sp_along_hw, s_along_hw))
                     self.assertTrue(
-                        torch.equal(
-                            sp_along_hw[:, i::p, i::p], sp_along_hw[:, i - 1 :: p, i - 1 :: p]
-                        )
+                        (sp_along_hw.sum(axis=1).sum(axis=1) / (h * w) == mask_ratio).all()
                     )
+                    for i in range(1, p):
+                        self.assertTrue(
+                            torch.equal(
+                                s_along_hw[:, i::p, i::p], s_along_hw[:, i - 1 :: p, i - 1 :: p]
+                            )
+                        )
+                        self.assertTrue(
+                            torch.equal(
+                                sp_along_hw[:, i::p, i::p], sp_along_hw[:, i - 1 :: p, i - 1 :: p]
+                            )
+                        )
+                elif (mode is not None) and (decoder_mode is None):
+                    sp_along_hw = output.space_time_mask.float()[
+                        :, :, :, :, MASK_TO_BANDS[mode]["unmasked"]
+                    ].mean(axis=(3, 4))  # b, h, w
+                    self.assertTrue((output.space_mask == 1).all())
+                    self.assertTrue((output.time_mask == 1).all())
+                    self.assertTrue(
+                        (
+                            output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["masked"]] == 1
+                        ).all()
+                    )
+                    self.assertFalse(
+                        (
+                            output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["unmasked"]]
+                            == 1
+                        ).all()
+                    )
+                    self.assertTrue((output.space_mask == 1).all())
+                    self.assertTrue((output.time_mask == 1).all())
+                    self.assertTrue((output.static_mask == 1).all())
+                    for i in range(1, p):
+                        self.assertTrue(
+                            torch.equal(
+                                sp_along_hw[:, i::p, i::p], sp_along_hw[:, i - 1 :: p, i - 1 :: p]
+                            )
+                        )
 
     def test_mask_by_random(self):
         b, t, h, w, p = 2, 8, 16, 16, 4

@@ -397,7 +397,6 @@ def batch_mask_space(
             c_g=len(SPACE_BAND_GROUPS_IDX),
         )
     ).to(space_x.device)
-
     time_mask = _random_mask_for_b(b, time_x.device, mask_ratio, decoder_unmask_ratio)
     time_mask = repeat(time_mask, "b -> b t c_g", t=t, c_g=len(TIME_BAND_GROUPS_IDX))
     static_mask = torch.rand(b, device=static_x.device) <= mask_ratio
