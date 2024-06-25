@@ -415,6 +415,19 @@ class PastisPatchEval(EvalTask):
     input_height_width = PastisPatchDataset.input_height_width
     num_outputs = len(PastisPatchDataset.labels_to_int) - 1
 
+    all_regression_sklearn_models = [
+        "Random Forest",
+        "KNNat5 Regressor",
+        "KNNat20 Regressor",
+        "KNNat100 Regressor",
+    ]
+    all_classification_sklearn_models = [
+        "Random Forest",
+        "KNNat5 Classifier",
+        "KNNat20 Classifier",
+        "KNNat100 Classifier",
+    ]
+
     def __init__(
         self,
         num_subtiles_per_image: int = 4,
