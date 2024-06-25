@@ -19,6 +19,7 @@ def mae_collate_fn(
     patch_sizes,
     shape_time_combinations,
     mask_ratio,
+    decoder_unmask_ratio,
     fixed_patch_size=None,
     fixed_space_time_combination=None,
 ):
@@ -45,10 +46,11 @@ def mae_collate_fn(
         t_x,
         st_x,
         months,
-        mask_ratio,
-        patch_size,
+        mask_ratio=mask_ratio,
+        patch_size=patch_size,
         image_size=image_size,
         num_timesteps=timesteps,
+        decoder_unmask_ratio=decoder_unmask_ratio,
     )
 
     # transform the masks from channel-groups to individual channels

@@ -92,6 +92,7 @@ dataloader = DataLoader(
         patch_sizes=training_config["patch_sizes"],
         shape_time_combinations=training_config["shape_time_combinations"],
         mask_ratio=training_config["mask_ratio"],
+        decoder_unmask_ratio=training_config["decoder_unmask_ratio"],
     ),
     pin_memory=True,
 )
@@ -137,6 +138,7 @@ if wandb_enabled:
                     fixed_patch_size=p,
                     fixed_space_time_combination={"size": 4, "timesteps": 12},
                     mask_ratio=training_config["mask_ratio"],
+                    decoder_unmask_ratio=training_config["decoder_unmask_ratio"],
                 ),
             )
 
