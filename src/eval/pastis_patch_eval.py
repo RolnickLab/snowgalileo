@@ -8,7 +8,6 @@ import torch.multiprocessing
 from einops import repeat
 from sklearn.base import BaseEstimator, clone
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.metrics import (
     accuracy_score,
     balanced_accuracy_score,
@@ -507,11 +506,6 @@ class PastisPatchEval(EvalTask):
         fit_models = []
         model_dict = {
             False: {
-                "Logistic Regression": self._construct_sklearn_model(
-                    LogisticRegression(
-                        class_weight="balanced", max_iter=1000, random_state=self.seed
-                    )
-                ),
                 "Random Forest": self._construct_sklearn_model(
                     RandomForestClassifier(class_weight="balanced", random_state=self.seed)
                 ),
@@ -520,7 +514,6 @@ class PastisPatchEval(EvalTask):
                 "KNNat100 Classifier": self._construct_sklearn_model(KNNat100Classifier()),
             },
             True: {
-                "Regression": LinearRegression(),
                 "Random Forest": RandomForestRegressor(random_state=self.seed),
                 "KNNat5 Regressor": self._construct_sklearn_model(KNNat5Regressor()),
                 "KNNat20 Regressor": self._construct_sklearn_model(KNNat20Regressor()),
