@@ -128,9 +128,16 @@ class TestMasking(unittest.TestCase):
         static_input = torch.ones((b, 8))
         months = repeat(torch.arange(0, t), "t -> b t", b=b)
         mask_ratio = 0.25
+        decoder_mask_ratio = 0.25
 
         output = batch_mask_channels(
-            space_time_input, space_input, time_input, static_input, months, mask_ratio
+            space_time_input,
+            space_input,
+            time_input,
+            static_input,
+            months,
+            mask_ratio,
+            decoder_mask_ratio,
         )
         self.assertEqual(
             (b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX)), output.space_time_mask.shape
@@ -140,9 +147,23 @@ class TestMasking(unittest.TestCase):
         self.assertEqual((b, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
         # collapse the space_time_mask along the time and space dimensions
         space_time_mask_along_c = output.space_time_mask.float().mean(axis=(1, 2, 3))  # b, c
-        expected_num_channels_masked = int(len(SPACE_TIME_BANDS_GROUPS_IDX) * mask_ratio)
+        expected_num_channels_masked = int(len(SPACE_TIME_BANDS_GROUPS_IDX) * mask_ratio) * b
         self.assertTrue(
-            (space_time_mask_along_c.sum(axis=1) == expected_num_channels_masked).all()
+            (
+                space_time_mask_along_c[space_time_mask_along_c == 1].sum()
+                == expected_num_channels_masked
+            ).all()
+        )
+        expected_num_channels_to_decode = (
+            int(len(SPACE_TIME_BANDS_GROUPS_IDX) * decoder_mask_ratio) * b
+        )
+        self.assertTrue(
+            (
+                space_time_mask_along_c[space_time_mask_along_c == 2].sum()
+                # hacky but the *2 lets us easily handle the fact
+                # we are summing over values == 2, not 1
+                == expected_num_channels_to_decode * 2
+            ).all()
         )
 
     def test_mask_by_space(self):
