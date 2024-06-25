@@ -222,9 +222,17 @@ class TestMasking(unittest.TestCase):
         static_input = torch.ones((b, 8))
         months = repeat(torch.arange(0, t), "t -> b t", b=b)
         mask_ratio = 0.25
+        decoder_unmask_ratio = 0.25
 
         output = batch_mask_random(
-            space_time_input, space_input, time_input, static_input, months, mask_ratio, p
+            space_time_input,
+            space_input,
+            time_input,
+            static_input,
+            months,
+            mask_ratio,
+            decoder_unmask_ratio,
+            p,
         )
         self.assertEqual(
             (b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX)), output.space_time_mask.shape
@@ -246,18 +254,23 @@ class TestMasking(unittest.TestCase):
                     output.space_mask[:, i - 1 :: p, i - 1 :: p],
                 )
             )
-
-        space_time_masked_per_instance = output.space_time_mask[:, i::p, i::p].sum(
-            dim=(1, 2, 3, 4)
-        )
-        space_masked_per_instance = output.space_mask[:, i::p, i::p].sum(dim=(1, 2, 3))
-        time_masked_per_instance = output.time_mask.sum(dim=(1, 2))
-        static_masked_per_instance = output.static_mask.sum(dim=1)
+        space_time_per_token = output.space_time_mask[:, i::p, i::p]
+        space_time_masked_per_instance = space_time_per_token[space_time_per_token == 1].sum()
+        space_time_decode_per_instance = space_time_per_token[space_time_per_token == 2].sum()
+        space_per_token = output.space_mask[:, i::p, i::p]
+        space_masked_per_instance = space_per_token[space_per_token == 1].sum()
+        space_decode_per_instance = space_per_token[space_per_token == 2].sum()
+        time_per_token = output.time_mask
+        time_masked_per_instance = time_per_token[time_per_token == 1].sum()
+        time_decode_per_instance = time_per_token[time_per_token == 2].sum()
+        static_per_token = output.static_mask
+        static_masked_per_instance = static_per_token[static_per_token == 1].sum()
+        static_decode_per_instance = static_per_token[static_per_token == 2].sum()
         total_tokens = (
             (h_tokens * w_tokens * t * len(SPACE_TIME_BANDS_GROUPS_IDX))
             + (h_tokens * w_tokens * len(SPACE_BAND_GROUPS_IDX))
             + (t * len(TIME_BAND_GROUPS_IDX))
-        )
+        ) * b
         self.assertTrue(
             (
                 space_time_masked_per_instance
@@ -265,6 +278,17 @@ class TestMasking(unittest.TestCase):
                 + time_masked_per_instance
                 + static_masked_per_instance
                 == total_tokens * mask_ratio
+            ).all()
+        )
+        self.assertTrue(
+            (
+                space_time_decode_per_instance
+                + space_decode_per_instance
+                + time_decode_per_instance
+                + static_decode_per_instance
+                # hacky but the *2 lets us easily handle the fact
+                # we are summing over values == 2, not 1
+                == total_tokens * decoder_unmask_ratio * 2
             ).all()
         )
 
