@@ -47,7 +47,11 @@ S1_S2_BANDS = [
     if (("S1" in val) or ("S2" in val))
 ]
 
-MASKING_MODES = [None, "s2", "s2rgb", "s1", "s1+s2"]
+WC_BANDS = [idx for idx, val in enumerate(list(SPACE_BAND_GROUPS_IDX.keys())) if "WC" in val]
+DW_BANDS = [idx for idx, val in enumerate(list(SPACE_BAND_GROUPS_IDX.keys())) if "DW" in val]
+
+MASKING_MODES = [None, "S2", "S2_RGB", "S1", "S1+S2"]
+UNMASKING_MODES = [None, "DW", "WC"]
 # we divide the dataloader's batch size by 8 because the
 # masking function (batch_subset_mask_presto_8x) will augment
 # each instance in the batch 8 times (with different subsetting and
@@ -94,14 +98,24 @@ def check_mode_and_return_channels(
     assert mode in MASKING_MODES
     if mode is None:
         return None, None
-    elif mode == "s2rgb":
+    elif mode == "S2_RGB":
         return S2_RGB_BANDS, NON_S2_RGB_BANDS
-    elif mode == "s2":
+    elif mode == "S2":
         return S2_BANDS, NON_S2_BANDS
-    elif mode == "s1":
+    elif mode == "S1":
         return S1_BANDS, NON_S1_BANDS
     else:
         return S1_S2_BANDS, NON_S1_S2_BANDS
+
+
+def check_unmasking_mode_and_return_channels(unmasking_mode: Optional[str]):
+    assert unmasking_mode in UNMASKING_MODES
+    if unmasking_mode is None:
+        return None, None
+    elif unmasking_mode == "WC":
+        return WC_BANDS
+    elif unmasking_mode == "DW":
+        return DW_BANDS
 
 
 def subset_batch_of_images(
@@ -158,6 +172,7 @@ def batch_subset_mask_presto_augmented(
     st_x: torch.Tensor,
     months: torch.Tensor,
     mask_ratio: float,
+    decoder_unmask_ratio: float,
     patch_size: int,
     image_size: int,
     num_timesteps: int,
@@ -203,8 +218,9 @@ def batch_subset_mask_presto_augmented(
             *subset_batch_of_images(
                 s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=num_timesteps
             ),
-            mask_ratio,
-            patch_size,
+            mask_ratio=mask_ratio,
+            decoder_unmask_ratio=decoder_unmask_ratio,
+            patch_size=patch_size,
         )
     )
     return MaskedOutput.concatenate(maskedoutputs)
@@ -217,7 +233,9 @@ def batch_mask_time(
     static_x: torch.Tensor,
     months: torch.Tensor,
     mask_ratio: float,
+    decoder_unmask_ratio: float,
     mode: Optional[str] = None,
+    decoder_mode: Optional[str] = None,
 ):
     """
     Masks out blocks of hxwx1xBAND_GROUPs.
@@ -228,14 +246,18 @@ def batch_mask_time(
     """
     bands_to_keep, bands_to_mask = check_mode_and_return_channels(mode)
     b, h, w, t, _ = space_time_x.shape
-    # if there is only a single timestep, mask it
-    num_timesteps_to_mask = int(t * mask_ratio) if t > 1 else 1
+    # if there is only a single timestep, it will get a mask
+    # value of 2
+    num_timesteps_to_mask = int(t * mask_ratio) if t > 1 else 0
+    # if there is only a single timestep, decode it
+    num_timesteps_to_decode = int(t * decoder_unmask_ratio) if t > 1 else 1
     # we do this as a numpy array to take advantage of
     # numpy's permuted function
     flat_timesteps = np.concatenate(
         (
             np.ones(num_timesteps_to_mask, dtype=np.int_),
-            np.zeros(t - num_timesteps_to_mask, dtype=np.int_),
+            np.ones(num_timesteps_to_decode, dtype=np.int_) * 2,
+            np.zeros(t - num_timesteps_to_mask - num_timesteps_to_decode, dtype=np.int_),
         )
     )
     b_flat_timesteps = repeat(flat_timesteps, "t -> b t", b=b)
@@ -379,6 +401,7 @@ def batch_mask_channels(
     static_x: torch.Tensor,
     months: torch.Tensor,
     mask_ratio: float,
+    decoder_unmask_ratio: float,
 ):
     """
     Masks out channels. All channels are masked out
@@ -387,6 +410,12 @@ def batch_mask_channels(
 
     def channel_mask(b: int, num_channels: int, mask_ratio: float, device: torch.device):
         if num_channels == 1:
+            mask = torch.rand(b, device=device)
+            total_masked_tokens_ratio = mask_ratio + decoder_unmask_ratio
+            mask[mask >= total_masked_tokens_ratio] = 0
+            mask[mask <= decoder_unmask_ratio] = 2
+            # all the rest is ignored by both the encoder and decoder
+            mask[(mask != 0) | (mask != 2)] = 1
             return (torch.rand(b, device=device) <= mask_ratio).unsqueeze(-1)
         else:
             num_channels_to_mask = int(num_channels * mask_ratio)
