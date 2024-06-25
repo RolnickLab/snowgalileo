@@ -67,14 +67,19 @@ def mse_loss(
 ):
     return F.mse_loss(
         torch.concat(
-            [p_s_t[expanded_s_t_m], p_sp[expanded_sp_m], p_t[expanded_t_m], p_st[expanded_st_m]]
+            [
+                p_s_t[expanded_s_t_m == 2],
+                p_sp[expanded_sp_m == 2],
+                p_t[expanded_t_m == 2],
+                p_st[expanded_st_m == 2],
+            ]
         ),
         torch.concat(
             [
-                expanded_s_t_x[expanded_s_t_m],
-                expanded_sp_x[expanded_sp_m],
-                t_x[expanded_t_m],
-                st_x[expanded_st_m],
+                expanded_s_t_x[expanded_s_t_m == 2],
+                expanded_sp_x[expanded_sp_m == 2],
+                t_x[expanded_t_m == 2],
+                st_x[expanded_st_m == 2],
             ]
         ).float(),
     )
@@ -308,7 +313,7 @@ def norm_per_patch_loss(
     )
 
 
-def mae_loss(
+def masked_autoencoder_loss(
     expanded_s_t_x,
     expanded_sp_x,
     t_x,
