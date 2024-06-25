@@ -538,7 +538,6 @@ def batch_mask_random(
     total_tokens = num_space_time_tokens + num_space_tokens + num_time_tokens + num_static_tokens
     tokens_the_decoder_will_unmask = int(total_tokens * decoder_unmask_ratio)
     unused_tokens = int(total_tokens * mask_ratio)
-    print(unused_tokens, tokens_the_decoder_will_unmask)
     # we do this as a numpy array to take advantage of
     # numpy's permuted function
     flat_tokens = np.concatenate(
