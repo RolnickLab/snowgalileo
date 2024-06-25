@@ -5,6 +5,7 @@ import torch
 from einops import repeat
 
 from src.masking import (
+    DW_BANDS,
     MASKING_MODES,
     MASKING_MULTIPLIER,
     NON_S1_BANDS,
@@ -20,6 +21,7 @@ from src.masking import (
     STATIC_BAND_GROUPS_IDX,
     TIME_BAND_GROUPS_IDX,
     UNMASKING_MODES,
+    WC_BANDS,
     batch_mask_channels,
     batch_mask_random,
     batch_mask_space,
@@ -33,6 +35,8 @@ MASK_TO_BANDS = {
     "S1": {"masked": NON_S1_BANDS, "unmasked": S1_BANDS},
     "S1+S2": {"masked": NON_S1_S2_BANDS, "unmasked": S1_S2_BANDS},
 }
+
+DECODER_MASK_TO_BANDS = {"DW": DW_BANDS, "WC": WC_BANDS}
 
 
 class TestMasking(unittest.TestCase):
@@ -92,33 +96,29 @@ class TestMasking(unittest.TestCase):
                             ).all()
                         )
                     else:
-                        self.assertTrue((output.time_mask == 1).all())
-                        self.assertTrue((output.static_mask == 1).all())
                         if mode is not None:
-                            self.assertTrue(0 in output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["unmasked"]])
-                            self.assertFalse(0 in output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["masked"]])
-                    # else:
-                    #     self.assertTrue(
-                    #         (
-                    #             output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["masked"]]
-                    #             == 1
-                    #         ).all()
-                    #     )
-                    #     space_time_unmasked = (
-                    #         output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["unmasked"]]
-                    #         .float()
-                    #         .mean(axis=(1, 2, 4))
-                    #     )
-                    #     self.assertTrue(
-                    #         (
-                    #             space_time_unmasked.sum(axis=1) / space_time_unmasked.shape[1]
-                    #             == (mask_ratio if t > 1 else 0)
-                    #         ).all()
-                    #     )
-                    #     self.assertTrue(np.isin(space_time_unmasked, (0, 1)).all())
-                    #     self.assertTrue((output.space_mask == 1).all())
-                    #     self.assertTrue((output.time_mask == 1).all())
-                    #     self.assertTrue((output.static_mask == 1).all())
+                            self.assertTrue(
+                                0
+                                in output.space_time_mask[
+                                    :, :, :, :, MASK_TO_BANDS[mode]["unmasked"]
+                                ]
+                            )
+                            self.assertFalse(
+                                0
+                                in output.space_time_mask[
+                                    :, :, :, :, MASK_TO_BANDS[mode]["masked"]
+                                ]
+                            )
+                        if decoder_mode is not None:
+                            self.assertTrue((output.time_mask <= 1).all())
+                            self.assertTrue((output.static_mask <= 1).all())
+                            self.assertTrue((output.static_mask == 1).all())
+                            self.assertTrue(
+                                (
+                                    output.space_mask[:, :, :, DECODER_MASK_TO_BANDS[decoder_mode]]
+                                    == 2
+                                ).all()
+                            )
 
     def test_mask_by_channel(self):
         b, t, h, w = 2, 8, 16, 16
@@ -277,6 +277,7 @@ class TestMasking(unittest.TestCase):
         static_input = torch.ones((b, 8))
         months = repeat(torch.arange(0, t), "t -> b t", b=b)
         mask_ratio = 0.25
+        decoder_unmask_ratio = 0.25
 
         output = batch_subset_mask_presto_augmented(
             space_time_input,
@@ -285,6 +286,7 @@ class TestMasking(unittest.TestCase):
             static_input,
             months,
             mask_ratio,
+            decoder_unmask_ratio,
             p,
             image_size=i,
             num_timesteps=t_o,
