@@ -304,7 +304,7 @@ def batch_mask_time(
     static_mask = _random_mask_for_b(b, static_x.device, mask_ratio, decoder_unmask_ratio)
     static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX))
 
-    if bands_to_mask is None:
+    if bands_to_mask is not None:
         space_time_mask[:, :, :, :, bands_to_mask] = torch.clamp(
             space_time_mask[:, :, :, :, bands_to_mask], min=1
         )
