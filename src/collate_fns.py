@@ -56,12 +56,10 @@ def mae_collate_fn(
     # transform the masks from channel-groups to individual channels
     expanded_s_t = torch.repeat_interleave(
         s_t_m, repeats=SPACE_TIME_BAND_EXPANSION.long(), dim=-1
-    ).bool()
-    expanded_sp = torch.repeat_interleave(sp_m, repeats=SPACE_BAND_EXPANSION.long(), dim=-1).bool()
-    expanded_t = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION.long(), dim=-1).bool()
-    expanded_st = torch.repeat_interleave(
-        st_m, repeats=STATIC_BAND_EXPANSION.long(), dim=-1
-    ).bool()
+    ).int()
+    expanded_sp = torch.repeat_interleave(sp_m, repeats=SPACE_BAND_EXPANSION.long(), dim=-1).int()
+    expanded_t = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION.long(), dim=-1).int()
+    expanded_st = torch.repeat_interleave(st_m, repeats=STATIC_BAND_EXPANSION.long(), dim=-1).int()
 
     # p_s_t and p_sp always assume the maximum patch size, so we need to
     # resample if its smaller
