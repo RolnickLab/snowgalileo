@@ -13,6 +13,7 @@ from sklearn.metrics import (
     mean_squared_error,
     r2_score,
 )
+from sklearn.multioutput import MultiOutputRegressor
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as PyTorchDataset
 from tqdm import tqdm
@@ -452,6 +453,11 @@ class PastisPatchEval(EvalTask):
         )
         self.include_latlons = include_latlons
         self.name = f"{self.name}_{self.band_mode}_{self.output_mode}{'_latlons' if include_latlons else ''}_{self.input_height_width}"
+
+    def _construct_sklearn_model(self, model) -> BaseEstimator:
+        if self.output_mode == "norm_counts":
+            model = MultiOutputRegressor(model)
+        return model
 
     @torch.no_grad()
     def train_sklearn_model(
