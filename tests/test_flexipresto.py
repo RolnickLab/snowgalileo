@@ -39,7 +39,7 @@ class TestPresto(unittest.TestCase):
     def test_end_to_end_different_inputs_per_dim_than_default(self):
         self._end_to_end_run_mae(16, 4)
 
-    def _end_to_end_run_mae_plus_loss(self, embedding_size, patch_size):
+    def _end_to_end_run_mae(self, embedding_size, patch_size):
         image_size = patch_size * 4
         num_timesteps = 3
         encoder = Encoder(embedding_size=embedding_size, num_heads=1)
@@ -166,7 +166,7 @@ class TestPresto(unittest.TestCase):
         b, h, w, t = 5, 6, 7, 8
         s_t_x = torch.ones(b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX), embedding_size)
         s_t_m = torch.zeros(b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX))
-        s_t_m[:, :, :, 0] = 2  # the firs timestep will get processed by the decoder
+        s_t_m[:, :, :, 0] = 2  # the first timestep will get processed by the decoder
         s_t_m[:, :, :, 1] = 1  # the second timestep gets masked but not processed
 
         sp_x = torch.ones(b, h, w, len(SPACE_BAND_GROUPS_IDX), embedding_size)
