@@ -9,6 +9,14 @@ from .data import (
     TIME_BAND_GROUPS_IDX,
 )
 
+LOSS_TYPES = [
+    "mse",
+    "norm_per_patch",
+    "norm_per_c_g",
+    "norm_per_channel",
+    "norm_per_timestep",
+]
+
 
 def group_per_patch(space_time_array, space_only_array, patch_size):
     return (
@@ -106,7 +114,7 @@ def norm_per_channel_loss(
         expanded_s_t_x, expanded_sp_x, t_x, st_x
     )
     p_s_t, p_sp, p_t, p_st = group_per_channel(p_s_t, p_sp, p_t, p_st)
-    expanded_s_t_m, expanded_sp_m, expanded_t_m = group_per_channel(
+    expanded_s_t_m, expanded_sp_m, expanded_t_m, expanded_st_m = group_per_channel(
         expanded_s_t_m,
         expanded_sp_m,
         expanded_t_m,
@@ -333,13 +341,7 @@ def masked_autoencoder_loss(
     patch_size,
     loss_type,
 ):
-    assert loss_type in [
-        "mse",
-        "norm_per_patch",
-        "norm_per_c_g",
-        "norm_per_channel",
-        "norm_per_timestep",
-    ]
+    assert loss_type in LOSS_TYPES
 
     if loss_type == "norm_per_patch":
         return norm_per_patch_loss(
