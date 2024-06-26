@@ -7,7 +7,6 @@ import pandas as pd
 import torch.multiprocessing
 from einops import repeat
 from sklearn.base import BaseEstimator, clone
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.metrics import (
     accuracy_score,
     balanced_accuracy_score,
@@ -416,13 +415,11 @@ class PastisPatchEval(EvalTask):
     num_outputs = len(PastisPatchDataset.labels_to_int) - 1
 
     all_regression_sklearn_models = [
-        "Random Forest",
         "KNNat5 Regressor",
         "KNNat20 Regressor",
         "KNNat100 Regressor",
     ]
     all_classification_sklearn_models = [
-        "Random Forest",
         "KNNat5 Classifier",
         "KNNat20 Classifier",
         "KNNat100 Classifier",
@@ -519,15 +516,11 @@ class PastisPatchEval(EvalTask):
         fit_models = []
         model_dict = {
             False: {
-                "Random Forest": self._construct_sklearn_model(
-                    RandomForestClassifier(class_weight="balanced", random_state=self.seed)
-                ),
                 "KNNat5 Classifier": self._construct_sklearn_model(KNNat5Classifier()),
                 "KNNat20 Classifier": self._construct_sklearn_model(KNNat20Classifier()),
                 "KNNat100 Classifier": self._construct_sklearn_model(KNNat100Classifier()),
             },
             True: {
-                "Random Forest": RandomForestRegressor(random_state=self.seed),
                 "KNNat5 Regressor": self._construct_sklearn_model(KNNat5Regressor()),
                 "KNNat20 Regressor": self._construct_sklearn_model(KNNat20Regressor()),
                 "KNNat100 Regressor": self._construct_sklearn_model(KNNat100Regressor()),
