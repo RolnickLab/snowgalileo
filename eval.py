@@ -29,5 +29,5 @@ eval_tasks: List[EvalTask] = [
     *[So2SatEval(geobench=geobench) for geobench in [True, False]],
 ]
 for task in eval_tasks:
-    results = task.evaluate_model_on_task(encoder, model_modes="KNNat5")
+    results = task.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
     print(json.dumps(results, indent=2), flush=True)
