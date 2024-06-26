@@ -39,7 +39,7 @@ class TestPresto(unittest.TestCase):
     def test_end_to_end_different_inputs_per_dim_than_default(self):
         self._end_to_end_run_mae(16, 4)
 
-    def _end_to_end_run_mae(self, embedding_size, patch_size):
+    def _end_to_end_run_mae_plus_loss(self, embedding_size, patch_size):
         image_size = patch_size * 4
         num_timesteps = 3
         encoder = Encoder(embedding_size=embedding_size, num_heads=1)
@@ -152,7 +152,7 @@ class TestPresto(unittest.TestCase):
         self.assertFalse(torch.isnan(output[2]).any())
         self.assertFalse(torch.isnan(output[3]).any())
 
-        # check we can call backwards
+        # check we can call backwards, with the loss
         summed_output = sum([torch.sum(o) for o in output])
         summed_output.backward()
 
