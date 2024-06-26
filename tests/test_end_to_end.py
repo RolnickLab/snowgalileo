@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from src.collate_fns import mae_collate_fn
 from src.data import Dataset
 from src.flexipresto import Encoder, PrestoPixelDecoder
-from src.loss import masked_autoencoder_loss
+from src.loss import LOSS_TYPES, masked_autoencoder_loss
 from src.utils import device
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/tifs"
@@ -16,6 +16,10 @@ DATA_FOLDER = Path(__file__).parents[1] / "data/tifs"
 
 class TestEndtoEnd(unittest.TestCase):
     def test_end_to_end(self):
+        for loss_type in LOSS_TYPES:
+            self._test_end_to_end(loss_type)
+
+    def _test_end_to_end(self, loss_type: str):
         embedding_size = 32
 
         dataset = Dataset(DATA_FOLDER, download=False, cache_folder=None)
@@ -108,7 +112,7 @@ class TestEndtoEnd(unittest.TestCase):
                 t_m_p,
                 st_m_p,
                 patch_size=8,
-                loss_type="norm_per_c_g",
+                loss_type=loss_type,
             )
             self.assertFalse(torch.isnan(loss).any())
             loss.backward()
