@@ -34,14 +34,16 @@ from ..data.earthengine.eo import S1_BANDS, S2_BANDS
 from ..flexipresto import Encoder
 from ..masking import MaskedOutput
 from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
-from .eval import EvalTask, Hyperparams, model_class_name
-from .knn import (
+from .eval import (
+    EvalTask,
+    Hyperparams,
     KNNat5Classifier,
     KNNat5Regressor,
     KNNat20Classifier,
     KNNat20Regressor,
     KNNat100Classifier,
     KNNat100Regressor,
+    model_class_name,
 )
 
 ### SETUP
