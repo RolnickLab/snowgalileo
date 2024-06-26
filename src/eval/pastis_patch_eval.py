@@ -37,13 +37,15 @@ from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
 from .eval import (
     EvalTask,
     Hyperparams,
+    model_class_name,
+)
+from .knn import (
     KNNat5Classifier,
     KNNat5Regressor,
     KNNat20Classifier,
     KNNat20Regressor,
     KNNat100Classifier,
     KNNat100Regressor,
-    model_class_name,
 )
 
 ### SETUP
