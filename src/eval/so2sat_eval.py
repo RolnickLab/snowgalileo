@@ -42,8 +42,17 @@ class So2SatBaseDataset(PyTorchDataset):
     num_timesteps = 1
     num_classes = 17
 
-    def create_so2sat_masks(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        s_t_channels = [idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S" in key]
+    def create_so2sat_masks(
+        self, combined: bool
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        if combined:
+            s_t_channels = [
+                idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S" in key
+            ]
+        else:
+            s_t_channels = [
+                idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S2" in key
+            ]
 
         # everything is masked by default
         s_t_m = np.ones([len(SPACE_TIME_BANDS_GROUPS_IDX)])
@@ -71,10 +80,13 @@ class So2SatBaseDataset(PyTorchDataset):
 
         return (s_t_m, sp_m, t_m, st_m)
 
-    def image_to_space_time_array(self, image: np.ndarray) -> np.ndarray:
-        kept_dynamic_bands = [
-            idx for idx, x in enumerate(SPACE_TIME_BANDS) if (x in S2_BANDS or x in S1_BANDS)
-        ]
+    def image_to_space_time_array(self, image: np.ndarray, combined: bool) -> np.ndarray:
+        if combined:
+            kept_dynamic_bands = [
+                idx for idx, x in enumerate(SPACE_TIME_BANDS) if (x in S2_BANDS or x in S1_BANDS)
+            ]
+        else:
+            kept_dynamic_bands = [idx for idx, x in enumerate(SPACE_TIME_BANDS) if (x in S2_BANDS)]
 
         eo_style_array = np.zeros(
             [
@@ -109,8 +121,6 @@ class So2SatGeobenchDataset(So2SatBaseDataset):
 
     presto_so2sat_band_names = (
         [
-            "06 - VV.LEE Filtered",
-            "05 - VH.LEE Filtered",
             "02 - Blue",
             "03 - Green",
             "04 - Red",
@@ -154,7 +164,7 @@ class So2SatGeobenchDataset(So2SatBaseDataset):
         self.norm_stats = self.dataset.normalization_stats()
         self.in_channels = len(self.tmp_band_indices)
 
-        self.masks = self.create_so2sat_masks()
+        self.masks = self.create_so2sat_masks(combined=False)
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         label = self.dataset[idx].label
@@ -168,7 +178,7 @@ class So2SatGeobenchDataset(So2SatBaseDataset):
 
         x = np.stack(x, axis=0)
 
-        s_t_x = self.image_to_space_time_array(x)
+        s_t_x = self.image_to_space_time_array(x, combined=False)
 
         # space only / time only / static bands are not provided by so2sat
         sp_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
@@ -205,15 +215,13 @@ class So2SatTUMDataset(So2SatBaseDataset):
         self,
         split: str = "training",
         so2sat_dir: str = "so2sat/block/",
-        geobench: bool = True,
     ):
         assert split in ["training", "testing"]
 
-        self.geobench = geobench
         self.split = split
         self.so2sat_dir = so2sat_dir
         self._len = None
-        self.masks = self.create_so2sat_masks()
+        self.masks = self.create_so2sat_masks(combined=True)
 
     def h5_to_eo_array_and_label(self, idx) -> Tuple[np.ndarray, np.ndarray]:
         with h5py.File(data_dir / self.so2sat_dir / f"{self.split}.h5", "r") as data:
@@ -238,7 +246,7 @@ class So2SatTUMDataset(So2SatBaseDataset):
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         image, label = self.h5_to_eo_array_and_label(idx)
-        s_t_x = self.image_to_space_time_array(image)
+        s_t_x = self.image_to_space_time_array(image, combined=True)
 
         # space only / time only / static bands are not provided by so2sat
         sp_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
