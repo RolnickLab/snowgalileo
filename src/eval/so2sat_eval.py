@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, cast
 
 import h5py
@@ -31,6 +33,9 @@ from .geobench_dataset import GeobenchBaseDataset
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
+with (Path(__file__).parents[0] / Path("geobench_configs") / Path("m-so2sat.json")).open("r") as f:
+    config = json.load(f)
+
 
 class So2SatTUMDataset(PyTorchDataset):
     """
@@ -40,9 +45,9 @@ class So2SatTUMDataset(PyTorchDataset):
     label: [n, 17] (one-hot encoded labels for 17 LCV classes)
     """
 
-    input_height_width = 32
-    num_timesteps = 1
-    num_classes = 17
+    input_height_width = config["input_height_width"]
+    num_timesteps = config["num_timesteps"]
+    num_classes = config["num_classes"]
 
     def __init__(
         self,
@@ -168,8 +173,8 @@ class So2SatEval(EvalTask):
     regression = False
     spatial_token_prediction = False
     multilabel = False
-    input_height_width = So2SatTUMDataset.input_height_width
-    num_outputs = So2SatTUMDataset.num_classes
+    input_height_width = config["input_height_width"]
+    num_outputs = config["num_classes"]
 
     def __init__(
         self,
