@@ -1,14 +1,19 @@
 import argparse
 import json
+from pathlib import Path
 from typing import List
 
 import psutil
 import torch
 
 from src.config import DEFAULT_SEED
-from src.data.config import OUTPUT_FOLDER
 from src.eval import (
+    BinaryCropHarvestEval,
+    EuroSatEval,
     PastisPatchEval,
+    PastisPixelEval,
+    So2SatEval,
+    TreeSatEval,
 )
 from src.eval.eval import EvalTask
 from src.flexipresto import Encoder
@@ -23,7 +28,7 @@ argparser = argparse.ArgumentParser()
 argparser.add_argument("--output_folder", type=str)
 args = argparser.parse_args().__dict__
 
-encoder = Encoder.load_from_folder(OUTPUT_FOLDER).to(device)
+encoder = Encoder.load_from_folder(Path(args["output_folder"])).to(device)
 
 eval_tasks: List[EvalTask] = [
     *[
@@ -32,12 +37,25 @@ eval_tasks: List[EvalTask] = [
             num_subtiles_per_image=num_subtiles_per_image,
             band_mode=band_mode,
         )
-        for output_mode in ["norm_counts"]
+        for output_mode in ["norm_counts", "mode"]
         # 4 has input hw 64, 16 has input hw 32
         for num_subtiles_per_image in [4, 16]
         for band_mode in ["combined", "s2"]
     ],
+    *[
+        TreeSatEval(mode=mode, patch_size=patch_size)
+        for mode in ["s1", "s2", "combined"]
+        for patch_size in [6, 3]
+    ],
+    *[
+        EuroSatEval(rgb=rgb, include_latlons=include_latlons)
+        for rgb in [True, False]
+        for include_latlons in [True, False]
+    ],
+    So2SatEval(),
+    PastisPixelEval(),
+    *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil", "China"]],
 ]
 for task in eval_tasks:
-    results = task.evaluate_model_on_task(encoder, model_modes=["KNNat5 Regressor"])
+    results = task.evaluate_model_on_task(encoder)
     print(json.dumps(results, indent=2), flush=True)
