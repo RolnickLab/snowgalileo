@@ -342,6 +342,7 @@ class TestMasking(unittest.TestCase):
             p,
             image_size=i,
             num_timesteps=t_o,
+            augmentation_strategies=None,
         )
         self.assertEqual(
             (b * MASKING_MULTIPLIER, i, i, t_o, len(SPACE_TIME_BANDS_GROUPS_IDX)),
