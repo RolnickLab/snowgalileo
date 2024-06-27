@@ -33,7 +33,7 @@ class BigEarthNetEval(EvalTask):
 
     def __init__(
         self,
-        patch_size: int = 8,
+        patch_size: int = 6,
         seed=DEFAULT_SEED,
         num_subtiles_per_image: int = 4,
     ):
@@ -42,6 +42,10 @@ class BigEarthNetEval(EvalTask):
         self.input_height_width = self.input_height_width // int(
             sqrt(cast(float, self.num_subtiles_per_image))
         )
+        # bigearthnet has an unusual input size, so we make sure it's divisible by the patch size
+        assert (
+            self.input_height_width % patch_size == 0
+        ), "Input height/width must be divisible by patch size"
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         return {
