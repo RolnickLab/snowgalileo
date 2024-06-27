@@ -1,7 +1,7 @@
 {
     "training": {
         "num_epochs": 300,
-        "batch_size": 128,
+        "batch_size": 64,
         "effective_batch_size": 512,
         "mask_ratio": 0.75,
         "patch_sizes": [1, 2, 3, 4, 5, 6, 7, 8],
@@ -15,7 +15,8 @@
         "wandb_plot_every_n_epochs": 10,
         "num_images_to_wandb_plot": 3,
         "timesteps_to_wandb_plot": [0],
-        "patch_sizes_to_wandb_plot": [2, 4, 8]
+        "patch_sizes_to_wandb_plot": [2, 4, 8],
+        "augmentation": {"flip+rotate": true}
     },
     "model": {
         "encoder": {

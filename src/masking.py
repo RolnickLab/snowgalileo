@@ -1,5 +1,5 @@
 import random
-from typing import List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import numpy as np
 import torch
@@ -11,6 +11,7 @@ from .data.dataset import (
     STATIC_BAND_GROUPS_IDX,
     TIME_BAND_GROUPS_IDX,
 )
+from .data_augmentation import Augmentation
 
 # This is to allow a quick expansion of the mask from
 # group-channel space into real-channel space
@@ -97,7 +98,7 @@ def check_mode_and_return_channels(
         return S1_S2_BANDS, NON_S1_S2_BANDS
 
 
-def subset_batch_of_images(
+def subset_and_augment_batch_of_images(
     space_time_x: torch.Tensor,
     space_x: torch.Tensor,
     time_x: torch.Tensor,
@@ -105,6 +106,7 @@ def subset_batch_of_images(
     months: torch.Tensor,
     size: int,
     num_timesteps: int,
+    augmentation_strategies: Optional[Dict],
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     assert (space_time_x.shape[1] == space_x.shape[1]) & (
         space_time_x.shape[2] == space_x.shape[2]
@@ -130,18 +132,22 @@ def subset_batch_of_images(
     else:
         start_t = possible_t
 
-    return (
-        space_time_x[
-            :,
-            start_h : start_h + size,
-            start_w : start_w + size,
-            start_t : start_t + num_timesteps,
-        ],
-        space_x[:, start_h : start_h + size, start_w : start_w + size],
-        time_x[:, start_t : start_t + num_timesteps],
-        static_x,
-        months[:, start_t : start_t + num_timesteps],
-    )
+    # do augmentations, if enabled
+    space_time_x = space_time_x[
+        :,
+        start_h : start_h + size,
+        start_w : start_w + size,
+        start_t : start_t + num_timesteps,
+    ]
+    space_x = space_x[:, start_h : start_h + size, start_w : start_w + size]
+    time_x = time_x[:, start_t : start_t + num_timesteps]
+    months = months[:, start_t : start_t + num_timesteps]
+
+    if augmentation_strategies is not None:
+        return Augmentation(augmentation_strategies).apply(
+            space_time_x, space_x, time_x, static_x, months
+        )
+    return space_time_x, space_x, time_x, static_x, months
 
 
 def batch_subset_mask_presto_augmented(
@@ -154,6 +160,7 @@ def batch_subset_mask_presto_augmented(
     patch_size: int,
     image_size: int,
     num_timesteps: int,
+    augmentation_strategies: Optional[Dict],
 ) -> MaskedOutput:
     """
     Given an input batch size of x, this function will
@@ -164,8 +171,15 @@ def batch_subset_mask_presto_augmented(
     for mode in random.sample(MASKING_MODES, k=1):
         maskedoutputs.append(
             batch_mask_time(
-                *subset_batch_of_images(
-                    s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=num_timesteps
+                *subset_and_augment_batch_of_images(
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    months,
+                    size=image_size,
+                    num_timesteps=num_timesteps,
+                    augmentation_strategies=augmentation_strategies,
                 ),
                 mask_ratio,
                 mode=mode,
@@ -174,8 +188,15 @@ def batch_subset_mask_presto_augmented(
     for mode in random.sample(MASKING_MODES, k=1):
         maskedoutputs.append(
             batch_mask_space(
-                *subset_batch_of_images(
-                    s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=num_timesteps
+                *subset_and_augment_batch_of_images(
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    months,
+                    size=image_size,
+                    num_timesteps=num_timesteps,
+                    augmentation_strategies=augmentation_strategies,
                 ),
                 mask_ratio,
                 patch_size,
@@ -185,16 +206,30 @@ def batch_subset_mask_presto_augmented(
 
     maskedoutputs.append(
         batch_mask_channels(
-            *subset_batch_of_images(
-                s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=num_timesteps
+            *subset_and_augment_batch_of_images(
+                s_t_x,
+                sp_x,
+                t_x,
+                st_x,
+                months,
+                size=image_size,
+                num_timesteps=num_timesteps,
+                augmentation_strategies=augmentation_strategies,
             ),
             mask_ratio,
         )
     )
     maskedoutputs.append(
         batch_mask_random(
-            *subset_batch_of_images(
-                s_t_x, sp_x, t_x, st_x, months, size=image_size, num_timesteps=num_timesteps
+            *subset_and_augment_batch_of_images(
+                s_t_x,
+                sp_x,
+                t_x,
+                st_x,
+                months,
+                size=image_size,
+                num_timesteps=num_timesteps,
+                augmentation_strategies=augmentation_strategies,
             ),
             mask_ratio,
             patch_size,
