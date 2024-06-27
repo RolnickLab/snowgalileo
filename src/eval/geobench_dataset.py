@@ -1,5 +1,6 @@
 import json
 from math import sqrt
+from pathlib import Path
 from typing import Optional, Tuple, cast
 
 import geobench
@@ -38,7 +39,9 @@ class GeobenchBaseDataset(PyTorchDataset):
         split: str = "train",
         num_subtiles_per_image: Optional[int] = 1,
     ):
-        with ("geobench_configs" / dataset_config_file).open("r") as f:
+        with (
+            Path(__file__).parents[0] / Path("geobench_configs") / Path(dataset_config_file)
+        ).open("r") as f:
             config = json.load(f)
 
         assert split in ["train", "test"]
