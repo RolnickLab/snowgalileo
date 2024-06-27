@@ -1,7 +1,7 @@
 {
     "input_height_width": 256,
     "num_timesteps": 1,
-    "num_classes": 10,
+    "num_classes": 7,
     "include_s1": false,
     "dataset_name": "m-cashew-plant",
     "benchmark_name": "segmentation_v1.0",

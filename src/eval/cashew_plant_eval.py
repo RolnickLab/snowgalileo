@@ -23,7 +23,7 @@ with (Path(__file__).parents[0] / Path("geobench_configs") / Path("m-cashew-plan
     config = json.load(f)
 
 
-class CashewEval(EvalTask):
+class CashewPlantEval(EvalTask):
     name = "CashewPlantation"
     regression = False
     spatial_token_prediction = True
