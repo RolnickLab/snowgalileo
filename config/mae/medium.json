@@ -1,6 +1,6 @@
 {
     "training": {
-        "num_epochs": 300,
+        "num_epochs": 500,
         "batch_size": 64,
         "effective_batch_size": 512,
         "mask_ratio": 0.5,
