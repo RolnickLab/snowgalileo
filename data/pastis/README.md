@@ -1,7 +1,5 @@
 The PASTIS_R patch-based dataset can be downloaded from Zenodo [here](https://zenodo.org/records/5735646), and should be unzipped in this directory.
 
-Only the S2 data is used.
-
 References:
 
 ```
