@@ -286,19 +286,19 @@ with (model_path / CONFIG_FILENAME).open("w") as f:
     json.dump(config, f)
 
 eval_tasks: List[EvalTask] = [
-    *[
-        TreeSatEval(mode=mode, patch_size=patch_size)
-        for mode in ["s1", "s2", "combined"]
-        for patch_size in [6, 3]
-    ],
+    *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil"]],
+    So2SatEval(),
     *[
         EuroSatEval(rgb=rgb, include_latlons=include_latlons)
         for rgb in [True, False]
         for include_latlons in [True, False]
     ],
-    So2SatEval(),
+    *[
+        TreeSatEval(mode=mode, patch_size=patch_size)
+        for mode in ["s1", "s2", "combined"]
+        for patch_size in [6, 3]
+    ],
     PastisEval(),
-    *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil", "China"]],
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)
