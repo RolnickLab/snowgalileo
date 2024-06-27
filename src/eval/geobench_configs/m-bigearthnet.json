@@ -1,0 +1,20 @@
+{
+    "input_height_width": 120,
+    "num_timesteps": 1,
+    "num_classes": 43,
+    "include_s1": true,
+    "dataset_name": "m-bigearthnet",
+    "benchmark_name": "classification_v1.0",
+    "band_names": [
+            "02 - Blue",
+            "03 - Green",
+            "04 - Red",
+            "05 - Vegetation Red Edge",
+            "06 - Vegetation Red Edge",
+            "07 - Vegetation Red Edge",
+            "08 - NIR",
+            "08A - Vegetation Red Edge",
+            "11 - SWIR",
+            "12 - SWIR"
+    ]
+}

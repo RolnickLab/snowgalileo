@@ -1,6 +1,8 @@
 from sa_crop_type_eval import SACropEval
 
-from .cashew_plantation_eval import CashewEval
+from .bigearthnet_eval import BigEarthNetEval
+from .brick_kiln_eval import BrickKilnEval
+from .cashew_plant_eval import CashewPlantEval
 from .cropharvest_eval import BinaryCropHarvestEval, MultiClassCropHarvestEval
 from .eurosat_eval import EuroSatEval
 from .pastis_pixel_eval import PastisPixelEval
@@ -14,6 +16,8 @@ __all__ = [
     "BinaryCropHarvestEval",
     "MultiClassCropHarvestEval",
     "PastisPixelEval",
-    "CashewEval",
+    "CashewPlantEval",
     "SACropEval",
+    "BrickKilnEval",
+    "BigEarthNetEval",
 ]
