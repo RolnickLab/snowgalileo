@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Sequence, cast
 import numpy as np
 import torch.multiprocessing
 from sklearn.base import BaseEstimator
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, average_precision_score
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -50,6 +50,9 @@ class BigEarthNetEval(EvalTask):
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         return {
             f"{self.name}: {model_name}_accuracy_score": accuracy_score(target, preds),
+            f"{self.name}: {model_name}_average_precision_score": average_precision_score(
+                target, preds, average="micro"
+            ),
         }
 
     @torch.no_grad()
