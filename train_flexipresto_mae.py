@@ -26,10 +26,12 @@ from src.data.config import (
     TIFS_FOLDER,
 )
 from src.eval import (
+    BigEarthNetEval,
     BinaryCropHarvestEval,
+    BrickKilnEval,
     EuroSatEval,
     MultiClassCropHarvestEval,
-    PastisEval,
+    PastisPixelEval,
     So2SatEval,
     TreeSatEval,
 )
@@ -296,7 +298,9 @@ eval_tasks: List[EvalTask] = [
         for include_latlons in [True, False]
     ],
     *[So2SatEval(geobench=geobench) for geobench in [True, False]],
-    PastisEval(),
+    PastisPixelEval(),
+    BigEarthNetEval(),
+    BrickKilnEval(),
     *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil", "China"]],
 ]
 for task in eval_tasks:

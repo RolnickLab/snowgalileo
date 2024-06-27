@@ -1,9 +1,9 @@
 {
-    "input_height_width": 120,
+    "input_height_width": 64,
     "num_timesteps": 1,
-    "num_classes": 43,
+    "num_classes": 10,
     "include_s1": false,
-    "dataset_name": "m-bigearthnet",
+    "dataset_name": "m-eurosat",
     "benchmark_name": "classification_v1.0",
     "band_names": [
             "02 - Blue",

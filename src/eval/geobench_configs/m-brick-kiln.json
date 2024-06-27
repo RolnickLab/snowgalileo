@@ -2,7 +2,7 @@
     "input_height_width": 64,
     "num_timesteps": 1,
     "num_classes": 2,
-    "include_s1": true,
+    "include_s1": false,
     "dataset_name": "m-brick-kiln",
     "benchmark_name": "classification_v1.0",
     "band_names": [
