@@ -61,6 +61,7 @@ class TestPresto(unittest.TestCase):
             patch_size=patch_size,
             image_size=image_size,
             num_timesteps=num_timesteps,
+            augmentation_strategies=None,
         )
 
         # for now, we just make sure it all runs

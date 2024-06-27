@@ -28,7 +28,3 @@ class TestAugmentation(unittest.TestCase):
         # check that tensors were not changed when flip+rotate=False
         self.assertTrue(torch.equal(new_space_time_x, space_time_x))
         self.assertTrue(torch.equal(new_space_x, space_x))
-
-
-if __name__ == "__main__":
-    unittest.main()
