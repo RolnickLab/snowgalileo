@@ -19,7 +19,7 @@ def mae_collate_fn(
     patch_sizes,
     shape_time_combinations,
     mask_ratio,
-    augment,
+    augmentation_strategies=None,
     fixed_patch_size=None,
     fixed_space_time_combination=None,
 ):
@@ -50,7 +50,7 @@ def mae_collate_fn(
         patch_size,
         image_size=image_size,
         num_timesteps=timesteps,
-        augment=augment,
+        augmentation_strategies=augmentation_strategies,
     )
 
     # transform the masks from channel-groups to individual channels
