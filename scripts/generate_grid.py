@@ -51,7 +51,7 @@ for tile_i in tqdm(range(len(grid))):
             sub_tile = tif_file.isel(x=slice(x_i, x_i + TILE_SIZE), y=slice(y_i, y_i + TILE_SIZE))  # type: ignore
             keys, amounts = np.unique(sub_tile, return_counts=True)
 
-            if (len(keys) == 0) and (keys[0] == 0):
+            if (len(keys) == 1) and (keys[0] == 0):
                 continue
 
             output_dict["tile_id"].append(tile_name)
