@@ -36,7 +36,7 @@ MASK_TO_BANDS = {
     "S1+S2": {"masked": NON_S1_S2_BANDS, "unmasked": S1_S2_BANDS},
 }
 
-DECODER_MASK_TO_BANDS = {"DW": DW_BANDS, "WC": WC_BANDS}
+DECODER_MASK_TO_BANDS = {"DW": DW_BANDS, "WC": WC_BANDS, "DW+WC": DW_BANDS + WC_BANDS}
 
 
 class TestMasking(unittest.TestCase):
