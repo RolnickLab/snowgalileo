@@ -101,8 +101,7 @@ print("Loading models")
 encoder = Encoder(**config["model"]["encoder"]).to(device)
 predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
 print("Loading validation task")
-val_task_latlons = EuroSatEval(rgb=True, include_latlons=True)
-val_task_no_latlons = EuroSatEval(rgb=True, include_latlons=False)
+val_task_no_latlons = EuroSatEval(geobench=True, rgb=False, include_latlons=False)
 val_task_ts_latlons = MultiClassCropHarvestEval(include_latlons=True)
 val_task_ts_no_latlons = MultiClassCropHarvestEval(include_latlons=False)
 
@@ -263,9 +262,6 @@ for e in tqdm(range(training_config["num_epochs"])):
         if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
             e % training_config["eval_eurosat_every_n_epochs"] == 0
         ):
-            results = val_task_latlons.evaluate_model_on_task(
-                encoder, model_modes=["KNNat5", "KNNat20"]
-            )
             results.update(
                 val_task_no_latlons.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
             )
