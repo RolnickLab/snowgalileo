@@ -44,8 +44,8 @@ for tile_i in tqdm(range(len(grid))):
     url = f"{s3_url_prefix}/v100/2020/map/ESA_WorldCover_10m_2020_v100_{tile_name}_Map.tif"
     tif_file = rioxarray.open_rasterio(url, cache=False)
 
-    for x_i in tqdm(range(0, len(sub_tile.x), TILE_SIZE), leave=False):
-        for y_i in tqdm(range(0, len(sub_tile.y), TILE_SIZE), leave=False):
+    for x_i in tqdm(range(0, len(tif_file.x), TILE_SIZE), leave=False):
+        for y_i in tqdm(range(0, len(tif_file.y), TILE_SIZE), leave=False):
             sub_tile = tif_file.isel(x=slice(x_i, x_i + TILE_SIZE), y=slice(y_i, y_i + TILE_SIZE))
             keys, amounts = np.unique(sub_tile, return_counts=True)
 
