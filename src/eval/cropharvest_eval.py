@@ -147,7 +147,11 @@ class CropHarvestEvalBase(EvalTask):
     regression = False
 
     def __init__(
-        self, name: str, patch_size: int, include_latlons: bool = True, seed: int = DEFAULT_SEED
+        self,
+        name: str,
+        patch_size: int,
+        include_latlons: bool = True,
+        seed: int = DEFAULT_SEED,
     ):
         self.include_latlons = include_latlons
         self.name = f"{name}{'_latlons' if include_latlons else ''}"

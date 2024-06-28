@@ -121,23 +121,39 @@ def normalize_static(x: np.ndarray) -> np.ndarray:
 def to_cartesian(
     lat: Union[float, np.ndarray, torch.Tensor], lon: Union[float, np.ndarray, torch.Tensor]
 ) -> Union[np.ndarray, torch.Tensor]:
-    # transform to radians
-    lat = lat * math.pi / 180
-    lon = lon * math.pi / 180
     if isinstance(lat, float):
+        assert -90 <= lat <= 90, f"lat out of range ({lat}). Make sure you are in EPSG:4326"
+        assert -180 <= lon <= 180, f"lon out of range ({lon}). Make sure you are in EPSG:4326"
         assert isinstance(lon, float), f"Expected float got {type(lon)}"
+        # transform to radians
+        lat = lat * math.pi / 180
+        lon = lon * math.pi / 180
         x = math.cos(lat) * math.cos(lon)
         y = math.cos(lat) * math.sin(lon)
         z = math.sin(lat)
         return np.array([x, y, z])
     elif isinstance(lon, np.ndarray):
+        assert -90 <= lat.min(), f"lat out of range ({lat.min()}). Make sure you are in EPSG:4326"
+        assert 90 >= lat.max(), f"lat out of range ({lat.max()}). Make sure you are in EPSG:4326"
+        assert -180 <= lon.min(), f"lon out of range ({lon.min()}). Make sure you are in EPSG:4326"
+        assert 180 >= lon.max(), f"lon out of range ({lon.max()}). Make sure you are in EPSG:4326"
         assert isinstance(lat, np.ndarray), f"Expected np.ndarray got {type(lat)}"
+        # transform to radians
+        lat = lat * math.pi / 180
+        lon = lon * math.pi / 180
         x_np = np.cos(lat) * np.cos(lon)
         y_np = np.cos(lat) * np.sin(lon)
         z_np = np.sin(lat)
         return np.stack([x_np, y_np, z_np], axis=-1)
     elif isinstance(lon, torch.Tensor):
+        assert -90 <= lat.min(), f"lat out of range ({lat.min()}). Make sure you are in EPSG:4326"
+        assert 90 >= lat.max(), f"lat out of range ({lat.max()}). Make sure you are in EPSG:4326"
+        assert -180 <= lon.min(), f"lon out of range ({lon.min()}). Make sure you are in EPSG:4326"
+        assert 180 >= lon.max(), f"lon out of range ({lon.max()}). Make sure you are in EPSG:4326"
         assert isinstance(lat, torch.Tensor), f"Expected torch.Tensor got {type(lat)}"
+        # transform to radians
+        lat = lat * math.pi / 180
+        lon = lon * math.pi / 180
         x_t = torch.cos(lat) * torch.cos(lon)
         y_t = torch.cos(lat) * torch.sin(lon)
         z_t = torch.sin(lat)
