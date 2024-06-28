@@ -52,7 +52,7 @@ WC_BANDS = [idx for idx, val in enumerate(list(SPACE_BAND_GROUPS_IDX.keys())) if
 DW_BANDS = [idx for idx, val in enumerate(list(SPACE_BAND_GROUPS_IDX.keys())) if "DW" in val]
 
 MASKING_MODES = [None, "S2", "S2_RGB", "S1", "S1+S2"]
-UNMASKING_MODES = [None, "DW", "WC"]
+UNMASKING_MODES = [None, "DW", "WC", "DW+WC"]
 # we divide the dataloader's batch size by 8 because the
 # masking function (batch_subset_mask_presto_8x) will augment
 # each instance in the batch 8 times (with different subsetting and
@@ -117,6 +117,8 @@ def check_unmasking_mode_and_return_channels(unmasking_mode: Optional[str]):
         return WC_BANDS
     elif unmasking_mode == "DW":
         return DW_BANDS
+    elif unmasking_mode == "DW+WC":
+        return DW_BANDS + WC_BANDS
 
 
 def subset_and_augment_batch_of_images(
