@@ -9,8 +9,11 @@
 
 import geopandas as gpd
 import numpy as np
+import pandas as pd
 import rioxarray
 from tqdm import tqdm
+
+TILE_SIZE = 1000
 
 legend = {
     10: "Trees",
@@ -28,18 +31,30 @@ legend = {
 s3_url_prefix = "https://esa-worldcover.s3.eu-central-1.amazonaws.com"
 url = f"{s3_url_prefix}/v100/2020/esa_worldcover_2020_grid.geojson"
 grid = gpd.read_file(url)
-grid["color"] = "lightgray"
-grid["class_0"] = 0
+
+output_dict = {"tile_id": [], "lat": [], "lon": []}
+
 for k in legend.keys():
-    grid[f"class_{k}"] = 0
+    output_dict[f"class_{k}"] = []
 
 for tile_i in tqdm(range(len(grid))):
-    if grid.iloc[tile_i]["color"] == "Red":
+    if tile_i in output_dict["tile_id"]:
         continue
     tile_name = grid.iloc[tile_i]["ll_tile"]
     url = f"{s3_url_prefix}/v100/2020/map/ESA_WorldCover_10m_2020_v100_{tile_name}_Map.tif"
-    keys, amounts = np.unique(rioxarray.open_rasterio(url, cache=False), return_counts=True)
-    for i in range(len(keys)):
-        grid.at[tile_i, f"class_{keys[i]}"] = amounts[i]
-    grid.at[tile_i, "color"] = "Red"
-    grid.to_csv("esa_grid.csv", index=False)
+    tif_file = rioxarray.open_rasterio(url, cache=False)
+
+    for x_i in tqdm(range(0, len(sub_tile.x), TILE_SIZE), leave=False):
+        for y_i in tqdm(range(0, len(sub_tile.y), TILE_SIZE), leave=False):
+            sub_tile = tif_file.isel(x=slice(x_i, x_i + TILE_SIZE), y=slice(y_i, y_i + TILE_SIZE))
+            keys, amounts = np.unique(sub_tile, return_counts=True)
+
+            output_dict["tile_id"].append(tile_i)
+            output_dict["lat"].append(sub_tile.y.mean().item())
+            output_dict["lon"].append(sub_tile.x.mean().item())
+            for k in legend.keys():
+                if k in keys:
+                    output_dict[f"class_{k}"].append(amounts[keys == k][0])
+                else:
+                    output_dict[f"class_{k}"].append(0)
+    pd.DataFrame(output_dict).to_csv("esa_grid_granular.csv", index=False)
