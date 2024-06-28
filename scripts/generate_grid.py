@@ -49,7 +49,7 @@ for tile_i in tqdm(range(len(grid))):
             sub_tile = tif_file.isel(x=slice(x_i, x_i + TILE_SIZE), y=slice(y_i, y_i + TILE_SIZE))
             keys, amounts = np.unique(sub_tile, return_counts=True)
 
-            output_dict["tile_id"].append(tile_i)
+            output_dict["tile_id"].append(tile_name)
             output_dict["lat"].append(sub_tile.y.mean().item())
             output_dict["lon"].append(sub_tile.x.mean().item())
             for k in legend.keys():
