@@ -156,6 +156,12 @@ class GeobenchBaseDataset(PyTorchDataset):
         s_t_m, sp_m, t_m, st_m = self.masks
         month = np.zeros((self.config["num_timesteps"],))
 
+        # check if label is an object or a number
+        if not (isinstance(label, int) or isinstance(label, list)):
+            label = label.data
+            # label is a memoryview object, convert it to a list, and then to a numpy array
+            label = np.array(list(label))
+
         targets = torch.tensor(label, dtype=torch.long)
 
         subtiles_per_dim = int(sqrt(cast(float, self.num_subtiles_per_image)))
