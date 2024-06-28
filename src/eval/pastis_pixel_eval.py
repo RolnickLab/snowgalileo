@@ -94,7 +94,7 @@ class PastisPixelDataset(PyTorchDataset):
         self.meta_patch = gpd.read_file(data_dir / self.data_path / "metadata.geojson")
         self.meta_patch.index = self.meta_patch["ID_PATCH"].astype(int)
         self.meta_patch.sort_index(inplace=True)
-        self.meta_patch.to_crs("EPSG:4326")
+        self.meta_patch = self.meta_patch.to_crs("EPSG:4326")
 
         if folds is not [1, 2, 3, 4, 5]:
             self.meta = pd.concat([self.meta[self.meta["Fold"] == f] for f in folds])
@@ -324,8 +324,10 @@ class PastisPixelDataset(PyTorchDataset):
             # space only / time only bands are not provided by pastis
             sp_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], s_t_x.shape[2], len(SPACE_BANDS)))
             t_x = np.zeros((s_t_x.shape[0], s_t_x.shape[3], len(TIME_BANDS)))
+
             st_x = np.zeros((len(STATIC_BANDS)))
             st_x[kept_static_bands] = to_cartesian(lat, lon)
+            st_x = repeat(st_x, "d -> b d", b=s_t_x.shape[0])
 
             s_t_m, sp_m, t_m, st_m = self.create_pastis_masks(
                 missing_timestep_indeces=missing_timestep_indeces,
@@ -445,9 +447,9 @@ class PastisPixelEval(EvalTask):
     name = "pastis_pixel"
     regression = False
     multilabel = False
-    segmentation = False
-    num_outputs = len(PastisPixelDataset.labels_to_int)
+    spatial_token_prediction = False
     input_height_width = PastisPixelDataset.input_height_width
+    num_outputs = len(PastisPixelDataset.labels_to_int)
 
     def __init__(
         self,

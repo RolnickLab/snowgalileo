@@ -31,6 +31,7 @@ from src.eval import (
     BrickKilnEval,
     EuroSatEval,
     MultiClassCropHarvestEval,
+    PastisPatchEval,
     PastisPixelEval,
     So2SatEval,
     TreeSatEval,
@@ -199,22 +200,22 @@ for e in tqdm(range(training_config["num_epochs"])):
                 patch_size=patch_size,
             )
 
-        loss = mae_loss(
-            expanded_s_t_x,
-            expanded_sp_x,
-            t_x,
-            st_x,
-            p_s_t,
-            p_sp,
-            p_t,
-            p_st,
-            s_t_m_p,
-            sp_m_p,
-            t_m_p,
-            st_m_p,
-            patch_size=training_config["patch_sizes"][-1],
-            loss_type=training_config["mae_loss"],
-        )
+            loss = mae_loss(
+                expanded_s_t_x,
+                expanded_sp_x,
+                t_x,
+                st_x,
+                p_s_t,
+                p_sp,
+                p_t,
+                p_st,
+                s_t_m_p,
+                sp_m_p,
+                t_m_p,
+                st_m_p,
+                patch_size=training_config["patch_sizes"][-1],
+                loss_type=training_config["mae_loss"],
+            )
 
         train_loss.update(loss.item(), n=s_t_x.shape[0])
         loss = loss / iters_to_accumulate
@@ -262,7 +263,7 @@ for e in tqdm(range(training_config["num_epochs"])):
         if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
             e % training_config["eval_eurosat_every_n_epochs"] == 0
         ):
-            results.update(
+            results = (
                 val_task_no_latlons.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
             )
             results.update(
@@ -283,6 +284,17 @@ with (model_path / CONFIG_FILENAME).open("w") as f:
     json.dump(config, f)
 
 eval_tasks: List[EvalTask] = [
+    *[
+        PastisPatchEval(
+            output_mode=output_mode,
+            num_subtiles_per_image=num_subtiles_per_image,
+            band_mode=band_mode,
+        )
+        for output_mode in ["mode", "norm_counts"]
+        # 4 has input hw 64, 16 has input hw 32
+        for num_subtiles_per_image in [4, 16]
+        for band_mode in ["combined", "s2"]
+    ],
     *[
         TreeSatEval(mode=mode, patch_size=patch_size)
         for mode in ["s1", "s2", "combined"]
