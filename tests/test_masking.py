@@ -73,7 +73,7 @@ class TestMasking(unittest.TestCase):
                     )
                     self.assertEqual((b, t, len(TIME_BAND_GROUPS_IDX)), output.time_mask.shape)
                     self.assertEqual((b, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
-                    if (mode is None) and (decoder_mode is None):
+                    if (mode == "random") and (decoder_mode == "random"):
                         # collapse the dynamic_mask along the time dimension
                         space_time_mask_along_t = output.space_time_mask.float().mean(
                             axis=(1, 2, 4)
@@ -96,7 +96,7 @@ class TestMasking(unittest.TestCase):
                             ).all()
                         )
                     else:
-                        if mode is not None:
+                        if mode != "random":
                             self.assertTrue(
                                 0
                                 in output.space_time_mask[
@@ -109,7 +109,7 @@ class TestMasking(unittest.TestCase):
                                     :, :, :, :, MASK_TO_BANDS[mode]["masked"]
                                 ]
                             )
-                        if decoder_mode is not None:
+                        if decoder_mode != "random":
                             self.assertTrue((output.time_mask <= 1).all())
                             self.assertTrue((output.static_mask <= 1).all())
                             self.assertTrue((output.static_mask == 1).all())
@@ -196,7 +196,7 @@ class TestMasking(unittest.TestCase):
                 self.assertEqual((b, h, w, len(SPACE_BAND_GROUPS_IDX)), output.space_mask.shape)
                 self.assertEqual((b, t, len(TIME_BAND_GROUPS_IDX)), output.time_mask.shape)
                 self.assertEqual((b, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
-                if (mode is None) and (decoder_mode is None):
+                if (mode == "random") and (decoder_mode == "random"):
                     sp_along_hw = output.space_time_mask.float().mean(axis=(3, 4))  # b, h, w
                     s_along_hw = output.space_mask.float().mean(axis=(3))  # b, h, w
                     self.assertTrue(torch.equal(sp_along_hw, s_along_hw))
@@ -214,7 +214,7 @@ class TestMasking(unittest.TestCase):
                                 sp_along_hw[:, i::p, i::p], sp_along_hw[:, i - 1 :: p, i - 1 :: p]
                             )
                         )
-                elif (mode is not None) and (decoder_mode is None):
+                elif (mode != "random") and (decoder_mode == "random"):
                     sp_along_hw = output.space_time_mask.float()[
                         :, :, :, :, MASK_TO_BANDS[mode]["unmasked"]
                     ].mean(axis=(3, 4))  # b, h, w
