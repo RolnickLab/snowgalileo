@@ -1,14 +1,12 @@
 import argparse
 import json
+from pathlib import Path
 from typing import List
 
 import psutil
 import torch
 
-from pathlib import Path
-
 from src.config import DEFAULT_SEED
-from src.data.config import OUTPUT_FOLDER
 from src.eval import (
     BinaryCropHarvestEval,
     EuroSatEval,
