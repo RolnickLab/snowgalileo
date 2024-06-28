@@ -296,7 +296,7 @@ def batch_mask_time(
     Operates over batches where each item in the batch has independently masked timesteps
     """
     bands_to_keep, bands_to_mask = check_mode_and_return_channels(mode)
-    bands_to_decode = check_unmasking_mode_and_return_channels(decoder_mode)
+    targeted_bands_to_decode = check_unmasking_mode_and_return_channels(decoder_mode)
     b, h, w, t, _ = space_time_x.shape
     # if there is only a single timestep, it will get a mask
     # value of 2
@@ -351,13 +351,13 @@ def batch_mask_time(
         if t == 1:
             assert bands_to_keep is not None
             space_time_mask[:, :, :, :, bands_to_keep] = 0
-    if bands_to_decode is not None:
+    if targeted_bands_to_decode is not None:
         # ignore all previous calculations about what should be decoded
         space_time_mask = torch.clamp(space_time_mask, max=1)
         space_mask = torch.clamp(space_mask, max=1)
         time_mask = torch.clamp(time_mask, max=1)
         static_mask = torch.clamp(static_mask, max=1)
-        space_mask[:, :, :, bands_to_decode] = 2
+        space_mask[:, :, :, targeted_bands_to_decode] = 2
 
     return MaskedOutput(
         space_time_x.clone(),
@@ -395,7 +395,7 @@ def batch_mask_space(
     Operates over batches where each item in the batch is independently masked
     """
     _, bands_to_mask = check_mode_and_return_channels(mode)
-    bands_to_decode = check_unmasking_mode_and_return_channels(decoder_mode)
+    targeted_bands_to_decode = check_unmasking_mode_and_return_channels(decoder_mode)
     b, h, w, t, _ = space_time_x.shape
     assert (h % patch_size == 0) and (w % patch_size == 0)
     h_p = int(h / patch_size)
@@ -445,13 +445,13 @@ def batch_mask_space(
         space_mask = torch.clamp(space_mask, min=1)
         time_mask = torch.clamp(time_mask, min=1)
         static_mask = torch.clamp(static_mask, min=1)
-    if bands_to_decode is not None:
+    if targeted_bands_to_decode is not None:
         # ignore all previous calculations about what should be decoded
         space_time_mask = torch.clamp(space_time_mask, max=1)
         space_mask = torch.clamp(space_mask, max=1)
         time_mask = torch.clamp(time_mask, max=1)
         static_mask = torch.clamp(static_mask, max=1)
-        space_mask[:, :, :, bands_to_decode] = 2
+        space_mask[:, :, :, targeted_bands_to_decode] = 2
 
     return MaskedOutput(
         space_time_x.clone(),
