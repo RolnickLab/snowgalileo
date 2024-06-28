@@ -51,8 +51,8 @@ S1_S2_BANDS = [
 WC_BANDS = [idx for idx, val in enumerate(list(SPACE_BAND_GROUPS_IDX.keys())) if "WC" in val]
 DW_BANDS = [idx for idx, val in enumerate(list(SPACE_BAND_GROUPS_IDX.keys())) if "DW" in val]
 
-MASKING_MODES = [None, "S2", "S2_RGB", "S1", "S1+S2"]
-UNMASKING_MODES = [None, "DW", "WC", "DW+WC"]
+MASKING_MODES = ["random", "S2", "S2_RGB", "S1", "S1+S2"]
+UNMASKING_MODES = ["random", "DW", "WC", "DW+WC"]
 # we divide the dataloader's batch size by 8 because the
 # masking function (batch_subset_mask_presto_8x) will augment
 # each instance in the batch 8 times (with different subsetting and
@@ -97,7 +97,7 @@ def check_mode_and_return_channels(
     mode: Optional[str],
 ) -> Tuple[Optional[List[int]], Optional[List[int]]]:
     assert mode in MASKING_MODES
-    if mode is None:
+    if mode == "random":
         return None, None
     elif mode == "S2_RGB":
         return S2_RGB_BANDS, NON_S2_RGB_BANDS
@@ -111,7 +111,7 @@ def check_mode_and_return_channels(
 
 def check_unmasking_mode_and_return_channels(unmasking_mode: Optional[str]):
     assert unmasking_mode in UNMASKING_MODES
-    if unmasking_mode is None:
+    if unmasking_mode == "random":
         return None
     elif unmasking_mode == "WC":
         return WC_BANDS
