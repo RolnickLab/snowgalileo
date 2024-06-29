@@ -1,6 +1,7 @@
 """
 Script to export data to a Google Cloud Bucket
 """
+
 import argparse
 import os
 
