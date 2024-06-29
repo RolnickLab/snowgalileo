@@ -93,6 +93,7 @@ dataloader = DataLoader(
         patch_sizes=training_config["patch_sizes"],
         shape_time_combinations=training_config["shape_time_combinations"],
         mask_ratio=training_config["mask_ratio"],
+        augmentation_strategies=training_config["augmentation"],
     ),
     pin_memory=True,
 )
@@ -309,7 +310,7 @@ eval_tasks: List[EvalTask] = [
     ],
     So2SatEval(),
     PastisPixelEval(),
-    *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil", "China"]],
+    *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil"]],
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)
