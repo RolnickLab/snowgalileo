@@ -244,11 +244,10 @@ class TreeSatDataset(Dataset):
 class TreeSatEval(EvalTask):
     name = "treesat"
     regression = False
+    spatial_token_prediction = False
     multilabel = True
-    # different than the paper but this is
-    # from all the unique classes in the labels json
-    # (above)
-    num_outputs = 15
+    input_height_width = TreeSatDataset.input_height_width
+    num_outputs = len(TreeSatDataset.labels_to_int)
 
     def __init__(
         self,
@@ -259,6 +258,7 @@ class TreeSatEval(EvalTask):
     ):
         self.mode = mode
         self.include_latlons = include_latlons
+        # num_outputs different than the paper but this is from all the unique classes in the labels json (above)
         super().__init__(patch_size, seed)
         self.name = f"{self.name}_{self.mode}{'_latlons' if include_latlons else ''}"
 
