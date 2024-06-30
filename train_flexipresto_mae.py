@@ -264,16 +264,22 @@ for e in tqdm(range(training_config["num_epochs"])):
             e % training_config["eval_eurosat_every_n_epochs"] == 0
         ):
             results = val_task_latlons.evaluate_model_on_task(
-                encoder, model_modes=["KNNat5", "KNNat20"]
+                encoder, model_modes=["KNNat5 Classifier", "KNNat20 Classifier"]
             )
             results.update(
-                val_task_no_latlons.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
+                val_task_no_latlons.evaluate_model_on_task(
+                    encoder, model_modes=["KNNat5 Classifier"]
+                )
             )
             results.update(
-                val_task_ts_latlons.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
+                val_task_ts_latlons.evaluate_model_on_task(
+                    encoder, model_modes=["KNNat5 Classifier"]
+                )
             )
             results.update(
-                val_task_ts_no_latlons.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
+                val_task_ts_no_latlons.evaluate_model_on_task(
+                    encoder, model_modes=["KNNat5 Classifier"]
+                )
             )
             to_log.update(results)
         wandb.log(to_log)
