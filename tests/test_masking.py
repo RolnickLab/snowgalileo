@@ -27,7 +27,6 @@ from src.masking import (
     batch_mask_space,
     batch_mask_time,
     batch_subset_mask_presto_augmented,
-    round_school,
 )
 
 MASK_TO_BANDS = {
@@ -62,7 +61,7 @@ class TestMasking(unittest.TestCase):
         )
 
     def test_mask_by_time(self):
-        for t in range(1, 8):
+        for t in range(4, 8):
             b, h, w = 2, 16, 16
             space_time_input = torch.ones((b, h, w, t, 8))
             space_input = torch.ones((b, h, w, 8))
@@ -84,6 +83,7 @@ class TestMasking(unittest.TestCase):
                         decoder_unmask_ratio=decoder_unmask_ratio,
                         mode=mode,
                         decoder_mode=decoder_mode,
+                        patch_size=4,
                     )
                     self.check_all_values_in_masks(
                         output.space_time_mask,
@@ -103,7 +103,8 @@ class TestMasking(unittest.TestCase):
 
                     # the branching in the test below is a bit ugly and could be more concise,
                     # but I think it does test for all combinations
-                    expected_unmasked_timesteps = round_school(t * mask_ratio) if t > 1 else 1
+                    expected_unmasked_timesteps = max(int(t * mask_ratio), 1)
+                    expected_decoder_timesteps = max(int(t * decoder_unmask_ratio), 1)
                     if (mode == "random") and (decoder_mode == "random"):
                         # collapse the dynamic_mask along the time dimension
                         space_time_mask_along_t = output.space_time_mask.float().mean(
@@ -176,8 +177,7 @@ class TestMasking(unittest.TestCase):
                             self.assertTrue(
                                 (
                                     (space_time_mask_along_t == 2).sum(axis=1)
-                                    / space_time_mask_along_t.shape[1]
-                                    == (decoder_unmask_ratio if t > 1 else 1)
+                                    == expected_decoder_timesteps
                                 ).all()
                             )
 

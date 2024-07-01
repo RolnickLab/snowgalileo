@@ -319,8 +319,8 @@ def batch_mask_time(
     _, bands_to_mask = check_mode_and_return_channels(mode)
     targeted_bands_to_decode = check_unmasking_mode_and_return_channels(decoder_mode)
     # if there is only a single timestep, decode it
-    num_timesteps_to_decode = max(t * decoder_unmask_ratio, 1)
-    num_timesteps_to_encode = max(t * (1 - (mask_ratio + decoder_unmask_ratio)), 1)
+    num_timesteps_to_decode = max(int(t * decoder_unmask_ratio), 1)
+    num_timesteps_to_encode = max(int(t * mask_ratio), 1)
     # we do this as a numpy array to take advantage of
     # numpy's permuted function
     flat_timesteps = np.concatenate(
@@ -358,7 +358,7 @@ def batch_mask_time(
     static_mask = _random_mask_for_b(b, static_x.device, mask_ratio, decoder_unmask_ratio)
     static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX))
 
-    if bands_to_mask is not None:
+    if bands_to_mask is not None:  # mode != random
         space_time_mask[:, :, :, :, bands_to_mask] = torch.clamp(
             space_time_mask[:, :, :, :, bands_to_mask], min=1
         )
@@ -366,7 +366,7 @@ def batch_mask_time(
         time_mask = torch.clamp(time_mask, min=1)
         static_mask = torch.clamp(static_mask, min=1)
 
-    if targeted_bands_to_decode is not None:
+    if targeted_bands_to_decode is not None:  # decoder mode != random
         # ignore all previous calculations about what should be decoded
         space_time_mask = torch.clamp(space_time_mask, max=1)
         space_mask = torch.clamp(space_mask, max=1)
