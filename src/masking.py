@@ -22,34 +22,6 @@ SPACE_BAND_EXPANSION = torch.tensor([len(x) for x in SPACE_BAND_GROUPS_IDX.value
 TIME_BAND_EXPANSION = torch.tensor([len(x) for x in TIME_BAND_GROUPS_IDX.values()]).long()
 STATIC_BAND_EXPANSION = torch.tensor([len(x) for x in STATIC_BAND_GROUPS_IDX.values()]).long()
 
-NON_S2_RGB_BANDS = [
-    idx for idx, val in enumerate(list(SPACE_TIME_BANDS_GROUPS_IDX.keys())) if val != "S2_RGB"
-]
-S2_RGB_BANDS = [
-    idx for idx, val in enumerate(list(SPACE_TIME_BANDS_GROUPS_IDX.keys())) if val == "S2_RGB"
-]
-
-NON_S2_BANDS = [
-    idx for idx, val in enumerate(list(SPACE_TIME_BANDS_GROUPS_IDX.keys())) if "S2" not in val
-]
-S2_BANDS = [idx for idx, val in enumerate(list(SPACE_TIME_BANDS_GROUPS_IDX.keys())) if "S2" in val]
-NON_S1_BANDS = [
-    idx for idx, val in enumerate(list(SPACE_TIME_BANDS_GROUPS_IDX.keys())) if "S1" not in val
-]
-S1_BANDS = [idx for idx, val in enumerate(list(SPACE_TIME_BANDS_GROUPS_IDX.keys())) if "S1" in val]
-NON_S1_S2_BANDS = [
-    idx
-    for idx, val in enumerate(list(SPACE_TIME_BANDS_GROUPS_IDX.keys()))
-    if (("S1" not in val) and ("S2" not in val))
-]
-S1_S2_BANDS = [
-    idx
-    for idx, val in enumerate(list(SPACE_TIME_BANDS_GROUPS_IDX.keys()))
-    if (("S1" in val) or ("S2" in val))
-]
-
-WC_BANDS = [idx for idx, val in enumerate(list(SPACE_BAND_GROUPS_IDX.keys())) if "WC" in val]
-DW_BANDS = [idx for idx, val in enumerate(list(SPACE_BAND_GROUPS_IDX.keys())) if "DW" in val]
 
 MASKING_MODES = ["random", "S2", "S2_RGB", "S1", "S1+S2"]
 UNMASKING_MODES = ["random", "DW", "WC", "DW+WC"]
@@ -58,6 +30,20 @@ UNMASKING_MODES = ["random", "DW", "WC", "DW+WC"]
 # each instance in the batch 8 times (with different subsetting and
 # masking).
 MASKING_MULTIPLIER = 4
+
+
+def return_masked_unmasked_bands(
+    bands: List[str], band_groups: Dict[str, List]
+) -> Tuple[List[int], List[int]]:
+    def in_masked_bands(x):
+        for b in bands:
+            if b in x:
+                return True
+        return False
+
+    return [idx for idx, val in enumerate(band_groups.keys()) if in_masked_bands(val)], [
+        idx for idx, val in enumerate(band_groups.keys()) if not in_masked_bands(val)
+    ]
 
 
 class MaskedOutput(NamedTuple):
@@ -99,26 +85,16 @@ def check_mode_and_return_channels(
     assert mode in MASKING_MODES
     if mode == "random":
         return None, None
-    elif mode == "S2_RGB":
-        return S2_RGB_BANDS, NON_S2_RGB_BANDS
-    elif mode == "S2":
-        return S2_BANDS, NON_S2_BANDS
-    elif mode == "S1":
-        return S1_BANDS, NON_S1_BANDS
     else:
-        return S1_S2_BANDS, NON_S1_S2_BANDS
+        return return_masked_unmasked_bands(mode.split("+"), SPACE_TIME_BANDS_GROUPS_IDX)
 
 
 def check_unmasking_mode_and_return_channels(unmasking_mode: Optional[str]):
     assert unmasking_mode in UNMASKING_MODES
     if unmasking_mode == "random":
         return None
-    elif unmasking_mode == "WC":
-        return WC_BANDS
-    elif unmasking_mode == "DW":
-        return DW_BANDS
-    elif unmasking_mode == "DW+WC":
-        return DW_BANDS + WC_BANDS
+    else:
+        return return_masked_unmasked_bands(unmasking_mode.split("+"), SPACE_BAND_GROUPS_IDX)[0]
 
 
 def round_school(x: float) -> float:
@@ -353,7 +329,6 @@ def batch_mask_time(
     space_mask = repeat(space_mask, "b -> b h w c_g", h=h, w=w, c_g=len(SPACE_BAND_GROUPS_IDX))
     static_mask = _random_mask_for_b(b, static_x.device, mask_ratio, decoder_unmask_ratio)
     static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX))
-
     if bands_to_mask is not None:  # mode != random
         space_time_mask[:, :, :, :, bands_to_mask] = torch.clamp(
             space_time_mask[:, :, :, :, bands_to_mask], min=1
@@ -413,12 +388,14 @@ def batch_mask_space(
     w_p = int(w / patch_size)
     total_patches = h_p * w_p
     num_patches_to_mask = int(total_patches * mask_ratio)
+    num_patches_to_decode = int(total_patches * decoder_unmask_ratio)
     # we do this as a numpy array to take advantage of
     # numpy's permuted function
     flat_patches = np.concatenate(
         (
             np.ones(num_patches_to_mask, dtype=np.int_),
-            np.zeros(total_patches - num_patches_to_mask, dtype=np.int_),
+            np.ones(num_patches_to_decode, dtype=np.int_) * 2,
+            np.zeros(total_patches - (num_patches_to_mask + num_patches_to_decode), dtype=np.int_),
         )
     )
     b_flat_patches = repeat(flat_patches, "p -> b p", b=b)
@@ -447,7 +424,7 @@ def batch_mask_space(
     ).to(space_x.device)
     time_mask = _random_mask_for_b(b, time_x.device, mask_ratio, decoder_unmask_ratio)
     time_mask = repeat(time_mask, "b -> b t c_g", t=t, c_g=len(TIME_BAND_GROUPS_IDX))
-    static_mask = torch.rand(b, device=static_x.device) <= mask_ratio
+    static_mask = _random_mask_for_b(b, static_x.device, mask_ratio, decoder_unmask_ratio)
     static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX))
 
     if bands_to_mask is not None:
