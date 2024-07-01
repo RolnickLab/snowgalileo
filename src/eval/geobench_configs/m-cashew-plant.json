@@ -6,15 +6,15 @@
     "dataset_name": "m-cashew-plant",
     "benchmark_name": "segmentation_v1.0",
     "band_names": [
-        "02 - Blue_2019-11-15",
-        "03 - Green_2019-11-15",
-        "04 - Red_2019-11-15",
-        "05 - Vegetation Red Edge_2019-11-15",
-        "06 - Vegetation Red Edge_2019-11-15",
-        "07 - Vegetation Red Edge_2019-11-15",
+        "02 - Blue",
+        "03 - Green",
+        "04 - Red",
+        "05 - Vegetation Red Edge",
+        "06 - Vegetation Red Edge",
+        "07 - Vegetation Red Edge",
         "08 - NIR_2019-11-15",
-        "08A - Vegetation Red Edge_2019-11-15",
-        "11 - SWIR_2019-11-15",
-        "12 - SWIR_2019-11-15"
+        "08A - Vegetation Red Edge",
+        "11 - SWIR",
+        "12 - SWIR"
     ]
 }
