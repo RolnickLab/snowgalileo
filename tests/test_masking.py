@@ -5,38 +5,47 @@ import torch
 from einops import repeat
 
 from src.masking import (
-    DW_BANDS,
     MASKING_MODES,
     MASKING_MULTIPLIER,
-    NON_S1_BANDS,
-    NON_S1_S2_BANDS,
-    NON_S2_BANDS,
-    NON_S2_RGB_BANDS,
-    S1_BANDS,
-    S1_S2_BANDS,
-    S2_BANDS,
-    S2_RGB_BANDS,
     SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
     TIME_BAND_GROUPS_IDX,
     UNMASKING_MODES,
-    WC_BANDS,
     batch_mask_channels,
     batch_mask_random,
     batch_mask_space,
     batch_mask_time,
     batch_subset_mask_presto_augmented,
+    return_masked_unmasked_bands,
 )
 
 MASK_TO_BANDS = {
-    "S2_RGB": {"masked": NON_S2_RGB_BANDS, "unmasked": S2_RGB_BANDS},
-    "S2": {"masked": NON_S2_BANDS, "unmasked": S2_BANDS},
-    "S1": {"masked": NON_S1_BANDS, "unmasked": S1_BANDS},
-    "S1+S2": {"masked": NON_S1_S2_BANDS, "unmasked": S1_S2_BANDS},
+    "S2_RGB": {
+        "masked": return_masked_unmasked_bands(["S2_RGB"], SPACE_TIME_BANDS_GROUPS_IDX)[1],
+        "unmasked": return_masked_unmasked_bands(["S2_RGB"], SPACE_TIME_BANDS_GROUPS_IDX)[0],
+    },
+    "S2": {
+        "masked": return_masked_unmasked_bands(["S2"], SPACE_TIME_BANDS_GROUPS_IDX)[1],
+        "unmasked": return_masked_unmasked_bands(["S2"], SPACE_TIME_BANDS_GROUPS_IDX)[0],
+    },
+    "S1": {
+        "masked": return_masked_unmasked_bands(["S1"], SPACE_TIME_BANDS_GROUPS_IDX)[1],
+        "unmasked": return_masked_unmasked_bands(["S1"], SPACE_TIME_BANDS_GROUPS_IDX)[0],
+    },
+    "S1+S2": {
+        "masked": return_masked_unmasked_bands("S1+S2".split("+"), SPACE_TIME_BANDS_GROUPS_IDX)[1],
+        "unmasked": return_masked_unmasked_bands("S1+S2".split("+"), SPACE_TIME_BANDS_GROUPS_IDX)[
+            0
+        ],
+    },
 }
 
-DECODER_MASK_TO_BANDS = {"DW": DW_BANDS, "WC": WC_BANDS, "DW+WC": DW_BANDS + WC_BANDS}
+DECODER_MASK_TO_BANDS = {
+    "DW": return_masked_unmasked_bands(["DW"], SPACE_BAND_GROUPS_IDX)[0],
+    "WC": return_masked_unmasked_bands(["WC"], SPACE_BAND_GROUPS_IDX)[0],
+    "DW+WC": return_masked_unmasked_bands("DW+WC".split("+"), SPACE_BAND_GROUPS_IDX)[0],
+}
 
 
 class TestMasking(unittest.TestCase):
@@ -121,7 +130,8 @@ class TestMasking(unittest.TestCase):
                         )
                         self.assertTrue(
                             (
-                                (space_time_mask_along_t == 2).sum(axis=1) == expected_decoder_timesteps
+                                (space_time_mask_along_t == 2).sum(axis=1)
+                                == expected_decoder_timesteps
                             ).all()
                         )
                     else:
@@ -166,7 +176,8 @@ class TestMasking(unittest.TestCase):
                             )  # b, t
                             self.assertTrue(
                                 (
-                                    (space_time_mask_along_t == 2).sum(axis=1) == expected_decoder_timesteps
+                                    (space_time_mask_along_t == 2).sum(axis=1)
+                                    == expected_decoder_timesteps
                                 ).all()
                             )
                             time_mask_along_t = output.time_mask.float().mean(axis=-1)  # b, t
