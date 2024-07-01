@@ -121,6 +121,11 @@ def check_unmasking_mode_and_return_channels(unmasking_mode: Optional[str]):
         return DW_BANDS + WC_BANDS
 
 
+def round_school(x: float) -> float:
+    i, f = divmod(x, 1)
+    return int(i + ((f >= 0.5) if (x > 0) else (f > 0.5)))
+
+
 def subset_and_augment_batch_of_images(
     space_time_x: torch.Tensor,
     space_x: torch.Tensor,
@@ -298,18 +303,18 @@ def batch_mask_time(
     bands_to_keep, bands_to_mask = check_mode_and_return_channels(mode)
     targeted_bands_to_decode = check_unmasking_mode_and_return_channels(decoder_mode)
     b, h, w, t, _ = space_time_x.shape
-    # if there is only a single timestep, it will get a mask
-    # value of 2
-    num_timesteps_to_mask = int(t * mask_ratio) if t > 1 else 0
     # if there is only a single timestep, decode it
-    num_timesteps_to_decode = int(t * decoder_unmask_ratio) if t > 1 else 1
+    num_timesteps_to_decode = round_school(t * decoder_unmask_ratio) if t > 1 else 1
+    num_timesteps_to_encode = (
+        round_school(t * (1 - (mask_ratio + decoder_unmask_ratio))) if t > 1 else 0
+    )
     # we do this as a numpy array to take advantage of
     # numpy's permuted function
     flat_timesteps = np.concatenate(
         (
-            np.ones(num_timesteps_to_mask, dtype=np.int_),
+            np.ones(t - (num_timesteps_to_decode + num_timesteps_to_encode), dtype=np.int_),
             np.ones(num_timesteps_to_decode, dtype=np.int_) * 2,
-            np.zeros(t - num_timesteps_to_mask - num_timesteps_to_decode, dtype=np.int_),
+            np.zeros(num_timesteps_to_encode, dtype=np.int_),
         )
     )
     b_flat_timesteps = repeat(flat_timesteps, "t -> b t", b=b)
@@ -325,7 +330,6 @@ def batch_mask_time(
         w=w,
         c_g=len(SPACE_TIME_BANDS_GROUPS_IDX),
     ).clone()
-
     # make the mask as if bands_to_mask and bands_to_decode both = None
     time_mask = repeat(
         b_flat_timesteps_t,
@@ -358,6 +362,10 @@ def batch_mask_time(
         time_mask = torch.clamp(time_mask, max=1)
         static_mask = torch.clamp(static_mask, max=1)
         space_mask[:, :, :, targeted_bands_to_decode] = 2
+
+        if (t == 1) and (bands_to_keep is None):
+            space_time_mask[:, :, :, 0, :] = 0
+            time_mask[:, 0, :] = 0
 
     return MaskedOutput(
         space_time_x.clone(),
