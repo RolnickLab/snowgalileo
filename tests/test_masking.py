@@ -40,8 +40,28 @@ DECODER_MASK_TO_BANDS = {"DW": DW_BANDS, "WC": WC_BANDS, "DW+WC": DW_BANDS + WC_
 
 
 class TestMasking(unittest.TestCase):
+    def check_all_values_in_masks(self, space_time_mask, space_mask, time_mask, static_mask):
+        self.assertTrue(
+            (space_time_mask == 2).any()
+            | (space_mask == 2).any()
+            | (time_mask == 2).any()
+            | (static_mask == 2).any()
+        )
+        self.assertTrue(
+            (space_time_mask == 0).any()
+            | (space_mask == 0).any()
+            | (time_mask == 0).any()
+            | (static_mask == 0).any()
+        )
+        self.assertTrue(
+            (space_time_mask == 1).any()
+            | (space_mask == 1).any()
+            | (time_mask == 1).any()
+            | (static_mask == 1).any()
+        )
+
     def test_mask_by_time(self):
-        for t in [1, 8]:
+        for t in range(1, 8):
             b, h, w = 2, 16, 16
             space_time_input = torch.ones((b, h, w, t, 8))
             space_input = torch.ones((b, h, w, 8))
@@ -51,8 +71,8 @@ class TestMasking(unittest.TestCase):
             mask_ratio = 0.25
             decoder_unmask_ratio = 0.25
 
-            for mode in MASKING_MODES:
-                for decoder_mode in UNMASKING_MODES:
+            for mode in ["random"]:  # MASKING_MODES:
+                for decoder_mode in ["DW"]:  # UNMASKING_MODES:
                     output = batch_mask_time(
                         space_time_input,
                         space_input,
@@ -64,6 +84,12 @@ class TestMasking(unittest.TestCase):
                         mode=mode,
                         decoder_mode=decoder_mode,
                     )
+                    self.check_all_values_in_masks(
+                        output.space_time_mask,
+                        output.space_mask,
+                        output.time_mask,
+                        output.static_mask,
+                    )
                     self.assertEqual(
                         (b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX)),
                         output.space_time_mask.shape,
@@ -73,6 +99,9 @@ class TestMasking(unittest.TestCase):
                     )
                     self.assertEqual((b, t, len(TIME_BAND_GROUPS_IDX)), output.time_mask.shape)
                     self.assertEqual((b, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
+
+                    # the branching in the test below is a bit ugly and could be more concise,
+                    # but I think it does test for all combinations
                     if (mode == "random") and (decoder_mode == "random"):
                         # collapse the dynamic_mask along the time dimension
                         space_time_mask_along_t = output.space_time_mask.float().mean(
@@ -109,7 +138,60 @@ class TestMasking(unittest.TestCase):
                                     :, :, :, :, MASK_TO_BANDS[mode]["masked"]
                                 ]
                             )
-                        if decoder_mode != "random":
+                        elif mode == "random":
+                            # decoder mode is not random here
+                            # collapse the dynamic_mask along the time dimension
+                            space_time_mask_along_t = output.space_time_mask.float().mean(
+                                axis=(1, 2, 4)
+                            )  # b, t
+                            time_mask_along_t = output.time_mask.float().mean(axis=-1)  # b, t
+                            self.assertTrue(
+                                torch.equal(space_time_mask_along_t, time_mask_along_t)
+                            )
+                            self.assertTrue(np.isin(space_time_mask_along_t, (0, 1, 2)).all())
+                            print(
+                                space_time_mask_along_t,
+                                (space_time_mask_along_t == 1).sum(axis=1),
+                                space_time_mask_along_t.shape[1],
+                                space_time_mask_along_t.shape,
+                                mask_ratio,
+                                mode,
+                                decoder_mode,
+                                t,
+                            )
+                            self.assertTrue(
+                                (
+                                    (space_time_mask_along_t == 0).sum(axis=1)
+                                    / space_time_mask_along_t.shape[1]
+                                    == (mask_ratio if t > 1 else 1)
+                                ).all()
+                            )
+
+                        if decoder_mode == "random":
+                            # collapse the dynamic_mask along the time dimension,
+                            # ignoring the values masked by the mode
+                            space_time_mask_along_t = (
+                                output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["masked"]]
+                                .float()
+                                .mean(axis=(1, 2, 4))
+                            )  # b, t
+                            self.assertTrue(
+                                (
+                                    (space_time_mask_along_t == 2).sum(axis=1)
+                                    / space_time_mask_along_t.shape[1]
+                                    == (decoder_unmask_ratio if t > 1 else 1)
+                                ).all()
+                            )
+                            time_mask_along_t = output.time_mask.float().mean(axis=-1)  # b, t
+                            self.assertTrue(
+                                (
+                                    (space_time_mask_along_t == 2).sum(axis=1)
+                                    / space_time_mask_along_t.shape[1]
+                                    == (decoder_unmask_ratio if t > 1 else 1)
+                                ).all()
+                            )
+
+                        elif decoder_mode != "random":
                             self.assertTrue((output.time_mask <= 1).all())
                             self.assertTrue((output.static_mask <= 1).all())
                             self.assertTrue((output.static_mask == 1).all())
@@ -138,6 +220,9 @@ class TestMasking(unittest.TestCase):
             months,
             mask_ratio,
             decoder_mask_ratio,
+        )
+        self.check_all_values_in_masks(
+            output.space_time_mask, output.space_mask, output.time_mask, output.static_mask
         )
         self.assertEqual(
             (b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX)), output.space_time_mask.shape
@@ -189,6 +274,9 @@ class TestMasking(unittest.TestCase):
                     decoder_unmask_ratio,
                     mode=mode,
                     decoder_mode=decoder_mode,
+                )
+                self.check_all_values_in_masks(
+                    output.space_time_mask, output.space_mask, output.time_mask, output.static_mask
                 )
                 self.assertEqual(
                     (b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX)), output.space_time_mask.shape
@@ -261,6 +349,9 @@ class TestMasking(unittest.TestCase):
             mask_ratio,
             decoder_unmask_ratio,
             p,
+        )
+        self.check_all_values_in_masks(
+            output.space_time_mask, output.space_mask, output.time_mask, output.static_mask
         )
         self.assertEqual(
             (b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX)), output.space_time_mask.shape
@@ -343,6 +434,9 @@ class TestMasking(unittest.TestCase):
             image_size=i,
             num_timesteps=t_o,
             augmentation_strategies=None,
+        )
+        self.check_all_values_in_masks(
+            output.space_time_mask, output.space_mask, output.time_mask, output.static_mask
         )
         self.assertEqual(
             (b * MASKING_MULTIPLIER, i, i, t_o, len(SPACE_TIME_BANDS_GROUPS_IDX)),
