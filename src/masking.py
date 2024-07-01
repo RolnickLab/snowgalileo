@@ -225,8 +225,10 @@ def batch_subset_mask_presto_augmented(
             decoder_unmask_ratio=decoder_unmask_ratio,
             mode=random.choice(MASKING_MODES),
             decoder_mode=random.choice(UNMASKING_MODES),
+            patch_size=patch_size,
         )
     )
+
     maskedoutputs.append(
         batch_mask_space(
             *subset_and_augment_batch_of_images(
@@ -290,24 +292,35 @@ def batch_mask_time(
     months: torch.Tensor,
     mask_ratio: float,
     decoder_unmask_ratio: float,
+    patch_size: int,
     mode: Optional[str] = None,
     decoder_mode: Optional[str] = None,
 ):
     """
     Masks out blocks of hxwx1xBAND_GROUPs.
-    e.g. if mask_ratio=0.25, then 1/4 of the timesteps
+    e.g. if mask_ratio=0.25, then 1/4 of the timeteps
     (and the static channel groups, with 1/4 probability) will be masked out
 
     Operates over batches where each item in the batch has independently masked timesteps
     """
-    bands_to_keep, bands_to_mask = check_mode_and_return_channels(mode)
-    targeted_bands_to_decode = check_unmasking_mode_and_return_channels(decoder_mode)
     b, h, w, t, _ = space_time_x.shape
+    if t < 3:
+        return batch_mask_random(
+            space_time_x,
+            space_x,
+            time_x,
+            static_x,
+            months,
+            mask_ratio,
+            decoder_unmask_ratio,
+            patch_size,
+        )
+
+    _, bands_to_mask = check_mode_and_return_channels(mode)
+    targeted_bands_to_decode = check_unmasking_mode_and_return_channels(decoder_mode)
     # if there is only a single timestep, decode it
-    num_timesteps_to_decode = round_school(t * decoder_unmask_ratio) if t > 1 else 1
-    num_timesteps_to_encode = (
-        round_school(t * (1 - (mask_ratio + decoder_unmask_ratio))) if t > 1 else 0
-    )
+    num_timesteps_to_decode = max(t * decoder_unmask_ratio, 1)
+    num_timesteps_to_encode = max(t * (1 - (mask_ratio + decoder_unmask_ratio)), 1)
     # we do this as a numpy array to take advantage of
     # numpy's permuted function
     flat_timesteps = np.concatenate(
@@ -352,9 +365,7 @@ def batch_mask_time(
         space_mask = torch.clamp(space_mask, min=1)
         time_mask = torch.clamp(time_mask, min=1)
         static_mask = torch.clamp(static_mask, min=1)
-        if t == 1:
-            assert bands_to_keep is not None
-            space_time_mask[:, :, :, :, bands_to_keep] = 0
+
     if targeted_bands_to_decode is not None:
         # ignore all previous calculations about what should be decoded
         space_time_mask = torch.clamp(space_time_mask, max=1)
@@ -362,10 +373,6 @@ def batch_mask_time(
         time_mask = torch.clamp(time_mask, max=1)
         static_mask = torch.clamp(static_mask, max=1)
         space_mask[:, :, :, targeted_bands_to_decode] = 2
-
-        if (t == 1) and (bands_to_keep is None):
-            space_time_mask[:, :, :, 0, :] = 0
-            time_mask[:, 0, :] = 0
 
     return MaskedOutput(
         space_time_x.clone(),
