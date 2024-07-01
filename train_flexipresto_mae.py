@@ -29,7 +29,8 @@ from src.eval import (
     BinaryCropHarvestEval,
     EuroSatEval,
     MultiClassCropHarvestEval,
-    PastisEval,
+    PastisPatchEval,
+    PastisPixelEval,
     So2SatEval,
     TreeSatEval,
 )
@@ -265,16 +266,22 @@ for e in tqdm(range(training_config["num_epochs"])):
             e % training_config["eval_eurosat_every_n_epochs"] == 0
         ):
             results = val_task_latlons.evaluate_model_on_task(
-                encoder, model_modes=["KNNat5", "KNNat20"]
+                encoder, model_modes=["KNNat5 Classifier", "KNNat20 Classifier"]
             )
             results.update(
-                val_task_no_latlons.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
+                val_task_no_latlons.evaluate_model_on_task(
+                    encoder, model_modes=["KNNat5 Classifier"]
+                )
             )
             results.update(
-                val_task_ts_latlons.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
+                val_task_ts_latlons.evaluate_model_on_task(
+                    encoder, model_modes=["KNNat5 Classifier"]
+                )
             )
             results.update(
-                val_task_ts_no_latlons.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
+                val_task_ts_no_latlons.evaluate_model_on_task(
+                    encoder, model_modes=["KNNat5 Classifier"]
+                )
             )
             to_log.update(results)
         wandb.log(to_log)
@@ -288,19 +295,30 @@ with (model_path / CONFIG_FILENAME).open("w") as f:
     json.dump(config, f)
 
 eval_tasks: List[EvalTask] = [
-    *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil"]],
-    So2SatEval(),
     *[
-        EuroSatEval(rgb=rgb, include_latlons=include_latlons)
-        for rgb in [True, False]
-        for include_latlons in [True, False]
+        PastisPatchEval(
+            output_mode=output_mode,
+            num_subtiles_per_image=num_subtiles_per_image,
+            band_mode=band_mode,
+        )
+        for output_mode in ["mode", "norm_counts"]
+        # 4 has input hw 64, 16 has input hw 32
+        for num_subtiles_per_image in [4, 16]
+        for band_mode in ["combined", "s2"]
     ],
     *[
         TreeSatEval(mode=mode, patch_size=patch_size)
         for mode in ["s1", "s2", "combined"]
         for patch_size in [6, 3]
     ],
-    PastisEval(),
+    *[
+        EuroSatEval(rgb=rgb, include_latlons=include_latlons)
+        for rgb in [True, False]
+        for include_latlons in [True, False]
+    ],
+    So2SatEval(),
+    PastisPixelEval(),
+    *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil"]],
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)
