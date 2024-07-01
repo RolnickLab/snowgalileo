@@ -71,8 +71,8 @@ class TestMasking(unittest.TestCase):
             mask_ratio = 0.25
             decoder_unmask_ratio = 0.25
 
-            for mode in ["random"]:  # MASKING_MODES:
-                for decoder_mode in ["DW"]:  # UNMASKING_MODES:
+            for mode in MASKING_MODES:
+                for decoder_mode in UNMASKING_MODES:
                     output = batch_mask_time(
                         space_time_input,
                         space_input,
@@ -115,15 +115,13 @@ class TestMasking(unittest.TestCase):
                         self.assertTrue(np.isin(space_time_mask_along_t, (0, 1, 2)).all())
                         self.assertTrue(
                             (
-                                (space_time_mask_along_t == 1).sum(axis=1)
+                                (space_time_mask_along_t == 0).sum(axis=1)
                                 == expected_unmasked_timesteps
                             ).all()
                         )
                         self.assertTrue(
                             (
-                                (space_time_mask_along_t == 2).sum(axis=1)
-                                / space_time_mask_along_t.shape[1]
-                                == (decoder_unmask_ratio if t > 1 else 1)
+                                (space_time_mask_along_t == 2).sum(axis=1) == expected_decoder_timesteps
                             ).all()
                         )
                     else:
@@ -168,9 +166,7 @@ class TestMasking(unittest.TestCase):
                             )  # b, t
                             self.assertTrue(
                                 (
-                                    (space_time_mask_along_t == 2).sum(axis=1)
-                                    / space_time_mask_along_t.shape[1]
-                                    == (decoder_unmask_ratio if t > 1 else 1)
+                                    (space_time_mask_along_t == 2).sum(axis=1) == expected_decoder_timesteps
                                 ).all()
                             )
                             time_mask_along_t = output.time_mask.float().mean(axis=-1)  # b, t
