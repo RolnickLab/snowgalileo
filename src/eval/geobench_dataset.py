@@ -175,12 +175,10 @@ class GeobenchBaseDataset(PyTorchDataset):
         col_idx = subtile_idx % subtiles_per_dim
 
         if self.config["benchmark_name"] == "segmentation_v1.0":
-            targets = (
-                targets[
-                    row_idx * pixels_per_dim : (row_idx + 1) * pixels_per_dim,
-                    col_idx * pixels_per_dim : (col_idx + 1) * pixels_per_dim,
-                ],
-            )
+            targets = targets[
+                row_idx * pixels_per_dim : (row_idx + 1) * pixels_per_dim,
+                col_idx * pixels_per_dim : (col_idx + 1) * pixels_per_dim,
+            ]
 
         return (
             masked_output_np_to_tensor(

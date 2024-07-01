@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from ..flexipresto import Encoder
 from ..utils import DEFAULT_SEED, device
-from .eval import EvalTask, Hyperparams, model_class_name
+from .eval import EvalTask, Hyperparams
 from .geobench_dataset import GeobenchBaseDataset
 
 torch.multiprocessing.set_sharing_strategy("file_system")
@@ -78,9 +78,7 @@ class SACropEval(EvalTask):
         )
 
         results_dict = {}
-        pred_dict: Dict[str, BaseEstimator] = {
-            model_class_name(model): [] for model in sklearn_models
-        }
+        pred_dict: Dict[str, BaseEstimator] = {model: [] for model in sklearn_models}
 
         encodings_list = []
         targets_list = []
@@ -122,7 +120,7 @@ class SACropEval(EvalTask):
 
         for model in sklearn_models:
             preds = model.predict(encodings_np)
-            pred_dict[model_class_name(model)].append(preds)
+            pred_dict[model].append(preds)
 
         for model_name_str, pred_list in pred_dict.items():
             results_dict.update(
