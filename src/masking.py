@@ -350,10 +350,6 @@ def batch_mask_time(
         c_g=len(TIME_BAND_GROUPS_IDX),
     )
     space_mask = _random_mask_for_b(b, space_x.device, mask_ratio, decoder_unmask_ratio)
-    if t == 1:
-        # can't mask out everything if t == 1, so we make sure the
-        # space only mask remains unmasked
-        space_mask = space_mask * 0
     space_mask = repeat(space_mask, "b -> b h w c_g", h=h, w=w, c_g=len(SPACE_BAND_GROUPS_IDX))
     static_mask = _random_mask_for_b(b, static_x.device, mask_ratio, decoder_unmask_ratio)
     static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX))
