@@ -240,7 +240,10 @@ class EuroSatDataset(PyTorchDataset):
 class EuroSatEval(EvalTask):
     name = "eurosat"
     regression = False
+    spatial_token_prediction = False
     multilabel = False
+    input_height_width = EuroSatDataset.input_height_width
+    num_outputs = len(EuroSatDataset.labels_to_int)
 
     def __init__(
         self,

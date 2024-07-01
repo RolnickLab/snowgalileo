@@ -652,13 +652,6 @@ class Encoder(FlexiPrestoBase):
             torch.stack(st_m_l, dim=-1),
         )
 
-    @classmethod
-    def average_tokens(cls, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m):
-        x, m = cls.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
-        x, _, m = cls.remove_masked_tokens(x, m)
-        x_for_mean = x * (1 - m.unsqueeze(-1))
-        return x_for_mean.sum(dim=1) / torch.sum(1 - m, -1, keepdim=True)
-
     @staticmethod
     def remove_masked_tokens(x, mask):
         org_mask_dtype = mask.dtype
@@ -730,6 +723,44 @@ class Encoder(FlexiPrestoBase):
             t_m,
             st_m,
         )
+
+    @classmethod
+    def average_tokens(cls, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m):
+        x, m = cls.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
+        x, _, m = cls.remove_masked_tokens(x, m)
+        x_for_mean = x * (1 - m.unsqueeze(-1))
+        return x_for_mean.sum(dim=1) / torch.sum(1 - m, -1, keepdim=True)
+
+    @classmethod
+    def apply_mask_and_average_tokens_per_patch(
+        cls,
+        s_t_x: torch.Tensor,
+        sp_x: torch.Tensor,
+        t_x: torch.Tensor,
+        st_x: torch.Tensor,
+        s_t_m: torch.Tensor,
+        sp_m: torch.Tensor,
+        t_m: torch.Tensor,
+        st_m: torch.Tensor,
+    ):
+        s_t_x = rearrange(s_t_x, "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d")
+        sp_x = rearrange(sp_x, "b t_h t_w c_g d -> b (t_h t_w) c_g d")
+        # repeat time tokens over space
+        t_x = repeat(
+            rearrange(t_x, "b t c_g d -> b (t c_g) d"), "b n d -> b s n d", s=sp_x.shape[1]
+        )
+        st_x = repeat(st_x, "b c_g d -> b s c_g d", s=sp_x.shape[1])
+        s_t_m = rearrange(s_t_m, "b t_h t_w t c_g-> b (t_h t_w) (t c_g)")
+        sp_m = rearrange(sp_m, "b t_h t_w c_g-> b (t_h t_w) c_g")
+        t_m = repeat(rearrange(t_m, "b t c_g -> b (t c_g)"), "b n -> b s n", s=sp_x.shape[1])
+        st_m = repeat(st_m, "b c_g -> b s c_g", s=sp_x.shape[1])
+
+        x = torch.cat([s_t_x, sp_x, t_x, st_x], dim=2)  # B, S, N, D
+        m = torch.cat([s_t_m, sp_m, t_m, st_m], dim=2)  # B, S, N
+
+        x_for_mean = x * (1 - m.unsqueeze(-1))
+
+        return x_for_mean.sum(dim=2) / torch.sum(1 - m, -1, keepdim=True)
 
     def forward(
         self,

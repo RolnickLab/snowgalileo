@@ -10,13 +10,14 @@ from src.config import DEFAULT_SEED
 from src.eval import (
     BinaryCropHarvestEval,
     EuroSatEval,
-    PastisEval,
+    PastisPatchEval,
+    PastisPixelEval,
     So2SatEval,
     TreeSatEval,
 )
 from src.eval.eval import EvalTask
 from src.flexipresto import Encoder
-from src.utils import seed_everything
+from src.utils import device, seed_everything
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -27,9 +28,20 @@ argparser = argparse.ArgumentParser()
 argparser.add_argument("--output_folder", type=str)
 args = argparser.parse_args().__dict__
 
-encoder = Encoder.load_from_folder(Path(args["output_folder"]))
+encoder = Encoder.load_from_folder(Path(args["output_folder"])).to(device)
 
 eval_tasks: List[EvalTask] = [
+    *[
+        PastisPatchEval(
+            output_mode=output_mode,
+            num_subtiles_per_image=num_subtiles_per_image,
+            band_mode=band_mode,
+        )
+        for output_mode in ["norm_counts", "mode"]
+        # 4 has input hw 64, 16 has input hw 32
+        for num_subtiles_per_image in [4, 16]
+        for band_mode in ["combined", "s2"]
+    ],
     *[
         TreeSatEval(mode=mode, patch_size=patch_size)
         for mode in ["s1", "s2", "combined"]
@@ -41,7 +53,7 @@ eval_tasks: List[EvalTask] = [
         for include_latlons in [True, False]
     ],
     So2SatEval(),
-    PastisEval(),
+    PastisPixelEval(),
     *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil", "China"]],
 ]
 for task in eval_tasks:
