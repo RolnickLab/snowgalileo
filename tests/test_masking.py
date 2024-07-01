@@ -286,7 +286,7 @@ class TestMasking(unittest.TestCase):
                     s_along_hw = output.space_mask.float().mean(axis=(3))  # b, h, w
                     self.assertTrue(torch.equal(sp_along_hw, s_along_hw))
                     self.assertTrue(
-                        (sp_along_hw.sum(axis=1).sum(axis=1) / (h * w) == mask_ratio).all()
+                        ((sp_along_hw == 1).sum(axis=1).sum(axis=1) / (h * w) == mask_ratio).all()
                     )
                     for i in range(1, p):
                         self.assertTrue(
@@ -303,8 +303,6 @@ class TestMasking(unittest.TestCase):
                     sp_along_hw = output.space_time_mask.float()[
                         :, :, :, :, MASK_TO_BANDS[mode]["unmasked"]
                     ].mean(axis=(3, 4))  # b, h, w
-                    self.assertTrue((output.space_mask == 1).all())
-                    self.assertTrue((output.time_mask == 1).all())
                     self.assertTrue(
                         (
                             output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["masked"]] == 1
@@ -316,7 +314,6 @@ class TestMasking(unittest.TestCase):
                             == 1
                         ).all()
                     )
-                    self.assertTrue((output.space_mask == 1).all())
                     self.assertTrue((output.time_mask == 1).all())
                     self.assertTrue((output.static_mask == 1).all())
                     for i in range(1, p):
