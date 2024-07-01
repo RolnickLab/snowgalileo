@@ -27,6 +27,7 @@ from src.masking import (
     batch_mask_space,
     batch_mask_time,
     batch_subset_mask_presto_augmented,
+    round_school,
 )
 
 MASK_TO_BANDS = {
@@ -102,6 +103,7 @@ class TestMasking(unittest.TestCase):
 
                     # the branching in the test below is a bit ugly and could be more concise,
                     # but I think it does test for all combinations
+                    expected_unmasked_timesteps = round_school(t * mask_ratio) if t > 1 else 1
                     if (mode == "random") and (decoder_mode == "random"):
                         # collapse the dynamic_mask along the time dimension
                         space_time_mask_along_t = output.space_time_mask.float().mean(
@@ -113,8 +115,7 @@ class TestMasking(unittest.TestCase):
                         self.assertTrue(
                             (
                                 (space_time_mask_along_t == 1).sum(axis=1)
-                                / space_time_mask_along_t.shape[1]
-                                == (mask_ratio if t > 1 else 0)
+                                == expected_unmasked_timesteps
                             ).all()
                         )
                         self.assertTrue(
@@ -149,21 +150,10 @@ class TestMasking(unittest.TestCase):
                                 torch.equal(space_time_mask_along_t, time_mask_along_t)
                             )
                             self.assertTrue(np.isin(space_time_mask_along_t, (0, 1, 2)).all())
-                            print(
-                                space_time_mask_along_t,
-                                (space_time_mask_along_t == 1).sum(axis=1),
-                                space_time_mask_along_t.shape[1],
-                                space_time_mask_along_t.shape,
-                                mask_ratio,
-                                mode,
-                                decoder_mode,
-                                t,
-                            )
                             self.assertTrue(
                                 (
                                     (space_time_mask_along_t == 0).sum(axis=1)
-                                    / space_time_mask_along_t.shape[1]
-                                    == (mask_ratio if t > 1 else 1)
+                                    == expected_unmasked_timesteps
                                 ).all()
                             )
 
