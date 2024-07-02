@@ -41,6 +41,7 @@ class So2SatDataset(PyTorchDataset):
 
     input_height_width = 32
     num_timesteps = 1
+    num_classes = 17
 
     def __init__(
         self,
@@ -150,9 +151,17 @@ class So2SatDataset(PyTorchDataset):
 class So2SatEval(EvalTask):
     name = "so2sat"
     regression = False
+    spatial_token_prediction = False
     multilabel = False
+    input_height_width = So2SatDataset.input_height_width
+    num_outputs = So2SatDataset.num_classes
 
-    def __init__(self, rgb: bool = True, patch_size: int = 8, seed=DEFAULT_SEED):
+    def __init__(
+        self,
+        rgb: bool = True,
+        patch_size: int = 8,
+        seed=DEFAULT_SEED,
+    ):
         self.rgb = rgb
         super().__init__(patch_size, seed)
         self.name = f"{self.name}_{self.rgb}"
