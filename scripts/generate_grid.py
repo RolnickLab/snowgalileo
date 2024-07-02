@@ -60,7 +60,9 @@ for tile_i in tqdm(range(len(grid))):
     tif_file = rioxarray.open_rasterio(url, cache=False)
 
     for x_i in tqdm(
-        range(0, len(tif_file.x), TILE_SIZE), leave=False, desc=f"Sweeping x for {tile_name}"
+        range(0, len(tif_file.x), TILE_SIZE),  # type: ignore
+        leave=False,
+        desc=f"Sweeping x for {tile_name}",
     ):  # type: ignore
         for y_i in tqdm(range(0, len(tif_file.y), TILE_SIZE), leave=False):  # type: ignore
             sub_tile = tif_file.isel(x=slice(x_i, x_i + TILE_SIZE), y=slice(y_i, y_i + TILE_SIZE))  # type: ignore
