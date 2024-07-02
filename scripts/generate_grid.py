@@ -41,12 +41,13 @@ if output_dir.exists():
     print(f"Found file at {output_dir}. Resuming")
     old_dict: Dict[str, List] = pd.read_csv(output_dir).to_dict("list")
     output_dict: Dict[str, List] = {key: old_dict[key] for key in ["tile_id", "lat", "lon"]}
+    for k in legend.keys():
+        output_dict[f"class_{k}"] = old_dict[f"class_{k}"]
 else:
     print(f"No file found at {output_dir}. Starting from scratch")
     output_dict = {"tile_id": [], "lat": [], "lon": []}
-
-for k in legend.keys():
-    output_dict[f"class_{k}"] = []
+    for k in legend.keys():
+        output_dict[f"class_{k}"] = []
 
 print({key: len(val) for key, val in output_dict.keys()})
 
