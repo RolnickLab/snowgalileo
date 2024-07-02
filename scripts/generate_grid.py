@@ -39,7 +39,8 @@ grid = gpd.read_file(url)
 output_dir = Path(__file__).parents[1] / "data/esa_grid_granular.csv"
 if output_dir.exists():
     print(f"Found file at {output_dir}. Resuming")
-    output_dict: Dict[str, List] = pd.read_csv(output_dir).to_dict("list")
+    old_dict: Dict[str, List] = pd.read_csv(output_dir).to_dict("list")
+    output_dict: Dict[str, List] = {key: old_dict[key] for key in ["tile_id", "lat", "lon"]}
 else:
     print(f"No file found at {output_dir}. Starting from scratch")
     output_dict = {"tile_id": [], "lat": [], "lon": []}
