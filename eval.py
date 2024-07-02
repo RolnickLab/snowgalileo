@@ -35,9 +35,6 @@ args = argparser.parse_args().__dict__
 encoder = Encoder.load_from_folder(Path(args["output_folder"])).to(device)
 
 eval_tasks: List[EvalTask] = [
-    *[CashewPlantEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
-    *[SACropEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
-    *[So2SatEval(geobench=geobench) for geobench in [True, False]],
     *[
         PastisPatchEval(
             output_mode=output_mode,
@@ -59,12 +56,15 @@ eval_tasks: List[EvalTask] = [
         for rgb in [True, False]
         for include_latlons in [True, False]
     ],
-    # geobench EuroSat only works without latlons and in MS mode
-    EuroSatEval(geobench=True, rgb=False, include_latlons=False),
-    BigEarthNetEval(),
-    BrickKilnEval(),
     PastisPixelEval(),
     *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil", "China"]],
+    # geobench EuroSat only works without latlons and in MS mode
+    EuroSatEval(geobench=True, rgb=False, include_latlons=False),
+    *[So2SatEval(geobench=geobench) for geobench in [True, False]],
+    BigEarthNetEval(),
+    BrickKilnEval(),
+    *[CashewPlantEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
+    *[SACropEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)
