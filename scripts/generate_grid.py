@@ -36,7 +36,7 @@ s3_url_prefix = "https://esa-worldcover.s3.eu-central-1.amazonaws.com"
 url = f"{s3_url_prefix}/v100/2020/esa_worldcover_2020_grid.geojson"
 grid = gpd.read_file(url)
 
-output_dir = Path(__file__).parents[-2] / "data/esa_grid_granular.csv"
+output_dir = Path(__file__).parents[1] / "data/esa_grid_granular.csv"
 if output_dir.exists():
     print(f"Found file at {output_dir}. Resuming")
     output_dict: Dict[str, List] = pd.read_csv(output_dir).to_dict("list")
