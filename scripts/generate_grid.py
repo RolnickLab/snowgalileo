@@ -47,6 +47,8 @@ else:
 for k in legend.keys():
     output_dict[f"class_{k}"] = []
 
+print(np.unique(output_dict["tile_id"]))
+
 for tile_i in tqdm(range(len(grid))):
     tile_name = grid.iloc[tile_i]["ll_tile"]
     if tile_i in output_dict["tile_id"]:
@@ -55,7 +57,9 @@ for tile_i in tqdm(range(len(grid))):
     url = f"{s3_url_prefix}/v100/2020/map/ESA_WorldCover_10m_2020_v100_{tile_name}_Map.tif"
     tif_file = rioxarray.open_rasterio(url, cache=False)
 
-    for x_i in tqdm(range(0, len(tif_file.x), TILE_SIZE), leave=False):  # type: ignore
+    for x_i in tqdm(
+        range(0, len(tif_file.x), TILE_SIZE), leave=False, desc=f"Sweeping x for {tile_name}"
+    ):  # type: ignore
         for y_i in tqdm(range(0, len(tif_file.y), TILE_SIZE), leave=False):  # type: ignore
             sub_tile = tif_file.isel(x=slice(x_i, x_i + TILE_SIZE), y=slice(y_i, y_i + TILE_SIZE))  # type: ignore
             keys, amounts = np.unique(sub_tile, return_counts=True)
