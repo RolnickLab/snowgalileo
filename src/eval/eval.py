@@ -85,7 +85,6 @@ class EvalTask(ABC):
     @torch.no_grad()
     def group_targets_per_token(self, target: torch.Tensor) -> torch.Tensor:
         # group labels per token for segmentation
-        # grouped_label shape will be (batch_size, n_tokens, t_height * t_width)
         return rearrange(
             target, "b (h p1) (w p2) -> (b h w) (p1 p2)", p1=self.patch_size, p2=self.patch_size
         )
