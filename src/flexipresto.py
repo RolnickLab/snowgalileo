@@ -959,9 +959,6 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m = self.apply_attn(
             s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_resolution_m
         )
-        s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m = self.apply_attn(
-            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_resolution_m
-        )
         output_s_t, output_sp, output_t, output_st = [], [], [], []
         for idx, (group_name, c_g) in enumerate(self.space_time_groups.items()):
             # decoded has shape [b, h, w, t, len(c_g) * patch_size ** 2]

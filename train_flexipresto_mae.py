@@ -95,6 +95,7 @@ dataloader = DataLoader(
         patch_sizes=training_config["patch_sizes"],
         shape_time_combinations=training_config["shape_time_combinations"],
         mask_ratio=training_config["mask_ratio"],
+        augmentation_strategies=training_config["augmentation"],
     ),
     pin_memory=True,
 )
@@ -263,12 +264,18 @@ for e in tqdm(range(training_config["num_epochs"])):
         if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
             e % training_config["eval_eurosat_every_n_epochs"] == 0
         ):
-            results = val_task_no_latlons.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
-            results.update(
-                val_task_ts_latlons.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
+            results = val_task_no_latlons.evaluate_model_on_task(
+              encoder, model_modes=["KNNat5 Classifier", "KNNat20 Classifier"]
             )
             results.update(
-                val_task_ts_no_latlons.evaluate_model_on_task(encoder, model_modes=["KNNat5"])
+                val_task_ts_latlons.evaluate_model_on_task(
+                    encoder, model_modes=["KNNat5 Classifier"]
+                )
+            )
+            results.update(
+                val_task_ts_no_latlons.evaluate_model_on_task(
+                    encoder, model_modes=["KNNat5 Classifier"]
+                )
             )
             to_log.update(results)
         wandb.log(to_log)
@@ -307,7 +314,7 @@ eval_tasks: List[EvalTask] = [
     PastisPixelEval(),
     BigEarthNetEval(),
     BrickKilnEval(),
-    *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil", "China"]],
+    *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil"]],
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)

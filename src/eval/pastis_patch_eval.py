@@ -38,7 +38,6 @@ from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
 from .eval import (
     EvalTask,
     Hyperparams,
-    model_class_name,
 )
 from .knn import (
     KNNat5Classifier,
@@ -571,9 +570,7 @@ class PastisPatchEval(EvalTask):
         )
 
         results_dict = {}
-        pred_dict: Dict[str, BaseEstimator] = {
-            model_class_name(model): [] for model in sklearn_models
-        }
+        pred_dict: Dict[str, BaseEstimator] = {model: [] for model in sklearn_models}
 
         encodings_list = []
         targets_list = []
@@ -615,7 +612,7 @@ class PastisPatchEval(EvalTask):
 
         for model in sklearn_models:
             preds = model.predict(encodings_np)
-            pred_dict[model_class_name(model)].append(preds)
+            pred_dict[model].append(preds)
 
         for model_name_str, pred_list in pred_dict.items():
             results_dict.update(
