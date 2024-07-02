@@ -51,7 +51,7 @@ print(np.unique(output_dict["tile_id"]))
 
 for tile_i in tqdm(range(len(grid))):
     tile_name = grid.iloc[tile_i]["ll_tile"]
-    if tile_i in output_dict["tile_id"]:
+    if tile_name in output_dict["tile_id"]:
         print(f"Skipping {tile_name}")
         continue
     url = f"{s3_url_prefix}/v100/2020/map/ESA_WorldCover_10m_2020_v100_{tile_name}_Map.tif"
