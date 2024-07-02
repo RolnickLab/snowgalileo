@@ -3,6 +3,7 @@ For easier normalization of the band values (instead of needing to recompute
 the normalization dict with the addition of new data), we provide maximum
 values for each band
 """
+
 S1_BANDS = ["VV", "VH"]
 # EarthEngine estimates Sentinel-1 values range from -50 to 1
 S1_MAX_VALUES = [50.0, 50.0]
