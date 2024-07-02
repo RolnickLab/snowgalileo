@@ -37,6 +37,20 @@ class BigEarthNetEval(EvalTask):
         seed=DEFAULT_SEED,
         num_subtiles_per_image: int = 1,
     ):
+        """
+        BigEarthNet evaluation task.
+
+        BigEarthNet has an input size of 120x120, which is larger than the usual Presto input size.
+        There are a few options for the number of subtiles per image, which can be set with the
+        `num_subtiles_per_image` parameter. Meanwhile, the patch size must be a divisor of the input.
+        Options tested so far are:
+
+        Option 1: 1 subtiles per image, input size 120x120 with patch size 8
+        Option 2: 4 subtiles per image, input size 60x60 with patch size 6
+        Option 3: 4 subtiles per image, input size 60x60 with patch size 4
+
+        We set option 1 as the default, because it was the best performing option in experiments.
+        """
         super().__init__(patch_size, seed)
         self.num_subtiles_per_image = num_subtiles_per_image
         self.input_height_width = self.input_height_width // int(
