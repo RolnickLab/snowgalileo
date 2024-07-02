@@ -41,9 +41,13 @@ class GeobenchBaseDataset(PyTorchDataset):
         num_subtiles_per_image: Optional[int] = 1,
     ):
         # download data if not already present
-        # geobench.download_data() checks if the data is already present
-        os.environ["GEO_BENCH_DIR"] = Path(__file__).parents[2] / Path("geobench")
-        geobench.download_data()
+        # assumes that data is downloaded if geobench classification folder exists
+        if not Path(__file__).parents[2] / Path("geobench") / Path("classification_v1.0").exists():
+            if not Path(__file__).parents[2] / Path("geobench").exists():
+                (Path(__file__).parents[2] / Path("geobench")).mkdir()
+
+            os.environ["GEO_BENCH_DIR"] = Path(__file__).parents[2] / Path("geobench")
+            geobench.download_data()
 
         with (
             Path(__file__).parents[0] / Path("geobench_configs") / Path(dataset_config_file)
