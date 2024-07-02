@@ -33,9 +33,9 @@ class BigEarthNetEval(EvalTask):
 
     def __init__(
         self,
-        patch_size: int = 6,
+        patch_size: int = 8,
         seed=DEFAULT_SEED,
-        num_subtiles_per_image: int = 4,
+        num_subtiles_per_image: int = 1,
     ):
         super().__init__(patch_size, seed)
         self.num_subtiles_per_image = num_subtiles_per_image
