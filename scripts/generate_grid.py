@@ -49,7 +49,7 @@ else:
     for k in legend.keys():
         output_dict[f"class_{k}"] = []
 
-print({key: len(val) for key, val in output_dict.keys()})
+print({key: len(val) for key, val in output_dict.items()})
 
 for tile_i in tqdm(range(len(grid))):
     tile_name = grid.iloc[tile_i]["ll_tile"]
