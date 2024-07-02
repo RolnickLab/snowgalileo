@@ -29,10 +29,12 @@ from src.eval import (
     BigEarthNetEval,
     BinaryCropHarvestEval,
     BrickKilnEval,
+    CashewPlantEval,
     EuroSatEval,
     MultiClassCropHarvestEval,
     PastisPatchEval,
     PastisPixelEval,
+    SACropEval,
     So2SatEval,
     TreeSatEval,
 )
@@ -265,7 +267,7 @@ for e in tqdm(range(training_config["num_epochs"])):
             e % training_config["eval_eurosat_every_n_epochs"] == 0
         ):
             results = val_task_no_latlons.evaluate_model_on_task(
-              encoder, model_modes=["KNNat5 Classifier", "KNNat20 Classifier"]
+                encoder, model_modes=["KNNat5 Classifier", "KNNat20 Classifier"]
             )
             results.update(
                 val_task_ts_latlons.evaluate_model_on_task(
@@ -300,6 +302,8 @@ eval_tasks: List[EvalTask] = [
         for num_subtiles_per_image in [4, 16]
         for band_mode in ["combined", "s2"]
     ],
+    *[CashewPlantEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
+    *[SACropEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
     *[
         TreeSatEval(mode=mode, patch_size=patch_size)
         for mode in ["s1", "s2", "combined"]
