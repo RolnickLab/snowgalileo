@@ -48,8 +48,8 @@ class GeobenchBaseDataset(PyTorchDataset):
             if not (Path(__file__).parents[2] / Path("geobench")).exists():
                 (Path(__file__).parents[2] / Path("geobench")).mkdir()
 
-            os.environ["GEO_BENCH_DIR"] = str(Path(__file__).parents[2] / Path("geobench"))
-            os.system("geobench-download")
+            os.environ['GEO_BENCH_DIR'] = str(Path(__file__).parents[2] / Path("geobench"))
+            os.system('geobench-download')
 
         with (
             Path(__file__).parents[0] / Path("geobench_configs") / Path(dataset_config_file)
