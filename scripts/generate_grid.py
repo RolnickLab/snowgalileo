@@ -48,9 +48,10 @@ for k in legend.keys():
     output_dict[f"class_{k}"] = []
 
 for tile_i in tqdm(range(len(grid))):
-    if tile_i in output_dict["tile_id"]:
-        continue
     tile_name = grid.iloc[tile_i]["ll_tile"]
+    if tile_i in output_dict["tile_id"]:
+        print(f"Skipping {tile_name}")
+        continue
     url = f"{s3_url_prefix}/v100/2020/map/ESA_WorldCover_10m_2020_v100_{tile_name}_Map.tif"
     tif_file = rioxarray.open_rasterio(url, cache=False)
 
