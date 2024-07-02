@@ -112,7 +112,7 @@ class GeobenchBaseDataset(PyTorchDataset):
 
         return (s_t_m, sp_m, t_m, st_m)
 
-    def image_to_space_time_array(self, image: np.ndarray) -> np.ndarray:
+    def image_to_space_time_array(self, image) -> np.ndarray:
         if self.config["include_s1"]:
             kept_dynamic_bands = [
                 idx for idx, x in enumerate(SPACE_TIME_BANDS) if (x in S2_BANDS or x in S1_BANDS)
@@ -214,4 +214,4 @@ class GeobenchBaseDataset(PyTorchDataset):
         )
 
     def __len__(self) -> int:
-        return len(self.dataset) * self.num_subtiles_per_image
+        return len(self.dataset) * cast(int, self.num_subtiles_per_image)
