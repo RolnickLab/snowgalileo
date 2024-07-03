@@ -1,6 +1,3 @@
-This description follows the [Geobench](https://github.com/ServiceNow/geo-bench/tree/main) documentation for downloading Geobench datasets:
+[Geobench](https://github.com/ServiceNow/geo-bench/tree/main) datasets will be automatically downloaded when executing geobench evaluation tasks.
 
-- Set ```$GEO_BENCH_DIR``` to this directory
-- Run the command: ```geobench-download```
-
-This will download all Geobench datasets, including those not implemented as Presto evalutation tasks.
+Dataset download includes all geobench datasets, including those not implemented as Presto evalutation tasks.
