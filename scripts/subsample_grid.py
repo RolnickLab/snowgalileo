@@ -1,8 +1,6 @@
 from pathlib import Path
 from typing import Optional
 
-import cartopy.crs as ccrs
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from numpy.linalg import norm
@@ -53,11 +51,3 @@ if __name__ == "__main__":
     output = return_clusters(grid, num_clusters_per_tile=50, num_tiles_to_process=None)
     output.to_csv(SUBSAMPLED_GRID_PATH)
     print(len(output))
-
-    # plot output
-    figure = plt.figure(figsize=(10, 5))
-    ax = figure.add_axes([0, 0, 1, 1], projection=ccrs.PlateCarree())  # type: ignore
-    ax.scatter(output.lon, output.lat, color="grey", alpha=0.3, s=2)
-    ax.set_global()
-    ax.coastlines()
-    plt.savefig("subsampled_points.png", bbox_inches="tight", dpi=300)
