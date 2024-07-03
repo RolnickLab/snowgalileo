@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Optional
 
 import cartopy.crs as ccrs
@@ -8,6 +9,9 @@ from numpy.linalg import norm
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import MinMaxScaler
 from tqdm import tqdm
+
+GRID_PATH = Path(__file__).parents[1] / "data/esa_grid_granular.csv"
+SUBSAMPLED_GRID_PATH = Path(__file__).parents[1] / "data/esa_grid_subsampled.csv"
 
 
 def find_clusters(
@@ -45,9 +49,9 @@ def return_clusters(
 
 
 if __name__ == "__main__":
-    grid = pd.read_csv("data/esa_grid_granular.csv")
+    grid = pd.read_csv(GRID_PATH)
     output = return_clusters(grid, num_clusters_per_tile=50, num_tiles_to_process=None)
-    output.to_csv("esa_grid_subsampled.csv")
+    output.to_csv(SUBSAMPLED_GRID_PATH)
     print(len(output))
 
     # plot output

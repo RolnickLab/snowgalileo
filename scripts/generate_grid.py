@@ -17,7 +17,7 @@ import rioxarray
 from tqdm import tqdm
 
 TILE_SIZE = 1000
-GRID_PATH = Path()
+GRID_PATH = Path(__file__).parents[1] / "data/esa_grid_granular.csv"
 
 legend = {
     10: "Trees",
