@@ -1,0 +1,59 @@
+from typing import Optional
+
+import cartopy.crs as ccrs
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from numpy.linalg import norm
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import MinMaxScaler
+from tqdm import tqdm
+
+
+def find_clusters(
+    tile_data: pd.DataFrame, target_tile: str, num_clusters_per_tile: int
+) -> pd.DataFrame:
+    if len(tile_data) < num_clusters_per_tile:
+        print(f"{target_tile} has fewer than {num_clusters_per_tile} rows - returning all data")
+        return tile_data
+    data = MinMaxScaler().fit_transform(tile_data.drop("tile_id", axis=1).values)
+    kmeans = KMeans(n_clusters=num_clusters_per_tile, random_state=0, n_init="auto").fit(data)
+    clusters = kmeans.predict(data)
+
+    centroid_indices = []
+    for i in range(num_clusters_per_tile):
+        cluster_data = data[clusters == i]
+        cluster_indices = np.argwhere(clusters == i)
+        distances = norm(cluster_data - kmeans.cluster_centers_[i], axis=-1)
+        closest_to_center = np.argmin(distances)
+        centroid_indices.append(cluster_indices[closest_to_center].item())
+    return tile_data.iloc[centroid_indices]
+
+
+def return_clusters(
+    all_data: pd.DataFrame, num_clusters_per_tile: int, num_tiles_to_process: Optional[int] = None
+) -> pd.DataFrame:
+    output_dfs = []
+    count = 0
+    for tile_id in tqdm(all_data.tile_id.unique()):
+        tile_data = all_data[all_data.tile_id == tile_id]
+        output_dfs.append(find_clusters(tile_data, tile_id, num_clusters_per_tile))
+        count += 1
+        if (num_tiles_to_process is not None) and (count > num_tiles_to_process):
+            return pd.concat(output_dfs)
+    return pd.concat(output_dfs)
+
+
+if __name__ == "__main__":
+    grid = pd.read_csv("data/esa_grid_granular.csv")
+    output = return_clusters(grid, num_clusters_per_tile=50, num_tiles_to_process=None)
+    output.to_csv("esa_grid_subsampled.csv")
+    print(len(output))
+
+    # plot output
+    figure = plt.figure(figsize=(10, 5))
+    ax = figure.add_axes([0, 0, 1, 1], projection=ccrs.PlateCarree())  # type: ignore
+    ax.scatter(output.lon, output.lat, color="grey", alpha=0.3, s=2)
+    ax.set_global()
+    ax.coastlines()
+    plt.savefig("subsampled_points.png", bbox_inches="tight", dpi=300)
