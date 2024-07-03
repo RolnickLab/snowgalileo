@@ -89,8 +89,7 @@ class CashewPlantEval(EvalTask):
             ]
 
             targets = self.group_targets_per_token(label).cpu().numpy()
-            void_mask = np.any(targets == 19, axis=1)
-            targets_list.append(self.reduce_targets_per_token(targets[~void_mask]))
+            targets_list.append(self.reduce_targets_per_token(targets))
 
             pretrained_model.eval()
             with torch.no_grad():
@@ -114,7 +113,7 @@ class CashewPlantEval(EvalTask):
                     .cpu()
                     .numpy()
                 )
-                encodings_list.append(encodings[~void_mask])
+                encodings_list.append(encodings)
 
         encodings_np, targets_np = np.concatenate(encodings_list), np.concatenate(targets_list)
 
