@@ -100,6 +100,7 @@ def load_check_config(name: str, mode: str) -> Dict:
         "timesteps_to_wandb_plot": list,
         "patch_sizes_to_wandb_plot": list,
         "shape_time_combinations": list,
+        "augmentation": dict,
     }
     training_dict = config["training"]
 
