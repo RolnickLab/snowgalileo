@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, cast
 
 import h5py
@@ -27,11 +29,15 @@ from ..flexipresto import Encoder
 from ..masking import MaskedOutput
 from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
 from .eval import EvalTask, Hyperparams, model_class_name
+from .geobench_dataset import GeobenchBaseDataset
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
+with (Path(__file__).parents[0] / Path("geobench_configs") / Path("m-so2sat.json")).open("r") as f:
+    config = json.load(f)
 
-class So2SatDataset(PyTorchDataset):
+
+class So2SatTUMDataset(PyTorchDataset):
     """
     So2Sat data is provided as .h5 files in the following shapes:
     sen1: [n, 32, 32, 8]
@@ -39,9 +45,9 @@ class So2SatDataset(PyTorchDataset):
     label: [n, 17] (one-hot encoded labels for 17 LCV classes)
     """
 
-    input_height_width = 32
-    num_timesteps = 1
-    num_classes = 17
+    input_height_width = config["input_height_width"]
+    num_timesteps = config["num_timesteps"]
+    num_classes = config["num_classes"]
 
     def __init__(
         self,
@@ -53,7 +59,7 @@ class So2SatDataset(PyTorchDataset):
         self.split = split
         self.so2sat_dir = so2sat_dir
         self._len = None
-        self.masks = self.create_so2sat_masks()
+        self.masks = self.create_so2sat_masks(combined=True)
 
     def h5_to_eo_array_and_label(self, idx) -> Tuple[np.ndarray, np.ndarray]:
         with h5py.File(data_dir / self.so2sat_dir / f"{self.split}.h5", "r") as data:
@@ -62,20 +68,31 @@ class So2SatDataset(PyTorchDataset):
             assert data["label"].shape == (self.__len__(), 17)
 
             # so2sat provides 8 bands for sen1, we are interested in the filtered vh and vv bands (channel 4 and 5)
-            s1 = np.array(data["sen1"][idx, :, :, 4:6])
+            vh = np.expand_dims(np.array(data["sen1"][idx, :, :, 4]), axis=-1)
+            vv = np.expand_dims(np.array(data["sen1"][idx, :, :, 5]), axis=-1)
             # sen2 bands provided by so2sat correspond to the bands used by presto
             s2 = np.array(data["sen2"][idx, :, :, :10])
 
             label = np.array(data["label"][idx, :])
 
-        image = np.concatenate([s1, s2], axis=-1)
+        image = np.concatenate([vv, vh, s2], axis=-1)
+
         # reverse one-hot encoding, original labels start from 1
         label = np.array(np.argmax(label) + 1)
 
         return image, label
 
-    def create_so2sat_masks(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        s_t_channels = [idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S" in key]
+    def create_so2sat_masks(
+        self, combined: bool
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        if combined:
+            s_t_channels = [
+                idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S" in key
+            ]
+        else:
+            s_t_channels = [
+                idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S2" in key
+            ]
 
         # everything is masked by default
         s_t_m = np.ones([len(SPACE_TIME_BANDS_GROUPS_IDX)])
@@ -103,10 +120,13 @@ class So2SatDataset(PyTorchDataset):
 
         return (s_t_m, sp_m, t_m, st_m)
 
-    def image_to_space_time_array(self, image: np.ndarray) -> np.ndarray:
-        kept_dynamic_bands = [
-            idx for idx, x in enumerate(SPACE_TIME_BANDS) if (x in S2_BANDS or x in S1_BANDS)
-        ]
+    def image_to_space_time_array(self, image: np.ndarray, combined: bool) -> np.ndarray:
+        if combined:
+            kept_dynamic_bands = [
+                idx for idx, x in enumerate(SPACE_TIME_BANDS) if (x in S2_BANDS or x in S1_BANDS)
+            ]
+        else:
+            kept_dynamic_bands = [idx for idx, x in enumerate(SPACE_TIME_BANDS) if (x in S2_BANDS)]
 
         eo_style_array = np.zeros(
             [
@@ -124,9 +144,9 @@ class So2SatDataset(PyTorchDataset):
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         image, label = self.h5_to_eo_array_and_label(idx)
-        s_t_x = self.image_to_space_time_array(image)
+        s_t_x = self.image_to_space_time_array(image, combined=True)
 
-        # space only / time only bands are not provided by so2sat
+        # space only / time only / static bands are not provided by so2sat
         sp_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
         t_x = np.zeros((s_t_x.shape[2], len(TIME_BANDS)))
         st_x = np.zeros((len(STATIC_BANDS)))
@@ -153,18 +173,22 @@ class So2SatEval(EvalTask):
     regression = False
     spatial_token_prediction = False
     multilabel = False
-    input_height_width = So2SatDataset.input_height_width
-    num_outputs = So2SatDataset.num_classes
+    input_height_width = config["input_height_width"]
+    num_outputs = config["num_classes"]
 
     def __init__(
         self,
-        rgb: bool = True,
+        geobench: bool = True,
         patch_size: int = 8,
         seed=DEFAULT_SEED,
     ):
-        self.rgb = rgb
+        self.geobench = geobench
         super().__init__(patch_size, seed)
-        self.name = f"{self.name}_{self.rgb}"
+
+        if self.geobench:
+            self.name = f"{self.name}_geobench"
+        else:
+            self.name = f"{self.name}_tum"
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         return {
@@ -175,12 +199,20 @@ class So2SatEval(EvalTask):
     def _evaluate_model(
         self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator]
     ) -> Dict:
-        test_dl = DataLoader(
-            So2SatDataset(split="testing"),
-            batch_size=Hyperparams.batch_size,
-            shuffle=False,
-            num_workers=Hyperparams.num_workers,
-        )
+        if self.geobench:
+            test_dl = DataLoader(
+                GeobenchBaseDataset(dataset_config_file="m-so2sat.json", split="test"),
+                batch_size=Hyperparams.batch_size,
+                shuffle=False,
+                num_workers=Hyperparams.num_workers,
+            )
+        else:
+            test_dl = DataLoader(
+                So2SatTUMDataset(split="testing"),
+                batch_size=Hyperparams.batch_size,
+                shuffle=False,
+                num_workers=Hyperparams.num_workers,
+            )
         pred_dict: Dict[str, BaseEstimator] = {
             model_class_name(model): [] for model in sklearn_models
         }
@@ -236,11 +268,19 @@ class So2SatEval(EvalTask):
         for model_mode in model_modes:
             assert model_mode in self.all_classification_sklearn_models
 
-        train_dl = DataLoader(
-            So2SatDataset(split="training"),
-            batch_size=Hyperparams.batch_size,
-            shuffle=True,
-            num_workers=Hyperparams.num_workers,
-        )
+        if self.geobench:
+            train_dl = DataLoader(
+                GeobenchBaseDataset(dataset_config_file="m-so2sat.json", split="train"),
+                batch_size=Hyperparams.batch_size,
+                shuffle=True,
+                num_workers=Hyperparams.num_workers,
+            )
+        else:  # TUM version
+            train_dl = DataLoader(
+                So2SatTUMDataset(split="training"),
+                batch_size=Hyperparams.batch_size,
+                shuffle=True,
+                num_workers=Hyperparams.num_workers,
+            )
         trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
         return self._evaluate_model(pretrained_model, trained_sklearn_models)

@@ -13,7 +13,7 @@ from src.data.dataset import (
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
 )
-from src.eval.so2sat_eval import So2SatDataset
+from src.eval.so2sat_eval import So2SatTUMDataset
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/so2sat/so2sat_test"
 
@@ -23,18 +23,18 @@ class TestSo2Sat(unittest.TestCase):
         self.assertEqual(
             s_t_x.shape,
             (
-                So2SatDataset.input_height_width,
-                So2SatDataset.input_height_width,
-                So2SatDataset.num_timesteps,
+                So2SatTUMDataset.input_height_width,
+                So2SatTUMDataset.input_height_width,
+                So2SatTUMDataset.num_timesteps,
                 len(SPACE_TIME_BANDS),
             ),
         )
         self.assertEqual(
             s_t_m.shape,
             (
-                So2SatDataset.input_height_width,
-                So2SatDataset.input_height_width,
-                So2SatDataset.num_timesteps,
+                So2SatTUMDataset.input_height_width,
+                So2SatTUMDataset.input_height_width,
+                So2SatTUMDataset.num_timesteps,
                 len(SPACE_TIME_BANDS_GROUPS_IDX),
             ),
         )
@@ -44,16 +44,16 @@ class TestSo2Sat(unittest.TestCase):
         self.assertEqual(
             sp_x.shape,
             (
-                So2SatDataset.input_height_width,
-                So2SatDataset.input_height_width,
+                So2SatTUMDataset.input_height_width,
+                So2SatTUMDataset.input_height_width,
                 len(SPACE_BANDS),
             ),
         )
         self.assertEqual(
             sp_m.shape,
             (
-                So2SatDataset.input_height_width,
-                So2SatDataset.input_height_width,
+                So2SatTUMDataset.input_height_width,
+                So2SatTUMDataset.input_height_width,
                 len(SPACE_BAND_GROUPS_IDX),
             ),
         )
@@ -66,14 +66,14 @@ class TestSo2Sat(unittest.TestCase):
         self.assertEqual(
             t_x.shape,
             (
-                So2SatDataset.num_timesteps,
+                So2SatTUMDataset.num_timesteps,
                 len(TIME_BANDS),
             ),
         )
         self.assertEqual(
             t_m.shape,
             (
-                So2SatDataset.num_timesteps,
+                So2SatTUMDataset.num_timesteps,
                 len(TIME_BAND_GROUPS_IDX),
             ),
         )
@@ -97,7 +97,7 @@ class TestSo2Sat(unittest.TestCase):
         self.assertTrue(torch.all(st_m == 1))
 
     def check_month(self, month):
-        self.assertEqual(month.shape, (So2SatDataset.num_timesteps,))
+        self.assertEqual(month.shape, (So2SatTUMDataset.num_timesteps,))
         # no month in so2sat so set to zero
         self.assertEqual(month[0], 0)
 
@@ -105,8 +105,8 @@ class TestSo2Sat(unittest.TestCase):
         # labels are one-hot encoded
         self.assertTrue(torch.all(torch.logical_or(label == 0, label == 1)))
 
-    def test_so2sat_dataset(self):
-        dataset = So2SatDataset(split="testing", so2sat_dir=DATA_FOLDER)
+    def test_so2sat_tum_dataset(self):
+        dataset = So2SatTUMDataset(split="testing", so2sat_dir=DATA_FOLDER)
         sample = dataset[0]
         s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, m = sample[0]
         label = sample[1]
