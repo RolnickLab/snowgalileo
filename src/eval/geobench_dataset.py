@@ -1,5 +1,4 @@
 import json
-import os
 from math import sqrt
 from pathlib import Path
 from typing import Optional, Tuple, cast
@@ -40,16 +39,6 @@ class GeobenchBaseDataset(PyTorchDataset):
         split: str = "train",
         num_subtiles_per_image: Optional[int] = 1,
     ):
-        # download data if not already present
-        # download script checks if data is already present
-        if not (Path(__file__).parents[2] / Path("data") / Path("geobench")).exists():
-            (Path(__file__).parents[2] / Path("data") / Path("geobench")).mkdir()
-
-        os.environ["GEO_BENCH_DIR"] = str(
-            Path(__file__).parents[2] / Path("data") / Path("geobench")
-        )
-        os.system("geobench-download")
-
         with (
             Path(__file__).parents[0] / Path("geobench_configs") / Path(dataset_config_file)
         ).open("r") as f:
