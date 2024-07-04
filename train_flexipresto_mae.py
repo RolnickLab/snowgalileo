@@ -295,6 +295,13 @@ with (model_path / CONFIG_FILENAME).open("w") as f:
     json.dump(config, f)
 
 eval_tasks: List[EvalTask] = [
+    *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil"]],
+    So2SatEval(),
+    *[
+        EuroSatEval(rgb=rgb, include_latlons=include_latlons)
+        for rgb in [True, False]
+        for include_latlons in [True, False]
+    ],
     *[
         PastisPatchEval(
             output_mode=output_mode,
@@ -311,14 +318,7 @@ eval_tasks: List[EvalTask] = [
         for mode in ["s1", "s2", "combined"]
         for patch_size in [6, 3]
     ],
-    *[
-        EuroSatEval(rgb=rgb, include_latlons=include_latlons)
-        for rgb in [True, False]
-        for include_latlons in [True, False]
-    ],
-    So2SatEval(),
     PastisPixelEval(),
-    *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil"]],
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)
