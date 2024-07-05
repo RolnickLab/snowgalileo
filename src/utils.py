@@ -115,6 +115,11 @@ def load_check_config(name: str, mode: str) -> Dict:
     assert isinstance(training_dict["warmup_epochs"], int)
     assert training_dict["num_epochs"] > training_dict["warmup_epochs"]
 
+    for combination in training_dict["shape_time_combinations"]:
+        assert "timesteps" in combination.keys()
+        assert "size" in combination.keys()
+        assert combination["timesteps"] >= 3
+
     expected_encoder_decoder_keys_type = {
         "embedding_size": int,
         "depth": int,

@@ -280,17 +280,7 @@ def batch_mask_time(
     Operates over batches where each item in the batch has independently masked timesteps
     """
     b, h, w, t, _ = space_time_x.shape
-    if t < 3:
-        return batch_mask_random(
-            space_time_x,
-            space_x,
-            time_x,
-            static_x,
-            months,
-            mask_ratio,
-            decoder_unmask_ratio,
-            patch_size,
-        )
+    assert t >= 3
 
     _, bands_to_mask = check_mode_and_return_channels(mode)
     targeted_bands_to_decode = check_unmasking_mode_and_return_channels(decoder_mode)
