@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 GRID_PATH = Path(__file__).parents[1] / "data/esa_grid_granular.csv"
 SUBSAMPLED_GRID_PATH = Path(__file__).parents[1] / "data/esa_grid_subsampled.csv"
+SUBSAMPLED_GLOBAL_GRID_PATH = Path(__file__).parents[1] / "data/esa_grid_subsampled_global.csv"
 
 
 def find_clusters(
@@ -32,7 +33,7 @@ def find_clusters(
     return tile_data.iloc[centroid_indices]
 
 
-def return_clusters(
+def return_clusters_per_tile(
     all_data: pd.DataFrame, num_clusters_per_tile: int, num_tiles_to_process: Optional[int] = None
 ) -> pd.DataFrame:
     output_dfs = []
@@ -48,6 +49,10 @@ def return_clusters(
 
 if __name__ == "__main__":
     grid = pd.read_csv(GRID_PATH)
-    output = return_clusters(grid, num_clusters_per_tile=50, num_tiles_to_process=None)
+    output = return_clusters_per_tile(grid, num_clusters_per_tile=50, num_tiles_to_process=None)
     output.to_csv(SUBSAMPLED_GRID_PATH)
     print(len(output))
+
+    output_global = find_clusters(grid, "global", num_clusters_per_tile=100000)
+    output_global.to_csv(SUBSAMPLED_GLOBAL_GRID_PATH)
+    print(len(output_global))
