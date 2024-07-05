@@ -26,11 +26,15 @@ from src.data.config import (
     TIFS_FOLDER,
 )
 from src.eval import (
+    BigEarthNetEval,
     BinaryCropHarvestEval,
+    BrickKilnEval,
+    CashewPlantEval,
     EuroSatEval,
     MultiClassCropHarvestEval,
     PastisPatchEval,
     PastisPixelEval,
+    SACropEval,
     So2SatEval,
     TreeSatEval,
 )
@@ -102,8 +106,7 @@ print("Loading models")
 encoder = Encoder(**config["model"]["encoder"]).to(device)
 predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
 print("Loading validation task")
-val_task_latlons = EuroSatEval(rgb=True, include_latlons=True)
-val_task_no_latlons = EuroSatEval(rgb=True, include_latlons=False)
+val_task_no_latlons = EuroSatEval(geobench=True, rgb=False, include_latlons=False)
 val_task_ts_latlons = MultiClassCropHarvestEval(include_latlons=True)
 val_task_ts_no_latlons = MultiClassCropHarvestEval(include_latlons=False)
 
@@ -265,13 +268,8 @@ for e in tqdm(range(training_config["num_epochs"])):
         if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
             e % training_config["eval_eurosat_every_n_epochs"] == 0
         ):
-            results = val_task_latlons.evaluate_model_on_task(
+            results = val_task_no_latlons.evaluate_model_on_task(
                 encoder, model_modes=["KNNat5 Classifier", "KNNat20 Classifier"]
-            )
-            results.update(
-                val_task_no_latlons.evaluate_model_on_task(
-                    encoder, model_modes=["KNNat5 Classifier"]
-                )
             )
             results.update(
                 val_task_ts_latlons.evaluate_model_on_task(
@@ -298,10 +296,16 @@ eval_tasks: List[EvalTask] = [
     *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil"]],
     So2SatEval(),
     *[
-        EuroSatEval(rgb=rgb, include_latlons=include_latlons)
+        EuroSatEval(rgb=rgb, include_latlons=include_latlons, geobench=geobench)
         for rgb in [True, False]
         for include_latlons in [True, False]
+        for geobench in [True, False]
     ],
+    *[So2SatEval(geobench=geobench) for geobench in [True, False]],
+    BigEarthNetEval(),
+    BrickKilnEval(),
+    *[CashewPlantEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
+    *[SACropEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
     *[
         PastisPatchEval(
             output_mode=output_mode,

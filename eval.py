@@ -8,10 +8,14 @@ import torch
 
 from src.config import DEFAULT_SEED
 from src.eval import (
+    BigEarthNetEval,
     BinaryCropHarvestEval,
+    BrickKilnEval,
+    CashewPlantEval,
     EuroSatEval,
     PastisPatchEval,
     PastisPixelEval,
+    SACropEval,
     So2SatEval,
     TreeSatEval,
 )
@@ -52,9 +56,15 @@ eval_tasks: List[EvalTask] = [
         for rgb in [True, False]
         for include_latlons in [True, False]
     ],
-    So2SatEval(),
     PastisPixelEval(),
     *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil", "China"]],
+    # geobench EuroSat only works without latlons and in MS mode
+    EuroSatEval(geobench=True, rgb=False, include_latlons=False),
+    *[So2SatEval(geobench=geobench) for geobench in [True, False]],
+    BigEarthNetEval(),
+    BrickKilnEval(),
+    *[CashewPlantEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
+    *[SACropEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)

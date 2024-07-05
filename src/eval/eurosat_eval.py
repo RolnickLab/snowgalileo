@@ -34,9 +34,15 @@ from ..flexipresto import Encoder
 from ..masking import MaskedOutput
 from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
 from .eval import EvalTask, Hyperparams, model_class_name
+from .geobench_dataset import GeobenchBaseDataset
 
 ### SETUP
 torch.multiprocessing.set_sharing_strategy("file_system")
+
+with (Path(__file__).parents[0] / Path("geobench_configs") / Path("m-eurosat.json")).open(
+    "r"
+) as f:
+    config = json.load(f)
 
 
 class EuroSatDataset(PyTorchDataset):
@@ -251,13 +257,19 @@ class EuroSatEval(EvalTask):
         include_latlons: bool = True,
         patch_size: int = 8,
         seed=DEFAULT_SEED,
+        geobench: bool = False,
     ):
         self.rgb = rgb
+        self.geobench = geobench
         self.include_latlons = include_latlons
+
+        assert not self.geobench or not self.include_latlons, "Geobench does not support latlons"
+        assert (
+            not self.geobench or not self.rgb
+        ), "Geobench implementation currently does'nt support RGB"
+
         super().__init__(patch_size, seed)
-        self.name = (
-            f"{self.name}_{'RGB' if self.rgb else 'MS'}{'_latlons' if include_latlons else ''}"
-        )
+        self.name = f"{self.name}_{'RGB' if self.rgb else 'MS'}{'_latlons' if include_latlons else ''}_{'_geobench' if geobench else ''}"
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         return {
@@ -268,12 +280,20 @@ class EuroSatEval(EvalTask):
     def _evaluate_model(
         self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator]
     ) -> Dict:
-        test_dl = DataLoader(
-            EuroSatDataset(rgb=self.rgb, include_latlons=self.include_latlons, split="test"),
-            batch_size=Hyperparams.batch_size,
-            shuffle=False,
-            num_workers=Hyperparams.num_workers,
-        )
+        if self.geobench:
+            test_dl = DataLoader(
+                GeobenchBaseDataset(dataset_config_file="m-eurosat.json", split="test"),
+                batch_size=Hyperparams.batch_size,
+                shuffle=False,
+                num_workers=Hyperparams.num_workers,
+            )
+        else:
+            test_dl = DataLoader(
+                EuroSatDataset(rgb=self.rgb, include_latlons=self.include_latlons, split="test"),
+                batch_size=Hyperparams.batch_size,
+                shuffle=False,
+                num_workers=Hyperparams.num_workers,
+            )
         pred_dict: Dict[str, BaseEstimator] = {
             model_class_name(model): [] for model in sklearn_models
         }
@@ -329,16 +349,24 @@ class EuroSatEval(EvalTask):
         for model_mode in model_modes:
             assert model_mode in self.all_classification_sklearn_models
 
-        train_dl = DataLoader(
-            EuroSatDataset(
-                rgb=self.rgb,
-                include_latlons=self.include_latlons,
-                split="train",
-                merge_train_val=True,
-            ),
-            batch_size=Hyperparams.batch_size,
-            shuffle=True,
-            num_workers=Hyperparams.num_workers,
-        )
+        if self.geobench:
+            train_dl = DataLoader(
+                GeobenchBaseDataset(dataset_config_file="m-eurosat.json", split="test"),
+                batch_size=Hyperparams.batch_size,
+                shuffle=False,
+                num_workers=Hyperparams.num_workers,
+            )
+
+            train_dl = DataLoader(
+                EuroSatDataset(
+                    rgb=self.rgb,
+                    include_latlons=self.include_latlons,
+                    split="train",
+                    merge_train_val=True,
+                ),
+                batch_size=Hyperparams.batch_size,
+                shuffle=True,
+                num_workers=Hyperparams.num_workers,
+            )
         trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
         return self._evaluate_model(pretrained_model, trained_sklearn_models)
