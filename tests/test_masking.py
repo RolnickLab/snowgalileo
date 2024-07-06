@@ -10,6 +10,7 @@ from src.masking import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
+    STR2DICT,
     TIME_BAND_GROUPS_IDX,
     UNMASKING_MODES,
     batch_mask_channels,
@@ -39,12 +40,6 @@ MASK_TO_BANDS = {
             0
         ],
     },
-}
-
-DECODER_MASK_TO_BANDS = {
-    "DW": return_masked_unmasked_bands(["DW"], SPACE_BAND_GROUPS_IDX)[0],
-    "WC": return_masked_unmasked_bands(["WC"], SPACE_BAND_GROUPS_IDX)[0],
-    "DW+WC": return_masked_unmasked_bands("DW+WC".split("+"), SPACE_BAND_GROUPS_IDX)[0],
 }
 
 
@@ -189,15 +184,30 @@ class TestMasking(unittest.TestCase):
                             )
 
                         elif decoder_mode != "random":
-                            self.assertTrue((output.time_mask <= 1).all())
-                            self.assertTrue((output.static_mask <= 1).all())
-                            self.assertTrue((output.static_mask == 1).all())
-                            self.assertTrue(
-                                (
-                                    output.space_mask[:, :, :, DECODER_MASK_TO_BANDS[decoder_mode]]
-                                    == 2
-                                ).all()
+                            decoder_data_type, decoder_band_names = decoder_mode
+                            decode_bands, dont_decode_bands = return_masked_unmasked_bands(
+                                decoder_band_names.split("+"), STR2DICT[decoder_data_type]
                             )
+                            if decoder_data_type == "space":
+                                self.assertTrue((output.time_mask <= 1).all())
+                                self.assertTrue((output.static_mask <= 1).all())
+                                self.assertTrue((output.static_mask == 1).all())
+                                self.assertTrue(
+                                    (output.space_mask[:, :, :, decode_bands] == 2).all()
+                                )
+                                self.assertTrue(
+                                    (output.space_mask[:, :, :, dont_decode_bands] == 1).all()
+                                )
+                            elif decoder_data_type == "static":
+                                self.assertTrue((output.time_mask <= 1).all())
+                                self.assertTrue((output.static_mask <= 1).all())
+                                self.assertTrue((output.space_mask == 1).all())
+                                self.assertTrue(
+                                    (output.static_mask[:, :, :, decode_bands] == 2).all()
+                                )
+                                self.assertTrue(
+                                    (output.static_mask[:, :, :, dont_decode_bands] == 1).all()
+                                )
 
     def test_mask_by_channel(self):
         b, t, h, w = 2, 8, 16, 16

@@ -23,8 +23,26 @@ TIME_BAND_EXPANSION = torch.tensor([len(x) for x in TIME_BAND_GROUPS_IDX.values(
 STATIC_BAND_EXPANSION = torch.tensor([len(x) for x in STATIC_BAND_GROUPS_IDX.values()]).long()
 
 
+STR2DICT = {
+    "space_time": SPACE_TIME_BANDS_GROUPS_IDX,
+    "space": SPACE_BAND_GROUPS_IDX,
+    "time": TIME_BAND_GROUPS_IDX,
+    "static": STATIC_BAND_GROUPS_IDX,
+}
 MASKING_MODES = ["random", "S2", "S2_RGB", "S1", "S1+S2"]
-UNMASKING_MODES = ["random", "DW", "WC", "DW+WC"]
+UNMASKING_MODES = [
+    "random",
+    ("space", "SRTM"),
+    ("space", "DW"),
+    ("space", "WC"),
+    ("space", "DW+WC"),
+    ("space_time", "NDVI"),
+    ("time", "ERA5"),
+    ("time", "TC"),
+    ("time", "VIIRS"),
+    ("static", "LS"),
+    ("static", "location"),
+]
 # we divide the dataloader's batch size by 8 because the
 # masking function (batch_subset_mask_presto_8x) will augment
 # each instance in the batch 8 times (with different subsetting and
@@ -38,6 +56,7 @@ def return_masked_unmasked_bands(
     def in_masked_bands(x):
         for b in bands:
             if b in x:
+                print(f"{b} in {x}")
                 return True
         return False
 
@@ -92,9 +111,10 @@ def check_mode_and_return_channels(
 def check_unmasking_mode_and_return_channels(unmasking_mode: Optional[str]):
     assert unmasking_mode in UNMASKING_MODES
     if unmasking_mode == "random":
-        return None
+        return None, None, None
     else:
-        return return_masked_unmasked_bands(unmasking_mode.split("+"), SPACE_BAND_GROUPS_IDX)[0]
+        data_type, mode = unmasking_mode
+        return *return_masked_unmasked_bands(mode.split("+"), STR2DICT[data_type]), data_type
 
 
 def round_school(x: float) -> float:
@@ -283,7 +303,11 @@ def batch_mask_time(
     assert t >= 3
 
     _, bands_to_mask = check_mode_and_return_channels(mode)
-    targeted_bands_to_decode = check_unmasking_mode_and_return_channels(decoder_mode)
+    (
+        targeted_bands_to_decode,
+        bands_to_mask_from_decoder,
+        decoder_data_type,
+    ) = check_unmasking_mode_and_return_channels(decoder_mode)
     # if there is only a single timestep, decode it
     num_timesteps_to_decode = max(int(t * decoder_unmask_ratio), 1)
     num_timesteps_to_encode = max(int(t * mask_ratio), 1)
@@ -328,12 +352,28 @@ def batch_mask_time(
         static_mask = torch.clamp(static_mask, min=1)
 
     if targeted_bands_to_decode is not None:  # decoder mode != random
+        # for static in time data,
         # ignore all previous calculations about what should be decoded
-        space_time_mask = torch.clamp(space_time_mask, max=1)
-        space_mask = torch.clamp(space_mask, max=1)
-        time_mask = torch.clamp(time_mask, max=1)
         static_mask = torch.clamp(static_mask, max=1)
-        space_mask[:, :, :, targeted_bands_to_decode] = 2
+        space_mask = torch.clamp(space_mask, max=1)
+        if decoder_data_type == "time":
+            space_time_mask = torch.clamp(space_time_mask, max=1)
+            time_mask[:, :, bands_to_mask_from_decoder] = torch.clamp(
+                time_mask[:, :, bands_to_mask_from_decoder], max=1
+            )
+        elif decoder_data_type == "space_time":
+            time_mask = torch.clamp(time_mask, max=1)
+            space_time_mask[:, :, :, :, bands_to_mask_from_decoder] = torch.clamp(
+                space_time_mask[:, :, :, :, bands_to_mask_from_decoder], max=1
+            )
+        elif decoder_data_type == "space":
+            space_time_mask = torch.clamp(space_time_mask, max=1)
+            time_mask = torch.clamp(time_mask, max=1)
+            space_mask[:, :, :, targeted_bands_to_decode] = 2
+        elif decoder_data_type == "static":
+            space_time_mask = torch.clamp(space_time_mask, max=1)
+            time_mask = torch.clamp(time_mask, max=1)
+            static_mask[:, targeted_bands_to_decode] = 2
 
     return MaskedOutput(
         space_time_x.clone(),
