@@ -85,6 +85,13 @@ class MaskedOutput(NamedTuple):
     months: torch.Tensor
 
 
+def weighted_sample_without_replacement(population, weights, k, rng=random):
+    # thanks https://maxhalford.github.io/blog/weighted-sampling-without-replacement/
+    v = [rng.random() ** (1 / w) for w in weights]
+    order = sorted(range(len(population)), key=lambda i: v[i])
+    return [population[i] for i in order[-k:]]
+
+
 def check_modes_for_conflicts(
     modes: List[Tuple[str, str]], unmasking_modes: List[Tuple[str, str]]
 ) -> Tuple[List[Tuple[str, str]], List[Tuple[str, str]]]:
@@ -104,6 +111,8 @@ def check_modes_for_conflicts(
                 if random.random() <= 0.5:
                     output_modes.append(mode)
                     unmasking_modes.remove(mode)
+        else:
+            output_modes.append(mode)
     return output_modes, unmasking_modes
 
 
@@ -156,10 +165,10 @@ def batch_subset_mask_presto(
         num_masking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
         num_unmasking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
 
-        masking_modes = random.choices(
+        masking_modes = weighted_sample_without_replacement(
             MASKING_MODES, weights=masking_probabilities, k=num_masking_modes
         )
-        unmasking_modes = random.choices(
+        unmasking_modes = weighted_sample_without_replacement(
             MASKING_MODES, weights=unmasking_probabilities, k=num_unmasking_modes
         )
 
@@ -518,7 +527,7 @@ def batch_mask_space(
 
         if len(t_e[0]) > 0:
             t_bands_to_encode = t_e[0]
-            t[:, :, t_bands_to_encode] = 0
+            time_mask[:, :, t_bands_to_encode] = 0
 
         if len(st_e[0]) > 0:
             st_bands_to_encode = st_e[0]
@@ -552,7 +561,7 @@ def batch_mask_space(
 
         if len(t_d[0]) > 0:
             t_bands_to_decode = t_d[0]
-            t[:, :, t_bands_to_decode] = 2
+            time_mask[:, :, t_bands_to_decode] = 2
 
         if len(st_d[0]) > 0:
             st_bands_to_decode = st_d[0]

@@ -120,5 +120,5 @@ def mae_collate_fn(
         expanded_t,
         expanded_st,
         patch_size,
-        c_i,
+        # c_i,
     )
