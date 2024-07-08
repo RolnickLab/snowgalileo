@@ -1,4 +1,5 @@
 import random
+from collections import OrderedDict
 from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 
 import numpy as np
@@ -23,27 +24,25 @@ TIME_BAND_EXPANSION = torch.tensor([len(x) for x in TIME_BAND_GROUPS_IDX.values(
 STATIC_BAND_EXPANSION = torch.tensor([len(x) for x in STATIC_BAND_GROUPS_IDX.values()]).long()
 
 
-STR2DICT = {
-    "space_time": SPACE_TIME_BANDS_GROUPS_IDX,
-    "space": SPACE_BAND_GROUPS_IDX,
-    "time": TIME_BAND_GROUPS_IDX,
-    "static": STATIC_BAND_GROUPS_IDX,
-}
+STR2DICT = OrderedDict(
+    {
+        "space_time": SPACE_TIME_BANDS_GROUPS_IDX,
+        "space": SPACE_BAND_GROUPS_IDX,
+        "time": TIME_BAND_GROUPS_IDX,
+        "static": STATIC_BAND_GROUPS_IDX,
+    }
+)
 MASKING_MODES: List[str] = ["random", "S2", "S2_RGB", "S1", "S1+S2"]
 UNMASKING_MODES: List[Union[str, Tuple[str, str]]] = [
-    "random",
     ("space", "SRTM"),
     ("space", "DW"),
     ("space", "WC"),
-    ("space", "DW+WC"),
     ("space_time", "NDVI"),
     ("time", "ERA5"),
     ("time", "TC"),
-    ("time", "ERA5+TC"),
     ("time", "VIIRS"),
     ("static", "LS"),
     ("static", "location"),
-    ("static", "LS+location"),
 ]
 # we divide the dataloader's batch size by 8 because the
 # masking function (batch_subset_mask_presto_8x) will augment
@@ -109,14 +108,15 @@ def check_mode_and_return_channels(
         return return_masked_unmasked_bands(mode.split("+"), SPACE_TIME_BANDS_GROUPS_IDX)
 
 
-def check_unmasking_mode_and_return_channels(unmasking_mode: Union[str, Tuple[str, str]]):
-    assert unmasking_mode in UNMASKING_MODES
-    if unmasking_mode == "random":
-        return None, None, None
-    else:
-        assert isinstance(unmasking_mode, tuple)
-        data_type, mode = unmasking_mode
-        return *return_masked_unmasked_bands(mode.split("+"), STR2DICT[data_type]), data_type
+def check_unmasking_mode_and_return_channels(unmasking_modes: List[Tuple[str, str]]):
+    outputs = []
+    for data_type in STR2DICT.keys():
+        relevant_bands = [x[1] for x in unmasking_modes if x[0] == data_type]
+        if len(relevant_bands) > 0:
+            outputs.append(return_masked_unmasked_bands(relevant_bands, STR2DICT[data_type]))
+        else:
+            outputs.append(([], []))
+    return outputs
 
 
 def round_school(x: float) -> float:
@@ -247,22 +247,6 @@ def batch_subset_mask_presto_augmented(
         )
     )
     maskedoutputs.append(
-        batch_mask_channels(
-            *subset_and_augment_batch_of_images(
-                s_t_x,
-                sp_x,
-                t_x,
-                st_x,
-                months,
-                size=image_size,
-                num_timesteps=num_timesteps,
-                augmentation_strategies=augmentation_strategies,
-            ),
-            mask_ratio,
-            decoder_unmask_ratio,
-        )
-    )
-    maskedoutputs.append(
         batch_mask_random(
             *subset_and_augment_batch_of_images(
                 s_t_x,
@@ -291,8 +275,8 @@ def batch_mask_time(
     mask_ratio: float,
     decoder_unmask_ratio: float,
     patch_size: int,
+    decoder_mode: List[Tuple[str, str]],
     mode: str = "random",
-    decoder_mode: Union[str, Tuple[str, str]] = "random",
 ):
     """
     Masks out blocks of hxwx1xBAND_GROUPs.
@@ -305,11 +289,7 @@ def batch_mask_time(
     assert t >= 3
 
     _, bands_to_mask = check_mode_and_return_channels(mode)
-    (
-        targeted_bands_to_decode,
-        bands_to_mask_from_decoder,
-        decoder_data_type,
-    ) = check_unmasking_mode_and_return_channels(decoder_mode)
+    bands_to_decode = check_unmasking_mode_and_return_channels(decoder_mode)
     # if there is only a single timestep, decode it
     num_timesteps_to_decode = max(int(t * decoder_unmask_ratio), 1)
     num_timesteps_to_encode = max(int(t * mask_ratio), 1)
@@ -355,29 +335,37 @@ def batch_mask_time(
         time_mask = torch.clamp(time_mask, min=1)
         static_mask = torch.clamp(static_mask, min=1)
 
-    if targeted_bands_to_decode is not None:  # decoder mode != random
+    if max([len(x[0]) for x in bands_to_decode]) > 1:  # decoder mode != random
         # for static in time data,
         # ignore all previous calculations about what should be decoded
         static_mask = torch.clamp(static_mask, max=1)
         space_mask = torch.clamp(space_mask, max=1)
-        if decoder_data_type == "time":
-            space_time_mask = torch.clamp(space_time_mask, max=1)
-            time_mask[:, :, bands_to_mask_from_decoder] = torch.clamp(
-                time_mask[:, :, bands_to_mask_from_decoder], max=1
+
+        s_t_d, s_d, t_d, st_d = bands_to_decode
+
+        if len(s_t_d[0]) > 0:
+            # there are space time bands to decode
+            s_t_bands_to_mask = s_t_d[1]
+            space_time_mask[:, :, :, :, s_t_bands_to_mask] = torch.clamp(
+                space_time_mask[:, :, :, :, s_t_bands_to_mask], max=1
             )
-        elif decoder_data_type == "space_time":
-            time_mask = torch.clamp(time_mask, max=1)
-            space_time_mask[:, :, :, :, bands_to_mask_from_decoder] = torch.clamp(
-                space_time_mask[:, :, :, :, bands_to_mask_from_decoder], max=1
-            )
-        elif decoder_data_type == "space":
+        else:
             space_time_mask = torch.clamp(space_time_mask, max=1)
+
+        if len(s_d[0]) > 0:
+            s_bands_to_decode = s_d[0]
+            # there are space bands to mask
+            space_mask[:, :, :, s_bands_to_decode] = 2
+
+        if len(t_d[0]) > 0:
+            t_bands_to_mask = t_d[1]
+            time_mask[:, :, t_bands_to_mask] = torch.clamp(time_mask[:, :, t_bands_to_mask], max=1)
+        else:
             time_mask = torch.clamp(time_mask, max=1)
-            space_mask[:, :, :, targeted_bands_to_decode] = 2
-        elif decoder_data_type == "static":
-            space_time_mask = torch.clamp(space_time_mask, max=1)
-            time_mask = torch.clamp(time_mask, max=1)
-            static_mask[:, targeted_bands_to_decode] = 2
+
+        if len(st_d[0]) > 0:
+            st_bands_to_decode = st_d[0]
+            static_mask[:, st_bands_to_decode] = 2
 
     return MaskedOutput(
         space_time_x.clone(),
@@ -415,11 +403,7 @@ def batch_mask_space(
     Operates over batches where each item in the batch is independently masked
     """
     _, bands_to_mask = check_mode_and_return_channels(mode)
-    (
-        targeted_bands_to_decode,
-        bands_to_mask_from_decoder,
-        decoder_data_type,
-    ) = check_unmasking_mode_and_return_channels(decoder_mode)
+    bands_to_decode = check_unmasking_mode_and_return_channels(decoder_mode)
     b, h, w, t, _ = space_time_x.shape
     assert (h % patch_size == 0) and (w % patch_size == 0)
     h_p = int(h / patch_size)
@@ -481,101 +465,39 @@ def batch_mask_space(
         time_mask = torch.clamp(time_mask, min=1)
         static_mask = torch.clamp(static_mask, min=1)
 
-    if targeted_bands_to_decode is not None:  # decoder mode != random
-        # for static in space data,
+    if max([len(x[0]) for x in bands_to_decode]) > 1:  # decoder mode != random
+        # for static in time data,
         # ignore all previous calculations about what should be decoded
         static_mask = torch.clamp(static_mask, max=1)
         time_mask = torch.clamp(time_mask, max=1)
-        if decoder_data_type == "time":
-            space_mask = torch.clamp(space_mask, max=1)
-            space_time_mask = torch.clamp(space_time_mask, max=1)
-            time_mask[:, :, targeted_bands_to_decode] = 2
-        elif decoder_data_type == "space_time":
-            space_mask = torch.clamp(space_mask, max=1)
-            space_time_mask[:, :, :, :, bands_to_mask_from_decoder] = torch.clamp(
-                space_time_mask[:, :, :, :, bands_to_mask_from_decoder], max=1
+
+        s_t_d, s_d, t_d, st_d = bands_to_decode
+
+        if len(s_t_d[0]) > 0:
+            # there are space time bands to decode
+            s_t_bands_to_mask = s_t_d[1]
+            space_time_mask[:, :, :, :, s_t_bands_to_mask] = torch.clamp(
+                space_time_mask[:, :, :, :, s_t_bands_to_mask], max=1
             )
-        elif decoder_data_type == "space":
-            space_time_mask = torch.clamp(space_time_mask, max=1)
-            space_mask[:, :, :, bands_to_mask_from_decoder] = torch.clamp(
-                space_mask[:, :, :, bands_to_mask_from_decoder], max=1
-            )
-        elif decoder_data_type == "static":
-            space_time_mask = torch.clamp(space_time_mask, max=1)
-            space_mask = torch.clamp(space_mask, max=1)
-            static_mask[:, targeted_bands_to_decode] = 2
-
-    return MaskedOutput(
-        space_time_x.clone(),
-        space_x.clone(),
-        time_x.clone(),
-        static_x.clone(),
-        space_time_mask,
-        space_mask,
-        time_mask,
-        static_mask,
-        months,
-    )
-
-
-def batch_mask_channels(
-    space_time_x: torch.Tensor,
-    space_x: torch.Tensor,
-    time_x: torch.Tensor,
-    static_x: torch.Tensor,
-    months: torch.Tensor,
-    mask_ratio: float,
-    decoder_unmask_ratio: float,
-):
-    """
-    Masks out channels. All channels are masked out
-    with probability mask_ratio
-    """
-
-    def channel_mask(
-        b: int,
-        num_channels: int,
-        mask_ratio: float,
-        decoder_unmask_ratio: float,
-        device: torch.device,
-    ):
-        if num_channels == 1:
-            return _random_mask_for_b(b, device, mask_ratio, decoder_unmask_ratio).unsqueeze(-1)
         else:
-            num_channels_to_decode = int(num_channels * decoder_unmask_ratio)
-            num_channels_to_mask = int(num_channels * mask_ratio)
-            flat_channels = np.concatenate(
-                (
-                    np.ones(num_channels_to_mask, dtype=np.int_),
-                    np.ones(num_channels_to_decode, dtype=np.int_) * 2,
-                    np.zeros(
-                        num_channels - num_channels_to_mask - num_channels_to_decode, dtype=np.int_
-                    ),
-                )
+            space_time_mask = torch.clamp(space_time_mask, max=1)
+
+        if len(s_d[0]) > 0:
+            s_bands_to_mask = s_d[1]
+            # there are space bands to mask
+            space_mask[:, :, :, s_bands_to_mask] = torch.clamp(
+                space_mask[:, :, :, s_bands_to_mask], max=1
             )
-            b_flat_channels = repeat(flat_channels, "c -> b c", b=b)
-            # hopefully this will allow for reproducibility, since random is seeded
-            rng = np.random.default_rng(random.randint(0, 100))
-            b_flat_channels_t = torch.from_numpy(rng.permuted(b_flat_channels, axis=1)).to(device)
-            return b_flat_channels_t
+        else:
+            space_mask = torch.clamp(space_mask, max=1)
 
-    b, h, w, t, _ = space_time_x.shape
-    space_time_channel_mask = channel_mask(
-        b, len(SPACE_TIME_BANDS_GROUPS_IDX), mask_ratio, decoder_unmask_ratio, space_time_x.device
-    )
-    space_channel_mask = channel_mask(
-        b, len(SPACE_BAND_GROUPS_IDX), mask_ratio, decoder_unmask_ratio, space_x.device
-    )
-    time_channel_mask = channel_mask(
-        b, len(TIME_BAND_GROUPS_IDX), mask_ratio, decoder_unmask_ratio, time_x.device
-    )
-    static_mask = channel_mask(
-        b, len(STATIC_BAND_GROUPS_IDX), mask_ratio, decoder_unmask_ratio, static_x.device
-    )
+        if len(t_d[0]) > 0:
+            t_bands_to_decode = t_d[0]
+            t[:, :, t_bands_to_decode] = 2
 
-    space_time_mask = repeat(space_time_channel_mask, "b c_g -> b h w t c_g", h=h, w=w, t=t)
-    space_mask = repeat(space_channel_mask, "b c_g -> b h w c_g", h=h, w=w)
-    time_mask = repeat(time_channel_mask, "b c_g -> b t c_g", t=t)
+        if len(st_d[0]) > 0:
+            st_bands_to_decode = st_d[0]
+            static_mask[:, st_bands_to_decode] = 2
 
     return MaskedOutput(
         space_time_x.clone(),
@@ -599,6 +521,8 @@ def batch_mask_random(
     mask_ratio: float,
     decoder_unmask_ratio: float,
     patch_size: int,
+    mode: str = "random",
+    decoder_mode: Union[str, Tuple[str, str]] = "random",
 ):
     """
     Masks out random tokens (blocks of of pxpx1x1).
