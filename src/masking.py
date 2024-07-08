@@ -1,5 +1,5 @@
 import random
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -29,8 +29,8 @@ STR2DICT = {
     "time": TIME_BAND_GROUPS_IDX,
     "static": STATIC_BAND_GROUPS_IDX,
 }
-MASKING_MODES = ["random", "S2", "S2_RGB", "S1", "S1+S2"]
-UNMASKING_MODES = [
+MASKING_MODES: List[str] = ["random", "S2", "S2_RGB", "S1", "S1+S2"]
+UNMASKING_MODES: List[Union[str, Tuple[str, str]]] = [
     "random",
     ("space", "SRTM"),
     ("space", "DW"),
@@ -100,7 +100,7 @@ class MaskedOutput(NamedTuple):
 
 
 def check_mode_and_return_channels(
-    mode: Optional[str],
+    mode: str,
 ) -> Tuple[Optional[List[int]], Optional[List[int]]]:
     assert mode in MASKING_MODES
     if mode == "random":
@@ -109,11 +109,12 @@ def check_mode_and_return_channels(
         return return_masked_unmasked_bands(mode.split("+"), SPACE_TIME_BANDS_GROUPS_IDX)
 
 
-def check_unmasking_mode_and_return_channels(unmasking_mode: Optional[str]):
+def check_unmasking_mode_and_return_channels(unmasking_mode: Union[str, Tuple[str, str]]):
     assert unmasking_mode in UNMASKING_MODES
     if unmasking_mode == "random":
         return None, None, None
     else:
+        assert isinstance(unmasking_mode, tuple)
         data_type, mode = unmasking_mode
         return *return_masked_unmasked_bands(mode.split("+"), STR2DICT[data_type]), data_type
 
@@ -290,8 +291,8 @@ def batch_mask_time(
     mask_ratio: float,
     decoder_unmask_ratio: float,
     patch_size: int,
-    mode: Optional[str] = None,
-    decoder_mode: Optional[str] = None,
+    mode: str = "random",
+    decoder_mode: Union[str, Tuple[str, str]] = "random",
 ):
     """
     Masks out blocks of hxwx1xBAND_GROUPs.
@@ -400,8 +401,8 @@ def batch_mask_space(
     patch_size: int,
     mask_ratio: float,
     decoder_unmask_ratio: float,
-    mode: Optional[str] = None,
-    decoder_mode: Optional[str] = None,
+    mode: str = "random",
+    decoder_mode: Union[str, Tuple[str, str]] = "random",
 ):
     """
     Masks out patches (blocks of of pxpxtxBAND_GROUPs).
