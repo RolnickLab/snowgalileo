@@ -151,12 +151,14 @@ class TestMasking(unittest.TestCase):
                             )  # b, t
                             time_mask_along_t = output.time_mask.float().mean(axis=-1)  # b, t
                             self.assertTrue(
-                                torch.equal(space_time_mask_along_t, time_mask_along_t)
-                            )
-                            self.assertTrue(np.isin(space_time_mask_along_t, (0, 1, 2)).all())
-                            self.assertTrue(
                                 (
                                     (space_time_mask_along_t == 0).sum(axis=1)
+                                    == expected_unmasked_timesteps
+                                ).all()
+                            )
+                            self.assertTrue(
+                                (
+                                    (time_mask_along_t == 0).sum(axis=1)
                                     == expected_unmasked_timesteps
                                 ).all()
                             )
@@ -199,14 +201,12 @@ class TestMasking(unittest.TestCase):
                                     (output.space_mask[:, :, :, dont_decode_bands] == 1).all()
                                 )
                             elif decoder_data_type == "static":
+                                self.assertTrue((output.space_time_mask <= 1).all())
                                 self.assertTrue((output.time_mask <= 1).all())
-                                self.assertTrue((output.static_mask <= 1).all())
                                 self.assertTrue((output.space_mask == 1).all())
+                                self.assertTrue((output.static_mask[:, decode_bands] == 2).all())
                                 self.assertTrue(
-                                    (output.static_mask[:, :, :, decode_bands] == 2).all()
-                                )
-                                self.assertTrue(
-                                    (output.static_mask[:, :, :, dont_decode_bands] == 1).all()
+                                    (output.static_mask[:, dont_decode_bands] == 1).all()
                                 )
 
     def test_mask_by_channel(self):
