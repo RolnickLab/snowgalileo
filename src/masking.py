@@ -351,8 +351,8 @@ def batch_mask_space(
     repeated over all dynamic timesteps + channel groups and static channel groups
     Operates over batches where each item in the batch is independently masked
     """
-    _, bands_to_mask = check_mode_and_return_channels(mode)
-    bands_to_decode = check_unmasking_mode_and_return_channels(decoder_mode)
+    bands_to_encode = check_mode_and_return_channels(mode)
+    bands_to_decode = check_mode_and_return_channels(decoder_mode)
     b, h, w, t, _ = space_time_x.shape
     assert (h % patch_size == 0) and (w % patch_size == 0)
     h_p = int(h / patch_size)
@@ -406,16 +406,42 @@ def batch_mask_space(
     static_mask = _random_mask_for_b(b, static_x.device, mask_ratio, decoder_unmask_ratio)
     static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX)).clone()
 
-    if bands_to_mask is not None:  # mode != random
-        space_time_mask[:, :, :, :, bands_to_mask] = torch.clamp(
-            space_time_mask[:, :, :, :, bands_to_mask], min=1
-        )
-        space_mask = torch.clamp(space_mask, min=1)
-        time_mask = torch.clamp(time_mask, min=1)
+    if max([len(x[0]) for x in bands_to_encode]) > 1:  # encoder mode != random
+        # for static in space data,
+        # ignore all previous calculations about what should be encoded
         static_mask = torch.clamp(static_mask, min=1)
+        time_mask = torch.clamp(time_mask, min=1)
+
+        s_t_e, s_e, t_e, st_e = bands_to_encode
+
+        if len(s_t_e[0]) > 0:
+            # there are space time bands to decode
+            s_t_bands_to_mask = s_t_e[1]
+            space_time_mask[:, :, :, :, s_t_bands_to_mask] = torch.clamp(
+                space_time_mask[:, :, :, :, s_t_bands_to_mask], min=1
+            )
+        else:
+            space_time_mask = torch.clamp(space_time_mask, min=1)
+
+        if len(s_e[0]) > 0:
+            s_bands_to_mask = s_e[1]
+            # there are space bands to mask
+            space_mask[:, :, :, s_bands_to_mask] = torch.clamp(
+                space_mask[:, :, :, s_bands_to_mask], min=1
+            )
+        else:
+            space_mask = torch.clamp(space_mask, min=1)
+
+        if len(t_e[0]) > 0:
+            t_bands_to_encode = t_e[0]
+            t[:, :, t_bands_to_encode] = 0
+
+        if len(st_e[0]) > 0:
+            st_bands_to_encode = st_e[0]
+            static_mask[:, st_bands_to_encode] = 0
 
     if max([len(x[0]) for x in bands_to_decode]) > 1:  # decoder mode != random
-        # for static in time data,
+        # for static in space data,
         # ignore all previous calculations about what should be decoded
         static_mask = torch.clamp(static_mask, max=1)
         time_mask = torch.clamp(time_mask, max=1)
