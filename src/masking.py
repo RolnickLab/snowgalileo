@@ -1,6 +1,6 @@
 import random
 from collections import OrderedDict
-from typing import Dict, List, NamedTuple, Optional, Tuple, Union
+from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -95,7 +95,7 @@ def weighted_sample_without_replacement(population, weights, k, rng=random):
 def check_modes_for_conflicts(
     modes: List[Tuple[str, str]], unmasking_modes: List[Tuple[str, str]]
 ) -> Tuple[List[Tuple[str, str]], List[Tuple[str, str]]]:
-    output_modes = []
+    output_modes: List[Tuple[str, str]] = []
     for mode in modes:
         assert mode in MASKING_MODES
         if mode in unmasking_modes:
@@ -161,7 +161,7 @@ def batch_subset_mask_presto(
     # randomly select a masking strategy
     strategy = random.choice([0, 1, 2])
     if strategy < 2:
-        f = batch_mask_space if strategy == 1 else batch_mask_time
+        f: Callable = batch_mask_space if strategy == 1 else batch_mask_time
         num_masking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
         num_unmasking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
 
@@ -293,7 +293,7 @@ def batch_mask_time(
     decoder_unmask_ratio: float,
     patch_size: int,
     decoder_mode: List[Tuple[str, str]],
-    mode: str = "random",
+    mode: List[Tuple[str, str]],
 ):
     """
     Masks out blocks of hxwx1xBAND_GROUPs.
@@ -431,8 +431,8 @@ def batch_mask_space(
     patch_size: int,
     mask_ratio: float,
     decoder_unmask_ratio: float,
-    mode: str = "random",
-    decoder_mode: Union[str, Tuple[str, str]] = "random",
+    mode: List[Tuple[str, str]],
+    decoder_mode: List[Tuple[str, str]],
 ):
     """
     Masks out patches (blocks of of pxpxtxBAND_GROUPs).

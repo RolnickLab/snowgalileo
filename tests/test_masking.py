@@ -15,6 +15,7 @@ from src.masking import (
     batch_mask_space,
     batch_mask_time,
     check_modes_for_conflicts,
+    weighted_sample_without_replacement,
 )
 
 
@@ -65,10 +66,10 @@ class TestMasking(unittest.TestCase):
                 num_masking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
                 num_unmasking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
 
-                masking_modes = random.choices(
+                masking_modes = weighted_sample_without_replacement(
                     MASKING_MODES, weights=[1] * len(MASKING_MODES), k=num_masking_modes
                 )
-                unmasking_modes = random.choices(
+                unmasking_modes = weighted_sample_without_replacement(
                     MASKING_MODES, weights=[1] * len(MASKING_MODES), k=num_unmasking_modes
                 )
 
@@ -132,7 +133,12 @@ class TestMasking(unittest.TestCase):
             p,
         )
         self.check_all_values_in_masks(
-            output.space_time_mask, output.space_mask, output.time_mask, output.static_mask, "random", "random"
+            output.space_time_mask,
+            output.space_mask,
+            output.time_mask,
+            output.static_mask,
+            "random",
+            "random",
         )
         self.assertEqual(
             (b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX)), output.space_time_mask.shape
