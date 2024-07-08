@@ -39,9 +39,11 @@ UNMASKING_MODES = [
     ("space_time", "NDVI"),
     ("time", "ERA5"),
     ("time", "TC"),
+    ("time", "ERA5+TC"),
     ("time", "VIIRS"),
     ("static", "LS"),
     ("static", "location"),
+    ("static", "LS+location"),
 ]
 # we divide the dataloader's batch size by 8 because the
 # masking function (batch_subset_mask_presto_8x) will augment
