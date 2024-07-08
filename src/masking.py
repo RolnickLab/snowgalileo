@@ -48,11 +48,8 @@ MASKING_MODES: List[Union[str, Tuple[str, str]]] = [
     ("static", "LS"),
     ("static", "location"),
 ]
-# we divide the dataloader's batch size by 8 because the
-# masking function (batch_subset_mask_presto_8x) will augment
-# each instance in the batch 8 times (with different subsetting and
-# masking).
-MASKING_MULTIPLIER = 4
+
+MAX_MASKING_STRATEGIES = 6
 
 
 def return_masked_unmasked_bands(
@@ -124,6 +121,93 @@ def check_mode_and_return_channels(unmasking_modes: List[Tuple[str, str]]):
 def round_school(x: float) -> float:
     i, f = divmod(x, 1)
     return int(i + ((f >= 0.5) if (x > 0) else (f > 0.5)))
+
+
+def batch_subset_mask_presto(
+    s_t_x: torch.Tensor,
+    sp_x: torch.Tensor,
+    t_x: torch.Tensor,
+    st_x: torch.Tensor,
+    months: torch.Tensor,
+    mask_ratio: float,
+    decoder_unmask_ratio: float,
+    patch_size: int,
+    image_size: int,
+    num_timesteps: int,
+    augmentation_strategies: Optional[Dict],
+    masking_probabilities: List[float],
+    unmasking_probabilities: List[float],
+) -> Tuple[MaskedOutput, Dict]:
+    assert len(masking_probabilities) == len(unmasking_probabilities) == len(MASKING_MODES)
+
+    conditioner_inputs = {
+        "hw": image_size // patch_size,
+        "patch_size": patch_size,
+        "timesteps": num_timesteps,
+        "input_channels": torch.zeros(len(MASKING_MODES)).to(s_t_x.device),
+        "output_channels": torch.zeros(len(MASKING_MODES)).to(s_t_x.device),
+        "recon_objs": torch.zeros(2).to(s_t_x.device),
+    }
+
+    # randomly select a masking strategy
+    strategy = random.choice([0, 1, 2])
+    if strategy < 2:
+        f = batch_mask_space if strategy == 1 else batch_mask_time
+        num_masking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
+        num_unmasking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
+
+        masking_modes = random.choices(
+            MASKING_MODES, weights=masking_probabilities, k=num_masking_modes
+        )
+        unmasking_modes = random.choices(
+            MASKING_MODES, weights=unmasking_probabilities, k=num_unmasking_modes
+        )
+
+        masking_modes, unmasking_modes = check_modes_for_conflicts(masking_modes, unmasking_modes)
+        masked_output = f(
+            *subset_and_augment_batch_of_images(
+                s_t_x,
+                sp_x,
+                t_x,
+                st_x,
+                months,
+                size=image_size,
+                num_timesteps=num_timesteps,
+                augmentation_strategies=augmentation_strategies,
+            ),
+            mask_ratio=mask_ratio,
+            decoder_unmask_ratio=decoder_unmask_ratio,
+            patch_size=patch_size,
+            mode=masking_modes,
+            decoder_mode=unmasking_modes,
+        )
+        for i, m in enumerate(MASKING_MODES):
+            if m in masking_modes:
+                conditioner_inputs["input_channels"][i] = 1
+            elif m in unmasking_modes:
+                conditioner_inputs["output_channels"][i] = 1
+        conditioner_inputs["recon_objs"][strategy] = 1
+    elif strategy == 2:
+        # 2 is random
+        masked_output = batch_mask_random(
+            *subset_and_augment_batch_of_images(
+                s_t_x,
+                sp_x,
+                t_x,
+                st_x,
+                months,
+                size=image_size,
+                num_timesteps=num_timesteps,
+                augmentation_strategies=augmentation_strategies,
+            ),
+            mask_ratio=mask_ratio,
+            decoder_unmask_ratio=decoder_unmask_ratio,
+            patch_size=patch_size,
+        )
+    else:
+        raise AssertionError(f"Unexpected strategy {strategy}")
+
+    return *masked_output, conditioner_inputs
 
 
 def subset_and_augment_batch_of_images(
@@ -496,8 +580,6 @@ def batch_mask_random(
     mask_ratio: float,
     decoder_unmask_ratio: float,
     patch_size: int,
-    mode: str = "random",
-    decoder_mode: Union[str, Tuple[str, str]] = "random",
 ):
     """
     Masks out random tokens (blocks of of pxpx1x1).
