@@ -412,7 +412,11 @@ def batch_mask_space(
     Operates over batches where each item in the batch is independently masked
     """
     _, bands_to_mask = check_mode_and_return_channels(mode)
-    targeted_bands_to_decode = check_unmasking_mode_and_return_channels(decoder_mode)
+    (
+        targeted_bands_to_decode,
+        bands_to_mask_from_decoder,
+        decoder_data_type,
+    ) = check_unmasking_mode_and_return_channels(decoder_mode)
     b, h, w, t, _ = space_time_x.shape
     assert (h % patch_size == 0) and (w % patch_size == 0)
     h_p = int(h / patch_size)
@@ -437,40 +441,66 @@ def batch_mask_space(
     two_d_mask = np.repeat(
         np.repeat(two_d_patch_mask, repeats=patch_size, axis=1), repeats=patch_size, axis=2
     )
-    space_time_mask = torch.from_numpy(
-        repeat(
-            two_d_mask,
-            "b h w -> b h w t c_g",
-            t=t,
-            c_g=len(SPACE_TIME_BANDS_GROUPS_IDX),
+    space_time_mask = (
+        torch.from_numpy(
+            repeat(
+                two_d_mask,
+                "b h w -> b h w t c_g",
+                t=t,
+                c_g=len(SPACE_TIME_BANDS_GROUPS_IDX),
+            )
         )
-    ).to(space_time_x.device)
+        .clone()
+        .to(space_time_x.device)
+    )
 
-    space_mask = torch.from_numpy(
-        repeat(
-            two_d_mask,
-            "b h w -> b h w c_g",
-            c_g=len(SPACE_BAND_GROUPS_IDX),
+    space_mask = (
+        torch.from_numpy(
+            repeat(
+                two_d_mask,
+                "b h w -> b h w c_g",
+                c_g=len(SPACE_BAND_GROUPS_IDX),
+            )
         )
-    ).to(space_x.device)
+        .clone()
+        .to(space_x.device)
+    )
     time_mask = _random_mask_for_b(b, time_x.device, mask_ratio, decoder_unmask_ratio)
-    time_mask = repeat(time_mask, "b -> b t c_g", t=t, c_g=len(TIME_BAND_GROUPS_IDX))
+    time_mask = repeat(time_mask, "b -> b t c_g", t=t, c_g=len(TIME_BAND_GROUPS_IDX)).clone()
     static_mask = _random_mask_for_b(b, static_x.device, mask_ratio, decoder_unmask_ratio)
-    static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX))
+    static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX)).clone()
 
-    if bands_to_mask is not None:
-        space_time_mask[:, :, :, :, bands_to_mask] = 1
-        # we only want S2 and / or S1, so we mask everything else
+    if bands_to_mask is not None:  # mode != random
+        space_time_mask[:, :, :, :, bands_to_mask] = torch.clamp(
+            space_time_mask[:, :, :, :, bands_to_mask], min=1
+        )
         space_mask = torch.clamp(space_mask, min=1)
         time_mask = torch.clamp(time_mask, min=1)
         static_mask = torch.clamp(static_mask, min=1)
-    if targeted_bands_to_decode is not None:
+
+    if targeted_bands_to_decode is not None:  # decoder mode != random
+        # for static in space data,
         # ignore all previous calculations about what should be decoded
-        space_time_mask = torch.clamp(space_time_mask, max=1)
-        space_mask = torch.clamp(space_mask, max=1)
-        time_mask = torch.clamp(time_mask, max=1)
         static_mask = torch.clamp(static_mask, max=1)
-        space_mask[:, :, :, targeted_bands_to_decode] = 2
+        time_mask = torch.clamp(time_mask, max=1)
+        if decoder_data_type == "time":
+            space_mask = torch.clamp(space_mask, max=1)
+            space_time_mask = torch.clamp(space_time_mask, max=1)
+            time_mask[:, :, targeted_bands_to_decode] = 2
+        elif decoder_data_type == "space_time":
+            space_mask = torch.clamp(space_mask, max=1)
+            space_time_mask[:, :, :, :, bands_to_mask_from_decoder] = torch.clamp(
+                space_time_mask[:, :, :, :, bands_to_mask_from_decoder], max=1
+            )
+        elif decoder_data_type == "space":
+            space_time_mask = torch.clamp(space_time_mask, max=1)
+            space_mask[:, :, :, bands_to_mask_from_decoder] = torch.clamp(
+                space_mask[:, :, :, bands_to_mask_from_decoder], max=1
+            )
+        elif decoder_data_type == "static":
+            space_time_mask = torch.clamp(space_time_mask, max=1)
+            space_mask = torch.clamp(space_mask, max=1)
+            static_mask[:, targeted_bands_to_decode] = 2
 
     return MaskedOutput(
         space_time_x.clone(),

@@ -315,7 +315,7 @@ class TestMasking(unittest.TestCase):
                     ].mean(axis=(3, 4))  # b, h, w
                     self.assertTrue(
                         (
-                            output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["masked"]] == 1
+                            output.space_time_mask[:, :, :, :, MASK_TO_BANDS[mode]["masked"]] >= 1
                         ).all()
                     )
                     self.assertFalse(
