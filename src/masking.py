@@ -56,7 +56,6 @@ def return_masked_unmasked_bands(
     def in_masked_bands(x):
         for b in bands:
             if b in x:
-                print(f"{b} in {x}")
                 return True
         return False
 
@@ -338,11 +337,13 @@ def batch_mask_time(
         b_flat_timesteps_t,
         "b t-> b t c_g",
         c_g=len(TIME_BAND_GROUPS_IDX),
-    )
+    ).clone()
     space_mask = _random_mask_for_b(b, space_x.device, mask_ratio, decoder_unmask_ratio)
-    space_mask = repeat(space_mask, "b -> b h w c_g", h=h, w=w, c_g=len(SPACE_BAND_GROUPS_IDX))
+    space_mask = repeat(
+        space_mask, "b -> b h w c_g", h=h, w=w, c_g=len(SPACE_BAND_GROUPS_IDX)
+    ).clone()
     static_mask = _random_mask_for_b(b, static_x.device, mask_ratio, decoder_unmask_ratio)
-    static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX))
+    static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX)).clone()
     if bands_to_mask is not None:  # mode != random
         space_time_mask[:, :, :, :, bands_to_mask] = torch.clamp(
             space_time_mask[:, :, :, :, bands_to_mask], min=1
