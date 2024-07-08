@@ -9,7 +9,7 @@ from src.masking import (
     SPACE_TIME_BAND_EXPANSION,
     STATIC_BAND_EXPANSION,
     TIME_BAND_EXPANSION,
-    batch_subset_mask_presto_augmented,
+    batch_subset_mask_presto,
 )
 
 
@@ -41,7 +41,10 @@ def mae_collate_fn(
     timesteps = space_time_combination["timesteps"]
 
     image_size = patch_size * spatial_patches_per_dim
-    s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = batch_subset_mask_presto_augmented(
+
+    # randomly select a masking strategy
+
+    s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, c_i = batch_subset_mask_presto(
         s_t_x,
         sp_x,
         t_x,
@@ -117,4 +120,5 @@ def mae_collate_fn(
         expanded_t,
         expanded_st,
         patch_size,
+        c_i,
     )
