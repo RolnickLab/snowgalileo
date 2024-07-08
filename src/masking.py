@@ -164,7 +164,6 @@ def batch_subset_mask_presto(
         f: Callable = batch_mask_space if strategy == 1 else batch_mask_time
         num_masking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
         num_unmasking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
-
         masking_modes = weighted_sample_without_replacement(
             MASKING_MODES, weights=masking_probabilities, k=num_masking_modes
         )
@@ -192,10 +191,10 @@ def batch_subset_mask_presto(
         )
         for i, m in enumerate(MASKING_MODES):
             if m in masking_modes:
-                conditioner_inputs["input_channels"][i] = 1
+                conditioner_inputs["input_channels"][i] = 1  # type: ignore
             elif m in unmasking_modes:
-                conditioner_inputs["output_channels"][i] = 1
-        conditioner_inputs["recon_objs"][strategy] = 1
+                conditioner_inputs["output_channels"][i] = 1  # type: ignore
+        conditioner_inputs["recon_objs"][strategy] = 1  # type: ignore
     elif strategy == 2:
         # 2 is random
         masked_output = batch_mask_random(
