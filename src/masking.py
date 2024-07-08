@@ -32,12 +32,16 @@ STR2DICT = OrderedDict(
         "static": STATIC_BAND_GROUPS_IDX,
     }
 )
-MASKING_MODES: List[str] = ["random", "S2", "S2_RGB", "S1", "S1+S2"]
-UNMASKING_MODES: List[Union[str, Tuple[str, str]]] = [
+MASKING_MODES: List[Union[str, Tuple[str, str]]] = [
     ("space", "SRTM"),
     ("space", "DW"),
     ("space", "WC"),
     ("space_time", "NDVI"),
+    ("space_time", "S1"),
+    ("space_time", "S2_SWIR"),
+    ("space_time", "S2_Red_Edge"),
+    ("space_time", "S2_NIR_10m"),
+    ("space_time", "S2_NIR_20m"),
     ("time", "ERA5"),
     ("time", "TC"),
     ("time", "VIIRS"),
@@ -83,32 +87,30 @@ class MaskedOutput(NamedTuple):
     static_mask: torch.Tensor
     months: torch.Tensor
 
-    @staticmethod
-    def concatenate(x: List["MaskedOutput"]) -> "MaskedOutput":
-        return MaskedOutput(
-            torch.cat([x_i.space_time_x for x_i in x], 0),
-            torch.cat([x_i.space_x for x_i in x], 0),
-            torch.cat([x_i.time_x for x_i in x], 0),
-            torch.cat([x_i.static_x for x_i in x], 0),
-            torch.cat([x_i.space_time_mask for x_i in x], 0),
-            torch.cat([x_i.space_mask for x_i in x], 0),
-            torch.cat([x_i.time_mask for x_i in x], 0),
-            torch.cat([x_i.static_mask for x_i in x], 0),
-            torch.cat([x_i.months for x_i in x], 0),
-        )
+
+def check_modes_for_conflicts(
+    modes: List[Tuple[str, str]], unmasking_modes: List[Tuple[str, str]]
+) -> Tuple[List[Tuple[str, str]], List[Tuple[str, str]]]:
+    output_modes = []
+    for mode in modes:
+        assert mode in MASKING_MODES
+        if mode in unmasking_modes:
+            if len(output_modes) == 0:
+                output_modes.append(mode)
+                unmasking_modes.remove(mode)
+            elif len(unmasking_modes) == 1:
+                # don't remove any more from the unmasking modes
+                continue
+            else:
+                # neither modes or unmasking_modes are bottlenecked;
+                # randomly select which one to remove
+                if random.random() <= 0.5:
+                    output_modes.append(mode)
+                    unmasking_modes.remove(mode)
+    return output_modes, unmasking_modes
 
 
-def check_mode_and_return_channels(
-    mode: str,
-) -> Tuple[Optional[List[int]], Optional[List[int]]]:
-    assert mode in MASKING_MODES
-    if mode == "random":
-        return None, None
-    else:
-        return return_masked_unmasked_bands(mode.split("+"), SPACE_TIME_BANDS_GROUPS_IDX)
-
-
-def check_unmasking_mode_and_return_channels(unmasking_modes: List[Tuple[str, str]]):
+def check_mode_and_return_channels(unmasking_modes: List[Tuple[str, str]]):
     outputs = []
     for data_type in STR2DICT.keys():
         relevant_bands = [x[1] for x in unmasking_modes if x[0] == data_type]
@@ -188,84 +190,6 @@ def _random_mask_for_b(
     return mask
 
 
-def batch_subset_mask_presto_augmented(
-    s_t_x: torch.Tensor,
-    sp_x: torch.Tensor,
-    t_x: torch.Tensor,
-    st_x: torch.Tensor,
-    months: torch.Tensor,
-    mask_ratio: float,
-    decoder_unmask_ratio: float,
-    patch_size: int,
-    image_size: int,
-    num_timesteps: int,
-    augmentation_strategies: Optional[Dict],
-) -> MaskedOutput:
-    """
-    Given an input batch size of x, this function will
-    return 8x as many points (e.g. 16 -> 128)
-    """
-    maskedoutputs: List[MaskedOutput] = []
-
-    maskedoutputs.append(
-        batch_mask_time(
-            *subset_and_augment_batch_of_images(
-                s_t_x,
-                sp_x,
-                t_x,
-                st_x,
-                months,
-                size=image_size,
-                num_timesteps=num_timesteps,
-                augmentation_strategies=augmentation_strategies,
-            ),
-            mask_ratio=mask_ratio,
-            decoder_unmask_ratio=decoder_unmask_ratio,
-            mode=random.choice(MASKING_MODES),
-            decoder_mode=random.choice(UNMASKING_MODES),
-            patch_size=patch_size,
-        )
-    )
-
-    maskedoutputs.append(
-        batch_mask_space(
-            *subset_and_augment_batch_of_images(
-                s_t_x,
-                sp_x,
-                t_x,
-                st_x,
-                months,
-                size=image_size,
-                num_timesteps=num_timesteps,
-                augmentation_strategies=augmentation_strategies,
-            ),
-            patch_size=patch_size,
-            mask_ratio=mask_ratio,
-            decoder_unmask_ratio=decoder_unmask_ratio,
-            mode=random.choice(MASKING_MODES),
-            decoder_mode=random.choice(UNMASKING_MODES),
-        )
-    )
-    maskedoutputs.append(
-        batch_mask_random(
-            *subset_and_augment_batch_of_images(
-                s_t_x,
-                sp_x,
-                t_x,
-                st_x,
-                months,
-                size=image_size,
-                num_timesteps=num_timesteps,
-                augmentation_strategies=augmentation_strategies,
-            ),
-            mask_ratio=mask_ratio,
-            decoder_unmask_ratio=decoder_unmask_ratio,
-            patch_size=patch_size,
-        )
-    )
-    return MaskedOutput.concatenate(maskedoutputs)
-
-
 def batch_mask_time(
     space_time_x: torch.Tensor,
     space_x: torch.Tensor,
@@ -288,8 +212,8 @@ def batch_mask_time(
     b, h, w, t, _ = space_time_x.shape
     assert t >= 3
 
-    _, bands_to_mask = check_mode_and_return_channels(mode)
-    bands_to_decode = check_unmasking_mode_and_return_channels(decoder_mode)
+    bands_to_encode = check_mode_and_return_channels(mode)
+    bands_to_decode = check_mode_and_return_channels(decoder_mode)
     # if there is only a single timestep, decode it
     num_timesteps_to_decode = max(int(t * decoder_unmask_ratio), 1)
     num_timesteps_to_encode = max(int(t * mask_ratio), 1)
@@ -327,13 +251,38 @@ def batch_mask_time(
     ).clone()
     static_mask = _random_mask_for_b(b, static_x.device, mask_ratio, decoder_unmask_ratio)
     static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX)).clone()
-    if bands_to_mask is not None:  # mode != random
-        space_time_mask[:, :, :, :, bands_to_mask] = torch.clamp(
-            space_time_mask[:, :, :, :, bands_to_mask], min=1
-        )
-        space_mask = torch.clamp(space_mask, min=1)
-        time_mask = torch.clamp(time_mask, min=1)
+
+    if max([len(x[0]) for x in bands_to_encode]) > 1:  # encoder mode != random
+        # for static in time data,
+        # ignore all previous calculations about what should be encoded
         static_mask = torch.clamp(static_mask, min=1)
+        space_mask = torch.clamp(space_mask, min=1)
+
+        s_t_e, s_e, t_e, st_e = bands_to_encode
+
+        if len(s_t_e[0]) > 0:
+            # there are space time bands to decode
+            s_t_bands_to_mask = s_t_e[1]
+            space_time_mask[:, :, :, :, s_t_bands_to_mask] = torch.clamp(
+                space_time_mask[:, :, :, :, s_t_bands_to_mask], min=1
+            )
+        else:
+            space_time_mask = torch.clamp(space_time_mask, min=1)
+
+        if len(s_e[0]) > 0:
+            s_bands_to_encode = s_e[0]
+            # there are space bands to mask
+            space_mask[:, :, :, s_bands_to_encode] = 0
+
+        if len(t_e[0]) > 0:
+            t_bands_to_mask = t_e[1]
+            time_mask[:, :, t_bands_to_mask] = torch.clamp(time_mask[:, :, t_bands_to_mask], min=1)
+        else:
+            time_mask = torch.clamp(time_mask, max=1)
+
+        if len(st_e[0]) > 0:
+            st_bands_to_encode = st_e[0]
+            static_mask[:, st_bands_to_encode] = 0
 
     if max([len(x[0]) for x in bands_to_decode]) > 1:  # decoder mode != random
         # for static in time data,
