@@ -221,6 +221,8 @@ class LearnedMixture(nn.Module):
                 )
 
         self.apply(self._init_weights)
+        self.last_mean = 0.0
+        self.last_std = 0.0
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -252,6 +254,9 @@ class LearnedMixture(nn.Module):
         return torch.tensor(
             [hw_normalized, patch_size_normalized, timesteps_normalized], device=device, dtype=dtype
         )
+    
+    def get_last_stats(self):
+        return self.last_mean, self.last_std
 
     def forward(
         self,
@@ -306,6 +311,7 @@ class LearnedMixture(nn.Module):
                         templates = self.ffn_templates
 
                     if param_type == "fc2":
+                        # transpose templates for down projection
                         templates = rearrange(templates, "n i o -> n o i")
 
                 layer_results[param_type] = (mixture_values[param_type] * templates).sum(
@@ -313,5 +319,15 @@ class LearnedMixture(nn.Module):
                 ) * self.scales[param_type]  # weighted sum and scale
 
             mixed_templates[layer_idx] = layer_results
+        
+        # compute the mean and std of the conditional weights and set an attribute so we have access during training
+        all_values = []
+        for layer_results in mixed_templates.values():
+            for param_value in layer_results.values():
+                all_values.append(param_value.flatten())
+        
+        all_values = torch.cat(all_values)
+        self.last_mean = all_values.mean().item()
+        self.last_std = all_values.std().item()
 
         return mixed_templates
