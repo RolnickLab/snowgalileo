@@ -27,6 +27,7 @@ from .embeddings import (
     get_month_encoding_table,
 )
 from .utils import device
+from .conditioner import ConditionalLinear
 
 
 def adjust_learning_rate(optimizer, epoch, warmup_epochs, total_epochs, start_lr, max_lr, min_lr):
@@ -207,40 +208,30 @@ class Attention(nn.Module):
         self.fast_attn = hasattr(torch.nn.functional, "scaled_dot_product_attention")  # FIXME
 
         self.cross_attn = cross_attn
-        if not cross_attn:
-            self.qkv: Optional[nn.Linear] = nn.Linear(dim, dim * 3, bias=qkv_bias)
-            self.q: Optional[nn.Linear] = None
-            self.kv: Optional[nn.Linear] = None
-        else:
-            self.qkv = None
-            self.q = nn.Linear(dim, dim, bias=qkv_bias)
-            self.kv = nn.Linear(dim, dim * 2, bias=qkv_bias)
+
+        self.q = ConditionalLinear(dim, dim, bias=qkv_bias)
+        self.k = ConditionalLinear(dim, dim, bias=qkv_bias)
+        self.v = ConditionalLinear(dim, dim, bias=qkv_bias)
 
         self.q_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
         self.k_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
         self.attn_drop = nn.Dropout(attn_drop)
-        self.proj = nn.Linear(dim, dim)
+        self.proj = ConditionalLinear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
     def forward(self, x, y=None, attn_mask=None):
+        B, N, C = x.shape
+
+        q = self.q(x)
+
         if y is None:
             assert not self.cross_attn
-            B, N, C = x.shape
-            qkv = (
-                self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
-            )
-            q, k, v = qkv.unbind(0)
+            k = self.k(x)
+            v = self.v(x)
         else:
             assert self.cross_attn
-            B, N, C = x.shape
-            Ny = y.shape[1]
-            q = self.q(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
-            kv = (
-                self.kv(y)
-                .reshape(B, Ny, 2, self.num_heads, C // self.num_heads)
-                .permute(2, 0, 3, 1, 4)
-            )
-            k, v = kv[0], kv[1]
+            k = self.k(y)
+            v = self.v(y)
 
         q, k = self.q_norm(q), self.k_norm(k)
         if self.fast_attn:
@@ -285,10 +276,10 @@ class Mlp(nn.Module):
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
 
-        self.fc1 = nn.Linear(in_features, hidden_features, bias=bias)
+        self.fc1 = ConditionalLinear(in_features, hidden_features, bias=bias)
         self.act = act_layer()
         self.drop1 = nn.Dropout(drop)
-        self.fc2 = nn.Linear(hidden_features, out_features, bias=bias)
+        self.fc2 = ConditionalLinear(hidden_features, out_features, bias=bias)
         self.drop2 = nn.Dropout(drop)
 
     def forward(self, x):
@@ -651,6 +642,34 @@ class Encoder(FlexiPrestoBase):
             torch.stack(t_m_l, dim=-1),
             torch.stack(st_m_l, dim=-1),
         )
+    
+    def apply_condition(self, c_i):
+        if c_i is not None:
+            conditional_weights = self.conditioner(c_i)
+
+            for i, block in enumerate(self.blocks):
+                if i in conditional_weights:
+                    block_weights = conditional_weights[i]
+                    if "q" in block_weights:
+                        block.attn.q.apply_condition(block_weights["q"])
+                    if "k" in block_weights:
+                        block.attn.k.apply_condition(block_weights["k"])
+                    if "v" in block_weights:
+                        block.attn.v.apply_condition(block_weights["v"])
+                    if "proj" in block_weights:
+                        block.attn.proj.apply_condition(block_weights["proj"])
+                    if "fc1" in block_weights:
+                        block.mlp.fc1.apply_condition(block_weights["fc1"])
+                    if "fc2" in block_weights:
+                        block.mlp.fc2.apply_condition(block_weights["fc2"])
+        else:
+            for block in self.blocks:
+                block.attn.q.apply_condition(None)
+                block.attn.k.apply_condition(None)
+                block.attn.v.apply_condition(None)
+                block.attn.proj.apply_condition(None)
+                block.attn.fc1.apply_condition(None)
+                block.attn.fc2.apply_condition(None)
 
     @staticmethod
     def remove_masked_tokens(x, mask):
