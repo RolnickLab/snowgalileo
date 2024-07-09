@@ -9,6 +9,14 @@ from .data import (
     TIME_BAND_GROUPS_IDX,
 )
 
+LOSS_TYPES = [
+    "mse",
+    "norm_per_patch",
+    "norm_per_c_g",
+    "norm_per_channel",
+    "norm_per_timestep",
+]
+
 
 def group_per_patch(space_time_array, space_only_array, patch_size):
     return (
@@ -67,14 +75,19 @@ def mse_loss(
 ):
     return F.mse_loss(
         torch.concat(
-            [p_s_t[expanded_s_t_m], p_sp[expanded_sp_m], p_t[expanded_t_m], p_st[expanded_st_m]]
+            [
+                p_s_t[expanded_s_t_m == 2],
+                p_sp[expanded_sp_m == 2],
+                p_t[expanded_t_m == 2],
+                p_st[expanded_st_m == 2],
+            ]
         ),
         torch.concat(
             [
-                expanded_s_t_x[expanded_s_t_m],
-                expanded_sp_x[expanded_sp_m],
-                t_x[expanded_t_m],
-                st_x[expanded_st_m],
+                expanded_s_t_x[expanded_s_t_m == 2],
+                expanded_sp_x[expanded_sp_m == 2],
+                t_x[expanded_t_m == 2],
+                st_x[expanded_st_m == 2],
             ]
         ).float(),
     )
@@ -101,7 +114,7 @@ def norm_per_channel_loss(
         expanded_s_t_x, expanded_sp_x, t_x, st_x
     )
     p_s_t, p_sp, p_t, p_st = group_per_channel(p_s_t, p_sp, p_t, p_st)
-    expanded_s_t_m, expanded_sp_m, expanded_t_m = group_per_channel(
+    expanded_s_t_m, expanded_sp_m, expanded_t_m, expanded_st_m = group_per_channel(
         expanded_s_t_m,
         expanded_sp_m,
         expanded_t_m,
@@ -170,9 +183,11 @@ def norm_per_c_g_loss(
         )
 
         p_s_t_l.append(
-            rearrange((p_s_t[:, :, :, :, channel_idxs]), "b h w t c -> b (c h w t)")[s_t_m_c_g]
+            rearrange((p_s_t[:, :, :, :, channel_idxs]), "b h w t c -> b (c h w t)")[
+                s_t_m_c_g == 2
+            ]
         )
-        target_s_t_l.append(norm_s_t_x_c_g[s_t_m_c_g])
+        target_s_t_l.append(norm_s_t_x_c_g[s_t_m_c_g == 2])
 
     for band, channel_idxs in SPACE_BAND_GROUPS_IDX.items():
         norm_sp_x_c_g = normalize(
@@ -181,24 +196,26 @@ def norm_per_c_g_loss(
         assert not torch.isnan(norm_sp_x_c_g).any(), f"NaNs when normalizing {band} in space"
         sp_m_c_g = rearrange((expanded_sp_m[:, :, :, channel_idxs]), "b h w c -> b (c h w)")
 
-        p_sp_l.append(rearrange((p_sp[:, :, :, channel_idxs]), "b h w c -> b (c h w)")[sp_m_c_g])
-        target_sp_l.append(norm_sp_x_c_g[sp_m_c_g])
+        p_sp_l.append(
+            rearrange((p_sp[:, :, :, channel_idxs]), "b h w c -> b (c h w)")[sp_m_c_g == 2]
+        )
+        target_sp_l.append(norm_sp_x_c_g[sp_m_c_g == 2])
 
     for band, channel_idxs in TIME_BAND_GROUPS_IDX.items():
         norm_t_x_c_g = normalize(rearrange((t_x[:, :, channel_idxs]), "b t c -> b (c t)"))
         assert not torch.isnan(norm_t_x_c_g).any(), f"NaNs when normalizing {band} in time"
         t_m_c_g = rearrange((expanded_t_m[:, :, channel_idxs]), "b t c -> b (c t)")
 
-        p_t_l.append(rearrange((p_t[:, :, channel_idxs]), "b t c -> b (c t)")[t_m_c_g])
-        target_t_l.append(norm_t_x_c_g[t_m_c_g])
+        p_t_l.append(rearrange((p_t[:, :, channel_idxs]), "b t c -> b (c t)")[t_m_c_g == 2])
+        target_t_l.append(norm_t_x_c_g[t_m_c_g == 2])
 
     for band, channel_idxs in STATIC_BAND_GROUPS_IDX.items():
         norm_st_x_c_g = st_x[:, channel_idxs]
         assert not torch.isnan(norm_st_x_c_g).any(), f"NaNs when not normalizing {band} in static"
         st_m_c_g = expanded_st_m[:, channel_idxs]
 
-        p_st_l.append(p_st[:, channel_idxs][st_m_c_g])
-        target_st_l.append(norm_st_x_c_g[st_m_c_g])
+        p_st_l.append(p_st[:, channel_idxs][st_m_c_g == 2])
+        target_st_l.append(norm_st_x_c_g[st_m_c_g == 2])
 
     return mse_loss(
         torch.concat(target_s_t_l),
@@ -210,10 +227,10 @@ def norm_per_c_g_loss(
         torch.concat(p_t_l),
         torch.concat(p_st_l),
         # mask has already been applied, so unmask everything for the mse loss
-        torch.ones_like(torch.concat(target_s_t_l)).bool(),
-        torch.ones_like(torch.concat(target_sp_l)).bool(),
-        torch.ones_like(torch.concat(target_t_l)).bool(),
-        torch.ones_like(torch.concat(target_st_l)).bool(),
+        torch.ones_like(torch.concat(target_s_t_l)).int() * 2,
+        torch.ones_like(torch.concat(target_sp_l)).int() * 2,
+        torch.ones_like(torch.concat(target_t_l)).int() * 2,
+        torch.ones_like(torch.concat(target_st_l)).int() * 2,
     )
 
 
@@ -308,7 +325,7 @@ def norm_per_patch_loss(
     )
 
 
-def mae_loss(
+def masked_autoencoder_loss(
     expanded_s_t_x,
     expanded_sp_x,
     t_x,
@@ -324,13 +341,7 @@ def mae_loss(
     patch_size,
     loss_type,
 ):
-    assert loss_type in [
-        "mse",
-        "norm_per_patch",
-        "norm_per_c_g",
-        "norm_per_channel",
-        "norm_per_timestep",
-    ]
+    assert loss_type in LOSS_TYPES
 
     if loss_type == "norm_per_patch":
         return norm_per_patch_loss(
