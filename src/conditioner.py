@@ -229,7 +229,7 @@ class LearnedMixture(nn.Module):
             if isinstance(m, nn.Linear) and m.bias is not None:
                 nn.init.constant_(m.bias, 0)
 
-    def normalize_input_shape(self, hw, patch_size, timesteps, device):
+    def normalize_input_shape(self, hw, patch_size, timesteps, device, dtype):
         if hw < self.hw_min or hw > self.hw_max:
             warnings.warn(
                 f"hw ({hw}) is outside the expected range [{self.hw_min}, {self.hw_max}]"
@@ -250,7 +250,7 @@ class LearnedMixture(nn.Module):
         timesteps_normalized = (timesteps - self.time_min) / (self.time_max - self.time_min)
 
         return torch.tensor(
-            [hw_normalized, patch_size_normalized, timesteps_normalized], device=device
+            [hw_normalized, patch_size_normalized, timesteps_normalized], device=device, dtype=dtype
         )
 
     def forward(
@@ -263,7 +263,7 @@ class LearnedMixture(nn.Module):
         recon_objs: torch.Tensor,  # multihot encoding
     ):
         normalized_input_shape = self.normalize_input_shape(
-            hw, patch_size, timesteps, input_channels.device
+            hw, patch_size, timesteps, input_channels.device, input_channels.dtype
         )
         condition = torch.cat(
             [normalized_input_shape, input_channels, output_channels, recon_objs]

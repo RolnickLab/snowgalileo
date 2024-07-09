@@ -30,7 +30,16 @@ from .utils import device
 from .conditioner import ConditionalLinear
 
 
-def adjust_learning_rate(optimizer, epoch, warmup_epochs, total_epochs, start_lr, max_lr, min_lr):
+def adjust_learning_rate(
+    optimizer,
+    epoch,
+    warmup_epochs,
+    total_epochs,
+    start_lr,
+    max_lr,
+    min_lr,
+    conditioner_multiplier=None,
+):
     """Decay the learning rate with half-cycle cosine after warmup"""
     if epoch < warmup_epochs:
         lr = start_lr + (max_lr * epoch / warmup_epochs)
@@ -39,7 +48,11 @@ def adjust_learning_rate(optimizer, epoch, warmup_epochs, total_epochs, start_lr
             1.0 + math.cos(math.pi * (epoch - warmup_epochs) / (total_epochs - warmup_epochs))
         )
     for group in optimizer.param_groups:
-        group["lr"] = lr
+        if group["name"] == "conditioner":
+            assert conditioner_multiplier is not None
+            group["lr"] = lr * conditioner_multiplier
+        else:
+            group["lr"] = lr
     return lr
 
 
@@ -232,6 +245,10 @@ class Attention(nn.Module):
             assert self.cross_attn
             k = self.k(y)
             v = self.v(y)
+
+        q = rearrange(q, "b n (h d) -> b h n d", h=self.num_heads)
+        k = rearrange(k, "b n (h d) -> b h n d", h=self.num_heads)
+        v = rearrange(v, "b n (h d) -> b h n d", h=self.num_heads)
 
         q, k = self.q_norm(q), self.k_norm(k)
         if self.fast_attn:
@@ -538,6 +555,7 @@ class Encoder(FlexiPrestoBase):
         mlp_ratio=2,
         num_heads=8,
         max_sequence_length=24,
+        conditioner=None,
     ):
         super().__init__(
             embedding_size,
@@ -580,6 +598,7 @@ class Encoder(FlexiPrestoBase):
         self.norm = nn.LayerNorm(embedding_size)
 
         self.apply(self._init_weights)
+        self.conditioner = conditioner
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -645,7 +664,7 @@ class Encoder(FlexiPrestoBase):
     
     def apply_condition(self, c_i):
         if c_i is not None:
-            conditional_weights = self.conditioner(c_i)
+            conditional_weights = self.conditioner(**c_i)
 
             for i, block in enumerate(self.blocks):
                 if i in conditional_weights:
@@ -668,8 +687,8 @@ class Encoder(FlexiPrestoBase):
                 block.attn.k.apply_condition(None)
                 block.attn.v.apply_condition(None)
                 block.attn.proj.apply_condition(None)
-                block.attn.fc1.apply_condition(None)
-                block.attn.fc2.apply_condition(None)
+                block.mlp.fc1.apply_condition(None)
+                block.mlp.fc2.apply_condition(None)
 
     @staticmethod
     def remove_masked_tokens(x, mask):
@@ -792,7 +811,7 @@ class Encoder(FlexiPrestoBase):
         t_m: torch.Tensor,
         st_m: torch.Tensor,
         months: torch.Tensor,
-        c_i,
+        c_i = None,
         patch_size: Optional[int] = None,
         input_resolution_m: Optional[int] = BASE_GSD,
     ):
