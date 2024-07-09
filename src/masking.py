@@ -38,6 +38,7 @@ MASKING_MODES: List[Union[str, Tuple[str, str]]] = [
     ("space", "WC"),
     ("space_time", "NDVI"),
     ("space_time", "S1"),
+    ("space_time", "S2_RGB"),
     ("space_time", "S2_SWIR"),
     ("space_time", "S2_Red_Edge"),
     ("space_time", "S2_NIR_10m"),

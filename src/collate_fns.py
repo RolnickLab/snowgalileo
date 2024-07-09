@@ -5,6 +5,7 @@ from torch.utils.data import default_collate
 from torchvision.transforms.functional import resize
 
 from src.masking import (
+    MASKING_MODES,
     SPACE_BAND_EXPANSION,
     SPACE_TIME_BAND_EXPANSION,
     STATIC_BAND_EXPANSION,
@@ -23,6 +24,8 @@ def mae_collate_fn(
     augmentation_strategies=None,
     fixed_patch_size=None,
     fixed_space_time_combination=None,
+    masking_probabilities=None,
+    unmasking_probabilities=None,
 ):
     s_t_x, sp_x, t_x, st_x, months = default_collate(batch)
 
@@ -41,6 +44,10 @@ def mae_collate_fn(
     timesteps = space_time_combination["timesteps"]
 
     image_size = patch_size * spatial_patches_per_dim
+    if masking_probabilities is None:
+        masking_probabilities = [1] * MASKING_MODES
+    if unmasking_probabilities is None:
+        unmasking_probabilities = [1] * MASKING_MODES
 
     # randomly select a masking strategy
 
@@ -56,6 +63,8 @@ def mae_collate_fn(
         num_timesteps=timesteps,
         decoder_unmask_ratio=decoder_unmask_ratio,
         augmentation_strategies=augmentation_strategies,
+        masking_probabilities=masking_probabilities,
+        unmasking_probabilities=unmasking_probabilities,
     )
 
     # transform the masks from channel-groups to individual channels
