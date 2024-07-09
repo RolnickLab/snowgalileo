@@ -26,18 +26,21 @@ from src.data.config import (
     TIFS_FOLDER,
 )
 from src.eval import (
+    BigEarthNetEval,
     BinaryCropHarvestEval,
+    BrickKilnEval,
+    CashewPlantEval,
     EuroSatEval,
     MultiClassCropHarvestEval,
     PastisPatchEval,
     PastisPixelEval,
+    SACropEval,
     So2SatEval,
     TreeSatEval,
 )
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
-from src.loss import mae_loss
-from src.masking import MASKING_MULTIPLIER
+from src.loss import masked_autoencoder_loss
 from src.utils import (
     AverageMeter,
     data_dir,
@@ -82,10 +85,9 @@ output_dir = Path(__file__).parent
 
 print("Loading dataset and dataloader")
 dataset = Dataset(TIFS_FOLDER, download=False, cache_folder=DATA_FOLDER / "npys_spacetime_16")
-assert training_config["batch_size"] % MASKING_MULTIPLIER == 0
 dataloader = DataLoader(
     dataset,
-    batch_size=int(training_config["batch_size"] / MASKING_MULTIPLIER),
+    batch_size=training_config["batch_size"],
     shuffle=True,
     num_workers=Hyperparams.num_workers,
     collate_fn=partial(
@@ -93,7 +95,10 @@ dataloader = DataLoader(
         patch_sizes=training_config["patch_sizes"],
         shape_time_combinations=training_config["shape_time_combinations"],
         mask_ratio=training_config["mask_ratio"],
+        decoder_unmask_ratio=training_config["decoder_unmask_ratio"],
         augmentation_strategies=training_config["augmentation"],
+        masking_probabilities=training_config["masking_probabilities"],
+        unmasking_probabilities=training_config["unmasking_probabilities"],
     ),
     pin_memory=True,
 )
@@ -101,8 +106,7 @@ print("Loading models")
 encoder = Encoder(**config["model"]["encoder"]).to(device)
 predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
 print("Loading validation task")
-val_task_latlons = EuroSatEval(rgb=True, include_latlons=True)
-val_task_no_latlons = EuroSatEval(rgb=True, include_latlons=False)
+val_task_no_latlons = EuroSatEval(geobench=True, rgb=False, include_latlons=False)
 val_task_ts_latlons = MultiClassCropHarvestEval(include_latlons=True)
 val_task_ts_no_latlons = MultiClassCropHarvestEval(include_latlons=False)
 
@@ -139,6 +143,7 @@ if wandb_enabled:
                     fixed_patch_size=p,
                     fixed_space_time_combination={"size": 4, "timesteps": 12},
                     mask_ratio=training_config["mask_ratio"],
+                    decoder_unmask_ratio=training_config["decoder_unmask_ratio"],
                 ),
             )
 
@@ -200,7 +205,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                 patch_size=patch_size,
             )
 
-            loss = mae_loss(
+            loss = masked_autoencoder_loss(
                 expanded_s_t_x,
                 expanded_sp_x,
                 t_x,
@@ -263,13 +268,8 @@ for e in tqdm(range(training_config["num_epochs"])):
         if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
             e % training_config["eval_eurosat_every_n_epochs"] == 0
         ):
-            results = val_task_latlons.evaluate_model_on_task(
+            results = val_task_no_latlons.evaluate_model_on_task(
                 encoder, model_modes=["KNNat5 Classifier", "KNNat20 Classifier"]
-            )
-            results.update(
-                val_task_no_latlons.evaluate_model_on_task(
-                    encoder, model_modes=["KNNat5 Classifier"]
-                )
             )
             results.update(
                 val_task_ts_latlons.evaluate_model_on_task(
@@ -293,6 +293,19 @@ with (model_path / CONFIG_FILENAME).open("w") as f:
     json.dump(config, f)
 
 eval_tasks: List[EvalTask] = [
+    *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil"]],
+    So2SatEval(),
+    *[
+        EuroSatEval(rgb=rgb, include_latlons=include_latlons, geobench=geobench)
+        for rgb in [True, False]
+        for include_latlons in [True, False]
+        for geobench in [True, False]
+    ],
+    *[So2SatEval(geobench=geobench) for geobench in [True, False]],
+    BigEarthNetEval(),
+    BrickKilnEval(),
+    *[CashewPlantEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
+    *[SACropEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
     *[
         PastisPatchEval(
             output_mode=output_mode,
@@ -309,14 +322,7 @@ eval_tasks: List[EvalTask] = [
         for mode in ["s1", "s2", "combined"]
         for patch_size in [6, 3]
     ],
-    *[
-        EuroSatEval(rgb=rgb, include_latlons=include_latlons)
-        for rgb in [True, False]
-        for include_latlons in [True, False]
-    ],
-    So2SatEval(),
     PastisPixelEval(),
-    *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil"]],
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)
