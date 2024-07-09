@@ -97,6 +97,8 @@ dataloader = DataLoader(
         mask_ratio=training_config["mask_ratio"],
         decoder_unmask_ratio=training_config["decoder_unmask_ratio"],
         augmentation_strategies=training_config["augmentation"],
+        masking_probabilities=training_config["masking_probabilities"],
+        unmasking_probabilities=training_config["unmasking_probabilities"],
     ),
     pin_memory=True,
 )

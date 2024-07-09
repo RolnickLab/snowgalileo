@@ -16,9 +16,7 @@ from .data.dataset import (
     SPACE_TIME_BANDS,
     SPACE_TIME_BANDS_GROUPS_IDX,
 )
-from .masking import (
-    MaskedOutput,
-)
+from .masking import MASKING_MODES, MaskedOutput
 
 data_dir = Path(__file__).parent.parent / "data"
 logging_dir = Path(__file__).parent.parent / "logs"
@@ -101,6 +99,8 @@ def load_check_config(name: str, mode: str) -> Dict:
         "patch_sizes_to_wandb_plot": list,
         "shape_time_combinations": list,
         "augmentation": dict,
+        "masking_probabilities": list,
+        "unmasking_probabilities": list,
     }
     training_dict = config["training"]
 
@@ -114,6 +114,13 @@ def load_check_config(name: str, mode: str) -> Dict:
         )
     assert isinstance(training_dict["warmup_epochs"], int)
     assert training_dict["num_epochs"] > training_dict["warmup_epochs"]
+
+    assert len(training_dict["masking_probabilities"]) == len(
+        MASKING_MODES
+    ), f"Expected {len(MASKING_MODES)}, got {len(training_dict['masking_probabilities'])}"
+    assert len(training_dict["unmasking_probabilities"]) == len(
+        MASKING_MODES
+    ), f"Expected {len(MASKING_MODES)}, got {len(training_dict['unmasking_probabilities'])}"
 
     for combination in training_dict["shape_time_combinations"]:
         assert "timesteps" in combination.keys()
