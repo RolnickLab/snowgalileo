@@ -327,7 +327,7 @@ class LearnedMixture(nn.Module):
                 all_values.append(param_value.flatten())
         
         all_values = torch.cat(all_values)
-        self.last_mean = all_values.mean().item()
+        self.last_mean = torch.abs(all_values).mean().item()
         self.last_std = all_values.std().item()
 
         return mixed_templates
