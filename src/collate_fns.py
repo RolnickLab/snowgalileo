@@ -50,8 +50,7 @@ def mae_collate_fn(
         unmasking_probabilities = [1] * MASKING_MODES
 
     # randomly select a masking strategy
-
-    s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, c_i = batch_subset_mask_presto(
+    (s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months), c_i = batch_subset_mask_presto(
         s_t_x,
         sp_x,
         t_x,

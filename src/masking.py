@@ -216,7 +216,7 @@ def batch_subset_mask_presto(
     else:
         raise AssertionError(f"Unexpected strategy {strategy}")
 
-    return *masked_output, conditioner_inputs
+    return masked_output, conditioner_inputs
 
 
 def subset_and_augment_batch_of_images(
