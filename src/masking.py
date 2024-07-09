@@ -343,7 +343,6 @@ def batch_mask_time(
     ).clone()
     static_mask = _random_mask_for_b(b, static_x.device, mask_ratio, decoder_unmask_ratio)
     static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX)).clone()
-
     if max([len(x[0]) for x in bands_to_encode]) > 1:  # encoder mode != random
         # for static in time data,
         # ignore all previous calculations about what should be encoded
@@ -370,7 +369,7 @@ def batch_mask_time(
             t_bands_to_mask = t_e[1]
             time_mask[:, :, t_bands_to_mask] = torch.clamp(time_mask[:, :, t_bands_to_mask], min=1)
         else:
-            time_mask = torch.clamp(time_mask, max=1)
+            time_mask = torch.clamp(time_mask, min=1)
 
         if len(st_e[0]) > 0:
             st_bands_to_encode = st_e[0]
