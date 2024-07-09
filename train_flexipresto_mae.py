@@ -41,6 +41,7 @@ from src.eval import (
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
 from src.loss import masked_autoencoder_loss
+from src.conditioner import LearnedMixture
 from src.utils import (
     AverageMeter,
     data_dir,
@@ -78,7 +79,7 @@ config = load_check_config(args["config_file"], "mae")
 training_config = config["training"]
 
 run_id = None
-wandb_enabled = True
+wandb_enabled = False
 wandb_org = "nasa-harvest"
 output_dir = Path(__file__).parent
 
@@ -103,8 +104,29 @@ dataloader = DataLoader(
     pin_memory=True,
 )
 print("Loading models")
-encoder = Encoder(**config["model"]["encoder"]).to(device)
 predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
+if "conditioner" in config["model"]:
+    conditioner = LearnedMixture(**config["model"]["conditioner"]).to(device)
+    encoder = Encoder(
+        **config["model"]["encoder"], conditioner=conditioner
+    ).to(device)
+    param_groups = [
+        {
+            "params": [p for n, p in encoder.named_parameters() if "conditioner" not in n],
+            "name": "encoder",
+        },
+        {"params": predictor.parameters(), "name": "decoder"},
+        {
+            "params": [p for n, p in encoder.named_parameters() if "conditioner" in n],
+            "name": "conditioner",
+            "weight_decay": training_config["weight_decay"] * training_config["conditioner_wd_multiplier"]
+        },
+    ]
+else:
+    encoder = Encoder(**config["model"]["encoder"]).to(device)
+    param_groups = [{"params": encoder.parameters(), "name": "encoder"}, {"params": predictor.parameters(), "name": "decoder"}]
+
+
 print("Loading validation task")
 val_task_no_latlons = EuroSatEval(geobench=True, rgb=False, include_latlons=False)
 val_task_ts_latlons = MultiClassCropHarvestEval(include_latlons=True)
@@ -158,8 +180,6 @@ if wandb_enabled:
             print(f"Prepared {len(prepared_image_to_plot)} images for patch size {p}")
         print(f"all {len(examples_to_plot)} images for patch size")
 
-param_groups = [{"params": encoder.parameters()}, {"params": predictor.parameters()}]
-
 optimizer = torch.optim.AdamW(param_groups, lr=training_config["start_lr"])  # type: ignore
 iterations_per_epoch = len(dataset)
 assert training_config["effective_batch_size"] % training_config["batch_size"] == 0
@@ -186,7 +206,12 @@ for e in tqdm(range(training_config["num_epochs"])):
             t_m_p,
             st_m_p,
             patch_size,
+            c_i,
         ) = b
+
+        if c_i is not None:
+            # there is probably a better way to do this
+            c_i = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in c_i.items()}
 
         with torch.autocast(device_type=device.type, dtype=autocast_device):
             (p_s_t, p_sp, p_t, p_st) = predictor(
@@ -200,6 +225,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                     t_m,
                     st_m,
                     months.long(),
+                    c_i=c_i,
                     patch_size=patch_size,
                 ),
                 patch_size=patch_size,
@@ -237,6 +263,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                 max_lr=training_config["max_lr"],
                 start_lr=training_config["start_lr"],
                 min_lr=training_config["final_lr"],
+                conditioner_multiplier=training_config.get("conditioner_lr_multiplier", None),
             )
 
     if wandb_enabled:

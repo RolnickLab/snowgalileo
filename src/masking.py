@@ -213,6 +213,8 @@ def batch_subset_mask_presto(
             decoder_unmask_ratio=decoder_unmask_ratio,
             patch_size=patch_size,
         )
+        conditioner_inputs = None
+        
     else:
         raise AssertionError(f"Unexpected strategy {strategy}")
 
