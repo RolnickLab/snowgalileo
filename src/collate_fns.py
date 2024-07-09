@@ -5,11 +5,12 @@ from torch.utils.data import default_collate
 from torchvision.transforms.functional import resize
 
 from src.masking import (
+    MASKING_MODES,
     SPACE_BAND_EXPANSION,
     SPACE_TIME_BAND_EXPANSION,
     STATIC_BAND_EXPANSION,
     TIME_BAND_EXPANSION,
-    batch_subset_mask_presto_augmented,
+    batch_subset_mask_presto,
 )
 
 
@@ -19,9 +20,12 @@ def mae_collate_fn(
     patch_sizes,
     shape_time_combinations,
     mask_ratio,
+    decoder_unmask_ratio,
     augmentation_strategies=None,
     fixed_patch_size=None,
     fixed_space_time_combination=None,
+    masking_probabilities=None,
+    unmasking_probabilities=None,
 ):
     s_t_x, sp_x, t_x, st_x, months = default_collate(batch)
 
@@ -40,28 +44,35 @@ def mae_collate_fn(
     timesteps = space_time_combination["timesteps"]
 
     image_size = patch_size * spatial_patches_per_dim
-    s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = batch_subset_mask_presto_augmented(
+    if masking_probabilities is None:
+        masking_probabilities = [1] * len(MASKING_MODES)
+    if unmasking_probabilities is None:
+        unmasking_probabilities = [1] * len(MASKING_MODES)
+
+    # randomly select a masking strategy
+    (s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months), c_i = batch_subset_mask_presto(
         s_t_x,
         sp_x,
         t_x,
         st_x,
         months,
-        mask_ratio,
-        patch_size,
+        mask_ratio=mask_ratio,
+        patch_size=patch_size,
         image_size=image_size,
         num_timesteps=timesteps,
+        decoder_unmask_ratio=decoder_unmask_ratio,
         augmentation_strategies=augmentation_strategies,
+        masking_probabilities=masking_probabilities,
+        unmasking_probabilities=unmasking_probabilities,
     )
 
     # transform the masks from channel-groups to individual channels
     expanded_s_t = torch.repeat_interleave(
         s_t_m, repeats=SPACE_TIME_BAND_EXPANSION.long(), dim=-1
-    ).bool()
-    expanded_sp = torch.repeat_interleave(sp_m, repeats=SPACE_BAND_EXPANSION.long(), dim=-1).bool()
-    expanded_t = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION.long(), dim=-1).bool()
-    expanded_st = torch.repeat_interleave(
-        st_m, repeats=STATIC_BAND_EXPANSION.long(), dim=-1
-    ).bool()
+    ).int()
+    expanded_sp = torch.repeat_interleave(sp_m, repeats=SPACE_BAND_EXPANSION.long(), dim=-1).int()
+    expanded_t = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION.long(), dim=-1).int()
+    expanded_st = torch.repeat_interleave(st_m, repeats=STATIC_BAND_EXPANSION.long(), dim=-1).int()
 
     # p_s_t and p_sp always assume the maximum patch size, so we need to
     # resample if its smaller
@@ -117,4 +128,5 @@ def mae_collate_fn(
         expanded_t,
         expanded_st,
         patch_size,
+        # c_i,
     )
