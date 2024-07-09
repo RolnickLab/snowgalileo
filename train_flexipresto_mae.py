@@ -79,7 +79,7 @@ config = load_check_config(args["config_file"], "mae")
 training_config = config["training"]
 
 run_id = None
-wandb_enabled = False
+wandb_enabled = True
 wandb_org = "nasa-harvest"
 output_dir = Path(__file__).parent
 
@@ -172,7 +172,7 @@ if wandb_enabled:
             prepared_image_to_plot = {}
             for image_id, b in enumerate(plot_dataloader):
                 b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
-                prepared_image_to_plot[image_id] = b
+                prepared_image_to_plot[image_id] = b[:-1]  # to remove c_i
                 if len(prepared_image_to_plot) >= training_config["num_images_to_wandb_plot"]:
                     break
 
