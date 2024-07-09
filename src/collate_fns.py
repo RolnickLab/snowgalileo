@@ -45,9 +45,9 @@ def mae_collate_fn(
 
     image_size = patch_size * spatial_patches_per_dim
     if masking_probabilities is None:
-        masking_probabilities = [1] * MASKING_MODES
+        masking_probabilities = [1] * len(MASKING_MODES)
     if unmasking_probabilities is None:
-        unmasking_probabilities = [1] * MASKING_MODES
+        unmasking_probabilities = [1] * len(MASKING_MODES)
 
     # randomly select a masking strategy
     (s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months), c_i = batch_subset_mask_presto(
