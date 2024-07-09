@@ -51,7 +51,7 @@ class TestPresto(unittest.TestCase):
         max_patch_size = decoder.max_patch_size
         ds = Dataset(DATA_FOLDER, False)
         s_t_x, sp_x, t_x, st_x, months = self.to_tensor_with_batch_d(ds[0])
-        masked_output = batch_subset_mask_presto(
+        masked_output, _ = batch_subset_mask_presto(
             s_t_x,
             sp_x,
             t_x,
