@@ -253,7 +253,7 @@ for e in tqdm(range(training_config["num_epochs"])):
         
         if "conditioner" in config["model"]:
             condition_avg.update(encoder.conditioner.last_mean, n=1)
-            condition_std.update(encoder.conditioner.std, n=1)
+            condition_std.update(encoder.conditioner.last_std, n=1)
 
         train_loss.update(loss.item(), n=s_t_x.shape[0])
         loss = loss / iters_to_accumulate
@@ -276,7 +276,7 @@ for e in tqdm(range(training_config["num_epochs"])):
     if wandb_enabled:
         to_log = {"train_loss": train_loss.average, "epoch": e}
         if "conditioner" in config["model"]:
-            to_log["condition_mean"] = condition_avg.average
+            to_log["condition_avg"] = condition_avg.average
             to_log["condition_std"] = condition_std.average
 
         if (training_config["wandb_plot_every_n_epochs"] != 0) and (
