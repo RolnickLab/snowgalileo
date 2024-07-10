@@ -10,7 +10,6 @@ import geopandas
 from src.data import EarthEngineExporter
 from src.data.config import DATA_FOLDER, EE_PROJECT
 from src.data.earthengine.eo import LAT, LON
-from src.utils import DEFAULT_SEED
 
 os.environ["GOOGLE_CLOUD_PROJECT"] = EE_PROJECT
 
