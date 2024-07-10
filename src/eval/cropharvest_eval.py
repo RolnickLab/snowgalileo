@@ -2,6 +2,7 @@ import logging
 import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, cast
+import itertools
 
 import h5py
 import numpy as np
@@ -384,9 +385,35 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
         )
         self.eval_dataset = MultiClassCropHarvest(val_paths_and_y, y_string_to_int)
 
+        # thanks Claude for the implementation, good bot
+        # lets start with the intuitive conditions
+        conditions = {
+            "hw": [1],
+            "patch_size": [1],
+            "timesteps": [12, 6],
+            "input_channels": [
+                torch.Tensor([1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0]).to(device),  # should be SRTM, S1, S2, and ERA5
+                ],
+            "output_channels": [
+                torch.Tensor([0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).to(device),  # should be WC
+            ],
+            "recon_objs": [
+                torch.Tensor([0, 1]).to(device),
+                torch.Tensor([1, 0]).to(device),
+                ]
+        }
+
+        # Generate all combinations
+        keys = conditions.keys()
+        values = conditions.values()
+        combinations = list(itertools.product(*values))
+
+        # Create the list of dictionaries
+        self.conditions = [dict(zip(keys, combo)) for combo in combinations]
+
     @torch.no_grad()
     def _evaluate_models(
-        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator]
+        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator], c_i
     ) -> Dict:
         dl = DataLoader(
             self.eval_dataset,
@@ -407,7 +434,7 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
                 t.to(device) for t in masked_output
             ]
             s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = pretrained_model(
-                s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size=self.patch_size
+                s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, c_i, patch_size=self.patch_size
             )
             encodings = (
                 pretrained_model.average_tokens(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
@@ -450,4 +477,26 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
             collate_fn=self.collate_fn,
         )
         trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
-        return self._evaluate_models(pretrained_model, trained_sklearn_models)
+
+        # sweep through conditions
+        all_results = {}
+        for condition in self.conditions:
+            print(condition)
+            conditioned_results = self._evaluate_model(pretrained_model, trained_sklearn_models, condition)
+            print(conditioned_results)
+            for key, value in conditioned_results.items():
+                if key in all_results.keys():
+                    all_results[key].append(value)
+                else:
+                    all_results[key] = [value]
+
+        best_results = {}
+        for key, value in all_results.items():
+            best_results[f"{key}_c"] = max(value)
+        
+        print(f"BEST: {best_results}")
+
+        # eval without condition
+        unconditioned_results = self._evaluate_model(pretrained_model, trained_sklearn_models, None)
+
+        return {**best_results, **unconditioned_results}

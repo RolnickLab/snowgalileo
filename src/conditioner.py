@@ -1,6 +1,7 @@
 import warnings
 from typing import List
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -326,10 +327,11 @@ class LearnedMixture(nn.Module):
             for param_value in layer_results.values():
                 all_values.append(param_value.flatten())
         
-        all_values = torch.cat(all_values)
-        self.last_mean = torch.abs(all_values).mean().item()
-        self.last_std = all_values.std().item()
-        self.last_skewness = torch.mean(((all_values - self.last_mean) / self.last_std) ** 3).item()
-        self.last_kurtosis = torch.mean(((all_values - self.last_mean) / self.last_std) ** 4).item() - 3
+        all_values = torch.cat(all_values).detach().cpu().numpy()
+        self.last_1st_percentile = np.percentile(all_values, 1).item()
+        self.last_10th_percentile = np.percentile(all_values, 10).item()
+        self.last_50th_percentile = np.percentile(all_values, 50).item()
+        self.last_90th_percentile = np.percentile(all_values, 90).item()
+        self.last_99th_percentile = np.percentile(all_values, 99).item()
 
         return mixed_templates
