@@ -18,13 +18,13 @@ os.environ["GOOGLE_CLOUD_PROJECT"] = EE_PROJECT
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--start_export_from_idx", type=int, default=0)
 argparser.add_argument("--num_exports", type=int, default=3000)
-argparser.add_argument("--filename", type=str, default="dynamic_world_samples.geojson")
+argparser.add_argument("--filename", type=str, default="esa_grid_subsampled_global_150_v2.csv")
 argparser.add_argument("--mode", type=str, default="batch")
 args = argparser.parse_args().__dict__
 
 filepath = DATA_FOLDER / "pretraining_points" / args["filename"]
 assert filepath.exists()
-latlons = geopandas.read_file(filepath).sample(frac=1, random_state=DEFAULT_SEED)
+latlons = geopandas.read_file(filepath)
 
 if LAT not in latlons.columns:
     latlons[LON] = latlons.geometry.centroid.x.values
