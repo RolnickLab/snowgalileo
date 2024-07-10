@@ -329,5 +329,7 @@ class LearnedMixture(nn.Module):
         all_values = torch.cat(all_values)
         self.last_mean = torch.abs(all_values).mean().item()
         self.last_std = all_values.std().item()
+        self.last_skewness = torch.mean(((all_values - self.last_mean) / self.last_std) ** 3).item()
+        self.last_kurtosis = torch.mean(((all_values - self.last_mean) / self.last_std) ** 4).item() - 3
 
         return mixed_templates
