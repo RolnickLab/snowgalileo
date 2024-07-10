@@ -188,10 +188,12 @@ iters_to_accumulate = training_config["effective_batch_size"] / training_config[
 for e in tqdm(range(training_config["num_epochs"])):
     train_loss = AverageMeter()
     if "conditioner" in config["model"]:
-        condition_avg = AverageMeter()
-        condition_std = AverageMeter()
-        condition_skew = AverageMeter()
-        condition_kurtosis = AverageMeter()
+        condition_1st = AverageMeter()
+        condition_10th = AverageMeter()
+        condition_50th = AverageMeter()
+        condition_90th = AverageMeter()
+        condition_99th = AverageMeter()
+    
     for i, b in tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
         b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
         (
@@ -254,10 +256,11 @@ for e in tqdm(range(training_config["num_epochs"])):
             )
         
         if "conditioner" in config["model"]:
-            condition_avg.update(encoder.conditioner.last_mean, n=1)
-            condition_std.update(encoder.conditioner.last_std, n=1)
-            condition_skew.update(encoder.conditioner.last_skewness, n=1)
-            condition_kurtosis.update(encoder.conditioner.last_kurtosis, n=1)
+            condition_1st.update(encoder.conditioner.last_1st_percentile, n=1)
+            condition_10th.update(encoder.conditioner.last_10th_percentile, n=1)
+            condition_50th.update(encoder.conditioner.last_50th_percentile, n=1)
+            condition_90th.update(encoder.conditioner.last_90th_percentile, n=1)
+            condition_99th.update(encoder.conditioner.last_99th_percentile, n=1)
 
         train_loss.update(loss.item(), n=s_t_x.shape[0])
         loss = loss / iters_to_accumulate
@@ -280,10 +283,11 @@ for e in tqdm(range(training_config["num_epochs"])):
     if wandb_enabled:
         to_log = {"train_loss": train_loss.average, "epoch": e}
         if "conditioner" in config["model"]:
-            to_log["condition_avg"] = condition_avg.average
-            to_log["condition_std"] = condition_std.average
-            to_log["condition_skew"] = condition_skew.average
-            to_log["condition_kurtosis"] = condition_kurtosis.average
+            to_log["condition_1st"] = condition_1st.average
+            to_log["condition_10th"] = condition_10th.average
+            to_log["condition_50th"] = condition_50th.average
+            to_log["condition_90th"] = condition_90th.average
+            to_log["condition_99th"] = condition_99th.average
 
         if (training_config["wandb_plot_every_n_epochs"] != 0) and (
             e % training_config["wandb_plot_every_n_epochs"] == 0

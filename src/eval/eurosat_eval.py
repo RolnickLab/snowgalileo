@@ -285,10 +285,8 @@ class EuroSatEval(EvalTask):
                 torch.Tensor([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).to(device),  # should be DW
             ],
             "recon_objs": [
-                torch.Tensor([0, 0]).to(device),
                 torch.Tensor([0, 1]).to(device),
                 torch.Tensor([1, 0]).to(device),
-                torch.Tensor([1, 1]).to(device),
                 ]
         }
 
@@ -299,7 +297,6 @@ class EuroSatEval(EvalTask):
 
         # Create the list of dictionaries
         self.conditions = [dict(zip(keys, combo)) for combo in combinations]
-        self.conditions.append(None)
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         return {
@@ -402,6 +399,7 @@ class EuroSatEval(EvalTask):
             )
         trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
 
+        # sweep through conditions
         all_results = {}
         for condition in self.conditions:
             print(condition)
@@ -413,9 +411,13 @@ class EuroSatEval(EvalTask):
                 else:
                     all_results[key] = [value]
 
+        best_results = {}
         for key, value in all_results.items():
-            all_results[key] = max(value)
+            best_results[f"{key}_c"] = max(value)
         
-        print(f"BEST: {all_results}")
+        print(f"BEST: {best_results}")
 
-        return all_results
+        # eval without condition
+        unconditioned_results = self._evaluate_model(pretrained_model, trained_sklearn_models, None)
+
+        return {**best_results, **unconditioned_results}
