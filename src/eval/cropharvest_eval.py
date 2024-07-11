@@ -482,7 +482,7 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
         all_results = {}
         for condition in self.conditions:
             print(condition)
-            conditioned_results = self._evaluate_model(pretrained_model, trained_sklearn_models, condition)
+            conditioned_results = self._evaluate_models(pretrained_model, trained_sklearn_models, condition)
             print(conditioned_results)
             for key, value in conditioned_results.items():
                 if key in all_results.keys():
@@ -497,6 +497,6 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
         print(f"BEST: {best_results}")
 
         # eval without condition
-        unconditioned_results = self._evaluate_model(pretrained_model, trained_sklearn_models, None)
+        unconditioned_results = self._evaluate_models(pretrained_model, trained_sklearn_models, None)
 
         return {**best_results, **unconditioned_results}
