@@ -1,6 +1,7 @@
 import warnings
 from typing import List
 
+import torch.nn.init as init
 import numpy as np
 import torch
 import torch.nn as nn
@@ -60,8 +61,6 @@ class LearnedMixture(nn.Module):
         num_input_channels: int,  # channel *groups*
         num_output_channels: int,  # channel *groups*
         num_recon_objs: int,  # number of reconstructive pretraining objectives
-        init_scale: float = 0.001,
-        template_init_std: float = 0.2,
         softmax_temp: float = 1.0,
         param_types: List[str] = ["q", "k", "v", "proj", "fc1", "fc2"],
     ):
@@ -82,7 +81,6 @@ class LearnedMixture(nn.Module):
         self.backbone_depth = backbone_depth
         self.num_templates = num_templates
         self.proj_share_depth = proj_share_depth
-        self.init_scale = init_scale
         self.rank = rank
         self.time_min = time_min
         self.time_max = time_max
@@ -131,32 +129,23 @@ class LearnedMixture(nn.Module):
                     )
 
         ##### create templates #####
-        self.init_std = template_init_std
         # check if we need attention templates
         if any(param in self.param_types for param in ["q", "k", "v", "proj"]):
             if self.use_lora:
                 self.attention_templates_A = nn.Parameter(
-                    torch.normal(
-                        mean=0,
-                        std=self.init_std,
-                        size=(self.num_templates, self.backbone_dim, self.rank),
-                    )
+                    torch.empty(self.num_templates, self.backbone_dim, self.rank),
                 )
                 self.attention_templates_B = nn.Parameter(
-                    torch.normal(
-                        mean=0,
-                        std=self.init_std,
-                        size=(self.num_templates, self.rank, self.backbone_dim),
-                    )
+                    torch.empty(self.num_templates, self.rank, self.backbone_dim),
                 )
+                init.xavier_normal_(self.attention_templates_A)
+                init.xavier_normal_(self.attention_templates_B)
+
             else:
                 self.attention_templates = nn.Parameter(
-                    torch.normal(
-                        mean=0,
-                        std=self.init_std,
-                        size=(self.num_templates, self.backbone_dim, self.backbone_dim),
-                    )
+                    torch.empty(self.num_templates, self.backbone_dim, self.backbone_dim)
                 )
+                init.xavier_normal_(self.attention_templates)
         else:
             self.attention_templates = None
             self.attention_templates_A = None
@@ -166,27 +155,19 @@ class LearnedMixture(nn.Module):
         if any(param in self.param_types for param in ["fc1", "fc2"]):
             if self.use_lora:
                 self.ffn_templates_A = nn.Parameter(
-                    torch.normal(
-                        mean=0,
-                        std=self.init_std,
-                        size=(self.num_templates, self.backbone_dim * 4, self.rank),
-                    )
+                    torch.empty(self.num_templates, self.backbone_dim * 4, self.rank),
                 )
                 self.ffn_templates_B = nn.Parameter(
-                    torch.normal(
-                        mean=0,
-                        std=self.init_std,
-                        size=(self.num_templates, self.rank, self.backbone_dim),
-                    )
+                    torch.empty(self.num_templates, self.rank, self.backbone_dim),
                 )
+                init.xavier_normal_(self.ffn_templates_A)
+                init.xavier_normal_(self.ffn_templates_B)
+
             else:
                 self.ffn_templates = nn.Parameter(
-                    torch.normal(
-                        mean=0,
-                        std=self.init_std,
-                        size=(self.num_templates, self.backbone_dim * 4, self.backbone_dim),
-                    )
+                    torch.empty(self.num_templates, self.backbone_dim * 4, self.backbone_dim),
                 )
+                init.xavier_normal_(self.ffn_templates)
         else:
             self.ffn_templates = None
             self.ffn_templates_A = None
@@ -205,25 +186,7 @@ class LearnedMixture(nn.Module):
                 self.ffn_templates is not None or self.attention_templates is not None
             ), f"No full-rank templates initialized. Check if param_types {self.param_types} includes any of q, k, v, proj, fc1, or fc2."
 
-        # Initialize scales with very low values allowing us to initialize all conditional parameters very close to zero
-        self.scales = nn.ParameterDict()
-        for param_type in self.param_types:
-            if param_type in ["q", "k", "v", "proj"]:
-                self.scales[param_type] = nn.Parameter(
-                    torch.full((self.backbone_dim, self.backbone_dim), init_scale)
-                )
-            elif param_type == "fc1":
-                self.scales[param_type] = nn.Parameter(
-                    torch.full((self.backbone_dim * 4, self.backbone_dim), init_scale)
-                )
-            elif param_type == "fc2":
-                self.scales[param_type] = nn.Parameter(
-                    torch.full((self.backbone_dim, self.backbone_dim * 4), init_scale)
-                )
-
         self.apply(self._init_weights)
-        self.last_mean = 0.0
-        self.last_std = 0.0
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -256,9 +219,6 @@ class LearnedMixture(nn.Module):
             [hw_normalized, patch_size_normalized, timesteps_normalized], device=device, dtype=dtype
         )
     
-    def get_last_stats(self):
-        return self.last_mean, self.last_std
-
     def forward(
         self,
         hw: int,
@@ -317,7 +277,7 @@ class LearnedMixture(nn.Module):
 
                 layer_results[param_type] = (mixture_values[param_type] * templates).sum(
                     dim=0
-                ) * self.scales[param_type]  # weighted sum and scale
+                )  # weighted sum
 
             mixed_templates[layer_idx] = layer_results
         
