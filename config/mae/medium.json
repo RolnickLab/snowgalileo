@@ -10,7 +10,7 @@
         "start_lr": 0.0002,
         "max_lr": 0.001,
         "final_lr": 1.0e-06,
-        "conditioner_lr_multiplier": 0.1,
+        "conditioner_lr_multiplier": 1,
         "weight_decay": 0.01,
         "conditioner_wd_multiplier": 1,
         "warmup_epochs": 0.1,

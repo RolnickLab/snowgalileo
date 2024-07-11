@@ -114,8 +114,13 @@ if "conditioner" in config["model"]:
         {
             "params": [p for n, p in encoder.named_parameters() if "conditioner" not in n],
             "name": "encoder",
+            "weight_decay": training_config["weight_decay"]
         },
-        {"params": predictor.parameters(), "name": "decoder"},
+        {
+            "params": predictor.parameters(),
+            "name": "decoder",
+            "weight_decay": training_config["weight_decay"],
+         },
         {
             "params": [p for n, p in encoder.named_parameters() if "conditioner" in n],
             "name": "conditioner",
@@ -124,7 +129,18 @@ if "conditioner" in config["model"]:
     ]
 else:
     encoder = Encoder(**config["model"]["encoder"]).to(device)
-    param_groups = [{"params": encoder.parameters(), "name": "encoder"}, {"params": predictor.parameters(), "name": "decoder"}]
+    param_groups = [
+        {
+            "params": encoder.parameters(),
+            "name": "encoder",
+            "weight_decay": training_config["weight_decay"],
+        },
+        {
+            "params": predictor.parameters(),
+            "name": "decoder",
+            "weight_decay": training_config["weight_decay"],
+        }
+    ]
 
 
 print("Loading validation task")
