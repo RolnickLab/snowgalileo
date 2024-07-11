@@ -38,6 +38,7 @@ class GeobenchBaseDataset(PyTorchDataset):
         dataset_config_file: str,
         split: str = "train",
         num_subtiles_per_image: Optional[int] = 1,
+        rgb: bool = False,
     ):
         with (
             Path(__file__).parents[0] / Path("geobench_configs") / Path(dataset_config_file)
@@ -49,6 +50,7 @@ class GeobenchBaseDataset(PyTorchDataset):
 
         self.split = split
         self.config = config
+        self.rgb = rgb
 
         for task in geobench.task_iterator(benchmark_name=self.config["benchmark_name"]):
             if task.dataset_name == self.config["dataset_name"]:
@@ -76,6 +78,10 @@ class GeobenchBaseDataset(PyTorchDataset):
         if self.config["include_s1"]:
             s_t_channels = [
                 idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S" in key
+            ]
+        elif self.rgb:
+            s_t_channels = [
+                idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S2_RGB" in key
             ]
         else:
             s_t_channels = [
