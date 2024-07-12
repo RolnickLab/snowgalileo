@@ -14,7 +14,13 @@ import xarray as xr
 from einops import rearrange, repeat
 from torch.utils.data import Dataset as PyTorchDataset
 
-from .config import DATASET_OUTPUT_HW, EE_BUCKET_TIFS, EE_FOLDER_TIFS, EE_NPY_TIFS, NUM_TIMESTEPS
+from .config import (
+    DATASET_OUTPUT_HW,
+    EE_BUCKET_TIFS,
+    EE_FOLDER_NPYS,
+    EE_FOLDER_TIFS,
+    NUM_TIMESTEPS,
+)
 from .earthengine.eo import (
     ALL_DYNAMIC_IN_TIME_BANDS,
     DW_BANDS,
@@ -202,7 +208,7 @@ class Dataset(PyTorchDataset):
     @staticmethod
     def download_npys(data_folder):
         # Download files (faster than using Python API)
-        os.system(f"gcloud storage rsync -r gs://{EE_BUCKET_TIFS}/{EE_NPY_TIFS} {data_folder}")
+        os.system(f"gcloud storage rsync -r gs://{EE_BUCKET_TIFS}/{EE_FOLDER_NPYS} {data_folder}")
 
     @staticmethod
     def subset_image(
