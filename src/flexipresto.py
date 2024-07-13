@@ -27,7 +27,6 @@ from .embeddings import (
     get_month_encoding_table,
 )
 from .utils import device
-from .conditioner import ConditionalLinear
 
 
 def adjust_learning_rate(
@@ -222,14 +221,14 @@ class Attention(nn.Module):
 
         self.cross_attn = cross_attn
 
-        self.q = ConditionalLinear(dim, dim, bias=qkv_bias)
-        self.k = ConditionalLinear(dim, dim, bias=qkv_bias)
-        self.v = ConditionalLinear(dim, dim, bias=qkv_bias)
+        self.q = nn.Linear(dim, dim, bias=qkv_bias)
+        self.k = nn.Linear(dim, dim, bias=qkv_bias)
+        self.v = nn.Linear(dim, dim, bias=qkv_bias)
 
         self.q_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
         self.k_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
         self.attn_drop = nn.Dropout(attn_drop)
-        self.proj = ConditionalLinear(dim, dim)
+        self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
     def forward(self, x, y=None, attn_mask=None):
@@ -293,10 +292,10 @@ class Mlp(nn.Module):
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
 
-        self.fc1 = ConditionalLinear(in_features, hidden_features, bias=bias)
+        self.fc1 = nn.Linear(in_features, hidden_features, bias=bias)
         self.act = act_layer()
         self.drop1 = nn.Dropout(drop)
-        self.fc2 = ConditionalLinear(hidden_features, out_features, bias=bias)
+        self.fc2 = nn.Linear(hidden_features, out_features, bias=bias)
         self.drop2 = nn.Dropout(drop)
 
     def forward(self, x):
@@ -662,34 +661,6 @@ class Encoder(FlexiPrestoBase):
             torch.stack(st_m_l, dim=-1),
         )
     
-    def apply_condition(self, c_i):
-        if c_i is not None:
-            conditional_weights = self.conditioner(**c_i)
-
-            for i, block in enumerate(self.blocks):
-                if i in conditional_weights:
-                    block_weights = conditional_weights[i]
-                    if "q" in block_weights:
-                        block.attn.q.apply_condition(block_weights["q"])
-                    if "k" in block_weights:
-                        block.attn.k.apply_condition(block_weights["k"])
-                    if "v" in block_weights:
-                        block.attn.v.apply_condition(block_weights["v"])
-                    if "proj" in block_weights:
-                        block.attn.proj.apply_condition(block_weights["proj"])
-                    if "fc1" in block_weights:
-                        block.mlp.fc1.apply_condition(block_weights["fc1"])
-                    if "fc2" in block_weights:
-                        block.mlp.fc2.apply_condition(block_weights["fc2"])
-        else:
-            for block in self.blocks:
-                block.attn.q.apply_condition(None)
-                block.attn.k.apply_condition(None)
-                block.attn.v.apply_condition(None)
-                block.attn.proj.apply_condition(None)
-                block.mlp.fc1.apply_condition(None)
-                block.mlp.fc2.apply_condition(None)
-
     @staticmethod
     def remove_masked_tokens(x, mask):
         org_mask_dtype = mask.dtype
@@ -732,7 +703,7 @@ class Encoder(FlexiPrestoBase):
         return out, full_mask
 
     def apply_attn(
-        self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_res
+        self, c_i, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_res
     ):
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
         sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
@@ -745,12 +716,24 @@ class Encoder(FlexiPrestoBase):
         # to decode those tokens. From the perspective of the encoder, 1 and 2 are equivalent
         # since they both represent masked values
         new_m = m >= 1
-        x, indices, new_m = self.remove_masked_tokens(x, new_m)
+        x, indices, new_m = self.remove_masked_tokens(x, new_m)  # new_m is shape (bsz, seq_len)
+
+        if c_i is not None:
+            condition = self.conditioner(**c_i).repeat(x.shape[0], 1, 1)  # shape (bsz, 1, dim)
+            x = torch.cat([condition, x], dim=1)
+            one_mask = torch.tensor([[False]], device=new_m.device).repeat(x.shape[0], 1)
+            new_m = torch.cat([one_mask, new_m], dim=1)  # shape (bsz, seq_len + 1)
+        
         for blk in self.blocks:
             # we take the inverse of the mask because a value
             # of True indicates the value *should* take part in
             # attention
             x = blk(x=x, y=None, attn_mask=~new_m.bool())
+        
+        if c_i is not None:
+            x = x[:, 1:, :]  # remove condition
+            new_m = new_m[:, 1:]  # remove mask, shape (bsz, seq_len)
+
         # we don't care about the mask returned by add_removed_tokens, since we will
         # just use the original, unclipped mask here
         x, _ = self.add_removed_tokens(x, indices, new_m)
@@ -815,9 +798,6 @@ class Encoder(FlexiPrestoBase):
         patch_size: Optional[int] = None,
         input_resolution_m: Optional[int] = BASE_GSD,
     ):
-        if self.conditioner is not None:
-            self.apply_condition(c_i)
-
         (
             s_t_x,
             sp_x,
@@ -831,7 +811,7 @@ class Encoder(FlexiPrestoBase):
             s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, patch_size
         )
         s_t_x, sp_x, t_x, st_x, s_t_m, st_m, t_m, st_m = self.apply_attn(
-            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_resolution_m
+            c_i, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_resolution_m
         )
 
         return (
