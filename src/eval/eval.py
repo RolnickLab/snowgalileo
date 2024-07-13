@@ -123,6 +123,7 @@ class EvalTask(ABC):
         train_dl: DataLoader,
         pretrained_model: Encoder,
         models: List[str] = ["Random Forest"],
+        c_i = None,
     ) -> Sequence[BaseEstimator]:
         """
         Fit sklearn models on the encodings of the pretrained model.
@@ -163,6 +164,7 @@ class EvalTask(ABC):
                     t_m,
                     st_m,
                     months,
+                    c_i,
                     patch_size=self.patch_size,
                 )
                 if self.spatial_token_prediction:

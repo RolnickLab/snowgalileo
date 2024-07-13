@@ -46,12 +46,7 @@ class ConditionalLinear(nn.Module):
 class LearnedMixture(nn.Module):
     def __init__(
         self,
-        dim: int,
         backbone_dim: int,
-        backbone_depth: int,
-        num_templates: int,
-        proj_share_depth: bool,
-        rank: int,
         time_min: int,  # in timesteps
         time_max: int,  # in timesteps
         hw_min: int,  # in pixels per side
@@ -61,27 +56,10 @@ class LearnedMixture(nn.Module):
         num_input_channels: int,  # channel *groups*
         num_output_channels: int,  # channel *groups*
         num_recon_objs: int,  # number of reconstructive pretraining objectives
-        softmax_temp: float = 1.0,
-        param_types: List[str] = ["q", "k", "v", "proj", "fc1", "fc2"],
     ):
         super().__init__()
-        if rank == backbone_dim:
-            self.use_lora = False
-            print("rank equal to backbone dim, no LoRAs!")
-        else:
-            self.use_lora = True
-            print("rank *not* equal to backbone dim, yes LoRAs!")
 
-        assert (
-            rank <= backbone_dim
-        ), f"rank ({rank}) must be less than or equal to backbone_dim ({backbone_dim})"
-
-        self.dim = dim
         self.backbone_dim = backbone_dim
-        self.backbone_depth = backbone_depth
-        self.num_templates = num_templates
-        self.proj_share_depth = proj_share_depth
-        self.rank = rank
         self.time_min = time_min
         self.time_max = time_max
         self.hw_min = hw_min
@@ -91,100 +69,11 @@ class LearnedMixture(nn.Module):
         self.num_input_channels = num_input_channels
         self.num_output_channels = num_output_channels
         self.num_recon_objs = num_recon_objs
-        self.softmax_temp = softmax_temp
-        self.param_types = param_types
-
+ 
         ##### create conditioner network parameters #####
         self.embedder = nn.Linear(
-            3 + num_input_channels + num_output_channels + num_recon_objs, dim
+            3 + num_input_channels + num_output_channels + num_recon_objs, backbone_dim
         )  # 3 is from input shape, i.e., height/width, time, patch size
-        self.blocks = nn.ModuleList(
-            [
-                nn.Sequential(
-                    nn.LayerNorm(dim),
-                    nn.Linear(dim, int(4 * dim)),
-                    nn.GELU(),
-                    nn.Linear(int(4 * dim), dim),
-                )
-                for _ in range(backbone_depth)
-            ]
-        )
-
-        ##### create template projections that determine mixtures #####
-        self.template_projections = nn.ModuleDict(
-            {f"layer_{i}": nn.ModuleDict() for i in range(backbone_depth)}
-        )
-
-        for param_type in param_types:
-            if proj_share_depth:
-                # create a single shared linear layer for all depths
-                shared_linear = nn.Linear(dim, num_templates)
-                for layer_idx in range(backbone_depth):
-                    self.template_projections[f"layer_{layer_idx}"][param_type] = shared_linear
-            else:
-                # create a separate linear layer for each depth
-                for layer_idx in range(backbone_depth):
-                    self.template_projections[f"layer_{layer_idx}"][param_type] = nn.Linear(
-                        dim, num_templates
-                    )
-
-        ##### create templates #####
-        # check if we need attention templates
-        if any(param in self.param_types for param in ["q", "k", "v", "proj"]):
-            if self.use_lora:
-                self.attention_templates_A = nn.Parameter(
-                    torch.empty(self.num_templates, self.backbone_dim, self.rank),
-                )
-                self.attention_templates_B = nn.Parameter(
-                    torch.empty(self.num_templates, self.rank, self.backbone_dim),
-                )
-                init.xavier_normal_(self.attention_templates_A)
-                init.xavier_normal_(self.attention_templates_B)
-
-            else:
-                self.attention_templates = nn.Parameter(
-                    torch.empty(self.num_templates, self.backbone_dim, self.backbone_dim)
-                )
-                init.xavier_normal_(self.attention_templates)
-        else:
-            self.attention_templates = None
-            self.attention_templates_A = None
-            self.attention_templates_B = None
-
-        # check if we need FFN templates
-        if any(param in self.param_types for param in ["fc1", "fc2"]):
-            if self.use_lora:
-                self.ffn_templates_A = nn.Parameter(
-                    torch.empty(self.num_templates, self.backbone_dim * 4, self.rank),
-                )
-                self.ffn_templates_B = nn.Parameter(
-                    torch.empty(self.num_templates, self.rank, self.backbone_dim),
-                )
-                init.xavier_normal_(self.ffn_templates_A)
-                init.xavier_normal_(self.ffn_templates_B)
-
-            else:
-                self.ffn_templates = nn.Parameter(
-                    torch.empty(self.num_templates, self.backbone_dim * 4, self.backbone_dim),
-                )
-                init.xavier_normal_(self.ffn_templates)
-        else:
-            self.ffn_templates = None
-            self.ffn_templates_A = None
-            self.ffn_templates_B = None
-
-        if self.use_lora:
-            assert (
-                (self.ffn_templates_A is not None and self.ffn_templates_B is not None)
-                or (
-                    self.attention_templates_A is not None
-                    and self.attention_templates_B is not None
-                )
-            ), f"No LoRA templates initialized. Check if param_types {self.param_types} includes any of q, k, v, proj, fc1, or fc2."
-        else:
-            assert (
-                self.ffn_templates is not None or self.attention_templates is not None
-            ), f"No full-rank templates initialized. Check if param_types {self.param_types} includes any of q, k, v, proj, fc1, or fc2."
 
         self.apply(self._init_weights)
 
@@ -233,65 +122,7 @@ class LearnedMixture(nn.Module):
         )
         condition = torch.cat(
             [normalized_input_shape, input_channels, output_channels, recon_objs]
-        ).unsqueeze(
-            dim=0
-        )  # shape (1, 3 + num_input_channels + num_output_channels + num_recon_objs)
+        )  # shape (3 + num_input_channels + num_output_channels + num_recon_objs)
+        condition = rearrange(condition, 'd -> 1 1 d')
 
-        x = self.embedder(condition)  # shape (1, dim)
-
-        mixed_templates = {}
-        for layer_idx, block in enumerate(self.blocks):
-            x = block(x) + x
-
-            # Compute mixture values for each parameter type
-            mixture_values = {}
-            for param_type in self.param_types:
-                mixture_logits = self.template_projections[f"layer_{layer_idx}"][param_type](x)
-                mixture_logits = rearrange(
-                    mixture_logits, "1 l -> l 1 1"
-                )  # prepare for broadcasting
-                mixture_values[param_type] = torch.softmax(
-                    mixture_logits / self.softmax_temp, dim=0
-                )
-
-            # Apply mixtures to templates
-            layer_results = {}
-            for param_type in self.param_types:
-                if param_type in ["q", "k", "v", "proj"]:
-                    if self.use_lora:
-                        templates = torch.bmm(
-                            self.attention_templates_A, self.attention_templates_B
-                        )
-                    else:
-                        templates = self.attention_templates
-
-                elif param_type in ["fc1", "fc2"]:
-                    if self.use_lora:
-                        templates = torch.bmm(self.ffn_templates_A, self.ffn_templates_B)
-                    else:
-                        templates = self.ffn_templates
-
-                    if param_type == "fc2":
-                        # transpose templates for down projection
-                        templates = rearrange(templates, "n i o -> n o i")
-
-                layer_results[param_type] = (mixture_values[param_type] * templates).sum(
-                    dim=0
-                )  # weighted sum
-
-            mixed_templates[layer_idx] = layer_results
-        
-        # compute the mean and std of the conditional weights and set an attribute so we have access during training
-        all_values = []
-        for layer_results in mixed_templates.values():
-            for param_value in layer_results.values():
-                all_values.append(param_value.flatten())
-        
-        all_values = torch.cat(all_values).detach().cpu().numpy()
-        self.last_1st_percentile = np.percentile(all_values, 1).item()
-        self.last_10th_percentile = np.percentile(all_values, 10).item()
-        self.last_50th_percentile = np.percentile(all_values, 50).item()
-        self.last_90th_percentile = np.percentile(all_values, 90).item()
-        self.last_99th_percentile = np.percentile(all_values, 99).item()
-
-        return mixed_templates
+        return self.embedder(condition)  # shape (1, 1, dim)

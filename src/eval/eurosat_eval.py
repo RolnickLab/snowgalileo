@@ -274,29 +274,14 @@ class EuroSatEval(EvalTask):
 
         # thanks Claude for the implementation, good bot
         # lets start with the intuitive conditions
-        conditions = {
-            "hw": [64 // patch_size],
-            "patch_size": [patch_size],
-            "timesteps": [1, 3],
-            "input_channels": [
-                torch.Tensor([0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0]).to(device),  # should be S2
-                ],
-            "output_channels": [
-                torch.Tensor([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).to(device),  # should be DW
-            ],
-            "recon_objs": [
-                torch.Tensor([0, 1]).to(device),
-                torch.Tensor([1, 0]).to(device),
-                ]
+        self.condition = {
+            "hw": 64 // patch_size,
+            "patch_size": patch_size,
+            "timesteps": 3,
+            "input_channels": torch.Tensor([0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0]).to(device),  # should be S2
+            "output_channels": torch.Tensor([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).to(device),  # should be DW
+            "recon_objs": torch.Tensor([1, 0]).to(device),  # should be batch mask time
         }
-
-        # Generate all combinations
-        keys = conditions.keys()
-        values = conditions.values()
-        combinations = list(itertools.product(*values))
-
-        # Create the list of dictionaries
-        self.conditions = [dict(zip(keys, combo)) for combo in combinations]
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         return {
@@ -397,27 +382,11 @@ class EuroSatEval(EvalTask):
                 shuffle=True,
                 num_workers=Hyperparams.num_workers,
             )
-        trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
+        conditioned_trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes, self.condition)
+        conditioned_results = self._evaluate_model(pretrained_model, conditioned_trained_sklearn_models, self.condition)
+        conditioned_results = {f"{key}_c": value for key, value in conditioned_results.items()}
 
-        # sweep through conditions
-        all_results = {}
-        for condition in self.conditions:
-            print(condition)
-            conditioned_results = self._evaluate_model(pretrained_model, trained_sklearn_models, condition)
-            print(conditioned_results)
-            for key, value in conditioned_results.items():
-                if key in all_results.keys():
-                    all_results[key].append(value)
-                else:
-                    all_results[key] = [value]
+        unconditioned_trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes, None)
+        unconditioned_results = self._evaluate_model(pretrained_model, unconditioned_trained_sklearn_models, None)
 
-        best_results = {}
-        for key, value in all_results.items():
-            best_results[f"{key}_c"] = max(value)
-        
-        print(f"BEST: {best_results}")
-
-        # eval without condition
-        unconditioned_results = self._evaluate_model(pretrained_model, trained_sklearn_models, None)
-
-        return {**best_results, **unconditioned_results}
+        return {**conditioned_results, **unconditioned_results}
