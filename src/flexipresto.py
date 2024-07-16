@@ -598,6 +598,8 @@ class Encoder(FlexiPrestoBase):
 
         self.apply(self._init_weights)
         self.conditioner = conditioner
+        if self.conditioner is not None:
+            self.no_condition_emb = nn.Parameter(torch.zeros(1, 1, embedding_size))
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -718,8 +720,12 @@ class Encoder(FlexiPrestoBase):
         new_m = m >= 1
         x, indices, new_m = self.remove_masked_tokens(x, new_m)  # new_m is shape (bsz, seq_len)
 
-        if c_i is not None:
-            condition = self.conditioner(**c_i).repeat(x.shape[0], 1, 1)  # shape (bsz, 1, dim)
+        if self.conditioner is not None:
+            if c_i is not None:
+                condition = self.conditioner(**c_i).repeat(x.shape[0], 1, 1)  # shape (bsz, 1, dim)
+            else:
+                condition = self.no_condition_emb.repeat(x.shape[0], 1, 1)  # shape (bsz, 1, dim)
+            
             x = torch.cat([condition, x], dim=1)
             one_mask = torch.tensor([[False]], device=new_m.device).repeat(x.shape[0], 1)
             new_m = torch.cat([one_mask, new_m], dim=1)  # shape (bsz, seq_len + 1)
@@ -730,7 +736,7 @@ class Encoder(FlexiPrestoBase):
             # attention
             x = blk(x=x, y=None, attn_mask=~new_m.bool())
         
-        if c_i is not None:
+        if self.conditioner is not None:
             x = x[:, 1:, :]  # remove condition
             new_m = new_m[:, 1:]  # remove mask, shape (bsz, seq_len)
 
