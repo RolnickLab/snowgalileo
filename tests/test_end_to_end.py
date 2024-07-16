@@ -54,7 +54,8 @@ class TestEndtoEnd(unittest.TestCase):
         param_groups = [{"params": encoder.parameters()}, {"params": predictor.parameters()}]
         optimizer = torch.optim.AdamW(param_groups, lr=3e-4)  # type: ignore
 
-        for _, b in enumerate(dataloader):
+        # let's just consider one of the augmentations
+        for _, (b, _, _) in enumerate(dataloader):
             for x in b:
                 if isinstance(x, torch.Tensor):
                     self.assertFalse(torch.isnan(x).any())
