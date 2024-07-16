@@ -1,3 +1,5 @@
+from typing import NamedTuple, Tuple
+
 import numpy as np
 import torch
 from einops import rearrange, repeat
@@ -10,25 +12,48 @@ from src.masking import (
     SPACE_TIME_BAND_EXPANSION,
     STATIC_BAND_EXPANSION,
     TIME_BAND_EXPANSION,
+    MaskingFunctions,
     batch_subset_mask_presto,
 )
 
 
-@torch.no_grad()
-def mae_collate_fn(
-    batch,
+class CollateFnOutput(NamedTuple):
+    s_t_x: torch.Tensor
+    sp_x: torch.Tensor
+    t_x: torch.Tensor
+    st_x: torch.Tensor
+    s_t_m: torch.Tensor
+    sp_m: torch.Tensor
+    t_m: torch.Tensor
+    st_m: torch.Tensor
+    months: torch.Tensor
+    expanded_s_t_x: torch.Tensor
+    expanded_sp_x: torch.Tensor
+    expanded_s_t: torch.Tensor
+    expanded_sp: torch.Tensor
+    expanded_t: torch.Tensor
+    expanded_st: torch.Tensor
+    patch_size: float
+    # c_i: dict
+
+
+def collated_batch_to_output(
+    s_t_x: torch.Tensor,
+    sp_x: torch.Tensor,
+    t_x: torch.Tensor,
+    st_x: torch.Tensor,
+    months: torch.Tensor,
     patch_sizes,
     shape_time_combinations,
     mask_ratio,
     decoder_unmask_ratio,
+    masking_function: MaskingFunctions,
     augmentation_strategies=None,
     fixed_patch_size=None,
     fixed_space_time_combination=None,
     masking_probabilities=None,
     unmasking_probabilities=None,
-):
-    s_t_x, sp_x, t_x, st_x, months = default_collate(batch)
-
+) -> CollateFnOutput:
     if fixed_patch_size is not None:
         patch_size = fixed_patch_size
     else:
@@ -64,6 +89,7 @@ def mae_collate_fn(
         augmentation_strategies=augmentation_strategies,
         masking_probabilities=masking_probabilities,
         unmasking_probabilities=unmasking_probabilities,
+        masking_function=masking_function,
     )
 
     # transform the masks from channel-groups to individual channels
@@ -111,7 +137,7 @@ def mae_collate_fn(
         expanded_s_t_x = s_t_x
         expanded_sp_x = sp_x
 
-    return (
+    return CollateFnOutput(
         s_t_x,
         sp_x,
         t_x,
@@ -129,4 +155,74 @@ def mae_collate_fn(
         expanded_st,
         patch_size,
         c_i,
+    )
+
+
+@torch.no_grad()
+def mae_collate_fn(
+    batch,
+    patch_sizes,
+    shape_time_combinations,
+    mask_ratio,
+    decoder_unmask_ratio,
+    augmentation_strategies=None,
+    fixed_patch_size=None,
+    fixed_space_time_combination=None,
+    masking_probabilities=None,
+    unmasking_probabilities=None,
+) -> Tuple[CollateFnOutput, CollateFnOutput, CollateFnOutput]:
+    s_t_x, sp_x, t_x, st_x, months = default_collate(batch)
+
+    return (
+        collated_batch_to_output(
+            s_t_x,
+            sp_x,
+            t_x,
+            st_x,
+            months,
+            patch_sizes,
+            shape_time_combinations,
+            mask_ratio,
+            decoder_unmask_ratio,
+            MaskingFunctions.RANDOM,
+            augmentation_strategies,
+            fixed_patch_size,
+            fixed_space_time_combination,
+            masking_probabilities,
+            unmasking_probabilities,
+        ),
+        collated_batch_to_output(
+            s_t_x,
+            sp_x,
+            t_x,
+            st_x,
+            months,
+            patch_sizes,
+            shape_time_combinations,
+            mask_ratio,
+            decoder_unmask_ratio,
+            MaskingFunctions.SPACE,
+            augmentation_strategies,
+            fixed_patch_size,
+            fixed_space_time_combination,
+            masking_probabilities,
+            unmasking_probabilities,
+        ),
+        collated_batch_to_output(
+            s_t_x,
+            sp_x,
+            t_x,
+            st_x,
+            months,
+            patch_sizes,
+            shape_time_combinations,
+            mask_ratio,
+            decoder_unmask_ratio,
+            MaskingFunctions.TIME,
+            augmentation_strategies,
+            fixed_patch_size,
+            fixed_space_time_combination,
+            masking_probabilities,
+            unmasking_probabilities,
+        ),
     )

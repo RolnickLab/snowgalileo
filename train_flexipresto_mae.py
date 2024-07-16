@@ -13,7 +13,7 @@ from torch.utils.data import BatchSampler, DataLoader
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
-from src.collate_fns import mae_collate_fn
+from src.collate_fns import MaskingFunctions, mae_collate_fn
 from src.config import DEFAULT_SEED
 from src.data import Dataset
 from src.data.config import (
@@ -172,7 +172,7 @@ if wandb_enabled:
             )
 
             prepared_image_to_plot = {}
-            for image_id, b in enumerate(plot_dataloader):
+            for image_id, (b, _, _) in enumerate(plot_dataloader):
                 b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
                 prepared_image_to_plot[image_id] = b[:-1]  # to remove c_i
                 if len(prepared_image_to_plot) >= training_config["num_images_to_wandb_plot"]:
@@ -187,35 +187,34 @@ iterations_per_epoch = len(dataset)
 assert training_config["effective_batch_size"] % training_config["batch_size"] == 0
 iters_to_accumulate = training_config["effective_batch_size"] / training_config["batch_size"]
 
+i = 0
 for e in tqdm(range(training_config["num_epochs"])):
     train_loss = AverageMeter()
     random_masking_train_loss = AverageMeter() 
     task_masking_train_loss = AverageMeter()  
-    for i, b in tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
-        b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
-        (
-            s_t_x,
-            sp_x,
-            t_x,
-            st_x,
-            s_t_m,
-            sp_m,
-            t_m,
-            st_m,
-            months,
-            expanded_s_t_x,
-            expanded_sp_x,
-            s_t_m_p,
-            sp_m_p,
-            t_m_p,
-            st_m_p,
-            patch_size,
+    for bs in tqdm(dataloader, total=len(dataloader), leave=False):
+        for b in bs:
+            i += 1
+            b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
+            (
+                s_t_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_m,
+                sp_m,
+                t_m,
+                st_m,
+                months,
+                expanded_s_t_x,
+                expanded_sp_x,
+                s_t_m_p,
+                sp_m_p,
+                t_m_p,
+                st_m_p,
+                patch_size,
             c_i,
-        ) = b
-
-        if c_i is not None:
-            # there is probably a better way to do this
-            c_i = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in c_i.items()}
+            ) = b
 
         with torch.autocast(device_type=device.type, dtype=autocast_device):
             (p_s_t, p_sp, p_t, p_st) = predictor(
@@ -229,7 +228,6 @@ for e in tqdm(range(training_config["num_epochs"])):
                     t_m,
                     st_m,
                     months.long(),
-                    c_i=c_i,
                     patch_size=patch_size,
                 ),
                 patch_size=patch_size,
@@ -251,14 +249,8 @@ for e in tqdm(range(training_config["num_epochs"])):
                 patch_size=training_config["patch_sizes"][-1],
                 loss_type=training_config["mae_loss"],
             )
-        
-        # log train losses
-        train_loss.update(loss.item(), n=s_t_x.shape[0])
-        if c_i is not None:
-            task_masking_train_loss.update(loss.item(), n=s_t_x.shape[0])
-        else:
-            random_masking_train_loss.update(loss.item(), n=s_t_x.shape[0])
 
+        train_loss.update(loss.item(), n=s_t_x.shape[0])
         loss = loss / iters_to_accumulate
         loss.backward()
 
@@ -273,7 +265,6 @@ for e in tqdm(range(training_config["num_epochs"])):
                 max_lr=training_config["max_lr"],
                 start_lr=training_config["start_lr"],
                 min_lr=training_config["final_lr"],
-                conditioner_multiplier=None,
             )
 
     if wandb_enabled:
