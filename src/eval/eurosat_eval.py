@@ -2,7 +2,6 @@ import json
 import urllib.request
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, cast
-import itertools
 
 import numpy as np
 import rioxarray as xr
@@ -275,8 +274,12 @@ class EuroSatEval(EvalTask):
             "hw": 64 // patch_size,
             "patch_size": patch_size,
             "timesteps": 3,
-            "input_channels": torch.Tensor([0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0]).to(device),  # should be S2
-            "output_channels": torch.Tensor([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).to(device),  # should be DW
+            "input_channels": torch.Tensor([0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0]).to(
+                device
+            ),  # should be S2
+            "output_channels": torch.Tensor([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).to(
+                device
+            ),  # should be DW
             "recon_objs": torch.Tensor([1, 0]).to(device),  # should be batch mask time
         }
 
@@ -319,7 +322,17 @@ class EuroSatEval(EvalTask):
             pretrained_model.eval()
 
             with torch.no_grad():
-                s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _, = pretrained_model(
+                (
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    _,
+                ) = pretrained_model(
                     s_t_x,
                     sp_x,
                     t_x,
@@ -351,7 +364,7 @@ class EuroSatEval(EvalTask):
             test_preds_np = np.concatenate(pred_list, axis=0)
             prefix = f"{model_name_str}"
             results_dict.update(self.compute_metrics(prefix, test_preds_np, target))
-        
+
         return results_dict
 
     def evaluate_model_on_task(
@@ -383,11 +396,19 @@ class EuroSatEval(EvalTask):
                 shuffle=True,
                 num_workers=Hyperparams.num_workers,
             )
-        conditioned_trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes, self.condition)
-        conditioned_results = self._evaluate_model(pretrained_model, conditioned_trained_sklearn_models, self.condition)
+        conditioned_trained_sklearn_models = self.train_sklearn_model(
+            train_dl, pretrained_model, model_modes, self.condition
+        )
+        conditioned_results = self._evaluate_model(
+            pretrained_model, conditioned_trained_sklearn_models, self.condition
+        )
         conditioned_results = {f"{key}_c": value for key, value in conditioned_results.items()}
 
-        unconditioned_trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes, None)
-        unconditioned_results = self._evaluate_model(pretrained_model, unconditioned_trained_sklearn_models, None)
+        unconditioned_trained_sklearn_models = self.train_sklearn_model(
+            train_dl, pretrained_model, model_modes, None
+        )
+        unconditioned_results = self._evaluate_model(
+            pretrained_model, unconditioned_trained_sklearn_models, None
+        )
 
         return {**conditioned_results, **unconditioned_results}

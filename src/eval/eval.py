@@ -123,7 +123,7 @@ class EvalTask(ABC):
         train_dl: DataLoader,
         pretrained_model: Encoder,
         models: List[str] = ["Random Forest"],
-        c_i = None,
+        c_i=None,
     ) -> Sequence[BaseEstimator]:
         """
         Fit sklearn models on the encodings of the pretrained model.

@@ -1,8 +1,5 @@
 import warnings
-from typing import List
 
-import torch.nn.init as init
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -69,7 +66,7 @@ class TokenConditioner(nn.Module):
         self.num_input_channels = num_input_channels
         self.num_output_channels = num_output_channels
         self.num_recon_objs = num_recon_objs
- 
+
         ##### create conditioner network parameters #####
         self.embedder = nn.Linear(
             3 + num_input_channels + num_output_channels + num_recon_objs, backbone_dim
@@ -105,9 +102,11 @@ class TokenConditioner(nn.Module):
         timesteps_normalized = (timesteps - self.time_min) / (self.time_max - self.time_min)
 
         return torch.tensor(
-            [hw_normalized, patch_size_normalized, timesteps_normalized], device=device, dtype=dtype
+            [hw_normalized, patch_size_normalized, timesteps_normalized],
+            device=device,
+            dtype=dtype,
         )
-    
+
     def forward(
         self,
         hw: int,
@@ -123,6 +122,6 @@ class TokenConditioner(nn.Module):
         condition = torch.cat(
             [normalized_input_shape, input_channels, output_channels, recon_objs]
         )  # shape (3 + num_input_channels + num_output_channels + num_recon_objs)
-        condition = rearrange(condition, 'd -> 1 1 d')
+        condition = rearrange(condition, "d -> 1 1 d")
 
         return self.embedder(condition)  # shape (1, 1, dim)

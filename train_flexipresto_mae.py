@@ -11,9 +11,9 @@ import psutil
 import torch
 from torch.utils.data import BatchSampler, DataLoader
 from tqdm import tqdm
-from wandb.sdk.wandb_run import Run
 
 from src.collate_fns import MaskingFunctions, mae_collate_fn
+from src.conditioner import TokenConditioner
 from src.config import DEFAULT_SEED
 from src.data import Dataset
 from src.data.config import (
@@ -41,7 +41,6 @@ from src.eval import (
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
 from src.loss import masked_autoencoder_loss
-from src.conditioner import TokenConditioner
 from src.utils import (
     AverageMeter,
     data_dir,
@@ -52,6 +51,7 @@ from src.utils import (
     seed_everything,
     timestamp_dirname,
 )
+from wandb.sdk.wandb_run import Run
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -109,9 +109,7 @@ print("Loading models")
 predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
 if "conditioner" in config["model"]:
     conditioner = TokenConditioner(**config["model"]["conditioner"]).to(device)
-    encoder = Encoder(
-        **config["model"]["encoder"], conditioner=conditioner
-    ).to(device)
+    encoder = Encoder(**config["model"]["encoder"], conditioner=conditioner).to(device)
 else:
     encoder = Encoder(**config["model"]["encoder"]).to(device)
 
@@ -119,13 +117,11 @@ param_groups = [
     {
         "params": encoder.parameters(),
         "name": "encoder",
-        "weight_decay": training_config["weight_decay"],
     },
     {
         "params": predictor.parameters(),
         "name": "decoder",
-        "weight_decay": training_config["weight_decay"],
-    }
+    },
 ]
 
 
@@ -182,7 +178,9 @@ if wandb_enabled:
             print(f"Prepared {len(prepared_image_to_plot)} images for patch size {p}")
         print(f"all {len(examples_to_plot)} images for patch size")
 
-optimizer = torch.optim.AdamW(param_groups, lr=training_config["start_lr"])  # type: ignore
+optimizer = torch.optim.AdamW(
+    param_groups, lr=training_config["start_lr"], weight_decay=training_config["weight_decay"]
+)  # type: ignore
 iterations_per_epoch = len(dataset)
 assert training_config["effective_batch_size"] % training_config["batch_size"] == 0
 iters_to_accumulate = training_config["effective_batch_size"] / training_config["batch_size"]
@@ -190,8 +188,8 @@ iters_to_accumulate = training_config["effective_batch_size"] / training_config[
 i = 0
 for e in tqdm(range(training_config["num_epochs"])):
     train_loss = AverageMeter()
-    random_masking_train_loss = AverageMeter() 
-    task_masking_train_loss = AverageMeter()  
+    random_masking_train_loss = AverageMeter()
+    task_masking_train_loss = AverageMeter()
     for bs in tqdm(dataloader, total=len(dataloader), leave=False):
         for b in bs:
             i += 1
@@ -218,7 +216,9 @@ for e in tqdm(range(training_config["num_epochs"])):
 
             if c_i is not None:
                 # there is probably a better way to do this
-                c_i = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in c_i.items()}
+                c_i = {
+                    k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in c_i.items()
+                }
 
             with torch.autocast(device_type=device.type, dtype=autocast_device):
                 (p_s_t, p_sp, p_t, p_st) = predictor(
@@ -260,7 +260,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                 task_masking_train_loss.update(loss.item(), n=s_t_x.shape[0])
             else:
                 random_masking_train_loss.update(loss.item(), n=s_t_x.shape[0])
-            
+
             loss = loss / iters_to_accumulate
             loss.backward()
 
@@ -283,7 +283,7 @@ for e in tqdm(range(training_config["num_epochs"])):
             "random_masking_train_loss": random_masking_train_loss.average,
             "task_masking_train_loss": task_masking_train_loss.average,
             "epoch": e,
-            }
+        }
         if (training_config["wandb_plot_every_n_epochs"] != 0) and (
             e % training_config["wandb_plot_every_n_epochs"] == 0
         ):

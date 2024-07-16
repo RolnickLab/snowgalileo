@@ -662,7 +662,7 @@ class Encoder(FlexiPrestoBase):
             torch.stack(t_m_l, dim=-1),
             torch.stack(st_m_l, dim=-1),
         )
-    
+
     @staticmethod
     def remove_masked_tokens(x, mask):
         org_mask_dtype = mask.dtype
@@ -705,7 +705,19 @@ class Encoder(FlexiPrestoBase):
         return out, full_mask
 
     def apply_attn(
-        self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_res, c_i, 
+        self,
+        s_t_x,
+        sp_x,
+        t_x,
+        st_x,
+        s_t_m,
+        sp_m,
+        t_m,
+        st_m,
+        months,
+        patch_size,
+        input_res,
+        c_i,
     ):
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
         sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
@@ -725,17 +737,17 @@ class Encoder(FlexiPrestoBase):
                 condition = self.conditioner(**c_i).repeat(x.shape[0], 1, 1)  # shape (bsz, 1, dim)
             else:
                 condition = self.no_condition_emb.repeat(x.shape[0], 1, 1)  # shape (bsz, 1, dim)
-            
+
             x = torch.cat([condition, x], dim=1)  # shape (bsz, seq_len + 1, dim)
             one_mask = torch.tensor([[False]], device=new_m.device).repeat(x.shape[0], 1)
             new_m = torch.cat([one_mask, new_m], dim=1)  # shape (bsz, seq_len + 1)
-        
+
         for blk in self.blocks:
             # we take the inverse of the mask because a value
             # of True indicates the value *should* take part in
             # attention
             x = blk(x=x, y=None, attn_mask=~new_m.bool())
-        
+
         if self.conditioner is not None:
             x = x[:, 1:, :]  # remove condition
             new_m = new_m[:, 1:]  # remove mask, shape (bsz, seq_len)
@@ -800,7 +812,7 @@ class Encoder(FlexiPrestoBase):
         t_m: torch.Tensor,
         st_m: torch.Tensor,
         months: torch.Tensor,
-        c_i = None,
+        c_i=None,
         patch_size: Optional[int] = None,
         input_resolution_m: Optional[int] = BASE_GSD,
     ):
@@ -817,7 +829,18 @@ class Encoder(FlexiPrestoBase):
             s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, patch_size
         )
         s_t_x, sp_x, t_x, st_x, s_t_m, st_m, t_m, st_m = self.apply_attn(
-            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_resolution_m, c_i,
+            s_t_x,
+            sp_x,
+            t_x,
+            st_x,
+            s_t_m,
+            sp_m,
+            t_m,
+            st_m,
+            months,
+            patch_size,
+            input_resolution_m,
+            c_i,
         )
 
         return (
