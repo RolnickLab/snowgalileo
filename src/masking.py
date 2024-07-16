@@ -220,7 +220,7 @@ def batch_subset_mask_presto(
             patch_size=patch_size,
         )
         conditioner_inputs = None
-        
+
     else:
         raise AssertionError(f"Unexpected strategy {masking_function}")
 
