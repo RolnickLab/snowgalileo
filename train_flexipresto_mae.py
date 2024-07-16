@@ -13,7 +13,7 @@ from torch.utils.data import BatchSampler, DataLoader
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
-from src.collate_fns import mae_collate_fn
+from src.collate_fns import MaskingFunctions, mae_collate_fn
 from src.config import DEFAULT_SEED
 from src.data import Dataset
 from src.data.config import (
@@ -167,79 +167,82 @@ iterations_per_epoch = len(dataset)
 assert training_config["effective_batch_size"] % training_config["batch_size"] == 0
 iters_to_accumulate = training_config["effective_batch_size"] / training_config["batch_size"]
 
+i = 0
 for e in tqdm(range(training_config["num_epochs"])):
     train_loss = AverageMeter()
-    for i, b in tqdm(enumerate(dataloader), total=len(dataloader), leave=False):
-        b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
-        (
-            s_t_x,
-            sp_x,
-            t_x,
-            st_x,
-            s_t_m,
-            sp_m,
-            t_m,
-            st_m,
-            months,
-            expanded_s_t_x,
-            expanded_sp_x,
-            s_t_m_p,
-            sp_m_p,
-            t_m_p,
-            st_m_p,
-            patch_size,
-        ) = b
-
-        with torch.autocast(device_type=device.type, dtype=autocast_device):
-            (p_s_t, p_sp, p_t, p_st) = predictor(
-                *encoder(
-                    s_t_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                    months.long(),
-                    patch_size=patch_size,
-                ),
-                patch_size=patch_size,
-            )
-
-            loss = masked_autoencoder_loss(
-                expanded_s_t_x,
-                expanded_sp_x,
+    for bs in tqdm(dataloader, total=len(dataloader), leave=False):
+        for b in bs:
+            i += 1
+            b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
+            (
+                s_t_x,
+                sp_x,
                 t_x,
                 st_x,
-                p_s_t,
-                p_sp,
-                p_t,
-                p_st,
+                s_t_m,
+                sp_m,
+                t_m,
+                st_m,
+                months,
+                expanded_s_t_x,
+                expanded_sp_x,
                 s_t_m_p,
                 sp_m_p,
                 t_m_p,
                 st_m_p,
-                patch_size=training_config["patch_sizes"][-1],
-                loss_type=training_config["mae_loss"],
-            )
+                patch_size,
+            ) = b
 
-        train_loss.update(loss.item(), n=s_t_x.shape[0])
-        loss = loss / iters_to_accumulate
-        loss.backward()
+            with torch.autocast(device_type=device.type, dtype=autocast_device):
+                (p_s_t, p_sp, p_t, p_st) = predictor(
+                    *encoder(
+                        s_t_x,
+                        sp_x,
+                        t_x,
+                        st_x,
+                        s_t_m,
+                        sp_m,
+                        t_m,
+                        st_m,
+                        months.long(),
+                        patch_size=patch_size,
+                    ),
+                    patch_size=patch_size,
+                )
 
-        if ((i + 1) % iters_to_accumulate == 0) or (i + 1 == len(dataloader)):
-            optimizer.step()
-            optimizer.zero_grad()
-            adjust_learning_rate(
-                optimizer,
-                epoch=i / len(dataloader) + e,
-                warmup_epochs=training_config["warmup_epochs"],
-                total_epochs=training_config["num_epochs"],
-                max_lr=training_config["max_lr"],
-                start_lr=training_config["start_lr"],
-                min_lr=training_config["final_lr"],
-            )
+                loss = masked_autoencoder_loss(
+                    expanded_s_t_x,
+                    expanded_sp_x,
+                    t_x,
+                    st_x,
+                    p_s_t,
+                    p_sp,
+                    p_t,
+                    p_st,
+                    s_t_m_p,
+                    sp_m_p,
+                    t_m_p,
+                    st_m_p,
+                    patch_size=training_config["patch_sizes"][-1],
+                    loss_type=training_config["mae_loss"],
+                )
+
+            train_loss.update(loss.item(), n=s_t_x.shape[0])
+            loss = loss / iters_to_accumulate
+            loss.backward()
+
+            if ((i + 1) % iters_to_accumulate == 0) or (i + 1 == len(dataloader)):
+                optimizer.step()
+                optimizer.zero_grad()
+                adjust_learning_rate(
+                    optimizer,
+                    epoch=i / (len(MaskingFunctions) * len(dataloader)) + e,
+                    warmup_epochs=training_config["warmup_epochs"],
+                    total_epochs=training_config["num_epochs"],
+                    max_lr=training_config["max_lr"],
+                    start_lr=training_config["start_lr"],
+                    min_lr=training_config["final_lr"],
+                )
 
     if wandb_enabled:
         to_log = {"train_loss": train_loss.average, "epoch": e}
