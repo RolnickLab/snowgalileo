@@ -41,7 +41,7 @@ from src.eval import (
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
 from src.loss import masked_autoencoder_loss
-from src.conditioner import LearnedMixture
+from src.conditioner import TokenConditioner
 from src.utils import (
     AverageMeter,
     data_dir,
@@ -108,7 +108,7 @@ dataloader = DataLoader(
 print("Loading models")
 predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
 if "conditioner" in config["model"]:
-    conditioner = LearnedMixture(**config["model"]["conditioner"]).to(device)
+    conditioner = TokenConditioner(**config["model"]["conditioner"]).to(device)
     encoder = Encoder(
         **config["model"]["encoder"], conditioner=conditioner
     ).to(device)
@@ -213,59 +213,69 @@ for e in tqdm(range(training_config["num_epochs"])):
                 t_m_p,
                 st_m_p,
                 patch_size,
-            c_i,
+                c_i,
             ) = b
 
-        with torch.autocast(device_type=device.type, dtype=autocast_device):
-            (p_s_t, p_sp, p_t, p_st) = predictor(
-                *encoder(
-                    s_t_x,
-                    sp_x,
+            if c_i is not None:
+                # there is probably a better way to do this
+                c_i = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in c_i.items()}
+
+            with torch.autocast(device_type=device.type, dtype=autocast_device):
+                (p_s_t, p_sp, p_t, p_st) = predictor(
+                    *encoder(
+                        s_t_x,
+                        sp_x,
+                        t_x,
+                        st_x,
+                        s_t_m,
+                        sp_m,
+                        t_m,
+                        st_m,
+                        months.long(),
+                        c_i=c_i,
+                        patch_size=patch_size,
+                    ),
+                    patch_size=patch_size,
+                )
+
+                loss = masked_autoencoder_loss(
+                    expanded_s_t_x,
+                    expanded_sp_x,
                     t_x,
                     st_x,
-                    s_t_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                    months.long(),
-                    patch_size=patch_size,
-                ),
-                patch_size=patch_size,
-            )
+                    p_s_t,
+                    p_sp,
+                    p_t,
+                    p_st,
+                    s_t_m_p,
+                    sp_m_p,
+                    t_m_p,
+                    st_m_p,
+                    patch_size=training_config["patch_sizes"][-1],
+                    loss_type=training_config["mae_loss"],
+                )
 
-            loss = masked_autoencoder_loss(
-                expanded_s_t_x,
-                expanded_sp_x,
-                t_x,
-                st_x,
-                p_s_t,
-                p_sp,
-                p_t,
-                p_st,
-                s_t_m_p,
-                sp_m_p,
-                t_m_p,
-                st_m_p,
-                patch_size=training_config["patch_sizes"][-1],
-                loss_type=training_config["mae_loss"],
-            )
+            train_loss.update(loss.item(), n=s_t_x.shape[0])
+            if c_i is not None:
+                task_masking_train_loss.update(loss.item(), n=s_t_x.shape[0])
+            else:
+                random_masking_train_loss.update(loss.item(), n=s_t_x.shape[0])
+            
+            loss = loss / iters_to_accumulate
+            loss.backward()
 
-        train_loss.update(loss.item(), n=s_t_x.shape[0])
-        loss = loss / iters_to_accumulate
-        loss.backward()
-
-        if ((i + 1) % iters_to_accumulate == 0) or (i + 1 == len(dataloader)):
-            optimizer.step()
-            optimizer.zero_grad()
-            adjust_learning_rate(
-                optimizer,
-                epoch=i / len(dataloader) + e,
-                warmup_epochs=training_config["warmup_epochs"],
-                total_epochs=training_config["num_epochs"],
-                max_lr=training_config["max_lr"],
-                start_lr=training_config["start_lr"],
-                min_lr=training_config["final_lr"],
-            )
+            if ((i + 1) % iters_to_accumulate == 0) or (i + 1 == len(dataloader)):
+                optimizer.step()
+                optimizer.zero_grad()
+                adjust_learning_rate(
+                    optimizer,
+                    epoch=i / (len(MaskingFunctions) * len(dataloader)) + e,
+                    warmup_epochs=training_config["warmup_epochs"],
+                    total_epochs=training_config["num_epochs"],
+                    max_lr=training_config["max_lr"],
+                    start_lr=training_config["start_lr"],
+                    min_lr=training_config["final_lr"],
+                )
 
     if wandb_enabled:
         to_log = {

@@ -43,7 +43,7 @@ class ConditionalLinear(nn.Module):
             return F.linear(x, self.backbone.weight, self.backbone.bias)
 
 
-class LearnedMixture(nn.Module):
+class TokenConditioner(nn.Module):
     def __init__(
         self,
         backbone_dim: int,

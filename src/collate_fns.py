@@ -34,7 +34,7 @@ class CollateFnOutput(NamedTuple):
     expanded_t: torch.Tensor
     expanded_st: torch.Tensor
     patch_size: float
-    # c_i: dict
+    c_i: dict
 
 
 def collated_batch_to_output(
