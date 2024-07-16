@@ -1,5 +1,6 @@
 import random
 from collections import OrderedDict
+from enum import Enum
 from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, Union
 
 import numpy as np
@@ -51,6 +52,12 @@ MASKING_MODES: List[Union[str, Tuple[str, str]]] = [
 ]
 
 MAX_MASKING_STRATEGIES = 6
+
+
+class MaskingFunctions(Enum):
+    SPACE = 0
+    TIME = 1
+    RANDOM = 2
 
 
 def return_masked_unmasked_bands(
@@ -147,6 +154,7 @@ def batch_subset_mask_presto(
     augmentation_strategies: Optional[Dict],
     masking_probabilities: List[float],
     unmasking_probabilities: List[float],
+    masking_function: MaskingFunctions,
 ) -> Tuple[MaskedOutput, Dict]:
     assert len(masking_probabilities) == len(unmasking_probabilities) == len(MASKING_MODES)
 
@@ -159,10 +167,8 @@ def batch_subset_mask_presto(
         "recon_objs": torch.zeros(2).to(s_t_x.device),
     }
 
-    # randomly select a masking strategy
-    strategy = random.choice([0, 1, 2])
-    if strategy < 2:
-        f: Callable = batch_mask_space if strategy == 1 else batch_mask_time
+    if masking_function.value < 2:
+        f: Callable = batch_mask_space if masking_function.value == 1 else batch_mask_time
         num_masking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
         num_unmasking_modes = 1
         masking_modes = weighted_sample_without_replacement(
@@ -195,8 +201,8 @@ def batch_subset_mask_presto(
                 conditioner_inputs["input_channels"][i] = 1  # type: ignore
             elif m in unmasking_modes:
                 conditioner_inputs["output_channels"][i] = 1  # type: ignore
-        conditioner_inputs["recon_objs"][strategy] = 1  # type: ignore
-    elif strategy == 2:
+        conditioner_inputs["recon_objs"][masking_function.value] = 1  # type: ignore
+    elif masking_function.value == 2:
         # 2 is random
         masked_output = batch_mask_random(
             *subset_and_augment_batch_of_images(
@@ -216,7 +222,7 @@ def batch_subset_mask_presto(
         conditioner_inputs = None
         
     else:
-        raise AssertionError(f"Unexpected strategy {strategy}")
+        raise AssertionError(f"Unexpected strategy {masking_function}")
 
     return masked_output, conditioner_inputs
 
