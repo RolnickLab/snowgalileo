@@ -1,7 +1,7 @@
 {
     "training": {
-        "num_epochs": 500,
-        "batch_size": 64,
+        "num_epochs": 1000,
+        "batch_size": 32,
         "effective_batch_size": 512,
         "mask_ratio": 0.5,
         "decoder_unmask_ratio": 0.25,
@@ -10,9 +10,7 @@
         "start_lr": 0.0002,
         "max_lr": 0.001,
         "final_lr": 1.0e-06,
-        "conditioner_lr_multiplier": 0.1,
         "weight_decay": 0.01,
-        "conditioner_wd_multiplier": 1,
         "warmup_epochs": 0.1,
         "eval_eurosat_every_n_epochs": 10,
         "mae_loss": "norm_per_c_g",
@@ -40,22 +38,16 @@
             "max_sequence_length": 24
         },
         "conditioner": {
-            "dim": 384,
             "backbone_dim": 128,
-            "backbone_depth": 2,
-            "num_templates": 50,
-            "proj_share_depth": true,
-            "rank": 12,
-            "time_min": 1,
-            "time_max": 24,
-            "hw_min": 1,
-            "hw_max": 96,
+            "time_min": 3,
+            "time_max": 12,
+            "hw_min": 4,
+            "hw_max": 12,
             "patch_size_min": 1,
             "patch_size_max": 8,
             "num_input_channels": 15,
             "num_output_channels": 15,
-            "num_recon_objs": 2,
-            "param_types": ["q", "k", "v", "proj", "fc1", "fc2"]
+            "num_recon_objs": 2
         }
     }
 }
