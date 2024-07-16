@@ -22,7 +22,7 @@ class TestEndtoEnd(unittest.TestCase):
     def _test_end_to_end(self, loss_type: str):
         embedding_size = 32
 
-        dataset = Dataset(DATA_FOLDER, download=False, cache_folder=None)
+        dataset = Dataset(DATA_FOLDER, download=False, npy_folder=None)
         dataloader = DataLoader(
             dataset,
             batch_size=1,

@@ -85,7 +85,9 @@ output_dir = Path(__file__).parent
 
 
 print("Loading dataset and dataloader")
-dataset = Dataset(TIFS_FOLDER, download=False, cache_folder=DATA_FOLDER / "npys_spacetime_16")
+dataset = Dataset(
+    TIFS_FOLDER, download=False, npy_folder=DATA_FOLDER / "npys_spacetime_16", npys_only=True
+)
 dataloader = DataLoader(
     dataset,
     batch_size=training_config["batch_size"],
@@ -333,18 +335,17 @@ with (model_path / CONFIG_FILENAME).open("w") as f:
 
 eval_tasks: List[EvalTask] = [
     *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil"]],
-    So2SatEval(),
-    *[
-        EuroSatEval(rgb=rgb, include_latlons=include_latlons, geobench=geobench)
-        for rgb in [True, False]
-        for include_latlons in [True, False]
-        for geobench in [True, False]
-    ],
+    *[EuroSatEval(rgb=rgb, include_latlons=False, geobench=True) for rgb in [True, False]],
     *[So2SatEval(geobench=geobench) for geobench in [True, False]],
     BigEarthNetEval(),
     BrickKilnEval(),
     *[CashewPlantEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
     *[SACropEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
+    *[
+        EuroSatEval(rgb=rgb, include_latlons=include_latlons, geobench=False)
+        for rgb in [True, False]
+        for include_latlons in [True, False]
+    ],
     *[
         PastisPatchEval(
             output_mode=output_mode,

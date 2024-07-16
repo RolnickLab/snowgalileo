@@ -14,7 +14,13 @@ import xarray as xr
 from einops import rearrange, repeat
 from torch.utils.data import Dataset as PyTorchDataset
 
-from .config import DATASET_OUTPUT_HW, EE_BUCKET_TIFS, EE_FOLDER_TIFS, NUM_TIMESTEPS
+from .config import (
+    DATASET_OUTPUT_HW,
+    EE_BUCKET_TIFS,
+    EE_FOLDER_NPYS,
+    EE_FOLDER_TIFS,
+    NUM_TIMESTEPS,
+)
 from .earthengine.eo import (
     ALL_DYNAMIC_IN_TIME_BANDS,
     DW_BANDS,
@@ -164,24 +170,45 @@ def to_cartesian(
 
 class Dataset(PyTorchDataset):
     def __init__(
-        self, data_folder: Path, download: bool = True, cache_folder: Optional[Path] = None
+        self,
+        data_folder: Path,
+        download: bool = True,
+        npy_folder: Optional[Path] = None,
+        npys_only: bool = False,
     ):
         self.data_folder = data_folder
-        if download:
-            self.download(data_folder)
-        self.tifs = list(data_folder.glob("*.tif")) + list(data_folder.glob("*.tiff"))
-        self.cache_folder = cache_folder
+        self.npys_only = npys_only
+        self.npy_folder = npy_folder
         self.cache = False
-        if cache_folder is not None:
+
+        if npy_folder is not None:
             self.cache = True
+        if npys_only:
+            assert npy_folder is not None, "Can't use npys only if there is no cache folder"
+            self.tifs: List[Path] = []
+            if download:
+                self.download_npys(npy_folder)
+            self.space_time_npys = list(npy_folder.glob("*_space_time.npy"))
+        else:
+            if download:
+                self.download_tifs(data_folder)
+            self.tifs = list(data_folder.glob("*.tif")) + list(data_folder.glob("*.tiff"))
+            self.space_time_npys = []
 
     def __len__(self) -> int:
+        if self.npys_only:
+            return len(self.space_time_npys)
         return len(self.tifs)
 
     @staticmethod
-    def download(data_folder):
+    def download_tifs(data_folder):
         # Download files (faster than using Python API)
         os.system(f"gcloud storage rsync -r gs://{EE_BUCKET_TIFS}/{EE_FOLDER_TIFS} {data_folder}")
+
+    @staticmethod
+    def download_npys(data_folder):
+        # Download files (faster than using Python API)
+        os.system(f"gcloud storage rsync -r gs://{EE_BUCKET_TIFS}/{EE_FOLDER_NPYS} {data_folder}")
 
     @staticmethod
     def subset_image(
@@ -288,13 +315,23 @@ class Dataset(PyTorchDataset):
         return data
 
     def tif_to_npy_paths(self, tif_path: Path) -> Tuple[Path, Path, Path, Path]:
-        assert self.cache_folder is not None
+        assert self.npy_folder is not None
         tif_name = tif_path.stem
         return (
-            self.cache_folder / f"{tif_name}_space_time.npy",
-            self.cache_folder / f"{tif_name}_space.npy",
-            self.cache_folder / f"{tif_name}_time.npy",
-            self.cache_folder / f"{tif_name}_static.npy",
+            self.npy_folder / f"{tif_name}_space_time.npy",
+            self.npy_folder / f"{tif_name}_space.npy",
+            self.npy_folder / f"{tif_name}_time.npy",
+            self.npy_folder / f"{tif_name}_static.npy",
+        )
+
+    def space_time_to_npys(self, space_time_path: Path) -> Tuple[Path, Path, Path, Path]:
+        assert self.npy_folder is not None
+        tif_name = "_".join(space_time_path.stem.split("_")[:-2])
+        return (
+            self.npy_folder / f"{tif_name}_space_time.npy",
+            self.npy_folder / f"{tif_name}_space.npy",
+            self.npy_folder / f"{tif_name}_time.npy",
+            self.npy_folder / f"{tif_name}_static.npy",
         )
 
     @classmethod
@@ -395,7 +432,7 @@ class Dataset(PyTorchDataset):
         return self._tif_to_array(tif_path)
 
     def load_tif(self, idx: int) -> DatasetOutput:
-        if self.cache_folder is None:
+        if self.npy_folder is None:
             return self._tif_to_array_with_checks(idx)
         else:
             cache_path_s_t, cache_path_sp, cache_path_t, cache_path_st = self.tif_to_npy_paths(
@@ -435,6 +472,19 @@ class Dataset(PyTorchDataset):
                 np.save(cache_path_st, st_x)
                 return DatasetOutput(s_t_x, sp_x, t_x, st_x, months)
 
+    def load_npy(self, idx: int) -> DatasetOutput:
+        s_t_path, sp_path, t_path, s_path = self.space_time_to_npys(self.space_time_npys[idx])
+        s_t_x = np.load(s_t_path)
+        num_timesteps = s_t_x.shape[2]
+        months = self.month_array_from_file(self.space_time_npys[idx], num_timesteps)
+        return DatasetOutput(
+            s_t_x,
+            np.load(sp_path),
+            np.load(t_path),
+            np.load(s_path),
+            months,
+        )
+
     @staticmethod
     def calculate_ndvi(input_array: np.ndarray) -> np.ndarray:
         r"""
@@ -463,13 +513,11 @@ class Dataset(PyTorchDataset):
             )
 
     def __getitem__(self, idx):
-        (
-            s_t_x,
-            sp_x,
-            t_x,
-            st_x,
-            months,
-        ) = self.load_tif(idx)
+        if self.npys_only:
+            s_t_x, sp_x, t_x, st_x, months = self.load_npy(idx)
+        else:
+            s_t_x, sp_x, t_x, st_x, months = self.load_tif(idx)
+
         (
             s_t_x,
             sp_x,

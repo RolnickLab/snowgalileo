@@ -58,8 +58,8 @@ eval_tasks: List[EvalTask] = [
     ],
     PastisPixelEval(),
     *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil", "China"]],
-    # geobench EuroSat only works without latlons and in MS mode
-    EuroSatEval(geobench=True, rgb=False, include_latlons=False),
+    # geobench EuroSat only works without latlons
+    *[EuroSatEval(rgb=rgb, include_latlons=False, geobench=True) for rgb in [True, False]],
     *[So2SatEval(geobench=geobench) for geobench in [True, False]],
     BigEarthNetEval(),
     BrickKilnEval(),

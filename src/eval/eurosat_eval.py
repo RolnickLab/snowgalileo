@@ -265,9 +265,6 @@ class EuroSatEval(EvalTask):
         self.include_latlons = include_latlons
 
         assert not self.geobench or not self.include_latlons, "Geobench does not support latlons"
-        assert (
-            not self.geobench or not self.rgb
-        ), "Geobench implementation currently does'nt support RGB"
 
         super().__init__(patch_size, seed)
         self.name = f"{self.name}_{'RGB' if self.rgb else 'MS'}{'_latlons' if include_latlons else ''}_{'_geobench' if geobench else ''}"
@@ -294,7 +291,9 @@ class EuroSatEval(EvalTask):
     ) -> Dict:
         if self.geobench:
             test_dl = DataLoader(
-                GeobenchBaseDataset(dataset_config_file="m-eurosat.json", split="test"),
+                GeobenchBaseDataset(
+                    dataset_config_file="m-eurosat.json", split="test", rgb=self.rgb
+                ),
                 batch_size=Hyperparams.batch_size,
                 shuffle=False,
                 num_workers=Hyperparams.num_workers,
@@ -365,7 +364,9 @@ class EuroSatEval(EvalTask):
 
         if self.geobench:
             train_dl = DataLoader(
-                GeobenchBaseDataset(dataset_config_file="m-eurosat.json", split="test"),
+                GeobenchBaseDataset(
+                    dataset_config_file="m-eurosat.json", split="test", rgb=self.rgb
+                ),
                 batch_size=Hyperparams.batch_size,
                 shuffle=False,
                 num_workers=Hyperparams.num_workers,
