@@ -170,7 +170,7 @@ def batch_subset_mask_presto(
     if masking_function.value < 2:
         f: Callable = batch_mask_space if masking_function.value == 1 else batch_mask_time
         num_masking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
-        num_unmasking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
+        num_unmasking_modes = 1
         masking_modes = weighted_sample_without_replacement(
             MASKING_MODES, weights=masking_probabilities, k=num_masking_modes
         )
