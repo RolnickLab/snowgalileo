@@ -16,7 +16,7 @@ from src.data import (
 from src.data.config import CONFIG_FILENAME, ENCODER_FILENAME
 from src.data.dataset import SPACE_BANDS, SPACE_TIME_BANDS, STATIC_BANDS, TIME_BANDS, DatasetOutput
 from src.flexipresto import Encoder, PrestoPixelDecoder
-from src.masking import MASKING_MODES, batch_subset_mask_presto
+from src.masking import MASKING_MODES, MaskingFunctions, batch_subset_mask_presto
 from src.utils import device, load_check_config
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/tifs"
@@ -65,6 +65,7 @@ class TestPresto(unittest.TestCase):
             augmentation_strategies=None,
             masking_probabilities=[1] * len(MASKING_MODES),
             unmasking_probabilities=[1] * len(MASKING_MODES),
+            masking_function=MaskingFunctions.SPACE,
         )
 
         # for now, we just make sure it all runs
