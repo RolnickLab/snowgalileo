@@ -726,7 +726,7 @@ class Encoder(FlexiPrestoBase):
             else:
                 condition = self.no_condition_emb.repeat(x.shape[0], 1, 1)  # shape (bsz, 1, dim)
             
-            x = torch.cat([condition, x], dim=1)
+            x = torch.cat([condition, x], dim=1)  # shape (bsz, seq_len + 1, dim)
             one_mask = torch.tensor([[False]], device=new_m.device).repeat(x.shape[0], 1)
             new_m = torch.cat([one_mask, new_m], dim=1)  # shape (bsz, seq_len + 1)
         
