@@ -77,6 +77,7 @@ class TestEndtoEnd(unittest.TestCase):
                 t_m_p,
                 st_m_p,
                 patch_size,
+                _,
             ) = b
             # no autocast since its poorly supported on CPU
             (p_s_t, p_sp, p_t, p_st) = predictor(
