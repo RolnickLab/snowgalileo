@@ -599,7 +599,9 @@ class Encoder(FlexiPrestoBase):
         self.apply(self._init_weights)
         self.conditioner = conditioner
         if self.conditioner is not None:
-            self.no_condition_emb = nn.Parameter(torch.zeros(1, 4, embedding_size)) # 4 since we have 4 condition tokens
+            self.no_condition_emb = nn.Parameter(
+                torch.zeros(1, 4, embedding_size)
+            )  # 4 since we have 4 condition tokens
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
