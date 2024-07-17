@@ -109,8 +109,10 @@ predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
 if "conditioner" in config["model"]:
     conditioner = TokenConditioner(**config["model"]["conditioner"]).to(device)
     encoder = Encoder(**config["model"]["encoder"], conditioner=conditioner).to(device)
+    eval_w_condition = True
 else:
     encoder = Encoder(**config["model"]["encoder"]).to(device)
+    eval_w_condition = False
 
 param_groups = [
     {
@@ -125,7 +127,7 @@ param_groups = [
 
 
 print("Loading validation task")
-val_task_no_latlons = EuroSatEval(geobench=True, rgb=False, include_latlons=False)
+val_task_no_latlons = EuroSatEval(geobench=True, rgb=False, include_latlons=False, do_condition=eval_w_condition)
 
 if wandb_enabled:
     import wandb
