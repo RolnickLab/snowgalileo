@@ -461,6 +461,7 @@ class PastisPatchEval(EvalTask):
         train_dl: DataLoader,
         pretrained_model: Encoder,
         models: List[str] = ["Random Forest"],
+        c_i: Optional[Dict] = None,
     ) -> Sequence[BaseEstimator]:
         """
         Patch Pastis specific training of sklearn models.
@@ -550,7 +551,6 @@ class PastisPatchEval(EvalTask):
                 f"{self.name}_{model_name}_rmse": mean_squared_error(target, preds, squared=False),
                 f"{self.name}_{model_name}_r2": r2_score(target, preds),
             }
-        return {}
 
     @torch.no_grad()
     def _evaluate_model(self, pretrained_model, sklearn_models: Sequence[BaseEstimator]) -> Dict:

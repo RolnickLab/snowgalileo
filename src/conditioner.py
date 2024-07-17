@@ -2,42 +2,7 @@ import warnings
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from einops import rearrange
-
-
-class ConditionalLinear(nn.Module):
-    def __init__(
-        self,
-        in_features: int,
-        out_features: int,
-        bias: bool = True,
-    ):
-        """
-        This design follows nn.Linear as close as possible:
-        https://pytorch.org/docs/stable/_modules/torch/nn/modules/linear.html#Linear
-
-        Equivalent to nn.Linear if conditional_weights is None or contain all zeroes
-
-        (Renamed from LoRALinear to ConditionalLinear since the Conditioner now supports full-rank)
-        """
-        super(ConditionalLinear, self).__init__()
-        self.backbone = nn.Linear(in_features, out_features, bias=bias)
-        self.conditional_weights = None
-
-    def apply_condition(self, conditional_weights):
-        self.conditional_weights = conditional_weights
-        if self.conditional_weights is not None:
-            if self.conditional_weights.shape != self.backbone.weight.shape:
-                raise ValueError(
-                    f"conditional_weights must have the same shape ({self.conditional_weights.shape}) as backbone.weight ({self.backbone.weight.shape})"
-                )
-
-    def forward(self, x):
-        if self.conditional_weights is not None:
-            return F.linear(x, self.backbone.weight + self.conditional_weights, self.backbone.bias)
-        else:
-            return F.linear(x, self.backbone.weight, self.backbone.bias)
 
 
 class TokenConditioner(nn.Module):
