@@ -258,15 +258,33 @@ class EuroSatEval(EvalTask):
         patch_size: int = 8,
         seed=DEFAULT_SEED,
         geobench: bool = False,
+        do_condition: bool = False,
     ):
         self.rgb = rgb
         self.geobench = geobench
         self.include_latlons = include_latlons
+        self.do_condition = do_condition
 
         assert not self.geobench or not self.include_latlons, "Geobench does not support latlons"
 
         super().__init__(patch_size, seed)
         self.name = f"{self.name}_{'RGB' if self.rgb else 'MS'}{'_latlons' if include_latlons else ''}_{'_geobench' if geobench else ''}"
+
+        # thanks Claude for the implementation, good bot
+        # lets start with the intuitive conditions
+
+        self.condition = {
+            "hw": 64 // patch_size,
+            "patch_size": patch_size,
+            "timesteps": 3,
+            "input_channels": torch.Tensor([0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0]).to(
+                device
+            ),  # should be S2
+            "output_channels": torch.Tensor([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).to(
+                device
+            ),  # should be DW
+            "recon_objs": torch.Tensor([1, 0]).to(device),  # should be batch mask time
+        }
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         return {
@@ -275,7 +293,7 @@ class EuroSatEval(EvalTask):
 
     @torch.no_grad()
     def _evaluate_model(
-        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator]
+        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator], c_i
     ) -> Dict:
         if self.geobench:
             test_dl = DataLoader(
@@ -307,7 +325,17 @@ class EuroSatEval(EvalTask):
             pretrained_model.eval()
 
             with torch.no_grad():
-                s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = pretrained_model(
+                (
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    _,
+                ) = pretrained_model(
                     s_t_x,
                     sp_x,
                     t_x,
@@ -317,6 +345,7 @@ class EuroSatEval(EvalTask):
                     t_m,
                     st_m,
                     months,
+                    c_i,
                     patch_size=self.patch_size,
                 )
                 encodings = (
@@ -338,6 +367,7 @@ class EuroSatEval(EvalTask):
             test_preds_np = np.concatenate(pred_list, axis=0)
             prefix = f"{model_name_str}"
             results_dict.update(self.compute_metrics(prefix, test_preds_np, target))
+
         return results_dict
 
     def evaluate_model_on_task(
@@ -369,5 +399,23 @@ class EuroSatEval(EvalTask):
                 shuffle=True,
                 num_workers=Hyperparams.num_workers,
             )
-        trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
-        return self._evaluate_model(pretrained_model, trained_sklearn_models)
+
+        unconditioned_trained_sklearn_models = self.train_sklearn_model(
+            train_dl, pretrained_model, model_modes, None
+        )
+        unconditioned_results = self._evaluate_model(
+            pretrained_model, unconditioned_trained_sklearn_models, None
+        )
+
+        if not self.do_condition:
+            return unconditioned_results
+
+        conditioned_trained_sklearn_models = self.train_sklearn_model(
+            train_dl, pretrained_model, model_modes, self.condition
+        )
+        conditioned_results = self._evaluate_model(
+            pretrained_model, conditioned_trained_sklearn_models, self.condition
+        )
+        conditioned_results = {f"{key}_c": value for key, value in conditioned_results.items()}
+
+        return {**conditioned_results, **unconditioned_results}

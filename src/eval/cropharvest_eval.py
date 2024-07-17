@@ -384,9 +384,24 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
         )
         self.eval_dataset = MultiClassCropHarvest(val_paths_and_y, y_string_to_int)
 
+        # thanks Claude for the implementation, good bot
+        # lets start with the intuitive conditions
+        self.condition = {
+            "hw": 4,
+            "patch_size": 1,
+            "timesteps": 12,
+            "input_channels": torch.Tensor([1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0]).to(
+                device
+            ),  # should be SRTM, S1, S2, and ERA5
+            "output_channels": torch.Tensor([0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).to(
+                device
+            ),  # should be WC
+            "recon_objs": torch.Tensor([0, 1]).to(device),  # should be batch mask space
+        }
+
     @torch.no_grad()
     def _evaluate_models(
-        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator]
+        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator], c_i
     ) -> Dict:
         dl = DataLoader(
             self.eval_dataset,
@@ -407,7 +422,17 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
                 t.to(device) for t in masked_output
             ]
             s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = pretrained_model(
-                s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size=self.patch_size
+                s_t_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_m,
+                sp_m,
+                t_m,
+                st_m,
+                months,
+                c_i,
+                patch_size=self.patch_size,
             )
             encodings = (
                 pretrained_model.average_tokens(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
@@ -449,5 +474,19 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
             num_workers=Hyperparams.num_workers,
             collate_fn=self.collate_fn,
         )
-        trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
-        return self._evaluate_models(pretrained_model, trained_sklearn_models)
+        conditioned_trained_sklearn_models = self.train_sklearn_model(
+            train_dl, pretrained_model, model_modes, self.condition
+        )
+        conditioned_results = self._evaluate_models(
+            pretrained_model, conditioned_trained_sklearn_models, self.condition
+        )
+        conditioned_results = {f"{key}_c": value for key, value in conditioned_results.items()}
+
+        unconditioned_trained_sklearn_models = self.train_sklearn_model(
+            train_dl, pretrained_model, model_modes, None
+        )
+        unconditioned_results = self._evaluate_models(
+            pretrained_model, unconditioned_trained_sklearn_models, None
+        )
+
+        return {**conditioned_results, **unconditioned_results}
