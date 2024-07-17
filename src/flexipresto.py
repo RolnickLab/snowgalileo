@@ -599,7 +599,7 @@ class Encoder(FlexiPrestoBase):
         self.apply(self._init_weights)
         self.conditioner = conditioner
         if self.conditioner is not None:
-            self.no_condition_emb = nn.Parameter(torch.zeros(1, 1, embedding_size))
+            self.no_condition_emb = nn.Parameter(torch.zeros(1, 4, embedding_size)) # 4 since we have 4 condition tokens
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -734,13 +734,13 @@ class Encoder(FlexiPrestoBase):
 
         if self.conditioner is not None:
             if c_i is not None:
-                condition = self.conditioner(**c_i).repeat(x.shape[0], 1, 1)  # shape (bsz, 1, dim)
+                condition = self.conditioner(**c_i).repeat(x.shape[0], 1, 1)  # shape (bsz, 4, dim)
             else:
-                condition = self.no_condition_emb.repeat(x.shape[0], 1, 1)  # shape (bsz, 1, dim)
+                condition = self.no_condition_emb.repeat(x.shape[0], 1, 1)  # shape (bsz, 4, dim)
 
-            x = torch.cat([condition, x], dim=1)  # shape (bsz, seq_len + 1, dim)
-            one_mask = torch.tensor([[False]], device=new_m.device).repeat(x.shape[0], 1)
-            new_m = torch.cat([one_mask, new_m], dim=1)  # shape (bsz, seq_len + 1)
+            x = torch.cat([condition, x], dim=1)  # shape (bsz, seq_len + 4, dim)
+            one_mask = torch.tensor([[False]], device=new_m.device).repeat(x.shape[0], 4)
+            new_m = torch.cat([one_mask, new_m], dim=1)  # shape (bsz, seq_len + 4)
 
         for blk in self.blocks:
             # we take the inverse of the mask because a value
@@ -749,8 +749,8 @@ class Encoder(FlexiPrestoBase):
             x = blk(x=x, y=None, attn_mask=~new_m.bool())
 
         if self.conditioner is not None:
-            x = x[:, 1:, :]  # remove condition
-            new_m = new_m[:, 1:]  # remove mask, shape (bsz, seq_len)
+            x = x[:, 4:, :]  # remove 4 condition tokens
+            new_m = new_m[:, 4:]  # remove mask, shape (bsz, seq_len)
 
         # we don't care about the mask returned by add_removed_tokens, since we will
         # just use the original, unclipped mask here

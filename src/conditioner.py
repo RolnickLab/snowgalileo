@@ -68,9 +68,14 @@ class TokenConditioner(nn.Module):
         self.num_recon_objs = num_recon_objs
 
         ##### create conditioner network parameters #####
-        self.embedder = nn.Linear(
-            3 + num_input_channels + num_output_channels + num_recon_objs, backbone_dim
-        )  # 3 is from input shape, i.e., height/width, time, patch size
+        # self.embedder = nn.Linear(
+        #     3 + num_input_channels + num_output_channels + num_recon_objs, backbone_dim
+        # )  # 3 is from input shape, i.e., height/width, time, patch size
+
+        self.input_shape_proj = nn.Linear(3, backbone_dim)
+        self.input_channels_proj = nn.Linear(num_input_channels, backbone_dim)
+        self.output_channels_proj = nn.Linear(num_output_channels, backbone_dim)
+        self.recon_objs_proj = nn.Linear(num_recon_objs, backbone_dim)
 
         self.apply(self._init_weights)
 
@@ -116,12 +121,25 @@ class TokenConditioner(nn.Module):
         output_channels: torch.Tensor,  # multihot encoding
         recon_objs: torch.Tensor,  # multihot encoding
     ):
-        normalized_input_shape = self.normalize_input_shape(
+        # prepare
+        normalized_input_shape = rearrange(self.normalize_input_shape(
             hw, patch_size, timesteps, input_channels.device, input_channels.dtype
-        )
-        condition = torch.cat(
-            [normalized_input_shape, input_channels, output_channels, recon_objs]
-        )  # shape (3 + num_input_channels + num_output_channels + num_recon_objs)
-        condition = rearrange(condition, "d -> 1 1 d")
+        ), "d -> 1 1 d")
+        input_channels = rearrange(input_channels, "d -> 1 1 d")
+        output_channels = rearrange(output_channels, "d -> 1 1 d")
+        recon_objs = rearrange(recon_objs, "d -> 1 1 d")
 
-        return self.embedder(condition)  # shape (1, 1, dim)
+        # create tokens
+        normalized_input_shape = self.input_shape_proj(normalized_input_shape)
+        input_channels = self.input_channels_proj(input_channels)
+        output_channels = self.output_channels_proj(output_channels)
+        recon_objs = self.recon_objs_proj(recon_objs)
+
+        condition = torch.cat([
+            normalized_input_shape,
+            input_channels,
+            output_channels,
+            recon_objs
+        ], dim=1)
+
+        return condition  # shape (1, 4, dim)
