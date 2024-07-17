@@ -1,7 +1,7 @@
 {
     "training": {
-        "num_epochs": 500,
-        "batch_size": 64,
+        "num_epochs": 1000,
+        "batch_size": 32,
         "effective_batch_size": 512,
         "mask_ratio": 0.5,
         "decoder_unmask_ratio": 0.25,
@@ -10,6 +10,7 @@
         "start_lr": 0.0002,
         "max_lr": 0.001,
         "final_lr": 1.0e-06,
+        "weight_decay": 0.01,
         "warmup_epochs": 0.1,
         "eval_eurosat_every_n_epochs": 10,
         "mae_loss": "norm_per_c_g",
@@ -35,6 +36,18 @@
             "mlp_ratio": 4,
             "num_heads": 8,
             "max_sequence_length": 24
+        },
+        "conditioner": {
+            "backbone_dim": 128,
+            "time_min": 3,
+            "time_max": 12,
+            "hw_min": 4,
+            "hw_max": 12,
+            "patch_size_min": 1,
+            "patch_size_max": 8,
+            "num_input_channels": 15,
+            "num_output_channels": 15,
+            "num_recon_objs": 2
         }
     }
 }

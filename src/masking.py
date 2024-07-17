@@ -155,10 +155,10 @@ def batch_subset_mask_presto(
     masking_probabilities: List[float],
     unmasking_probabilities: List[float],
     masking_function: MaskingFunctions,
-) -> Tuple[MaskedOutput, Dict]:
+) -> Tuple[MaskedOutput, Optional[Dict]]:
     assert len(masking_probabilities) == len(unmasking_probabilities) == len(MASKING_MODES)
 
-    conditioner_inputs = {
+    conditioner_inputs: Optional[Dict] = {
         "hw": image_size // patch_size,
         "patch_size": patch_size,
         "timesteps": num_timesteps,
@@ -219,6 +219,8 @@ def batch_subset_mask_presto(
             decoder_unmask_ratio=decoder_unmask_ratio,
             patch_size=patch_size,
         )
+        conditioner_inputs = None
+
     else:
         raise AssertionError(f"Unexpected strategy {masking_function}")
 

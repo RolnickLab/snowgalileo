@@ -29,7 +29,16 @@ from .embeddings import (
 from .utils import device
 
 
-def adjust_learning_rate(optimizer, epoch, warmup_epochs, total_epochs, start_lr, max_lr, min_lr):
+def adjust_learning_rate(
+    optimizer,
+    epoch,
+    warmup_epochs,
+    total_epochs,
+    start_lr,
+    max_lr,
+    min_lr,
+    conditioner_multiplier=None,
+):
     """Decay the learning rate with half-cycle cosine after warmup"""
     if epoch < warmup_epochs:
         lr = start_lr + (max_lr * epoch / warmup_epochs)
@@ -38,7 +47,11 @@ def adjust_learning_rate(optimizer, epoch, warmup_epochs, total_epochs, start_lr
             1.0 + math.cos(math.pi * (epoch - warmup_epochs) / (total_epochs - warmup_epochs))
         )
     for group in optimizer.param_groups:
-        group["lr"] = lr
+        if group["name"] == "conditioner":
+            assert conditioner_multiplier is not None
+            group["lr"] = lr * conditioner_multiplier
+        else:
+            group["lr"] = lr
     return lr
 
 
@@ -207,14 +220,10 @@ class Attention(nn.Module):
         self.fast_attn = hasattr(torch.nn.functional, "scaled_dot_product_attention")  # FIXME
 
         self.cross_attn = cross_attn
-        if not cross_attn:
-            self.qkv: Optional[nn.Linear] = nn.Linear(dim, dim * 3, bias=qkv_bias)
-            self.q: Optional[nn.Linear] = None
-            self.kv: Optional[nn.Linear] = None
-        else:
-            self.qkv = None
-            self.q = nn.Linear(dim, dim, bias=qkv_bias)
-            self.kv = nn.Linear(dim, dim * 2, bias=qkv_bias)
+
+        self.q = nn.Linear(dim, dim, bias=qkv_bias)
+        self.k = nn.Linear(dim, dim, bias=qkv_bias)
+        self.v = nn.Linear(dim, dim, bias=qkv_bias)
 
         self.q_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
         self.k_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
@@ -223,24 +232,22 @@ class Attention(nn.Module):
         self.proj_drop = nn.Dropout(proj_drop)
 
     def forward(self, x, y=None, attn_mask=None):
+        B, N, C = x.shape
+
+        q = self.q(x)
+
         if y is None:
             assert not self.cross_attn
-            B, N, C = x.shape
-            qkv = (
-                self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
-            )
-            q, k, v = qkv.unbind(0)
+            k = self.k(x)
+            v = self.v(x)
         else:
             assert self.cross_attn
-            B, N, C = x.shape
-            Ny = y.shape[1]
-            q = self.q(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
-            kv = (
-                self.kv(y)
-                .reshape(B, Ny, 2, self.num_heads, C // self.num_heads)
-                .permute(2, 0, 3, 1, 4)
-            )
-            k, v = kv[0], kv[1]
+            k = self.k(y)
+            v = self.v(y)
+
+        q = rearrange(q, "b n (h d) -> b h n d", h=self.num_heads)
+        k = rearrange(k, "b n (h d) -> b h n d", h=self.num_heads)
+        v = rearrange(v, "b n (h d) -> b h n d", h=self.num_heads)
 
         q, k = self.q_norm(q), self.k_norm(k)
         if self.fast_attn:
@@ -547,6 +554,7 @@ class Encoder(FlexiPrestoBase):
         mlp_ratio=2,
         num_heads=8,
         max_sequence_length=24,
+        conditioner=None,
     ):
         super().__init__(
             embedding_size,
@@ -589,6 +597,11 @@ class Encoder(FlexiPrestoBase):
         self.norm = nn.LayerNorm(embedding_size)
 
         self.apply(self._init_weights)
+        self.conditioner = conditioner
+        if self.conditioner is not None:
+            self.no_condition_emb = nn.Parameter(
+                torch.zeros(1, 4, embedding_size)
+            )  # 4 since we have 4 condition tokens
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -694,7 +707,19 @@ class Encoder(FlexiPrestoBase):
         return out, full_mask
 
     def apply_attn(
-        self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_res
+        self,
+        s_t_x,
+        sp_x,
+        t_x,
+        st_x,
+        s_t_m,
+        sp_m,
+        t_m,
+        st_m,
+        months,
+        patch_size,
+        input_res,
+        c_i,
     ):
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
         sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
@@ -707,12 +732,28 @@ class Encoder(FlexiPrestoBase):
         # to decode those tokens. From the perspective of the encoder, 1 and 2 are equivalent
         # since they both represent masked values
         new_m = m >= 1
-        x, indices, new_m = self.remove_masked_tokens(x, new_m)
+        x, indices, new_m = self.remove_masked_tokens(x, new_m)  # new_m is shape (bsz, seq_len)
+
+        if self.conditioner is not None:
+            if c_i is not None:
+                condition = self.conditioner(**c_i).repeat(x.shape[0], 1, 1)  # shape (bsz, 4, dim)
+            else:
+                condition = self.no_condition_emb.repeat(x.shape[0], 1, 1)  # shape (bsz, 4, dim)
+
+            x = torch.cat([condition, x], dim=1)  # shape (bsz, seq_len + 4, dim)
+            one_mask = torch.tensor([[False]], device=new_m.device).repeat(x.shape[0], 4)
+            new_m = torch.cat([one_mask, new_m], dim=1)  # shape (bsz, seq_len + 4)
+
         for blk in self.blocks:
             # we take the inverse of the mask because a value
             # of True indicates the value *should* take part in
             # attention
             x = blk(x=x, y=None, attn_mask=~new_m.bool())
+
+        if self.conditioner is not None:
+            x = x[:, 4:, :]  # remove 4 condition tokens
+            new_m = new_m[:, 4:]  # remove mask, shape (bsz, seq_len)
+
         # we don't care about the mask returned by add_removed_tokens, since we will
         # just use the original, unclipped mask here
         x, _ = self.add_removed_tokens(x, indices, new_m)
@@ -773,6 +814,7 @@ class Encoder(FlexiPrestoBase):
         t_m: torch.Tensor,
         st_m: torch.Tensor,
         months: torch.Tensor,
+        c_i=None,
         patch_size: Optional[int] = None,
         input_resolution_m: Optional[int] = BASE_GSD,
     ):
@@ -789,7 +831,18 @@ class Encoder(FlexiPrestoBase):
             s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, patch_size
         )
         s_t_x, sp_x, t_x, st_x, s_t_m, st_m, t_m, st_m = self.apply_attn(
-            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_resolution_m
+            s_t_x,
+            sp_x,
+            t_x,
+            st_x,
+            s_t_m,
+            sp_m,
+            t_m,
+            st_m,
+            months,
+            patch_size,
+            input_resolution_m,
+            c_i,
         )
 
         return (
