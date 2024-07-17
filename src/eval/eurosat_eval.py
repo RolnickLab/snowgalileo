@@ -258,10 +258,12 @@ class EuroSatEval(EvalTask):
         patch_size: int = 8,
         seed=DEFAULT_SEED,
         geobench: bool = False,
+        do_condition: bool = False,
     ):
         self.rgb = rgb
         self.geobench = geobench
         self.include_latlons = include_latlons
+        self.do_condition = do_condition
 
         assert not self.geobench or not self.include_latlons, "Geobench does not support latlons"
 
@@ -270,6 +272,7 @@ class EuroSatEval(EvalTask):
 
         # thanks Claude for the implementation, good bot
         # lets start with the intuitive conditions
+
         self.condition = {
             "hw": 64 // patch_size,
             "patch_size": patch_size,
@@ -282,6 +285,7 @@ class EuroSatEval(EvalTask):
             ),  # should be DW
             "recon_objs": torch.Tensor([1, 0]).to(device),  # should be batch mask time
         }
+
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         return {
@@ -396,6 +400,17 @@ class EuroSatEval(EvalTask):
                 shuffle=True,
                 num_workers=Hyperparams.num_workers,
             )
+        
+        unconditioned_trained_sklearn_models = self.train_sklearn_model(
+            train_dl, pretrained_model, model_modes, None
+        )
+        unconditioned_results = self._evaluate_model(
+            pretrained_model, unconditioned_trained_sklearn_models, None
+        )
+
+        if not self.do_condition:
+            return unconditioned_results
+        
         conditioned_trained_sklearn_models = self.train_sklearn_model(
             train_dl, pretrained_model, model_modes, self.condition
         )
@@ -403,12 +418,5 @@ class EuroSatEval(EvalTask):
             pretrained_model, conditioned_trained_sklearn_models, self.condition
         )
         conditioned_results = {f"{key}_c": value for key, value in conditioned_results.items()}
-
-        unconditioned_trained_sklearn_models = self.train_sklearn_model(
-            train_dl, pretrained_model, model_modes, None
-        )
-        unconditioned_results = self._evaluate_model(
-            pretrained_model, unconditioned_trained_sklearn_models, None
-        )
 
         return {**conditioned_results, **unconditioned_results}
