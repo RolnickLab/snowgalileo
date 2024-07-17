@@ -11,6 +11,7 @@ import psutil
 import torch
 from torch.utils.data import BatchSampler, DataLoader
 from tqdm import tqdm
+from wandb.sdk.wandb_run import Run
 
 from src.collate_fns import MaskingFunctions, mae_collate_fn
 from src.conditioner import TokenConditioner
@@ -31,7 +32,6 @@ from src.eval import (
     BrickKilnEval,
     CashewPlantEval,
     EuroSatEval,
-    MultiClassCropHarvestEval,
     PastisPatchEval,
     PastisPixelEval,
     SACropEval,
@@ -51,7 +51,6 @@ from src.utils import (
     seed_everything,
     timestamp_dirname,
 )
-from wandb.sdk.wandb_run import Run
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()

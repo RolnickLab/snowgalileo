@@ -286,7 +286,6 @@ class EuroSatEval(EvalTask):
             "recon_objs": torch.Tensor([1, 0]).to(device),  # should be batch mask time
         }
 
-
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         return {
             f"{self.name}: {model_name}_accuracy_score": accuracy_score(target, preds),
@@ -400,7 +399,7 @@ class EuroSatEval(EvalTask):
                 shuffle=True,
                 num_workers=Hyperparams.num_workers,
             )
-        
+
         unconditioned_trained_sklearn_models = self.train_sklearn_model(
             train_dl, pretrained_model, model_modes, None
         )
@@ -410,7 +409,7 @@ class EuroSatEval(EvalTask):
 
         if not self.do_condition:
             return unconditioned_results
-        
+
         conditioned_trained_sklearn_models = self.train_sklearn_model(
             train_dl, pretrained_model, model_modes, self.condition
         )

@@ -122,9 +122,12 @@ class TokenConditioner(nn.Module):
         recon_objs: torch.Tensor,  # multihot encoding
     ):
         # prepare
-        normalized_input_shape = rearrange(self.normalize_input_shape(
-            hw, patch_size, timesteps, input_channels.device, input_channels.dtype
-        ), "d -> 1 1 d")
+        normalized_input_shape = rearrange(
+            self.normalize_input_shape(
+                hw, patch_size, timesteps, input_channels.device, input_channels.dtype
+            ),
+            "d -> 1 1 d",
+        )
         input_channels = rearrange(input_channels, "d -> 1 1 d")
         output_channels = rearrange(output_channels, "d -> 1 1 d")
         recon_objs = rearrange(recon_objs, "d -> 1 1 d")
@@ -135,11 +138,8 @@ class TokenConditioner(nn.Module):
         output_channels = self.output_channels_proj(output_channels)
         recon_objs = self.recon_objs_proj(recon_objs)
 
-        condition = torch.cat([
-            normalized_input_shape,
-            input_channels,
-            output_channels,
-            recon_objs
-        ], dim=1)
+        condition = torch.cat(
+            [normalized_input_shape, input_channels, output_channels, recon_objs], dim=1
+        )
 
         return condition  # shape (1, 4, dim)
