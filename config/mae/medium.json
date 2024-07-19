@@ -20,7 +20,8 @@
         "patch_sizes_to_wandb_plot": [2, 4, 8],
         "augmentation": {"flip+rotate": true},
         "masking_probabilities": [0.3, 0.3, 0.3, 0.3, 0.8, 0.8, 0.6, 0.6, 0.6, 0.6, 0.3, 0.3, 0.3, 0.3, 0.5, 0, 0],
-        "unmasking_probabilities": [0.5, 0.8, 0.8, 0.6, 0.3, 0.3, 0.4, 0.4, 0.4, 0.4, 0.6, 0.6, 0.6, 0.6, 0.5, 0.8, 0.8]
+        "unmasking_probabilities": [0.5, 0.8, 0.8, 0.6, 0.3, 0.3, 0.4, 0.4, 0.4, 0.4, 0.6, 0.6, 0.6, 0.6, 0.5, 0.8, 0.8],
+        "use_conditions": true
     },
     "model": {
         "encoder": {
@@ -36,18 +37,6 @@
             "mlp_ratio": 4,
             "num_heads": 8,
             "max_sequence_length": 24
-        },
-        "conditioner": {
-            "backbone_dim": 128,
-            "time_min": 3,
-            "time_max": 12,
-            "hw_min": 4,
-            "hw_max": 12,
-            "patch_size_min": 1,
-            "patch_size_max": 8,
-            "num_input_channels": 15,
-            "num_output_channels": 15,
-            "num_recon_objs": 2
         }
     }
 }
