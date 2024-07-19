@@ -658,7 +658,7 @@ class Encoder(FlexiPrestoBase):
                 )
         for idx, (channel_group, channel_idxs) in enumerate(self.space_groups.items()):
             sp_m_l.append(sp_m[:, 0::patch_size, 0::patch_size, idx])
-            if s_t_m_l[-1].min() == 0:
+            if sp_m_l[-1].min() == 0:
                 sp_l.append(
                     self.space_embed[channel_group](
                         sp_x[:, :, :, channel_idxs], patch_size=patch_size
