@@ -34,7 +34,6 @@ from .earthengine.eo import (
     SPACE_TIME_DIV_VALUES,
     SPACE_TIME_SHIFT_VALUES,
     SRTM_BANDS,
-    STATIC_BANDS,
     STATIC_DIV_VALUES,
     STATIC_SHIFT_VALUES,
     TC_BANDS,
@@ -45,6 +44,7 @@ from .earthengine.eo import (
     WC_BANDS,
 )
 from .earthengine.eo import SPACE_TIME_BANDS as EO_SPACE_TIME_BANDS
+from .earthengine.eo import STATIC_BANDS as EO_STATIC_BANDS
 
 logger = logging.getLogger("__main__")
 
@@ -80,10 +80,16 @@ SPACE_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     }
 )
 
+STATIC_DW_BANDS = [f"{x}_static" for x in DW_BANDS]
+STATIC_WC_BANDS = [f"{x}_static" for x in WC_BANDS]
+STATIC_BANDS = EO_STATIC_BANDS + STATIC_DW_BANDS + STATIC_WC_BANDS
+
 STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
         "LS": [STATIC_BANDS.index(b) for b in LANDSCAN_BANDS],
         "location": [STATIC_BANDS.index(b) for b in LOCATION_BANDS],
+        "DW_static": [STATIC_BANDS.index(b) for b in STATIC_DW_BANDS],
+        "WC_static": [STATIC_BANDS.index(b) for b in STATIC_WC_BANDS],
     }
 )
 
@@ -392,7 +398,18 @@ class Dataset(PyTorchDataset):
         space_x = normalize_space(space_x)
 
         static_x = values[-static_bands_in_tif:]
-        static_x = np.concatenate([np.nanmean(static_x, axis=(1, 2)), to_cartesian(lat, lon)])
+        # add DW_STATIC and WC_STATIC
+        dw_bands = space_x[:, :, [i for i, v in enumerate(SPACE_TIME_BANDS) if v in DW_BANDS]]
+        wc_bands = space_x[:, :, [i for i, v in enumerate(SPACE_TIME_BANDS) if v in WC_BANDS]]
+
+        static_x = np.concatenate(
+            [
+                np.nanmean(static_x, axis=(1, 2)),
+                to_cartesian(lat, lon),
+                np.nanmean(dw_bands, axis=(0, 1)),
+                np.nanmean(wc_bands, axis=(0, 1)),
+            ]
+        )
         static_x = cls._fillna(static_x, np.array(STATIC_BANDS))
         static_x = normalize_static(static_x)
 

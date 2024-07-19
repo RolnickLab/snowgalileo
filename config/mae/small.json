@@ -19,8 +19,8 @@
         "timesteps_to_wandb_plot": [0],
         "patch_sizes_to_wandb_plot": [2, 4, 8],
         "augmentation": {"flip+rotate": true},
-        "masking_probabilities": [0.3, 0.3, 0.3, 0.3, 0.8, 0.8, 0.6, 0.6, 0.6, 0.6, 0.3, 0.3, 0.3, 0.3, 0.5],
-        "unmasking_probabilities": [0.5, 0.8, 0.8, 0.6, 0.3, 0.3, 0.4, 0.4, 0.4, 0.4, 0.6, 0.6, 0.6, 0.6, 0.5]
+        "masking_probabilities": [0.3, 0.3, 0.3, 0.3, 0.8, 0.8, 0.6, 0.6, 0.6, 0.6, 0.3, 0.3, 0.3, 0.3, 0.5, 0, 0],
+        "unmasking_probabilities": [0.5, 0.8, 0.8, 0.6, 0.3, 0.3, 0.4, 0.4, 0.4, 0.4, 0.6, 0.6, 0.6, 0.6, 0.5, 0.8, 0.8]
     },
     "model": {
         "encoder": {
