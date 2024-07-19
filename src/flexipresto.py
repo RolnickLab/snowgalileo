@@ -854,8 +854,8 @@ class Encoder(FlexiPrestoBase):
         t_m: torch.Tensor,
         st_m: torch.Tensor,
         months: torch.Tensor,
+        patch_size: int,
         c_i=None,
-        patch_size: Optional[int] = None,
         input_resolution_m: Optional[int] = BASE_GSD,
     ):
         (
