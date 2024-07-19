@@ -274,15 +274,15 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
                     t.to(device) for t in masked_output
                 ]
                 s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = pretrained_model(
-                    s_t_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                    months,
+                    s_t_x=s_t_x,
+                    sp_x=sp_x,
+                    t_x=t_x,
+                    st_x=st_x,
+                    s_t_m=s_t_m,
+                    sp_m=sp_m,
+                    t_m=t_m,
+                    st_m=st_m,
+                    months=months,
                     patch_size=self.patch_size,
                 )
                 encodings = (
@@ -422,16 +422,16 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
                 t.to(device) for t in masked_output
             ]
             s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = pretrained_model(
-                s_t_x,
-                sp_x,
-                t_x,
-                st_x,
-                s_t_m,
-                sp_m,
-                t_m,
-                st_m,
-                months,
-                c_i,
+                s_t_x=s_t_x,
+                sp_x=sp_x,
+                t_x=t_x,
+                st_x=st_x,
+                s_t_m=s_t_m,
+                sp_m=sp_m,
+                t_m=t_m,
+                st_m=st_m,
+                months=months,
+                c_i=c_i,
                 patch_size=self.patch_size,
             )
             encodings = (
