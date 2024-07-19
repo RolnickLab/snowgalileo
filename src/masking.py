@@ -54,6 +54,7 @@ MASKING_MODES: List[Union[str, Tuple[str, str]]] = [
 ]
 
 MAX_MASKING_STRATEGIES = 6
+NUM_RECON_OBJS = 2
 
 
 class MaskingFunctions(Enum):
@@ -166,7 +167,7 @@ def batch_subset_mask_presto(
         "timesteps": num_timesteps,
         "input_channels": torch.zeros(len(MASKING_MODES)).to(s_t_x.device),
         "output_channels": torch.zeros(len(MASKING_MODES)).to(s_t_x.device),
-        "recon_objs": torch.zeros(2).to(s_t_x.device),
+        "recon_objs": torch.zeros(NUM_RECON_OBJS).to(s_t_x.device),
     }
 
     if masking_function.value < 2:
