@@ -16,7 +16,15 @@ from src.data import (
 from src.data.config import CONFIG_FILENAME, ENCODER_FILENAME
 from src.data.dataset import SPACE_BANDS, SPACE_TIME_BANDS, STATIC_BANDS, TIME_BANDS, DatasetOutput
 from src.flexipresto import Encoder, PrestoPixelDecoder
-from src.masking import MASKING_MODES, MaskingFunctions, batch_subset_mask_presto
+from src.masking import (
+    MASKING_MODES,
+    SPACE_BAND_EXPANSION,
+    SPACE_TIME_BAND_EXPANSION,
+    STATIC_BAND_EXPANSION,
+    TIME_BAND_EXPANSION,
+    MaskingFunctions,
+    batch_subset_mask_presto,
+)
 from src.utils import device, load_check_config
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/tifs"
@@ -67,6 +75,34 @@ class TestPresto(unittest.TestCase):
             unmasking_probabilities=[1] * len(MASKING_MODES),
             masking_function=MaskingFunctions.SPACE,
         )
+
+        expanded_s_t = torch.repeat_interleave(
+            masked_output.space_time_mask, repeats=SPACE_TIME_BAND_EXPANSION.long(), dim=-1
+        ).int()
+        expanded_sp = torch.repeat_interleave(
+            masked_output.space_mask, repeats=SPACE_BAND_EXPANSION.long(), dim=-1
+        ).int()
+        expanded_t = torch.repeat_interleave(
+            masked_output.time_mask, repeats=TIME_BAND_EXPANSION.long(), dim=-1
+        ).int()
+        expanded_st = torch.repeat_interleave(
+            masked_output.static_mask, repeats=STATIC_BAND_EXPANSION.long(), dim=-1
+        ).int()
+
+        if patch_size < 8:
+            expanded_s_t = repeat(
+                expanded_s_t[:, 0::patch_size, 0::patch_size],
+                "b h w t c -> b (h h2) (w w2) t c",
+                h2=8,
+                w2=8,
+            )
+
+            expanded_sp = repeat(
+                expanded_sp[:, 0::patch_size, 0::patch_size],
+                "b h w c -> b (h h2) (w w2) c",
+                h2=8,
+                w2=8,
+            )
 
         # for now, we just make sure it all runs
         with torch.autocast(device_type=device.type, dtype=torch.float16):
@@ -122,10 +158,20 @@ class TestPresto(unittest.TestCase):
                 embedding_size,
             ]
         )
-        self.assertFalse(torch.isnan(encoder_output[0]).any())
-        self.assertFalse(torch.isnan(encoder_output[1]).any())
-        self.assertFalse(torch.isnan(encoder_output[2]).any())
-        self.assertFalse(torch.isnan(encoder_output[3]).any())
+        self.assertFalse(
+            torch.isnan(
+                encoder_output[0][
+                    masked_output.space_time_mask[:, 0::patch_size, 0::patch_size] == 0
+                ]
+            ).any()
+        )
+        self.assertFalse(
+            torch.isnan(
+                encoder_output[1][masked_output.space_mask[:, 0::patch_size, 0::patch_size] == 0]
+            ).any()
+        )
+        self.assertFalse(torch.isnan(encoder_output[2][masked_output.time_mask == 0]).any())
+        self.assertFalse(torch.isnan(encoder_output[3][masked_output.static_mask == 0]).any())
 
         self.assertTrue(
             list(output[0].shape)
@@ -149,10 +195,10 @@ class TestPresto(unittest.TestCase):
         self.assertTrue(list(output[2].shape) == [1, num_timesteps, len(TIME_BANDS)])
         self.assertTrue(list(output[3].shape) == [1, len(STATIC_BANDS)])
 
-        self.assertFalse(torch.isnan(output[0]).any())
-        self.assertFalse(torch.isnan(output[1]).any())
-        self.assertFalse(torch.isnan(output[2]).any())
-        self.assertFalse(torch.isnan(output[3]).any())
+        self.assertFalse(torch.isnan(output[0][expanded_s_t == 2]).any())
+        self.assertFalse(torch.isnan(output[1][expanded_sp == 2]).any())
+        self.assertFalse(torch.isnan(output[2][expanded_t == 2]).any())
+        self.assertFalse(torch.isnan(output[3][expanded_st == 2]).any())
 
         # check we can call backwards, with the loss
         summed_output = sum([torch.sum(o) for o in output])
