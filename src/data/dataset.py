@@ -371,7 +371,7 @@ class Dataset(PyTorchDataset):
         # this is a bit hackey but is a unique edge case for locations,
         # which are not part of the exported bands but are instead
         # computed here
-        static_bands_in_tif = len(STATIC_BANDS) - len(LOCATION_BANDS)
+        static_bands_in_tif = len(EO_STATIC_BANDS) - len(LOCATION_BANDS)
 
         num_timesteps = (values.shape[0] - len(SPACE_BANDS) - static_bands_in_tif) / len(
             ALL_DYNAMIC_IN_TIME_BANDS
