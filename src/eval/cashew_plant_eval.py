@@ -94,15 +94,15 @@ class CashewPlantEval(EvalTask):
             pretrained_model.eval()
             with torch.no_grad():
                 s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = pretrained_model(
-                    s_t_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                    months,
+                    s_t_x=s_t_x,
+                    sp_x=sp_x,
+                    t_x=t_x,
+                    st_x=st_x,
+                    s_t_m=s_t_m,
+                    sp_m=sp_m,
+                    t_m=t_m,
+                    st_m=st_m,
+                    months=months,
                     patch_size=self.patch_size,
                 )
 
