@@ -24,6 +24,8 @@ from .config import (
 from .earthengine.eo import (
     ALL_DYNAMIC_IN_TIME_BANDS,
     DW_BANDS,
+    DW_DIV_VALUES,
+    DW_SHIFT_VALUES,
     ERA5_BANDS,
     LANDSCAN_BANDS,
     LOCATION_BANDS,
@@ -34,23 +36,27 @@ from .earthengine.eo import (
     SPACE_TIME_DIV_VALUES,
     SPACE_TIME_SHIFT_VALUES,
     SRTM_BANDS,
-    STATIC_DIV_VALUES,
-    STATIC_SHIFT_VALUES,
     TC_BANDS,
     TIME_BANDS,
     TIME_DIV_VALUES,
     TIME_SHIFT_VALUES,
     VIIRS_BANDS,
     WC_BANDS,
+    WC_DIV_VALUES,
+    WC_SHIFT_VALUES,
 )
 from .earthengine.eo import SPACE_TIME_BANDS as EO_SPACE_TIME_BANDS
 from .earthengine.eo import STATIC_BANDS as EO_STATIC_BANDS
+from .earthengine.eo import STATIC_DIV_VALUES as EO_STATIC_DIV_VALUES
+from .earthengine.eo import STATIC_SHIFT_VALUES as EO_STATIC_SHIFT_VALUES
 
 logger = logging.getLogger("__main__")
 
 
 EO_DYNAMIC_IN_TIME_BANDS_NP = np.array(EO_SPACE_TIME_BANDS + TIME_BANDS)
 SPACE_TIME_BANDS = EO_SPACE_TIME_BANDS + ["NDVI"]
+SPACE_TIME_SHIFT_VALUES = np.append(SPACE_TIME_SHIFT_VALUES, [0])
+SPACE_TIME_DIV_VALUES = np.append(SPACE_TIME_DIV_VALUES, [1])
 
 SPACE_TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
@@ -83,6 +89,8 @@ SPACE_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
 STATIC_DW_BANDS = [f"{x}_static" for x in DW_BANDS]
 STATIC_WC_BANDS = [f"{x}_static" for x in WC_BANDS]
 STATIC_BANDS = EO_STATIC_BANDS + STATIC_DW_BANDS + STATIC_WC_BANDS
+STATIC_DIV_VALUES = np.append(EO_STATIC_DIV_VALUES, (DW_DIV_VALUES + WC_DIV_VALUES))
+STATIC_SHIFT_VALUES = np.append(EO_STATIC_SHIFT_VALUES, (DW_SHIFT_VALUES + WC_SHIFT_VALUES))
 
 STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
@@ -103,16 +111,10 @@ def _normalize(x: np.ndarray, shift_values: np.ndarray, div_values: np.ndarray) 
 
 
 def normalize_space_time(x: np.ndarray) -> np.ndarray:
-    if x.shape[-1] == len(SPACE_TIME_SHIFT_VALUES):
-        d_s = SPACE_TIME_SHIFT_VALUES
-        d_d = SPACE_TIME_DIV_VALUES
-    else:
-        # there is an additional NDVI band. We assume its already normalized - *N*DVI,
-        # so we leave it alone
-        assert x.shape[-1] == (len(SPACE_TIME_SHIFT_VALUES) + 1)
-        d_s = np.append(SPACE_TIME_SHIFT_VALUES, [0])
-        d_d = np.append(SPACE_TIME_DIV_VALUES, [1])
-    return _normalize(x, d_s, d_d)
+    assert isinstance(x, np.ndarray)
+    # assert since we added NDVI
+    assert x.shape[-1] == (len(SPACE_TIME_SHIFT_VALUES))
+    return _normalize(x, SPACE_TIME_SHIFT_VALUES, SPACE_TIME_DIV_VALUES)
 
 
 def normalize_space(x: np.ndarray) -> np.ndarray:
