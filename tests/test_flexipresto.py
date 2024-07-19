@@ -58,151 +58,154 @@ class TestPresto(unittest.TestCase):
         )
         max_patch_size = decoder.max_patch_size
         ds = Dataset(DATA_FOLDER, False)
-        s_t_x, sp_x, t_x, st_x, months = self.to_tensor_with_batch_d(ds[0])
-        masked_output, _ = batch_subset_mask_presto(
-            s_t_x,
-            sp_x,
-            t_x,
-            st_x,
-            months,
-            mask_ratio=0.5,
-            decoder_unmask_ratio=0.25,
-            patch_size=patch_size,
-            image_size=image_size,
-            num_timesteps=num_timesteps,
-            augmentation_strategies=None,
-            masking_probabilities=[1] * len(MASKING_MODES),
-            unmasking_probabilities=[1] * len(MASKING_MODES),
-            masking_function=MaskingFunctions.SPACE,
-        )
-
-        expanded_s_t = torch.repeat_interleave(
-            masked_output.space_time_mask, repeats=SPACE_TIME_BAND_EXPANSION.long(), dim=-1
-        ).int()
-        expanded_sp = torch.repeat_interleave(
-            masked_output.space_mask, repeats=SPACE_BAND_EXPANSION.long(), dim=-1
-        ).int()
-        expanded_t = torch.repeat_interleave(
-            masked_output.time_mask, repeats=TIME_BAND_EXPANSION.long(), dim=-1
-        ).int()
-        expanded_st = torch.repeat_interleave(
-            masked_output.static_mask, repeats=STATIC_BAND_EXPANSION.long(), dim=-1
-        ).int()
-
-        if patch_size < 8:
-            expanded_s_t = repeat(
-                expanded_s_t[:, 0::patch_size, 0::patch_size],
-                "b h w t c -> b (h h2) (w w2) t c",
-                h2=8,
-                w2=8,
-            )
-
-            expanded_sp = repeat(
-                expanded_sp[:, 0::patch_size, 0::patch_size],
-                "b h w c -> b (h h2) (w w2) c",
-                h2=8,
-                w2=8,
-            )
-
-        # for now, we just make sure it all runs
-        with torch.autocast(device_type=device.type, dtype=torch.float16):
-            encoder_output = encoder(
-                masked_output.space_time_x,
-                masked_output.space_x,
-                masked_output.time_x,
-                masked_output.static_x,
-                masked_output.space_time_mask,
-                masked_output.space_mask,
-                masked_output.time_mask,
-                masked_output.static_mask,
-                masked_output.months.long(),
+        for i in range(len(ds)):
+            s_t_x, sp_x, t_x, st_x, months = self.to_tensor_with_batch_d(ds[i])
+            masked_output, _ = batch_subset_mask_presto(
+                s_t_x,
+                sp_x,
+                t_x,
+                st_x,
+                months,
+                mask_ratio=0.5,
+                decoder_unmask_ratio=0.25,
                 patch_size=patch_size,
+                image_size=image_size,
+                num_timesteps=num_timesteps,
+                augmentation_strategies=None,
+                masking_probabilities=[1] * len(MASKING_MODES),
+                unmasking_probabilities=[1] * len(MASKING_MODES),
+                masking_function=MaskingFunctions.SPACE,
             )
-            output = decoder(*encoder_output)
 
-        self.assertTrue(
-            list(encoder_output[0].shape)
-            == [
-                1,
-                image_size / patch_size,
-                image_size / patch_size,
-                num_timesteps,
-                len(SPACE_TIME_BANDS_GROUPS_IDX),
-                embedding_size,
-            ]
-        )
-        self.assertTrue(
-            list(encoder_output[1].shape)
-            == [
-                1,
-                image_size / patch_size,
-                image_size / patch_size,
-                len(SPACE_BAND_GROUPS_IDX),
-                embedding_size,
-            ]
-        )
-        self.assertTrue(
-            list(encoder_output[2].shape)
-            == [
-                1,
-                num_timesteps,
-                len(TIME_BAND_GROUPS_IDX),
-                embedding_size,
-            ]
-        )
-        self.assertTrue(
-            list(encoder_output[3].shape)
-            == [
-                1,
-                len(STATIC_BAND_GROUPS_IDX),
-                embedding_size,
-            ]
-        )
-        self.assertFalse(
-            torch.isnan(
-                encoder_output[0][
-                    masked_output.space_time_mask[:, 0::patch_size, 0::patch_size] == 0
+            expanded_s_t = torch.repeat_interleave(
+                masked_output.space_time_mask, repeats=SPACE_TIME_BAND_EXPANSION.long(), dim=-1
+            ).int()
+            expanded_sp = torch.repeat_interleave(
+                masked_output.space_mask, repeats=SPACE_BAND_EXPANSION.long(), dim=-1
+            ).int()
+            expanded_t = torch.repeat_interleave(
+                masked_output.time_mask, repeats=TIME_BAND_EXPANSION.long(), dim=-1
+            ).int()
+            expanded_st = torch.repeat_interleave(
+                masked_output.static_mask, repeats=STATIC_BAND_EXPANSION.long(), dim=-1
+            ).int()
+
+            if patch_size < 8:
+                expanded_s_t = repeat(
+                    expanded_s_t[:, 0::patch_size, 0::patch_size],
+                    "b h w t c -> b (h h2) (w w2) t c",
+                    h2=8,
+                    w2=8,
+                )
+
+                expanded_sp = repeat(
+                    expanded_sp[:, 0::patch_size, 0::patch_size],
+                    "b h w c -> b (h h2) (w w2) c",
+                    h2=8,
+                    w2=8,
+                )
+
+            # for now, we just make sure it all runs
+            with torch.autocast(device_type=device.type, dtype=torch.float16):
+                encoder_output = encoder(
+                    masked_output.space_time_x,
+                    masked_output.space_x,
+                    masked_output.time_x,
+                    masked_output.static_x,
+                    masked_output.space_time_mask,
+                    masked_output.space_mask,
+                    masked_output.time_mask,
+                    masked_output.static_mask,
+                    masked_output.months.long(),
+                    patch_size=patch_size,
+                )
+                output = decoder(*encoder_output)
+
+            self.assertTrue(
+                list(encoder_output[0].shape)
+                == [
+                    1,
+                    image_size / patch_size,
+                    image_size / patch_size,
+                    num_timesteps,
+                    len(SPACE_TIME_BANDS_GROUPS_IDX),
+                    embedding_size,
                 ]
-            ).any()
-        )
-        self.assertFalse(
-            torch.isnan(
-                encoder_output[1][masked_output.space_mask[:, 0::patch_size, 0::patch_size] == 0]
-            ).any()
-        )
-        self.assertFalse(torch.isnan(encoder_output[2][masked_output.time_mask == 0]).any())
-        self.assertFalse(torch.isnan(encoder_output[3][masked_output.static_mask == 0]).any())
+            )
+            self.assertTrue(
+                list(encoder_output[1].shape)
+                == [
+                    1,
+                    image_size / patch_size,
+                    image_size / patch_size,
+                    len(SPACE_BAND_GROUPS_IDX),
+                    embedding_size,
+                ]
+            )
+            self.assertTrue(
+                list(encoder_output[2].shape)
+                == [
+                    1,
+                    num_timesteps,
+                    len(TIME_BAND_GROUPS_IDX),
+                    embedding_size,
+                ]
+            )
+            self.assertTrue(
+                list(encoder_output[3].shape)
+                == [
+                    1,
+                    len(STATIC_BAND_GROUPS_IDX),
+                    embedding_size,
+                ]
+            )
+            self.assertFalse(
+                torch.isnan(
+                    encoder_output[0][
+                        masked_output.space_time_mask[:, 0::patch_size, 0::patch_size] == 0
+                    ]
+                ).any()
+            )
+            self.assertFalse(
+                torch.isnan(
+                    encoder_output[1][
+                        masked_output.space_mask[:, 0::patch_size, 0::patch_size] == 0
+                    ]
+                ).any()
+            )
+            self.assertFalse(torch.isnan(encoder_output[2][masked_output.time_mask == 0]).any())
+            self.assertFalse(torch.isnan(encoder_output[3][masked_output.static_mask == 0]).any())
 
-        self.assertTrue(
-            list(output[0].shape)
-            == [
-                1,
-                image_size * (max_patch_size / patch_size),
-                image_size * (max_patch_size / patch_size),
-                num_timesteps,
-                len(SPACE_TIME_BANDS),
-            ]
-        )
-        self.assertTrue(
-            list(output[1].shape)
-            == [
-                1,
-                image_size * (max_patch_size / patch_size),
-                image_size * (max_patch_size / patch_size),
-                len(SPACE_BANDS),
-            ]
-        )
-        self.assertTrue(list(output[2].shape) == [1, num_timesteps, len(TIME_BANDS)])
-        self.assertTrue(list(output[3].shape) == [1, len(STATIC_BANDS)])
+            self.assertTrue(
+                list(output[0].shape)
+                == [
+                    1,
+                    image_size * (max_patch_size / patch_size),
+                    image_size * (max_patch_size / patch_size),
+                    num_timesteps,
+                    len(SPACE_TIME_BANDS),
+                ]
+            )
+            self.assertTrue(
+                list(output[1].shape)
+                == [
+                    1,
+                    image_size * (max_patch_size / patch_size),
+                    image_size * (max_patch_size / patch_size),
+                    len(SPACE_BANDS),
+                ]
+            )
+            self.assertTrue(list(output[2].shape) == [1, num_timesteps, len(TIME_BANDS)])
+            self.assertTrue(list(output[3].shape) == [1, len(STATIC_BANDS)])
 
-        self.assertFalse(torch.isnan(output[0][expanded_s_t == 2]).any())
-        self.assertFalse(torch.isnan(output[1][expanded_sp == 2]).any())
-        self.assertFalse(torch.isnan(output[2][expanded_t == 2]).any())
-        self.assertFalse(torch.isnan(output[3][expanded_st == 2]).any())
+            self.assertFalse(torch.isnan(output[0][expanded_s_t == 2]).any())
+            self.assertFalse(torch.isnan(output[1][expanded_sp == 2]).any())
+            self.assertFalse(torch.isnan(output[2][expanded_t == 2]).any())
+            self.assertFalse(torch.isnan(output[3][expanded_st == 2]).any())
 
-        # check we can call backwards, with the loss
-        summed_output = sum([torch.sum(o) for o in output])
-        summed_output.backward()
+            # check we can call backwards, with the loss
+            summed_output = sum([torch.sum(o) for o in output])
+            summed_output.backward()
 
     def test_presto_pixel_decoder_add_masks(self):
         embedding_size = 16
