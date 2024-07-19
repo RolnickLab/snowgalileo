@@ -401,9 +401,8 @@ class Dataset(PyTorchDataset):
 
         static_x = values[-static_bands_in_tif:]
         # add DW_STATIC and WC_STATIC
-        dw_bands = space_x[:, :, [i for i, v in enumerate(SPACE_TIME_BANDS) if v in DW_BANDS]]
-        wc_bands = space_x[:, :, [i for i, v in enumerate(SPACE_TIME_BANDS) if v in WC_BANDS]]
-
+        dw_bands = space_x[:, :, [i for i, v in enumerate(SPACE_BANDS) if v in DW_BANDS]]
+        wc_bands = space_x[:, :, [i for i, v in enumerate(SPACE_BANDS) if v in WC_BANDS]]
         static_x = np.concatenate(
             [
                 np.nanmean(static_x, axis=(1, 2)),
