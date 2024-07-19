@@ -49,6 +49,8 @@ MASKING_MODES: List[Union[str, Tuple[str, str]]] = [
     ("time", "VIIRS"),
     ("static", "LS"),
     ("static", "location"),
+    ("static", "DW_static"),
+    ("static", "WC_static"),
 ]
 
 MAX_MASKING_STRATEGIES = 6
