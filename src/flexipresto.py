@@ -620,7 +620,7 @@ class Encoder(FlexiPrestoBase):
         sp_m: torch.Tensor,
         t_m: torch.Tensor,
         st_m: torch.Tensor,
-        patch_size: Optional[int],
+        patch_size: int,
     ):
         """
         Given a [B, H, W, (T), C] inputs, returns a [B, H, W, (T), C_G, D] output.
