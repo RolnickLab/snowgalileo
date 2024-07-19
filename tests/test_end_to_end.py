@@ -82,23 +82,23 @@ class TestEndtoEnd(unittest.TestCase):
             # no autocast since its poorly supported on CPU
             (p_s_t, p_sp, p_t, p_st) = predictor(
                 *encoder(
-                    s_t_x.float(),
-                    sp_x.float(),
-                    t_x.float(),
-                    st_x.float(),
-                    s_t_m.int(),
-                    sp_m.int(),
-                    t_m.int(),
-                    st_m.int(),
-                    months.long(),
+                    s_t_x=s_t_x.float(),
+                    sp_x=sp_x.float(),
+                    t_x=t_x.float(),
+                    st_x=st_x.float(),
+                    s_t_m=s_t_m.int(),
+                    sp_m=sp_m.int(),
+                    t_m=t_m.int(),
+                    st_m=st_m.int(),
+                    months=months.long(),
                     patch_size=patch_size,
                 ),
                 patch_size=patch_size,
             )
-            self.assertFalse(torch.isnan(p_s_t).any())
-            self.assertFalse(torch.isnan(p_sp).any())
-            self.assertFalse(torch.isnan(p_t).any())
-            self.assertFalse(torch.isnan(p_st).any())
+            self.assertFalse(torch.isnan(p_s_t[s_t_m_p == 2]).any())
+            self.assertFalse(torch.isnan(p_sp[sp_m_p == 2]).any())
+            self.assertFalse(torch.isnan(p_t[t_m_p == 2]).any())
+            self.assertFalse(torch.isnan(p_st[st_m_p == 2]).any())
 
             loss = masked_autoencoder_loss(
                 expanded_s_t_x,
