@@ -277,12 +277,12 @@ class EuroSatEval(EvalTask):
             "hw": 64 // patch_size,
             "patch_size": patch_size,
             "timesteps": 3,
-            "input_channels": torch.Tensor([0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0]).to(
+            "input_channels": torch.Tensor([0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0]).to(
                 device
             ),  # should be S2
-            "output_channels": torch.Tensor([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).to(
-                device
-            ),  # should be DW
+            "output_channels": torch.Tensor(
+                [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0]
+            ).to(device),  # should be DW
             "recon_objs": torch.Tensor([1, 0]).to(device),  # should be batch mask time
         }
 
