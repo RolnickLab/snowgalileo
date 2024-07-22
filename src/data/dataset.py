@@ -30,14 +30,12 @@ from .earthengine.eo import (
     LANDSCAN_BANDS,
     LOCATION_BANDS,
     S1_BANDS,
-    SPACE_BANDS,
     SPACE_DIV_VALUES,
     SPACE_SHIFT_VALUES,
     SPACE_TIME_DIV_VALUES,
     SPACE_TIME_SHIFT_VALUES,
     SRTM_BANDS,
     TC_BANDS,
-    TIME_BANDS,
     TIME_DIV_VALUES,
     TIME_SHIFT_VALUES,
     VIIRS_BANDS,
@@ -45,15 +43,17 @@ from .earthengine.eo import (
     WC_DIV_VALUES,
     WC_SHIFT_VALUES,
 )
+from .earthengine.eo import SPACE_BANDS as EO_SPACE_BANDS
 from .earthengine.eo import SPACE_TIME_BANDS as EO_SPACE_TIME_BANDS
 from .earthengine.eo import STATIC_BANDS as EO_STATIC_BANDS
 from .earthengine.eo import STATIC_DIV_VALUES as EO_STATIC_DIV_VALUES
 from .earthengine.eo import STATIC_SHIFT_VALUES as EO_STATIC_SHIFT_VALUES
+from .earthengine.eo import TIME_BANDS as EO_TIME_BANDS
 
 logger = logging.getLogger("__main__")
 
 
-EO_DYNAMIC_IN_TIME_BANDS_NP = np.array(EO_SPACE_TIME_BANDS + TIME_BANDS)
+EO_DYNAMIC_IN_TIME_BANDS_NP = np.array(EO_SPACE_TIME_BANDS + EO_TIME_BANDS)
 SPACE_TIME_BANDS = EO_SPACE_TIME_BANDS + ["NDVI"]
 SPACE_TIME_SHIFT_VALUES = np.append(SPACE_TIME_SHIFT_VALUES, [0])
 SPACE_TIME_DIV_VALUES = np.append(SPACE_TIME_DIV_VALUES, [1])
@@ -70,19 +70,23 @@ SPACE_TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     }
 )
 
+TIME_BANDS = EO_TIME_BANDS + ["NDVI_time"]
 TIME_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
         "ERA5": [TIME_BANDS.index(b) for b in ERA5_BANDS],
         "TC": [TIME_BANDS.index(b) for b in TC_BANDS],
         "VIIRS": [TIME_BANDS.index(b) for b in VIIRS_BANDS],
+        "NDVI_time": [TIME_BANDS.index("NDVI_time")],
     }
 )
 
+SPACE_BANDS = EO_SPACE_BANDS + ["NDVI_space"]
 SPACE_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
         "SRTM": [SPACE_BANDS.index(b) for b in SRTM_BANDS],
         "DW": [SPACE_BANDS.index(b) for b in DW_BANDS],
         "WC": [SPACE_BANDS.index(b) for b in WC_BANDS],
+        "NDVI_space": [SPACE_BANDS.index("NDVI_space")],
     }
 )
 
@@ -385,11 +389,16 @@ class Dataset(PyTorchDataset):
         )
         dynamic_in_time_x = cls._fillna(dynamic_in_time_x, EO_DYNAMIC_IN_TIME_BANDS_NP)
         space_time_x = dynamic_in_time_x[:, :, :, : -len(TIME_BANDS)]
-        space_time_x = np.concatenate((space_time_x, cls.calculate_ndvi(space_time_x)), axis=-1)
+
+        # calculate indices, which have shape [h, w, t, 1]
+        ndvi = cls.calculate_ndvi(space_time_x)
+
+        space_time_x = np.concatenate((space_time_x, ndvi), axis=-1)
         space_time_x = normalize_space_time(space_time_x)
 
         time_x = dynamic_in_time_x[:, :, :, -len(TIME_BANDS) :]
         time_x = np.nanmean(time_x, axis=(0, 1))
+        time_x = np.concatenate((time_x, np.mean(ndvi, axis=(0, 1))), axis=-1)
         time_x = normalize_time(time_x)
 
         space_x = rearrange(
@@ -397,6 +406,7 @@ class Dataset(PyTorchDataset):
             "c h w -> h w c",
         )
         space_x = cls._fillna(space_x, np.array(SPACE_BANDS))
+        space_x = np.concatenate((space_x, np.mean(ndvi, axis=2)), axis=-1)
         space_x = normalize_space(space_x)
 
         static_x = values[-static_bands_in_tif:]
