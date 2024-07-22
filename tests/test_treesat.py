@@ -116,7 +116,7 @@ class TestTreeSat(unittest.TestCase):
         absent_band_groups = [
             idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S2" not in key
         ]
-        present_bands = [idx for idx, key in enumerate(SPACE_TIME_BANDS) if "B" in key]
+        present_bands = [idx for idx, key in enumerate(SPACE_TIME_BANDS) if key.startswith("B")]
 
         self.assertTrue(torch.all(s_t_x[:, :, :, present_bands] != 0))
         self.assertTrue(torch.all(s_t_m[:, :, :, present_band_groups] == 0))
@@ -169,7 +169,7 @@ class TestTreeSat(unittest.TestCase):
         present_bands = [
             idx
             for idx, key in enumerate(SPACE_TIME_BANDS)
-            if (("B" in key) or (key in ["VV", "VH"]))
+            if (key.startswith("B") or (key in ["VV", "VH"]))
         ]
         self.assertTrue(torch.all(s_t_x[:, :, :, present_bands] != 0))
         self.assertTrue(torch.all(s_t_m[:, :, :, present_band_groups] == 0))
