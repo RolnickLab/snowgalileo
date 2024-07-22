@@ -69,6 +69,10 @@ SPACE_TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
         "S2_NIR_20m": [SPACE_TIME_BANDS.index(b) for b in ["B8A"]],
         "S2_SWIR": [SPACE_TIME_BANDS.index(b) for b in ["B11", "B12"]],
         "NDVI": [SPACE_TIME_BANDS.index("NDVI")],
+        "NBR": [SPACE_TIME_BANDS.index("NBR")],
+        "NDMI": [SPACE_TIME_BANDS.index("NDMI")],
+        "NDBI": [SPACE_TIME_BANDS.index("NDBI")],
+        "MNDWI": [SPACE_TIME_BANDS.index("MNDWI")],
     }
 )
 
@@ -81,6 +85,10 @@ TIME_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
         "TC": [TIME_BANDS.index(b) for b in TC_BANDS],
         "VIIRS": [TIME_BANDS.index(b) for b in VIIRS_BANDS],
         "NDVI_time": [TIME_BANDS.index("NDVI_time")],
+        "NBR_time": [TIME_BANDS.index("NBR_time")],
+        "NDMI_time": [TIME_BANDS.index("NDMI_time")],
+        "NDBI_time": [TIME_BANDS.index("NDBI_time")],
+        "MNDWI_time": [TIME_BANDS.index("MNDWI_time")],
     }
 )
 
@@ -93,6 +101,10 @@ SPACE_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
         "DW": [SPACE_BANDS.index(b) for b in DW_BANDS],
         "WC": [SPACE_BANDS.index(b) for b in WC_BANDS],
         "NDVI_space": [SPACE_BANDS.index("NDVI_space")],
+        "NBR_space": [SPACE_BANDS.index("NBR_space")],
+        "NBMI_space": [SPACE_BANDS.index("NDMI_space")],
+        "NDBI_space": [SPACE_BANDS.index("NDBI_space")],
+        "MNDWI_space": [SPACE_BANDS.index("MNDWI_space")],
     }
 )
 
