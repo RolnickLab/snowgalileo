@@ -56,9 +56,9 @@ logger = logging.getLogger("__main__")
 INDICES = ["NDVI", "NBR", "NDMI", "NDBI", "MNDWI"]
 
 EO_DYNAMIC_IN_TIME_BANDS_NP = np.array(EO_SPACE_TIME_BANDS + EO_TIME_BANDS)
-SPACE_TIME_BANDS = EO_SPACE_TIME_BANDS + INDICES
-SPACE_TIME_SHIFT_VALUES = np.append(EO_SPACE_TIME_SHIFT_VALUES, [0] * len(INDICES))
-SPACE_TIME_DIV_VALUES = np.append(EO_SPACE_TIME_DIV_VALUES, [1] * len(INDICES))
+SPACE_TIME_BANDS = EO_SPACE_TIME_BANDS + ["NDVI"]
+SPACE_TIME_SHIFT_VALUES = np.append(EO_SPACE_TIME_SHIFT_VALUES, [0])
+SPACE_TIME_DIV_VALUES = np.append(EO_SPACE_TIME_DIV_VALUES, [1])
 
 SPACE_TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
@@ -69,10 +69,6 @@ SPACE_TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
         "S2_NIR_20m": [SPACE_TIME_BANDS.index(b) for b in ["B8A"]],
         "S2_SWIR": [SPACE_TIME_BANDS.index(b) for b in ["B11", "B12"]],
         "NDVI": [SPACE_TIME_BANDS.index("NDVI")],
-        "NBR": [SPACE_TIME_BANDS.index("NBR")],
-        "NDMI": [SPACE_TIME_BANDS.index("NDMI")],
-        "NDBI": [SPACE_TIME_BANDS.index("NDBI")],
-        "MNDWI": [SPACE_TIME_BANDS.index("MNDWI")],
     }
 )
 
@@ -422,7 +418,7 @@ class Dataset(PyTorchDataset):
             cls.calculate_ndi(space_time_x, band_1="B3", band_2="B8"),
         ]
 
-        space_time_x = np.concatenate((space_time_x, *indices), axis=-1)
+        space_time_x = np.concatenate((space_time_x, indices[0]), axis=-1)
         space_time_x = normalize_space_time(space_time_x)
 
         time_x = dynamic_in_time_x[:, :, :, -len(EO_TIME_BANDS) :]
