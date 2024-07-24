@@ -384,7 +384,7 @@ class Dataset(PyTorchDataset):
                 start_w : start_w + DATASET_OUTPUT_HW,
             ],
             hf["t_x"][start_t : start_t + NUM_TIMESTEPS],
-            hf["s_x"][:],
+            hf["st_x"][:],
             months[start_t : start_t + NUM_TIMESTEPS],
         )
 
