@@ -14,7 +14,7 @@ EXPORTED_HEIGHT_WIDTH_METRES = 1000
 EE_PROJECT = "large-earth-model"
 EE_BUCKET_TIFS = "presto-tifs"
 EE_FOLDER_TIFS = "tifs4"
-EE_FOLDER_NPYS = "npys"
+EE_FOLDER_H5PYS = "h5pys"
 
 DATA_FOLDER = Path(__file__).parents[2] / "data"
 TIFS_FOLDER = DATA_FOLDER / "tifs"
