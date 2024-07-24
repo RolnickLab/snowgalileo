@@ -507,8 +507,9 @@ class Dataset(PyTorchDataset):
             if h5py_path.exists():
                 try:
                     hf = h5py.File(h5py_path, "r")
-                    return self.read_and_slice_h5py_file(hf, self.tifs[idx])
-                    # get the shape, to make the months array
+                    output = self.read_and_slice_h5py_file(hf, self.tifs[idx])
+                    hf.close()
+                    return output
                 except Exception as e:
                     logger.warn(f"Exception {e} for {self.tifs[idx]}")
 
@@ -558,7 +559,9 @@ class Dataset(PyTorchDataset):
     def __getitem__(self, idx):
         if self.h5pys_only:
             hf = h5py.File(self.h5pys[idx], "r")
-            return self.read_and_slice_h5py_file(hf, self.tifs[idx])
+            output = self.read_and_slice_h5py_file(hf, self.tifs[idx])
+            hf.close()
+            return output
         else:
             s_t_x, sp_x, t_x, st_x, months = self.load_tif(idx)
 
