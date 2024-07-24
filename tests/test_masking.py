@@ -209,6 +209,7 @@ class TestMasking(unittest.TestCase):
             (h_tokens * w_tokens * t * len(SPACE_TIME_BANDS_GROUPS_IDX))
             + (h_tokens * w_tokens * len(SPACE_BAND_GROUPS_IDX))
             + (t * len(TIME_BAND_GROUPS_IDX))
+            + len(STATIC_BAND_GROUPS_IDX)
         ) * b
         self.assertTrue(
             (

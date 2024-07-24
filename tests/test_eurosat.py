@@ -13,7 +13,8 @@ from src.data.dataset import (
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
 )
-from src.eval.eurosat_eval import EuroSatDataset
+from src.eval.eurosat_eval import EuroSatDataset, EuroSatEval
+from src.masking import MASKING_MODES
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/eurosat/eurosat_test"
 
@@ -145,8 +146,23 @@ class TestEuroSat(unittest.TestCase):
         unpresent_band_groups = [
             idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S2" not in key
         ]
-        present_bands = [idx for idx, key in enumerate(SPACE_TIME_BANDS) if "B" in key]
+        present_bands = [idx for idx, key in enumerate(SPACE_TIME_BANDS) if key.startswith("B")]
 
         self.assertTrue(torch.all(s_t_x[:, :, :, present_bands] != 0))
         self.assertTrue(torch.all(s_t_m[:, :, :, present_band_groups] == 0))
         self.assertTrue(torch.all(s_t_m[:, :, :, unpresent_band_groups] == 1))
+
+    def test_eurosat_conditions(self):
+        task = EuroSatEval()
+
+        self.assertEqual(len(task.condition["input_channels"]), len(MASKING_MODES))
+        self.assertEqual(len(task.condition["output_channels"]), len(MASKING_MODES))
+        for idx, val in enumerate(task.condition["input_channels"]):
+            if val == 1:
+                self.assertTrue("S2" in MASKING_MODES[idx][1])
+            else:
+                self.assertFalse("S2" in MASKING_MODES[idx][1])
+
+        for idx, val in enumerate(task.condition["output_channels"]):
+            if val == 1:
+                self.assertTrue(MASKING_MODES[idx][1] == "DW_static")

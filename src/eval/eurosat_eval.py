@@ -31,7 +31,7 @@ from ..data.dataset import (
 )
 from ..data.earthengine.s2 import ALL_S2_BANDS, REMOVED_BANDS
 from ..flexipresto import Encoder
-from ..masking import MaskedOutput
+from ..masking import MASKING_MODES, MaskedOutput
 from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
 from .eval import EvalTask, Hyperparams, model_class_name
 from .geobench_dataset import GeobenchBaseDataset
@@ -273,16 +273,20 @@ class EuroSatEval(EvalTask):
         # thanks Claude for the implementation, good bot
         # lets start with the intuitive conditions
 
+        input_channels = [0] * len(MASKING_MODES)
+        output_channels = [0] * len(MASKING_MODES)
+        for i, val in enumerate(MASKING_MODES):
+            if "S2" in val[1]:
+                input_channels[i] = 1
+            elif val[1] == "DW_static":
+                output_channels[i] = 1
+
         self.condition = {
             "hw": 64 // patch_size,
             "patch_size": patch_size,
             "timesteps": 3,
-            "input_channels": torch.Tensor([0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0]).to(
-                device
-            ),  # should be S2
-            "output_channels": torch.Tensor([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).to(
-                device
-            ),  # should be DW
+            "input_channels": torch.Tensor(input_channels).to(device),  # should be S2
+            "output_channels": torch.Tensor(output_channels).to(device),  # should be static DW
             "recon_objs": torch.Tensor([1, 0]).to(device),  # should be batch mask time
         }
 

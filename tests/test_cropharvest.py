@@ -41,7 +41,6 @@ class TestCropHarvest(unittest.TestCase):
 
             self.assertEqual(s_t_x.shape, (b, 1, 1, t, len(SPACE_TIME_BANDS)))
             self.assertEqual(s_t_m.shape, (b, 1, 1, t, len(SPACE_TIME_BANDS_GROUPS_IDX)))
-            self.assertTrue((s_t_m == 0).all())
             self.assertEqual(sp_x.shape, (b, 1, 1, len(SPACE_BANDS)))
             self.assertEqual(sp_m.shape, (b, 1, 1, len(SPACE_BAND_GROUPS_IDX)))
             self.assertTrue(
@@ -54,6 +53,4 @@ class TestCropHarvest(unittest.TestCase):
             self.assertEqual(t_m.shape, (b, t, len(TIME_BAND_GROUPS_IDX)))
             self.assertEqual(st_x.shape, (b, len(STATIC_BANDS)))
             self.assertEqual(st_m.shape, (b, len(STATIC_BAND_GROUPS_IDX)))
-            if not include_latlons:
-                self.assertTrue((st_m == 1).all())
             self.assertEqual(months.shape, (b, t))

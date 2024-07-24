@@ -44,7 +44,7 @@ logger = logging.getLogger("__main__")
 
 cropharvest_data_dir = data_dir / "cropharvest_data"
 
-CH_BANDS_TO_SPACE_TIME_BANDS = [BANDS.index(s) for s in SPACE_TIME_BANDS]
+CH_BANDS_TO_SPACE_TIME_BANDS = [BANDS.index(s) for s in SPACE_TIME_BANDS if s in BANDS]
 SPACE_TIME_BANDS_TO_CH_BANDS = [idx for idx, s in enumerate(SPACE_TIME_BANDS) if s in BANDS]
 
 CH_BANDS_TO_SPACE_BANDS = [BANDS.index(s) for s in SPACE_BANDS if s in BANDS]

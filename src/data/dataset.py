@@ -24,6 +24,8 @@ from .config import (
 from .earthengine.eo import (
     ALL_DYNAMIC_IN_TIME_BANDS,
     DW_BANDS,
+    DW_DIV_VALUES,
+    DW_SHIFT_VALUES,
     ERA5_BANDS,
     LANDSCAN_BANDS,
     LOCATION_BANDS,
@@ -31,26 +33,29 @@ from .earthengine.eo import (
     SPACE_BANDS,
     SPACE_DIV_VALUES,
     SPACE_SHIFT_VALUES,
-    SPACE_TIME_DIV_VALUES,
-    SPACE_TIME_SHIFT_VALUES,
     SRTM_BANDS,
-    STATIC_BANDS,
-    STATIC_DIV_VALUES,
-    STATIC_SHIFT_VALUES,
     TC_BANDS,
     TIME_BANDS,
     TIME_DIV_VALUES,
     TIME_SHIFT_VALUES,
     VIIRS_BANDS,
     WC_BANDS,
+    WC_DIV_VALUES,
+    WC_SHIFT_VALUES,
 )
 from .earthengine.eo import SPACE_TIME_BANDS as EO_SPACE_TIME_BANDS
+from .earthengine.eo import SPACE_TIME_DIV_VALUES as EO_SPACE_TIME_DIV_VALUES
+from .earthengine.eo import SPACE_TIME_SHIFT_VALUES as EO_SPACE_TIME_SHIFT_VALUES
+from .earthengine.eo import STATIC_BANDS as EO_STATIC_BANDS
+from .earthengine.eo import STATIC_DIV_VALUES as EO_STATIC_DIV_VALUES
+from .earthengine.eo import STATIC_SHIFT_VALUES as EO_STATIC_SHIFT_VALUES
 
 logger = logging.getLogger("__main__")
 
-
 EO_DYNAMIC_IN_TIME_BANDS_NP = np.array(EO_SPACE_TIME_BANDS + TIME_BANDS)
 SPACE_TIME_BANDS = EO_SPACE_TIME_BANDS + ["NDVI"]
+SPACE_TIME_SHIFT_VALUES = np.append(EO_SPACE_TIME_SHIFT_VALUES, [0])
+SPACE_TIME_DIV_VALUES = np.append(EO_SPACE_TIME_DIV_VALUES, [1])
 
 SPACE_TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
@@ -80,10 +85,18 @@ SPACE_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     }
 )
 
+STATIC_DW_BANDS = [f"{x}_static" for x in DW_BANDS]
+STATIC_WC_BANDS = [f"{x}_static" for x in WC_BANDS]
+STATIC_BANDS = EO_STATIC_BANDS + STATIC_DW_BANDS + STATIC_WC_BANDS
+STATIC_DIV_VALUES = np.append(EO_STATIC_DIV_VALUES, (DW_DIV_VALUES + WC_DIV_VALUES))
+STATIC_SHIFT_VALUES = np.append(EO_STATIC_SHIFT_VALUES, (DW_SHIFT_VALUES + WC_SHIFT_VALUES))
+
 STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
         "LS": [STATIC_BANDS.index(b) for b in LANDSCAN_BANDS],
         "location": [STATIC_BANDS.index(b) for b in LOCATION_BANDS],
+        "DW_static": [STATIC_BANDS.index(b) for b in STATIC_DW_BANDS],
+        "WC_static": [STATIC_BANDS.index(b) for b in STATIC_WC_BANDS],
     }
 )
 
@@ -97,16 +110,10 @@ def _normalize(x: np.ndarray, shift_values: np.ndarray, div_values: np.ndarray) 
 
 
 def normalize_space_time(x: np.ndarray) -> np.ndarray:
-    if x.shape[-1] == len(SPACE_TIME_SHIFT_VALUES):
-        d_s = SPACE_TIME_SHIFT_VALUES
-        d_d = SPACE_TIME_DIV_VALUES
-    else:
-        # there is an additional NDVI band. We assume its already normalized - *N*DVI,
-        # so we leave it alone
-        assert x.shape[-1] == (len(SPACE_TIME_SHIFT_VALUES) + 1)
-        d_s = np.append(SPACE_TIME_SHIFT_VALUES, [0])
-        d_d = np.append(SPACE_TIME_DIV_VALUES, [1])
-    return _normalize(x, d_s, d_d)
+    assert isinstance(x, np.ndarray)
+    # assert since we added NDVI
+    assert x.shape[-1] == (len(SPACE_TIME_SHIFT_VALUES))
+    return _normalize(x, SPACE_TIME_SHIFT_VALUES, SPACE_TIME_DIV_VALUES)
 
 
 def normalize_space(x: np.ndarray) -> np.ndarray:
@@ -363,7 +370,7 @@ class Dataset(PyTorchDataset):
         # this is a bit hackey but is a unique edge case for locations,
         # which are not part of the exported bands but are instead
         # computed here
-        static_bands_in_tif = len(STATIC_BANDS) - len(LOCATION_BANDS)
+        static_bands_in_tif = len(EO_STATIC_BANDS) - len(LOCATION_BANDS)
 
         num_timesteps = (values.shape[0] - len(SPACE_BANDS) - static_bands_in_tif) / len(
             ALL_DYNAMIC_IN_TIME_BANDS
@@ -377,7 +384,11 @@ class Dataset(PyTorchDataset):
         )
         dynamic_in_time_x = cls._fillna(dynamic_in_time_x, EO_DYNAMIC_IN_TIME_BANDS_NP)
         space_time_x = dynamic_in_time_x[:, :, :, : -len(TIME_BANDS)]
-        space_time_x = np.concatenate((space_time_x, cls.calculate_ndvi(space_time_x)), axis=-1)
+
+        # calculate indices, which have shape [h, w, t, 1]
+        ndvi = cls.calculate_ndi(space_time_x, band_1="B8", band_2="B4")
+
+        space_time_x = np.concatenate((space_time_x, ndvi), axis=-1)
         space_time_x = normalize_space_time(space_time_x)
 
         time_x = dynamic_in_time_x[:, :, :, -len(TIME_BANDS) :]
@@ -392,7 +403,17 @@ class Dataset(PyTorchDataset):
         space_x = normalize_space(space_x)
 
         static_x = values[-static_bands_in_tif:]
-        static_x = np.concatenate([np.nanmean(static_x, axis=(1, 2)), to_cartesian(lat, lon)])
+        # add DW_STATIC and WC_STATIC
+        dw_bands = space_x[:, :, [i for i, v in enumerate(SPACE_BANDS) if v in DW_BANDS]]
+        wc_bands = space_x[:, :, [i for i, v in enumerate(SPACE_BANDS) if v in WC_BANDS]]
+        static_x = np.concatenate(
+            [
+                np.nanmean(static_x, axis=(1, 2)),
+                to_cartesian(lat, lon),
+                np.nanmean(dw_bands, axis=(0, 1)),
+                np.nanmean(wc_bands, axis=(0, 1)),
+            ]
+        )
         static_x = cls._fillna(static_x, np.array(STATIC_BANDS))
         static_x = normalize_static(static_x)
 
@@ -486,14 +507,13 @@ class Dataset(PyTorchDataset):
         )
 
     @staticmethod
-    def calculate_ndvi(input_array: np.ndarray) -> np.ndarray:
+    def calculate_ndi(input_array: np.ndarray, band_1: str, band_2: str) -> np.ndarray:
         r"""
         Given an input array of shape [h, w, t, bands]
         where bands == len(EO_DYNAMIC_IN_TIME_BANDS_NP), returns an array of shape
-        [h, w, t, 1] representing NDVI,
-        (b08 - b04) / (b08 + b04)
+        [h, w, t, 1] representing NDI,
+        (band_1 - band_2) / (band_1 + band_2)
         """
-        band_1, band_2 = "B8", "B4"
         band_1_np = input_array[:, :, :, EO_SPACE_TIME_BANDS.index(band_1)]
         band_2_np = input_array[:, :, :, EO_SPACE_TIME_BANDS.index(band_2)]
 
