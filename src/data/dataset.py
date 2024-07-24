@@ -512,7 +512,11 @@ class Dataset(PyTorchDataset):
                     return output
                 except Exception as e:
                     logger.warn(f"Exception {e} for {self.tifs[idx]}")
-
+                    try:
+                        hf.close()
+                    except Exception:
+                        pass
+                    h5py_path.unlink()
                     s_t_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
                     self.save_h5py(s_t_x, sp_x, t_x, st_x, self.tifs[idx].stem)
                     return DatasetOutput(s_t_x, sp_x, t_x, st_x, months)
