@@ -37,11 +37,6 @@ MASKING_MODES: List[Union[str, Tuple[str, str]]] = [
     ("space", "SRTM"),
     ("space", "DW"),
     ("space", "WC"),
-    ("space", "NDVI_space"),
-    ("space", "NBR_space"),
-    ("space", "NDMI_space"),
-    ("space", "NDBI_space"),
-    ("space", "MNDWI_space"),
     ("space_time", "NDVI"),
     ("space_time", "S1"),
     ("space_time", "S2_RGB"),
@@ -52,11 +47,6 @@ MASKING_MODES: List[Union[str, Tuple[str, str]]] = [
     ("time", "ERA5"),
     ("time", "TC"),
     ("time", "VIIRS"),
-    ("time", "NDVI_time"),
-    ("time", "NBR_time"),
-    ("time", "NDMI_time"),
-    ("time", "NDBI_time"),
-    ("time", "MNDWI_time"),
     ("static", "LS"),
     ("static", "location"),
     ("static", "DW_static"),
@@ -107,10 +97,19 @@ class MaskedOutput(NamedTuple):
 
 
 def weighted_sample_without_replacement(population, weights, k, rng=random):
-    # thanks https://maxhalford.github.io/blog/weighted-sampling-without-replacement/
-    v = [rng.random() ** (1 / w) for w in weights]
-    order = sorted(range(len(population)), key=lambda i: v[i])
-    return [population[i] for i in order[-k:]]
+    if len(population) != len(weights):
+        raise ValueError("Population and weights must have the same length")
+
+    non_zero_indices = [i for i, w in enumerate(weights) if w > 0]
+    if len(non_zero_indices) < k:
+        raise ValueError("Not enough non-zero weights to sample k items")
+
+    non_zero_population = [population[i] for i in non_zero_indices]
+    non_zero_weights = [weights[i] for i in non_zero_indices]
+
+    v = [rng.random() ** (1 / w) for w in non_zero_weights]
+    order = sorted(range(len(non_zero_population)), key=lambda i: v[i])
+    return [non_zero_population[i] for i in order[-k:]]
 
 
 def check_modes_for_conflicts(

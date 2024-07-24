@@ -30,32 +30,29 @@ from .earthengine.eo import (
     LANDSCAN_BANDS,
     LOCATION_BANDS,
     S1_BANDS,
+    SPACE_BANDS,
+    SPACE_DIV_VALUES,
+    SPACE_SHIFT_VALUES,
     SRTM_BANDS,
     TC_BANDS,
+    TIME_BANDS,
+    TIME_DIV_VALUES,
+    TIME_SHIFT_VALUES,
     VIIRS_BANDS,
     WC_BANDS,
     WC_DIV_VALUES,
     WC_SHIFT_VALUES,
 )
-from .earthengine.eo import SPACE_BANDS as EO_SPACE_BANDS
-from .earthengine.eo import SPACE_DIV_VALUES as EO_SPACE_DIV_VALUES
-from .earthengine.eo import SPACE_SHIFT_VALUES as EO_SPACE_SHIFT_VALUES
 from .earthengine.eo import SPACE_TIME_BANDS as EO_SPACE_TIME_BANDS
 from .earthengine.eo import SPACE_TIME_DIV_VALUES as EO_SPACE_TIME_DIV_VALUES
 from .earthengine.eo import SPACE_TIME_SHIFT_VALUES as EO_SPACE_TIME_SHIFT_VALUES
 from .earthengine.eo import STATIC_BANDS as EO_STATIC_BANDS
 from .earthengine.eo import STATIC_DIV_VALUES as EO_STATIC_DIV_VALUES
 from .earthengine.eo import STATIC_SHIFT_VALUES as EO_STATIC_SHIFT_VALUES
-from .earthengine.eo import TIME_BANDS as EO_TIME_BANDS
-from .earthengine.eo import TIME_DIV_VALUES as EO_TIME_DIV_VALUES
-from .earthengine.eo import TIME_SHIFT_VALUES as EO_TIME_SHIFT_VALUES
 
 logger = logging.getLogger("__main__")
 
-
-INDICES = ["NDVI", "NBR", "NDMI", "NDBI", "MNDWI"]
-
-EO_DYNAMIC_IN_TIME_BANDS_NP = np.array(EO_SPACE_TIME_BANDS + EO_TIME_BANDS)
+EO_DYNAMIC_IN_TIME_BANDS_NP = np.array(EO_SPACE_TIME_BANDS + TIME_BANDS)
 SPACE_TIME_BANDS = EO_SPACE_TIME_BANDS + ["NDVI"]
 SPACE_TIME_SHIFT_VALUES = np.append(EO_SPACE_TIME_SHIFT_VALUES, [0])
 SPACE_TIME_DIV_VALUES = np.append(EO_SPACE_TIME_DIV_VALUES, [1])
@@ -72,35 +69,19 @@ SPACE_TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     }
 )
 
-TIME_BANDS = EO_TIME_BANDS + [f"{x}_time" for x in INDICES]
-TIME_SHIFT_VALUES = np.append(EO_TIME_SHIFT_VALUES, [0] * len(INDICES))
-TIME_DIV_VALUES = np.append(EO_TIME_DIV_VALUES, [1] * len(INDICES))
 TIME_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
         "ERA5": [TIME_BANDS.index(b) for b in ERA5_BANDS],
         "TC": [TIME_BANDS.index(b) for b in TC_BANDS],
         "VIIRS": [TIME_BANDS.index(b) for b in VIIRS_BANDS],
-        "NDVI_time": [TIME_BANDS.index("NDVI_time")],
-        "NBR_time": [TIME_BANDS.index("NBR_time")],
-        "NDMI_time": [TIME_BANDS.index("NDMI_time")],
-        "NDBI_time": [TIME_BANDS.index("NDBI_time")],
-        "MNDWI_time": [TIME_BANDS.index("MNDWI_time")],
     }
 )
 
-SPACE_BANDS = EO_SPACE_BANDS + [f"{x}_space" for x in INDICES]
-SPACE_SHIFT_VALUES = np.append(EO_SPACE_SHIFT_VALUES, [0] * len(INDICES))
-SPACE_DIV_VALUES = np.append(EO_SPACE_DIV_VALUES, [1] * len(INDICES))
 SPACE_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
         "SRTM": [SPACE_BANDS.index(b) for b in SRTM_BANDS],
         "DW": [SPACE_BANDS.index(b) for b in DW_BANDS],
         "WC": [SPACE_BANDS.index(b) for b in WC_BANDS],
-        "NDVI_space": [SPACE_BANDS.index("NDVI_space")],
-        "NBR_space": [SPACE_BANDS.index("NBR_space")],
-        "NBMI_space": [SPACE_BANDS.index("NDMI_space")],
-        "NDBI_space": [SPACE_BANDS.index("NDBI_space")],
-        "MNDWI_space": [SPACE_BANDS.index("MNDWI_space")],
     }
 )
 
@@ -391,47 +372,34 @@ class Dataset(PyTorchDataset):
         # computed here
         static_bands_in_tif = len(EO_STATIC_BANDS) - len(LOCATION_BANDS)
 
-        num_timesteps = (values.shape[0] - len(EO_SPACE_BANDS) - static_bands_in_tif) / len(
+        num_timesteps = (values.shape[0] - len(SPACE_BANDS) - static_bands_in_tif) / len(
             ALL_DYNAMIC_IN_TIME_BANDS
         )
         assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
         dynamic_in_time_x = rearrange(
-            values[: -(len(EO_SPACE_BANDS) + static_bands_in_tif)],
+            values[: -(len(SPACE_BANDS) + static_bands_in_tif)],
             "(t c) h w -> h w t c",
             c=len(ALL_DYNAMIC_IN_TIME_BANDS),
             t=int(num_timesteps),
         )
         dynamic_in_time_x = cls._fillna(dynamic_in_time_x, EO_DYNAMIC_IN_TIME_BANDS_NP)
-        space_time_x = dynamic_in_time_x[:, :, :, : -len(EO_TIME_BANDS)]
+        space_time_x = dynamic_in_time_x[:, :, :, : -len(TIME_BANDS)]
 
         # calculate indices, which have shape [h, w, t, 1]
-        indices = [
-            # NDVI
-            cls.calculate_ndi(space_time_x, band_1="B8", band_2="B4"),
-            # NBR
-            cls.calculate_ndi(space_time_x, band_1="B8", band_2="B12"),
-            # NDMI
-            cls.calculate_ndi(space_time_x, band_1="B8", band_2="B11"),
-            # NDBI
-            cls.calculate_ndi(space_time_x, band_1="B12", band_2="B8"),
-            # NDWI
-            cls.calculate_ndi(space_time_x, band_1="B3", band_2="B8"),
-        ]
+        ndvi = cls.calculate_ndi(space_time_x, band_1="B8", band_2="B4")
 
-        space_time_x = np.concatenate((space_time_x, indices[0]), axis=-1)
+        space_time_x = np.concatenate((space_time_x, ndvi), axis=-1)
         space_time_x = normalize_space_time(space_time_x)
 
-        time_x = dynamic_in_time_x[:, :, :, -len(EO_TIME_BANDS) :]
+        time_x = dynamic_in_time_x[:, :, :, -len(TIME_BANDS) :]
         time_x = np.nanmean(time_x, axis=(0, 1))
-        time_x = np.concatenate((time_x, *[np.mean(i, axis=(0, 1)) for i in indices]), axis=-1)
         time_x = normalize_time(time_x)
 
         space_x = rearrange(
-            values[-(len(EO_SPACE_BANDS) + static_bands_in_tif) : -static_bands_in_tif],
+            values[-(len(SPACE_BANDS) + static_bands_in_tif) : -static_bands_in_tif],
             "c h w -> h w c",
         )
-        space_x = cls._fillna(space_x, np.array(EO_SPACE_BANDS))
-        space_x = np.concatenate((space_x, *[np.mean(i, axis=2) for i in indices]), axis=-1)
+        space_x = cls._fillna(space_x, np.array(SPACE_BANDS))
         space_x = normalize_space(space_x)
 
         static_x = values[-static_bands_in_tif:]
