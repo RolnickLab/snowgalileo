@@ -19,8 +19,8 @@ class TestConditioner(unittest.TestCase):
             "hw_max": 12,
             "patch_size_min": 1,
             "patch_size_max": 8,
-            "num_input_channels": 15,
-            "num_output_channels": 15,
+            "num_input_channels": len(MASKING_MODES),
+            "num_output_channels": len(MASKING_MODES),
             "num_recon_objs": 2,
         }
         mixer = TokenConditioner(**conditioner_dict)

@@ -49,9 +49,12 @@ MASKING_MODES: List[Union[str, Tuple[str, str]]] = [
     ("time", "VIIRS"),
     ("static", "LS"),
     ("static", "location"),
+    ("static", "DW_static"),
+    ("static", "WC_static"),
 ]
 
 MAX_MASKING_STRATEGIES = 6
+NUM_RECON_OBJS = 2
 
 
 class MaskingFunctions(Enum):
@@ -94,10 +97,19 @@ class MaskedOutput(NamedTuple):
 
 
 def weighted_sample_without_replacement(population, weights, k, rng=random):
-    # thanks https://maxhalford.github.io/blog/weighted-sampling-without-replacement/
-    v = [rng.random() ** (1 / w) for w in weights]
-    order = sorted(range(len(population)), key=lambda i: v[i])
-    return [population[i] for i in order[-k:]]
+    if len(population) != len(weights):
+        raise ValueError("Population and weights must have the same length")
+
+    non_zero_indices = [i for i, w in enumerate(weights) if w > 0]
+    if len(non_zero_indices) < k:
+        raise ValueError("Not enough non-zero weights to sample k items")
+
+    non_zero_population = [population[i] for i in non_zero_indices]
+    non_zero_weights = [weights[i] for i in non_zero_indices]
+
+    v = [rng.random() ** (1 / w) for w in non_zero_weights]
+    order = sorted(range(len(non_zero_population)), key=lambda i: v[i])
+    return [non_zero_population[i] for i in order[-k:]]
 
 
 def check_modes_for_conflicts(
@@ -164,7 +176,7 @@ def batch_subset_mask_presto(
         "timesteps": num_timesteps,
         "input_channels": torch.zeros(len(MASKING_MODES)).to(s_t_x.device),
         "output_channels": torch.zeros(len(MASKING_MODES)).to(s_t_x.device),
-        "recon_objs": torch.zeros(2).to(s_t_x.device),
+        "recon_objs": torch.zeros(NUM_RECON_OBJS).to(s_t_x.device),
     }
 
     if masking_function.value < 2:
