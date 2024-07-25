@@ -117,25 +117,16 @@ def weighted_sample_without_replacement(population, weights, k, rng=random):
 def check_modes_for_conflicts(
     modes: List[Tuple[str, str]], unmasking_modes: List[Tuple[str, str]]
 ) -> Tuple[List[Tuple[str, str]], List[Tuple[str, str]]]:
-    output_modes: List[Tuple[str, str]] = []
-    for mode in modes:
-        assert mode in MASKING_MODES
-        if mode in unmasking_modes:
-            if len(output_modes) == 0:
-                output_modes.append(mode)
-                unmasking_modes.remove(mode)
-            elif len(unmasking_modes) == 1:
-                # don't remove any more from the unmasking modes
-                continue
-            else:
-                # neither modes or unmasking_modes are bottlenecked;
-                # randomly select which one to remove
-                if random.random() <= 0.5:
-                    output_modes.append(mode)
-                    unmasking_modes.remove(mode)
+    assert len(unmasking_modes) == 1
+    for u_mode in unmasking_modes:
+        assert u_mode in MASKING_MODES
+        if u_mode in modes:
+            modes.remove(u_mode)
         else:
-            output_modes.append(mode)
-    return output_modes, unmasking_modes
+            continue
+    assert len(modes) >= 1
+    assert len(unmasking_modes) >= 1
+    return modes, unmasking_modes
 
 
 def check_mode_and_return_channels(unmasking_modes: List[Tuple[str, str]]):
