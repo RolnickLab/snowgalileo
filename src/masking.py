@@ -456,7 +456,6 @@ def batch_mask_space(
     """
     bands_to_encode = check_mode_and_return_channels(mode)
     bands_to_decode = check_mode_and_return_channels(decoder_mode)
-    print(bands_to_decode)
     b, h, w, t, _ = space_time_x.shape
     assert (h % patch_size == 0) and (w % patch_size == 0)
     h_p = int(h / patch_size)
