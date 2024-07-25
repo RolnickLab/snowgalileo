@@ -24,6 +24,7 @@ from src.masking import (
     TIME_BAND_EXPANSION,
     MaskingFunctions,
     batch_mask_space,
+    batch_mask_time,
     batch_subset_mask_presto,
 )
 from src.utils import device, load_check_config
@@ -360,51 +361,45 @@ class TestPresto(unittest.TestCase):
         for key, val in new_encoder.state_dict().items():
             self.assertTrue(torch.equal(val, original_encoder.state_dict()[key]))
 
-    def test_decoder_and_mask(self):
+    def test_decoder_and_mask_static(self):
         patch_size = 4
         mask_ratio = 0.25
         decoder_unmask_ratio = 0.25
 
         ds = Dataset(DATA_FOLDER, False)
-        s_t_x, sp_x, t_x, st_x, months = self.to_tensor_with_batch_d(ds[0])
-        masked_output = batch_mask_space(
-            s_t_x,
-            sp_x,
-            t_x,
-            st_x,
-            months,
-            mask_ratio=mask_ratio,
-            decoder_unmask_ratio=decoder_unmask_ratio,
-            mode=[
-                ("space_time", "S2_RGB"),
-                ("space_time", "S2_SWIR"),
-                ("space_time", "S2_Red_Edge"),
-                ("space_time", "S2_NIR_10m"),
-                ("space_time", "S2_NIR_20m"),
-            ],
-            decoder_mode=[("static", "LS")],
-            patch_size=patch_size,
-        )
+        tensor_batch = self.to_tensor_with_batch_d(ds[0])
+        self.assertTrue(tensor_batch[0].shape[1] == tensor_batch[0].shape[2])
+        for f in [batch_mask_time, batch_mask_space]:
+            masked_output = f(
+                *tensor_batch,
+                mask_ratio=mask_ratio,
+                decoder_unmask_ratio=decoder_unmask_ratio,
+                mode=[("space", "DW")],
+                decoder_mode=[("static", "LS")],
+                patch_size=patch_size,
+            )
 
-        encoder = Encoder(embedding_size=32, num_heads=1)
-        decoder = PrestoPixelDecoder(
-            encoder_embedding_size=32,
-            decoder_embedding_size=32,
-            num_heads=1,
-        )
-        encoder_output = encoder(
-            masked_output.space_time_x,
-            masked_output.space_x,
-            masked_output.time_x,
-            masked_output.static_x,
-            masked_output.space_time_mask,
-            masked_output.space_mask,
-            masked_output.time_mask,
-            masked_output.static_mask,
-            masked_output.months.long(),
-            patch_size=patch_size,
-        )
-        s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = encoder_output
-        x, m = decoder.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
-        x, _, _, _, _ = decoder.split_x_y(x, m)
-        self.assertTrue(x.shape[1] == 1, x.shape)
+            encoder = Encoder(embedding_size=32, num_heads=1)
+            decoder = PrestoPixelDecoder(
+                encoder_embedding_size=32,
+                decoder_embedding_size=32,
+                num_heads=1,
+            )
+            encoder_output = encoder(
+                masked_output.space_time_x,
+                masked_output.space_x,
+                masked_output.time_x,
+                masked_output.static_x,
+                masked_output.space_time_mask,
+                masked_output.space_mask,
+                masked_output.time_mask,
+                masked_output.static_mask,
+                masked_output.months.long(),
+                patch_size=patch_size,
+            )
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = encoder_output
+            x, m = decoder.collapse_and_combine_hwtc(
+                s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m
+            )
+            x, _, _, _, _ = decoder.split_x_y(x, m)
+            self.assertTrue(x.shape[1] == 1, x.shape)
