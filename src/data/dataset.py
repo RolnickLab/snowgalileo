@@ -563,7 +563,7 @@ class Dataset(PyTorchDataset):
     def __getitem__(self, idx):
         if self.h5pys_only:
             hf = h5py.File(self.h5pys[idx], "r")
-            output = self.read_and_slice_h5py_file(hf, self.tifs[idx])
+            output = self.read_and_slice_h5py_file(hf, self.h5pys[idx])
             hf.close()
             return output
         else:
