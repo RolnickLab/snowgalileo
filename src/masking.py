@@ -205,9 +205,11 @@ def batch_subset_mask_presto(
             mode=masking_modes,
             decoder_mode=unmasking_modes,
         )
-        for m in MASKING_MODES:
-            if m in unmasking_modes:
-                conditioner_inputs["output_channels"][MASKING_MODES_COARSE.index(m[0])] = 1  # type: ignore
+        assert len(unmasking_modes) == 1
+        conditioner_inputs["output_channels"][
+            MASKING_MODES_COARSE.index(unmasking_modes[0][0])
+        ] = 1  # type: ignore
+
     elif masking_function.value == 2:
         # 2 is random
         masked_output = batch_mask_random(
