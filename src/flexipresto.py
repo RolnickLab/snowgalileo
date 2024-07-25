@@ -13,6 +13,7 @@ from einops import rearrange, repeat
 from torch import Tensor, vmap
 from torch.jit import Final
 
+from .conditioner import ConditionalLinear
 from .config import BASE_GSD
 from .data import (
     SPACE_BAND_GROUPS_IDX,
@@ -221,14 +222,14 @@ class Attention(nn.Module):
 
         self.cross_attn = cross_attn
 
-        self.q = nn.Linear(dim, dim, bias=qkv_bias)
-        self.k = nn.Linear(dim, dim, bias=qkv_bias)
-        self.v = nn.Linear(dim, dim, bias=qkv_bias)
+        self.q = ConditionalLinear(dim, dim, bias=qkv_bias)
+        self.k = ConditionalLinear(dim, dim, bias=qkv_bias)
+        self.v = ConditionalLinear(dim, dim, bias=qkv_bias)
 
         self.q_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
         self.k_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
         self.attn_drop = nn.Dropout(attn_drop)
-        self.proj = nn.Linear(dim, dim)
+        self.proj = ConditionalLinear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
     def forward(self, x, y=None, attn_mask=None):
@@ -292,10 +293,10 @@ class Mlp(nn.Module):
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
 
-        self.fc1 = nn.Linear(in_features, hidden_features, bias=bias)
+        self.fc1 = ConditionalLinear(in_features, hidden_features, bias=bias)
         self.act = act_layer()
         self.drop1 = nn.Dropout(drop)
-        self.fc2 = nn.Linear(hidden_features, out_features, bias=bias)
+        self.fc2 = ConditionalLinear(hidden_features, out_features, bias=bias)
         self.drop2 = nn.Dropout(drop)
 
     def forward(self, x):
@@ -361,6 +362,15 @@ class Block(nn.Module):
         return x
 
 
+class ModuleListWithInit(nn.ModuleList):
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            # we use xavier_uniform following official JAX ViT:
+            torch.nn.init.xavier_uniform_(m.weight)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+
+
 class FlexiPrestoBase(nn.Module):
     cross_attn: bool
 
@@ -382,7 +392,7 @@ class FlexiPrestoBase(nn.Module):
         self.embedding_size = embedding_size
         self.base_patch_size = base_patch_size
 
-        self.blocks = nn.ModuleList(
+        self.blocks = ModuleListWithInit(
             [
                 Block(
                     embedding_size,
@@ -598,10 +608,8 @@ class Encoder(FlexiPrestoBase):
 
         self.apply(self._init_weights)
         self.conditioner = conditioner
-        if self.conditioner is not None:
-            self.no_condition_emb = nn.Parameter(
-                torch.zeros(1, 4, embedding_size)
-            )  # 4 since we have 4 condition tokens
+        if conditioner is not None:
+            self.conditioner.add_templates(self.blocks)
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -759,7 +767,6 @@ class Encoder(FlexiPrestoBase):
         months,
         patch_size,
         input_res,
-        c_i,
     ):
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
         sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
@@ -774,25 +781,11 @@ class Encoder(FlexiPrestoBase):
         new_m = m >= 1
         x, indices, new_m = self.remove_masked_tokens(x, new_m)  # new_m is shape (bsz, seq_len)
 
-        if self.conditioner is not None:
-            if c_i is not None:
-                condition = self.conditioner(**c_i).repeat(x.shape[0], 1, 1)  # shape (bsz, 4, dim)
-            else:
-                condition = self.no_condition_emb.repeat(x.shape[0], 1, 1)  # shape (bsz, 4, dim)
-
-            x = torch.cat([condition, x], dim=1)  # shape (bsz, seq_len + 4, dim)
-            one_mask = torch.tensor([[False]], device=new_m.device).repeat(x.shape[0], 4)
-            new_m = torch.cat([one_mask, new_m], dim=1)  # shape (bsz, seq_len + 4)
-
         for blk in self.blocks:
             # we take the inverse of the mask because a value
             # of True indicates the value *should* take part in
             # attention
             x = blk(x=x, y=None, attn_mask=~new_m.bool())
-
-        if self.conditioner is not None:
-            x = x[:, 4:, :]  # remove 4 condition tokens
-            new_m = new_m[:, 4:]  # remove mask, shape (bsz, seq_len)
 
         # we don't care about the mask returned by add_removed_tokens, since we will
         # just use the original, unclipped mask here
@@ -858,6 +851,9 @@ class Encoder(FlexiPrestoBase):
         c_i=None,
         input_resolution_m: Optional[int] = BASE_GSD,
     ):
+        if self.conditioner is not None:
+            self.apply_condition(c_i)
+
         (
             s_t_x,
             sp_x,
@@ -882,7 +878,6 @@ class Encoder(FlexiPrestoBase):
             months,
             patch_size,
             input_resolution_m,
-            c_i,
         )
 
         return (
@@ -908,6 +903,27 @@ class Encoder(FlexiPrestoBase):
         encoder = cls(**encoder_config)
         encoder.load_state_dict(torch.load(folder / ENCODER_FILENAME, map_location=device))
         return encoder
+
+    def apply_condition(self, c_i):
+        if c_i is not None:
+            conditional_weights = self.conditioner(**c_i)
+            for i, block in enumerate(self.blocks):
+                block.attn.q.apply_condition(conditional_weights[f"{i}.attn.q.backbone.weight"])
+                block.attn.k.apply_condition(conditional_weights[f"{i}.attn.k.backbone.weight"])
+                block.attn.v.apply_condition(conditional_weights[f"{i}.attn.v.backbone.weight"])
+                block.attn.proj.apply_condition(
+                    conditional_weights[f"{i}.attn.proj.backbone.weight"]
+                )
+                block.mlp.fc1.apply_condition(conditional_weights[f"{i}.mlp.fc1.backbone.weight"])
+                block.mlp.fc2.apply_condition(conditional_weights[f"{i}.mlp.fc2.backbone.weight"])
+        else:
+            for block in self.blocks:
+                block.attn.q.apply_condition(None)
+                block.attn.k.apply_condition(None)
+                block.attn.v.apply_condition(None)
+                block.attn.proj.apply_condition(None)
+                block.mlp.fc1.apply_condition(None)
+                block.mlp.fc2.apply_condition(None)
 
 
 class PrestoPixelDecoder(FlexiPrestoBase):

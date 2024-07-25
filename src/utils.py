@@ -16,7 +16,7 @@ from .data.dataset import (
     SPACE_TIME_BANDS,
     SPACE_TIME_BANDS_GROUPS_IDX,
 )
-from .masking import MASKING_MODES, NUM_RECON_OBJS, MaskedOutput
+from .masking import MASKING_MODES, MASKING_MODES_COARSE, MaskedOutput
 
 data_dir = Path(__file__).parent.parent / "data"
 logging_dir = Path(__file__).parent.parent / "logs"
@@ -152,21 +152,8 @@ def load_check_config(name: str, mode: str) -> Dict:
         "embedding_size"
     )
 
-    in_timesteps = [x["timesteps"] for x in training_dict["shape_time_combinations"]]
-    in_spatial = [x["size"] for x in training_dict["shape_time_combinations"]]
     if config["training"]["use_conditions"]:
-        config["model"]["conditioner"] = {
-            "backbone_dim": config["model"]["encoder"]["embedding_size"],
-            "num_input_channels": len(MASKING_MODES),
-            "num_output_channels": len(MASKING_MODES),
-            "num_recon_objs": NUM_RECON_OBJS,
-            "time_min": min(in_timesteps),
-            "time_max": max(in_timesteps),
-            "hw_min": min(in_spatial),
-            "hw_max": max(in_spatial),
-            "patch_size_min": min(config["training"]["patch_sizes"]),
-            "patch_size_max": max(config["training"]["patch_sizes"]),
-        }
+        config["model"]["conditioner"] = {"num_output_channels": len(MASKING_MODES_COARSE)}
     return config
 
 
