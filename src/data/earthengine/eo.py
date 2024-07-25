@@ -297,19 +297,20 @@ class EarthEngineExporter:
         end_date: date,
         file_dimensions: Optional[int] = None,
     ) -> bool:
-        filename = f"{EE_FOLDER_TIFS}/{str(polygon_identifier)}"
+        cloud_filename = f"{EE_FOLDER_TIFS}/{str(polygon_identifier)}"
+        local_filename = f"{str(polygon_identifier).replace('/', '_')}.tif"
 
         # Description of the export cannot contain certrain characters
-        description = ee_safe_str(filename)
+        description = ee_safe_str(cloud_filename)
 
-        if f"{filename}.tif" in self.cloud_tif_list:
+        if f"{cloud_filename}.tif" in self.cloud_tif_list:
             # checks that we haven't already exported this file
-            print(f"{filename}.tif already in cloud_tif_files")
+            print(f"{cloud_filename}.tif already in cloud_tif_files")
             return False
 
-        if f"{filename}.tif" in self.local_tif_list:
+        if local_filename in self.local_tif_list:
             # checks that we haven't already exported this file
-            print(f"{filename}.tif already in local_tif_files, but not in the cloud")
+            print(f"{local_filename} already in local_tif_files, but not in the cloud")
             return False
 
         # Check if task is already started in EarthEngine
@@ -328,7 +329,7 @@ class EarthEngineExporter:
             try:
                 ee.batch.Export.image.toCloudStorage(
                     bucket=self.dest_bucket,
-                    fileNamePrefix=filename,
+                    fileNamePrefix=cloud_filename,
                     image=img.clip(polygon),
                     description=description,
                     scale=10,
@@ -358,7 +359,7 @@ class EarthEngineExporter:
                 print(f"Task failed with status {r.status_code}", flush=True)
                 return False
             else:
-                local_path = Path(TIFS_FOLDER / f"{str(polygon_identifier).replace('/', '_')}.tif")
+                local_path = Path(TIFS_FOLDER / local_filename)
                 with local_path.open("wb") as f:
                     shutil.copyfileobj(r.raw, f)
         return True
