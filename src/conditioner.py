@@ -51,7 +51,7 @@ class LearnedMixture(nn.Module):
             t.apply(t._init_weights)
 
     def forward(self, output_channels: torch.Tensor):
-        assert sum(output_channels) == 1
+        assert sum(output_channels) == 1, f"Expected one hot encoding got {output_channels}"
         assert len(output_channels) == self.num_templates
         return {
             key: val
