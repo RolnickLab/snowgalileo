@@ -122,6 +122,8 @@ def check_modes_for_conflicts(
             modes.remove(u_mode)
         else:
             continue
+    assert len(modes) >= 1
+    assert len(unmasking_modes) >= 1
     return modes, unmasking_modes
 
 
