@@ -14,7 +14,7 @@ from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
 from src.collate_fns import MaskingFunctions, mae_collate_fn
-from src.conditioner import TokenConditioner
+from src.conditioner import LearnedMixture
 from src.config import DEFAULT_SEED
 from src.data import Dataset
 from src.data.config import (
@@ -105,23 +105,42 @@ dataloader = DataLoader(
 print("Loading models")
 predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
 if "conditioner" in config["model"]:
-    conditioner = TokenConditioner(**config["model"]["conditioner"]).to(device)
-    encoder = Encoder(**config["model"]["encoder"], conditioner=conditioner).to(device)
     eval_w_condition = True
+    conditioner = LearnedMixture(**config["model"]["conditioner"]).to(device)
+    encoder = Encoder(**config["model"]["encoder"], conditioner=conditioner).to(device)
+    param_groups = [
+        {
+            "params": [p for n, p in encoder.named_parameters() if "conditioner" not in n],
+            "name": "encoder",
+            "weight_decay": training_config["weight_decay"],
+        },
+        {
+            "params": predictor.parameters(),
+            "name": "decoder",
+            "weight_decay": training_config["weight_decay"],
+        },
+        {
+            "params": [p for n, p in encoder.named_parameters() if "conditioner" in n],
+            "name": "conditioner",
+            "weight_decay": training_config["weight_decay"]
+            * training_config["conditioner_wd_multiplier"],
+        },
+    ]
 else:
-    encoder = Encoder(**config["model"]["encoder"]).to(device)
     eval_w_condition = False
-
-param_groups = [
-    {
-        "params": encoder.parameters(),
-        "name": "encoder",
-    },
-    {
-        "params": predictor.parameters(),
-        "name": "decoder",
-    },
-]
+    encoder = Encoder(**config["model"]["encoder"]).to(device)
+    param_groups = [
+        {
+            "params": encoder.parameters(),
+            "name": "encoder",
+            "weight_decay": training_config["weight_decay"],
+        },
+        {
+            "params": predictor.parameters(),
+            "name": "decoder",
+            "weight_decay": training_config["weight_decay"],
+        },
+    ]
 
 
 print("Loading validation task")

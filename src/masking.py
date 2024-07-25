@@ -53,6 +53,8 @@ MASKING_MODES: List[Union[str, Tuple[str, str]]] = [
     ("static", "WC_static"),
 ]
 
+MASKING_MODES_COARSE = ["space", "space_time", "time", "static"]
+
 MAX_MASKING_STRATEGIES = 6
 NUM_RECON_OBJS = 2
 
@@ -171,12 +173,7 @@ def batch_subset_mask_presto(
     assert len(masking_probabilities) == len(unmasking_probabilities) == len(MASKING_MODES)
 
     conditioner_inputs: Optional[Dict] = {
-        "hw": image_size // patch_size,
-        "patch_size": patch_size,
-        "timesteps": num_timesteps,
-        "input_channels": torch.zeros(len(MASKING_MODES)).to(s_t_x.device),
-        "output_channels": torch.zeros(len(MASKING_MODES)).to(s_t_x.device),
-        "recon_objs": torch.zeros(NUM_RECON_OBJS).to(s_t_x.device),
+        "output_channels": torch.zeros(len(MASKING_MODES_COARSE)).to(s_t_x.device),
     }
 
     if masking_function.value < 2:
@@ -208,12 +205,9 @@ def batch_subset_mask_presto(
             mode=masking_modes,
             decoder_mode=unmasking_modes,
         )
-        for i, m in enumerate(MASKING_MODES):
-            if m in masking_modes:
-                conditioner_inputs["input_channels"][i] = 1  # type: ignore
-            elif m in unmasking_modes:
-                conditioner_inputs["output_channels"][i] = 1  # type: ignore
-        conditioner_inputs["recon_objs"][masking_function.value] = 1  # type: ignore
+        for m in MASKING_MODES:
+            if m in unmasking_modes:
+                conditioner_inputs["output_channels"][MASKING_MODES_COARSE.index(m[0])] = 1  # type: ignore
     elif masking_function.value == 2:
         # 2 is random
         masked_output = batch_mask_random(

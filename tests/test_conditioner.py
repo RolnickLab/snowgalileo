@@ -3,38 +3,21 @@ import unittest
 import torch
 from einops import repeat
 
-from src.conditioner import TokenConditioner
+from src.conditioner import LearnedMixture
 from src.data.dataset import SPACE_BANDS, SPACE_TIME_BANDS, STATIC_BANDS, TIME_BANDS
 from src.flexipresto import Encoder, PrestoPixelDecoder
-from src.masking import MASKING_MODES, batch_mask_random
+from src.masking import MASKING_MODES_COARSE, batch_mask_random
 
 
 class TestConditioner(unittest.TestCase):
     def test_end_to_end_grads_nonzero(self):
-        conditioner_dict = {
-            "backbone_dim": 128,
-            "time_min": 3,
-            "time_max": 12,
-            "hw_min": 4,
-            "hw_max": 12,
-            "patch_size_min": 1,
-            "patch_size_max": 8,
-            "num_input_channels": len(MASKING_MODES),
-            "num_output_channels": len(MASKING_MODES),
-            "num_recon_objs": 2,
-        }
-        mixer = TokenConditioner(**conditioner_dict)
+        conditioner_dict = {"num_output_channels": len(MASKING_MODES_COARSE)}
+        mixer = LearnedMixture(**conditioner_dict)
         encoder = Encoder(conditioner=mixer)
         decoder = PrestoPixelDecoder()
 
-        conditioner_inputs = {
-            "hw": 32,
-            "patch_size": 3,
-            "timesteps": 12,
-            "input_channels": torch.zeros(len(MASKING_MODES)).float(),
-            "output_channels": torch.zeros(len(MASKING_MODES)).float(),
-            "recon_objs": torch.tensor([1, 0]).float(),
-        }
+        conditioner_inputs = {"output_channels": torch.zeros(len(MASKING_MODES_COARSE)).float()}
+        conditioner_inputs["output_channels"][0] = 1
 
         masked_output, patch_size = self.construct_inputs()
         encoder_output = encoder(
@@ -53,8 +36,18 @@ class TestConditioner(unittest.TestCase):
         decoder_output = decoder(*encoder_output)
         sum([d.sum() for d in decoder_output]).backward()
 
-        for p in encoder.conditioner.parameters():
-            self.assertTrue(p.grad is not None)
+        for t_i, t in enumerate(encoder.conditioner.e_templates[0]):
+            for n, p in t.named_parameters():
+                if ("bias" not in n) and ("norm" not in n):
+                    self.assertTrue(
+                        p.grad is not None, f"{t_i}, {n} has an unexpectedly None grad"
+                    )
+                else:
+                    self.assertTrue(
+                        p.grad is None, f"{t_i}, {n} has an unexpectedly not None grad"
+                    )
+        for t_i, t in enumerate(encoder.conditioner.e_templates[1:]):
+            self.assertTrue(p.grad is None, f"{t_i}, {n} has an unexpectedly not None grad")
 
         # next, test with c_i = None
         encoder.zero_grad(set_to_none=True)
