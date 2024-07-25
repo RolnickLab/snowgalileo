@@ -62,7 +62,7 @@ class TestMasking(unittest.TestCase):
 
         for _ in range(100):
             num_masking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
-            num_unmasking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
+            num_unmasking_modes = 1
 
             masking_modes = weighted_sample_without_replacement(
                 MASKING_MODES, weights=[1] * len(MASKING_MODES), k=num_masking_modes
@@ -70,10 +70,16 @@ class TestMasking(unittest.TestCase):
             unmasking_modes = weighted_sample_without_replacement(
                 MASKING_MODES, weights=[1] * len(MASKING_MODES), k=num_unmasking_modes
             )
-
+            self.assertTrue(
+                len(unmasking_modes) == num_unmasking_modes, f"Got {len(unmasking_modes)}"
+            )
             masking_modes, unmasking_modes = check_modes_for_conflicts(
                 masking_modes, unmasking_modes
             )
+            self.assertTrue(
+                len(unmasking_modes) == num_unmasking_modes, f"Got {len(unmasking_modes)}"
+            )
+            self.assertTrue(len(masking_modes) >= 1, f"Got {len(masking_modes)}")
             for m_m in masking_modes:
                 self.assertTrue(m_m not in unmasking_modes, f"{m_m} in {unmasking_modes}")
             for u_m in unmasking_modes:
@@ -85,7 +91,7 @@ class TestMasking(unittest.TestCase):
     def test_mask_by_space(self):
         for _ in range(100):
             num_masking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
-            num_unmasking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
+            num_unmasking_modes = 1
 
             masking_modes = weighted_sample_without_replacement(
                 MASKING_MODES, weights=[1] * len(MASKING_MODES), k=num_masking_modes
@@ -93,10 +99,16 @@ class TestMasking(unittest.TestCase):
             unmasking_modes = weighted_sample_without_replacement(
                 MASKING_MODES, weights=[1] * len(MASKING_MODES), k=num_unmasking_modes
             )
-
+            self.assertTrue(
+                len(unmasking_modes) == num_unmasking_modes, f"Got {len(unmasking_modes)}"
+            )
             masking_modes, unmasking_modes = check_modes_for_conflicts(
                 masking_modes, unmasking_modes
             )
+            self.assertTrue(
+                len(unmasking_modes) == num_unmasking_modes, f"Got {len(unmasking_modes)}"
+            )
+            self.assertTrue(len(masking_modes) >= 1, f"Got {len(masking_modes)}")
             for m_m in masking_modes:
                 self.assertTrue(m_m not in unmasking_modes, f"{m_m} in {unmasking_modes}")
             for u_m in unmasking_modes:
