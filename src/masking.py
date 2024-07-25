@@ -355,7 +355,7 @@ def batch_mask_time(
     ).clone()
     static_mask = _random_mask_for_b(b, static_x.device, mask_ratio, decoder_unmask_ratio)
     static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX)).clone()
-    if max([len(x[0]) for x in bands_to_encode]) > 1:  # encoder mode != random
+    if max([len(x[0]) for x in bands_to_encode]) >= 1:  # encoder mode != random
         # for static in time data,
         # ignore all previous calculations about what should be encoded
         static_mask = torch.clamp(static_mask, min=1)
@@ -387,7 +387,7 @@ def batch_mask_time(
             st_bands_to_encode = st_e[0]
             static_mask[:, st_bands_to_encode] = 0
 
-    if max([len(x[0]) for x in bands_to_decode]) > 1:  # decoder mode != random
+    if max([len(x[0]) for x in bands_to_decode]) >= 1:  # decoder mode != random
         # for static in time data,
         # ignore all previous calculations about what should be decoded
         static_mask = torch.clamp(static_mask, max=1)
@@ -456,6 +456,7 @@ def batch_mask_space(
     """
     bands_to_encode = check_mode_and_return_channels(mode)
     bands_to_decode = check_mode_and_return_channels(decoder_mode)
+    print(bands_to_decode)
     b, h, w, t, _ = space_time_x.shape
     assert (h % patch_size == 0) and (w % patch_size == 0)
     h_p = int(h / patch_size)
@@ -509,7 +510,7 @@ def batch_mask_space(
     static_mask = _random_mask_for_b(b, static_x.device, mask_ratio, decoder_unmask_ratio)
     static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX)).clone()
 
-    if max([len(x[0]) for x in bands_to_encode]) > 1:  # encoder mode != random
+    if max([len(x[0]) for x in bands_to_encode]) >= 1:  # encoder mode != random
         # for static in space data,
         # ignore all previous calculations about what should be encoded
         static_mask = torch.clamp(static_mask, min=1)
@@ -543,7 +544,7 @@ def batch_mask_space(
             st_bands_to_encode = st_e[0]
             static_mask[:, st_bands_to_encode] = 0
 
-    if max([len(x[0]) for x in bands_to_decode]) > 1:  # decoder mode != random
+    if max([len(x[0]) for x in bands_to_decode]) >= 1:  # decoder mode != random
         # for static in space data,
         # ignore all previous calculations about what should be decoded
         static_mask = torch.clamp(static_mask, max=1)
