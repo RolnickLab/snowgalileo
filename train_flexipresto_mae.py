@@ -110,7 +110,7 @@ if "conditioner" in config["model"]:
     encoder = Encoder(**config["model"]["encoder"], conditioner=conditioner).to(device)
     param_groups = [
         {
-            "params": [p for n, p in encoder.named_parameters() if "conditioner" not in n],
+            "params": encoder.parameters(),
             "name": "encoder",
             "weight_decay": training_config["weight_decay"],
         },
@@ -118,12 +118,6 @@ if "conditioner" in config["model"]:
             "params": predictor.parameters(),
             "name": "decoder",
             "weight_decay": training_config["weight_decay"],
-        },
-        {
-            "params": [p for n, p in encoder.named_parameters() if "conditioner" in n],
-            "name": "conditioner",
-            "weight_decay": training_config["weight_decay"]
-            * training_config["conditioner_wd_multiplier"],
         },
     ]
 else:
