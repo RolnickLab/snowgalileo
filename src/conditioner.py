@@ -34,7 +34,9 @@ class ConditionalLinear(nn.Module):
 
     def forward(self, x):
         if self.conditional_weights is not None:
-            return F.linear(x, (self.backbone.weight + self.conditional_weights) / 2, self.backbone.bias)
+            return F.linear(
+                x, (self.backbone.weight + self.conditional_weights) / 2, self.backbone.bias
+            )
         else:
             return F.linear(x, self.backbone.weight, self.backbone.bias)
 
