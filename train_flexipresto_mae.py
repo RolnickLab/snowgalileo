@@ -84,7 +84,7 @@ output_dir = Path(__file__).parent
 
 
 print("Loading dataset and dataloader")
-dataset = Dataset(TIFS_FOLDER, download=False, npy_folder=DATA_FOLDER / "npys", npys_only=True)
+dataset = Dataset(TIFS_FOLDER, download=False, h5py_folder=DATA_FOLDER / "h5pys", h5pys_only=True)
 dataloader = DataLoader(
     dataset,
     batch_size=training_config["batch_size"],
