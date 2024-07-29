@@ -171,7 +171,7 @@ def batch_subset_mask_presto(
         f: Callable = batch_mask_space if masking_function.value == 1 else batch_mask_time
         unmasking_mode = random.choice(MASKING_MODES_COARSE)
         possible_unmasking_modes, selected_unmasking_probs = [], []
-        for idx, mode in MASKING_MODES:
+        for idx, mode in enumerate(MASKING_MODES):
             if mode[0] == unmasking_mode:
                 possible_unmasking_modes.append(mode)
                 selected_unmasking_probs.append(unmasking_probabilities[idx])
