@@ -31,7 +31,7 @@ from ..data.dataset import (
 )
 from ..data.earthengine.s2 import ALL_S2_BANDS, REMOVED_BANDS
 from ..flexipresto import Encoder
-from ..masking import MASKING_MODES_COARSE, MaskedOutput
+from ..masking import UNMASKING_CHANNEL_GROUPS, MaskedOutput
 from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
 from .eval import EvalTask, Hyperparams, model_class_name
 from .geobench_dataset import GeobenchBaseDataset
@@ -273,9 +273,9 @@ class EuroSatEval(EvalTask):
         # thanks Claude for the implementation, good bot
         # lets start with the intuitive conditions
 
-        output_channels = [0] * len(MASKING_MODES_COARSE)
-        for i, val in enumerate(MASKING_MODES_COARSE):
-            if val == "static":
+        output_channels = [0] * len(UNMASKING_CHANNEL_GROUPS)
+        for i, val in enumerate(UNMASKING_CHANNEL_GROUPS):
+            if val[1] == "DW_static":
                 output_channels[i] = 1
         self.condition = {"output_channels": torch.Tensor(output_channels).to(device)}
 

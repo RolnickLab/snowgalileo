@@ -1,7 +1,7 @@
 import random
 from collections import OrderedDict
 from enum import Enum
-from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, Union
+from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
 import numpy as np
 import torch
@@ -33,7 +33,7 @@ STR2DICT = OrderedDict(
         "static": STATIC_BAND_GROUPS_IDX,
     }
 )
-MASKING_MODES: List[Union[str, Tuple[str, str]]] = [
+MASKING_MODES: List[Tuple[str, str]] = [
     ("space", "SRTM"),
     ("space", "DW"),
     ("space", "WC"),
@@ -53,7 +53,18 @@ MASKING_MODES: List[Union[str, Tuple[str, str]]] = [
     ("static", "WC_static"),
 ]
 
-MASKING_MODES_COARSE = ["space", "space_time", "time", "static"]
+UNMASKING_CHANNEL_GROUPS: List[Tuple[str, str]] = [
+    ("space", "SRTM"),
+    ("space", "DW"),
+    ("space", "WC"),
+    ("space_time", "NDVI"),
+    ("time", "ERA5"),
+    ("time", "TC"),
+    ("static", "LS"),
+    ("static", "location"),
+    ("static", "DW_static"),
+    ("static", "WC_static"),
+]
 
 MAX_MASKING_STRATEGIES = 6
 NUM_RECON_OBJS = 2
@@ -157,30 +168,20 @@ def batch_subset_mask_presto(
     num_timesteps: int,
     augmentation_strategies: Optional[Dict],
     masking_probabilities: List[float],
-    unmasking_probabilities: List[float],
     masking_function: MaskingFunctions,
 ) -> Tuple[MaskedOutput, Optional[Dict]]:
-    assert len(masking_probabilities) == len(unmasking_probabilities) == len(MASKING_MODES)
+    assert len(masking_probabilities) == len(MASKING_MODES)
 
     conditioner_inputs: Optional[Dict] = {
-        "output_channels": torch.zeros(len(MASKING_MODES_COARSE)).to(s_t_x.device),
+        "output_channels": torch.zeros(len(UNMASKING_CHANNEL_GROUPS)).to(s_t_x.device),
     }
 
     if masking_function.value < 2:
         f: Callable = batch_mask_space if masking_function.value == 1 else batch_mask_time
-        unmasking_mode = random.choice(MASKING_MODES_COARSE)
-        possible_unmasking_modes, selected_unmasking_probs = [], []
-        for idx, mode in enumerate(MASKING_MODES):
-            if mode[0] == unmasking_mode:
-                possible_unmasking_modes.append(mode)
-                selected_unmasking_probs.append(unmasking_probabilities[idx])
-        num_unmasking_modes = random.choice(list(range(1, len(possible_unmasking_modes) + 1)))
-        num_masking_modes = num_unmasking_modes + 1
+        unmasking_modes = [random.choice(UNMASKING_CHANNEL_GROUPS)]
+        num_masking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
         masking_modes = weighted_sample_without_replacement(
             MASKING_MODES, weights=masking_probabilities, k=num_masking_modes
-        )
-        unmasking_modes = weighted_sample_without_replacement(
-            possible_unmasking_modes, weights=selected_unmasking_probs, k=num_unmasking_modes
         )
         masking_modes, unmasking_modes = check_modes_for_conflicts(masking_modes, unmasking_modes)
         masked_output = f(
@@ -202,7 +203,7 @@ def batch_subset_mask_presto(
         )
         assert conditioner_inputs is not None
         conditioner_inputs["output_channels"][
-            MASKING_MODES_COARSE.index(unmasking_modes[0][0])
+            UNMASKING_CHANNEL_GROUPS.index(unmasking_modes[0])
         ] = 1  # type: ignore
 
     elif masking_function.value == 2:
