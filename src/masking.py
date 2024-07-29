@@ -172,7 +172,7 @@ def batch_subset_mask_presto(
         unmasking_mode = random.choice(MASKING_MODES_COARSE)
         possible_unmasking_modes, selected_unmasking_probs = [], []
         for idx, mode in MASKING_MODES:
-            if mode[0] in unmasking_mode:
+            if mode[0] == unmasking_mode:
                 possible_unmasking_modes.append(mode)
                 selected_unmasking_probs.append(unmasking_probabilities[idx])
         num_unmasking_modes = random.choice(list(range(1, len(possible_unmasking_modes) + 1)))
