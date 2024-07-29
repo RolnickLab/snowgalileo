@@ -201,7 +201,7 @@ class So2SatEval(EvalTask):
                 output_channels[i] = 1
 
         self.condition = {
-            "hw": 64 // patch_size,
+            "hw": 32 // patch_size,
             "patch_size": patch_size,
             "timesteps": 3,
             "input_channels": torch.Tensor(input_channels).to(device),  # should be S2
