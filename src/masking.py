@@ -169,15 +169,20 @@ def batch_subset_mask_presto(
 
     if masking_function.value < 2:
         f: Callable = batch_mask_space if masking_function.value == 1 else batch_mask_time
-        num_masking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
-        num_unmasking_modes = 1
+        unmasking_mode = random.choice(MASKING_MODES_COARSE)
+        possible_unmasking_modes, selected_unmasking_probs = [], []
+        for idx, mode in MASKING_MODES:
+            if mode[0] in unmasking_mode:
+                possible_unmasking_modes.append(mode)
+                selected_unmasking_probs.append(unmasking_probabilities[idx])
+        num_unmasking_modes = random.choice(list(range(1, len(possible_unmasking_modes) + 1)))
+        num_masking_modes = num_unmasking_modes + 1
         masking_modes = weighted_sample_without_replacement(
             MASKING_MODES, weights=masking_probabilities, k=num_masking_modes
         )
         unmasking_modes = weighted_sample_without_replacement(
-            MASKING_MODES, weights=unmasking_probabilities, k=num_unmasking_modes
+            possible_unmasking_modes, weights=selected_unmasking_probs, k=num_masking_modes
         )
-
         masking_modes, unmasking_modes = check_modes_for_conflicts(masking_modes, unmasking_modes)
         masked_output = f(
             *subset_and_augment_batch_of_images(
