@@ -6,17 +6,19 @@ from einops import repeat
 from src.conditioner import LearnedMixture
 from src.data.dataset import SPACE_BANDS, SPACE_TIME_BANDS, STATIC_BANDS, TIME_BANDS
 from src.flexipresto import Encoder, PrestoPixelDecoder
-from src.masking import MASKING_MODES_COARSE, batch_mask_random
+from src.masking import UNMASKING_CHANNEL_GROUPS, batch_mask_random
 
 
 class TestConditioner(unittest.TestCase):
     def test_end_to_end_grads_nonzero(self):
-        conditioner_dict = {"num_output_channels": len(MASKING_MODES_COARSE)}
+        conditioner_dict = {"num_output_channels": len(UNMASKING_CHANNEL_GROUPS)}
         mixer = LearnedMixture(**conditioner_dict)
         encoder = Encoder(conditioner=mixer)
         decoder = PrestoPixelDecoder()
 
-        conditioner_inputs = {"output_channels": torch.zeros(len(MASKING_MODES_COARSE)).float()}
+        conditioner_inputs = {
+            "output_channels": torch.zeros(len(UNMASKING_CHANNEL_GROUPS)).float()
+        }
         conditioner_inputs["output_channels"][0] = 1
 
         masked_output, patch_size = self.construct_inputs()

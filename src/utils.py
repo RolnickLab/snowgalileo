@@ -16,7 +16,7 @@ from .data.dataset import (
     SPACE_TIME_BANDS,
     SPACE_TIME_BANDS_GROUPS_IDX,
 )
-from .masking import MASKING_MODES, MASKING_MODES_COARSE, MaskedOutput
+from .masking import MASKING_MODES, UNMASKING_CHANNEL_GROUPS, MaskedOutput
 
 data_dir = Path(__file__).parent.parent / "data"
 logging_dir = Path(__file__).parent.parent / "logs"
@@ -100,7 +100,6 @@ def load_check_config(name: str, mode: str) -> Dict:
         "shape_time_combinations": list,
         "augmentation": dict,
         "masking_probabilities": list,
-        "unmasking_probabilities": list,
         "use_conditions": bool,
     }
     training_dict = config["training"]
@@ -119,9 +118,6 @@ def load_check_config(name: str, mode: str) -> Dict:
     assert len(training_dict["masking_probabilities"]) == len(
         MASKING_MODES
     ), f"Expected {len(MASKING_MODES)}, got {len(training_dict['masking_probabilities'])}"
-    assert len(training_dict["unmasking_probabilities"]) == len(
-        MASKING_MODES
-    ), f"Expected {len(MASKING_MODES)}, got {len(training_dict['unmasking_probabilities'])}"
 
     for combination in training_dict["shape_time_combinations"]:
         assert "timesteps" in combination.keys()
@@ -153,7 +149,7 @@ def load_check_config(name: str, mode: str) -> Dict:
     )
 
     if config["training"]["use_conditions"]:
-        config["model"]["conditioner"] = {"num_output_channels": len(MASKING_MODES_COARSE)}
+        config["model"]["conditioner"] = {"num_output_channels": len(UNMASKING_CHANNEL_GROUPS)}
     return config
 
 

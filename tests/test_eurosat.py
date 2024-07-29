@@ -14,7 +14,7 @@ from src.data.dataset import (
     TIME_BANDS,
 )
 from src.eval.eurosat_eval import EuroSatDataset, EuroSatEval
-from src.masking import MASKING_MODES_COARSE
+from src.masking import UNMASKING_CHANNEL_GROUPS
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/eurosat/eurosat_test"
 
@@ -155,8 +155,8 @@ class TestEuroSat(unittest.TestCase):
     def test_eurosat_conditions(self):
         task = EuroSatEval()
 
-        self.assertEqual(len(task.condition["output_channels"]), len(MASKING_MODES_COARSE))
+        self.assertEqual(len(task.condition["output_channels"]), len(UNMASKING_CHANNEL_GROUPS))
 
         for idx, val in enumerate(task.condition["output_channels"]):
             if val == 1:
-                self.assertTrue(MASKING_MODES_COARSE[idx] == "static")
+                self.assertTrue(UNMASKING_CHANNEL_GROUPS[idx] == ("static", "DW_static"))
