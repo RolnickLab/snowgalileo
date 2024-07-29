@@ -340,7 +340,6 @@ eval_tasks: List[EvalTask] = [
     *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil"]],
     *[EuroSatEval(rgb=rgb, include_latlons=False, geobench=True) for rgb in [True, False]],
     *[So2SatEval(geobench=geobench) for geobench in [True, False]],
-    BigEarthNetEval(),
     BrickKilnEval(),
     *[CashewPlantEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
     *[SACropEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
@@ -366,6 +365,7 @@ eval_tasks: List[EvalTask] = [
         for patch_size in [6, 3]
     ],
     PastisPixelEval(),
+    BigEarthNetEval(),
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)
