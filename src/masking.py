@@ -201,7 +201,6 @@ def batch_subset_mask_presto(
             mode=masking_modes,
             decoder_mode=unmasking_modes,
         )
-        assert len(unmasking_modes) == 1
         assert conditioner_inputs is not None
         conditioner_inputs["output_channels"][
             MASKING_MODES_COARSE.index(unmasking_modes[0][0])
