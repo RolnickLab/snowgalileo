@@ -26,7 +26,7 @@ from ..data.dataset import (
 )
 from ..data.earthengine.s2 import S2_BANDS
 from ..flexipresto import Encoder
-from ..masking import MASKING_MODES, MaskedOutput
+from ..masking import MASKING_MODES, MASKING_MODES_COARSE, MaskedOutput
 from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
 from .eval import EvalTask, Hyperparams, model_class_name
 from .geobench_dataset import GeobenchBaseDataset
@@ -200,14 +200,11 @@ class So2SatEval(EvalTask):
             elif val[1] == "DW_static":
                 output_channels[i] = 1
 
-        self.condition = {
-            "hw": 32 // patch_size,
-            "patch_size": patch_size,
-            "timesteps": 3,
-            "input_channels": torch.Tensor(input_channels).to(device),  # should be S2
-            "output_channels": torch.Tensor(output_channels).to(device),  # should be static DW
-            "recon_objs": torch.Tensor([1, 0]).to(device),  # should be batch mask time
-        }
+        output_channels = [0] * len(MASKING_MODES_COARSE)
+        for i, val in enumerate(MASKING_MODES_COARSE):
+            if val == "static":
+                output_channels[i] = 1
+        self.condition = {"output_channels": torch.Tensor(output_channels).to(device)}
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         return {
