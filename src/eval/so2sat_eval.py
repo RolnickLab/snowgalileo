@@ -216,7 +216,10 @@ class So2SatEval(EvalTask):
 
     @torch.no_grad()
     def _evaluate_model(
-        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator]
+        self,
+        pretrained_model: Encoder,
+        sklearn_models: Sequence[BaseEstimator],
+        c_i: Optional[Dict] = None,
     ) -> Dict:
         if self.geobench:
             test_dl = DataLoader(
@@ -257,6 +260,7 @@ class So2SatEval(EvalTask):
                     st_m=st_m,
                     months=months,
                     patch_size=self.patch_size,
+                    c_i=c_i,
                 )
                 encodings = (
                     pretrained_model.average_tokens(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
