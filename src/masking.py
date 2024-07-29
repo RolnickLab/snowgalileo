@@ -117,7 +117,6 @@ def weighted_sample_without_replacement(population, weights, k, rng=random):
 def check_modes_for_conflicts(
     modes: List[Tuple[str, str]], unmasking_modes: List[Tuple[str, str]]
 ) -> Tuple[List[Tuple[str, str]], List[Tuple[str, str]]]:
-    assert len(unmasking_modes) == 1
     for u_mode in unmasking_modes:
         assert u_mode in MASKING_MODES
         if u_mode in modes:
