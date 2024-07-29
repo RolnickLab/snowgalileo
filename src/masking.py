@@ -180,7 +180,7 @@ def batch_subset_mask_presto(
             MASKING_MODES, weights=masking_probabilities, k=num_masking_modes
         )
         unmasking_modes = weighted_sample_without_replacement(
-            possible_unmasking_modes, weights=selected_unmasking_probs, k=num_masking_modes
+            possible_unmasking_modes, weights=selected_unmasking_probs, k=num_unmasking_modes
         )
         masking_modes, unmasking_modes = check_modes_for_conflicts(masking_modes, unmasking_modes)
         masked_output = f(
