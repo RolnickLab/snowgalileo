@@ -110,13 +110,18 @@ if "conditioner" in config["model"]:
     encoder = Encoder(**config["model"]["encoder"], conditioner=conditioner).to(device)
     param_groups = [
         {
-            "params": encoder.parameters(),
+            "params": [p for n, p in encoder.named_parameters() if "conditioner" not in n],
             "name": "encoder",
             "weight_decay": training_config["weight_decay"],
         },
         {
             "params": predictor.parameters(),
             "name": "decoder",
+            "weight_decay": training_config["weight_decay"],
+        },
+        {
+            "params": encoder.conditioner.parameters(),
+            "name": "conditioner",
             "weight_decay": training_config["weight_decay"],
         },
     ]
@@ -287,6 +292,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                     max_lr=training_config["max_lr"],
                     start_lr=training_config["start_lr"],
                     min_lr=training_config["final_lr"],
+                    conditioner_multiplier=training_config["conditioner_multiplier"],
                 )
 
     if wandb_enabled:

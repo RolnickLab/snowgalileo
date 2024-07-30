@@ -11,6 +11,7 @@
         "max_lr": 5.0e-04,
         "final_lr": 1.0e-05,
         "weight_decay": 0.05,
+        "conditioner_multiplier": 2,
         "warmup_epochs": 0.1,
         "eval_eurosat_every_n_epochs": 20,
         "mae_loss": "norm_per_c_g",
