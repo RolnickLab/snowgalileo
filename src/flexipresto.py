@@ -851,7 +851,8 @@ class Encoder(FlexiPrestoBase):
         c_i=None,
         input_resolution_m: Optional[int] = BASE_GSD,
     ):
-        self.apply_condition(c_i)
+        if self.conditioner is not None:
+            self.apply_condition(c_i)
 
         (
             s_t_x,
