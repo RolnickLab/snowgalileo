@@ -282,6 +282,9 @@ for e in tqdm(range(training_config["num_epochs"])):
             loss.backward()
 
             if ((i + 1) % iters_to_accumulate == 0) or (i + 1 == len(dataloader)):
+                if training_config["grad_clip"]:
+                    torch.nn.utils.clip_grad_norm_(encoder.parameters(), 1.0)
+                    torch.nn.utils.clip_grad_norm_(predictor.parameters(), 1.0)
                 optimizer.step()
                 optimizer.zero_grad()
                 adjust_learning_rate(

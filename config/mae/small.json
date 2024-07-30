@@ -13,6 +13,7 @@
         "weight_decay": 0.01,
         "warmup_epochs": 0.1,
         "conditioner_multiplier": 2,
+        "grad_clip": true,
         "eval_eurosat_every_n_epochs": 10,
         "mae_loss": "norm_per_c_g",
         "wandb_plot_every_n_epochs": 10,
