@@ -12,7 +12,7 @@
         "final_lr": 1.0e-05,
         "weight_decay": 0.05,
         "grad_clip": true,
-        "conditioner_multiplier": 2,
+        "conditioner_multiplier": 1,
         "warmup_epochs": 0.1,
         "eval_eurosat_every_n_epochs": 20,
         "mae_loss": "norm_per_c_g",
