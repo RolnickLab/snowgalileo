@@ -103,6 +103,7 @@ def load_check_config(name: str, mode: str) -> Dict:
         "masking_probabilities": list,
         "unmasking_probabilities": list,
         "use_conditions": bool,
+        "grad_clip": bool,
     }
     training_dict = config["training"]
 
