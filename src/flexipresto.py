@@ -977,6 +977,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
                 for group_name, group in self.static_groups.items()
             }
         )
+        self.input_norm = nn.LayerNorm(encoder_embedding_size)
         self.norm = nn.LayerNorm(decoder_embedding_size)
 
     def add_masks(self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m):
@@ -1086,10 +1087,10 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         patch_size: Optional[int] = None,
         input_resolution_m: Optional[int] = BASE_GSD,
     ):
-        s_t_x = self.encoder_to_decoder_embed(s_t_x)
-        sp_x = self.encoder_to_decoder_embed(sp_x)
-        t_x = self.encoder_to_decoder_embed(t_x)
-        st_x = self.encoder_to_decoder_embed(st_x)
+        s_t_x = self.encoder_to_decoder_embed(self.input_norm(s_t_x))
+        sp_x = self.encoder_to_decoder_embed(self.input_norm(sp_x))
+        t_x = self.encoder_to_decoder_embed(self.input_norm(t_x))
+        st_x = self.encoder_to_decoder_embed(self.input_norm(st_x))
 
         s_t_x, sp_x, t_x, st_x = self.add_masks(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
         s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m = self.apply_attn(
