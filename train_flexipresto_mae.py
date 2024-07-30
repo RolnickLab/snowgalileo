@@ -71,8 +71,13 @@ tracker.start()
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--config_file", type=str, default="small.json")
+argparser.add_argument("--cache_folder", type=str, default="")
 args = argparser.parse_args().__dict__
 
+if args["cache_folder"] == "":
+    cache_folder = DATA_FOLDER
+else:
+    cache_folder = Path(args["cache_folder"])
 
 config = load_check_config(args["config_file"], "mae")
 training_config = config["training"]
@@ -84,7 +89,7 @@ output_dir = Path(__file__).parent
 
 
 print("Loading dataset and dataloader")
-dataset = Dataset(TIFS_FOLDER, download=False, h5py_folder=DATA_FOLDER / "h5pys", h5pys_only=True)
+dataset = Dataset(TIFS_FOLDER, download=False, h5py_folder=cache_folder / "h5pys", h5pys_only=True)
 dataloader = DataLoader(
     dataset,
     batch_size=training_config["batch_size"],
