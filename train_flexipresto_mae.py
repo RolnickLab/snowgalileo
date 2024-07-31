@@ -112,7 +112,11 @@ predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
 if "conditioner" in config["model"]:
     eval_w_condition = True
     conditioner = LearnedMixture(**config["model"]["conditioner"]).to(device)
+    decoder_conditioner = LearnedMixture(**config["model"]["conditioner"])
     encoder = Encoder(**config["model"]["encoder"], conditioner=conditioner).to(device)
+    predictor = PrestoPixelDecoder(**config["model"]["decoder"], conditioner=conditioner).to(
+        device
+    )
     param_groups = [
         {
             "params": [p for n, p in encoder.named_parameters() if "conditioner" not in n],
@@ -125,7 +129,8 @@ if "conditioner" in config["model"]:
             "weight_decay": training_config["weight_decay"],
         },
         {
-            "params": encoder.conditioner.parameters(),
+            "params": [p for p in encoder.conditioner.parameters()]
+            + [p for p in predictor.conditioner.parameters()],
             "name": "conditioner",
             "weight_decay": training_config["weight_decay"],
         },
@@ -133,6 +138,7 @@ if "conditioner" in config["model"]:
 else:
     eval_w_condition = False
     encoder = Encoder(**config["model"]["encoder"]).to(device)
+    predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
     param_groups = [
         {
             "params": encoder.parameters(),
@@ -258,6 +264,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                         patch_size=patch_size,
                     ),
                     patch_size=patch_size,
+                    c_i=c_i,
                 )
 
                 loss = masked_autoencoder_loss(
