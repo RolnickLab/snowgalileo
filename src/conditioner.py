@@ -59,8 +59,8 @@ class LearnedMixture(nn.Module):
 
     def add_templates(self, template: nn.Module):
         self.e_templates = nn.ModuleList([deepcopy(template) for _ in range(self.num_templates)])
-        for t in self.e_templates:
-            t.apply(t._init_weights)
+        # for t in self.e_templates:
+        #     t.apply(t._init_weights)
 
     def forward(self, output_channels: torch.Tensor):
         assert sum(output_channels) == 1, f"Expected one hot encoding got {output_channels}"
