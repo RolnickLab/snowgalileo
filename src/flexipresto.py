@@ -912,7 +912,8 @@ class Encoder(FlexiPrestoBase):
                 # block.attn.k.apply_condition(conditional_weights[f"{i}.attn.k.backbone.weight"])
                 # block.attn.v.apply_condition(conditional_weights[f"{i}.attn.v.backbone.weight"])
                 block.attn.proj.apply_condition(
-                    conditional_weights[f"{i}.attn.proj.backbone.weight"]
+                    conditional_weights[f"{i}.attn.proj.backbone.weight"],
+                    conditional_weights[f"{i}.attn.proj.backbone.bias"],
                 )
                 # block.mlp.fc1.apply_condition(conditional_weights[f"{i}.mlp.fc1.backbone.weight"])
                 # block.mlp.fc2.apply_condition(conditional_weights[f"{i}.mlp.fc2.backbone.weight"])
@@ -921,7 +922,7 @@ class Encoder(FlexiPrestoBase):
                 # block.attn.q.apply_condition(None)
                 # block.attn.k.apply_condition(None)
                 # block.attn.v.apply_condition(None)
-                block.attn.proj.apply_condition(None)
+                block.attn.proj.apply_condition(None, None)
                 # block.mlp.fc1.apply_condition(None)
                 # block.mlp.fc2.apply_condition(None)
 

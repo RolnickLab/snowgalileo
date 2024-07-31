@@ -23,19 +23,29 @@ class ConditionalLinear(nn.Module):
         super(ConditionalLinear, self).__init__()
         self.backbone = nn.Linear(in_features, out_features, bias=bias)
         self.conditional_weights = None
+        self.conditional_bias = None
 
-    def apply_condition(self, conditional_weights):
+    def apply_condition(self, conditional_weights, conditional_bias):
         self.conditional_weights = conditional_weights
+        self.conditional_bias = conditional_bias
         if self.conditional_weights is not None:
             if self.conditional_weights.shape != self.backbone.weight.shape:
                 raise ValueError(
                     f"conditional_weights must have the same shape ({self.conditional_weights.shape}) as backbone.weight ({self.backbone.weight.shape})"
                 )
+            assert self.conditional_bias is not None
+            if self.conditional_bias.shape != self.backbone.bias.shape:
+                raise ValueError(
+                    f"conditional_bias must have the same shape ({self.conditional_bias.shape}) as backbone.weight ({self.backbone.bias.shape})"
+                )
 
     def forward(self, x):
         if self.conditional_weights is not None:
+            assert self.conditional_bias is not None
             return F.linear(
-                x, (self.backbone.weight + self.conditional_weights) / 2, self.backbone.bias
+                x,
+                (self.backbone.weight + self.conditional_weights) / 2,
+                (self.backbone.bias + self.conditional_bias) / 2,
             )
         else:
             return F.linear(x, self.backbone.weight, self.backbone.bias)
