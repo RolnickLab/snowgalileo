@@ -26,7 +26,7 @@ from ..data.dataset import (
 )
 from ..data.earthengine.s2 import S2_BANDS
 from ..flexipresto import Encoder
-from ..masking import MaskedOutput
+from ..masking import MASKING_MODES, MASKING_MODES_COARSE, MaskedOutput
 from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
 from .eval import EvalTask, Hyperparams, model_class_name
 from .geobench_dataset import GeobenchBaseDataset
@@ -181,14 +181,30 @@ class So2SatEval(EvalTask):
         geobench: bool = True,
         patch_size: int = 8,
         seed=DEFAULT_SEED,
+        do_condition: bool = False,
     ):
         self.geobench = geobench
         super().__init__(patch_size, seed)
 
+        self.do_condition = do_condition
         if self.geobench:
             self.name = f"{self.name}_geobench"
         else:
             self.name = f"{self.name}_tum"
+
+        input_channels = [0] * len(MASKING_MODES)
+        output_channels = [0] * len(MASKING_MODES)
+        for i, val in enumerate(MASKING_MODES):
+            if "S2" in val[1]:
+                input_channels[i] = 1
+            elif val[1] == "DW_static":
+                output_channels[i] = 1
+
+        output_channels = [0] * len(MASKING_MODES_COARSE)
+        for i, val in enumerate(MASKING_MODES_COARSE):
+            if val == "static":
+                output_channels[i] = 1
+        self.condition = {"output_channels": torch.Tensor(output_channels).to(device)}
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         return {
@@ -197,7 +213,10 @@ class So2SatEval(EvalTask):
 
     @torch.no_grad()
     def _evaluate_model(
-        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator]
+        self,
+        pretrained_model: Encoder,
+        sklearn_models: Sequence[BaseEstimator],
+        c_i: Optional[Dict] = None,
     ) -> Dict:
         if self.geobench:
             test_dl = DataLoader(
@@ -238,6 +257,7 @@ class So2SatEval(EvalTask):
                     st_m=st_m,
                     months=months,
                     patch_size=self.patch_size,
+                    c_i=c_i,
                 )
                 encodings = (
                     pretrained_model.average_tokens(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
@@ -282,5 +302,23 @@ class So2SatEval(EvalTask):
                 shuffle=True,
                 num_workers=Hyperparams.num_workers,
             )
-        trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
-        return self._evaluate_model(pretrained_model, trained_sklearn_models)
+
+        unconditioned_trained_sklearn_models = self.train_sklearn_model(
+            train_dl, pretrained_model, model_modes, None
+        )
+        unconditioned_results = self._evaluate_model(
+            pretrained_model, unconditioned_trained_sklearn_models, None
+        )
+
+        if not self.do_condition:
+            return unconditioned_results
+
+        conditioned_trained_sklearn_models = self.train_sklearn_model(
+            train_dl, pretrained_model, model_modes, self.condition
+        )
+        conditioned_results = self._evaluate_model(
+            pretrained_model, conditioned_trained_sklearn_models, self.condition
+        )
+        conditioned_results = {f"{key}_c": value for key, value in conditioned_results.items()}
+
+        return {**conditioned_results, **unconditioned_results}

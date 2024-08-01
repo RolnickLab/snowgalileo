@@ -91,6 +91,7 @@ def load_check_config(name: str, mode: str) -> Dict:
         "start_lr": float,
         "max_lr": float,
         "final_lr": float,
+        "conditioner_multiplier": int,
         "warmup_epochs": (int, float),
         "eval_eurosat_every_n_epochs": int,
         "wandb_plot_every_n_epochs": int,
@@ -101,6 +102,7 @@ def load_check_config(name: str, mode: str) -> Dict:
         "augmentation": dict,
         "masking_probabilities": list,
         "use_conditions": bool,
+        "grad_clip": bool,
     }
     training_dict = config["training"]
 

@@ -30,7 +30,7 @@ from ..data.dataset import (
     to_cartesian,
 )
 from ..flexipresto import Encoder
-from ..masking import MaskedOutput
+from ..masking import MASKING_MODES_COARSE, MaskedOutput
 from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
 from .cropharvest.bands import BANDS
 from .cropharvest.columns import NullableColumns, RequiredColumns
@@ -157,6 +157,12 @@ class CropHarvestEvalBase(EvalTask):
         self.name = f"{name}{'_latlons' if include_latlons else ''}"
         super().__init__(patch_size, seed)
 
+        output_channels = [0] * len(MASKING_MODES_COARSE)
+        for i, val in enumerate(MASKING_MODES_COARSE):
+            if val == "static":  # should this be static or space?
+                output_channels[i] = 1
+        self.condition = {"output_channels": torch.Tensor(output_channels).to(device)}
+
     @staticmethod
     def truncate_timesteps(x, num_timesteps: Optional[int]):
         if (num_timesteps is None) or (x is None):
@@ -236,6 +242,7 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         sample_size: Optional[int] = None,
         seed: int = DEFAULT_SEED,
         include_latlons: bool = True,
+        do_condition: bool = False,
     ):
         suffix = f"_{sample_size}" if sample_size else ""
         suffix = f"{suffix}_{num_timesteps}" if num_timesteps is not None else suffix
@@ -255,9 +262,12 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         assert self.dataset.task.normalize is False
         self.num_timesteps = num_timesteps
         self.sample_size = sample_size
+        self.do_condition = do_condition
 
     @torch.no_grad()
-    def _evaluate_model(self, pretrained_model: Encoder, sklearn_model: BaseEstimator) -> Dict:
+    def _evaluate_model(
+        self, pretrained_model: Encoder, sklearn_model: BaseEstimator, c_i: Optional[Dict]
+    ) -> Dict:
         pretrained_model.eval()
         with tempfile.TemporaryDirectory() as results_dir:
             for test_id, test_instance in self.dataset.test_data(max_size=10000):
@@ -284,6 +294,7 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
                     st_m=st_m,
                     months=months,
                     patch_size=self.patch_size,
+                    c_i=c_i,
                 )
                 encodings = (
                     pretrained_model.average_tokens(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
@@ -325,11 +336,28 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
             num_workers=Hyperparams.num_workers,
             collate_fn=self.collate_fn,
         )
-        trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
+        trained_sklearn_models = self.train_sklearn_model(
+            train_dl, pretrained_model, model_modes, None
+        )
         results_dict = {}
         for sklearn_model in trained_sklearn_models:
-            results_dict.update(self._evaluate_model(pretrained_model, sklearn_model))
-        return results_dict
+            results_dict.update(self._evaluate_model(pretrained_model, sklearn_model, None))
+        if self.do_condition:
+            return results_dict
+
+        conditioned_sklearn_models = self.train_sklearn_model(
+            train_dl, pretrained_model, model_modes, self.condition
+        )
+        conditioned_results_dict = {}
+        for sklearn_model in conditioned_sklearn_models:
+            conditioned_results_dict.update(
+                self._evaluate_model(pretrained_model, sklearn_model, None)
+            )
+        conditioned_results_dict = {
+            f"{key}_c": value for key, value in conditioned_results_dict.items()
+        }
+
+        return {**results_dict, **conditioned_results_dict}
 
 
 class MultiClassCropHarvestEval(CropHarvestEvalBase):
@@ -341,7 +369,9 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
         n_per_class: Optional[int] = 100,
         seed: int = DEFAULT_SEED,
         include_latlons: bool = True,
+        do_condition: bool = False,
     ):
+        self.do_condition = do_condition
         name_suffix = f"_{n_per_class}" if n_per_class is not None else ""
         super().__init__(
             name=f"CropHarvest_multiclass_global{name_suffix}_{seed}",
@@ -383,21 +413,6 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
             torch.from_numpy(labels),
         )
         self.eval_dataset = MultiClassCropHarvest(val_paths_and_y, y_string_to_int)
-
-        # thanks Claude for the implementation, good bot
-        # lets start with the intuitive conditions
-        self.condition = {
-            "hw": 4,
-            "patch_size": 1,
-            "timesteps": 12,
-            "input_channels": torch.Tensor([1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0]).to(
-                device
-            ),  # should be SRTM, S1, S2, and ERA5
-            "output_channels": torch.Tensor([0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).to(
-                device
-            ),  # should be WC
-            "recon_objs": torch.Tensor([0, 1]).to(device),  # should be batch mask space
-        }
 
     @torch.no_grad()
     def _evaluate_models(
@@ -474,6 +489,15 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
             num_workers=Hyperparams.num_workers,
             collate_fn=self.collate_fn,
         )
+        unconditioned_trained_sklearn_models = self.train_sklearn_model(
+            train_dl, pretrained_model, model_modes, None
+        )
+        unconditioned_results = self._evaluate_models(
+            pretrained_model, unconditioned_trained_sklearn_models, None
+        )
+        if not self.do_condition:
+            return unconditioned_results
+
         conditioned_trained_sklearn_models = self.train_sklearn_model(
             train_dl, pretrained_model, model_modes, self.condition
         )
@@ -481,12 +505,4 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
             pretrained_model, conditioned_trained_sklearn_models, self.condition
         )
         conditioned_results = {f"{key}_c": value for key, value in conditioned_results.items()}
-
-        unconditioned_trained_sklearn_models = self.train_sklearn_model(
-            train_dl, pretrained_model, model_modes, None
-        )
-        unconditioned_results = self._evaluate_models(
-            pretrained_model, unconditioned_trained_sklearn_models, None
-        )
-
         return {**conditioned_results, **unconditioned_results}
