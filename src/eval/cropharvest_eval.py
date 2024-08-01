@@ -30,7 +30,7 @@ from ..data.dataset import (
     to_cartesian,
 )
 from ..flexipresto import Encoder
-from ..masking import MASKING_MODES_COARSE, MaskedOutput
+from ..masking import MASKING_MODES, MaskedOutput
 from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
 from .cropharvest.bands import BANDS
 from .cropharvest.columns import NullableColumns, RequiredColumns
@@ -157,9 +157,9 @@ class CropHarvestEvalBase(EvalTask):
         self.name = f"{name}{'_latlons' if include_latlons else ''}"
         super().__init__(patch_size, seed)
 
-        output_channels = [0] * len(MASKING_MODES_COARSE)
-        for i, val in enumerate(MASKING_MODES_COARSE):
-            if val == "static":  # should this be static or space?
+        output_channels = [0] * len(MASKING_MODES)
+        for i, val in enumerate(MASKING_MODES):
+            if val[1] == "WC":  # should this be static or space?
                 output_channels[i] = 1
         self.condition = {"output_channels": torch.Tensor(output_channels).to(device)}
 
