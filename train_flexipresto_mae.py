@@ -124,7 +124,7 @@ if "conditioner" in config["model"]:
             "weight_decay": training_config["weight_decay"],
         },
         {
-            "params": predictor.parameters(),
+            "params": [p for n, p in predictor.named_parameters() if "conditioner" not in n],
             "name": "decoder",
             "weight_decay": training_config["weight_decay"],
         },
