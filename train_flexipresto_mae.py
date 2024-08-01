@@ -114,9 +114,9 @@ if "conditioner" in config["model"]:
     conditioner = LearnedMixture(**config["model"]["conditioner"]).to(device)
     decoder_conditioner = LearnedMixture(**config["model"]["conditioner"])
     encoder = Encoder(**config["model"]["encoder"], conditioner=conditioner).to(device)
-    predictor = PrestoPixelDecoder(**config["model"]["decoder"], conditioner=conditioner).to(
-        device
-    )
+    predictor = PrestoPixelDecoder(
+        **config["model"]["decoder"], conditioner=decoder_conditioner
+    ).to(device)
     param_groups = [
         {
             "params": [p for n, p in encoder.named_parameters() if "conditioner" not in n],
