@@ -71,8 +71,13 @@ tracker.start()
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--config_file", type=str, default="small.json")
+argparser.add_argument("--cache_folder", type=str, default="")
 args = argparser.parse_args().__dict__
 
+if args["cache_folder"] == "":
+    cache_folder = DATA_FOLDER
+else:
+    cache_folder = Path(args["cache_folder"])
 
 config = load_check_config(args["config_file"], "mae")
 training_config = config["training"]
@@ -84,7 +89,7 @@ output_dir = Path(__file__).parent
 
 
 print("Loading dataset and dataloader")
-dataset = Dataset(TIFS_FOLDER, download=False, h5py_folder=DATA_FOLDER / "h5pys", h5pys_only=True)
+dataset = Dataset(TIFS_FOLDER, download=False, h5py_folder=cache_folder / "h5pys", h5pys_only=True)
 dataloader = DataLoader(
     dataset,
     batch_size=training_config["batch_size"],
@@ -106,22 +111,33 @@ predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
 if "conditioner" in config["model"]:
     eval_w_condition = True
     conditioner = LearnedMixture(**config["model"]["conditioner"]).to(device)
+    decoder_conditioner = LearnedMixture(**config["model"]["conditioner"])
     encoder = Encoder(**config["model"]["encoder"], conditioner=conditioner).to(device)
+    predictor = PrestoPixelDecoder(
+        **config["model"]["decoder"], conditioner=decoder_conditioner
+    ).to(device)
     param_groups = [
         {
-            "params": encoder.parameters(),
+            "params": [p for n, p in encoder.named_parameters() if "conditioner" not in n],
             "name": "encoder",
             "weight_decay": training_config["weight_decay"],
         },
         {
-            "params": predictor.parameters(),
+            "params": [p for n, p in predictor.named_parameters() if "conditioner" not in n],
             "name": "decoder",
+            "weight_decay": training_config["weight_decay"],
+        },
+        {
+            "params": [p for p in encoder.conditioner.parameters()]
+            + [p for p in predictor.conditioner.parameters()],
+            "name": "conditioner",
             "weight_decay": training_config["weight_decay"],
         },
     ]
 else:
     eval_w_condition = False
     encoder = Encoder(**config["model"]["encoder"]).to(device)
+    predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
     param_groups = [
         {
             "params": encoder.parameters(),
@@ -247,6 +263,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                         patch_size=patch_size,
                     ),
                     patch_size=patch_size,
+                    c_i=c_i,
                 )
 
                 loss = masked_autoencoder_loss(
@@ -276,6 +293,9 @@ for e in tqdm(range(training_config["num_epochs"])):
             loss.backward()
 
             if ((i + 1) % iters_to_accumulate == 0) or (i + 1 == len(dataloader)):
+                if training_config["grad_clip"]:
+                    torch.nn.utils.clip_grad_norm_(encoder.parameters(), 1.0)
+                    torch.nn.utils.clip_grad_norm_(predictor.parameters(), 1.0)
                 optimizer.step()
                 optimizer.zero_grad()
                 adjust_learning_rate(
@@ -286,6 +306,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                     max_lr=training_config["max_lr"],
                     start_lr=training_config["start_lr"],
                     min_lr=training_config["final_lr"],
+                    conditioner_multiplier=training_config["conditioner_multiplier"],
                 )
 
     if wandb_enabled:
@@ -339,7 +360,6 @@ eval_tasks: List[EvalTask] = [
     *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil"]],
     *[EuroSatEval(rgb=rgb, include_latlons=False, geobench=True) for rgb in [True, False]],
     *[So2SatEval(geobench=geobench) for geobench in [True, False]],
-    BigEarthNetEval(),
     BrickKilnEval(),
     *[CashewPlantEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
     *[SACropEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
@@ -365,6 +385,7 @@ eval_tasks: List[EvalTask] = [
         for patch_size in [6, 3]
     ],
     PastisPixelEval(),
+    BigEarthNetEval(),
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)

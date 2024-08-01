@@ -908,22 +908,23 @@ class Encoder(FlexiPrestoBase):
         if c_i is not None:
             conditional_weights = self.conditioner(**c_i)
             for i, block in enumerate(self.blocks):
-                block.attn.q.apply_condition(conditional_weights[f"{i}.attn.q.backbone.weight"])
-                block.attn.k.apply_condition(conditional_weights[f"{i}.attn.k.backbone.weight"])
-                block.attn.v.apply_condition(conditional_weights[f"{i}.attn.v.backbone.weight"])
+                # block.attn.q.apply_condition(conditional_weights[f"{i}.attn.q.backbone.weight"])
+                # block.attn.k.apply_condition(conditional_weights[f"{i}.attn.k.backbone.weight"])
+                # block.attn.v.apply_condition(conditional_weights[f"{i}.attn.v.backbone.weight"])
                 block.attn.proj.apply_condition(
-                    conditional_weights[f"{i}.attn.proj.backbone.weight"]
+                    conditional_weights[f"{i}.attn.proj.backbone.weight"],
+                    conditional_weights[f"{i}.attn.proj.backbone.bias"],
                 )
-                block.mlp.fc1.apply_condition(conditional_weights[f"{i}.mlp.fc1.backbone.weight"])
-                block.mlp.fc2.apply_condition(conditional_weights[f"{i}.mlp.fc2.backbone.weight"])
+                # block.mlp.fc1.apply_condition(conditional_weights[f"{i}.mlp.fc1.backbone.weight"])
+                # block.mlp.fc2.apply_condition(conditional_weights[f"{i}.mlp.fc2.backbone.weight"])
         else:
             for block in self.blocks:
-                block.attn.q.apply_condition(None)
-                block.attn.k.apply_condition(None)
-                block.attn.v.apply_condition(None)
-                block.attn.proj.apply_condition(None)
-                block.mlp.fc1.apply_condition(None)
-                block.mlp.fc2.apply_condition(None)
+                # block.attn.q.apply_condition(None)
+                # block.attn.k.apply_condition(None)
+                # block.attn.v.apply_condition(None)
+                block.attn.proj.apply_condition(None, None)
+                # block.mlp.fc1.apply_condition(None)
+                # block.mlp.fc2.apply_condition(None)
 
 
 class PrestoPixelDecoder(FlexiPrestoBase):
@@ -938,6 +939,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         num_heads=8,
         max_sequence_length=24,
         max_patch_size: int = 8,
+        conditioner=None,
     ):
         super().__init__(
             decoder_embedding_size,
@@ -947,7 +949,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             max_sequence_length,
             max_patch_size,
         )
-        self.encoder_to_decoder_embed = nn.Linear(
+        self.encoder_to_decoder_embed = ConditionalLinear(
             encoder_embedding_size, decoder_embedding_size, bias=True
         )
         self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
@@ -977,7 +979,12 @@ class PrestoPixelDecoder(FlexiPrestoBase):
                 for group_name, group in self.static_groups.items()
             }
         )
+        self.input_norm = nn.LayerNorm(encoder_embedding_size)
         self.norm = nn.LayerNorm(decoder_embedding_size)
+        self.apply(self._init_weights)
+        self.conditioner = conditioner
+        if conditioner is not None:
+            self.conditioner.add_templates(self.encoder_to_decoder_embed)
 
     def add_masks(self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m):
         def to_kept_boolean(m: torch.Tensor):
@@ -1084,12 +1091,16 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         st_m: torch.Tensor,
         months: torch.Tensor,
         patch_size: Optional[int] = None,
+        c_i=None,
         input_resolution_m: Optional[int] = BASE_GSD,
     ):
-        s_t_x = self.encoder_to_decoder_embed(s_t_x)
-        sp_x = self.encoder_to_decoder_embed(sp_x)
-        t_x = self.encoder_to_decoder_embed(t_x)
-        st_x = self.encoder_to_decoder_embed(st_x)
+        if self.conditioner is not None:
+            self.apply_condition(c_i)
+
+        s_t_x = self.encoder_to_decoder_embed(self.input_norm(s_t_x))
+        sp_x = self.encoder_to_decoder_embed(self.input_norm(sp_x))
+        t_x = self.encoder_to_decoder_embed(self.input_norm(t_x))
+        st_x = self.encoder_to_decoder_embed(self.input_norm(st_x))
 
         s_t_x, sp_x, t_x, st_x = self.add_masks(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
         s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m = self.apply_attn(
@@ -1155,3 +1166,13 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             torch.cat(output_t, dim=-1),
             torch.cat(output_st, dim=-1),
         )
+
+    def apply_condition(self, c_i):
+        if c_i is not None:
+            conditional_weights = self.conditioner(**c_i)
+            self.encoder_to_decoder_embed.apply_condition(
+                conditional_weights["backbone.weight"],
+                conditional_weights["backbone.bias"],
+            )
+        else:
+            self.encoder_to_decoder_embed.apply_condition(None, None)

@@ -13,7 +13,8 @@ from src.data.dataset import (
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
 )
-from src.eval.so2sat_eval import So2SatTUMDataset
+from src.eval.so2sat_eval import So2SatEval, So2SatTUMDataset
+from src.masking import MASKING_MODES_COARSE
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/so2sat/so2sat_test"
 
@@ -125,3 +126,12 @@ class TestSo2Sat(unittest.TestCase):
 
         self.assertTrue(torch.all(s_t_m[:, :, :, present_bands] == 0))
         self.assertTrue(torch.all(s_t_m[:, :, :, unpresent_bands] == 1))
+
+    def test_so2sat_conditions(self):
+        task = So2SatEval()
+
+        self.assertEqual(len(task.condition["output_channels"]), len(MASKING_MODES_COARSE))
+
+        for idx, val in enumerate(task.condition["output_channels"]):
+            if val == 1:
+                self.assertTrue(MASKING_MODES_COARSE[idx] == "static")
