@@ -495,12 +495,37 @@ class FlexiPrestoBase(nn.Module):
 
         return s_t_x, sp_x, t_x, st_x
 
-    def apply_encodings(self, s_t_x, sp_x, t_x, st_x, months, patch_size, input_res):
+    def apply_encodings(
+        self, s_t_x, sp_x, t_x, st_x, months, patch_size, input_res, channels: bool = True
+    ):
         b, h, w, t, s_t_c_g, _ = s_t_x.shape
         sp_c_g, t_c_g = sp_x.shape[-2], t_x.shape[-2]
         st_c_g = st_x.shape[-2]
 
-        s_t_channel = repeat(self.s_t_channel_embed, "c_g d -> b h w t c_g d", b=b, h=h, w=w, t=t)
+        if channels:
+            s_t_channel = repeat(
+                self.s_t_channel_embed, "c_g d -> b h w t c_g d", b=b, h=h, w=w, t=t
+            )
+            t_channel = repeat(self.t_channel_embed, "c_g d -> b t c_g d", b=b, t=t)
+            st_channel = repeat(self.st_channel_embed, "c_g d -> b c_g d", b=b)
+            sp_channel = repeat(self.sp_channel_embed, "c_g d -> b h w c_g d", b=b, h=h, w=w)
+        else:
+            s_t_channel = repeat(
+                torch.zeros_like(self.s_t_channel_embed),
+                "c_g d -> b h w t c_g d",
+                b=b,
+                h=h,
+                w=w,
+                t=t,
+            )
+            t_channel = repeat(
+                torch.zeros_like(self.t_channel_embed), "c_g d -> b t c_g d", b=b, t=t
+            )
+            st_channel = repeat(torch.zeros_like(self.st_channel_embed), "c_g d -> b c_g d", b=b)
+            sp_channel = repeat(
+                torch.zeros_like(self.sp_channel_embed), "c_g d -> b h w c_g d", b=b, h=h, w=w
+            )
+
         pos_embed_s_t = repeat(
             self.pos_embed[:t], "t d -> b h w t c_g d", b=b, h=h, w=w, c_g=s_t_c_g
         )
@@ -508,12 +533,10 @@ class FlexiPrestoBase(nn.Module):
             self.month_embed(months), "b t d -> b h w t c_g d", h=h, w=w, c_g=s_t_c_g
         )
 
-        t_channel = repeat(self.t_channel_embed, "c_g d -> b t c_g d", b=b, t=t)
         pos_embed_t = repeat(self.pos_embed[:t], "t d -> b t c_g d", b=b, c_g=t_c_g)
         m_embed_t = repeat(self.month_embed(months), "b t d -> b t c_g d", c_g=t_c_g)
         t_zeros = torch.zeros(b, t, t_c_g, int(self.embedding_size * 0.25), device=t_x.device)
 
-        sp_channel = repeat(self.sp_channel_embed, "c_g d -> b h w c_g d", b=b, h=h, w=w)
         sp_zeros = torch.zeros(
             b,
             h,
@@ -523,7 +546,6 @@ class FlexiPrestoBase(nn.Module):
             device=sp_channel.device,
         )
 
-        st_channel = repeat(self.st_channel_embed, "c_g d -> b c_g d", b=b)
         st_zeros = torch.zeros(b, st_c_g, st_channel.shape[-1] * 3, device=st_channel.device)
 
         # find the resolution that each token represents, which will be
@@ -771,7 +793,7 @@ class Encoder(FlexiPrestoBase):
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
         sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
         s_t_x, sp_x, t_x, st_x = self.apply_encodings(
-            s_t_x, sp_x, t_x, st_x, months, patch_size, input_res
+            s_t_x, sp_x, t_x, st_x, months, patch_size, input_res, channels=True
         )
         x, m = self.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
 
@@ -1062,7 +1084,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
         sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
         s_t_x, sp_x, t_x, st_x = self.apply_encodings(
-            s_t_x, sp_x, t_x, st_x, months, patch_size, input_res
+            s_t_x, sp_x, t_x, st_x, months, patch_size, input_res, channels=False
         )
         x, m = self.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
         x, y, x_mask, y_mask, indices = self.split_x_y(x, m)
