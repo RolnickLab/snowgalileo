@@ -195,7 +195,8 @@ if wandb_enabled:
             )
 
             prepared_image_to_plot = {}
-            for image_id, (b, _, _) in enumerate(plot_dataloader):
+            for image_id, bs in enumerate(plot_dataloader):
+                b = bs[0]
                 b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
                 prepared_image_to_plot[image_id] = b[:-1]  # to remove c_i
                 if len(prepared_image_to_plot) >= training_config["num_images_to_wandb_plot"]:
