@@ -246,6 +246,8 @@ for e in tqdm(range(training_config["num_epochs"])):
                 c_i = {
                     k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in c_i.items()
                 }
+            else:
+                raise ValueError("c_i should not be None")
 
             with torch.autocast(device_type=device.type, dtype=autocast_device):
                 (p_s_t, p_sp, p_t, p_st) = predictor(
