@@ -181,6 +181,7 @@ def mae_collate_fn(
         "fixed_patch_size": fixed_patch_size,
         "fixed_space_time_combination": fixed_space_time_combination,
         "masking_probabilities": masking_probabilities,
+        "shape_time_combinations": shape_time_combinations,
     }
     return (
         collated_batch_to_output(
