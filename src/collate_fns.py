@@ -21,12 +21,6 @@ class CollateFnOutput(NamedTuple):
     t_m: torch.Tensor
     st_m: torch.Tensor
     months: torch.Tensor
-    expanded_s_t_x: torch.Tensor
-    expanded_sp_x: torch.Tensor
-    expanded_s_t: torch.Tensor
-    expanded_sp: torch.Tensor
-    expanded_t: torch.Tensor
-    expanded_st: torch.Tensor
     patch_size: float
     c_i: Optional[Dict]
 
