@@ -2,16 +2,10 @@ from typing import Dict, NamedTuple, Optional, Tuple
 
 import numpy as np
 import torch
-from einops import rearrange, repeat
 from torch.utils.data import default_collate
-from torchvision.transforms.functional import resize
 
 from src.masking import (
     MASKING_MODES,
-    SPACE_BAND_EXPANSION,
-    SPACE_TIME_BAND_EXPANSION,
-    STATIC_BAND_EXPANSION,
-    TIME_BAND_EXPANSION,
     MaskingFunctions,
     batch_subset_mask_presto,
 )
@@ -88,51 +82,6 @@ def collated_batch_to_output(
         masking_function=masking_function,
     )
 
-    # transform the masks from channel-groups to individual channels
-    expanded_s_t = torch.repeat_interleave(
-        s_t_m, repeats=SPACE_TIME_BAND_EXPANSION.long(), dim=-1
-    ).int()
-    expanded_sp = torch.repeat_interleave(sp_m, repeats=SPACE_BAND_EXPANSION.long(), dim=-1).int()
-    expanded_t = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION.long(), dim=-1).int()
-    expanded_st = torch.repeat_interleave(st_m, repeats=STATIC_BAND_EXPANSION.long(), dim=-1).int()
-
-    # p_s_t and p_sp always assume the maximum patch size, so we need to
-    # resample if its smaller
-    if patch_size < patch_sizes[-1]:
-        output_hw = spatial_patches_per_dim * patch_sizes[-1]
-        t, d = s_t_x.shape[3], s_t_x.shape[4]
-        expanded_s_t_x = rearrange(
-            resize(
-                rearrange(s_t_x, "b h w t d -> b (t d) h w"),
-                size=(output_hw, output_hw),
-            ),
-            "b (t d) h w -> b h w t d",
-            t=t,
-            d=d,
-        )
-        expanded_sp_x = rearrange(
-            resize(rearrange(sp_x, "b h w d -> b d h w"), size=(output_hw, output_hw)),
-            "b d h w -> b h w d",
-        )
-
-        # fix the mask too
-        expanded_s_t = repeat(
-            expanded_s_t[:, 0::patch_size, 0::patch_size],
-            "b h w t c -> b (h h2) (w w2) t c",
-            h2=patch_sizes[-1],
-            w2=patch_sizes[-1],
-        )
-
-        expanded_sp = repeat(
-            expanded_sp[:, 0::patch_size, 0::patch_size],
-            "b h w c -> b (h h2) (w w2) c",
-            h2=patch_sizes[-1],
-            w2=patch_sizes[-1],
-        )
-    else:
-        expanded_s_t_x = s_t_x
-        expanded_sp_x = sp_x
-
     return CollateFnOutput(
         s_t_x,
         sp_x,
@@ -143,12 +92,6 @@ def collated_batch_to_output(
         t_m,
         st_m,
         months,
-        expanded_s_t_x,
-        expanded_sp_x,
-        expanded_s_t,
-        expanded_sp,
-        expanded_t,
-        expanded_st,
         patch_size,
         c_i,
     )

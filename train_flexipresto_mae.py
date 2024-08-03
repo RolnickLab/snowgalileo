@@ -6,10 +6,9 @@ from pathlib import Path
 from typing import List, cast
 
 import codecarbon
-import matplotlib.pyplot as plt
 import psutil
 import torch
-from torch.utils.data import BatchSampler, DataLoader
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
@@ -47,7 +46,6 @@ from src.utils import (
     device,
     is_bf16_available,
     load_check_config,
-    plot_space_time_predictions,
     seed_everything,
     timestamp_dirname,
 )
@@ -169,43 +167,6 @@ if wandb_enabled:
     config["training"]["training_samples"] = len(dataset)
     wandb.config.update(config)
 
-    # prepare random images to plot during training
-    if training_config["wandb_plot_every_n_epochs"] > 0:
-        assert training_config["num_images_to_wandb_plot"] > 0
-        assert len(training_config["patch_sizes_to_wandb_plot"]) > 0
-        assert len(training_config["timesteps_to_wandb_plot"]) > 0
-
-        examples_to_plot = {}
-
-        for p in training_config["patch_sizes_to_wandb_plot"]:
-            # call the collate function with current patch size
-            plot_dataloader = DataLoader(
-                dataset,
-                shuffle=False,
-                batch_sampler=BatchSampler([1, 2, 3], batch_size=1, drop_last=False),
-                collate_fn=partial(
-                    mae_collate_fn,
-                    patch_sizes=training_config["patch_sizes"],
-                    shape_time_combinations=training_config["shape_time_combinations"],
-                    fixed_patch_size=p,
-                    fixed_space_time_combination={"size": 4, "timesteps": 12},
-                    mask_ratio=training_config["mask_ratio"],
-                    decoder_unmask_ratio=training_config["decoder_unmask_ratio"],
-                ),
-            )
-
-            prepared_image_to_plot = {}
-            for image_id, bs in enumerate(plot_dataloader):
-                b = bs[0]
-                b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
-                prepared_image_to_plot[image_id] = b[:-1]  # to remove c_i
-                if len(prepared_image_to_plot) >= training_config["num_images_to_wandb_plot"]:
-                    break
-
-            examples_to_plot[p] = prepared_image_to_plot
-            print(f"Prepared {len(prepared_image_to_plot)} images for patch size {p}")
-        print(f"all {len(examples_to_plot)} images for patch size")
-
 optimizer = torch.optim.AdamW(
     param_groups, lr=training_config["start_lr"], weight_decay=training_config["weight_decay"]
 )  # type: ignore
@@ -232,12 +193,6 @@ for e in tqdm(range(training_config["num_epochs"])):
                 t_m,
                 st_m,
                 months,
-                expanded_s_t_x,
-                expanded_sp_x,
-                s_t_m_p,
-                sp_m_p,
-                t_m_p,
-                st_m_p,
                 patch_size,
                 c_i,
             ) = b
@@ -269,19 +224,31 @@ for e in tqdm(range(training_config["num_epochs"])):
                     c_i=c_i,
                 )
 
+                with torch.no_grad():
+                    t_st, t_sp, t_t, t_st, _, _, _, _ = encoder.apply_linear_projection(
+                        s_t_x,
+                        sp_x,
+                        t_x,
+                        st_x,
+                        ~(s_t_m == 2),  # we want 0s where the mask == 2
+                        ~(sp_m == 2),
+                        ~(t_m == 2),
+                        ~(st_m == 2),
+                    )
+
                 loss = masked_autoencoder_loss(
-                    expanded_s_t_x,
-                    expanded_sp_x,
-                    t_x,
-                    st_x,
+                    t_st,
+                    t_sp,
+                    t_t,
+                    t_st,
                     p_s_t,
                     p_sp,
                     p_t,
                     p_st,
-                    s_t_m_p,
-                    sp_m_p,
-                    t_m_p,
-                    st_m_p,
+                    s_t_m,
+                    sp_m,
+                    t_m,
+                    st_m,
                     patch_size=training_config["patch_sizes"][-1],
                     loss_type=training_config["mae_loss"],
                 )
@@ -319,28 +286,6 @@ for e in tqdm(range(training_config["num_epochs"])):
             "task_masking_train_loss": task_masking_train_loss.average,
             "epoch": e,
         }
-        if (training_config["wandb_plot_every_n_epochs"] != 0) and (
-            e % training_config["wandb_plot_every_n_epochs"] == 0
-        ):
-            plot_list = []
-            for patch_size, patch_size_dict in examples_to_plot.items():
-                for image_id, prepared_image in patch_size_dict.items():
-                    plot_list.append(
-                        plot_space_time_predictions(
-                            epoch=e,
-                            encoder=encoder,
-                            predictor=predictor,
-                            training_config=training_config,
-                            prepared_image=prepared_image,
-                            image_id=image_id,
-                        )
-                    )
-            for patch_size, plot in [
-                (patch_size, plot)
-                for plot_dict in plot_list
-                for patch_size, plot in plot_dict.items()
-            ]:
-                to_log[f"plot_mae_patch_size_{patch_size}"] = plot
 
         if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
             e % training_config["eval_eurosat_every_n_epochs"] == 0
@@ -350,7 +295,6 @@ for e in tqdm(range(training_config["num_epochs"])):
             )
             to_log.update(results)
         wandb.log(to_log)
-        plt.close("all")
 
 model_path = OUTPUT_FOLDER / timestamp_dirname(run_id)
 model_path.mkdir()
