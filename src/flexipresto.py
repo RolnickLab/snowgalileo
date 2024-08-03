@@ -1107,8 +1107,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_resolution_m
         )
 
-        b, t_h, t_w, t, _, _ = s_t_x.shape
-        h, w = t_h * self.max_patch_size, t_w * self.max_patch_size
+        b, h, w, t, _, _ = s_t_x.shape
         output_s_t, output_sp, output_t, output_st = [], [], [], []
         for idx in range(len(self.space_time_groups)):
             if s_t_m[:, :, :, :, idx].max() == 2:
