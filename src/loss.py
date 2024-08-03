@@ -20,6 +20,8 @@ def mse_loss(
     encoder_size = t_s_x.shape[-1]
     expanded_s_t_m = repeat(s_t_m, "b h w t c_g -> b h w t c_g d", d=encoder_size)
     expanded_sp_m = repeat(sp_m, "b h w c_g -> b h w c_g d", d=encoder_size)
+    expanded_t_m = repeat(t_m, "b t c_g -> b t c_g d", d=encoder_size)
+    expanded_st_m = repeat(st_m, "b c_g -> b c_g d", d=encoder_size)
     return F.mse_loss(
         torch.concat(
             [
@@ -31,10 +33,10 @@ def mse_loss(
         ),
         torch.concat(
             [
-                expanded_s_t_x[expanded_s_t_m == 2],
-                expanded_sp_x[expanded_sp_m == 2],
-                t_x[expanded_t_m == 2],
-                st_x[expanded_st_m == 2],
+                t_s_x[expanded_s_t_m == 2],
+                t_sp[expanded_sp_m == 2],
+                t_t[expanded_t_m == 2],
+                t_st[expanded_st_m == 2],
             ]
         ).float(),
     )
