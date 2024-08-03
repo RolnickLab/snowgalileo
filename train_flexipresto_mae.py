@@ -234,6 +234,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                         ~(sp_m == 2),
                         ~(t_m == 2),
                         ~(st_m == 2),
+                        patch_size
                     )
 
                 loss = masked_autoencoder_loss(

@@ -1158,10 +1158,10 @@ class PrestoPixelDecoder(FlexiPrestoBase):
                 )
 
         return (
-            torch.cat(output_s_t, dim=-1),
-            torch.cat(output_sp, dim=-1),
-            torch.cat(output_t, dim=-1),
-            torch.cat(output_st, dim=-1),
+            torch.stack(output_s_t, dim=-2),  # shape = b h w t c_g, d
+            torch.stack(output_sp, dim=-2),
+            torch.stack(output_t, dim=-2),
+            torch.stack(output_st, dim=-2),
         )
 
     def apply_condition(self, c_i):
