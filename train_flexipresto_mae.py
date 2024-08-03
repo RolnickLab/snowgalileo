@@ -39,7 +39,7 @@ from src.eval import (
 )
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
-from src.loss import masked_autoencoder_loss
+from src.loss import mse_loss
 from src.utils import (
     AverageMeter,
     data_dir,
@@ -234,10 +234,10 @@ for e in tqdm(range(training_config["num_epochs"])):
                         ~(sp_m == 2),
                         ~(t_m == 2),
                         ~(st_m == 2),
-                        patch_size
+                        patch_size,
                     )
 
-                loss = masked_autoencoder_loss(
+                loss = mse_loss(
                     t_st,
                     t_sp,
                     t_t,
@@ -246,12 +246,10 @@ for e in tqdm(range(training_config["num_epochs"])):
                     p_sp,
                     p_t,
                     p_st,
-                    s_t_m,
-                    sp_m,
+                    s_t_m[:, 0::patch_size, 0::patch_size],
+                    sp_m[:, 0::patch_size, 0::patch_size],
                     t_m,
                     st_m,
-                    patch_size=training_config["patch_sizes"][-1],
-                    loss_type=training_config["mae_loss"],
                 )
 
             train_loss.update(loss.item(), n=s_t_x.shape[0])
