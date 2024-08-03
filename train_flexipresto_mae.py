@@ -225,7 +225,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                 )
 
                 with torch.no_grad():
-                    t_st, t_sp, t_t, t_st, _, _, _, _ = encoder.apply_linear_projection(
+                    t_s_t, t_sp, t_t, t_st, _, _, _, _ = encoder.apply_linear_projection(
                         s_t_x,
                         sp_x,
                         t_x,
@@ -238,7 +238,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                     )
 
                 loss = mse_loss(
-                    t_st,
+                    t_s_t,
                     t_sp,
                     t_t,
                     t_st,
