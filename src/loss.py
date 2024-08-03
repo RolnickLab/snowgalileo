@@ -4,7 +4,7 @@ from einops import repeat
 
 
 def mse_loss(
-    t_s_x,
+    t_s_t,
     t_sp,
     t_t,
     t_st,
@@ -17,7 +17,7 @@ def mse_loss(
     t_m,
     st_m,
 ):
-    encoder_size = t_s_x.shape[-1]
+    encoder_size = t_s_t.shape[-1]
     expanded_s_t_m = repeat(s_t_m, "b h w t c_g -> b h w t c_g d", d=encoder_size)
     expanded_sp_m = repeat(sp_m, "b h w c_g -> b h w c_g d", d=encoder_size)
     expanded_t_m = repeat(t_m, "b t c_g -> b t c_g d", d=encoder_size)
@@ -33,7 +33,7 @@ def mse_loss(
         ),
         torch.concat(
             [
-                t_s_x[expanded_s_t_m == 2],
+                t_s_t[expanded_s_t_m == 2],
                 t_sp[expanded_sp_m == 2],
                 t_t[expanded_t_m == 2],
                 t_st[expanded_st_m == 2],
