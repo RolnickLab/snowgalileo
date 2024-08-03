@@ -971,36 +971,14 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             max_sequence_length,
             max_patch_size,
         )
+        self.encoder_embedding_size = encoder_embedding_size
         self.encoder_to_decoder_embed = ConditionalLinear(
             encoder_embedding_size, decoder_embedding_size, bias=True
         )
+        self.to_output_embed = nn.Linear(decoder_embedding_size, encoder_embedding_size, bias=True)
         self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
 
         self.max_patch_size = max_patch_size
-        self.space_time_embed = nn.ModuleDict(
-            {
-                group_name: nn.Linear(decoder_embedding_size, len(group) * max_patch_size**2)
-                for group_name, group in self.space_time_groups.items()
-            }
-        )
-        self.space_embed = nn.ModuleDict(
-            {
-                group_name: nn.Linear(decoder_embedding_size, len(group) * max_patch_size**2)
-                for group_name, group in self.space_groups.items()
-            }
-        )
-        self.time_embed = nn.ModuleDict(
-            {
-                group_name: nn.Linear(decoder_embedding_size, len(group))
-                for group_name, group in self.time_groups.items()
-            }
-        )
-        self.static_embed = nn.ModuleDict(
-            {
-                group_name: nn.Linear(decoder_embedding_size, len(group))
-                for group_name, group in self.static_groups.items()
-            }
-        )
         self.input_norm = nn.LayerNorm(encoder_embedding_size)
         self.norm = nn.LayerNorm(decoder_embedding_size)
         self.apply(self._init_weights)
@@ -1132,55 +1110,52 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         b, t_h, t_w, t, _, _ = s_t_x.shape
         h, w = t_h * self.max_patch_size, t_w * self.max_patch_size
         output_s_t, output_sp, output_t, output_st = [], [], [], []
-        for idx, (group_name, c_g) in enumerate(self.space_time_groups.items()):
+        for idx in range(len(self.space_time_groups)):
             if s_t_m[:, :, :, :, idx].max() == 2:
-                # decoded has shape [b, h, w, t, len(c_g) * patch_size ** 2]
-                decoded = self.space_time_embed[group_name](self.norm(s_t_x[:, :, :, :, idx]))
-                output_s_t.append(
-                    rearrange(
-                        decoded,
-                        "b t_h t_w t (c_g p_h p_w) -> b (t_h p_h) (t_w p_w) t c_g",
-                        c_g=len(c_g),
-                        p_w=self.max_patch_size,
-                        p_h=self.max_patch_size,
-                    )
-                )
+                output_s_t.append(self.to_output_embed(self.norm(s_t_x[:, :, :, :, idx])))
             else:
                 output_s_t.append(
-                    torch.empty(b, h, w, t, len(c_g), dtype=s_t_x.dtype, device=s_t_x.device)
+                    torch.empty(
+                        b,
+                        h,
+                        w,
+                        t,
+                        self.encoder_embedding_size,
+                        dtype=s_t_x.dtype,
+                        device=s_t_x.device,
+                    )
                 )
 
-        for idx, (group_name, c_g) in enumerate(self.space_groups.items()):
+        for idx in range(len(self.space_groups)):
             # decoded has shape [b, h, w, len(c_g) * patch_size ** 2]
             if sp_m[:, :, :, idx].max() == 2:
-                decoded = self.space_embed[group_name](self.norm(sp_x[:, :, :, idx]))
+                output_sp.append(self.to_output_embed(self.norm(sp_x[:, :, :, idx])))
+            else:
                 output_sp.append(
-                    rearrange(
-                        decoded,
-                        "b t_h t_w (c_g p_h p_w) -> b (t_h p_h) (t_w p_w) c_g",
-                        c_g=len(c_g),
-                        p_w=self.max_patch_size,
-                        p_h=self.max_patch_size,
+                    torch.empty(
+                        b, h, w, self.encoder_embedding_size, dtype=sp_x.dtype, device=sp_x.device
                     )
                 )
+
+        for idx in range(len(self.time_groups)):
+            if t_m[:, :, idx].max() == 2:
+                output_t.append(self.encoder_to_decoder_embed(self.norm(t_x[:, :, idx])))
             else:
-                output_sp.append(
-                    torch.empty(b, h, w, len(c_g), dtype=sp_x.dtype, device=sp_x.device)
+                output_t.append(
+                    torch.empty(
+                        b, t, self.encoder_embedding_size, dtype=t_x.dtype, device=t_x.device
+                    )
                 )
 
-        for idx, (group_name, c_g) in enumerate(self.time_groups.items()):
-            if t_m[:, :, idx].max() == 2:
-                decoded = self.time_embed[group_name](self.norm(t_x[:, :, idx]))
-                output_t.append(decoded)
-            else:
-                output_t.append(torch.empty(b, t, len(c_g), dtype=t_x.dtype, device=t_x.device))
-
-        for idx, (group_name, c_g) in enumerate(self.static_groups.items()):
+        for idx in range(len(self.static_groups)):
             if st_m[:, idx].max() == 2:
-                decoded = self.static_embed[group_name](self.norm(st_x[:, idx]))
-                output_st.append(decoded)
+                output_st.append(self.encoder_to_decoder_embed(self.norm(st_x[:, idx])))
             else:
-                output_st.append(torch.empty(b, len(c_g), dtype=st_x.dtype, device=st_x.device))
+                output_st.append(
+                    torch.empty(
+                        b, self.encoder_embedding_size, dtype=st_x.dtype, device=st_x.device
+                    )
+                )
 
         return (
             torch.cat(output_s_t, dim=-1),
