@@ -89,6 +89,30 @@ class TestPresto(unittest.TestCase):
                 )
                 output = decoder(*encoder_output)
 
+                with torch.no_grad():
+                    t_s_t, t_sp, t_t, t_st, _, _, _, _ = encoder.apply_linear_projection(
+                        masked_output.space_time_x,
+                        masked_output.space_x,
+                        masked_output.time_x,
+                        masked_output.static_x,
+                        ~(masked_output.space_time_mask == 2),  # we want 0s where the mask == 2
+                        ~(masked_output.space_mask == 2),
+                        ~(masked_output.time_mask == 2),
+                        ~(masked_output.static_mask == 2),
+                        patch_size,
+                    )
+            self.assertFalse(
+                torch.isnan(
+                    t_s_t[masked_output.space_time_mask[:, 0::patch_size, 0::patch_size] == 2]
+                ).any()
+            )
+            self.assertFalse(
+                torch.isnan(
+                    t_sp[masked_output.space_mask[:, 0::patch_size, 0::patch_size] == 2]
+                ).any()
+            )
+            self.assertFalse(torch.isnan(t_t[masked_output.time_mask == 2]).any())
+            self.assertFalse(torch.isnan(t_st[masked_output.static_mask == 2]).any())
             self.assertTrue(
                 list(encoder_output[0].shape)
                 == [
