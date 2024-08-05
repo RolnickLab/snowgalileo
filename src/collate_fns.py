@@ -102,7 +102,7 @@ def mae_collate_fn(
     fixed_patch_size=None,
     fixed_space_time_combination=None,
     masking_probabilities=None,
-) -> Tuple[CollateFnOutput, CollateFnOutput, CollateFnOutput]:
+) -> Tuple[CollateFnOutput, CollateFnOutput, CollateFnOutput, CollateFnOutput]:
     s_t_x, sp_x, t_x, st_x, months = default_collate(batch)
 
     input_args = {
