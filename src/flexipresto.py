@@ -382,6 +382,7 @@ class FlexiPrestoBase(nn.Module):
         num_heads=8,
         max_sequence_length=24,
         base_patch_size: int = 4,
+        use_channel_embs: bool = True,
     ):
         super().__init__()
 
@@ -417,17 +418,21 @@ class FlexiPrestoBase(nn.Module):
         )
         month_tab = get_month_encoding_table(int(embedding_size * 0.25))
         self.month_embed = nn.Embedding.from_pretrained(month_tab, freeze=True)
+        if use_channel_embs:
+            args = {"requires_grad": True}
+        else:
+            args = {"requires_grad": False}
         self.s_t_channel_embed = nn.Parameter(
-            torch.zeros(len(SPACE_TIME_BANDS_GROUPS_IDX), int(embedding_size * 0.25))
+            torch.zeros(len(SPACE_TIME_BANDS_GROUPS_IDX), int(embedding_size * 0.25)), **args
         )
         self.sp_channel_embed = nn.Parameter(
-            torch.zeros(len(SPACE_BAND_GROUPS_IDX), int(embedding_size * 0.25))
+            torch.zeros(len(SPACE_BAND_GROUPS_IDX), int(embedding_size * 0.25)), **args
         )
         self.t_channel_embed = nn.Parameter(
-            torch.zeros(len(TIME_BAND_GROUPS_IDX), int(embedding_size * 0.25))
+            torch.zeros(len(TIME_BAND_GROUPS_IDX), int(embedding_size * 0.25)), **args
         )
         self.st_channel_embed = nn.Parameter(
-            torch.zeros(len(STATIC_BAND_GROUPS_IDX), int(embedding_size * 0.25))
+            torch.zeros(len(STATIC_BAND_GROUPS_IDX), int(embedding_size * 0.25)), **args
         )
 
         self.apply(self._init_weights)
@@ -495,36 +500,15 @@ class FlexiPrestoBase(nn.Module):
 
         return s_t_x, sp_x, t_x, st_x
 
-    def apply_encodings(
-        self, s_t_x, sp_x, t_x, st_x, months, patch_size, input_res, channels: bool = True
-    ):
+    def apply_encodings(self, s_t_x, sp_x, t_x, st_x, months, patch_size, input_res):
         b, h, w, t, s_t_c_g, _ = s_t_x.shape
         sp_c_g, t_c_g = sp_x.shape[-2], t_x.shape[-2]
         st_c_g = st_x.shape[-2]
 
-        if channels:
-            s_t_channel = repeat(
-                self.s_t_channel_embed, "c_g d -> b h w t c_g d", b=b, h=h, w=w, t=t
-            )
-            t_channel = repeat(self.t_channel_embed, "c_g d -> b t c_g d", b=b, t=t)
-            st_channel = repeat(self.st_channel_embed, "c_g d -> b c_g d", b=b)
-            sp_channel = repeat(self.sp_channel_embed, "c_g d -> b h w c_g d", b=b, h=h, w=w)
-        else:
-            s_t_channel = repeat(
-                torch.zeros_like(self.s_t_channel_embed),
-                "c_g d -> b h w t c_g d",
-                b=b,
-                h=h,
-                w=w,
-                t=t,
-            )
-            t_channel = repeat(
-                torch.zeros_like(self.t_channel_embed), "c_g d -> b t c_g d", b=b, t=t
-            )
-            st_channel = repeat(torch.zeros_like(self.st_channel_embed), "c_g d -> b c_g d", b=b)
-            sp_channel = repeat(
-                torch.zeros_like(self.sp_channel_embed), "c_g d -> b h w c_g d", b=b, h=h, w=w
-            )
+        s_t_channel = repeat(self.s_t_channel_embed, "c_g d -> b h w t c_g d", b=b, h=h, w=w, t=t)
+        t_channel = repeat(self.t_channel_embed, "c_g d -> b t c_g d", b=b, t=t)
+        st_channel = repeat(self.st_channel_embed, "c_g d -> b c_g d", b=b)
+        sp_channel = repeat(self.sp_channel_embed, "c_g d -> b h w c_g d", b=b, h=h, w=w)
 
         pos_embed_s_t = repeat(
             self.pos_embed[:t], "t d -> b h w t c_g d", b=b, h=h, w=w, c_g=s_t_c_g
@@ -595,6 +579,7 @@ class Encoder(FlexiPrestoBase):
             num_heads,
             max_sequence_length,
             max_patch_size,
+            use_channel_embs=True,
         )
 
         self.space_time_embed = nn.ModuleDict(
@@ -793,7 +778,7 @@ class Encoder(FlexiPrestoBase):
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
         sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
         s_t_x, sp_x, t_x, st_x = self.apply_encodings(
-            s_t_x, sp_x, t_x, st_x, months, patch_size, input_res, channels=True
+            s_t_x, sp_x, t_x, st_x, months, patch_size, input_res
         )
         x, m = self.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
 
@@ -970,6 +955,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             num_heads,
             max_sequence_length,
             max_patch_size,
+            use_channel_embs=False,
         )
         self.encoder_embedding_size = encoder_embedding_size
         self.encoder_to_decoder_embed = ConditionalLinear(
@@ -1062,7 +1048,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
         sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
         s_t_x, sp_x, t_x, st_x = self.apply_encodings(
-            s_t_x, sp_x, t_x, st_x, months, patch_size, input_res, channels=False
+            s_t_x, sp_x, t_x, st_x, months, patch_size, input_res
         )
         x, m = self.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
         x, y, x_mask, y_mask, indices = self.split_x_y(x, m)
