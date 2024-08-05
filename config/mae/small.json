@@ -30,7 +30,8 @@
             "depth": 2,
             "mlp_ratio": 4,
             "num_heads": 8,
-            "max_sequence_length": 24
+            "max_sequence_length": 24,
+            "freeze_projections": true
         },
         "decoder": {
             "embedding_size": 128,

@@ -570,6 +570,7 @@ class Encoder(FlexiPrestoBase):
         mlp_ratio=2,
         num_heads=8,
         max_sequence_length=24,
+        freeze_projections: bool = False,
         conditioner=None,
     ):
         super().__init__(
@@ -610,7 +611,11 @@ class Encoder(FlexiPrestoBase):
                 for group_name, group in self.static_groups.items()
             }
         )
-
+        if freeze_projections:
+            self.space_time_embed.requires_grad_(False)
+            self.space_embed.requires_grad_(False)
+            self.time_embed.requires_grad_(False)
+            self.static_embed.requires_grad_(False)
         self.norm = nn.LayerNorm(embedding_size)
 
         self.apply(self._init_weights)
