@@ -134,12 +134,18 @@ def load_check_config(name: str, mode: str) -> Dict:
         "max_sequence_length": int,
     }
 
+    expected_encoder_only_keys_type = {"freeze_projections": bool}
+
     model_dict = config["model"]
     for model in ["encoder", "decoder"]:
         assert model in model_dict
         for key, val in expected_encoder_decoder_keys_type.items():
             assert key in model_dict[model], f"Expected {key} in {model} dict"
             assert isinstance(model_dict[model][key], val)
+        if model == "encoder":
+            for key, val in expected_encoder_only_keys_type.items():
+                assert key in model_dict[model], f"Expected {key} in {model} dict"
+                assert isinstance(model_dict[model][key], val)
 
     config["model"]["encoder"]["max_patch_size"] = max(config["training"]["patch_sizes"])
     config["model"]["decoder"]["max_patch_size"] = max(config["training"]["patch_sizes"])
