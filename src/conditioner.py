@@ -55,10 +55,10 @@ class LearnedMixture(nn.Module):
     def __init__(self, num_output_channels: int):
         super().__init__()
         self.num_templates = num_output_channels
-        self.e_templates: nn.ModuleList = nn.ModuleList()
+        self.templates: nn.ModuleList = nn.ModuleList()
 
     def add_templates(self, template: nn.Module):
-        self.e_templates = nn.ModuleList([deepcopy(template) for _ in range(self.num_templates)])
+        self.templates = nn.ModuleList([deepcopy(template) for _ in range(self.num_templates)])
         # for t in self.e_templates:
         #     t.apply(t._init_weights)
 
@@ -67,7 +67,7 @@ class LearnedMixture(nn.Module):
         assert len(output_channels) == self.num_templates
         return {
             key: val
-            for key, val in self.e_templates[
+            for key, val in self.templates[
                 torch.argwhere(output_channels).item()
             ].named_parameters()
         }
