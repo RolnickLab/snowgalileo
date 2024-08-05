@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from src.collate_fns import mae_collate_fn
 from src.data import Dataset
 from src.flexipresto import Encoder, PrestoPixelDecoder
-from src.loss import LOSS_TYPES, masked_autoencoder_loss
+from src.loss import mse_loss
 from src.utils import device
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/tifs"
@@ -16,10 +16,9 @@ DATA_FOLDER = Path(__file__).parents[1] / "data/tifs"
 
 class TestEndtoEnd(unittest.TestCase):
     def test_end_to_end(self):
-        for loss_type in LOSS_TYPES:
-            self._test_end_to_end(loss_type)
+        self._test_end_to_end()
 
-    def _test_end_to_end(self, loss_type: str):
+    def _test_end_to_end(self):
         embedding_size = 32
 
         dataset = Dataset(DATA_FOLDER, download=False, h5py_folder=None)
@@ -55,7 +54,8 @@ class TestEndtoEnd(unittest.TestCase):
         optimizer = torch.optim.AdamW(param_groups, lr=3e-4)  # type: ignore
 
         # let's just consider one of the augmentations
-        for _, (b, _, _) in enumerate(dataloader):
+        for _, bs in enumerate(dataloader):
+            b = bs[0]
             for x in b:
                 if isinstance(x, torch.Tensor):
                     self.assertFalse(torch.isnan(x).any())
@@ -70,12 +70,6 @@ class TestEndtoEnd(unittest.TestCase):
                 t_m,
                 st_m,
                 months,
-                expanded_s_t_x,
-                expanded_sp_x,
-                s_t_m_p,
-                sp_m_p,
-                t_m_p,
-                st_m_p,
                 patch_size,
                 _,
             ) = b
@@ -95,26 +89,38 @@ class TestEndtoEnd(unittest.TestCase):
                 ),
                 patch_size=patch_size,
             )
-            self.assertFalse(torch.isnan(p_s_t[s_t_m_p == 2]).any())
-            self.assertFalse(torch.isnan(p_sp[sp_m_p == 2]).any())
-            self.assertFalse(torch.isnan(p_t[t_m_p == 2]).any())
-            self.assertFalse(torch.isnan(p_st[st_m_p == 2]).any())
 
-            loss = masked_autoencoder_loss(
-                expanded_s_t_x,
-                expanded_sp_x,
-                t_x,
-                st_x,
+            with torch.no_grad():
+                t_s_t, t_sp, t_t, t_st, _, _, _, _ = encoder.apply_linear_projection(
+                    s_t_x.float(),
+                    sp_x.float(),
+                    t_x.float(),
+                    st_x.float(),
+                    ~(s_t_m == 2).int(),  # we want 0s where the mask == 2
+                    ~(sp_m == 2).int(),
+                    ~(t_m == 2).int(),
+                    ~(st_m == 2).int(),
+                    patch_size,
+                )
+
+            self.assertFalse(torch.isnan(p_s_t[s_t_m[:, 0::patch_size, 0::patch_size] == 2]).any())
+            self.assertFalse(torch.isnan(p_sp[sp_m[:, 0::patch_size, 0::patch_size] == 2]).any())
+            self.assertFalse(torch.isnan(p_t[t_m == 2]).any())
+            self.assertFalse(torch.isnan(p_st[st_m == 2]).any())
+
+            loss = mse_loss(
+                t_s_t,
+                t_sp,
+                t_t,
+                t_st,
                 p_s_t,
                 p_sp,
                 p_t,
                 p_st,
-                s_t_m_p,
-                sp_m_p,
-                t_m_p,
-                st_m_p,
-                patch_size=8,
-                loss_type=loss_type,
+                s_t_m[:, 0::patch_size, 0::patch_size],
+                sp_m[:, 0::patch_size, 0::patch_size],
+                t_m,
+                st_m,
             )
             self.assertFalse(torch.isnan(loss).any())
             loss.backward()
