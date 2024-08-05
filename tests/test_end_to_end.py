@@ -108,6 +108,20 @@ class TestEndtoEnd(unittest.TestCase):
             self.assertFalse(torch.isnan(p_t[t_m == 2]).any())
             self.assertFalse(torch.isnan(p_st[st_m == 2]).any())
 
+            self.assertTrue(
+                len(
+                    torch.concat(
+                        [
+                            p_s_t[s_t_m[:, 0::patch_size, 0::patch_size] == 2],
+                            p_sp[sp_m[:, 0::patch_size, 0::patch_size] == 2],
+                            p_t[t_m == 2],
+                            p_st[st_m == 2],
+                        ]
+                    )
+                    > 0
+                )
+            )
+
             loss = mse_loss(
                 t_s_t,
                 t_sp,
