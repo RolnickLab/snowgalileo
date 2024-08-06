@@ -102,6 +102,10 @@ class TestEndtoEnd(unittest.TestCase):
                     ~(st_m == 2).int(),
                     patch_size,
                 )
+                t_s_t = encoder.blocks[0].norm1(t_s_t)
+                t_sp = encoder.blocks[0].norm1(t_sp)
+                t_sp = encoder.blocks[0].norm1(t_sp)
+                t_st = encoder.blocks[0].norm1(t_st)
 
             self.assertFalse(torch.isnan(p_s_t[s_t_m[:, 0::patch_size, 0::patch_size] == 2]).any())
             self.assertFalse(torch.isnan(p_sp[sp_m[:, 0::patch_size, 0::patch_size] == 2]).any())
