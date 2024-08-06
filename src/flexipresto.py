@@ -13,6 +13,7 @@ from einops import rearrange, repeat
 from torch import Tensor, vmap
 from torch.jit import Final
 
+from .conditioner import ConditionalLinear
 from .config import BASE_GSD
 from .data import (
     SPACE_BAND_GROUPS_IDX,
@@ -221,14 +222,14 @@ class Attention(nn.Module):
 
         self.cross_attn = cross_attn
 
-        self.q = nn.Linear(dim, dim, bias=qkv_bias)
-        self.k = nn.Linear(dim, dim, bias=qkv_bias)
-        self.v = nn.Linear(dim, dim, bias=qkv_bias)
+        self.q = ConditionalLinear(dim, dim, bias=qkv_bias)
+        self.k = ConditionalLinear(dim, dim, bias=qkv_bias)
+        self.v = ConditionalLinear(dim, dim, bias=qkv_bias)
 
         self.q_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
         self.k_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
         self.attn_drop = nn.Dropout(attn_drop)
-        self.proj = nn.Linear(dim, dim)
+        self.proj = ConditionalLinear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
     def forward(self, x, y=None, attn_mask=None):
@@ -292,10 +293,10 @@ class Mlp(nn.Module):
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
 
-        self.fc1 = nn.Linear(in_features, hidden_features, bias=bias)
+        self.fc1 = ConditionalLinear(in_features, hidden_features, bias=bias)
         self.act = act_layer()
         self.drop1 = nn.Dropout(drop)
-        self.fc2 = nn.Linear(hidden_features, out_features, bias=bias)
+        self.fc2 = ConditionalLinear(hidden_features, out_features, bias=bias)
         self.drop2 = nn.Dropout(drop)
 
     def forward(self, x):
@@ -361,6 +362,15 @@ class Block(nn.Module):
         return x
 
 
+class ModuleListWithInit(nn.ModuleList):
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            # we use xavier_uniform following official JAX ViT:
+            torch.nn.init.xavier_uniform_(m.weight)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+
+
 class FlexiPrestoBase(nn.Module):
     cross_attn: bool
 
@@ -372,6 +382,7 @@ class FlexiPrestoBase(nn.Module):
         num_heads=8,
         max_sequence_length=24,
         base_patch_size: int = 4,
+        use_channel_embs: bool = True,
     ):
         super().__init__()
 
@@ -382,7 +393,7 @@ class FlexiPrestoBase(nn.Module):
         self.embedding_size = embedding_size
         self.base_patch_size = base_patch_size
 
-        self.blocks = nn.ModuleList(
+        self.blocks = ModuleListWithInit(
             [
                 Block(
                     embedding_size,
@@ -407,17 +418,21 @@ class FlexiPrestoBase(nn.Module):
         )
         month_tab = get_month_encoding_table(int(embedding_size * 0.25))
         self.month_embed = nn.Embedding.from_pretrained(month_tab, freeze=True)
+        if use_channel_embs:
+            args = {"requires_grad": True}
+        else:
+            args = {"requires_grad": False}
         self.s_t_channel_embed = nn.Parameter(
-            torch.zeros(len(SPACE_TIME_BANDS_GROUPS_IDX), int(embedding_size * 0.25))
+            torch.zeros(len(SPACE_TIME_BANDS_GROUPS_IDX), int(embedding_size * 0.25)), **args
         )
         self.sp_channel_embed = nn.Parameter(
-            torch.zeros(len(SPACE_BAND_GROUPS_IDX), int(embedding_size * 0.25))
+            torch.zeros(len(SPACE_BAND_GROUPS_IDX), int(embedding_size * 0.25)), **args
         )
         self.t_channel_embed = nn.Parameter(
-            torch.zeros(len(TIME_BAND_GROUPS_IDX), int(embedding_size * 0.25))
+            torch.zeros(len(TIME_BAND_GROUPS_IDX), int(embedding_size * 0.25)), **args
         )
         self.st_channel_embed = nn.Parameter(
-            torch.zeros(len(STATIC_BAND_GROUPS_IDX), int(embedding_size * 0.25))
+            torch.zeros(len(STATIC_BAND_GROUPS_IDX), int(embedding_size * 0.25)), **args
         )
 
         self.apply(self._init_weights)
@@ -491,6 +506,10 @@ class FlexiPrestoBase(nn.Module):
         st_c_g = st_x.shape[-2]
 
         s_t_channel = repeat(self.s_t_channel_embed, "c_g d -> b h w t c_g d", b=b, h=h, w=w, t=t)
+        t_channel = repeat(self.t_channel_embed, "c_g d -> b t c_g d", b=b, t=t)
+        st_channel = repeat(self.st_channel_embed, "c_g d -> b c_g d", b=b)
+        sp_channel = repeat(self.sp_channel_embed, "c_g d -> b h w c_g d", b=b, h=h, w=w)
+
         pos_embed_s_t = repeat(
             self.pos_embed[:t], "t d -> b h w t c_g d", b=b, h=h, w=w, c_g=s_t_c_g
         )
@@ -498,12 +517,10 @@ class FlexiPrestoBase(nn.Module):
             self.month_embed(months), "b t d -> b h w t c_g d", h=h, w=w, c_g=s_t_c_g
         )
 
-        t_channel = repeat(self.t_channel_embed, "c_g d -> b t c_g d", b=b, t=t)
         pos_embed_t = repeat(self.pos_embed[:t], "t d -> b t c_g d", b=b, c_g=t_c_g)
         m_embed_t = repeat(self.month_embed(months), "b t d -> b t c_g d", c_g=t_c_g)
         t_zeros = torch.zeros(b, t, t_c_g, int(self.embedding_size * 0.25), device=t_x.device)
 
-        sp_channel = repeat(self.sp_channel_embed, "c_g d -> b h w c_g d", b=b, h=h, w=w)
         sp_zeros = torch.zeros(
             b,
             h,
@@ -513,7 +530,6 @@ class FlexiPrestoBase(nn.Module):
             device=sp_channel.device,
         )
 
-        st_channel = repeat(self.st_channel_embed, "c_g d -> b c_g d", b=b)
         st_zeros = torch.zeros(b, st_c_g, st_channel.shape[-1] * 3, device=st_channel.device)
 
         # find the resolution that each token represents, which will be
@@ -554,6 +570,7 @@ class Encoder(FlexiPrestoBase):
         mlp_ratio=2,
         num_heads=8,
         max_sequence_length=24,
+        freeze_projections: bool = False,
         conditioner=None,
     ):
         super().__init__(
@@ -563,6 +580,7 @@ class Encoder(FlexiPrestoBase):
             num_heads,
             max_sequence_length,
             max_patch_size,
+            use_channel_embs=True,
         )
 
         self.space_time_embed = nn.ModuleDict(
@@ -593,15 +611,17 @@ class Encoder(FlexiPrestoBase):
                 for group_name, group in self.static_groups.items()
             }
         )
-
+        if freeze_projections:
+            self.space_time_embed.requires_grad_(False)
+            self.space_embed.requires_grad_(False)
+            self.time_embed.requires_grad_(False)
+            self.static_embed.requires_grad_(False)
         self.norm = nn.LayerNorm(embedding_size)
 
         self.apply(self._init_weights)
         self.conditioner = conditioner
-        if self.conditioner is not None:
-            self.no_condition_emb = nn.Parameter(
-                torch.zeros(1, 4, embedding_size)
-            )  # 4 since we have 4 condition tokens
+        if conditioner is not None:
+            self.conditioner.add_templates(self.blocks)
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -759,7 +779,6 @@ class Encoder(FlexiPrestoBase):
         months,
         patch_size,
         input_res,
-        c_i,
     ):
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
         sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
@@ -774,25 +793,11 @@ class Encoder(FlexiPrestoBase):
         new_m = m >= 1
         x, indices, new_m = self.remove_masked_tokens(x, new_m)  # new_m is shape (bsz, seq_len)
 
-        if self.conditioner is not None:
-            if c_i is not None:
-                condition = self.conditioner(**c_i).repeat(x.shape[0], 1, 1)  # shape (bsz, 4, dim)
-            else:
-                condition = self.no_condition_emb.repeat(x.shape[0], 1, 1)  # shape (bsz, 4, dim)
-
-            x = torch.cat([condition, x], dim=1)  # shape (bsz, seq_len + 4, dim)
-            one_mask = torch.tensor([[False]], device=new_m.device).repeat(x.shape[0], 4)
-            new_m = torch.cat([one_mask, new_m], dim=1)  # shape (bsz, seq_len + 4)
-
         for blk in self.blocks:
             # we take the inverse of the mask because a value
             # of True indicates the value *should* take part in
             # attention
             x = blk(x=x, y=None, attn_mask=~new_m.bool())
-
-        if self.conditioner is not None:
-            x = x[:, 4:, :]  # remove 4 condition tokens
-            new_m = new_m[:, 4:]  # remove mask, shape (bsz, seq_len)
 
         # we don't care about the mask returned by add_removed_tokens, since we will
         # just use the original, unclipped mask here
@@ -858,6 +863,9 @@ class Encoder(FlexiPrestoBase):
         c_i=None,
         input_resolution_m: Optional[int] = BASE_GSD,
     ):
+        if self.conditioner is not None:
+            self.apply_condition(c_i)
+
         (
             s_t_x,
             sp_x,
@@ -882,7 +890,6 @@ class Encoder(FlexiPrestoBase):
             months,
             patch_size,
             input_resolution_m,
-            c_i,
         )
 
         return (
@@ -909,6 +916,28 @@ class Encoder(FlexiPrestoBase):
         encoder.load_state_dict(torch.load(folder / ENCODER_FILENAME, map_location=device))
         return encoder
 
+    def apply_condition(self, c_i):
+        if c_i is not None:
+            conditional_weights = self.conditioner(**c_i)
+            for i, block in enumerate(self.blocks):
+                # block.attn.q.apply_condition(conditional_weights[f"{i}.attn.q.backbone.weight"])
+                # block.attn.k.apply_condition(conditional_weights[f"{i}.attn.k.backbone.weight"])
+                # block.attn.v.apply_condition(conditional_weights[f"{i}.attn.v.backbone.weight"])
+                block.attn.proj.apply_condition(
+                    conditional_weights[f"{i}.attn.proj.backbone.weight"],
+                    conditional_weights[f"{i}.attn.proj.backbone.bias"],
+                )
+                # block.mlp.fc1.apply_condition(conditional_weights[f"{i}.mlp.fc1.backbone.weight"])
+                # block.mlp.fc2.apply_condition(conditional_weights[f"{i}.mlp.fc2.backbone.weight"])
+        else:
+            for block in self.blocks:
+                # block.attn.q.apply_condition(None)
+                # block.attn.k.apply_condition(None)
+                # block.attn.v.apply_condition(None)
+                block.attn.proj.apply_condition(None, None)
+                # block.mlp.fc1.apply_condition(None)
+                # block.mlp.fc2.apply_condition(None)
+
 
 class PrestoPixelDecoder(FlexiPrestoBase):
     cross_attn = True
@@ -922,6 +951,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         num_heads=8,
         max_sequence_length=24,
         max_patch_size: int = 8,
+        conditioner=None,
     ):
         super().__init__(
             decoder_embedding_size,
@@ -930,38 +960,22 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             num_heads,
             max_sequence_length,
             max_patch_size,
+            use_channel_embs=False,
         )
-        self.encoder_to_decoder_embed = nn.Linear(
+        self.encoder_embedding_size = encoder_embedding_size
+        self.encoder_to_decoder_embed = ConditionalLinear(
             encoder_embedding_size, decoder_embedding_size, bias=True
         )
+        self.to_output_embed = nn.Linear(decoder_embedding_size, encoder_embedding_size, bias=True)
         self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
 
         self.max_patch_size = max_patch_size
-        self.space_time_embed = nn.ModuleDict(
-            {
-                group_name: nn.Linear(decoder_embedding_size, len(group) * max_patch_size**2)
-                for group_name, group in self.space_time_groups.items()
-            }
-        )
-        self.space_embed = nn.ModuleDict(
-            {
-                group_name: nn.Linear(decoder_embedding_size, len(group) * max_patch_size**2)
-                for group_name, group in self.space_groups.items()
-            }
-        )
-        self.time_embed = nn.ModuleDict(
-            {
-                group_name: nn.Linear(decoder_embedding_size, len(group))
-                for group_name, group in self.time_groups.items()
-            }
-        )
-        self.static_embed = nn.ModuleDict(
-            {
-                group_name: nn.Linear(decoder_embedding_size, len(group))
-                for group_name, group in self.static_groups.items()
-            }
-        )
+        self.input_norm = nn.LayerNorm(encoder_embedding_size)
         self.norm = nn.LayerNorm(decoder_embedding_size)
+        self.apply(self._init_weights)
+        self.conditioner = conditioner
+        if conditioner is not None:
+            self.conditioner.add_templates(self.encoder_to_decoder_embed)
 
     def add_masks(self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m):
         def to_kept_boolean(m: torch.Tensor):
@@ -1068,74 +1082,84 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         st_m: torch.Tensor,
         months: torch.Tensor,
         patch_size: Optional[int] = None,
+        c_i=None,
         input_resolution_m: Optional[int] = BASE_GSD,
     ):
-        s_t_x = self.encoder_to_decoder_embed(s_t_x)
-        sp_x = self.encoder_to_decoder_embed(sp_x)
-        t_x = self.encoder_to_decoder_embed(t_x)
-        st_x = self.encoder_to_decoder_embed(st_x)
+        if self.conditioner is not None:
+            self.apply_condition(c_i)
+
+        s_t_x = self.encoder_to_decoder_embed(self.input_norm(s_t_x))
+        sp_x = self.encoder_to_decoder_embed(self.input_norm(sp_x))
+        t_x = self.encoder_to_decoder_embed(self.input_norm(t_x))
+        st_x = self.encoder_to_decoder_embed(self.input_norm(st_x))
 
         s_t_x, sp_x, t_x, st_x = self.add_masks(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
         s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m = self.apply_attn(
             s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_resolution_m
         )
 
-        b, t_h, t_w, t, _, _ = s_t_x.shape
-        h, w = t_h * self.max_patch_size, t_w * self.max_patch_size
+        b, h, w, t, _, _ = s_t_x.shape
         output_s_t, output_sp, output_t, output_st = [], [], [], []
-        for idx, (group_name, c_g) in enumerate(self.space_time_groups.items()):
+        for idx in range(len(self.space_time_groups)):
             if s_t_m[:, :, :, :, idx].max() == 2:
-                # decoded has shape [b, h, w, t, len(c_g) * patch_size ** 2]
-                decoded = self.space_time_embed[group_name](self.norm(s_t_x[:, :, :, :, idx]))
-                output_s_t.append(
-                    rearrange(
-                        decoded,
-                        "b t_h t_w t (c_g p_h p_w) -> b (t_h p_h) (t_w p_w) t c_g",
-                        c_g=len(c_g),
-                        p_w=self.max_patch_size,
-                        p_h=self.max_patch_size,
-                    )
-                )
+                output_s_t.append(self.to_output_embed(self.norm(s_t_x[:, :, :, :, idx])))
             else:
                 output_s_t.append(
-                    torch.empty(b, h, w, t, len(c_g), dtype=s_t_x.dtype, device=s_t_x.device)
+                    torch.empty(
+                        b,
+                        h,
+                        w,
+                        t,
+                        self.encoder_embedding_size,
+                        dtype=s_t_x.dtype,
+                        device=s_t_x.device,
+                    )
                 )
 
-        for idx, (group_name, c_g) in enumerate(self.space_groups.items()):
+        for idx in range(len(self.space_groups)):
             # decoded has shape [b, h, w, len(c_g) * patch_size ** 2]
             if sp_m[:, :, :, idx].max() == 2:
-                decoded = self.space_embed[group_name](self.norm(sp_x[:, :, :, idx]))
+                output_sp.append(self.to_output_embed(self.norm(sp_x[:, :, :, idx])))
+            else:
                 output_sp.append(
-                    rearrange(
-                        decoded,
-                        "b t_h t_w (c_g p_h p_w) -> b (t_h p_h) (t_w p_w) c_g",
-                        c_g=len(c_g),
-                        p_w=self.max_patch_size,
-                        p_h=self.max_patch_size,
+                    torch.empty(
+                        b, h, w, self.encoder_embedding_size, dtype=sp_x.dtype, device=sp_x.device
                     )
                 )
+
+        for idx in range(len(self.time_groups)):
+            if t_m[:, :, idx].max() == 2:
+                output_t.append(self.encoder_to_decoder_embed(self.norm(t_x[:, :, idx])))
             else:
-                output_sp.append(
-                    torch.empty(b, h, w, len(c_g), dtype=sp_x.dtype, device=sp_x.device)
+                output_t.append(
+                    torch.empty(
+                        b, t, self.encoder_embedding_size, dtype=t_x.dtype, device=t_x.device
+                    )
                 )
 
-        for idx, (group_name, c_g) in enumerate(self.time_groups.items()):
-            if t_m[:, :, idx].max() == 2:
-                decoded = self.time_embed[group_name](self.norm(t_x[:, :, idx]))
-                output_t.append(decoded)
-            else:
-                output_t.append(torch.empty(b, t, len(c_g), dtype=t_x.dtype, device=t_x.device))
-
-        for idx, (group_name, c_g) in enumerate(self.static_groups.items()):
+        for idx in range(len(self.static_groups)):
             if st_m[:, idx].max() == 2:
-                decoded = self.static_embed[group_name](self.norm(st_x[:, idx]))
-                output_st.append(decoded)
+                output_st.append(self.encoder_to_decoder_embed(self.norm(st_x[:, idx])))
             else:
-                output_st.append(torch.empty(b, len(c_g), dtype=st_x.dtype, device=st_x.device))
+                output_st.append(
+                    torch.empty(
+                        b, self.encoder_embedding_size, dtype=st_x.dtype, device=st_x.device
+                    )
+                )
 
         return (
-            torch.cat(output_s_t, dim=-1),
-            torch.cat(output_sp, dim=-1),
-            torch.cat(output_t, dim=-1),
-            torch.cat(output_st, dim=-1),
+            torch.stack(output_s_t, dim=-2),  # shape = b h w t c_g, d
+            torch.stack(output_sp, dim=-2),
+            torch.stack(output_t, dim=-2),
+            torch.stack(output_st, dim=-2),
         )
+
+    def apply_condition(self, c_i):
+        if c_i is not None:
+            conditional_weights = self.conditioner(**c_i)
+            self.encoder_to_decoder_embed.apply_condition(
+                conditional_weights["backbone.weight"],
+                conditional_weights["backbone.bias"],
+            )
+        else:
+            self.encoder_to_decoder_embed.apply_condition(None, None)

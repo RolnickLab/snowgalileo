@@ -1,7 +1,7 @@
 import random
 from collections import OrderedDict
 from enum import Enum
-from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, Union
+from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
 import numpy as np
 import torch
@@ -33,7 +33,7 @@ STR2DICT = OrderedDict(
         "static": STATIC_BAND_GROUPS_IDX,
     }
 )
-MASKING_MODES: List[Union[str, Tuple[str, str]]] = [
+MASKING_MODES: List[Tuple[str, str]] = [
     ("space", "SRTM"),
     ("space", "DW"),
     ("space", "WC"),
@@ -47,6 +47,19 @@ MASKING_MODES: List[Union[str, Tuple[str, str]]] = [
     ("time", "ERA5"),
     ("time", "TC"),
     ("time", "VIIRS"),
+    ("static", "LS"),
+    ("static", "location"),
+    ("static", "DW_static"),
+    ("static", "WC_static"),
+]
+
+UNMASKING_CHANNEL_GROUPS: List[Tuple[str, str]] = [
+    ("space", "SRTM"),
+    ("space", "DW"),
+    ("space", "WC"),
+    ("space_time", "NDVI"),
+    ("time", "ERA5"),
+    ("time", "TC"),
     ("static", "LS"),
     ("static", "location"),
     ("static", "DW_static"),
@@ -115,7 +128,6 @@ def weighted_sample_without_replacement(population, weights, k, rng=random):
 def check_modes_for_conflicts(
     modes: List[Tuple[str, str]], unmasking_modes: List[Tuple[str, str]]
 ) -> Tuple[List[Tuple[str, str]], List[Tuple[str, str]]]:
-    assert len(unmasking_modes) == 1
     for u_mode in unmasking_modes:
         assert u_mode in MASKING_MODES
         if u_mode in modes:
@@ -156,31 +168,21 @@ def batch_subset_mask_presto(
     num_timesteps: int,
     augmentation_strategies: Optional[Dict],
     masking_probabilities: List[float],
-    unmasking_probabilities: List[float],
     masking_function: MaskingFunctions,
 ) -> Tuple[MaskedOutput, Optional[Dict]]:
-    assert len(masking_probabilities) == len(unmasking_probabilities) == len(MASKING_MODES)
+    assert len(masking_probabilities) == len(MASKING_MODES)
 
     conditioner_inputs: Optional[Dict] = {
-        "hw": image_size // patch_size,
-        "patch_size": patch_size,
-        "timesteps": num_timesteps,
-        "input_channels": torch.zeros(len(MASKING_MODES)).to(s_t_x.device),
-        "output_channels": torch.zeros(len(MASKING_MODES)).to(s_t_x.device),
-        "recon_objs": torch.zeros(NUM_RECON_OBJS).to(s_t_x.device),
+        "output_channels": torch.zeros(len(UNMASKING_CHANNEL_GROUPS)).to(s_t_x.device),
     }
 
     if masking_function.value < 2:
         f: Callable = batch_mask_space if masking_function.value == 1 else batch_mask_time
+        unmasking_modes = [random.choice(UNMASKING_CHANNEL_GROUPS)]
         num_masking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
-        num_unmasking_modes = 1
         masking_modes = weighted_sample_without_replacement(
             MASKING_MODES, weights=masking_probabilities, k=num_masking_modes
         )
-        unmasking_modes = weighted_sample_without_replacement(
-            MASKING_MODES, weights=unmasking_probabilities, k=num_unmasking_modes
-        )
-
         masking_modes, unmasking_modes = check_modes_for_conflicts(masking_modes, unmasking_modes)
         masked_output = f(
             *subset_and_augment_batch_of_images(
@@ -199,12 +201,11 @@ def batch_subset_mask_presto(
             mode=masking_modes,
             decoder_mode=unmasking_modes,
         )
-        for i, m in enumerate(MASKING_MODES):
-            if m in masking_modes:
-                conditioner_inputs["input_channels"][i] = 1  # type: ignore
-            elif m in unmasking_modes:
-                conditioner_inputs["output_channels"][i] = 1  # type: ignore
-        conditioner_inputs["recon_objs"][masking_function.value] = 1  # type: ignore
+        assert conditioner_inputs is not None
+        conditioner_inputs["output_channels"][
+            UNMASKING_CHANNEL_GROUPS.index(unmasking_modes[0])
+        ] = 1  # type: ignore
+
     elif masking_function.value == 2:
         # 2 is random
         masked_output = batch_mask_random(

@@ -157,24 +157,11 @@ class CropHarvestEvalBase(EvalTask):
         self.name = f"{name}{'_latlons' if include_latlons else ''}"
         super().__init__(patch_size, seed)
 
-        input_channels = [0] * len(MASKING_MODES)
         output_channels = [0] * len(MASKING_MODES)
         for i, val in enumerate(MASKING_MODES):
-            if "S2" in val[1]:
-                input_channels[i] = 1
-            elif val[1] in ["SRTM", "NDVI", "S1", "ERA5"]:
-                input_channels[i] = 1
-            elif val[1] == "WC":  # or WC_static?
+            if val[1] == "WC":  # should this be static or space?
                 output_channels[i] = 1
-
-        self.condition = {
-            "hw": 1,
-            "patch_size": 1,
-            "timesteps": 12,
-            "input_channels": torch.Tensor(input_channels).to(device),  # should be S2
-            "output_channels": torch.Tensor(output_channels).to(device),  # should be static DW
-            "recon_objs": torch.Tensor([1, 0]).to(device),  # should be batch mask time
-        }
+        self.condition = {"output_channels": torch.Tensor(output_channels).to(device)}
 
     @staticmethod
     def truncate_timesteps(x, num_timesteps: Optional[int]):
