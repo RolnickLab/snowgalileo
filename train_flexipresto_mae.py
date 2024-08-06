@@ -236,6 +236,10 @@ for e in tqdm(range(training_config["num_epochs"])):
                         ~(st_m == 2),
                         patch_size,
                     )
+                    t_s_t = encoder.blocks[0].norm1(t_s_t)
+                    t_sp = encoder.blocks[0].norm1(t_sp)
+                    t_sp = encoder.blocks[0].norm1(t_sp)
+                    t_st = encoder.blocks[0].norm1(t_st)
 
                 loss = mse_loss(
                     t_s_t,
