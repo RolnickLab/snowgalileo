@@ -1,6 +1,6 @@
 import unittest
 
-from src.conditioner import TokenConditioner
+from src.conditioner import LearnedMixture
 from src.flexipresto import Encoder, PrestoPixelDecoder
 from src.utils import config_dir, load_check_config
 
@@ -14,7 +14,7 @@ class TestConfigs(unittest.TestCase):
 
             # check we can load the models
             if loaded_config["training"]["use_conditions"]:
-                conditioner = TokenConditioner(**loaded_config["model"]["conditioner"])
+                conditioner = LearnedMixture(**loaded_config["model"]["conditioner"])
                 _ = Encoder(**loaded_config["model"]["encoder"], conditioner=conditioner)
                 _ = PrestoPixelDecoder(**loaded_config["model"]["decoder"])
             else:

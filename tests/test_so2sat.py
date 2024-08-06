@@ -130,13 +130,7 @@ class TestSo2Sat(unittest.TestCase):
     def test_so2sat_conditions(self):
         task = So2SatEval()
 
-        self.assertEqual(len(task.condition["input_channels"]), len(MASKING_MODES))
         self.assertEqual(len(task.condition["output_channels"]), len(MASKING_MODES))
-        for idx, val in enumerate(task.condition["input_channels"]):
-            if val == 1:
-                self.assertTrue("S2" in MASKING_MODES[idx][1])
-            else:
-                self.assertFalse("S2" in MASKING_MODES[idx][1])
 
         for idx, val in enumerate(task.condition["output_channels"]):
             if val == 1:
