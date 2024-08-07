@@ -40,6 +40,7 @@ def collated_batch_to_output(
     fixed_patch_size=None,
     fixed_space_time_combination=None,
     masking_probabilities=None,
+    unmasking_probabilities=None,
 ) -> CollateFnOutput:
     if fixed_patch_size is not None:
         patch_size = fixed_patch_size
@@ -74,6 +75,7 @@ def collated_batch_to_output(
         augmentation_strategies=augmentation_strategies,
         masking_probabilities=masking_probabilities,
         masking_function=masking_function,
+        unmasking_probabilities=unmasking_probabilities,
     )
 
     return CollateFnOutput(
@@ -102,6 +104,7 @@ def mae_collate_fn(
     fixed_patch_size=None,
     fixed_space_time_combination=None,
     masking_probabilities=None,
+    unmasking_probabilities=None,
 ) -> Tuple[CollateFnOutput, CollateFnOutput, CollateFnOutput, CollateFnOutput]:
     s_t_x, sp_x, t_x, st_x, months = default_collate(batch)
 
@@ -119,6 +122,7 @@ def mae_collate_fn(
         "fixed_space_time_combination": fixed_space_time_combination,
         "masking_probabilities": masking_probabilities,
         "shape_time_combinations": shape_time_combinations,
+        "unmasking_probabilities": unmasking_probabilities,
     }
     return (
         collated_batch_to_output(
