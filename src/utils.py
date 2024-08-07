@@ -101,6 +101,7 @@ def load_check_config(name: str, mode: str) -> Dict:
         "shape_time_combinations": list,
         "augmentation": dict,
         "masking_probabilities": list,
+        "unmasking_probabilities": list,
         "use_conditions": bool,
         "grad_clip": bool,
     }

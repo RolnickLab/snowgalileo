@@ -1,4 +1,5 @@
 from copy import deepcopy
+from typing import List
 
 import torch
 import torch.nn as nn
@@ -62,12 +63,20 @@ class LearnedMixture(nn.Module):
         # for t in self.e_templates:
         #     t.apply(t._init_weights)
 
+    @staticmethod
+    def average_modules(templates: List[nn.Module]):
+        output_dict = {}
+        weight = 1 / len(templates)
+        for ts in zip(*[t.named_parameters() for t in templates]):
+            name = ts[0][0]
+            new_weight = sum([weight * ts[i][1] for i in range(len(ts))])
+            assert new_weight is not None, f"{name} is None"
+            output_dict[name] = new_weight
+        return output_dict
+
     def forward(self, output_channels: torch.Tensor):
-        assert sum(output_channels) == 1, f"Expected one hot encoding got {output_channels}"
         assert len(output_channels) == self.num_templates
-        return {
-            key: val
-            for key, val in self.templates[
-                torch.argwhere(output_channels).item()
-            ].named_parameters()
-        }
+        selected_templates = []
+        for i in torch.argwhere(output_channels):
+            selected_templates.append(self.templates[i])
+        return self.average_modules(selected_templates)
