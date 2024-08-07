@@ -199,7 +199,7 @@ def batch_subset_mask_presto(
                     shape_modes.append(mode)
                     shape_probs.append(unmasking_probabilities[idx])
             unmasking_modes.append(
-                weighted_sample_without_replacement(shape_modes, shape_probs, 1)
+                weighted_sample_without_replacement(shape_modes, shape_probs, 1)[0]
             )
 
         masking_modes, unmasking_modes = check_modes_for_conflicts(masking_modes, unmasking_modes)
@@ -221,9 +221,8 @@ def batch_subset_mask_presto(
             decoder_mode=unmasking_modes,
         )
         assert conditioner_inputs is not None
-        conditioner_inputs["output_channels"][
-            UNMASKING_CHANNEL_GROUPS.index(unmasking_modes[0])
-        ] = 1  # type: ignore
+        for mode in unmasking_modes:
+            conditioner_inputs["output_channels"][UNMASKING_CHANNEL_GROUPS.index(mode)] = 1  # type: ignore
 
     elif masking_function.value == 2:
         # 2 is random
