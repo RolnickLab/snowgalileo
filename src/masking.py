@@ -33,6 +33,7 @@ STR2DICT = OrderedDict(
         "static": STATIC_BAND_GROUPS_IDX,
     }
 )
+SHAPES = list(STR2DICT.keys())
 MASKING_MODES: List[Tuple[str, str]] = [
     ("space", "SRTM"),
     ("space", "DW"),
@@ -180,15 +181,26 @@ def batch_subset_mask_presto(
 
     if masking_function.value < 2:
         f: Callable = batch_mask_space if masking_function.value == 1 else batch_mask_time
-        num_unmasking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
         num_masking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
-
         masking_modes = weighted_sample_without_replacement(
             MASKING_MODES, weights=masking_probabilities, k=num_masking_modes
         )
-        unmasking_modes = weighted_sample_without_replacement(
-            MASKING_MODES, weights=unmasking_probabilities, k=num_unmasking_modes
-        )
+
+        unmasking_modes, unmasking_shapes = [], [random.choice(SHAPES)]
+        for shape in SHAPES:
+            if shape != unmasking_shapes[0]:
+                if random.random() <= 0.5:
+                    unmasking_shapes.append(shape)
+
+        for shape in unmasking_shapes:
+            shape_modes, shape_probs = [], []
+            for idx, mode in enumerate(MASKING_MODES):
+                if mode[0] == shape:
+                    shape_modes.append(mode)
+                    shape_probs.append(unmasking_probabilities[idx])
+            unmasking_modes.append(
+                weighted_sample_without_replacement(shape_modes, shape_probs, 1)
+            )
 
         masking_modes, unmasking_modes = check_modes_for_conflicts(masking_modes, unmasking_modes)
         masked_output = f(
