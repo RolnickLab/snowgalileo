@@ -33,6 +33,7 @@ STR2DICT = OrderedDict(
         "static": STATIC_BAND_GROUPS_IDX,
     }
 )
+SHAPES = list(STR2DICT.keys())
 MASKING_MODES: List[Tuple[str, str]] = [
     ("space", "SRTM"),
     ("space", "DW"),
@@ -53,18 +54,7 @@ MASKING_MODES: List[Tuple[str, str]] = [
     ("static", "WC_static"),
 ]
 
-UNMASKING_CHANNEL_GROUPS: List[Tuple[str, str]] = [
-    ("space", "SRTM"),
-    ("space", "DW"),
-    ("space", "WC"),
-    ("space_time", "NDVI"),
-    ("time", "ERA5"),
-    ("time", "TC"),
-    ("static", "LS"),
-    ("static", "location"),
-    ("static", "DW_static"),
-    ("static", "WC_static"),
-]
+UNMASKING_CHANNEL_GROUPS: List[Tuple[str, str]] = MASKING_MODES
 
 MAX_MASKING_STRATEGIES = 6
 NUM_RECON_OBJS = 2
@@ -128,15 +118,27 @@ def weighted_sample_without_replacement(population, weights, k, rng=random):
 def check_modes_for_conflicts(
     modes: List[Tuple[str, str]], unmasking_modes: List[Tuple[str, str]]
 ) -> Tuple[List[Tuple[str, str]], List[Tuple[str, str]]]:
-    for u_mode in unmasking_modes:
-        assert u_mode in MASKING_MODES
-        if u_mode in modes:
-            modes.remove(u_mode)
+    output_modes: List[Tuple[str, str]] = []
+    for mode in modes:
+        assert mode in MASKING_MODES
+        if mode in unmasking_modes:
+            if len(unmasking_modes) == 1:
+                # don't remove any more from the unmasking modes
+                continue
+            elif len(output_modes) == 0:
+                output_modes.append(mode)
+                unmasking_modes.remove(mode)
+            else:
+                # neither modes or unmasking_modes are bottlenecked;
+                # randomly select which one to remove
+                if random.random() <= 0.5:
+                    output_modes.append(mode)
+                    unmasking_modes.remove(mode)
         else:
-            continue
-    assert len(modes) >= 1
+            output_modes.append(mode)
+    assert len(output_modes) >= 1
     assert len(unmasking_modes) >= 1
-    return modes, unmasking_modes
+    return output_modes, unmasking_modes
 
 
 def check_mode_and_return_channels(unmasking_modes: List[Tuple[str, str]]):
@@ -168,6 +170,7 @@ def batch_subset_mask_presto(
     num_timesteps: int,
     augmentation_strategies: Optional[Dict],
     masking_probabilities: List[float],
+    unmasking_probabilities: List[float],
     masking_function: MaskingFunctions,
 ) -> Tuple[MaskedOutput, Optional[Dict]]:
     assert len(masking_probabilities) == len(MASKING_MODES)
@@ -178,11 +181,27 @@ def batch_subset_mask_presto(
 
     if masking_function.value < 2:
         f: Callable = batch_mask_space if masking_function.value == 1 else batch_mask_time
-        unmasking_modes = [random.choice(UNMASKING_CHANNEL_GROUPS)]
         num_masking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
         masking_modes = weighted_sample_without_replacement(
             MASKING_MODES, weights=masking_probabilities, k=num_masking_modes
         )
+
+        unmasking_modes, unmasking_shapes = [], [random.choice(SHAPES)]
+        for shape in SHAPES:
+            if shape != unmasking_shapes[0]:
+                if random.random() <= 0.5:
+                    unmasking_shapes.append(shape)
+
+        for shape in unmasking_shapes:
+            shape_modes, shape_probs = [], []
+            for idx, mode in enumerate(MASKING_MODES):
+                if mode[0] == shape:
+                    shape_modes.append(mode)
+                    shape_probs.append(unmasking_probabilities[idx])
+            unmasking_modes.append(
+                weighted_sample_without_replacement(shape_modes, shape_probs, 1)[0]
+            )
+
         masking_modes, unmasking_modes = check_modes_for_conflicts(masking_modes, unmasking_modes)
         masked_output = f(
             *subset_and_augment_batch_of_images(
@@ -202,9 +221,8 @@ def batch_subset_mask_presto(
             decoder_mode=unmasking_modes,
         )
         assert conditioner_inputs is not None
-        conditioner_inputs["output_channels"][
-            UNMASKING_CHANNEL_GROUPS.index(unmasking_modes[0])
-        ] = 1  # type: ignore
+        for mode in unmasking_modes:
+            conditioner_inputs["output_channels"][UNMASKING_CHANNEL_GROUPS.index(mode)] = 1  # type: ignore
 
     elif masking_function.value == 2:
         # 2 is random

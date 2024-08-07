@@ -21,6 +21,7 @@ class TestConditioner(unittest.TestCase):
             "output_channels": torch.zeros(len(UNMASKING_CHANNEL_GROUPS)).float()
         }
         conditioner_inputs["output_channels"][0] = 1
+        conditioner_inputs["output_channels"][1] = 1
 
         masked_output, patch_size = self.construct_inputs()
         encoder_output = encoder(
@@ -39,7 +40,7 @@ class TestConditioner(unittest.TestCase):
         decoder_output = decoder(*encoder_output, c_i=conditioner_inputs)
         sum([d.sum() for d in decoder_output]).backward()
 
-        for t_i, t in enumerate(encoder.conditioner.templates[0]):
+        for t_i, t in enumerate(encoder.conditioner.templates[:2]):
             for n, p in t.named_parameters():
                 if "proj" in n:
                     self.assertTrue(
@@ -49,13 +50,14 @@ class TestConditioner(unittest.TestCase):
                     self.assertTrue(
                         p.grad is None, f"{t_i}, {n} has an unexpectedly not None grad"
                     )
-        for t_i, t in enumerate(encoder.conditioner.templates[1:]):
+        for t_i, t in enumerate(encoder.conditioner.templates[2:]):
             for p in t.parameters():
                 self.assertTrue(p.grad is None, f"{t_i}, {n} has an unexpectedly not None grad")
 
-        for n, p in decoder.conditioner.templates[0].named_parameters():
-            self.assertTrue(p.grad is not None, f"0, {n} has an unexpectedly None grad")
-        for t_i, t in enumerate(decoder.conditioner.templates[1:]):
+        for t_i, t in enumerate(decoder.conditioner.templates[:2]):
+            for n, p in t.named_parameters():
+                self.assertTrue(p.grad is not None, f"{t_i}, {n} has an unexpectedly None grad")
+        for t_i, t in enumerate(decoder.conditioner.templates[2:]):
             for n, p in t.named_parameters():
                 self.assertTrue(p.grad is None, f"{t_i}, {n} has an unexpectedly not None grad")
 
