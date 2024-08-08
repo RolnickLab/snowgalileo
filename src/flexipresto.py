@@ -658,61 +658,61 @@ class Encoder(FlexiPrestoBase):
         s_t_l, sp_l, t_l, st_l, s_t_m_l, sp_m_l, t_m_l, st_m_l = [], [], [], [], [], [], [], []
         for idx, (channel_group, channel_idxs) in enumerate(self.space_time_groups.items()):
             s_t_m_l.append(s_t_m[:, 0::patch_size, 0::patch_size, :, idx])
-            if s_t_m_l[-1].min() == 0:
-                s_t_l.append(
-                    self.space_time_embed[channel_group](
-                        s_t_x[:, :, :, :, channel_idxs], patch_size=patch_size
-                    )
+            # if s_t_m_l[-1].min() == 0:
+            s_t_l.append(
+                self.space_time_embed[channel_group](
+                    s_t_x[:, :, :, :, channel_idxs], patch_size=patch_size
                 )
-            else:
-                s_t_l.append(
-                    torch.empty(
-                        b,
-                        new_h,
-                        new_w,
-                        t,
-                        self.embedding_size,
-                        dtype=s_t_x.dtype,
-                        device=s_t_x.device,
-                    )
-                )
+            )
+            # else:
+            #     s_t_l.append(
+            #         torch.empty(
+            #             b,
+            #             new_h,
+            #             new_w,
+            #             t,
+            #             self.embedding_size,
+            #             dtype=s_t_x.dtype,
+            #             device=s_t_x.device,
+            #         )
+            #     )
         for idx, (channel_group, channel_idxs) in enumerate(self.space_groups.items()):
             sp_m_l.append(sp_m[:, 0::patch_size, 0::patch_size, idx])
-            if sp_m_l[-1].min() == 0:
-                sp_l.append(
-                    self.space_embed[channel_group](
-                        sp_x[:, :, :, channel_idxs], patch_size=patch_size
-                    )
+            # if sp_m_l[-1].min() == 0:
+            sp_l.append(
+                self.space_embed[channel_group](
+                    sp_x[:, :, :, channel_idxs], patch_size=patch_size
                 )
-            else:
-                sp_l.append(
-                    torch.empty(
-                        b,
-                        new_h,
-                        new_w,
-                        self.embedding_size,
-                        dtype=sp_x.dtype,
-                        device=sp_x.device,
-                    )
-                )
+            )
+            # else:
+            #     sp_l.append(
+            #         torch.empty(
+            #             b,
+            #             new_h,
+            #             new_w,
+            #             self.embedding_size,
+            #             dtype=sp_x.dtype,
+            #             device=sp_x.device,
+            #         )
+            #     )
 
         for idx, (channel_group, channel_idxs) in enumerate(self.time_groups.items()):
             t_m_l.append(t_m[:, :, idx])
-            if t_m_l[-1].min() == 0:
-                t_l.append(self.time_embed[channel_group](t_x[:, :, channel_idxs]))
-            else:
-                t_l.append(
-                    torch.empty(b, t, self.embedding_size, dtype=t_x.dtype, device=t_x.device)
-                )
+            # if t_m_l[-1].min() == 0:
+            t_l.append(self.time_embed[channel_group](t_x[:, :, channel_idxs]))
+            # else:
+            #     t_l.append(
+            #         torch.empty(b, t, self.embedding_size, dtype=t_x.dtype, device=t_x.device)
+            #     )
 
         for idx, (channel_group, channel_idxs) in enumerate(self.static_groups.items()):
             st_m_l.append(st_m[:, idx])
-            if st_m_l[-1].min() == 0:
-                st_l.append(self.static_embed[channel_group](st_x[:, channel_idxs]))
-            else:
-                st_l.append(
-                    torch.empty(b, self.embedding_size, dtype=st_x.dtype, device=st_x.device)
-                )
+            # if st_m_l[-1].min() == 0:
+            st_l.append(self.static_embed[channel_group](st_x[:, channel_idxs]))
+            # else:
+            #     st_l.append(
+            #         torch.empty(b, self.embedding_size, dtype=st_x.dtype, device=st_x.device)
+            #     )
 
         return (
             torch.stack(s_t_l, dim=-2),
