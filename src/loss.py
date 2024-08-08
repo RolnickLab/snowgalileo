@@ -54,6 +54,13 @@ def debug_print(name, tensor):
     print(f"{name} - min: {tensor.min().item():.4f}, max: {tensor.max().item():.4f}, mean: {tensor.mean().item():.4f}, contains NaN: {torch.isnan(tensor).any().item()}")
 
 
+def seq_and_cat(s_t, sp, t, st):
+    s_t = rearrange(s_t, "b h w t c_g d -> b (h w t c_g) d")
+    sp = rearrange(sp, "b h w c_g d -> b (h w c_g) d")
+    t = rearrange(t, "b t c_g d -> b (t c_g) d")
+    # st is already a sequence
+    return torch.cat([s_t, sp, t, st], dim=1)
+
 def patch_disc_loss(
     t_s_t,
     t_sp,
@@ -85,25 +92,26 @@ def patch_disc_loss(
     all_masks_squeezed = all_masks.squeeze(-1)  # (bsz, seq_len)
     row_mask = all_masks_squeezed.unsqueeze(2)  # (bsz, seq_len, 1)
     col_mask = all_masks_squeezed.unsqueeze(1)  #  (bsz, 1, seq_len)
-    logit_mask = (row_mask | col_mask) * -torch.finfo(torch.bfloat16).max
+    mask_intersection = row_mask & col_mask  #  (bsz, seq_len, seq_len)
+    logit_mask = ((mask_intersection)*-1 + 1) * -1_000_000
+
+    counts = torch.sqrt(mask_intersection.sum(dim=-1).sum(dim=-1))
 
     bs, nt, d = all_preds.shape
-    
-    # if pred2unit:
-    #     pred_mu = all_preds.mean(1, keepdims=True)
-    #     pred_std = all_preds.std(1, keepdims=True)
-    #     all_preds = (all_preds - pred_mu) / (pred_std + 1e-4)
 
     all_preds = F.normalize(all_preds, p=2, dim=-1)
     all_targets = F.normalize(all_targets, p=2, dim=-1)
 
     scores = torch.einsum('npd,nqd->npq', all_preds, all_targets) / tau
-    scores = scores + logit_mask
+    scores_sm = (scores + logit_mask).softmax(dim=-1)
 
-    labels = torch.arange(nt, dtype=torch.long, device=all_preds.device)[None].repeat(bs, 1)
-    loss = F.cross_entropy(scores.flatten(0, 1), labels.flatten(0, 1)) * (tau * 2)
+    eyye = torch.eye(nt, dtype=torch.float, device=scores.device)[None].repeat(bs, 1, 1)
 
-    return loss
+    neg_log = -torch.log(scores_sm + 0.000001) * mask_intersection
+    custom_ce_loss = (tau * 2) * (neg_log * eyye).sum(dim=-1).sum(dim=-1) / counts
+    custom_ce_loss = custom_ce_loss.mean()
+    return custom_ce_loss
+
 
 
 def remove_masks_and_cat(
@@ -195,6 +203,7 @@ def patch_disc_loss_slow(
         target = F.normalize(target, p=2, dim=-1)
 
         scores = torch.einsum('npd,nqd->npq', pred, target) / tau
+
         labels = torch.arange(nt, dtype=torch.long, device=pred.device)[None].repeat(bs, 1)
         loss += F.cross_entropy(scores.flatten(0, 1), labels.flatten(0, 1)) * (tau * 2)
     

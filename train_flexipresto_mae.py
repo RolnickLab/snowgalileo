@@ -39,7 +39,7 @@ from src.eval import (
 )
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
-from src.loss import mse_loss
+from src.loss import mse_loss, patch_disc_loss_slow, patch_disc_loss
 from src.utils import (
     AverageMeter,
     data_dir,
@@ -69,7 +69,7 @@ tracker.start()
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--config_file", type=str, default="small.json")
-argparser.add_argument("--cache_folder", type=str, default="")
+argparser.add_argument("--cache_folder", type=str, default="/4tb/")
 args = argparser.parse_args().__dict__
 
 if args["cache_folder"] == "":
@@ -81,13 +81,13 @@ config = load_check_config(args["config_file"], "mae")
 training_config = config["training"]
 
 run_id = None
-wandb_enabled = True
+wandb_enabled = False
 wandb_org = "nasa-harvest"
 output_dir = Path(__file__).parent
 
 
 print("Loading dataset and dataloader")
-dataset = Dataset(TIFS_FOLDER, download=False, h5py_folder=cache_folder / "h5pys", h5pys_only=True)
+dataset = Dataset(TIFS_FOLDER, download=False, h5py_folder=cache_folder, h5pys_only=True)
 dataloader = DataLoader(
     dataset,
     batch_size=training_config["batch_size"],
@@ -242,7 +242,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                     t_sp = encoder.blocks[0].norm1(t_sp)
                     t_st = encoder.blocks[0].norm1(t_st)
 
-                loss = mse_loss(
+                loss = patch_disc_loss_slow(
                     t_s_t,
                     t_sp,
                     t_t,
@@ -256,6 +256,23 @@ for e in tqdm(range(training_config["num_epochs"])):
                     t_m,
                     st_m,
                 )
+
+                loss_fast = patch_disc_loss(
+                    t_s_t,
+                    t_sp,
+                    t_t,
+                    t_st,
+                    p_s_t,
+                    p_sp,
+                    p_t,
+                    p_st,
+                    s_t_m[:, 0::patch_size, 0::patch_size],
+                    sp_m[:, 0::patch_size, 0::patch_size],
+                    t_m,
+                    st_m,
+                )
+                print(loss, loss_fast)
+                exit()
 
             train_loss.update(loss.item(), n=s_t_x.shape[0])
             if c_i is not None:
