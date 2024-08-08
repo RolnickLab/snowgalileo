@@ -50,17 +50,6 @@ def seq_and_cat(s_t, sp, t, st):
     return torch.cat([s_t, sp, t, st], dim=1)
 
 
-def debug_print(name, tensor):
-    print(f"{name} - min: {tensor.min().item():.4f}, max: {tensor.max().item():.4f}, mean: {tensor.mean().item():.4f}, contains NaN: {torch.isnan(tensor).any().item()}")
-
-
-def seq_and_cat(s_t, sp, t, st):
-    s_t = rearrange(s_t, "b h w t c_g d -> b (h w t c_g) d")
-    sp = rearrange(sp, "b h w c_g d -> b (h w c_g) d")
-    t = rearrange(t, "b t c_g d -> b (t c_g) d")
-    # st is already a sequence
-    return torch.cat([s_t, sp, t, st], dim=1)
-
 def patch_disc_loss(
     t_s_t,
     t_sp,
