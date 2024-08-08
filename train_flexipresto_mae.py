@@ -242,7 +242,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                     t_sp = encoder.blocks[0].norm1(t_sp)
                     t_st = encoder.blocks[0].norm1(t_st)
 
-                loss = patch_disc_loss_slow(
+                loss = mse_loss(
                     t_s_t,
                     t_sp,
                     t_t,
@@ -256,23 +256,6 @@ for e in tqdm(range(training_config["num_epochs"])):
                     t_m,
                     st_m,
                 )
-
-                loss_fast = patch_disc_loss(
-                    t_s_t,
-                    t_sp,
-                    t_t,
-                    t_st,
-                    p_s_t,
-                    p_sp,
-                    p_t,
-                    p_st,
-                    s_t_m[:, 0::patch_size, 0::patch_size],
-                    sp_m[:, 0::patch_size, 0::patch_size],
-                    t_m,
-                    st_m,
-                )
-                print(loss, loss_fast)
-                exit()
 
             train_loss.update(loss.item(), n=s_t_x.shape[0])
             if c_i is not None:
