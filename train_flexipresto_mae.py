@@ -14,7 +14,7 @@ from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
 from src.collate_fns import MaskingFunctions, mae_collate_fn
-from src.conditioner import LearnedMixture
+from src.conditioner import LearnedMixture, LoRAGenerator
 from src.config import DEFAULT_SEED
 from src.data import Dataset
 from src.data.config import (
@@ -69,8 +69,8 @@ autocast_device = torch.bfloat16 if is_bf16_available() else torch.float32
 tracker.start()
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument("--config_file", type=str, default="small.json")
-argparser.add_argument("--cache_folder", type=str, default="")
+argparser.add_argument("--config_file", type=str, default="medium.json")
+argparser.add_argument("--cache_folder", type=str, default="/4tb/")
 args = argparser.parse_args().__dict__
 
 if args["cache_folder"] == "":
@@ -110,12 +110,24 @@ print("Loading models")
 predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
 if "conditioner" in config["model"]:
     eval_w_condition = True
-    conditioner = LearnedMixture(**config["model"]["conditioner"]).to(device)
-    decoder_conditioner = LearnedMixture(**config["model"]["conditioner"])
+
+    if training_config["conditioner_mode"] == "moe":
+        conditioner = LearnedMixture(**config["model"]["conditioner"]).to(device)
+        decoder_conditioner = LearnedMixture(**config["model"]["conditioner"])
+    else:
+        conditioner = LoRAGenerator(**config["model"]["conditioner"]).to(device)
+        decoder_conditioner = None
+
     encoder = Encoder(**config["model"]["encoder"], conditioner=conditioner).to(device)
     predictor = PrestoPixelDecoder(
         **config["model"]["decoder"], conditioner=decoder_conditioner
     ).to(device)
+
+    if decoder_conditioner is not None:
+        decoder_conditioner_params = [p for p in predictor.conditioner.parameters()]
+    else:
+        decoder_conditioner_params = []
+
     param_groups = [
         {
             "params": [p for n, p in encoder.named_parameters() if "conditioner" not in n],
@@ -129,7 +141,7 @@ if "conditioner" in config["model"]:
         },
         {
             "params": [p for p in encoder.conditioner.parameters()]
-            + [p for p in predictor.conditioner.parameters()],
+            + decoder_conditioner_params,
             "name": "conditioner",
             "weight_decay": training_config["conditioner_weight_decay"],
         },

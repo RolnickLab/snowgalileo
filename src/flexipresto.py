@@ -634,7 +634,8 @@ class Encoder(FlexiPrestoBase):
         self.apply(self._init_weights)
         self.conditioner = conditioner
         if conditioner is not None:
-            self.conditioner.add_templates(self.blocks)
+            if conditioner.mode == "moe":
+                self.conditioner.add_templates(self.blocks)
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -944,26 +945,55 @@ class Encoder(FlexiPrestoBase):
         return encoder
 
     def apply_condition(self, c_i):
-        if c_i is not None:
-            conditional_weights = self.conditioner(**c_i)
-            for i, block in enumerate(self.blocks):
-                # block.attn.q.apply_condition(conditional_weights[f"{i}.attn.q.backbone.weight"])
-                # block.attn.k.apply_condition(conditional_weights[f"{i}.attn.k.backbone.weight"])
-                # block.attn.v.apply_condition(conditional_weights[f"{i}.attn.v.backbone.weight"])
-                block.attn.proj.apply_condition(
-                    conditional_weights[f"{i}.attn.proj.backbone.weight"],
-                    conditional_weights[f"{i}.attn.proj.backbone.bias"],
-                )
-                # block.mlp.fc1.apply_condition(conditional_weights[f"{i}.mlp.fc1.backbone.weight"])
-                # block.mlp.fc2.apply_condition(conditional_weights[f"{i}.mlp.fc2.backbone.weight"])
+        if self.conditioner.mode == "moe":
+            if c_i is not None:
+                conditional_weights = self.conditioner(**c_i)
+                for i, block in enumerate(self.blocks):
+                    # block.attn.q.apply_condition(conditional_weights[f"{i}.attn.q.backbone.weight"])
+                    # block.attn.k.apply_condition(conditional_weights[f"{i}.attn.k.backbone.weight"])
+                    # block.attn.v.apply_condition(conditional_weights[f"{i}.attn.v.backbone.weight"])
+                    block.attn.proj.apply_condition(
+                        conditional_weights[f"{i}.attn.proj.backbone.weight"],
+                        conditional_weights[f"{i}.attn.proj.backbone.bias"],
+                        "moe",
+                    )
+                    # block.mlp.fc1.apply_condition(conditional_weights[f"{i}.mlp.fc1.backbone.weight"])
+                    # block.mlp.fc2.apply_condition(conditional_weights[f"{i}.mlp.fc2.backbone.weight"])
+            else:
+                for block in self.blocks:
+                    # block.attn.q.apply_condition(None)
+                    # block.attn.k.apply_condition(None)
+                    # block.attn.v.apply_condition(None)
+                    block.attn.proj.apply_condition(None, None, "moe")
+                    # block.mlp.fc1.apply_condition(None)
+                    # block.mlp.fc2.apply_condition(None)
+
+        elif self.conditioner.mode == "lora":
+            if c_i is not None:
+                conditional_weights = self.conditioner(**c_i)
+                for block in self.blocks:
+                    if "q" in conditional_weights:
+                        block.attn.q.apply_condition(conditional_weights["q"], None, "lora")
+                    if "k" in conditional_weights:
+                        block.attn.k.apply_condition(conditional_weights["k"], None, "lora")
+                    if "v" in conditional_weights:
+                        block.attn.v.apply_condition(conditional_weights["v"], None, "lora")
+                    if "proj" in conditional_weights:
+                        block.attn.proj.apply_condition(conditional_weights["proj"], None, "lora")
+                    if "fc1" in conditional_weights:
+                        block.mlp.fc1.apply_condition(conditional_weights["fc1"], None, "lora")
+                    if "fc2" in conditional_weights:
+                        block.mlp.fc2.apply_condition(conditional_weights["fc2"], None, "lora")
+            else:
+                for block in self.blocks:
+                    block.attn.q.apply_condition(None, None, "lora")
+                    block.attn.k.apply_condition(None, None, "lora")
+                    block.attn.v.apply_condition(None, None, "lora")
+                    block.attn.proj.apply_condition(None, None, "lora")
+                    block.mlp.fc1.apply_condition(None, None, "lora")
+                    block.mlp.fc2.apply_condition(None, None, "lora")
         else:
-            for block in self.blocks:
-                # block.attn.q.apply_condition(None)
-                # block.attn.k.apply_condition(None)
-                # block.attn.v.apply_condition(None)
-                block.attn.proj.apply_condition(None, None)
-                # block.mlp.fc1.apply_condition(None)
-                # block.mlp.fc2.apply_condition(None)
+            raise f"Called apply_condition but self.conditioner.is_type is {self.conditioner.is_type}"
 
 
 class PrestoPixelDecoder(FlexiPrestoBase):
@@ -1002,7 +1032,8 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         self.apply(self._init_weights)
         self.conditioner = conditioner
         if conditioner is not None:
-            self.conditioner.add_templates(self.encoder_to_decoder_embed)
+            if conditioner.mode == "moe":
+                self.conditioner.add_templates(self.encoder_to_decoder_embed)
 
     def add_masks(self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m):
         def to_kept_boolean(m: torch.Tensor):

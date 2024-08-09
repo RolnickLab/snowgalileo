@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from einops import rearrange
-from timm import Mlp
+from timm.layers import Mlp
 
 
 class ConditionalLinear(nn.Module):
@@ -13,7 +13,6 @@ class ConditionalLinear(nn.Module):
         self,
         in_features: int,
         out_features: int,
-        mode: str,
         bias: bool = True,
     ):
         """
@@ -25,14 +24,12 @@ class ConditionalLinear(nn.Module):
         (Renamed from LoRALinear to ConditionalLinear since the Conditioner now supports full-rank)
         """
         super(ConditionalLinear, self).__init__()
-        assert mode in ["moe", "lora"], f"mode must be moe or lora, not {mode}"
-
         self.backbone = nn.Linear(in_features, out_features, bias=bias)
         self.conditional_weights = None
         self.conditional_bias = None
-        self.mode = mode
 
-    def apply_condition(self, conditional_weights, conditional_bias):
+    def apply_condition(self, conditional_weights, conditional_bias, mode):
+        self.mode = mode
         self.conditional_weights = conditional_weights
         self.conditional_bias = conditional_bias
         if self.conditional_weights is not None:
@@ -60,7 +57,7 @@ class ConditionalLinear(nn.Module):
             elif self.mode == "lora":
                 return F.linear(
                     x,
-                    (self.backbone.weight + self.conditional_weights),
+                    self.backbone.weight + self.conditional_weights,
                     self.backbone.bias,
                 )
             else:
@@ -73,6 +70,7 @@ class ConditionalLinear(nn.Module):
 class LearnedMixture(nn.Module):
     def __init__(self, num_output_channels: int):
         super().__init__()
+        self.mode = "moe"
         self.num_templates = num_output_channels
         self.templates: nn.ModuleList = nn.ModuleList()
 
@@ -145,20 +143,21 @@ class LoRAGenerator(nn.Module):
         dim: int, 
         backbone_dim: int,
         rank: int,
-        num_channels: int,  # channel *groups*
+        num_output_channels: int,
         param_types: List[str] = ["q", "k", "v"],
     ):
         super().__init__()
 
+        self.mode = "lora"
         self.dim = dim
         self.backbone_dim = backbone_dim
         self.rank = rank
-        self.num_channels = num_channels
+        self.num_channels = num_output_channels
         self.param_types = param_types
         self.sequence_length = sum([2 * rank for _ in param_types])
  
         ##### create conditioner network parameters #####
-        self.target_embedder = nn.Linear(num_channels, backbone_dim)
+        self.target_embedder = nn.Linear(self.num_channels, backbone_dim)
         self.embedding = nn.Embedding(self.sequence_length, dim)
         self.blocks = nn.Sequential(*[MLPBlock(dim=dim) for _ in range(4)])
         

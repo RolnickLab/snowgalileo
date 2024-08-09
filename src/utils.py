@@ -102,7 +102,6 @@ def load_check_config(name: str, mode: str) -> Dict:
         "augmentation": dict,
         "masking_probabilities": list,
         "unmasking_probabilities": list,
-        "use_conditions": bool,
         "grad_clip": bool,
     }
     training_dict = config["training"]
@@ -157,8 +156,15 @@ def load_check_config(name: str, mode: str) -> Dict:
         "embedding_size"
     )
 
-    if config["training"]["use_conditions"]:
+    assert config["training"]["conditioner_mode"] in ["mode", "lora", "no_cond"]
+    if config["training"]["conditioner_mode"] == "moe":
+        # when using moe, we don't provide a config
         config["model"]["conditioner"] = {"num_output_channels": len(UNMASKING_CHANNEL_GROUPS)}
+    elif config["training"]["conditioner_mode"] == "lora":
+        # when using lora, we already have a conditioner config
+        config["model"]["conditioner"]["num_output_channels"] = len(UNMASKING_CHANNEL_GROUPS)
+    else:
+        assert "conditioner" not in config["model"].keys()
     return config
 
 
