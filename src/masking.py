@@ -189,7 +189,7 @@ def batch_subset_mask_presto(
         unmasking_modes, unmasking_shapes = [], [random.choice(SHAPES)]
         for shape in SHAPES:
             if shape != unmasking_shapes[0]:
-                if random.random() <= 0.5:
+                if random.random() <= decode_ratio:
                     unmasking_shapes.append(shape)
 
         for shape in unmasking_shapes:
