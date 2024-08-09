@@ -163,8 +163,8 @@ def batch_subset_mask_presto(
     t_x: torch.Tensor,
     st_x: torch.Tensor,
     months: torch.Tensor,
-    mask_ratio: float,
-    decoder_unmask_ratio: float,
+    encode_ratio: float,
+    decode_ratio: float,
     patch_size: int,
     image_size: int,
     num_timesteps: int,
@@ -214,8 +214,8 @@ def batch_subset_mask_presto(
                 num_timesteps=num_timesteps,
                 augmentation_strategies=augmentation_strategies,
             ),
-            mask_ratio=mask_ratio,
-            decoder_unmask_ratio=decoder_unmask_ratio,
+            encode_ratio=encode_ratio,
+            decode_ratio=decode_ratio,
             patch_size=patch_size,
             mode=masking_modes,
             decoder_mode=unmasking_modes,
@@ -237,8 +237,8 @@ def batch_subset_mask_presto(
                 num_timesteps=num_timesteps,
                 augmentation_strategies=augmentation_strategies,
             ),
-            mask_ratio=mask_ratio,
-            decoder_unmask_ratio=decoder_unmask_ratio,
+            encode_ratio=encode_ratio,
+            decode_ratio=decode_ratio,
             patch_size=patch_size,
         )
         conditioner_inputs = None
@@ -302,12 +302,11 @@ def subset_and_augment_batch_of_images(
 
 
 def _random_mask_for_b(
-    b: int, device: torch.device, mask_ratio: float, decoder_unmask_ratio: float
+    b: int, device: torch.device, encode_ratio: float, decode_ratio: float
 ) -> torch.Tensor:
     mask = torch.rand(b, device=device)
-    total_masked_tokens_ratio = mask_ratio + decoder_unmask_ratio
-    mask[mask >= total_masked_tokens_ratio] = 0
-    mask[mask <= decoder_unmask_ratio] = 2
+    mask[mask >= (1 - encode_ratio)] = 0
+    mask[mask <= decode_ratio] = 2
     # all the rest is ignored by both the encoder and decoder
     mask[(mask != 0) | (mask != 2)] = 1
     return mask
@@ -319,8 +318,8 @@ def batch_mask_time(
     time_x: torch.Tensor,
     static_x: torch.Tensor,
     months: torch.Tensor,
-    mask_ratio: float,
-    decoder_unmask_ratio: float,
+    encode_ratio: float,
+    decode_ratio: float,
     patch_size: int,
     decoder_mode: List[Tuple[str, str]],
     mode: List[Tuple[str, str]],
@@ -338,8 +337,8 @@ def batch_mask_time(
     bands_to_encode = check_mode_and_return_channels(mode)
     bands_to_decode = check_mode_and_return_channels(decoder_mode)
     # if there is only a single timestep, decode it
-    num_timesteps_to_decode = max(int(t * decoder_unmask_ratio), 1)
-    num_timesteps_to_encode = max(int(t * mask_ratio), 1)
+    num_timesteps_to_decode = max(int(t * decode_ratio), 1)
+    num_timesteps_to_encode = max(int(t * encode_ratio), 1)
     # we do this as a numpy array to take advantage of
     # numpy's permuted function
     flat_timesteps = np.concatenate(
@@ -368,11 +367,11 @@ def batch_mask_time(
         "b t-> b t c_g",
         c_g=len(TIME_BAND_GROUPS_IDX),
     ).clone()
-    space_mask = _random_mask_for_b(b, space_x.device, mask_ratio, decoder_unmask_ratio)
+    space_mask = _random_mask_for_b(b, space_x.device, encode_ratio, decode_ratio)
     space_mask = repeat(
         space_mask, "b -> b h w c_g", h=h, w=w, c_g=len(SPACE_BAND_GROUPS_IDX)
     ).clone()
-    static_mask = _random_mask_for_b(b, static_x.device, mask_ratio, decoder_unmask_ratio)
+    static_mask = _random_mask_for_b(b, static_x.device, encode_ratio, decode_ratio)
     static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX)).clone()
     if max([len(x[0]) for x in bands_to_encode]) >= 1:  # encoder mode != random
         # for static in time data,
@@ -458,8 +457,8 @@ def batch_mask_space(
     static_x: torch.Tensor,
     months: torch.Tensor,
     patch_size: int,
-    mask_ratio: float,
-    decoder_unmask_ratio: float,
+    encode_ratio: float,
+    decode_ratio: float,
     mode: List[Tuple[str, str]],
     decoder_mode: List[Tuple[str, str]],
 ):
@@ -480,15 +479,17 @@ def batch_mask_space(
     h_p = int(h / patch_size)
     w_p = int(w / patch_size)
     total_patches = h_p * w_p
-    num_patches_to_mask = int(total_patches * mask_ratio)
-    num_patches_to_decode = int(total_patches * decoder_unmask_ratio)
+    num_patches_to_encode = int(total_patches * encode_ratio)
+    num_patches_to_decode = int(total_patches * decode_ratio)
     # we do this as a numpy array to take advantage of
     # numpy's permuted function
     flat_patches = np.concatenate(
         (
-            np.ones(num_patches_to_mask, dtype=np.int_),
+            np.ones(
+                total_patches - (num_patches_to_encode + num_patches_to_decode), dtype=np.int_
+            ),
             np.ones(num_patches_to_decode, dtype=np.int_) * 2,
-            np.zeros(total_patches - (num_patches_to_mask + num_patches_to_decode), dtype=np.int_),
+            np.zeros(num_patches_to_encode, dtype=np.int_),
         )
     )
     b_flat_patches = repeat(flat_patches, "p -> b p", b=b)
@@ -523,9 +524,9 @@ def batch_mask_space(
         .clone()
         .to(space_x.device)
     )
-    time_mask = _random_mask_for_b(b, time_x.device, mask_ratio, decoder_unmask_ratio)
+    time_mask = _random_mask_for_b(b, time_x.device, encode_ratio, decode_ratio)
     time_mask = repeat(time_mask, "b -> b t c_g", t=t, c_g=len(TIME_BAND_GROUPS_IDX)).clone()
-    static_mask = _random_mask_for_b(b, static_x.device, mask_ratio, decoder_unmask_ratio)
+    static_mask = _random_mask_for_b(b, static_x.device, encode_ratio, decode_ratio)
     static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX)).clone()
 
     if max([len(x[0]) for x in bands_to_encode]) >= 1:  # encoder mode != random
@@ -615,8 +616,8 @@ def batch_mask_random(
     time_x: torch.Tensor,
     static_x: torch.Tensor,
     months: torch.Tensor,
-    mask_ratio: float,
-    decoder_unmask_ratio: float,
+    encode_ratio: float,
+    decode_ratio: float,
     patch_size: int,
 ):
     """
@@ -644,16 +645,19 @@ def batch_mask_random(
     num_static_tokens = c_st
 
     total_tokens = num_space_time_tokens + num_space_tokens + num_time_tokens + num_static_tokens
-    tokens_the_decoder_will_unmask = int(total_tokens * decoder_unmask_ratio)
-    unused_tokens = int(total_tokens * mask_ratio)
+    tokens_the_decoder_will_unmask = int(total_tokens * decode_ratio)
+    tokens_the_encoder_will_encode = int(total_tokens * encode_ratio)
     # we do this as a numpy array to take advantage of
     # numpy's permuted function
     flat_tokens = np.concatenate(
         (
-            np.ones(unused_tokens, dtype=np.int_),
+            np.ones(
+                total_tokens - (tokens_the_encoder_will_encode + tokens_the_decoder_will_unmask),
+                dtype=np.int_,
+            ),
             np.ones(tokens_the_decoder_will_unmask, dtype=np.int_) * 2,
             np.zeros(
-                total_tokens - (unused_tokens + tokens_the_decoder_will_unmask),
+                tokens_the_encoder_will_encode,
                 dtype=np.int_,
             ),
         )

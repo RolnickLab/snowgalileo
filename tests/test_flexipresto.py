@@ -63,8 +63,8 @@ class TestPresto(unittest.TestCase):
                 t_x,
                 st_x,
                 months,
-                mask_ratio=0.5,
-                decoder_unmask_ratio=0.25,
+                encode_ratio=0.25,
+                decode_ratio=0.25,
                 patch_size=patch_size,
                 image_size=image_size,
                 num_timesteps=num_timesteps,
@@ -374,8 +374,7 @@ class TestPresto(unittest.TestCase):
 
     def test_decoder_and_mask_static(self):
         patch_size = 4
-        mask_ratio = 0.25
-        decoder_unmask_ratio = 0.25
+        ratio = 0.25
 
         ds = Dataset(DATA_FOLDER, False)
         tensor_batch = self.to_tensor_with_batch_d(ds[0])
@@ -383,8 +382,8 @@ class TestPresto(unittest.TestCase):
         for f in [batch_mask_time, batch_mask_space]:
             masked_output = f(
                 *tensor_batch,
-                mask_ratio=mask_ratio,
-                decoder_unmask_ratio=decoder_unmask_ratio,
+                encode_ratio=ratio,
+                decode_ratio=ratio,
                 mode=[("space", "DW")],
                 decoder_mode=[("static", "LS")],
                 patch_size=patch_size,
