@@ -38,8 +38,8 @@ class TestEndtoEnd(unittest.TestCase):
                     {"size": 9, "timesteps": 3},
                     {"size": 12, "timesteps": 3},
                 ],
-                mask_ratio=0.25,
-                decoder_unmask_ratio=0.25,
+                encode_ratio=0.25,
+                decode_ratio=0.25,
             ),
             pin_memory=True,
         )
