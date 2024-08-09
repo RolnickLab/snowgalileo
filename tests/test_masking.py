@@ -125,17 +125,15 @@ class TestMasking(unittest.TestCase):
             time_input = torch.ones((b, t, 8))
             static_input = torch.ones((b, 8))
             months = repeat(torch.arange(0, t), "t -> b t", b=b)
-            mask_ratio = 0.25
-            decoder_unmask_ratio = 0.25
-
+            ratio = 0.25
             output = f(
                 space_time_input,
                 space_input,
                 time_input,
                 static_input,
                 months,
-                mask_ratio=mask_ratio,
-                decoder_unmask_ratio=decoder_unmask_ratio,
+                mask_ratio=ratio,
+                decoder_unmask_ratio=ratio,
                 mode=masking_modes,
                 decoder_mode=unmasking_modes,
                 patch_size=4,
@@ -164,8 +162,7 @@ class TestMasking(unittest.TestCase):
         time_input = torch.ones((b, t, 8))
         static_input = torch.ones((b, 8))
         months = repeat(torch.arange(0, t), "t -> b t", b=b)
-        mask_ratio = 0.25
-        decoder_unmask_ratio = 0.25
+        ratio = 0.24
 
         output = batch_mask_random(
             space_time_input,
@@ -173,8 +170,8 @@ class TestMasking(unittest.TestCase):
             time_input,
             static_input,
             months,
-            mask_ratio,
-            decoder_unmask_ratio,
+            ratio,
+            ratio,
             p,
         )
         self.check_all_values_in_masks(
@@ -229,7 +226,7 @@ class TestMasking(unittest.TestCase):
                 + space_masked_per_instance
                 + time_masked_per_instance
                 + static_masked_per_instance
-                == total_tokens * mask_ratio
+                == total_tokens * (1 - (ratio * 2))
             ).all()
         )
         self.assertTrue(
@@ -240,6 +237,6 @@ class TestMasking(unittest.TestCase):
                 + static_decode_per_instance
                 # hacky but the *2 lets us easily handle the fact
                 # we are summing over values == 2, not 1
-                == total_tokens * decoder_unmask_ratio * 2
+                == total_tokens * ratio * 2
             ).all()
         )
