@@ -39,7 +39,7 @@ from src.eval import (
 )
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
-from src.loss import mse_loss, all_patch_disc_loss, patch_disc_loss
+from src.loss import do_loss
 from src.utils import (
     AverageMeter,
     data_dir,
@@ -242,21 +242,23 @@ for e in tqdm(range(training_config["num_epochs"])):
                     t_sp = encoder.blocks[0].norm1(t_sp)
                     t_st = encoder.blocks[0].norm1(t_st)
 
-                loss = all_patch_disc_loss(
-                    t_s_t,
-                    t_sp,
-                    t_t,
-                    t_st,
-                    p_s_t,
-                    p_sp,
-                    p_t,
-                    p_st,
-                    s_t_m[:, 0::patch_size, 0::patch_size],
-                    sp_m[:, 0::patch_size, 0::patch_size],
-                    t_m,
-                    st_m,
+                loss = do_loss(
+                    training_config,
+                    (
+                        t_s_t,
+                        t_sp,
+                        t_t,
+                        t_st,
+                        p_s_t,
+                        p_sp,
+                        p_t,
+                        p_st,
+                        s_t_m[:, 0::patch_size, 0::patch_size],
+                        sp_m[:, 0::patch_size, 0::patch_size],
+                        t_m,
+                        st_m,
+                    )
                 )
-
 
             train_loss.update(loss.item(), n=s_t_x.shape[0])
             if c_i is not None:
