@@ -132,8 +132,8 @@ class TestMasking(unittest.TestCase):
                 time_input,
                 static_input,
                 months,
-                mask_ratio=ratio,
-                decoder_unmask_ratio=ratio,
+                encode_ratio=ratio,
+                decode_ratio=ratio,
                 mode=masking_modes,
                 decoder_mode=unmasking_modes,
                 patch_size=4,
@@ -162,7 +162,7 @@ class TestMasking(unittest.TestCase):
         time_input = torch.ones((b, t, 8))
         static_input = torch.ones((b, 8))
         months = repeat(torch.arange(0, t), "t -> b t", b=b)
-        ratio = 0.24
+        ratio = 0.25
 
         output = batch_mask_random(
             space_time_input,
