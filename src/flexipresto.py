@@ -621,7 +621,7 @@ class Encoder(FlexiPrestoBase):
 
         if latent_mlp:
             hdn = int(embedding_size * 4)
-            self.head = nn.Sequential(
+            self.head: nn.Module = nn.Sequential(
                 nn.Linear(embedding_size, hdn),
                 nn.GELU(),
                 nn.Linear(hdn, hdn),
@@ -630,7 +630,6 @@ class Encoder(FlexiPrestoBase):
             )
         else:
             self.head = nn.Identity()
-
 
         self.apply(self._init_weights)
         self.conditioner = conditioner
@@ -815,7 +814,7 @@ class Encoder(FlexiPrestoBase):
                 # if exit_after is N, then we exit after the Nth layer
                 # if exit_after is 0, then all layers are skipped
                 break
-    
+
             # we take the inverse of the mask because a value
             # of True indicates the value *should* take part in
             # attention
@@ -884,7 +883,7 @@ class Encoder(FlexiPrestoBase):
         st_m: torch.Tensor,
         months: torch.Tensor,
         patch_size: int,
-        c_i = None,
+        c_i=None,
         input_resolution_m: Optional[int] = BASE_GSD,
         exit_after: int = 100,  # never going to train more than 100 layer model,
         apply_embeddings: bool = True,

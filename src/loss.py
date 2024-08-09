@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from einops import repeat, rearrange
+from einops import rearrange, repeat
 
 
 def mse_loss(
@@ -73,7 +73,12 @@ def patch_disc_loss(
     tau: float = 0.2,
 ):
     # create tensors of shape (bsz, seq_len, dim)
-    all_masks = seq_and_cat(s_t_m.unsqueeze(dim=-1), sp_m.unsqueeze(dim=-1), t_m.unsqueeze(dim=-1), st_m.unsqueeze(dim=-1)).squeeze(-1)
+    all_masks = seq_and_cat(
+        s_t_m.unsqueeze(dim=-1),
+        sp_m.unsqueeze(dim=-1),
+        t_m.unsqueeze(dim=-1),
+        st_m.unsqueeze(dim=-1),
+    ).squeeze(-1)
     all_preds = seq_and_cat(p_s_t, p_sp, p_t, p_st)
     all_targets = seq_and_cat(t_s_t, t_sp, t_t, t_st)
 
@@ -90,7 +95,7 @@ def patch_disc_loss(
     pred = F.normalize(pred, p=2, dim=-1)
     target = F.normalize(target, p=2, dim=-1)
 
-    scores = torch.einsum('npd,nqd->npq', pred, target) / tau
+    scores = torch.einsum("npd,nqd->npq", pred, target) / tau
     count = (all_masks == 2).sum(dim=-1)
 
     if mask_other_samples:
@@ -104,7 +109,9 @@ def patch_disc_loss(
         scores = scores + logit_mask
 
     labels = torch.arange(nt, dtype=torch.long, device=pred.device)[None].repeat(bs, 1)
-    loss = F.cross_entropy(scores.flatten(0, 1), labels.flatten(0, 1), reduction='none') * (tau * 2)
+    loss = F.cross_entropy(scores.flatten(0, 1), labels.flatten(0, 1), reduction="none") * (
+        tau * 2
+    )
 
     # emulate averaging across the batch dimension
     loss_multiplier = expand_and_reciprocate(count)
@@ -115,11 +122,11 @@ def patch_disc_loss(
 def do_loss(config, loss_inputs):
     if config["loss_type"] == "patch_disc":
         loss = patch_disc_loss(
-                *loss_inputs,
-                mask_other_samples=config['loss_mask_other_samples'],
-                pred2unit=config['pred2unit'],
-                tau=config['tau'],
-                )
+            *loss_inputs,
+            mask_other_samples=config["loss_mask_other_samples"],
+            pred2unit=config["pred2unit"],
+            tau=config["tau"],
+        )
     elif config["loss_type"] == "mse":
         loss = mse_loss(*loss_inputs)
     else:

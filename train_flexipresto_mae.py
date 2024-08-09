@@ -1,10 +1,10 @@
 import argparse
+import copy
 import json
 import os
 from functools import partial
 from pathlib import Path
 from typing import List, cast
-import copy
 
 import codecarbon
 import psutil
@@ -182,8 +182,13 @@ iters_to_accumulate = training_config["effective_batch_size"] / training_config[
 
 # setup target encoder and momentum from: https://github.com/facebookresearch/ijepa/blob/main/src/train.py
 steps_per_epoch = iterations_per_epoch * len(MaskingFunctions) / iters_to_accumulate
-momentum_scheduler = (training_config["ema"][0] + i*(training_config["ema"][1]-training_config["ema"][0])/(steps_per_epoch*training_config["num_epochs"])
-                        for i in range(int(steps_per_epoch*training_config["num_epochs"])+1))
+momentum_scheduler = (
+    training_config["ema"][0]
+    + i
+    * (training_config["ema"][1] - training_config["ema"][0])
+    / (steps_per_epoch * training_config["num_epochs"])
+    for i in range(int(steps_per_epoch * training_config["num_epochs"]) + 1)
+)
 target_encoder = copy.deepcopy(encoder)
 for p in target_encoder.parameters():
     p.requires_grad = False
@@ -270,7 +275,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                         sp_m[:, 0::patch_size, 0::patch_size],
                         t_m,
                         st_m,
-                    )
+                    ),
                 )
 
             train_loss.update(loss.item(), n=s_t_x.shape[0])
@@ -301,7 +306,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                 with torch.no_grad():
                     m = next(momentum_scheduler)
                     for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
-                        param_k.data.mul_(m).add_((1.-m) * param_q.detach().data)
+                        param_k.data.mul_(m).add_((1.0 - m) * param_q.detach().data)
 
     if wandb_enabled:
         to_log = {
@@ -309,7 +314,7 @@ for e in tqdm(range(training_config["num_epochs"])):
             "random_masking_train_loss": random_masking_train_loss.average,
             "task_masking_train_loss": task_masking_train_loss.average,
             "epoch": e,
-            "momentum": m
+            "momentum": m,
         }
 
         if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
