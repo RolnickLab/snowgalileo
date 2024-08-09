@@ -4,6 +4,7 @@ import os
 from functools import partial
 from pathlib import Path
 from typing import List, cast
+import copy
 
 import codecarbon
 import psutil
@@ -175,6 +176,14 @@ iterations_per_epoch = len(dataset)
 assert training_config["effective_batch_size"] % training_config["batch_size"] == 0
 iters_to_accumulate = training_config["effective_batch_size"] / training_config["batch_size"]
 
+# setup target encoder and momentum from: https://github.com/facebookresearch/ijepa/blob/main/src/train.py
+steps_per_epoch = iterations_per_epoch * len(MaskingFunctions) / iters_to_accumulate
+momentum_scheduler = (training_config["ema"][0] + i*(training_config["ema"][1]-training_config["ema"][0])/(steps_per_epoch*training_config["num_epochs"])
+                        for i in range(int(steps_per_epoch*training_config["num_epochs"])+1))
+target_encoder = copy.deepcopy(encoder)
+for p in target_encoder.parameters():
+    p.requires_grad = False
+
 i = 0
 for e in tqdm(range(training_config["num_epochs"])):
     train_loss = AverageMeter()
@@ -226,7 +235,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                 )
 
                 with torch.no_grad():
-                    t_s_t, t_sp, t_t, t_st, _, _, _, _ = encoder.apply_linear_projection(
+                    t_s_t, t_sp, t_t, t_st, _, _, _, _ = target_encoder.apply_linear_projection(
                         s_t_x,
                         sp_x,
                         t_x,
@@ -285,6 +294,10 @@ for e in tqdm(range(training_config["num_epochs"])):
                     min_lr=training_config["final_lr"],
                     conditioner_multiplier=training_config["conditioner_multiplier"],
                 )
+                with torch.no_grad():
+                    m = next(momentum_scheduler)
+                    for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
+                        param_k.data.mul_(m).add_((1.-m) * param_q.detach().data)
 
     if wandb_enabled:
         to_log = {
