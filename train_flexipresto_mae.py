@@ -70,7 +70,7 @@ tracker.start()
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--config_file", type=str, default="small.json")
-argparser.add_argument("--cache_folder", type=str, default="/4tb/")
+argparser.add_argument("--cache_folder", type=str, default="")
 args = argparser.parse_args().__dict__
 
 if args["cache_folder"] == "":
