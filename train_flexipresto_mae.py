@@ -4,6 +4,7 @@ import os
 from functools import partial
 from pathlib import Path
 from typing import List, cast
+import copy
 
 import codecarbon
 import psutil
@@ -39,7 +40,7 @@ from src.eval import (
 )
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
-from src.loss import mse_loss
+from src.loss import do_loss
 from src.utils import (
     AverageMeter,
     data_dir,
@@ -69,7 +70,7 @@ tracker.start()
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--config_file", type=str, default="small.json")
-argparser.add_argument("--cache_folder", type=str, default="")
+argparser.add_argument("--cache_folder", type=str, default="/4tb/")
 args = argparser.parse_args().__dict__
 
 if args["cache_folder"] == "":
@@ -87,7 +88,7 @@ output_dir = Path(__file__).parent
 
 
 print("Loading dataset and dataloader")
-dataset = Dataset(TIFS_FOLDER, download=False, h5py_folder=cache_folder / "h5pys", h5pys_only=True)
+dataset = Dataset(TIFS_FOLDER, download=False, h5py_folder=cache_folder, h5pys_only=True)
 dataloader = DataLoader(
     dataset,
     batch_size=training_config["batch_size"],
@@ -130,7 +131,7 @@ if "conditioner" in config["model"]:
             "params": [p for p in encoder.conditioner.parameters()]
             + [p for p in predictor.conditioner.parameters()],
             "name": "conditioner",
-            "weight_decay": training_config["weight_decay"],
+            "weight_decay": training_config["conditioner_weight_decay"],
         },
     ]
 else:
@@ -169,11 +170,23 @@ if wandb_enabled:
     wandb.config.update(config)
 
 optimizer = torch.optim.AdamW(
-    param_groups, lr=training_config["start_lr"], weight_decay=training_config["weight_decay"]
+    param_groups,
+    lr=training_config["start_lr"],
+    weight_decay=training_config["weight_decay"],
+    betas=(training_config["betas"][0], training_config["betas"][1]),
 )  # type: ignore
+
 iterations_per_epoch = len(dataset)
 assert training_config["effective_batch_size"] % training_config["batch_size"] == 0
 iters_to_accumulate = training_config["effective_batch_size"] / training_config["batch_size"]
+
+# setup target encoder and momentum from: https://github.com/facebookresearch/ijepa/blob/main/src/train.py
+steps_per_epoch = iterations_per_epoch * len(MaskingFunctions) / iters_to_accumulate
+momentum_scheduler = (training_config["ema"][0] + i*(training_config["ema"][1]-training_config["ema"][0])/(steps_per_epoch*training_config["num_epochs"])
+                        for i in range(int(steps_per_epoch*training_config["num_epochs"])+1))
+target_encoder = copy.deepcopy(encoder)
+for p in target_encoder.parameters():
+    p.requires_grad = False
 
 i = 0
 for e in tqdm(range(training_config["num_epochs"])):
@@ -226,7 +239,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                 )
 
                 with torch.no_grad():
-                    t_s_t, t_sp, t_t, t_st, _, _, _, _ = encoder.apply_linear_projection(
+                    t_s_t, t_sp, t_t, t_st, _, _, _, _, _ = target_encoder(
                         s_t_x,
                         sp_x,
                         t_x,
@@ -235,26 +248,29 @@ for e in tqdm(range(training_config["num_epochs"])):
                         ~(sp_m == 2),
                         ~(t_m == 2),
                         ~(st_m == 2),
-                        patch_size,
+                        months.long(),
+                        patch_size=patch_size,
+                        c_i=c_i if training_config["target_condition"] else None,
+                        exit_after=training_config["target_exit_after"],
+                        apply_embeddings=training_config["target_apply_embeddings"],
                     )
-                    t_s_t = encoder.blocks[0].norm1(t_s_t)
-                    t_sp = encoder.blocks[0].norm1(t_sp)
-                    t_sp = encoder.blocks[0].norm1(t_sp)
-                    t_st = encoder.blocks[0].norm1(t_st)
 
-                loss = mse_loss(
-                    t_s_t,
-                    t_sp,
-                    t_t,
-                    t_st,
-                    p_s_t,
-                    p_sp,
-                    p_t,
-                    p_st,
-                    s_t_m[:, 0::patch_size, 0::patch_size],
-                    sp_m[:, 0::patch_size, 0::patch_size],
-                    t_m,
-                    st_m,
+                loss = do_loss(
+                    training_config,
+                    (
+                        t_s_t,
+                        t_sp,
+                        t_t,
+                        t_st,
+                        p_s_t,
+                        p_sp,
+                        p_t,
+                        p_st,
+                        s_t_m[:, 0::patch_size, 0::patch_size],
+                        sp_m[:, 0::patch_size, 0::patch_size],
+                        t_m,
+                        st_m,
+                    )
                 )
 
             train_loss.update(loss.item(), n=s_t_x.shape[0])
@@ -282,6 +298,10 @@ for e in tqdm(range(training_config["num_epochs"])):
                     min_lr=training_config["final_lr"],
                     conditioner_multiplier=training_config["conditioner_multiplier"],
                 )
+                with torch.no_grad():
+                    m = next(momentum_scheduler)
+                    for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
+                        param_k.data.mul_(m).add_((1.-m) * param_q.detach().data)
 
     if wandb_enabled:
         to_log = {
@@ -289,6 +309,7 @@ for e in tqdm(range(training_config["num_epochs"])):
             "random_masking_train_loss": random_masking_train_loss.average,
             "task_masking_train_loss": task_masking_train_loss.average,
             "epoch": e,
+            "momentum": m
         }
 
         if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
