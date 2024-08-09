@@ -250,7 +250,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                         ~(st_m == 2),
                         months.long(),
                         patch_size=patch_size,
-                        c_i=c_i if training_config["condition_target"] else None,
+                        c_i=c_i if training_config["target_condition"] else None,
                         exit_after=training_config["target_exit_after"],
                         apply_embeddings=training_config["target_apply_embeddings"],
                     )
