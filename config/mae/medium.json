@@ -22,7 +22,7 @@
         "tau": 0.2,
         "pred2unit": true,
         "ema": [0.996, 1.0],
-        "target_exit_after": 2,
+        "target_exit_after": 0,
         "condition_target": true,
         "apply_embeddings_target": false,
         "wandb_plot_every_n_epochs": 10,
