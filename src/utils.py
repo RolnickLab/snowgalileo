@@ -91,7 +91,7 @@ def load_check_config(name: str, mode: str) -> Dict:
         "start_lr": float,
         "max_lr": float,
         "final_lr": float,
-        "conditioner_multiplier": int,
+        "conditioner_multiplier": float,
         "warmup_epochs": (int, float),
         "eval_eurosat_every_n_epochs": int,
         "wandb_plot_every_n_epochs": int,
