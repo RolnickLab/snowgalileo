@@ -13,7 +13,7 @@
         "weight_decay": 0.01,
         "conditioner_weight_decay": 0.01,
         "warmup_epochs": 0.1,
-        "conditioner_multiplier": 1,
+        "conditioner_multiplier": 0.1,
         "grad_clip": true,
         "betas": [0.9, 0.999],
         "eval_eurosat_every_n_epochs": 10,
