@@ -571,6 +571,7 @@ class Encoder(FlexiPrestoBase):
         num_heads=8,
         max_sequence_length=24,
         freeze_projections: bool = False,
+        latent_mlp: bool = False,
         conditioner=None,
     ):
         super().__init__(
@@ -617,6 +618,19 @@ class Encoder(FlexiPrestoBase):
             self.time_embed.requires_grad_(False)
             self.static_embed.requires_grad_(False)
         self.norm = nn.LayerNorm(embedding_size)
+
+        if latent_mlp:
+            hdn = int(embedding_size * 4)
+            self.head = nn.Sequential(
+                nn.Linear(embedding_size, hdn),
+                nn.GELU(),
+                nn.Linear(hdn, hdn),
+                nn.GELU(),
+                nn.Linear(hdn, embedding_size),
+            )
+        else:
+            self.head = nn.Identity()
+
 
         self.apply(self._init_weights)
         self.conditioner = conditioner
@@ -779,12 +793,15 @@ class Encoder(FlexiPrestoBase):
         months,
         patch_size,
         input_res,
+        exit_after,
+        apply_embeddings,
     ):
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
         sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
-        s_t_x, sp_x, t_x, st_x = self.apply_encodings(
-            s_t_x, sp_x, t_x, st_x, months, patch_size, input_res
-        )
+        if apply_embeddings:
+            s_t_x, sp_x, t_x, st_x = self.apply_encodings(
+                s_t_x, sp_x, t_x, st_x, months, patch_size, input_res
+            )
         x, m = self.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
 
         # we only care about the values <= 1 for this mask, since 2 just tells the decoder
@@ -793,11 +810,18 @@ class Encoder(FlexiPrestoBase):
         new_m = m >= 1
         x, indices, new_m = self.remove_masked_tokens(x, new_m)  # new_m is shape (bsz, seq_len)
 
-        for blk in self.blocks:
+        for i_blk, blk in enumerate(self.blocks):
+            if (i_blk + 1) >= exit_after:
+                # if exit_after is N, then we exit after the Nth layer
+                # if exit_after is 0, then all layers are skipped
+                break
+    
             # we take the inverse of the mask because a value
             # of True indicates the value *should* take part in
             # attention
             x = blk(x=x, y=None, attn_mask=~new_m.bool())
+
+        x = self.head(x)
 
         # we don't care about the mask returned by add_removed_tokens, since we will
         # just use the original, unclipped mask here
@@ -860,8 +884,10 @@ class Encoder(FlexiPrestoBase):
         st_m: torch.Tensor,
         months: torch.Tensor,
         patch_size: int,
-        c_i=None,
+        c_i = None,
         input_resolution_m: Optional[int] = BASE_GSD,
+        exit_after: int = 100,  # never going to train more than 100 layer model,
+        apply_embeddings: bool = True,
     ):
         if self.conditioner is not None:
             self.apply_condition(c_i)
@@ -890,6 +916,8 @@ class Encoder(FlexiPrestoBase):
             months,
             patch_size,
             input_resolution_m,
+            exit_after,
+            apply_embeddings,
         )
 
         return (
