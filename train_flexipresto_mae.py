@@ -82,7 +82,7 @@ config = load_check_config(args["config_file"], "mae")
 training_config = config["training"]
 
 run_id = None
-wandb_enabled = True
+wandb_enabled = False
 wandb_org = "nasa-harvest"
 output_dir = Path(__file__).parent
 
@@ -188,12 +188,12 @@ optimizer = torch.optim.AdamW(
     betas=(training_config["betas"][0], training_config["betas"][1]),
 )  # type: ignore
 
-iterations_per_epoch = len(dataset)
 assert training_config["effective_batch_size"] % training_config["batch_size"] == 0
 iters_to_accumulate = training_config["effective_batch_size"] / training_config["batch_size"]
 
 # setup target encoder and momentum from: https://github.com/facebookresearch/ijepa/blob/main/src/train.py
-steps_per_epoch = iterations_per_epoch * len(MaskingFunctions) / iters_to_accumulate
+repeat_aug = 4
+steps_per_epoch = len(dataloader) * repeat_aug / iters_to_accumulate
 momentum_scheduler = (
     training_config["ema"][0]
     + i
@@ -305,9 +305,9 @@ for e in tqdm(range(training_config["num_epochs"])):
                     torch.nn.utils.clip_grad_norm_(predictor.parameters(), 1.0)
                 optimizer.step()
                 optimizer.zero_grad()
-                adjust_learning_rate(
+                current_lr = adjust_learning_rate(
                     optimizer,
-                    epoch=i / (len(MaskingFunctions) * len(dataloader)) + e,
+                    epoch=i / (repeat_aug * len(dataloader)) + e,
                     warmup_epochs=training_config["warmup_epochs"],
                     total_epochs=training_config["num_epochs"],
                     max_lr=training_config["max_lr"],
@@ -315,6 +315,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                     min_lr=training_config["final_lr"],
                     conditioner_multiplier=training_config["conditioner_multiplier"],
                 )
+
                 with torch.no_grad():
                     m = next(momentum_scheduler)
                     for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
@@ -327,6 +328,7 @@ for e in tqdm(range(training_config["num_epochs"])):
             "task_masking_train_loss": task_masking_train_loss.average,
             "epoch": e,
             "momentum": m,
+            "lr": current_lr
         }
 
         if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
