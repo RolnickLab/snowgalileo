@@ -17,7 +17,7 @@ os.environ["GOOGLE_CLOUD_PROJECT"] = EE_PROJECT
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--start_export_from_idx", type=int, default=0)
 argparser.add_argument("--num_exports", type=int, default=3000)
-argparser.add_argument("--filename", type=str, default="esa_grid_subsampled_global_150_v2.csv")
+argparser.add_argument("--filename", type=str, default="combined_points.csv")
 argparser.add_argument("--mode", type=str, default="batch")
 args = argparser.parse_args().__dict__
 
