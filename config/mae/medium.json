@@ -24,7 +24,6 @@
         "ema": [0.996, 1.0],
         "target_exit_after": 0,
         "target_condition": true,
-        "target_apply_embeddings": false,
         "wandb_plot_every_n_epochs": 10,
         "num_images_to_wandb_plot": 3,
         "timesteps_to_wandb_plot": [0],
@@ -50,7 +49,8 @@
             "depth": 1,
             "mlp_ratio": 4,
             "num_heads": 8,
-            "max_sequence_length": 24
+            "max_sequence_length": 24,
+            "learnable_channel_embeddings": false
         }
     }
 }

@@ -49,6 +49,7 @@ class TestEndtoEnd(unittest.TestCase):
             encoder_embedding_size=embedding_size,
             decoder_embedding_size=embedding_size,
             num_heads=1,
+            learnable_channel_embeddings=False,
         ).to(device)
         param_groups = [{"params": encoder.parameters()}, {"params": predictor.parameters()}]
         optimizer = torch.optim.AdamW(param_groups, lr=3e-4)  # type: ignore
@@ -151,3 +152,23 @@ class TestEndtoEnd(unittest.TestCase):
             self.assertFalse(torch.isnan(loss).any())
             loss.backward()
             optimizer.step()
+
+            # check the channel embeddings in the decoder didn't change
+            self.assertTrue(
+                torch.equal(
+                    predictor.s_t_channel_embed, torch.zeros_like(predictor.s_t_channel_embed)
+                )
+            )
+            self.assertTrue(
+                torch.equal(
+                    predictor.sp_channel_embed, torch.zeros_like(predictor.sp_channel_embed)
+                )
+            )
+            self.assertTrue(
+                torch.equal(predictor.t_channel_embed, torch.zeros_like(predictor.t_channel_embed))
+            )
+            self.assertTrue(
+                torch.equal(
+                    predictor.st_channel_embed, torch.zeros_like(predictor.st_channel_embed)
+                )
+            )
