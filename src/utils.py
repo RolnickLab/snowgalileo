@@ -102,7 +102,8 @@ def load_check_config(name: str, mode: str) -> Dict:
         "augmentation": dict,
         "masking_probabilities": list,
         "unmasking_probabilities": list,
-        "use_conditions": bool,
+        "encoder_conditioner": bool,
+        "decoder_conditioner": bool,
         "grad_clip": bool,
     }
     training_dict = config["training"]
@@ -157,8 +158,14 @@ def load_check_config(name: str, mode: str) -> Dict:
         "embedding_size"
     )
 
-    if config["training"]["use_conditions"]:
-        config["model"]["conditioner"] = {"num_output_channels": len(UNMASKING_CHANNEL_GROUPS)}
+    if config["training"]["encoder_conditioner"]:
+        config["model"]["encoder_conditioner"] = {
+            "num_output_channels": len(UNMASKING_CHANNEL_GROUPS)
+        }
+    if config["training"]["decoder_conditioner"]:
+        config["model"]["decoder_conditioner"] = {
+            "num_output_channels": len(UNMASKING_CHANNEL_GROUPS)
+        }
     return config
 
 
