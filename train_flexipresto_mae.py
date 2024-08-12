@@ -106,62 +106,72 @@ dataloader = DataLoader(
     ),
     pin_memory=True,
 )
+
 print("Loading models")
 predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
-if "conditioner" in config["model"]:
+param_groups = []
+eval_w_condition = False
+if "encoder_conditioner" in config["model"]:
     eval_w_condition = True
-
     if training_config["conditioner_mode"] == "moe":
-        conditioner = LearnedMixture(**config["model"]["conditioner"]).to(device)
-        decoder_conditioner = LearnedMixture(**config["model"]["conditioner"])
-    else:
-        conditioner = LoRAGenerator(**config["model"]["conditioner"]).to(device)
-        decoder_conditioner = None
-
-    encoder = Encoder(**config["model"]["encoder"], conditioner=conditioner).to(device)
-    predictor = PrestoPixelDecoder(
-        **config["model"]["decoder"], conditioner=decoder_conditioner
-    ).to(device)
-
-    if decoder_conditioner is not None:
-        decoder_conditioner_params = [p for p in predictor.conditioner.parameters()]
-    else:
-        decoder_conditioner_params = []
-
-    param_groups = [
-        {
-            "params": [p for n, p in encoder.named_parameters() if "conditioner" not in n],
-            "name": "encoder",
-            "weight_decay": training_config["weight_decay"],
-        },
-        {
-            "params": [p for n, p in predictor.named_parameters() if "conditioner" not in n],
-            "name": "decoder",
-            "weight_decay": training_config["weight_decay"],
-        },
-        {
-            "params": [p for p in encoder.conditioner.parameters()]
-            + decoder_conditioner_params,
-            "name": "conditioner",
-            "weight_decay": training_config["conditioner_weight_decay"],
-        },
-    ]
+        encoder_conditioner = LearnedMixture(**config["model"]["encoder_conditioner"]).to(device)
+    elif training_config["conditioner_mode"] == "lora":
+        encoder_conditioner = LoRAGenerator(**config["model"]["encoder_conditioner"]).to(device)
+    
+    encoder = Encoder(**config["model"]["encoder"], conditioner=encoder_conditioner).to(device)
+    param_groups.extend(
+        [
+            {
+                "params": [p for n, p in encoder.named_parameters() if "conditioner" not in n],
+                "name": "encoder",
+                "weight_decay": training_config["weight_decay"],
+            },
+            {
+                "params": encoder.conditioner.parameters(),
+                "name": "encoder_conditioner",
+                "weight_decay": training_config["conditioner_weight_decay"],
+            },
+        ]
+    )
 else:
-    eval_w_condition = False
     encoder = Encoder(**config["model"]["encoder"]).to(device)
-    predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
-    param_groups = [
+    param_groups.append(
         {
             "params": encoder.parameters(),
             "name": "encoder",
             "weight_decay": training_config["weight_decay"],
-        },
+        }
+    )
+
+if "decoder_conditioner" in config["model"]:
+    eval_w_condition = True
+    decoder_conditioner = LearnedMixture(**config["model"]["conditioner"])
+    predictor = PrestoPixelDecoder(
+        **config["model"]["decoder"], conditioner=decoder_conditioner
+    ).to(device)
+    param_groups.extend(
+        [
+            {
+                "params": [p for n, p in predictor.named_parameters() if "conditioner" not in n],
+                "name": "decoder",
+                "weight_decay": training_config["weight_decay"],
+            },
+            {
+                "params": predictor.conditioner.parameters(),
+                "name": "decoder_conditioner",
+                "weight_decay": training_config["conditioner_weight_decay"],
+            },
+        ]
+    )
+else:
+    predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
+    param_groups.append(
         {
             "params": predictor.parameters(),
             "name": "decoder",
             "weight_decay": training_config["weight_decay"],
-        },
-    ]
+        }
+    )
 
 
 print("Loading validation task")
@@ -269,7 +279,6 @@ for e in tqdm(range(training_config["num_epochs"])):
                         patch_size=patch_size,
                         c_i=c_i if training_config["target_condition"] else None,
                         exit_after=training_config["target_exit_after"],
-                        apply_embeddings=training_config["target_apply_embeddings"],
                     )
 
                 loss = do_loss(

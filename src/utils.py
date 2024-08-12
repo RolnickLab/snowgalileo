@@ -165,7 +165,8 @@ def load_check_config(name: str, mode: str) -> Dict:
         "embedding_size"
     )
 
-    assert config["training"]["conditioner_mode"] in ["mode", "lora", "no_cond"]
+    assert config["training"]["conditioner_mode"] in ["moe", "lora", "no_cond"]
+
     if config["training"]["conditioner_mode"] == "moe":
         if config["training"]["encoder_conditioner"]:
             config["model"]["encoder_conditioner"] = {
@@ -175,8 +176,12 @@ def load_check_config(name: str, mode: str) -> Dict:
             config["model"]["decoder_conditioner"] = {
                 "num_output_channels": len(UNMASKING_CHANNEL_GROUPS)
             }
+    elif config["training"]["conditioner_mode"] == "lora":
+        config["model"]["encoder_conditioner"] = config["model"]["lora_generator"].copy()
+        config["model"]["encoder_conditioner"]["num_output_channels"] = len(UNMASKING_CHANNEL_GROUPS)
+        config["model"]["encoder_conditioner"]["backbone_dim"] = config["model"]["encoder"]["embedding_size"]
+        config["model"]["encoder_conditioner"]["backbone_depth"] = config["model"]["encoder"]["depth"]
 
-        
     return config
 
 

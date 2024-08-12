@@ -50,7 +50,6 @@ class ConditionalLinear(nn.Module):
         if self.conditional_weights is not None:
             if self.mode == "moe":
                 assert self.conditional_bias is not None
-                print("in cond, using c_i")
                 return F.linear(
                     x,
                     (self.backbone.weight + self.conditional_weights) / 2,
