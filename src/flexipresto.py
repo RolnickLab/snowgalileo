@@ -883,7 +883,7 @@ class Encoder(FlexiPrestoBase):
         patch_size: int,
         c_i=None,
         input_resolution_m: Optional[int] = BASE_GSD,
-        exit_after: int = 100,  # never going to train more than 100 layer model,
+        exit_after: Optional[int] = None,
     ):
         if self.conditioner is not None:
             self.apply_condition(c_i)
@@ -900,20 +900,21 @@ class Encoder(FlexiPrestoBase):
         ) = self.apply_linear_projection(
             s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, patch_size
         )
-        s_t_x, sp_x, t_x, st_x, s_t_m, st_m, t_m, st_m = self.apply_attn(
-            s_t_x,
-            sp_x,
-            t_x,
-            st_x,
-            s_t_m,
-            sp_m,
-            t_m,
-            st_m,
-            months,
-            patch_size,
-            input_resolution_m,
-            exit_after,
-        )
+        if (exit_after is not None) and (exit_after > 0):
+            s_t_x, sp_x, t_x, st_x, s_t_m, st_m, t_m, st_m = self.apply_attn(
+                s_t_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_m,
+                sp_m,
+                t_m,
+                st_m,
+                months,
+                patch_size,
+                input_resolution_m,
+                exit_after,
+            )
 
         return (
             self.norm(s_t_x),
