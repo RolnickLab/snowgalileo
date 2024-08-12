@@ -14,15 +14,20 @@ class TestConfigs(unittest.TestCase):
 
             # check we can load the models
             if loaded_config["training"]["encoder_conditioner"]:
-                encoder_conditioner = LearnedMixture(**loaded_config["model"]["encoder_conditioner"])
+                encoder_conditioner = LearnedMixture(
+                    **loaded_config["model"]["encoder_conditioner"]
+                )
                 _ = Encoder(**loaded_config["model"]["encoder"], conditioner=encoder_conditioner)
             else:
                 assert "encoder_conditioner" not in loaded_config["model"].keys()
                 _ = Encoder(**loaded_config["model"]["encoder"])
             if loaded_config["training"]["decoder_conditioner"]:
-                decoder_conditioner = LearnedMixture(**loaded_config["model"]["decoder_conditioner"])
-                _ = PrestoPixelDecoder(**loaded_config["model"]["decoder"], conditioner=decoder_conditioner)
+                decoder_conditioner = LearnedMixture(
+                    **loaded_config["model"]["decoder_conditioner"]
+                )
+                _ = PrestoPixelDecoder(
+                    **loaded_config["model"]["decoder"], conditioner=decoder_conditioner
+                )
             else:
                 assert "decoder_conditioner" not in loaded_config["model"].keys()
                 _ = PrestoPixelDecoder(**loaded_config["model"]["decoder"])
-
