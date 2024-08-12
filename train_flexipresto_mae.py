@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
-from src.collate_fns import MaskingFunctions, mae_collate_fn
+from src.collate_fns import mae_collate_fn
 from src.conditioner import LearnedMixture
 from src.config import DEFAULT_SEED
 from src.data import Dataset
@@ -108,48 +108,65 @@ dataloader = DataLoader(
 )
 print("Loading models")
 predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
-if "conditioner" in config["model"]:
+param_groups = []
+eval_w_condition = False
+if "encoder_conditioner" in config["model"]:
     eval_w_condition = True
-    conditioner = LearnedMixture(**config["model"]["conditioner"]).to(device)
-    decoder_conditioner = LearnedMixture(**config["model"]["conditioner"])
-    encoder = Encoder(**config["model"]["encoder"], conditioner=conditioner).to(device)
-    predictor = PrestoPixelDecoder(
-        **config["model"]["decoder"], conditioner=decoder_conditioner
-    ).to(device)
-    param_groups = [
-        {
-            "params": [p for n, p in encoder.named_parameters() if "conditioner" not in n],
-            "name": "encoder",
-            "weight_decay": training_config["weight_decay"],
-        },
-        {
-            "params": [p for n, p in predictor.named_parameters() if "conditioner" not in n],
-            "name": "decoder",
-            "weight_decay": training_config["weight_decay"],
-        },
-        {
-            "params": [p for p in encoder.conditioner.parameters()]
-            + [p for p in predictor.conditioner.parameters()],
-            "name": "conditioner",
-            "weight_decay": training_config["conditioner_weight_decay"],
-        },
-    ]
+    encoder_conditioner = LearnedMixture(**config["model"]["encoder_conditioner"]).to(device)
+    encoder = Encoder(**config["model"]["encoder"], conditioner=encoder_conditioner).to(device)
+    param_groups.extend(
+        [
+            {
+                "params": [p for n, p in encoder.named_parameters() if "conditioner" not in n],
+                "name": "encoder",
+                "weight_decay": training_config["weight_decay"],
+            },
+            {
+                "params": encoder.conditioner.parameters(),
+                "name": "encoder_conditioner",
+                "weight_decay": training_config["conditioner_weight_decay"],
+            },
+        ]
+    )
 else:
-    eval_w_condition = False
     encoder = Encoder(**config["model"]["encoder"]).to(device)
-    predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
-    param_groups = [
+    param_groups.append(
         {
             "params": encoder.parameters(),
             "name": "encoder",
             "weight_decay": training_config["weight_decay"],
-        },
+        }
+    )
+
+if "decoder_conditioner" in config["model"]:
+    eval_w_condition = True
+    decoder_conditioner = LearnedMixture(**config["model"]["conditioner"])
+    predictor = PrestoPixelDecoder(
+        **config["model"]["decoder"], conditioner=decoder_conditioner
+    ).to(device)
+    param_groups.extend(
+        [
+            {
+                "params": [p for n, p in predictor.named_parameters() if "conditioner" not in n],
+                "name": "decoder",
+                "weight_decay": training_config["weight_decay"],
+            },
+            {
+                "params": predictor.conditioner.parameters(),
+                "name": "decoder_conditioner",
+                "weight_decay": training_config["conditioner_weight_decay"],
+            },
+        ]
+    )
+else:
+    predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
+    param_groups.append(
         {
             "params": predictor.parameters(),
             "name": "decoder",
             "weight_decay": training_config["weight_decay"],
-        },
-    ]
+        }
+    )
 
 
 print("Loading validation task")
@@ -315,7 +332,7 @@ for e in tqdm(range(training_config["num_epochs"])):
             "task_masking_train_loss": task_masking_train_loss.average,
             "epoch": e,
             "momentum": m,
-            "lr": current_lr
+            "lr": current_lr,
         }
 
         if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
