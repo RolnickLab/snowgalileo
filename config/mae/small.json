@@ -24,7 +24,6 @@
         "ema": [0.996, 1.0],
         "target_exit_after": 0,
         "target_condition": true,
-        "target_apply_embeddings": false,
         "wandb_plot_every_n_epochs": 10,
         "num_images_to_wandb_plot": 3,
         "timesteps_to_wandb_plot": [0],
@@ -32,6 +31,8 @@
         "augmentation": {"flip+rotate": true},
         "masking_probabilities": [0.3, 0.3, 0.3, 0.3, 0.8, 0.8, 0.6, 0.6, 0.6, 0.6, 0.3, 0.3, 0.3, 0.3, 0.5, 0.2, 0.2],
         "unmasking_probabilities": [0.5, 0.8, 0.8, 0.6, 0.3, 0.3, 0.4, 0.4, 0.4, 0.4, 0.6, 0.6, 0.6, 0.6, 0.5, 0.8, 0.8],
+        "encoder_conditioner": true,
+        "decoder_conditioner": false,
         "conditioner_mode": "lora"
     },
     "model": {
@@ -50,13 +51,6 @@
             "mlp_ratio": 4,
             "num_heads": 8,
             "max_sequence_length": 24
-        },
-        "conditioner": {
-            "dim": 128,
-            "backbone_dim": 128,
-            "backbone_depth": 2,
-            "do_input_condition": true,
-            "rank": 12
         }
     }
 }

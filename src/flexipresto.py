@@ -48,7 +48,7 @@ def adjust_learning_rate(
             1.0 + math.cos(math.pi * (epoch - warmup_epochs) / (total_epochs - warmup_epochs))
         )
     for group in optimizer.param_groups:
-        if group["name"] == "conditioner":
+        if "conditioner" in group["name"]:
             assert conditioner_multiplier is not None
             group["lr"] = lr * conditioner_multiplier
         else:
@@ -794,14 +794,12 @@ class Encoder(FlexiPrestoBase):
         patch_size,
         input_res,
         exit_after,
-        apply_embeddings,
     ):
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
         sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
-        if apply_embeddings:
-            s_t_x, sp_x, t_x, st_x = self.apply_encodings(
-                s_t_x, sp_x, t_x, st_x, months, patch_size, input_res
-            )
+        s_t_x, sp_x, t_x, st_x = self.apply_encodings(
+            s_t_x, sp_x, t_x, st_x, months, patch_size, input_res
+        )
         x, m = self.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
 
         # we only care about the values <= 1 for this mask, since 2 just tells the decoder
@@ -887,7 +885,6 @@ class Encoder(FlexiPrestoBase):
         c_i=None,
         input_resolution_m: Optional[int] = BASE_GSD,
         exit_after: int = 100,  # never going to train more than 100 layer model,
-        apply_embeddings: bool = True,
     ):
         if self.conditioner is not None:
             self.apply_condition(c_i)
@@ -917,7 +914,6 @@ class Encoder(FlexiPrestoBase):
             patch_size,
             input_resolution_m,
             exit_after,
-            apply_embeddings,
         )
 
         return (
@@ -1009,6 +1005,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         num_heads=8,
         max_sequence_length=24,
         max_patch_size: int = 8,
+        learnable_channel_embeddings: bool = False,
         conditioner=None,
     ):
         super().__init__(
@@ -1018,8 +1015,9 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             num_heads,
             max_sequence_length,
             max_patch_size,
-            use_channel_embs=False,
+            use_channel_embs=learnable_channel_embeddings,
         )
+        self.learnable_channel_embeddings = learnable_channel_embeddings
         self.encoder_embedding_size = encoder_embedding_size
         self.encoder_to_decoder_embed = ConditionalLinear(
             encoder_embedding_size, decoder_embedding_size, bias=True

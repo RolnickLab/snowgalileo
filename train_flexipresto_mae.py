@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
-from src.collate_fns import MaskingFunctions, mae_collate_fn
+from src.collate_fns import mae_collate_fn
 from src.conditioner import LearnedMixture, LoRAGenerator
 from src.config import DEFAULT_SEED
 from src.data import Dataset
@@ -328,7 +328,6 @@ for e in tqdm(range(training_config["num_epochs"])):
             "task_masking_train_loss": task_masking_train_loss.average,
             "epoch": e,
             "momentum": m,
-            "lr": current_lr
         }
 
         if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
