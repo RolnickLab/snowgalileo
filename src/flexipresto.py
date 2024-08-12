@@ -945,6 +945,7 @@ class Encoder(FlexiPrestoBase):
             if c_i is not None:
                 conditional_weights = self.conditioner(c_i)
                 for i, block in enumerate(self.blocks):
+                    print("in fp, apply c_i")
                     # block.attn.q.apply_condition(conditional_weights[f"{i}.attn.q.backbone.weight"])
                     # block.attn.k.apply_condition(conditional_weights[f"{i}.attn.k.backbone.weight"])
                     # block.attn.v.apply_condition(conditional_weights[f"{i}.attn.v.backbone.weight"])

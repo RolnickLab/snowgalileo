@@ -165,8 +165,18 @@ def load_check_config(name: str, mode: str) -> Dict:
         "embedding_size"
     )
 
-    if config["training"]["use_conditions"]:
-        config["model"]["conditioner"] = {"num_output_channels": len(UNMASKING_CHANNEL_GROUPS)}
+    assert config["training"]["conditioner_mode"] in ["mode", "lora", "no_cond"]
+    if config["training"]["conditioner_mode"] == "moe":
+        if config["training"]["encoder_conditioner"]:
+            config["model"]["encoder_conditioner"] = {
+                "num_output_channels": len(UNMASKING_CHANNEL_GROUPS)
+            }
+        if config["training"]["decoder_conditioner"]:
+            config["model"]["decoder_conditioner"] = {
+                "num_output_channels": len(UNMASKING_CHANNEL_GROUPS)
+            }
+
+        
     return config
 
 

@@ -33,7 +33,7 @@
         "unmasking_probabilities": [0.5, 0.8, 0.8, 0.6, 0.3, 0.3, 0.4, 0.4, 0.4, 0.4, 0.6, 0.6, 0.6, 0.6, 0.5, 0.8, 0.8],
         "encoder_conditioner": true,
         "decoder_conditioner": false,
-        "conditioner_mode": "lora"
+        "conditioner_mode": "moe"
     },
     "model": {
         "encoder": {
@@ -50,7 +50,8 @@
             "depth": 1,
             "mlp_ratio": 4,
             "num_heads": 8,
-            "max_sequence_length": 24
+            "max_sequence_length": 24,
+            "learnable_channel_embeddings": false
         }
     }
 }

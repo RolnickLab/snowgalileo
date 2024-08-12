@@ -50,7 +50,8 @@
             "depth": 2,
             "mlp_ratio": 4,
             "num_heads": 8,
-            "max_sequence_length": 24
+            "max_sequence_length": 24,
+            "learnable_channel_embeddings": false
         }
     }
 }
