@@ -48,7 +48,7 @@ def adjust_learning_rate(
             1.0 + math.cos(math.pi * (epoch - warmup_epochs) / (total_epochs - warmup_epochs))
         )
     for group in optimizer.param_groups:
-        if group["name"] == "conditioner":
+        if "conditioner" in group["name"]:
             assert conditioner_multiplier is not None
             group["lr"] = lr * conditioner_multiplier
         else:
