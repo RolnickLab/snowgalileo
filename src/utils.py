@@ -105,6 +105,8 @@ def load_check_config(name: str, mode: str) -> Dict:
         "encoder_conditioner": bool,
         "decoder_conditioner": bool,
         "grad_clip": bool,
+        "target_condition": bool,
+        "target_exit_after": int,
     }
     training_dict = config["training"]
 
@@ -137,6 +139,7 @@ def load_check_config(name: str, mode: str) -> Dict:
     }
 
     expected_encoder_only_keys_type = {"freeze_projections": bool}
+    expected_decoder_only_keys_type = {"learnable_channel_embeddings": bool}
 
     model_dict = config["model"]
     for model in ["encoder", "decoder"]:
@@ -146,6 +149,10 @@ def load_check_config(name: str, mode: str) -> Dict:
             assert isinstance(model_dict[model][key], val)
         if model == "encoder":
             for key, val in expected_encoder_only_keys_type.items():
+                assert key in model_dict[model], f"Expected {key} in {model} dict"
+                assert isinstance(model_dict[model][key], val)
+        elif model == "decoder":
+            for key, val in expected_decoder_only_keys_type.items():
                 assert key in model_dict[model], f"Expected {key} in {model} dict"
                 assert isinstance(model_dict[model][key], val)
 
