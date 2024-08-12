@@ -1,5 +1,6 @@
 from copy import deepcopy
 from typing import List
+import warnings
 
 import torch
 import torch.nn as nn
@@ -90,7 +91,8 @@ class LearnedMixture(nn.Module):
             output_dict[name] = new_weight
         return output_dict
 
-    def forward(self, output_channels: torch.Tensor):
+    def forward(self, c_i):
+        output_channels = c_i["output_channels"]
         assert len(output_channels) == self.num_templates
         selected_templates = []
         for i in torch.argwhere(output_channels):
@@ -142,6 +144,8 @@ class LoRAGenerator(nn.Module):
         self,
         dim: int, 
         backbone_dim: int,
+        backbone_depth: int,
+        do_input_condition: bool,
         rank: int,
         num_output_channels: int,
         param_types: List[str] = ["q", "k", "v"],
@@ -151,15 +155,30 @@ class LoRAGenerator(nn.Module):
         self.mode = "lora"
         self.dim = dim
         self.backbone_dim = backbone_dim
+        self.backbone_depth = backbone_depth
         self.rank = rank
         self.num_channels = num_output_channels
         self.param_types = param_types
+        self.do_input_condition = do_input_condition
         self.sequence_length = sum([2 * rank for _ in param_types])
  
         ##### create conditioner network parameters #####
-        self.target_embedder = nn.Linear(self.num_channels, backbone_dim)
+        if do_input_condition:
+            condition_length = 2 * self.num_channels + 3
+            self.hw_min = 1
+            self.hw_max = 20
+            self.patch_size_min = 1
+            self.patch_size_max = 8
+            self.time_min = 1
+            self.time_max = 12
+
+        else:
+            condition_length = self.num_channels
+
+        self.condition_proj = nn.Linear(condition_length, backbone_dim)
         self.embedding = nn.Embedding(self.sequence_length, dim)
-        self.blocks = nn.Sequential(*[MLPBlock(dim=dim) for _ in range(4)])
+        self.blocks_before = nn.Sequential(*[MLPBlock(dim=dim) for _ in range(2)])
+        self.blocks_during = nn.Sequential(*[MLPBlock(dim=dim) for _ in range(backbone_depth)])
         
         # Create output projections
         self.output_projections = nn.ModuleDict()
@@ -187,19 +206,32 @@ class LoRAGenerator(nn.Module):
         else:
             raise ValueError(f"Invalid param_type {param_type}. Must be q, k, v, proj, fc1, or fc2.")
         return {"input_dim": in_dim, "output_dim": out_dim}
+    
+    def normalize_input_shape(self, hw, patch_size, timesteps, device, dtype):
+        if hw < self.hw_min or hw > self.hw_max:
+            warnings.warn(
+                f"hw ({hw}) is outside the expected range [{self.hw_min}, {self.hw_max}]"
+            )
+        if patch_size < self.patch_size_min or patch_size > self.patch_size_max:
+            warnings.warn(
+                f"patch_size ({patch_size}) is outside the expected range [{self.patch_size_min}, {self.patch_size_max}]"
+            )
+        if timesteps < self.time_min or timesteps > self.time_max:
+            warnings.warn(
+                f"timesteps ({timesteps}) is outside the expected range [{self.time_min}, {self.time_max}]"
+            )
 
-    def forward(self, output_channels: torch.Tensor):
-        output_channels = rearrange(output_channels, 'c -> 1 1 c')  # (1, 1, c_g)
-        condition = self.target_embedder(output_channels)  # (1, 1, dim)
-        condition = condition.repeat(1, self.sequence_length, 1)  # (1, self.sequence_length, dim)
+        hw_normalized = (hw - self.hw_min) / (self.hw_max - self.hw_min)
+        patch_size_normalized = (patch_size - self.patch_size_min) / (
+            self.patch_size_max - self.patch_size_min
+        )
+        timesteps_normalized = (timesteps - self.time_min) / (self.time_max - self.time_min)
 
-        position_ids = torch.arange(self.sequence_length, device=output_channels.device).unsqueeze(0)
-        embeddings = self.embedding(position_ids)  # (1, self.sequence_length, dim)
-
-        x = condition + embeddings
-        x = self.blocks(x)
-
-        # generate lora_weights
+        return torch.tensor(
+            [hw_normalized, patch_size_normalized, timesteps_normalized], device=device, dtype=dtype
+        )
+    
+    def get_lora_weights(self, x):
         lora_weights = {}
         start_idx = 0
         for param_type in self.param_types:               
@@ -217,3 +249,31 @@ class LoRAGenerator(nn.Module):
             start_idx += 2 * self.rank
 
         return lora_weights
+
+    def forward(self, c_i):
+        if self.do_input_condition:
+            normalized_input_shape = self.normalize_input_shape(
+                c_i["hw"], c_i["patch_size"], c_i["timesteps"], c_i["input_channels"].device, c_i["input_channels"].dtype
+            )
+            condition = torch.cat(
+                [normalized_input_shape, c_i["input_channels"], c_i["output_channels"]]
+            )
+        else:
+            condition = c_i["output_channels"]
+
+        condition = rearrange(condition, 'c -> 1 1 c')  # (1, 1, N)
+        condition = self.condition_proj(condition)  # (1, 1, dim)
+        condition = condition.repeat(1, self.sequence_length, 1)  # (1, self.sequence_length, dim)
+
+        position_ids = torch.arange(self.sequence_length, device=c_i["output_channels"].device).unsqueeze(0)
+        embeddings = self.embedding(position_ids)  # (1, self.sequence_length, dim)
+
+        x = condition + embeddings
+        x = self.blocks_before(x)
+
+        all_lora_weights = {}
+        for block_idx, block in enumerate(self.blocks_during):
+            x = block(x)
+            all_lora_weights[block_idx] = self.get_lora_weights(x)
+            
+        return all_lora_weights

@@ -176,7 +176,11 @@ def batch_subset_mask_presto(
     assert len(masking_probabilities) == len(MASKING_MODES)
 
     conditioner_inputs: Optional[Dict] = {
-        "output_channels": torch.zeros(len(UNMASKING_CHANNEL_GROUPS)).to(s_t_x.device),
+        "hw": image_size // patch_size,
+        "patch_size": patch_size,
+        "timesteps": num_timesteps,
+        "input_channels": torch.zeros(len(MASKING_MODES)).to(s_t_x.device),
+        "output_channels": torch.zeros(len(MASKING_MODES)).to(s_t_x.device),
     }
 
     if masking_function.value < 2:

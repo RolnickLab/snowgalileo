@@ -54,6 +54,8 @@
         "conditioner": {
             "dim": 128,
             "backbone_dim": 128,
+            "backbone_depth": 2,
+            "do_input_condition": true,
             "rank": 12
         }
     }

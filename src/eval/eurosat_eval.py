@@ -279,6 +279,19 @@ class EuroSatEval(EvalTask):
                 output_channels[i] = 1
         self.condition = {"output_channels": torch.Tensor(output_channels).to(device)}
 
+        input_channels = [0] * len(UNMASKING_CHANNEL_GROUPS)
+        for i, val in enumerate(UNMASKING_CHANNEL_GROUPS):
+            if val[1] in ["S2_RGB", "S2_SWIR", "S2_Red_Edge", "S2_NIR_10m", "S2_NIR_20m"]:
+                input_channels[i] = 1
+
+        self.condition = {
+            "hw": 64 // patch_size,
+            "patch_size": patch_size,
+            "timesteps": 1,
+            "input_channels": torch.Tensor(input_channels).to(device),
+            "output_channels": torch.Tensor(output_channels).to(device),
+        }
+
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         return {
             f"{self.name}: {model_name}_accuracy_score": accuracy_score(target, preds),

@@ -947,7 +947,7 @@ class Encoder(FlexiPrestoBase):
     def apply_condition(self, c_i):
         if self.conditioner.mode == "moe":
             if c_i is not None:
-                conditional_weights = self.conditioner(**c_i)
+                conditional_weights = self.conditioner(c_i)
                 for i, block in enumerate(self.blocks):
                     # block.attn.q.apply_condition(conditional_weights[f"{i}.attn.q.backbone.weight"])
                     # block.attn.k.apply_condition(conditional_weights[f"{i}.attn.k.backbone.weight"])
@@ -970,20 +970,21 @@ class Encoder(FlexiPrestoBase):
 
         elif self.conditioner.mode == "lora":
             if c_i is not None:
-                conditional_weights = self.conditioner(**c_i)
-                for block in self.blocks:
-                    if "q" in conditional_weights:
-                        block.attn.q.apply_condition(conditional_weights["q"], None, "lora")
-                    if "k" in conditional_weights:
-                        block.attn.k.apply_condition(conditional_weights["k"], None, "lora")
-                    if "v" in conditional_weights:
-                        block.attn.v.apply_condition(conditional_weights["v"], None, "lora")
-                    if "proj" in conditional_weights:
-                        block.attn.proj.apply_condition(conditional_weights["proj"], None, "lora")
-                    if "fc1" in conditional_weights:
-                        block.mlp.fc1.apply_condition(conditional_weights["fc1"], None, "lora")
-                    if "fc2" in conditional_weights:
-                        block.mlp.fc2.apply_condition(conditional_weights["fc2"], None, "lora")
+                conditional_weights = self.conditioner(c_i)
+                for block_idx, block in enumerate(self.blocks):
+                    block_conditional_weights = conditional_weights[block_idx]
+                    if "q" in block_conditional_weights:
+                        block.attn.q.apply_condition(block_conditional_weights["q"], None, "lora")
+                    if "k" in block_conditional_weights:
+                        block.attn.k.apply_condition(block_conditional_weights["k"], None, "lora")
+                    if "v" in block_conditional_weights:
+                        block.attn.v.apply_condition(block_conditional_weights["v"], None, "lora")
+                    if "proj" in block_conditional_weights:
+                        block.attn.proj.apply_condition(block_conditional_weights["proj"], None, "lora")
+                    if "fc1" in block_conditional_weights:
+                        block.mlp.fc1.apply_condition(block_conditional_weights["fc1"], None, "lora")
+                    if "fc2" in block_conditional_weights:
+                        block.mlp.fc2.apply_condition(block_conditional_weights["fc2"], None, "lora")
             else:
                 for block in self.blocks:
                     block.attn.q.apply_condition(None, None, "lora")
@@ -1214,7 +1215,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
 
     def apply_condition(self, c_i):
         if c_i is not None:
-            conditional_weights = self.conditioner(**c_i)
+            conditional_weights = self.conditioner(c_i)
             self.encoder_to_decoder_embed.apply_condition(
                 conditional_weights["backbone.weight"],
                 conditional_weights["backbone.bias"],
