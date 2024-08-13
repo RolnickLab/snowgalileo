@@ -571,7 +571,6 @@ class Encoder(FlexiPrestoBase):
         num_heads=8,
         max_sequence_length=24,
         freeze_projections: bool = False,
-        latent_mlp: bool = False,
         conditioner=None,
     ):
         super().__init__(
@@ -618,18 +617,6 @@ class Encoder(FlexiPrestoBase):
             self.time_embed.requires_grad_(False)
             self.static_embed.requires_grad_(False)
         self.norm = nn.LayerNorm(embedding_size)
-
-        if latent_mlp:
-            hdn = int(embedding_size * 4)
-            self.head: nn.Module = nn.Sequential(
-                nn.Linear(embedding_size, hdn),
-                nn.GELU(),
-                nn.Linear(hdn, hdn),
-                nn.GELU(),
-                nn.Linear(hdn, embedding_size),
-            )
-        else:
-            self.head = nn.Identity()
 
         self.apply(self._init_weights)
         self.conditioner = conditioner
@@ -819,8 +806,6 @@ class Encoder(FlexiPrestoBase):
             # attention
             x = blk(x=x, y=None, attn_mask=~new_m.bool())
 
-        x = self.head(x)
-
         # we don't care about the mask returned by add_removed_tokens, since we will
         # just use the original, unclipped mask here
         x, _ = self.add_removed_tokens(x, indices, new_m)
@@ -1006,7 +991,6 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         max_sequence_length=24,
         max_patch_size: int = 8,
         learnable_channel_embeddings: bool = False,
-        conditioner=None,
     ):
         super().__init__(
             decoder_embedding_size,
@@ -1029,10 +1013,6 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         self.input_norm = nn.LayerNorm(encoder_embedding_size)
         self.norm = nn.LayerNorm(decoder_embedding_size)
         self.apply(self._init_weights)
-        self.conditioner = conditioner
-        if conditioner is not None:
-            if conditioner.mode == "moe":
-                self.conditioner.add_templates(self.encoder_to_decoder_embed)
 
     def add_masks(self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m):
         def to_kept_boolean(m: torch.Tensor):
@@ -1139,12 +1119,8 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         st_m: torch.Tensor,
         months: torch.Tensor,
         patch_size: Optional[int] = None,
-        c_i=None,
         input_resolution_m: Optional[int] = BASE_GSD,
     ):
-        if self.conditioner is not None:
-            self.apply_condition(c_i)
-
         s_t_x = self.encoder_to_decoder_embed(self.input_norm(s_t_x))
         sp_x = self.encoder_to_decoder_embed(self.input_norm(sp_x))
         t_x = self.encoder_to_decoder_embed(self.input_norm(t_x))
@@ -1210,15 +1186,3 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             torch.stack(output_t, dim=-2),
             torch.stack(output_st, dim=-2),
         )
-
-    def apply_condition(self, c_i):
-        # don't need to check if mode is moe or lora since lora does not
-        if c_i is not None:
-            conditional_weights = self.conditioner(c_i)
-            self.encoder_to_decoder_embed.apply_condition(
-                conditional_weights["backbone.weight"],
-                conditional_weights["backbone.bias"],
-                "moe"
-            )
-        else:
-            self.encoder_to_decoder_embed.apply_condition(None, None, "moe")

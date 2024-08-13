@@ -86,7 +86,6 @@ wandb_enabled = False
 wandb_org = "nasa-harvest"
 output_dir = Path(__file__).parent
 
-
 print("Loading dataset and dataloader")
 dataset = Dataset(TIFS_FOLDER, download=False, h5py_folder=cache_folder, h5pys_only=True)
 dataloader = DataLoader(
@@ -143,36 +142,14 @@ else:
         }
     )
 
-if "decoder_conditioner" in config["model"]:
-    eval_w_condition = True
-    decoder_conditioner = LearnedMixture(**config["model"]["decoder_conditioner"])
-    predictor = PrestoPixelDecoder(
-        **config["model"]["decoder"], conditioner=decoder_conditioner
-    ).to(device)
-    param_groups.extend(
-        [
-            {
-                "params": [p for n, p in predictor.named_parameters() if "conditioner" not in n],
-                "name": "decoder",
-                "weight_decay": training_config["weight_decay"],
-            },
-            {
-                "params": predictor.conditioner.parameters(),
-                "name": "decoder_conditioner",
-                "weight_decay": training_config["conditioner_weight_decay"],
-            },
-        ]
-    )
-else:
-    predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
-    param_groups.append(
-        {
-            "params": predictor.parameters(),
-            "name": "decoder",
-            "weight_decay": training_config["weight_decay"],
-        }
-    )
-
+predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
+param_groups.append(
+    {
+        "params": predictor.parameters(),
+        "name": "decoder",
+        "weight_decay": training_config["weight_decay"],
+    }
+)
 
 print("Loading validation task")
 val_task_no_latlons = EuroSatEval(

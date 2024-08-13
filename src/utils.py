@@ -102,11 +102,10 @@ def load_check_config(name: str, mode: str) -> Dict:
         "augmentation": dict,
         "masking_probabilities": list,
         "unmasking_probabilities": list,
-        "encoder_conditioner": bool,
-        "decoder_conditioner": bool,
         "grad_clip": bool,
         "target_condition": bool,
         "target_exit_after": int,
+        "conditioner_mode": str,
     }
     training_dict = config["training"]
 
@@ -172,10 +171,7 @@ def load_check_config(name: str, mode: str) -> Dict:
             config["model"]["encoder_conditioner"] = {
                 "num_output_channels": len(UNMASKING_CHANNEL_GROUPS)
             }
-        if config["training"]["decoder_conditioner"]:
-            config["model"]["decoder_conditioner"] = {
-                "num_output_channels": len(UNMASKING_CHANNEL_GROUPS)
-            }
+
     elif config["training"]["conditioner_mode"] == "lora":
         config["model"]["encoder_conditioner"] = config["model"]["lora_generator"].copy()
         config["model"]["encoder_conditioner"]["num_output_channels"] = len(UNMASKING_CHANNEL_GROUPS)
@@ -183,7 +179,6 @@ def load_check_config(name: str, mode: str) -> Dict:
         config["model"]["encoder_conditioner"]["backbone_depth"] = config["model"]["encoder"]["depth"]
 
     return config
-
 
 @torch.no_grad()
 def plot_space_time_predictions(
