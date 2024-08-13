@@ -168,14 +168,14 @@ class LoRAGenerator(nn.Module):
             self.hw_min = 1
             self.hw_max = 20
             self.patch_size_min = 1
-            self.patch_size_max = 8
+            self.patch_size_max = 16
             self.time_min = 1
             self.time_max = 12
 
         else:
             condition_length = self.num_channels
 
-        self.condition_proj = nn.Linear(condition_length, backbone_dim)
+        self.condition_proj = nn.Linear(condition_length, dim)
         self.embedding = nn.Embedding(self.sequence_length, dim)
         self.blocks_before = nn.Sequential(*[MLPBlock(dim=dim) for _ in range(2)])
         self.blocks_during = nn.Sequential(*[MLPBlock(dim=dim) for _ in range(backbone_depth)])

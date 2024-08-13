@@ -31,7 +31,7 @@
         "augmentation": {"flip+rotate": true},
         "masking_probabilities": [0.3, 0.3, 0.3, 0.3, 0.8, 0.8, 0.6, 0.6, 0.6, 0.6, 0.3, 0.3, 0.3, 0.3, 0.5, 0.2, 0.2],
         "unmasking_probabilities": [0.5, 0.8, 0.8, 0.6, 0.3, 0.3, 0.4, 0.4, 0.4, 0.4, 0.6, 0.6, 0.6, 0.6, 0.5, 0.8, 0.8],
-        "conditioner_mode": "moe"
+        "conditioner_mode": "lora"
     },
     "model": {
         "encoder": {
@@ -49,6 +49,11 @@
             "num_heads": 8,
             "max_sequence_length": 24,
             "learnable_channel_embeddings": false
+        },
+        "lora_generator": {
+            "dim": 128,
+            "rank": 12,
+            "do_input_condition": true
         }
     }
 }

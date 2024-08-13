@@ -74,13 +74,7 @@ class AverageMeter:
         self.count += n
         self.average = self.sum / self.count
 
-
-def load_check_config(name: str, mode: str) -> Dict:
-    assert mode == "mae"
-
-    with (config_dir / mode / name).open("r") as f:
-        config = json.load(f)
-
+def check_config(config):
     expected_training_keys_type = {
         "num_epochs": int,
         "batch_size": int,
@@ -167,10 +161,9 @@ def load_check_config(name: str, mode: str) -> Dict:
     assert config["training"]["conditioner_mode"] in ["moe", "lora", "no_cond"]
 
     if config["training"]["conditioner_mode"] == "moe":
-        if config["training"]["encoder_conditioner"]:
-            config["model"]["encoder_conditioner"] = {
-                "num_output_channels": len(UNMASKING_CHANNEL_GROUPS)
-            }
+        config["model"]["encoder_conditioner"] = {
+            "num_output_channels": len(UNMASKING_CHANNEL_GROUPS)
+        }
 
     elif config["training"]["conditioner_mode"] == "lora":
         config["model"]["encoder_conditioner"] = config["model"]["lora_generator"].copy()
@@ -178,6 +171,15 @@ def load_check_config(name: str, mode: str) -> Dict:
         config["model"]["encoder_conditioner"]["backbone_dim"] = config["model"]["encoder"]["embedding_size"]
         config["model"]["encoder_conditioner"]["backbone_depth"] = config["model"]["encoder"]["depth"]
 
+    return config
+
+def load_check_config(name: str, mode: str) -> Dict:
+    assert mode == "mae"
+
+    with (config_dir / mode / name).open("r") as f:
+        config = json.load(f)
+    config = check_config(config)
+    
     return config
 
 @torch.no_grad()

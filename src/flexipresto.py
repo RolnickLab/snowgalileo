@@ -1162,7 +1162,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
 
         for idx in range(len(self.time_groups)):
             if t_m[:, :, idx].max() == 2:
-                output_t.append(self.encoder_to_decoder_embed(self.norm(t_x[:, :, idx])))
+                output_t.append(self.to_output_embed(self.norm(t_x[:, :, idx])))
             else:
                 output_t.append(
                     torch.empty(
@@ -1172,7 +1172,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
 
         for idx in range(len(self.static_groups)):
             if st_m[:, idx].max() == 2:
-                output_st.append(self.encoder_to_decoder_embed(self.norm(st_x[:, idx])))
+                output_st.append(self.to_output_embed(self.norm(st_x[:, idx])))
             else:
                 output_st.append(
                     torch.empty(

@@ -70,7 +70,7 @@ tracker.start()
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--config_file", type=str, default="medium.json")
-argparser.add_argument("--cache_folder", type=str, default="/4tb/")
+argparser.add_argument("--cache_folder", type=str, default="")
 args = argparser.parse_args().__dict__
 
 if args["cache_folder"] == "":
@@ -192,8 +192,8 @@ target_encoder = copy.deepcopy(encoder)
 for p in target_encoder.parameters():
     p.requires_grad = False
 
-i = 0
 for e in tqdm(range(training_config["num_epochs"])):
+    i = 0
     train_loss = AverageMeter()
     random_masking_train_loss = AverageMeter()
     task_masking_train_loss = AverageMeter()
@@ -239,7 +239,6 @@ for e in tqdm(range(training_config["num_epochs"])):
                         patch_size=patch_size,
                     ),
                     patch_size=patch_size,
-                    c_i=c_i,
                 )
 
                 with torch.no_grad():
