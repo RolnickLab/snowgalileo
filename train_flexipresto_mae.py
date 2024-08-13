@@ -145,7 +145,7 @@ else:
 
 if "decoder_conditioner" in config["model"]:
     eval_w_condition = True
-    decoder_conditioner = LearnedMixture(**config["model"]["conditioner"])
+    decoder_conditioner = LearnedMixture(**config["model"]["decoder_conditioner"])
     predictor = PrestoPixelDecoder(
         **config["model"]["decoder"], conditioner=decoder_conditioner
     ).to(device)

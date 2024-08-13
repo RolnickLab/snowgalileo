@@ -1212,11 +1212,13 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         )
 
     def apply_condition(self, c_i):
+        # don't need to check if mode is moe or lora since lora does not
         if c_i is not None:
             conditional_weights = self.conditioner(c_i)
             self.encoder_to_decoder_embed.apply_condition(
                 conditional_weights["backbone.weight"],
                 conditional_weights["backbone.bias"],
+                "moe"
             )
         else:
-            self.encoder_to_decoder_embed.apply_condition(None, None)
+            self.encoder_to_decoder_embed.apply_condition(None, None, "moe")
