@@ -186,8 +186,8 @@ target_encoder = copy.deepcopy(encoder)
 for p in target_encoder.parameters():
     p.requires_grad = False
 
-i = 0
 for e in tqdm(range(training_config["num_epochs"])):
+    i = 0
     train_loss = AverageMeter()
     random_masking_train_loss = AverageMeter()
     task_masking_train_loss = AverageMeter()
