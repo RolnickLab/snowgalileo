@@ -13,9 +13,8 @@ class TestConditioner(unittest.TestCase):
     def test_end_to_end_grads_nonzero(self):
         conditioner_dict = {"num_output_channels": len(UNMASKING_CHANNEL_GROUPS)}
         mixer = LearnedMixture(**conditioner_dict)
-        decoder_mixer = LearnedMixture(**conditioner_dict)
         encoder = Encoder(conditioner=mixer)
-        decoder = PrestoPixelDecoder(conditioner=decoder_mixer)
+        decoder = PrestoPixelDecoder()
 
         conditioner_inputs = {
             "output_channels": torch.zeros(len(UNMASKING_CHANNEL_GROUPS)).float()
@@ -37,7 +36,7 @@ class TestConditioner(unittest.TestCase):
             patch_size=patch_size,
             c_i=conditioner_inputs,
         )
-        decoder_output = decoder(*encoder_output, c_i=conditioner_inputs)
+        decoder_output = decoder(*encoder_output)
         sum([d.sum() for d in decoder_output]).backward()
 
         for t_i, t in enumerate(encoder.conditioner.templates[:2]):
@@ -54,20 +53,11 @@ class TestConditioner(unittest.TestCase):
             for p in t.parameters():
                 self.assertTrue(p.grad is None, f"{t_i}, {n} has an unexpectedly not None grad")
 
-        for t_i, t in enumerate(decoder.conditioner.templates[:2]):
-            for n, p in t.named_parameters():
-                self.assertTrue(p.grad is not None, f"{t_i}, {n} has an unexpectedly None grad")
-        for t_i, t in enumerate(decoder.conditioner.templates[2:]):
-            for n, p in t.named_parameters():
-                self.assertTrue(p.grad is None, f"{t_i}, {n} has an unexpectedly not None grad")
-
         # next, test with c_i = None
         encoder.zero_grad(set_to_none=True)
         decoder.zero_grad(set_to_none=True)
         # check zero grad worked
         for p in encoder.conditioner.parameters():
-            self.assertTrue(p.grad is None)
-        for p in decoder.conditioner.parameters():
             self.assertTrue(p.grad is None)
 
         encoder_output = encoder(
@@ -83,12 +73,10 @@ class TestConditioner(unittest.TestCase):
             patch_size=patch_size,
             c_i=None,
         )
-        decoder_output = decoder(*encoder_output, c_i=None)
+        decoder_output = decoder(*encoder_output)
         sum([d.sum() for d in decoder_output]).backward()
 
         for p in encoder.conditioner.parameters():
-            self.assertTrue(p.grad is None)
-        for p in decoder.conditioner.parameters():
             self.assertTrue(p.grad is None)
 
     def construct_inputs(self, b=2, t=8, h=16, w=16, p=4):

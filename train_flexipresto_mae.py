@@ -108,12 +108,18 @@ dataloader = DataLoader(
 )
 print("Loading models")
 predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
-param_groups = []
+param_groups = [
+    {
+        "params": predictor.parameters(),
+        "name": "decoder",
+        "weight_decay": training_config["weight_decay"],
+    }
+]
 eval_w_condition = False
-if "encoder_conditioner" in config["model"]:
+if "conditioner" in config["model"]:
     eval_w_condition = True
-    encoder_conditioner = LearnedMixture(**config["model"]["encoder_conditioner"]).to(device)
-    encoder = Encoder(**config["model"]["encoder"], conditioner=encoder_conditioner).to(device)
+    conditioner = LearnedMixture(**config["model"]["conditioner"]).to(device)
+    encoder = Encoder(**config["model"]["encoder"], conditioner=conditioner).to(device)
     param_groups.extend(
         [
             {
@@ -123,7 +129,7 @@ if "encoder_conditioner" in config["model"]:
             },
             {
                 "params": encoder.conditioner.parameters(),
-                "name": "encoder_conditioner",
+                "name": "conditioner",
                 "weight_decay": training_config["conditioner_weight_decay"],
             },
         ]
@@ -134,36 +140,6 @@ else:
         {
             "params": encoder.parameters(),
             "name": "encoder",
-            "weight_decay": training_config["weight_decay"],
-        }
-    )
-
-if "decoder_conditioner" in config["model"]:
-    eval_w_condition = True
-    decoder_conditioner = LearnedMixture(**config["model"]["conditioner"])
-    predictor = PrestoPixelDecoder(
-        **config["model"]["decoder"], conditioner=decoder_conditioner
-    ).to(device)
-    param_groups.extend(
-        [
-            {
-                "params": [p for n, p in predictor.named_parameters() if "conditioner" not in n],
-                "name": "decoder",
-                "weight_decay": training_config["weight_decay"],
-            },
-            {
-                "params": predictor.conditioner.parameters(),
-                "name": "decoder_conditioner",
-                "weight_decay": training_config["conditioner_weight_decay"],
-            },
-        ]
-    )
-else:
-    predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
-    param_groups.append(
-        {
-            "params": predictor.parameters(),
-            "name": "decoder",
             "weight_decay": training_config["weight_decay"],
         }
     )
@@ -257,7 +233,6 @@ for e in tqdm(range(training_config["num_epochs"])):
                         patch_size=patch_size,
                     ),
                     patch_size=patch_size,
-                    c_i=c_i,
                 )
 
                 with torch.no_grad():
