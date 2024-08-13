@@ -326,9 +326,15 @@ with (model_path / CONFIG_FILENAME).open("w") as f:
     json.dump(config, f)
 
 eval_tasks: List[EvalTask] = [
-    *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil"]],
-    *[EuroSatEval(rgb=rgb, include_latlons=False, geobench=True) for rgb in [True, False]],
-    *[So2SatEval(geobench=geobench) for geobench in [True, False]],
+    *[
+        BinaryCropHarvestEval(country=country, do_condition=True)
+        for country in ["Kenya", "Togo", "Brazil"]
+    ],
+    *[
+        EuroSatEval(rgb=rgb, include_latlons=False, geobench=True, do_condition=True)
+        for rgb in [True, False]
+    ],
+    *[So2SatEval(geobench=geobench, do_condition=True) for geobench in [True, False]],
     BrickKilnEval(),
     *[CashewPlantEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
     *[SACropEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
