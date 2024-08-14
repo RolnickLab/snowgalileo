@@ -1,12 +1,42 @@
+import warnings
 from copy import deepcopy
 from typing import List
-import warnings
 
 import torch
 import torch.nn as nn
-from torch.nn import functional as F
 from einops import rearrange
-from timm.layers import Mlp
+from torch.nn import functional as F
+
+
+class NonConditionalMlp(nn.Module):
+    """MLP as used in Vision Transformer, MLP-Mixer and related networks"""
+
+    def __init__(
+        self,
+        in_features,
+        hidden_features=None,
+        out_features=None,
+        act_layer=nn.GELU,
+        bias=True,
+        drop=0.0,
+    ):
+        super().__init__()
+        out_features = out_features or in_features
+        hidden_features = hidden_features or in_features
+
+        self.fc1 = nn.Linear(in_features, hidden_features, bias=bias)
+        self.act = act_layer()
+        self.drop1 = nn.Dropout(drop)
+        self.fc2 = nn.Linear(hidden_features, out_features, bias=bias)
+        self.drop2 = nn.Dropout(drop)
+
+    def forward(self, x):
+        x = self.fc1(x)
+        x = self.act(x)
+        x = self.drop1(x)
+        x = self.fc2(x)
+        x = self.drop2(x)
+        return x
 
 
 class ConditionalLinear(nn.Module):
@@ -38,7 +68,7 @@ class ConditionalLinear(nn.Module):
                 raise ValueError(
                     f"conditional_weights must have the same shape ({self.conditional_weights.shape}) as backbone.weight ({self.backbone.weight.shape})"
                 )
-            
+
             if self.mode == "moe":
                 assert self.conditional_bias is not None
                 if self.conditional_bias.shape != self.backbone.bias.shape:
@@ -102,10 +132,10 @@ class LearnedMixture(nn.Module):
 
 class LayerScale(nn.Module):
     def __init__(
-            self,
-            dim: int,
-            init_values: float = 1e-4,
-            inplace: bool = False,
+        self,
+        dim: int,
+        init_values: float = 1e-4,
+        inplace: bool = False,
     ) -> None:
         super().__init__()
         self.inplace = inplace
@@ -113,16 +143,16 @@ class LayerScale(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x.mul_(self.gamma) if self.inplace else x * self.gamma
-    
+
 
 class MLPBlock(nn.Module):
     def __init__(
-            self,
-            dim: int,
-            mlp_ratio: float = 4.,
-            act_layer: nn.Module = nn.GELU,
-            norm_layer: nn.Module = nn.LayerNorm,
-            mlp_layer: nn.Module = Mlp,
+        self,
+        dim: int,
+        mlp_ratio: float = 4.0,
+        act_layer=nn.GELU,
+        norm_layer=nn.LayerNorm,
+        mlp_layer=NonConditionalMlp,
     ) -> None:
         super().__init__()
         self.norm = norm_layer(dim)
@@ -142,7 +172,7 @@ class MLPBlock(nn.Module):
 class LoRAGenerator(nn.Module):
     def __init__(
         self,
-        dim: int, 
+        dim: int,
         backbone_dim: int,
         backbone_depth: int,
         do_input_condition: bool,
@@ -161,7 +191,7 @@ class LoRAGenerator(nn.Module):
         self.param_types = param_types
         self.do_input_condition = do_input_condition
         self.sequence_length = sum([2 * rank for _ in param_types])
- 
+
         ##### create conditioner network parameters #####
         if do_input_condition:
             condition_length = 2 * self.num_channels + 3
@@ -179,11 +209,14 @@ class LoRAGenerator(nn.Module):
         self.embedding = nn.Embedding(self.sequence_length, dim)
         self.blocks_before = nn.Sequential(*[MLPBlock(dim=dim) for _ in range(2)])
         self.blocks_during = nn.Sequential(*[MLPBlock(dim=dim) for _ in range(backbone_depth)])
-        
+
         # Create output projections
         self.output_projections = nn.ModuleDict()
         for param_type in param_types:
-            in_dim, out_dim = self.get_param_type_dims(param_type)["input_dim"], self.get_param_type_dims(param_type)["output_dim"]
+            in_dim, out_dim = (
+                self.get_param_type_dims(param_type)["input_dim"],
+                self.get_param_type_dims(param_type)["output_dim"],
+            )
             self.output_projections[f"{param_type}_in"] = nn.Linear(dim, in_dim)
             self.output_projections[f"{param_type}_out"] = nn.Linear(dim, out_dim)
 
@@ -204,9 +237,11 @@ class LoRAGenerator(nn.Module):
             in_dim = int(self.backbone_dim * 4)
             out_dim = self.backbone_dim
         else:
-            raise ValueError(f"Invalid param_type {param_type}. Must be q, k, v, proj, fc1, or fc2.")
+            raise ValueError(
+                f"Invalid param_type {param_type}. Must be q, k, v, proj, fc1, or fc2."
+            )
         return {"input_dim": in_dim, "output_dim": out_dim}
-    
+
     def normalize_input_shape(self, hw, patch_size, timesteps, device, dtype):
         if hw < self.hw_min or hw > self.hw_max:
             warnings.warn(
@@ -228,23 +263,31 @@ class LoRAGenerator(nn.Module):
         timesteps_normalized = (timesteps - self.time_min) / (self.time_max - self.time_min)
 
         return torch.tensor(
-            [hw_normalized, patch_size_normalized, timesteps_normalized], device=device, dtype=dtype
+            [hw_normalized, patch_size_normalized, timesteps_normalized],
+            device=device,
+            dtype=dtype,
         )
-    
+
     def get_lora_weights(self, x):
         lora_weights = {}
         start_idx = 0
-        for param_type in self.param_types:               
+        for param_type in self.param_types:
             # Project input weights
-            input_weights = self.output_projections[f"{param_type}_in"](x[:, start_idx:start_idx+self.rank, :])
+            input_weights = self.output_projections[f"{param_type}_in"](
+                x[:, start_idx : start_idx + self.rank, :]
+            )
             input_weights = input_weights.squeeze(0)  # Shape: (rank, in_dim)
-            
+
             # Project output weights
-            output_weights = self.output_projections[f"{param_type}_out"](x[:, start_idx+self.rank:start_idx+2*self.rank, :])
+            output_weights = self.output_projections[f"{param_type}_out"](
+                x[:, start_idx + self.rank : start_idx + 2 * self.rank, :]
+            )
             output_weights = output_weights.squeeze(0).t()  # Shape: (out_dim, rank)
-            
+
             # Compute the low-rank weight matrix
-            lora_weights[param_type] = torch.matmul(output_weights, input_weights) / (self.rank ** 0.5)
+            lora_weights[param_type] = torch.matmul(output_weights, input_weights) / (
+                self.rank**0.5
+            )
 
             start_idx += 2 * self.rank
 
@@ -253,7 +296,11 @@ class LoRAGenerator(nn.Module):
     def forward(self, c_i):
         if self.do_input_condition:
             normalized_input_shape = self.normalize_input_shape(
-                c_i["hw"], c_i["patch_size"], c_i["timesteps"], c_i["input_channels"].device, c_i["input_channels"].dtype
+                c_i["hw"],
+                c_i["patch_size"],
+                c_i["timesteps"],
+                c_i["input_channels"].device,
+                c_i["input_channels"].dtype,
             )
             condition = torch.cat(
                 [normalized_input_shape, c_i["input_channels"], c_i["output_channels"]]
@@ -261,11 +308,13 @@ class LoRAGenerator(nn.Module):
         else:
             condition = c_i["output_channels"]
 
-        condition = rearrange(condition, 'c -> 1 1 c')  # (1, 1, N)
+        condition = rearrange(condition, "c -> 1 1 c")  # (1, 1, N)
         condition = self.condition_proj(condition)  # (1, 1, dim)
         condition = condition.repeat(1, self.sequence_length, 1)  # (1, self.sequence_length, dim)
 
-        position_ids = torch.arange(self.sequence_length, device=c_i["output_channels"].device).unsqueeze(0)
+        position_ids = torch.arange(
+            self.sequence_length, device=c_i["output_channels"].device
+        ).unsqueeze(0)
         embeddings = self.embedding(position_ids)  # (1, self.sequence_length, dim)
 
         x = condition + embeddings

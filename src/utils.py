@@ -74,6 +74,7 @@ class AverageMeter:
         self.count += n
         self.average = self.sum / self.count
 
+
 def check_config(config):
     expected_training_keys_type = {
         "num_epochs": int,
@@ -104,7 +105,9 @@ def check_config(config):
 
     for key, val in expected_training_keys_type.items():
         assert key in training_dict, f"Expected {key} in training dict"
-        assert isinstance(training_dict[key], val)  # type: ignore
+        assert isinstance(
+            training_dict[key], val  # type: ignore
+        ), f"Expected {key} to be {val}, got {type(training_dict[key])}"
 
     if isinstance(training_dict["warmup_epochs"], float):
         training_dict["warmup_epochs"] = int(
@@ -166,11 +169,18 @@ def check_config(config):
 
     elif config["training"]["conditioner_mode"] == "lora":
         config["model"]["encoder_conditioner"] = config["model"]["lora_generator"].copy()
-        config["model"]["encoder_conditioner"]["num_output_channels"] = len(UNMASKING_CHANNEL_GROUPS)
-        config["model"]["encoder_conditioner"]["backbone_dim"] = config["model"]["encoder"]["embedding_size"]
-        config["model"]["encoder_conditioner"]["backbone_depth"] = config["model"]["encoder"]["depth"]
+        config["model"]["encoder_conditioner"]["num_output_channels"] = len(
+            UNMASKING_CHANNEL_GROUPS
+        )
+        config["model"]["encoder_conditioner"]["backbone_dim"] = config["model"]["encoder"][
+            "embedding_size"
+        ]
+        config["model"]["encoder_conditioner"]["backbone_depth"] = config["model"]["encoder"][
+            "depth"
+        ]
 
     return config
+
 
 def load_check_config(name: str, mode: str) -> Dict:
     assert mode == "mae"
@@ -180,6 +190,7 @@ def load_check_config(name: str, mode: str) -> Dict:
     config = check_config(config)
 
     return config
+
 
 @torch.no_grad()
 def plot_space_time_predictions(

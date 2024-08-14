@@ -967,11 +967,17 @@ class Encoder(FlexiPrestoBase):
                     if "v" in block_conditional_weights:
                         block.attn.v.apply_condition(block_conditional_weights["v"], None, "lora")
                     if "proj" in block_conditional_weights:
-                        block.attn.proj.apply_condition(block_conditional_weights["proj"], None, "lora")
+                        block.attn.proj.apply_condition(
+                            block_conditional_weights["proj"], None, "lora"
+                        )
                     if "fc1" in block_conditional_weights:
-                        block.mlp.fc1.apply_condition(block_conditional_weights["fc1"], None, "lora")
+                        block.mlp.fc1.apply_condition(
+                            block_conditional_weights["fc1"], None, "lora"
+                        )
                     if "fc2" in block_conditional_weights:
-                        block.mlp.fc2.apply_condition(block_conditional_weights["fc2"], None, "lora")
+                        block.mlp.fc2.apply_condition(
+                            block_conditional_weights["fc2"], None, "lora"
+                        )
             else:
                 for block in self.blocks:
                     block.attn.q.apply_condition(None, None, "lora")

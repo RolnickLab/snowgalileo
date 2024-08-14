@@ -4,7 +4,7 @@ import json
 import os
 from functools import partial
 from pathlib import Path
-from typing import List, cast
+from typing import List, Union, cast
 
 import codecarbon
 import psutil
@@ -15,7 +15,7 @@ from wandb.sdk.wandb_run import Run
 
 from src.collate_fns import mae_collate_fn
 from src.conditioner import LearnedMixture, LoRAGenerator
-from src.config import DEFAULT_SEED
+from src.config import DEFAULT_SEED, get_random_config
 from src.data import Dataset
 from src.data.config import (
     CONFIG_FILENAME,
@@ -78,7 +78,10 @@ if args["cache_folder"] == "":
 else:
     cache_folder = Path(args["cache_folder"])
 
-config = load_check_config(args["config_file"], "mae")
+if args["config_file"] == "random":
+    config = load_check_config(get_random_config())
+else:
+    config = load_check_config(args["config_file"], "mae")
 training_config = config["training"]
 
 run_id = None
@@ -119,7 +122,9 @@ eval_w_condition = False
 if "conditioner" in config["model"]:
     eval_w_condition = True
     if training_config["conditioner_mode"] == "moe":
-        encoder_conditioner = LearnedMixture(**config["model"]["encoder_conditioner"]).to(device)
+        encoder_conditioner: Union[LearnedMixture, LoRAGenerator] = LearnedMixture(
+            **config["model"]["encoder_conditioner"]
+        ).to(device)
     elif training_config["conditioner_mode"] == "lora":
         encoder_conditioner = LoRAGenerator(**config["model"]["encoder_conditioner"]).to(device)
 

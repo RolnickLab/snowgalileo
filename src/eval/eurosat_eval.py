@@ -270,14 +270,10 @@ class EuroSatEval(EvalTask):
         super().__init__(patch_size, seed)
         self.name = f"{self.name}_{'RGB' if self.rgb else 'MS'}{'_latlons' if include_latlons else ''}_{'_geobench' if geobench else ''}"
 
-        # thanks Claude for the implementation, good bot
-        # lets start with the intuitive conditions
-
         output_channels = [0] * len(UNMASKING_CHANNEL_GROUPS)
         for i, val in enumerate(UNMASKING_CHANNEL_GROUPS):
             if val[1] == "DW_static":
                 output_channels[i] = 1
-        self.condition = {"output_channels": torch.Tensor(output_channels).to(device)}
 
         input_channels = [0] * len(UNMASKING_CHANNEL_GROUPS)
         for i, val in enumerate(UNMASKING_CHANNEL_GROUPS):
