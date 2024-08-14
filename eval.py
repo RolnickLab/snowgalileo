@@ -36,12 +36,29 @@ encoder = Encoder.load_from_folder(Path(args["output_folder"])).to(device)
 
 eval_tasks: List[EvalTask] = [
     *[
+        BinaryCropHarvestEval(country=country, do_condition=True)
+        for country in ["Kenya", "Togo", "Brazil"]
+    ],
+    *[
+        EuroSatEval(rgb=rgb, include_latlons=False, geobench=True, do_condition=True)
+        for rgb in [True, False]
+    ],
+    *[So2SatEval(geobench=geobench, do_condition=True) for geobench in [True, False]],
+    BrickKilnEval(),
+    *[CashewPlantEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
+    *[SACropEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
+    *[
+        EuroSatEval(rgb=rgb, include_latlons=include_latlons, geobench=False)
+        for rgb in [True, False]
+        for include_latlons in [True, False]
+    ],
+    *[
         PastisPatchEval(
             output_mode=output_mode,
             num_subtiles_per_image=num_subtiles_per_image,
             band_mode=band_mode,
         )
-        for output_mode in ["norm_counts", "mode"]
+        for output_mode in ["mode", "norm_counts"]
         # 4 has input hw 64, 16 has input hw 32
         for num_subtiles_per_image in [4, 16]
         for band_mode in ["combined", "s2"]
@@ -51,21 +68,10 @@ eval_tasks: List[EvalTask] = [
         for mode in ["s1", "s2", "combined"]
         for patch_size in [6, 3]
     ],
-    *[
-        EuroSatEval(rgb=rgb, include_latlons=include_latlons)
-        for rgb in [True, False]
-        for include_latlons in [True, False]
-    ],
     PastisPixelEval(),
-    *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil", "China"]],
-    # geobench EuroSat only works without latlons
-    *[EuroSatEval(rgb=rgb, include_latlons=False, geobench=True) for rgb in [True, False]],
-    *[So2SatEval(geobench=geobench) for geobench in [True, False]],
     BigEarthNetEval(),
-    BrickKilnEval(),
-    *[CashewPlantEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
-    *[SACropEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
 ]
+
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)
     print(json.dumps(results, indent=2), flush=True)
