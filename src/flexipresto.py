@@ -35,14 +35,13 @@ def adjust_learning_rate(
     epoch,
     warmup_epochs,
     total_epochs,
-    start_lr,
     max_lr,
     min_lr,
     conditioner_multiplier=None,
 ):
     """Decay the learning rate with half-cycle cosine after warmup"""
     if epoch < warmup_epochs:
-        lr = start_lr + (max_lr * epoch / warmup_epochs)
+        lr = max_lr * epoch / warmup_epochs
     else:
         lr = min_lr + (max_lr - min_lr) * 0.5 * (
             1.0 + math.cos(math.pi * (epoch - warmup_epochs) / (total_epochs - warmup_epochs))
