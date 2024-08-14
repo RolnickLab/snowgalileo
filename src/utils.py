@@ -88,7 +88,6 @@ def load_check_config(name: str, mode: str) -> Dict:
         "encode_ratio": float,
         "decode_ratio": float,
         "patch_sizes": list,
-        "start_lr": float,
         "max_lr": float,
         "final_lr": float,
         "conditioner_multiplier": int,

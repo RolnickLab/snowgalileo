@@ -164,7 +164,7 @@ if wandb_enabled:
 
 optimizer = torch.optim.AdamW(
     param_groups,
-    lr=training_config["start_lr"],
+    lr=0,
     weight_decay=training_config["weight_decay"],
     betas=(training_config["betas"][0], training_config["betas"][1]),
 )  # type: ignore
@@ -290,7 +290,6 @@ for e in tqdm(range(training_config["num_epochs"])):
                     warmup_epochs=training_config["warmup_epochs"],
                     total_epochs=training_config["num_epochs"],
                     max_lr=training_config["max_lr"],
-                    start_lr=training_config["start_lr"],
                     min_lr=training_config["final_lr"],
                     conditioner_multiplier=training_config["conditioner_multiplier"],
                 )
