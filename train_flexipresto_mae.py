@@ -82,7 +82,7 @@ config = load_check_config(args["config_file"], "mae")
 training_config = config["training"]
 
 run_id = None
-wandb_enabled = False
+wandb_enabled = True
 wandb_org = "nasa-harvest"
 output_dir = Path(__file__).parent
 
@@ -313,6 +313,7 @@ for e in tqdm(range(training_config["num_epochs"])):
             "task_masking_train_loss": task_masking_train_loss.average,
             "epoch": e,
             "momentum": m,
+            "lr": current_lr,
         }
 
         if (training_config["eval_eurosat_every_n_epochs"] != 0) and (

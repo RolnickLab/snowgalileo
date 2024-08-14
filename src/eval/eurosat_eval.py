@@ -287,7 +287,7 @@ class EuroSatEval(EvalTask):
         self.condition = {
             "hw": 64 // patch_size,
             "patch_size": patch_size,
-            "timesteps": 1,
+            "timesteps": 1,  # WE CURRENTLY ARE NOT TRAINING WITH THIS, PROBABLY HURTS PERF
             "input_channels": torch.Tensor(input_channels).to(device),
             "output_channels": torch.Tensor(output_channels).to(device),
         }
