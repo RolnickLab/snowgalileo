@@ -82,7 +82,6 @@ def check_config(config):
         "encode_ratio": float,
         "decode_ratio": float,
         "patch_sizes": list,
-        "start_lr": float,
         "max_lr": float,
         "final_lr": float,
         "conditioner_multiplier": float,
@@ -179,7 +178,7 @@ def load_check_config(name: str, mode: str) -> Dict:
     with (config_dir / mode / name).open("r") as f:
         config = json.load(f)
     config = check_config(config)
-    
+
     return config
 
 @torch.no_grad()

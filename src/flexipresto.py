@@ -13,7 +13,7 @@ from einops import rearrange, repeat
 from torch import Tensor, vmap
 from torch.jit import Final
 
-from .conditioner import ConditionalLinear
+from .conditioner import ConditionalLinear, LearnedMixture
 from .config import BASE_GSD
 from .data import (
     SPACE_BAND_GROUPS_IDX,
@@ -35,14 +35,13 @@ def adjust_learning_rate(
     epoch,
     warmup_epochs,
     total_epochs,
-    start_lr,
     max_lr,
     min_lr,
     conditioner_multiplier=None,
 ):
     """Decay the learning rate with half-cycle cosine after warmup"""
     if epoch < warmup_epochs:
-        lr = start_lr + (max_lr * epoch / warmup_epochs)
+        lr = max_lr * epoch / warmup_epochs
     else:
         lr = min_lr + (max_lr - min_lr) * 0.5 * (
             1.0 + math.cos(math.pi * (epoch - warmup_epochs) / (total_epochs - warmup_epochs))
@@ -796,7 +795,7 @@ class Encoder(FlexiPrestoBase):
         x, indices, new_m = self.remove_masked_tokens(x, new_m)  # new_m is shape (bsz, seq_len)
 
         for i_blk, blk in enumerate(self.blocks):
-            if (i_blk + 1) >= exit_after:
+            if (exit_after is not None) and ((i_blk + 1) >= exit_after):
                 # if exit_after is N, then we exit after the Nth layer
                 # if exit_after is 0, then all layers are skipped
                 break
@@ -869,7 +868,7 @@ class Encoder(FlexiPrestoBase):
         patch_size: int,
         c_i=None,
         input_resolution_m: Optional[int] = BASE_GSD,
-        exit_after: int = 100,  # never going to train more than 100 layer model,
+        exit_after: Optional[int] = None,
     ):
         if self.conditioner is not None:
             self.apply_condition(c_i)
@@ -886,20 +885,21 @@ class Encoder(FlexiPrestoBase):
         ) = self.apply_linear_projection(
             s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, patch_size
         )
-        s_t_x, sp_x, t_x, st_x, s_t_m, st_m, t_m, st_m = self.apply_attn(
-            s_t_x,
-            sp_x,
-            t_x,
-            st_x,
-            s_t_m,
-            sp_m,
-            t_m,
-            st_m,
-            months,
-            patch_size,
-            input_resolution_m,
-            exit_after,
-        )
+        if (exit_after is None) or (exit_after > 0):
+            s_t_x, sp_x, t_x, st_x, s_t_m, st_m, t_m, st_m = self.apply_attn(
+                s_t_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_m,
+                sp_m,
+                t_m,
+                st_m,
+                months,
+                patch_size,
+                input_resolution_m,
+                exit_after,
+            )
 
         return (
             self.norm(s_t_x),
@@ -918,10 +918,16 @@ class Encoder(FlexiPrestoBase):
         assert (folder / CONFIG_FILENAME).exists(), f"Missing {CONFIG_FILENAME}"
         assert (folder / ENCODER_FILENAME).exists(), f"Missing {ENCODER_FILENAME}"
 
+        conditioner_config, conditioner = None, None
         with (folder / CONFIG_FILENAME).open("r") as f:
-            encoder_config = json.load(f)["model"]["encoder"]
+            model_config = json.load(f)["model"]
+            encoder_config = model_config["encoder"]
+            if "conditioner" in model_config.keys():
+                conditioner_config = model_config["conditioner"]
 
-        encoder = cls(**encoder_config)
+        if conditioner_config is not None:
+            conditioner = LearnedMixture(**conditioner_config)
+        encoder = cls(**encoder_config, conditioner=conditioner)
         encoder.load_state_dict(torch.load(folder / ENCODER_FILENAME, map_location=device))
         return encoder
 
@@ -1003,7 +1009,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         )
         self.learnable_channel_embeddings = learnable_channel_embeddings
         self.encoder_embedding_size = encoder_embedding_size
-        self.encoder_to_decoder_embed = ConditionalLinear(
+        self.encoder_to_decoder_embed = nn.Linear(
             encoder_embedding_size, decoder_embedding_size, bias=True
         )
         self.to_output_embed = nn.Linear(decoder_embedding_size, encoder_embedding_size, bias=True)

@@ -393,7 +393,7 @@ class EuroSatEval(EvalTask):
                 shuffle=False,
                 num_workers=Hyperparams.num_workers,
             )
-
+        else:
             train_dl = DataLoader(
                 EuroSatDataset(
                     rgb=self.rgb,

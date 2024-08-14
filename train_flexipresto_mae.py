@@ -108,15 +108,21 @@ dataloader = DataLoader(
 
 print("Loading models")
 predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
-param_groups = []
+param_groups = [
+    {
+        "params": predictor.parameters(),
+        "name": "decoder",
+        "weight_decay": training_config["weight_decay"],
+    }
+]
 eval_w_condition = False
-if "encoder_conditioner" in config["model"]:
+if "conditioner" in config["model"]:
     eval_w_condition = True
     if training_config["conditioner_mode"] == "moe":
         encoder_conditioner = LearnedMixture(**config["model"]["encoder_conditioner"]).to(device)
     elif training_config["conditioner_mode"] == "lora":
         encoder_conditioner = LoRAGenerator(**config["model"]["encoder_conditioner"]).to(device)
-    
+
     encoder = Encoder(**config["model"]["encoder"], conditioner=encoder_conditioner).to(device)
     param_groups.extend(
         [
@@ -127,7 +133,7 @@ if "encoder_conditioner" in config["model"]:
             },
             {
                 "params": encoder.conditioner.parameters(),
-                "name": "encoder_conditioner",
+                "name": "conditioner",
                 "weight_decay": training_config["conditioner_weight_decay"],
             },
         ]
@@ -142,14 +148,6 @@ else:
         }
     )
 
-predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
-param_groups.append(
-    {
-        "params": predictor.parameters(),
-        "name": "decoder",
-        "weight_decay": training_config["weight_decay"],
-    }
-)
 
 print("Loading validation task")
 val_task_no_latlons = EuroSatEval(
@@ -170,7 +168,7 @@ if wandb_enabled:
 
 optimizer = torch.optim.AdamW(
     param_groups,
-    lr=training_config["start_lr"],
+    lr=0,
     weight_decay=training_config["weight_decay"],
     betas=(training_config["betas"][0], training_config["betas"][1]),
 )  # type: ignore
@@ -296,7 +294,6 @@ for e in tqdm(range(training_config["num_epochs"])):
                     warmup_epochs=training_config["warmup_epochs"],
                     total_epochs=training_config["num_epochs"],
                     max_lr=training_config["max_lr"],
-                    start_lr=training_config["start_lr"],
                     min_lr=training_config["final_lr"],
                     conditioner_multiplier=training_config["conditioner_multiplier"],
                 )
@@ -333,9 +330,15 @@ with (model_path / CONFIG_FILENAME).open("w") as f:
     json.dump(config, f)
 
 eval_tasks: List[EvalTask] = [
-    *[BinaryCropHarvestEval(country=country) for country in ["Kenya", "Togo", "Brazil"]],
-    *[EuroSatEval(rgb=rgb, include_latlons=False, geobench=True) for rgb in [True, False]],
-    *[So2SatEval(geobench=geobench) for geobench in [True, False]],
+    *[
+        BinaryCropHarvestEval(country=country, do_condition=True)
+        for country in ["Kenya", "Togo", "Brazil"]
+    ],
+    *[
+        EuroSatEval(rgb=rgb, include_latlons=False, geobench=True, do_condition=True)
+        for rgb in [True, False]
+    ],
+    *[So2SatEval(geobench=geobench, do_condition=True) for geobench in [True, False]],
     BrickKilnEval(),
     *[CashewPlantEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
     *[SACropEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
