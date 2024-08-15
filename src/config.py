@@ -52,7 +52,6 @@ def get_random_config():
     config["training"]["batch_size"] = 16
     config["training"]["effective_batch_size"] = 512
     config["training"]["warmup_epochs"] = 0.1
-    config["training"]["start_lr"] = 1e-6
     config["training"]["final_lr"] = 1e-6
     config["training"]["max_lr"] = random.choice([5e-4, 8e-4, 1e-3, 2e-3])
 
