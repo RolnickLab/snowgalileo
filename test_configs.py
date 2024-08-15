@@ -7,6 +7,7 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from generate_random_config import get_random_config
 from src.collate_fns import mae_collate_fn
 from src.conditioner import LearnedMixture, LoRAGenerator
 from src.config import DEFAULT_SEED
@@ -20,12 +21,11 @@ from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
 from src.loss import do_loss
 from src.utils import (
     AverageMeter,
+    check_config,
     device,
     is_bf16_available,
-    check_config,
     seed_everything,
 )
-from generate_random_config import get_random_config
 
 seed_everything(DEFAULT_SEED)
 
@@ -73,10 +73,14 @@ for _ in range(1_000):
     if "encoder_conditioner" in config["model"]:
         eval_w_condition = True
         if training_config["conditioner_mode"] == "moe":
-            encoder_conditioner = LearnedMixture(**config["model"]["encoder_conditioner"]).to(device)
+            encoder_conditioner = LearnedMixture(**config["model"]["encoder_conditioner"]).to(
+                device
+            )
         elif training_config["conditioner_mode"] == "lora":
-            encoder_conditioner = LoRAGenerator(**config["model"]["encoder_conditioner"]).to(device)
-        
+            encoder_conditioner = LoRAGenerator(**config["model"]["encoder_conditioner"]).to(
+                device
+            )
+
         encoder = Encoder(**config["model"]["encoder"], conditioner=encoder_conditioner).to(device)
         param_groups.extend(
             [
@@ -161,7 +165,8 @@ for _ in range(1_000):
                 if c_i is not None:
                     # there is probably a better way to do this
                     c_i = {
-                        k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in c_i.items()
+                        k: v.to(device) if isinstance(v, torch.Tensor) else v
+                        for k, v in c_i.items()
                     }
                 else:
                     raise ValueError("c_i should not be None")
@@ -246,7 +251,9 @@ for _ in range(1_000):
 
                     with torch.no_grad():
                         m = next(momentum_scheduler)
-                        for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
+                        for param_q, param_k in zip(
+                            encoder.parameters(), target_encoder.parameters()
+                        ):
                             param_k.data.mul_(m).add_((1.0 - m) * param_q.detach().data)
             if i > 50:
                 break
