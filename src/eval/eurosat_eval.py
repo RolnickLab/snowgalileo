@@ -374,7 +374,7 @@ class EuroSatEval(EvalTask):
         if self.geobench:
             train_dl = DataLoader(
                 GeobenchBaseDataset(
-                    dataset_config_file="m-eurosat.json", split="test", rgb=self.rgb
+                    dataset_config_file="m-eurosat.json", split="train", rgb=self.rgb
                 ),
                 batch_size=Hyperparams.batch_size,
                 shuffle=False,
