@@ -4,7 +4,7 @@ import os
 import warnings
 from collections import OrderedDict, namedtuple
 from pathlib import Path
-from typing import List, Optional, Tuple, Union, cast
+from typing import Dict, List, Optional, Tuple, Union, cast
 from typing import OrderedDict as OrderedDictType
 
 import h5py
@@ -205,7 +205,7 @@ class Dataset(PyTorchDataset):
             self.tifs = list(data_folder.glob("*.tif")) + list(data_folder.glob("*.tiff"))
             self.h5pys = []
 
-        self.dataset_outputs = {}
+        self.dataset_outputs: Dict[str, DatasetOutput] = {}
 
     def __len__(self) -> int:
         if self.h5pys_only:
@@ -496,16 +496,9 @@ class Dataset(PyTorchDataset):
             h5py_path = self.tif_to_h5py_path(self.tifs[idx])
             if h5py_path.exists():
                 try:
-                    hf = h5py.File(h5py_path, "r")
-                    output = self.read_and_slice_h5py_file(hf, self.tifs[idx])
-                    hf.close()
-                    return output
+                    return self.read_and_slice_h5py_file(self.tifs[idx])
                 except Exception as e:
                     logger.warn(f"Exception {e} for {self.tifs[idx]}")
-                    try:
-                        hf.close()
-                    except Exception:
-                        pass
                     h5py_path.unlink()
                     s_t_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
                     self.save_h5py(s_t_x, sp_x, t_x, st_x, self.tifs[idx].stem)

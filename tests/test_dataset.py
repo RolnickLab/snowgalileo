@@ -120,6 +120,7 @@ class TestDataset(unittest.TestCase):
                 h5pys_only=True,
                 cache_in_ram=True,
             )
+            assert len(dataset_h5pys.tifs) == 0
             assert len(dataset_h5pys) == 2
             for i in range(len(dataset_h5pys)):
                 _ = dataset_h5pys[i]
