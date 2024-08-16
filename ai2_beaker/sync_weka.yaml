@@ -1,0 +1,25 @@
+version: v2
+budget: ai2/reviz
+description: Sync contents of GCS bucket "presto-tifs" to WEKA bucket "skylight-default"
+tasks:
+  - name: sync_gcs_to_weka
+    image:
+      beaker: ai2/cuda11.8-ubuntu20.04
+    command:
+      - /bin/bash
+      - -c
+      - |-
+        gcloud auth activate-service-account  large-earth-model@appspot.gserviceaccount.com  --key-file=/root/service-account.json && \
+        gcloud storage rsync gs://presto-tifs/geobench /skylight-default/presto-geobench --recursive
+    datasets:
+      - mountPath: /skylight-default
+        source:
+          weka: skylight-default
+      - mountPath: /root/service-account.json
+        source:
+          secret: gcp-secret
+    context:
+      preemptible: true
+    constraints:
+      cluster:
+        - ai2/jupiter-cirrascale-2

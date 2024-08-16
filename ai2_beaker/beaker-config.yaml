@@ -1,0 +1,30 @@
+version: v2
+budget: ai2/skylight
+description: Gabi's test run
+tasks:
+  # We only have one step in our experiment, so there's only one entry in this list
+  - name: training
+    image:
+      # You will want to replace `username` below with your Beaker username
+      beaker: gabrielt/gabi-test-v3
+    command: [python, -u, train_flexipresto_mae.py, --config_file=medium_no_eurosat.json, --h5py_folder=/stage/data/presto-h5pys, --cache_in_ram, --h5pys_only]
+    result:
+      # Beaker will capture anything that's written to this location and store it in the results
+      # dataset. This location is required to be a directory, not a file.
+      path: /output
+    resources:
+      gpuCount: 1
+    context:
+      priority: normal
+      preemptible: true
+    constraints:
+      cluster: [ ai2/jupiter-cirrascale-2 ]
+    datasets:
+      - mountPath: /stage/data
+        source:
+          weka: skylight-default
+    envVars:
+      - name: WANDB_API_KEY
+        secret: GABI_WANDB_API_KEY
+      - name: GEO_BENCH_DIR
+        value: /stage/data/geobench
