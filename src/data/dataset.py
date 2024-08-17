@@ -579,6 +579,7 @@ class Dataset(PyTorchDataset):
                     hf["st_x"][:],
                     months,
                 )
+                hf.close()
             s_t_x, sp_x, t_x, st_x, months = self.dataset_outputs[h5py_path.name]
             return DatasetOutput(
                 *self.subset_image(

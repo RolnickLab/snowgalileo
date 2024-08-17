@@ -94,8 +94,8 @@ if args["batch_size"] != "":
     warnings.warn(
         f"Overriding batch size from {training_config['batch_size']} to {args['batch_size']}"
     )
-    training_config["batch_size"] = args["batch_size"]
-    config["training"]["batch_size"] = args["batch_size"]
+    training_config["batch_size"] = int(args["batch_size"])
+    config["training"]["batch_size"] = int(args["batch_size"])
 
 run_id = None
 wandb_enabled = True
