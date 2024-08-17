@@ -2,6 +2,7 @@ import argparse
 import copy
 import json
 import os
+import warnings
 from functools import partial
 from pathlib import Path
 from typing import List, cast
@@ -70,16 +71,31 @@ tracker.start()
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--config_file", type=str, default="small.json")
-argparser.add_argument("--cache_folder", type=str, default="")
+argparser.add_argument("--h5py_folder", type=str, default="")
+argparser.add_argument("--download", dest="download", action="store_true")
+argparser.add_argument("--cache_in_ram", dest="cache_in_ram", action="store_true")
+argparser.add_argument("--h5pys_only", dest="h5pys_only", action="store_true")
+argparser.add_argument("--num_workers", dest="num_workers", default=Hyperparams.num_workers)
+argparser.add_argument("--batch_size", dest="batch_size", default="")
+argparser.set_defaults(download=False)
+argparser.set_defaults(cache_in_ram=False)
+argparser.set_defaults(cache_in_ram=False)
 args = argparser.parse_args().__dict__
 
-if args["cache_folder"] == "":
+if args["h5py_folder"] == "":
     cache_folder = DATA_FOLDER / "h5pys"
 else:
-    cache_folder = Path(args["cache_folder"])
+    cache_folder = Path(args["h5py_folder"])
 
 config = load_check_config(args["config_file"], "mae")
 training_config = config["training"]
+
+if args["batch_size"] != "":
+    warnings.warn(
+        f"Overriding batch size from {training_config['batch_size']} to {args['batch_size']}"
+    )
+    training_config["batch_size"] = args["batch_size"]
+    config["training"]["batch_size"] = args["batch_size"]
 
 run_id = None
 wandb_enabled = True
@@ -88,12 +104,18 @@ output_dir = Path(__file__).parent
 
 
 print("Loading dataset and dataloader")
-dataset = Dataset(TIFS_FOLDER, download=False, h5py_folder=cache_folder, h5pys_only=True)
+dataset = Dataset(
+    TIFS_FOLDER,
+    download=args["download"],
+    h5py_folder=cache_folder,
+    h5pys_only=args["h5pys_only"],
+    cache_in_ram=args["cache_in_ram"],
+)
 dataloader = DataLoader(
     dataset,
     batch_size=training_config["batch_size"],
     shuffle=True,
-    num_workers=Hyperparams.num_workers,
+    num_workers=int(args["num_workers"]),
     collate_fn=partial(
         mae_collate_fn,
         patch_sizes=training_config["patch_sizes"],
