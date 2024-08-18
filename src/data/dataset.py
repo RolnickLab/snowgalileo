@@ -522,12 +522,11 @@ class Dataset(PyTorchDataset):
 
     def save_h5py(self, s_t_x, sp_x, t_x, st_x, tif_stem):
         assert self.h5py_folder is not None
-        hf = h5py.File(self.h5py_folder / f"{tif_stem}.h5", "w")
-        hf.create_dataset("s_t_x", data=s_t_x)
-        hf.create_dataset("sp_x", data=sp_x)
-        hf.create_dataset("t_x", data=t_x)
-        hf.create_dataset("st_x", data=st_x)
-        hf.close()
+        with h5py.File(self.h5py_folder / f"{tif_stem}.h5", "w") as hf:
+            hf.create_dataset("s_t_x", data=s_t_x)
+            hf.create_dataset("sp_x", data=sp_x)
+            hf.create_dataset("t_x", data=t_x)
+            hf.create_dataset("st_x", data=st_x)
 
     @staticmethod
     def calculate_ndi(input_array: np.ndarray, band_1: str, band_2: str) -> np.ndarray:
@@ -557,41 +556,39 @@ class Dataset(PyTorchDataset):
 
     def read_and_slice_h5py_file(self, h5py_path: Path):
         if not self.cache_in_ram:
-            hf = h5py.File(h5py_path, "r")
-            h, w, t, _ = hf["s_t_x"].shape
-            start_h, start_w, start_t = self.return_subset_indices(
-                h, w, t, DATASET_OUTPUT_HW, NUM_TIMESTEPS
-            )
-            months = self.month_array_from_file(h5py_path, t)
-            output = DatasetOutput(
-                hf["s_t_x"][
-                    start_h : start_h + DATASET_OUTPUT_HW,
-                    start_w : start_w + DATASET_OUTPUT_HW,
-                    start_t : start_t + NUM_TIMESTEPS,
-                ],
-                hf["sp_x"][
-                    start_h : start_h + DATASET_OUTPUT_HW,
-                    start_w : start_w + DATASET_OUTPUT_HW,
-                ],
-                hf["t_x"][start_t : start_t + NUM_TIMESTEPS],
-                hf["st_x"][:],
-                months[start_t : start_t + NUM_TIMESTEPS],
-            )
-            hf.close()
+            with h5py.File(h5py_path, "r") as hf:
+                h, w, t, _ = hf["s_t_x"].shape
+                start_h, start_w, start_t = self.return_subset_indices(
+                    h, w, t, DATASET_OUTPUT_HW, NUM_TIMESTEPS
+                )
+                months = self.month_array_from_file(h5py_path, t)
+                output = DatasetOutput(
+                    hf["s_t_x"][
+                        start_h : start_h + DATASET_OUTPUT_HW,
+                        start_w : start_w + DATASET_OUTPUT_HW,
+                        start_t : start_t + NUM_TIMESTEPS,
+                    ],
+                    hf["sp_x"][
+                        start_h : start_h + DATASET_OUTPUT_HW,
+                        start_w : start_w + DATASET_OUTPUT_HW,
+                    ],
+                    hf["t_x"][start_t : start_t + NUM_TIMESTEPS],
+                    hf["st_x"][:],
+                    months[start_t : start_t + NUM_TIMESTEPS],
+                )
             return output
         else:
             if h5py_path.name not in self.dataset_outputs:
-                hf = h5py.File(h5py_path, "r")
-                _, _, t, _ = hf["s_t_x"].shape
-                months = self.month_array_from_file(h5py_path, t)
-                self.dataset_outputs[h5py_path.name] = DatasetOutput(
-                    hf["s_t_x"][:],
-                    hf["sp_x"][:],
-                    hf["t_x"][:],
-                    hf["st_x"][:],
-                    months,
-                )
-                hf.close()
+                with h5py.File(h5py_path, "r") as hf:
+                    _, _, t, _ = hf["s_t_x"].shape
+                    months = self.month_array_from_file(h5py_path, t)
+                    self.dataset_outputs[h5py_path.name] = DatasetOutput(
+                        hf["s_t_x"][:],
+                        hf["sp_x"][:],
+                        hf["t_x"][:],
+                        hf["st_x"][:],
+                        months,
+                    )
             s_t_x, sp_x, t_x, st_x, months = self.dataset_outputs[h5py_path.name]
             return DatasetOutput(
                 *self.subset_image(
