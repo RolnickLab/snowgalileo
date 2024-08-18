@@ -202,7 +202,14 @@ class Dataset(PyTorchDataset):
         else:
             if download:
                 self.download_tifs(data_folder)
-            self.tifs = list(data_folder.glob("*.tif")) + list(data_folder.glob("*.tiff"))
+            self.tifs = []
+            tifs = list(data_folder.glob("*.tif")) + list(data_folder.glob("*.tiff"))
+            for tif in tifs:
+                try:
+                    _ = self.start_month_from_file(tif)
+                    self.tifs.append(tif)
+                except IndexError:
+                    warnings.warn(f"IndexError for {tif}")
             self.h5pys = []
 
         self.dataset_outputs: Dict[str, DatasetOutput] = {}
@@ -371,6 +378,12 @@ class Dataset(PyTorchDataset):
         return self.h5py_folder / f"{tif_name}.h5"
 
     @classmethod
+    def start_month_from_file(cls, tif_path: Path) -> int:
+        start_date = tif_path.name.partition("dates=")[2][:10]
+        start_month = int(start_date.split("-")[1])
+        return start_month
+
+    @classmethod
     def month_array_from_file(cls, tif_path: Path, num_timesteps: int) -> np.ndarray:
         """
         Given a filepath and num_timesteps, extract start_month and return an array of
@@ -378,8 +391,7 @@ class Dataset(PyTorchDataset):
         """
         # assumes all files are exported with filenames including:
         # *dates=<start_date>*, where the start_date is in a YYYY-MM-dd format
-        start_date = tif_path.name.partition("dates=")[2][:10]
-        start_month = int(start_date.split("-")[1])
+        start_month = cls.start_month_from_file(tif_path)
         # >>> np.fmod(np.array([9., 10, 11, 12, 13, 14]), 12)
         # array([ 9., 10., 11.,  0.,  1.,  2.])
         # - 1 because we want to index from 0
