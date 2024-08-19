@@ -12,6 +12,7 @@ import psutil
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from wandb.sdk.wandb_run import Run
 
 from src.collate_fns import mae_collate_fn
 from src.conditioner import LearnedMixture, LoRAGenerator
@@ -51,7 +52,6 @@ from src.utils import (
     seed_everything,
     timestamp_dirname,
 )
-from wandb.sdk.wandb_run import Run
 
 process = psutil.Process()
 
@@ -94,8 +94,8 @@ elif args["config_file"] == "random_base":
     config = check_config(config)
 else:
     config = load_check_config(args["config_file"])
-    run_name = "used config file"
-    
+    run_name = f"{args['config_file']} config file"
+
 training_config = config["training"]
 
 if args["batch_size"] != "":
