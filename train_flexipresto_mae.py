@@ -87,11 +87,15 @@ else:
     cache_folder = Path(args["h5py_folder"])
 
 if args["config_file"] == "random_tiny":
-    config = check_config(get_random_config("tiny"))
+    config, run_name = get_random_config("tiny")
+    config = check_config(config)
 elif args["config_file"] == "random_base":
-    config = check_config(get_random_config("base"))
+    config, run_name = get_random_config("base")
+    config = check_config(config)
 else:
     config = load_check_config(args["config_file"])
+    run_name = f"used config file"
+    
 training_config = config["training"]
 
 if args["batch_size"] != "":
@@ -200,6 +204,7 @@ if wandb_enabled:
     import wandb
 
     run = wandb.init(
+        name=run_name,
         entity=wandb_org,
         project="flexipresto",
         dir=output_dir,
