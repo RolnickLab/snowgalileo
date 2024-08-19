@@ -44,6 +44,7 @@ from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
 from src.loss import do_loss
 from src.utils import (
     AverageMeter,
+    check_config,
     data_dir,
     device,
     is_bf16_available,
@@ -87,9 +88,9 @@ else:
     cache_folder = Path(args["h5py_folder"])
 
 if args["config_file"] == "random":
-    config = load_check_config(get_random_config())
+    config = check_config(get_random_config())
 else:
-    config = load_check_config(args["config_file"], "mae")
+    config = load_check_config(args["config_file"])
 training_config = config["training"]
 
 if args["batch_size"] != "":

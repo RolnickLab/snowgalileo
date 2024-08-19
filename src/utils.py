@@ -179,10 +179,8 @@ def check_config(config):
     return config
 
 
-def load_check_config(name: str, mode: str) -> Dict:
-    assert mode == "mae"
-
-    with (config_dir / mode / name).open("r") as f:
+def load_check_config(name: str) -> Dict:
+    with (config_dir / "mae" / name).open("r") as f:
         config = json.load(f)
     config = check_config(config)
 

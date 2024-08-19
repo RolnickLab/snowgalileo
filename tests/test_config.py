@@ -3,7 +3,7 @@ import unittest
 from src.conditioner import LearnedMixture
 from src.config import get_random_config
 from src.flexipresto import Encoder
-from src.utils import config_dir, load_check_config
+from src.utils import check_config, config_dir, load_check_config
 
 
 class TestConfigs(unittest.TestCase):
@@ -11,7 +11,7 @@ class TestConfigs(unittest.TestCase):
         configs = list((config_dir / "mae").glob("*.json"))
 
         for config_path in configs:
-            loaded_config = load_check_config(config_path.name, "mae")
+            loaded_config = load_check_config(config_path.name)
 
             # check we can load the models
             if loaded_config["training"]["conditioner"]:
@@ -23,7 +23,7 @@ class TestConfigs(unittest.TestCase):
 
     def test_random_configs(self):
         for i in range(10):
-            loaded_config = load_check_config(get_random_config(), "mae")
+            loaded_config = check_config(get_random_config())
 
             # check we can load the models
             if loaded_config["training"]["conditioner"]:
