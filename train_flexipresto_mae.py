@@ -86,8 +86,10 @@ if args["h5py_folder"] == "":
 else:
     cache_folder = Path(args["h5py_folder"])
 
-if args["config_file"] == "random":
-    config = check_config(get_random_config())
+if args["config_file"] == "random_tiny":
+    config = check_config(get_random_config("tiny"))
+elif args["config_file"] == "random_base":
+    config = check_config(get_random_config("base"))
 else:
     config = load_check_config(args["config_file"])
 training_config = config["training"]

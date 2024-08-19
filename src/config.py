@@ -1,24 +1,27 @@
 import random
+from typing import Dict
 
 BASE_GSD = 10
 DEFAULT_SEED = 42
 
 
-def get_random_config():
-    config = {"training": {}, "model": {}}
+def get_random_config(model_size: str = "tiny"):
+    config: Dict[str, Dict] = {"training": {}, "model": {}}
 
     ### MODELS ###
-    tiny = {
-        "embedding_size": 128,
-        "depth": 6,
-        "num_heads": 8,
+    models = {
+        "tiny": {
+            "embedding_size": 128,
+            "depth": 4,
+            "num_heads": 8,
+        },
+        "base": {
+            "embedding_size": 768,
+            "depth": 12,
+            "num_heads": 12,
+        },
     }
-    base = {
-        "embedding_size": 768,
-        "depth": 12,
-        "num_heads": 12,
-    }
-    config["model"]["encoder"] = random.choice([tiny, base])
+    config["model"]["encoder"] = models[model_size]
     config["model"]["encoder"]["mlp_ratio"] = 4
     config["model"]["encoder"]["max_sequence_length"] = 24
     config["model"]["encoder"]["freeze_projections"] = random.choice([True, False])
@@ -33,7 +36,9 @@ def get_random_config():
         config["model"]["decoder"]["depth"] = random.choice([1, 2, 3, 4])
         config["training"]["patch_sizes"] = [6, 8, 10, 12, 14, 16]
     else:
-        raise f"encoder embedding size didn't match options: {config['model']['encoder']['embedding_size']}"
+        raise ValueError(
+            f"encoder embedding size didn't match options: {config['model']['encoder']['embedding_size']}"
+        )
 
     config["model"]["decoder"]["mlp_ratio"] = 4
     config["model"]["decoder"]["num_heads"] = random.choice([2, 8])
