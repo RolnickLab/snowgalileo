@@ -33,7 +33,7 @@ def get_random_config():
         config["model"]["decoder"]["depth"] = random.choice([1, 2, 3, 4])
         config["training"]["patch_sizes"] = [6, 8, 10, 12, 14, 16]
     else:
-        raise f"encoder embedding size didn't match options: {config["model"]["encoder"]["embedding_size"]}"
+        raise f"encoder embedding size didn't match options: {config['model']['encoder']['embedding_size']}"
 
     config["model"]["decoder"]["mlp_ratio"] = 4
     config["model"]["decoder"]["num_heads"] = random.choice([2, 8])
