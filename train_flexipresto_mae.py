@@ -5,7 +5,7 @@ import os
 import warnings
 from functools import partial
 from pathlib import Path
-from typing import List, cast
+from typing import List, Union, cast
 
 import codecarbon
 import psutil
@@ -17,7 +17,7 @@ from wandb.sdk.wandb_run import Run
 from src.collate_fns import mae_collate_fn
 from src.conditioner import LearnedMixture
 from src.config import DEFAULT_SEED
-from src.data import Dataset
+from src.data import Dataset, InRAMDataset
 from src.data.config import (
     CONFIG_FILENAME,
     DATA_FOLDER,
@@ -103,13 +103,24 @@ output_dir = Path(__file__).parent
 
 
 print("Loading dataset and dataloader")
-dataset = Dataset(
-    TIFS_FOLDER,
-    download=args["download"],
-    h5py_folder=cache_folder,
-    h5pys_only=args["h5pys_only"],
-    cache_in_ram=args["cache_in_ram"],
-)
+
+if args["cache_in_ram"]:
+    not_in_ram_dataset = Dataset(
+        TIFS_FOLDER,
+        download=args["download"],
+        h5py_folder=cache_folder,
+        h5pys_only=args["h5pys_only"],
+    )
+    d_o = not_in_ram_dataset.as_dataset_output()
+    dataset: Union[InRAMDataset, Dataset] = InRAMDataset(d_o)
+else:
+    dataset = Dataset(
+        TIFS_FOLDER,
+        download=args["download"],
+        h5py_folder=cache_folder,
+        h5pys_only=args["h5pys_only"],
+    )
+
 dataloader = DataLoader(
     dataset,
     batch_size=training_config["batch_size"],

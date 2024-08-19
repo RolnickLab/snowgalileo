@@ -14,6 +14,7 @@ import torch
 import xarray as xr
 from einops import rearrange, repeat
 from torch.utils.data import Dataset as PyTorchDataset
+from torch.utils.data import TensorDataset
 from tqdm import tqdm
 
 from .config import (
@@ -512,7 +513,18 @@ class Dataset(PyTorchDataset):
 
     def load_tif(self, idx: int) -> DatasetOutput:
         if self.h5py_folder is None:
-            return self._tif_to_array_with_checks(idx)
+            s_t_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
+            return DatasetOutput(
+                *self.subset_image(
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    months,
+                    size=self.output_hw,
+                    num_timesteps=self.output_timesteps,
+                )
+            )
         else:
             h5py_path = self.tif_to_h5py_path(self.tifs[idx])
             if h5py_path.exists():
@@ -523,11 +535,19 @@ class Dataset(PyTorchDataset):
                     h5py_path.unlink()
                     s_t_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
                     self.save_h5py(s_t_x, sp_x, t_x, st_x, self.tifs[idx].stem)
-                    return DatasetOutput(s_t_x, sp_x, t_x, st_x, months)
+                    return DatasetOutput(
+                        *self.subset_image(
+                            s_t_x, sp_x, t_x, st_x, months, self.output_hw, self.output_timesteps
+                        )
+                    )
             else:
                 s_t_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
                 self.save_h5py(s_t_x, sp_x, t_x, st_x, self.tifs[idx].stem)
-                return DatasetOutput(s_t_x, sp_x, t_x, st_x, months)
+                return DatasetOutput(
+                    *self.subset_image(
+                        s_t_x, sp_x, t_x, st_x, months, self.output_hw, self.output_timesteps
+                    )
+                )
 
     def save_h5py(self, s_t_x, sp_x, t_x, st_x, tif_stem):
         assert self.h5py_folder is not None
@@ -590,20 +610,9 @@ class Dataset(PyTorchDataset):
         if self.h5pys_only:
             return self.read_and_slice_h5py_file(self.h5pys[idx])
         else:
-            s_t_x, sp_x, t_x, st_x, months = self.load_tif(idx)
+            return self.load_tif(idx)
 
-        (
-            s_t_x,
-            sp_x,
-            t_x,
-            st_x,
-            months,
-        ) = self.subset_image(
-            s_t_x, sp_x, t_x, st_x, months, self.output_hw, self.output_timesteps
-        )
-        return DatasetOutput(s_t_x, sp_x, t_x, st_x, months)
-
-    def as_dataset_output(self, output_hw: int = 120, output_timesteps: int = 24) -> DatasetOutput:
+    def as_dataset_output(self, output_hw: int = 96, output_timesteps: int = 24) -> DatasetOutput:
         if output_hw != self.output_hw:
             warnings.warn(f"Overwriting __init__ hw {self.output_hw} with {output_hw}")
             self.output_hw = output_hw
@@ -620,7 +629,6 @@ class Dataset(PyTorchDataset):
         else:
             for i in range(len(self.tifs)):
                 outputs.append(self.load_tif(i))
-
         return DatasetOutput.concatenate(outputs)
 
     def process_h5pys(self):
@@ -633,3 +641,35 @@ class Dataset(PyTorchDataset):
             # loading the tifs also saves them
             # if they don't exist
             _ = self[i]
+
+
+class InRAMDataset(TensorDataset):
+    def __init__(
+        self,
+        datasetoutput: DatasetOutput,
+        output_hw: int = DATASET_OUTPUT_HW,
+        output_timesteps: int = NUM_TIMESTEPS,
+    ):
+        super().__init__(
+            torch.from_numpy(datasetoutput.space_time_x),
+            torch.from_numpy(datasetoutput.space_x),
+            torch.from_numpy(datasetoutput.time_x),
+            torch.from_numpy(datasetoutput.static_x),
+            torch.from_numpy(datasetoutput.months),
+        )
+        self.output_hw = output_hw
+        self.output_timesteps = output_timesteps
+
+    def __getitem__(self, index):
+        s_t_x, sp_x, t_x, st_x, months = tuple(tensor[index] for tensor in self.tensors)
+
+        (
+            s_t_x,
+            sp_x,
+            t_x,
+            st_x,
+            months,
+        ) = Dataset.subset_image(
+            s_t_x, sp_x, t_x, st_x, months, self.output_hw, self.output_timesteps
+        )
+        return DatasetOutput(s_t_x, sp_x, t_x, st_x, months)
