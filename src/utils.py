@@ -160,21 +160,15 @@ def check_config(config):
     assert config["training"]["conditioner_mode"] in ["moe", "lora", "no_cond"]
 
     if config["training"]["conditioner_mode"] == "moe":
-        config["model"]["encoder_conditioner"] = {
-            "num_output_channels": len(UNMASKING_CHANNEL_GROUPS)
-        }
+        config["model"]["conditioner"] = {"num_output_channels": len(UNMASKING_CHANNEL_GROUPS)}
 
     elif config["training"]["conditioner_mode"] == "lora":
-        config["model"]["encoder_conditioner"] = config["model"]["lora_generator"].copy()
-        config["model"]["encoder_conditioner"]["num_output_channels"] = len(
-            UNMASKING_CHANNEL_GROUPS
-        )
-        config["model"]["encoder_conditioner"]["backbone_dim"] = config["model"]["encoder"][
+        config["model"]["conditioner"] = config["model"]["lora_generator"].copy()
+        config["model"]["conditioner"]["num_output_channels"] = len(UNMASKING_CHANNEL_GROUPS)
+        config["model"]["conditioner"]["backbone_dim"] = config["model"]["encoder"][
             "embedding_size"
         ]
-        config["model"]["encoder_conditioner"]["backbone_depth"] = config["model"]["encoder"][
-            "depth"
-        ]
+        config["model"]["conditioner"]["backbone_depth"] = config["model"]["encoder"]["depth"]
 
     return config
 
