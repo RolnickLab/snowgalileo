@@ -140,4 +140,17 @@ def get_random_config(model_size: str = "tiny"):
     config["training"]["patch_sizes_to_wandb_plot"] = [2, 4, 8]
     config["training"]["eval_eurosat_every_n_epochs"] = 10
 
-    return config
+    ### GENERATE EXPERIMENT NAME ###
+    if config["training"]["loss_type"] == "mse":
+        loss_name = "mse"
+    elif config["training"]["loss_type"] == "patch_disc":
+        if config["training"]["loss_mask_other_samples"]:
+            loss_name = "PDMask"
+        else:
+            loss_name = "PD"
+    else:
+        raise ValueError("bad loss type in config")
+
+    run_name = f"{model_size}_{config["training"]["conditioner_mode"]}_DecEmb:{config["model"]["decoder"]["learnable_channel_embeddings"]}_Loss:{loss_name}_LRs:{config["training"]["max_lr"]}:{config["training"]["conditioner_multiplier"]}_WDs:{config["training"]["weight_decay"]}:{config["training"]["conditioner_weight_decay"]}"
+
+    return config, run_name

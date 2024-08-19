@@ -24,8 +24,9 @@ class TestConfigs(unittest.TestCase):
                 _ = Encoder(**loaded_config["model"]["encoder"])
 
     def test_random_configs(self):
-        for i in range(10):
-            loaded_config = check_config(get_random_config())
+        for _ in range(10):
+            config, _ = get_random_config()
+            loaded_config = check_config(config)
 
             # check we can load the models
             if loaded_config["training"]["conditioner_mode"] == "lora":
