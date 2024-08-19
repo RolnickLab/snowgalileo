@@ -79,7 +79,6 @@ argparser.add_argument("--num_workers", dest="num_workers", default=Hyperparams.
 argparser.add_argument("--batch_size", dest="batch_size", default="")
 argparser.set_defaults(download=False)
 argparser.set_defaults(cache_in_ram=False)
-argparser.set_defaults(cache_in_ram=False)
 args = argparser.parse_args().__dict__
 
 if args["h5py_folder"] == "":
