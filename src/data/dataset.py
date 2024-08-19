@@ -121,6 +121,23 @@ class DatasetOutput(NamedTuple):
         return cls(s_t_x, sp_x, t_x, st_x, months)
 
 
+class ListOfDatasetOutputs(NamedTuple):
+    space_time_x: List[np.ndarray]
+    space_x: List[np.ndarray]
+    time_x: List[np.ndarray]
+    static_x: List[np.ndarray]
+    months: List[np.ndarray]
+
+    def to_datasetoutput(self) -> DatasetOutput:
+        return DatasetOutput(
+            np.stack(self.space_time_x, axis=0),
+            np.stack(self.space_x, axis=0),
+            np.stack(self.time_x, axis=0),
+            np.stack(self.static_x, axis=0),
+            np.stack(self.months, axis=0),
+        )
+
+
 def _normalize(x: np.ndarray, shift_values: np.ndarray, div_values: np.ndarray) -> np.ndarray:
     return (x - shift_values) / div_values
 
@@ -622,14 +639,24 @@ class Dataset(PyTorchDataset):
                 f"with {output_timesteps}"
             )
             self.output_timesteps = output_timesteps
-        outputs = []
+        output = ListOfDatasetOutputs([], [], [], [], [])
         if self.h5pys_only:
             for h5py_path in tqdm(self.h5pys):
-                outputs.append(self.read_and_slice_h5py_file(h5py_path))
+                s_t_x, sp_x, t_x, st_x, months = self.read_and_slice_h5py_file(h5py_path)
+                output.space_time_x.append(s_t_x)
+                output.space_x.append(sp_x)
+                output.time_x.append(t_x)
+                output.static_x.append(st_x)
+                output.months.append(months)
         else:
             for i in tqdm(range(len(self.tifs))):
-                outputs.append(self.load_tif(i))
-        return DatasetOutput.concatenate(outputs)
+                s_t_x, sp_x, t_x, st_x, months = self.load_tif(i)
+                output.space_time_x.append(s_t_x)
+                output.space_x.append(sp_x)
+                output.time_x.append(t_x)
+                output.static_x.append(st_x)
+                output.months.append(months)
+        return output.to_datasetoutput()
 
     def process_h5pys(self):
         # iterate through the dataset and save it all as h5pys

@@ -326,7 +326,10 @@ for e in tqdm(range(training_config["num_epochs"])):
                     conditioner_multiplier=training_config["conditioner_multiplier"],
                 )
                 with torch.no_grad():
-                    m = next(momentum_scheduler)
+                    try:
+                        m = next(momentum_scheduler)
+                    except StopIteration:
+                        m = training_config["ema"][1]
                     for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
                         param_k.data.mul_(m).add_((1.0 - m) * param_q.detach().data)
 
