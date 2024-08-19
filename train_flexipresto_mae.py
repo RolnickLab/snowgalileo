@@ -158,10 +158,10 @@ if "conditioner" in config["model"]:
     eval_w_condition = True
     if training_config["conditioner_mode"] == "moe":
         encoder_conditioner: Union[LearnedMixture, LoRAGenerator] = LearnedMixture(
-            **config["model"]["encoder_conditioner"]
+            **config["model"]["conditioner"]
         ).to(device)
     elif training_config["conditioner_mode"] == "lora":
-        encoder_conditioner = LoRAGenerator(**config["model"]["encoder_conditioner"]).to(device)
+        encoder_conditioner = LoRAGenerator(**config["model"]["conditioner"]).to(device)
 
     encoder = Encoder(**config["model"]["encoder"], conditioner=encoder_conditioner).to(device)
     param_groups.extend(
