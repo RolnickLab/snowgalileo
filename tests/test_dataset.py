@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import h5py
 import numpy as np
 import torch
 
@@ -11,6 +12,7 @@ from src.data.dataset import (
     STATIC_BANDS,
     TIME_BANDS,
     Dataset,
+    InRAMDataset,
     to_cartesian,
 )
 
@@ -96,7 +98,23 @@ class TestDataset(unittest.TestCase):
         with self.assertRaises(AssertionError):
             to_cartesian(torch.tensor([1000.0]), torch.tensor([1000.0]))
 
-    def test_cache_in_ram_and_h5pys(self):
+    def test_in_ram_dataset(self):
+        dataset = dataset = Dataset(
+            TIFS_FOLDER,
+            download=False,
+            h5py_folder=None,
+            h5pys_only=False,
+        )
+        d_o = dataset.as_dataset_output()
+        self.assertEqual(d_o[0].shape[0], 3)
+
+        in_ram_dataset = InRAMDataset(d_o, output_hw=24)
+        self.assertEqual(len(in_ram_dataset), 3)
+        for i in range(len(in_ram_dataset)):
+            output = in_ram_dataset[i]
+            self.assertEqual(output[0].shape[0], 24)
+
+    def test_process_h5pys(self):
         with tempfile.TemporaryDirectory() as tempdir_str:
             tempdir = Path(tempdir_str)
             dataset = Dataset(
@@ -104,24 +122,12 @@ class TestDataset(unittest.TestCase):
                 download=False,
                 h5py_folder=tempdir,
                 h5pys_only=False,
-                cache_in_ram=True,
             )
-            assert len(dataset) == 3
-            for i in range(len(dataset)):
-                _ = dataset[i]
-            # the broken tif shouldn't get added
-            assert len(dataset.dataset_outputs) == 2, len(dataset.dataset_outputs)
+            dataset.process_h5pys()
 
-            # then with h5pys only
-            dataset_h5pys = Dataset(
-                TIFS_FOLDER,
-                download=False,
-                h5py_folder=tempdir,
-                h5pys_only=True,
-                cache_in_ram=True,
-            )
-            assert len(dataset_h5pys.tifs) == 0
-            assert len(dataset_h5pys) == 2
-            for i in range(len(dataset_h5pys)):
-                _ = dataset_h5pys[i]
-            assert len(dataset_h5pys.dataset_outputs) == 2, len(dataset.dataset_outputs)
+            h5py_files = list(tempdir.glob("*.h5"))
+            self.assertEqual(len(h5py_files), 2)
+            for h5_file in h5py_files:
+                with h5py.File(h5_file, "r") as f:
+                    # mostly checking it can be read
+                    self.assertEqual(f["t_x"].shape[0], 24)
