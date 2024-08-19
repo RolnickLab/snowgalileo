@@ -53,7 +53,6 @@ from src.utils import (
     timestamp_dirname,
 )
 
-seed_everything(DEFAULT_SEED)
 process = psutil.Process()
 
 os.environ["GOOGLE_CLOUD_PROJECT"] = EE_PROJECT
@@ -104,6 +103,9 @@ run_id = None
 wandb_enabled = True
 wandb_org = "nasa-harvest"
 output_dir = Path(__file__).parent
+# we seed everything after we call get_random_config(), since
+# we want this to differ between runs
+seed_everything(DEFAULT_SEED)
 
 print("Loading dataset and dataloader")
 
