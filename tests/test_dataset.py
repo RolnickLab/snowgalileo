@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import h5py
 import numpy as np
 import torch
 
@@ -125,3 +126,21 @@ class TestDataset(unittest.TestCase):
             for i in range(len(dataset_h5pys)):
                 _ = dataset_h5pys[i]
             assert len(dataset_h5pys.dataset_outputs) == 2, len(dataset.dataset_outputs)
+
+    def test_process_h5pys(self):
+        with tempfile.TemporaryDirectory() as tempdir_str:
+            tempdir = Path(tempdir_str)
+            dataset = Dataset(
+                TIFS_FOLDER,
+                download=False,
+                h5py_folder=tempdir,
+                h5pys_only=False,
+            )
+            dataset.process_h5pys()
+
+            h5py_files = list(tempdir.glob("*.h5"))
+            self.assertEqual(len(h5py_files), 2)
+            for h5_file in h5py_files:
+                with h5py.File(h5_file, "r") as f:
+                    # mostly checking it can be read
+                    self.assertEqual(f["t_x"].shape[0], 24)
