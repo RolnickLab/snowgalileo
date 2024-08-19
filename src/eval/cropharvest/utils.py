@@ -54,7 +54,9 @@ def download_and_extract_archive(root: str, filename: str) -> None:
 
 def load_normalizing_dict(path_to_dict: Path) -> Dict[str, np.ndarray]:
     hf = h5py.File(path_to_dict, "r")
-    return {"mean": hf.get("mean")[:], "std": hf.get("std")[:]}
+    return_dict = {"mean": hf.get("mean")[:], "std": hf.get("std")[:]}
+    hf.close()
+    return return_dict
 
 
 def deterministic_shuffle(x: List, seed: int) -> List:

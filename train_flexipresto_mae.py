@@ -2,6 +2,7 @@ import argparse
 import copy
 import json
 import os
+import warnings
 from functools import partial
 from pathlib import Path
 from typing import List, Union, cast
@@ -16,7 +17,7 @@ from wandb.sdk.wandb_run import Run
 from src.collate_fns import mae_collate_fn
 from src.conditioner import LearnedMixture, LoRAGenerator
 from src.config import DEFAULT_SEED, get_random_config
-from src.data import Dataset
+from src.data import Dataset, InRAMDataset
 from src.data.config import (
     CONFIG_FILENAME,
     DATA_FOLDER,
@@ -69,14 +70,21 @@ autocast_device = torch.bfloat16 if is_bf16_available() else torch.float32
 tracker.start()
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument("--config_file", type=str, default="medium.json")
-argparser.add_argument("--cache_folder", type=str, default="")
+argparser.add_argument("--config_file", type=str, default="small.json")
+argparser.add_argument("--h5py_folder", type=str, default="")
+argparser.add_argument("--download", dest="download", action="store_true")
+argparser.add_argument("--cache_in_ram", dest="cache_in_ram", action="store_true")
+argparser.add_argument("--h5pys_only", dest="h5pys_only", action="store_true")
+argparser.add_argument("--num_workers", dest="num_workers", default=Hyperparams.num_workers)
+argparser.add_argument("--batch_size", dest="batch_size", default="")
+argparser.set_defaults(download=False)
+argparser.set_defaults(cache_in_ram=False)
 args = argparser.parse_args().__dict__
 
-if args["cache_folder"] == "":
+if args["h5py_folder"] == "":
     cache_folder = DATA_FOLDER / "h5pys"
 else:
-    cache_folder = Path(args["cache_folder"])
+    cache_folder = Path(args["h5py_folder"])
 
 if args["config_file"] == "random":
     config = load_check_config(get_random_config())
@@ -84,18 +92,42 @@ else:
     config = load_check_config(args["config_file"], "mae")
 training_config = config["training"]
 
+if args["batch_size"] != "":
+    warnings.warn(
+        f"Overriding batch size from {training_config['batch_size']} to {args['batch_size']}"
+    )
+    training_config["batch_size"] = int(args["batch_size"])
+    config["training"]["batch_size"] = int(args["batch_size"])
+
 run_id = None
 wandb_enabled = True
 wandb_org = "nasa-harvest"
 output_dir = Path(__file__).parent
 
 print("Loading dataset and dataloader")
-dataset = Dataset(TIFS_FOLDER, download=False, h5py_folder=cache_folder, h5pys_only=True)
+
+if args["cache_in_ram"]:
+    not_in_ram_dataset = Dataset(
+        TIFS_FOLDER,
+        download=args["download"],
+        h5py_folder=cache_folder,
+        h5pys_only=args["h5pys_only"],
+    )
+    d_o = not_in_ram_dataset.as_dataset_output()
+    dataset: Union[InRAMDataset, Dataset] = InRAMDataset(d_o)
+else:
+    dataset = Dataset(
+        TIFS_FOLDER,
+        download=args["download"],
+        h5py_folder=cache_folder,
+        h5pys_only=args["h5pys_only"],
+    )
+
 dataloader = DataLoader(
     dataset,
     batch_size=training_config["batch_size"],
     shuffle=True,
-    num_workers=Hyperparams.num_workers,
+    num_workers=int(args["num_workers"]),
     collate_fn=partial(
         mae_collate_fn,
         patch_sizes=training_config["patch_sizes"],
@@ -304,7 +336,10 @@ for e in tqdm(range(training_config["num_epochs"])):
                 )
 
                 with torch.no_grad():
-                    m = next(momentum_scheduler)
+                    try:
+                        m = next(momentum_scheduler)
+                    except StopIteration:
+                        m = training_config["ema"][1]
                     for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
                         param_k.data.mul_(m).add_((1.0 - m) * param_q.detach().data)
 

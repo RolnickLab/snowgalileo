@@ -2,9 +2,9 @@ import logging
 import math
 import os
 import warnings
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict
 from pathlib import Path
-from typing import List, Optional, Tuple, Union, cast
+from typing import List, NamedTuple, Optional, Sequence, Tuple, Union, cast
 from typing import OrderedDict as OrderedDictType
 
 import h5py
@@ -14,6 +14,8 @@ import torch
 import xarray as xr
 from einops import rearrange, repeat
 from torch.utils.data import Dataset as PyTorchDataset
+from torch.utils.data import TensorDataset
+from tqdm import tqdm
 
 from .config import (
     DATASET_OUTPUT_HW,
@@ -101,9 +103,39 @@ STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     }
 )
 
-DatasetOutput = namedtuple(
-    "DatasetOutput", ["space_time_x", "space_x", "time_x", "static_x", "months"]
-)
+
+class DatasetOutput(NamedTuple):
+    space_time_x: np.ndarray
+    space_x: np.ndarray
+    time_x: np.ndarray
+    static_x: np.ndarray
+    months: np.ndarray
+
+    @classmethod
+    def concatenate(cls, datasetoutputs: Sequence["DatasetOutput"]) -> "DatasetOutput":
+        s_t_x = np.stack([o.space_time_x for o in datasetoutputs], axis=0)
+        sp_x = np.stack([o.space_x for o in datasetoutputs], axis=0)
+        t_x = np.stack([o.time_x for o in datasetoutputs], axis=0)
+        st_x = np.stack([o.static_x for o in datasetoutputs], axis=0)
+        months = np.stack([o.months for o in datasetoutputs], axis=0)
+        return cls(s_t_x, sp_x, t_x, st_x, months)
+
+
+class ListOfDatasetOutputs(NamedTuple):
+    space_time_x: List[np.ndarray]
+    space_x: List[np.ndarray]
+    time_x: List[np.ndarray]
+    static_x: List[np.ndarray]
+    months: List[np.ndarray]
+
+    def to_datasetoutput(self) -> DatasetOutput:
+        return DatasetOutput(
+            np.stack(self.space_time_x, axis=0),
+            np.stack(self.space_x, axis=0),
+            np.stack(self.time_x, axis=0),
+            np.stack(self.static_x, axis=0),
+            np.stack(self.months, axis=0),
+        )
 
 
 def _normalize(x: np.ndarray, shift_values: np.ndarray, div_values: np.ndarray) -> np.ndarray:
@@ -183,6 +215,8 @@ class Dataset(PyTorchDataset):
         download: bool = True,
         h5py_folder: Optional[Path] = None,
         h5pys_only: bool = False,
+        output_hw: int = DATASET_OUTPUT_HW,
+        output_timesteps: int = NUM_TIMESTEPS,
     ):
         self.data_folder = data_folder
         self.h5pys_only = h5pys_only
@@ -192,7 +226,7 @@ class Dataset(PyTorchDataset):
         if h5py_folder is not None:
             self.cache = True
         if h5pys_only:
-            assert h5py_folder is not None, "Can't use npys only if there is no cache folder"
+            assert h5py_folder is not None, "Can't use h5pys only if there is no cache folder"
             self.tifs: List[Path] = []
             if download:
                 self.download_h5pys(h5py_folder)
@@ -200,8 +234,18 @@ class Dataset(PyTorchDataset):
         else:
             if download:
                 self.download_tifs(data_folder)
-            self.tifs = list(data_folder.glob("*.tif")) + list(data_folder.glob("*.tiff"))
+            self.tifs = []
+            tifs = list(data_folder.glob("*.tif")) + list(data_folder.glob("*.tiff"))
+            for tif in tifs:
+                try:
+                    _ = self.start_month_from_file(tif)
+                    self.tifs.append(tif)
+                except IndexError:
+                    warnings.warn(f"IndexError for {tif}")
             self.h5pys = []
+
+        self.output_hw = output_hw
+        self.output_timesteps = output_timesteps
 
     def __len__(self) -> int:
         if self.h5pys_only:
@@ -367,26 +411,10 @@ class Dataset(PyTorchDataset):
         return self.h5py_folder / f"{tif_name}.h5"
 
     @classmethod
-    def read_and_slice_h5py_file(cls, hf: h5py.File, tif_path: Path):
-        h, w, t, _ = hf["s_t_x"].shape
-        start_h, start_w, start_t = cls.return_subset_indices(
-            h, w, t, DATASET_OUTPUT_HW, NUM_TIMESTEPS
-        )
-        months = cls.month_array_from_file(tif_path, t)
-        return DatasetOutput(
-            hf["s_t_x"][
-                start_h : start_h + DATASET_OUTPUT_HW,
-                start_w : start_w + DATASET_OUTPUT_HW,
-                start_t : start_t + NUM_TIMESTEPS,
-            ],
-            hf["sp_x"][
-                start_h : start_h + DATASET_OUTPUT_HW,
-                start_w : start_w + DATASET_OUTPUT_HW,
-            ],
-            hf["t_x"][start_t : start_t + NUM_TIMESTEPS],
-            hf["st_x"][:],
-            months[start_t : start_t + NUM_TIMESTEPS],
-        )
+    def start_month_from_file(cls, tif_path: Path) -> int:
+        start_date = tif_path.name.partition("dates=")[2][:10]
+        start_month = int(start_date.split("-")[1])
+        return start_month
 
     @classmethod
     def month_array_from_file(cls, tif_path: Path, num_timesteps: int) -> np.ndarray:
@@ -396,8 +424,7 @@ class Dataset(PyTorchDataset):
         """
         # assumes all files are exported with filenames including:
         # *dates=<start_date>*, where the start_date is in a YYYY-MM-dd format
-        start_date = tif_path.name.partition("dates=")[2][:10]
-        start_month = int(start_date.split("-")[1])
+        start_month = cls.start_month_from_file(tif_path)
         # >>> np.fmod(np.array([9., 10, 11, 12, 13, 14]), 12)
         # array([ 9., 10., 11.,  0.,  1.,  2.])
         # - 1 because we want to index from 0
@@ -488,7 +515,8 @@ class Dataset(PyTorchDataset):
     def _tif_to_array_with_checks(self, idx):
         tif_path = self.tifs[idx]
         try:
-            return self._tif_to_array(tif_path)
+            output = self._tif_to_array(tif_path)
+            return output
         except Exception as e:
             print(f"Replacing tif {tif_path} due to {e}")
             if idx == 0:
@@ -497,42 +525,54 @@ class Dataset(PyTorchDataset):
                 new_idx = idx - 1
             self.tifs[idx] = self.tifs[new_idx]
             tif_path = self.tifs[idx]
-        return self._tif_to_array(tif_path)
+        output = self._tif_to_array(tif_path)
+        return output
 
     def load_tif(self, idx: int) -> DatasetOutput:
         if self.h5py_folder is None:
-            return self._tif_to_array_with_checks(idx)
+            s_t_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
+            return DatasetOutput(
+                *self.subset_image(
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    months,
+                    size=self.output_hw,
+                    num_timesteps=self.output_timesteps,
+                )
+            )
         else:
             h5py_path = self.tif_to_h5py_path(self.tifs[idx])
             if h5py_path.exists():
                 try:
-                    hf = h5py.File(h5py_path, "r")
-                    output = self.read_and_slice_h5py_file(hf, self.tifs[idx])
-                    hf.close()
-                    return output
+                    return self.read_and_slice_h5py_file(self.tifs[idx])
                 except Exception as e:
                     logger.warn(f"Exception {e} for {self.tifs[idx]}")
-                    try:
-                        hf.close()
-                    except Exception:
-                        pass
                     h5py_path.unlink()
                     s_t_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
                     self.save_h5py(s_t_x, sp_x, t_x, st_x, self.tifs[idx].stem)
-                    return DatasetOutput(s_t_x, sp_x, t_x, st_x, months)
+                    return DatasetOutput(
+                        *self.subset_image(
+                            s_t_x, sp_x, t_x, st_x, months, self.output_hw, self.output_timesteps
+                        )
+                    )
             else:
                 s_t_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
                 self.save_h5py(s_t_x, sp_x, t_x, st_x, self.tifs[idx].stem)
-                return DatasetOutput(s_t_x, sp_x, t_x, st_x, months)
+                return DatasetOutput(
+                    *self.subset_image(
+                        s_t_x, sp_x, t_x, st_x, months, self.output_hw, self.output_timesteps
+                    )
+                )
 
     def save_h5py(self, s_t_x, sp_x, t_x, st_x, tif_stem):
         assert self.h5py_folder is not None
-        hf = h5py.File(self.h5py_folder / f"{tif_stem}.h5", "w")
-        hf.create_dataset("s_t_x", data=s_t_x)
-        hf.create_dataset("sp_x", data=sp_x)
-        hf.create_dataset("t_x", data=t_x)
-        hf.create_dataset("st_x", data=st_x)
-        hf.close()
+        with h5py.File(self.h5py_folder / f"{tif_stem}.h5", "w") as hf:
+            hf.create_dataset("s_t_x", data=s_t_x)
+            hf.create_dataset("sp_x", data=sp_x)
+            hf.create_dataset("t_x", data=t_x)
+            hf.create_dataset("st_x", data=st_x)
 
     @staticmethod
     def calculate_ndi(input_array: np.ndarray, band_1: str, band_2: str) -> np.ndarray:
@@ -560,14 +600,95 @@ class Dataset(PyTorchDataset):
                 -1,
             )
 
+    def read_and_slice_h5py_file(self, h5py_path: Path):
+        with h5py.File(h5py_path, "r") as hf:
+            h, w, t, _ = hf["s_t_x"].shape
+            start_h, start_w, start_t = self.return_subset_indices(
+                h, w, t, self.output_hw, self.output_timesteps
+            )
+            months = self.month_array_from_file(h5py_path, t)
+            output = DatasetOutput(
+                hf["s_t_x"][
+                    start_h : start_h + self.output_hw,
+                    start_w : start_w + self.output_hw,
+                    start_t : start_t + self.output_timesteps,
+                ],
+                hf["sp_x"][
+                    start_h : start_h + self.output_hw,
+                    start_w : start_w + self.output_hw,
+                ],
+                hf["t_x"][start_t : start_t + self.output_timesteps],
+                hf["st_x"][:],
+                months[start_t : start_t + self.output_timesteps],
+            )
+        return output
+
     def __getitem__(self, idx):
         if self.h5pys_only:
-            hf = h5py.File(self.h5pys[idx], "r")
-            output = self.read_and_slice_h5py_file(hf, self.h5pys[idx])
-            hf.close()
-            return output
+            return self.read_and_slice_h5py_file(self.h5pys[idx])
         else:
-            s_t_x, sp_x, t_x, st_x, months = self.load_tif(idx)
+            return self.load_tif(idx)
+
+    def as_dataset_output(self, output_hw: int = 96, output_timesteps: int = 24) -> DatasetOutput:
+        if output_hw != self.output_hw:
+            warnings.warn(f"Overwriting __init__ hw {self.output_hw} with {output_hw}")
+            self.output_hw = output_hw
+        if output_timesteps != self.output_timesteps:
+            warnings.warn(
+                f"Overwriting __init__ output_timesteps {self.output_timesteps} "
+                f"with {output_timesteps}"
+            )
+            self.output_timesteps = output_timesteps
+        output = ListOfDatasetOutputs([], [], [], [], [])
+        if self.h5pys_only:
+            for h5py_path in tqdm(self.h5pys):
+                s_t_x, sp_x, t_x, st_x, months = self.read_and_slice_h5py_file(h5py_path)
+                output.space_time_x.append(s_t_x)
+                output.space_x.append(sp_x)
+                output.time_x.append(t_x)
+                output.static_x.append(st_x)
+                output.months.append(months)
+        else:
+            for i in tqdm(range(len(self.tifs))):
+                s_t_x, sp_x, t_x, st_x, months = self.load_tif(i)
+                output.space_time_x.append(s_t_x)
+                output.space_x.append(sp_x)
+                output.time_x.append(t_x)
+                output.static_x.append(st_x)
+                output.months.append(months)
+        return output.to_datasetoutput()
+
+    def process_h5pys(self):
+        # iterate through the dataset and save it all as h5pys
+        assert self.h5py_folder is not None
+        assert not self.h5pys_only
+        assert self.cache
+
+        for i in tqdm(range(len(self))):
+            # loading the tifs also saves them
+            # if they don't exist
+            _ = self[i]
+
+
+class InRAMDataset(TensorDataset):
+    def __init__(
+        self,
+        datasetoutput: DatasetOutput,
+        output_hw: int = DATASET_OUTPUT_HW,
+        output_timesteps: int = NUM_TIMESTEPS,
+    ):
+        super().__init__(
+            torch.from_numpy(datasetoutput.space_time_x),
+            torch.from_numpy(datasetoutput.space_x),
+            torch.from_numpy(datasetoutput.time_x),
+            torch.from_numpy(datasetoutput.static_x),
+            torch.from_numpy(datasetoutput.months),
+        )
+        self.output_hw = output_hw
+        self.output_timesteps = output_timesteps
+
+    def __getitem__(self, index):
+        s_t_x, sp_x, t_x, st_x, months = tuple(tensor[index] for tensor in self.tensors)
 
         (
             s_t_x,
@@ -575,5 +696,7 @@ class Dataset(PyTorchDataset):
             t_x,
             st_x,
             months,
-        ) = self.subset_image(s_t_x, sp_x, t_x, st_x, months, DATASET_OUTPUT_HW, NUM_TIMESTEPS)
+        ) = Dataset.subset_image(
+            s_t_x, sp_x, t_x, st_x, months, self.output_hw, self.output_timesteps
+        )
         return DatasetOutput(s_t_x, sp_x, t_x, st_x, months)

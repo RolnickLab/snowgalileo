@@ -88,10 +88,6 @@ def check_config(config):
         "conditioner_multiplier": float,
         "warmup_epochs": (int, float),
         "eval_eurosat_every_n_epochs": int,
-        "wandb_plot_every_n_epochs": int,
-        "num_images_to_wandb_plot": int,
-        "timesteps_to_wandb_plot": list,
-        "patch_sizes_to_wandb_plot": list,
         "shape_time_combinations": list,
         "augmentation": dict,
         "masking_probabilities": list,
@@ -106,7 +102,8 @@ def check_config(config):
     for key, val in expected_training_keys_type.items():
         assert key in training_dict, f"Expected {key} in training dict"
         assert isinstance(
-            training_dict[key], val  # type: ignore
+            training_dict[key],
+            val,  # type: ignore
         ), f"Expected {key} to be {val}, got {type(training_dict[key])}"
 
     if isinstance(training_dict["warmup_epochs"], float):
