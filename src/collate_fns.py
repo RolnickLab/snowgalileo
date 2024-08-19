@@ -52,8 +52,10 @@ def collated_batch_to_output(
         space_time_combination = fixed_space_time_combination
     else:
         space_time_combination = np.random.choice(shape_time_combinations)
+        spatial_patches_per_dim = space_time_combination["size"]
+        if int(spatial_patches_per_dim * patch_size) > s_t_x.shape[1]:
+            spatial_patches_per_dim = int(s_t_x.shape[1] / patch_size)
 
-    spatial_patches_per_dim = space_time_combination["size"]
     timesteps = space_time_combination["timesteps"]
 
     image_size = patch_size * spatial_patches_per_dim

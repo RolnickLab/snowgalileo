@@ -270,14 +270,23 @@ class EuroSatEval(EvalTask):
         super().__init__(patch_size, seed)
         self.name = f"{self.name}_{'RGB' if self.rgb else 'MS'}{'_latlons' if include_latlons else ''}_{'_geobench' if geobench else ''}"
 
-        # thanks Claude for the implementation, good bot
-        # lets start with the intuitive conditions
-
         output_channels = [0] * len(UNMASKING_CHANNEL_GROUPS)
         for i, val in enumerate(UNMASKING_CHANNEL_GROUPS):
             if val[1] == "DW_static":
                 output_channels[i] = 1
-        self.condition = {"output_channels": torch.Tensor(output_channels).to(device)}
+
+        input_channels = [0] * len(UNMASKING_CHANNEL_GROUPS)
+        for i, val in enumerate(UNMASKING_CHANNEL_GROUPS):
+            if val[1] in ["S2_RGB", "S2_SWIR", "S2_Red_Edge", "S2_NIR_10m", "S2_NIR_20m"]:
+                input_channels[i] = 1
+
+        self.condition = {
+            "hw": 64 // patch_size,
+            "patch_size": patch_size,
+            "timesteps": 1,  # WE CURRENTLY ARE NOT TRAINING WITH THIS, PROBABLY HURTS PERF
+            "input_channels": torch.Tensor(input_channels).to(device),
+            "output_channels": torch.Tensor(output_channels).to(device),
+        }
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         return {

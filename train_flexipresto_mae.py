@@ -15,8 +15,8 @@ from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
 from src.collate_fns import mae_collate_fn
-from src.conditioner import LearnedMixture
-from src.config import DEFAULT_SEED
+from src.conditioner import LearnedMixture, LoRAGenerator
+from src.config import DEFAULT_SEED, get_random_config
 from src.data import Dataset, InRAMDataset
 from src.data.config import (
     CONFIG_FILENAME,
@@ -44,6 +44,7 @@ from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
 from src.loss import do_loss
 from src.utils import (
     AverageMeter,
+    check_config,
     data_dir,
     device,
     is_bf16_available,
@@ -52,7 +53,6 @@ from src.utils import (
     timestamp_dirname,
 )
 
-seed_everything(DEFAULT_SEED)
 process = psutil.Process()
 
 os.environ["GOOGLE_CLOUD_PROJECT"] = EE_PROJECT
@@ -86,7 +86,12 @@ if args["h5py_folder"] == "":
 else:
     cache_folder = Path(args["h5py_folder"])
 
-config = load_check_config(args["config_file"], "mae")
+if args["config_file"] == "random_tiny":
+    config = check_config(get_random_config("tiny"))
+elif args["config_file"] == "random_base":
+    config = check_config(get_random_config("base"))
+else:
+    config = load_check_config(args["config_file"])
 training_config = config["training"]
 
 if args["batch_size"] != "":
@@ -100,7 +105,9 @@ run_id = None
 wandb_enabled = True
 wandb_org = "nasa-harvest"
 output_dir = Path(__file__).parent
-
+# we seed everything after we call get_random_config(), since
+# we want this to differ between runs
+seed_everything(DEFAULT_SEED)
 
 print("Loading dataset and dataloader")
 
@@ -138,6 +145,7 @@ dataloader = DataLoader(
     ),
     pin_memory=True,
 )
+
 print("Loading models")
 predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
 param_groups = [
@@ -150,8 +158,14 @@ param_groups = [
 eval_w_condition = False
 if "conditioner" in config["model"]:
     eval_w_condition = True
-    conditioner = LearnedMixture(**config["model"]["conditioner"]).to(device)
-    encoder = Encoder(**config["model"]["encoder"], conditioner=conditioner).to(device)
+    if training_config["conditioner_mode"] == "moe":
+        encoder_conditioner: Union[LearnedMixture, LoRAGenerator] = LearnedMixture(
+            **config["model"]["conditioner"]
+        ).to(device)
+    elif training_config["conditioner_mode"] == "lora":
+        encoder_conditioner = LoRAGenerator(**config["model"]["conditioner"]).to(device)
+
+    encoder = Encoder(**config["model"]["encoder"], conditioner=encoder_conditioner).to(device)
     param_groups.extend(
         [
             {
@@ -325,6 +339,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                     min_lr=training_config["final_lr"],
                     conditioner_multiplier=training_config["conditioner_multiplier"],
                 )
+
                 with torch.no_grad():
                     try:
                         m = next(momentum_scheduler)

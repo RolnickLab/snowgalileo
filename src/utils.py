@@ -75,12 +75,7 @@ class AverageMeter:
         self.average = self.sum / self.count
 
 
-def load_check_config(name: str, mode: str) -> Dict:
-    assert mode == "mae"
-
-    with (config_dir / mode / name).open("r") as f:
-        config = json.load(f)
-
+def check_config(config):
     expected_training_keys_type = {
         "num_epochs": int,
         "batch_size": int,
@@ -90,23 +85,26 @@ def load_check_config(name: str, mode: str) -> Dict:
         "patch_sizes": list,
         "max_lr": float,
         "final_lr": float,
-        "conditioner_multiplier": int,
+        "conditioner_multiplier": float,
         "warmup_epochs": (int, float),
         "eval_eurosat_every_n_epochs": int,
         "shape_time_combinations": list,
         "augmentation": dict,
         "masking_probabilities": list,
         "unmasking_probabilities": list,
-        "conditioner": bool,
         "grad_clip": bool,
         "target_condition": bool,
         "target_exit_after": int,
+        "conditioner_mode": str,
     }
     training_dict = config["training"]
 
     for key, val in expected_training_keys_type.items():
         assert key in training_dict, f"Expected {key} in training dict"
-        assert isinstance(training_dict[key], val)  # type: ignore
+        assert isinstance(
+            training_dict[key],
+            val,  # type: ignore
+        ), f"Expected {key} to be {val}, got {type(training_dict[key])}"
 
     if isinstance(training_dict["warmup_epochs"], float):
         training_dict["warmup_epochs"] = int(
@@ -159,8 +157,27 @@ def load_check_config(name: str, mode: str) -> Dict:
         "embedding_size"
     )
 
-    if config["training"]["conditioner"]:
+    assert config["training"]["conditioner_mode"] in ["moe", "lora", "no_cond"]
+
+    if config["training"]["conditioner_mode"] == "moe":
         config["model"]["conditioner"] = {"num_output_channels": len(UNMASKING_CHANNEL_GROUPS)}
+
+    elif config["training"]["conditioner_mode"] == "lora":
+        config["model"]["conditioner"] = config["model"]["lora_generator"].copy()
+        config["model"]["conditioner"]["num_output_channels"] = len(UNMASKING_CHANNEL_GROUPS)
+        config["model"]["conditioner"]["backbone_dim"] = config["model"]["encoder"][
+            "embedding_size"
+        ]
+        config["model"]["conditioner"]["backbone_depth"] = config["model"]["encoder"]["depth"]
+
+    return config
+
+
+def load_check_config(name: str) -> Dict:
+    with (config_dir / "mae" / name).open("r") as f:
+        config = json.load(f)
+    config = check_config(config)
+
     return config
 
 
