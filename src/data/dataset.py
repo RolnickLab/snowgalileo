@@ -624,10 +624,10 @@ class Dataset(PyTorchDataset):
             self.output_timesteps = output_timesteps
         outputs = []
         if self.h5pys_only:
-            for h5py_path in self.h5pys:
+            for h5py_path in tqdm(self.h5pys):
                 outputs.append(self.read_and_slice_h5py_file(h5py_path))
         else:
-            for i in range(len(self.tifs)):
+            for i in tqdm(range(len(self.tifs))):
                 outputs.append(self.load_tif(i))
         return DatasetOutput.concatenate(outputs)
 
