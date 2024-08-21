@@ -22,6 +22,7 @@ from src.data.config import (
     CONFIG_FILENAME,
     DATA_FOLDER,
     DECODER_FILENAME,
+    EE_BUCKET_TIFS,
     EE_PROJECT,
     ENCODER_FILENAME,
     OUTPUT_FOLDER,
@@ -77,6 +78,7 @@ argparser.add_argument("--cache_in_ram", dest="cache_in_ram", action="store_true
 argparser.add_argument("--h5pys_only", dest="h5pys_only", action="store_true")
 argparser.add_argument("--num_workers", dest="num_workers", default=Hyperparams.num_workers)
 argparser.add_argument("--batch_size", dest="batch_size", default="")
+argparser.add_argument("--sync_models_from_service_account", action="store_true")
 argparser.set_defaults(download=False)
 argparser.set_defaults(cache_in_ram=False)
 args = argparser.parse_args().__dict__
@@ -378,6 +380,14 @@ torch.save(encoder.state_dict(), model_path / ENCODER_FILENAME)
 torch.save(predictor.state_dict(), model_path / DECODER_FILENAME)
 with (model_path / CONFIG_FILENAME).open("w") as f:
     json.dump(config, f)
+
+# upload the model to google cloud
+if args["sync_models_from_service_account"]:
+    # authenticate the service account
+    os.system(
+        "gcloud auth activate-service-account  large-earth-model@appspot.gserviceaccount.com"
+    )
+os.system(f"gcloud storage rsync -r gs://{EE_BUCKET_TIFS}/outputs {model_path}")
 
 eval_tasks: List[EvalTask] = [
     *[
