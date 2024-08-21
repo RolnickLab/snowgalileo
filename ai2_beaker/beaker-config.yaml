@@ -6,12 +6,12 @@ tasks:
   - name: training
     image:
       # You will want to replace `username` below with your Beaker username
-      beaker: gabrielt/gabi-test-v5
-    command: [python, -u, train_flexipresto_mae.py, --config_file=medium.json, --h5py_folder=/stage/data/presto-h5pys, --num_workers=4, --h5pys_only, --batch_size=256]
+      beaker: gabrielt/gabi-sweep-v4
+    command: [python, -u, train_flexipresto_mae.py, --config_file=random_tiny, --h5py_folder=/stage/data/presto-h5pys, --num_workers=8, --h5pys_only, --batch_size=128]
     result:
       # Beaker will capture anything that's written to this location and store it in the results
       # dataset. This location is required to be a directory, not a file.
-      path: /output
+      path: /stage/data/outputs
     resources:
       gpuCount: 1
     context:
@@ -23,6 +23,9 @@ tasks:
       - mountPath: /stage/data
         source:
           weka: skylight-default
+      - mountPath: /root/service-account.json
+        source:
+          secret: gcp-secret
     envVars:
       - name: WANDB_API_KEY
         secret: GABI_WANDB_API_KEY
