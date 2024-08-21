@@ -151,6 +151,6 @@ def get_random_config(model_size: str = "tiny"):
     else:
         raise ValueError("bad loss type in config")
 
-    run_name = f"{model_size}_{config["training"]["conditioner_mode"]}_DecEmb:{config["model"]["decoder"]["learnable_channel_embeddings"]}_Loss:{loss_name}_LRs:{config["training"]["max_lr"]}:{config["training"]["conditioner_multiplier"]}_WDs:{config["training"]["weight_decay"]}:{config["training"]["conditioner_weight_decay"]}"
+    run_name = f"{model_size}_{config['training']['conditioner_mode']}_DecEmb:{config['model']['decoder']['learnable_channel_embeddings']}_Loss:{loss_name}_LRs:{config['training']['max_lr']}:{config['training']['conditioner_multiplier']}_WDs:{config['training']['weight_decay']}:{config['training']['conditioner_weight_decay']}"
 
     return config, run_name
