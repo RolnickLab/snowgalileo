@@ -7,7 +7,15 @@ tasks:
     image:
       # You will want to replace `username` below with your Beaker username
       beaker: gabrielt/gabi-sweep-v4
-    command: [python, -u, train_flexipresto_mae.py, --config_file=random_tiny, --h5py_folder=/stage/data/presto-h5pys, --num_workers=8, --h5pys_only, --batch_size=128]
+    command: [
+      python, -u, train_flexipresto_mae.py,
+      --config_file=random_tiny,
+      --h5py_folder=/stage/data/presto-h5pys,
+      --num_workers=8,
+      --h5pys_only,
+      --batch_size=128,
+      --sync_models_from_service_account
+    ]
     result:
       # Beaker will capture anything that's written to this location and store it in the results
       # dataset. This location is required to be a directory, not a file.
