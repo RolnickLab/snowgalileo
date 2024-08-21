@@ -1,0 +1,22 @@
+## A Pretrained Remote Sensing model
+
+### 1. Training the model from scratch
+
+The main entrypoint to training a model from scratch is `train_flexipresto_mae.py`.
+The hyperparameters of a training run are controlled by the configs in `config`.
+For example, the following command trains a [medium](config/mae/medium.json) sized model:
+
+```bash
+python train_flexipresto_mae.py --config medium.json
+```
+
+Another option is to randomly select hyperparameters to train from, given a fixed encoder size.
+Two encoder sizes are available - `tiny` (which has the same encoder size as `medium.json`) and `base`, which mirrors a ViT-B:
+
+```bash
+python train_flexipresto_mae.py --config random_tiny
+```
+
+Raw data is exported from EarthEngine as `.tif` files. This takes some processing to turn into an ML-ready format, so we save an interim data type (`.h5`). The `.h5` files are stored on WEKA under `/skylight-default/presto-h5pys`.
+
+If you are only using the `.h5` files, then use the flag `--h5pys_only` - otherwise, the script will look for `tif` files as well. Use the `--h5py_folder` command to tell the script where the `.h5` files were mounted (by default, it will look at `data/h5pys`).
