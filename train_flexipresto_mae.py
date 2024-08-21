@@ -73,6 +73,7 @@ tracker.start()
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--config_file", type=str, default="small.json")
 argparser.add_argument("--h5py_folder", type=str, default="")
+argparser.add_argument("--output_folder", type=str, default="")
 argparser.add_argument("--download", dest="download", action="store_true")
 argparser.add_argument("--cache_in_ram", dest="cache_in_ram", action="store_true")
 argparser.add_argument("--h5pys_only", dest="h5pys_only", action="store_true")
@@ -87,6 +88,12 @@ if args["h5py_folder"] == "":
     cache_folder = DATA_FOLDER / "h5pys"
 else:
     cache_folder = Path(args["h5py_folder"])
+
+
+if args["output_folder"] == "":
+    output_folder = OUTPUT_FOLDER
+else:
+    output_folder = Path(args["output_folder"])
 
 if args["config_file"] == "random_tiny":
     config, run_name = get_random_config("tiny")
@@ -374,7 +381,7 @@ for e in tqdm(range(training_config["num_epochs"])):
             to_log.update(results)
         wandb.log(to_log)
 
-model_path = OUTPUT_FOLDER / timestamp_dirname(run_id)
+model_path = output_folder / timestamp_dirname(run_id)
 model_path.mkdir()
 torch.save(encoder.state_dict(), model_path / ENCODER_FILENAME)
 torch.save(predictor.state_dict(), model_path / DECODER_FILENAME)
