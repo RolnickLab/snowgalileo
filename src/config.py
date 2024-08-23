@@ -16,7 +16,7 @@ def get_random_config(model_size: str = "tiny"):
             "num_heads": 8,
         },
         "vitb-tiny": {
-            "embedding_size": 196,
+            "embedding_size": 192,
             "depth": 12,
             "num_heads": 3,
         },
@@ -37,7 +37,7 @@ def get_random_config(model_size: str = "tiny"):
         config["model"]["decoder"]["depth"] = random.choice([1, 2, 3])
         config["training"]["patch_sizes"] = [1, 2, 3, 4, 5, 6, 7, 8]
     elif config["model"]["encoder"]["embedding_size"] == 196:
-        config["model"]["decoder"]["embedding_size"] = random.choice([128, 196])
+        config["model"]["decoder"]["embedding_size"] = random.choice([128, 192])
         config["model"]["decoder"]["depth"] = random.choice([1, 2, 3, 4])
         config["training"]["patch_sizes"] = [1, 2, 3, 4, 5, 6, 7, 8]
     elif config["model"]["encoder"]["embedding_size"] == 768:
@@ -49,8 +49,11 @@ def get_random_config(model_size: str = "tiny"):
             f"encoder embedding size didn't match options: {config['model']['encoder']['embedding_size']}"
         )
 
+    if config["model"]["decoder"]["embedding_size"] == 192:
+        config["model"]["decoder"]["num_heads"] = random.choice([2, 3, 8])
+    else:
+        config["model"]["decoder"]["num_heads"] = random.choice([2, 8])
     config["model"]["decoder"]["mlp_ratio"] = 4
-    config["model"]["decoder"]["num_heads"] = random.choice([2, 8])
     config["model"]["decoder"]["max_sequence_length"] = 24
     config["model"]["decoder"]["learnable_channel_embeddings"] = random.choice([True, False])
     config["training"]["conditioner_mode"] = random.choice(["moe", "lora"])
