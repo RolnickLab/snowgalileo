@@ -56,6 +56,9 @@ def get_random_config(model_size: str = "tiny"):
         config["model"]["lora_generator"]["dim"] = random.choice([128, 256])
         config["model"]["lora_generator"]["rank"] = random.choice([12, 32, 64])
         config["model"]["lora_generator"]["do_input_condition"] = random.choice([True, False])
+        config["training"]["max_lr"] = random.choice([5e-4, 8e-4, 1e-3])
+    else:
+        config["training"]["max_lr"] = random.choice([1e-3, 2e-3, 3e-3])
 
     ### OPTIMIZATION ###
     config["training"]["num_epochs"] = 200
@@ -63,7 +66,6 @@ def get_random_config(model_size: str = "tiny"):
     config["training"]["effective_batch_size"] = 512
     config["training"]["warmup_epochs"] = 0.1
     config["training"]["final_lr"] = 1e-6
-    config["training"]["max_lr"] = random.choice([5e-4, 8e-4, 1e-3, 2e-3])
 
     if config["training"]["conditioner_mode"] == "lora":
         config["training"]["conditioner_multiplier"] = random.choice([0.1, 0.05])
