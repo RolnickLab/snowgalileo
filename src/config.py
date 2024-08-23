@@ -36,7 +36,7 @@ def get_random_config(model_size: str = "tiny"):
         config["model"]["decoder"]["embedding_size"] = 128
         config["model"]["decoder"]["depth"] = random.choice([1, 2, 3])
         config["training"]["patch_sizes"] = [1, 2, 3, 4, 5, 6, 7, 8]
-    elif config["model"]["encoder"]["embedding_size"] == 196:
+    elif config["model"]["encoder"]["embedding_size"] == 192:
         config["model"]["decoder"]["embedding_size"] = random.choice([128, 192])
         config["model"]["decoder"]["depth"] = random.choice([1, 2, 3, 4])
         config["training"]["patch_sizes"] = [1, 2, 3, 4, 5, 6, 7, 8]
