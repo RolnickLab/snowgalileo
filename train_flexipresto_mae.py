@@ -98,6 +98,9 @@ else:
 if args["config_file"] == "random_tiny":
     config, run_name = get_random_config("tiny")
     config = check_config(config)
+elif args["config_file"] == "random_vitb-tiny":
+    config, run_name = get_random_config("vitb-tiny")
+    config = check_config(config)
 elif args["config_file"] == "random_base":
     config, run_name = get_random_config("base")
     config = check_config(config)
