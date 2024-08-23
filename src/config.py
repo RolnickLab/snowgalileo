@@ -53,7 +53,7 @@ def get_random_config(model_size: str = "tiny"):
         config["model"]["lora_generator"]["do_input_condition"] = random.choice([True, False])
 
     ### OPTIMIZATION ###
-    config["training"]["num_epochs"] = 100
+    config["training"]["num_epochs"] = 200
     config["training"]["batch_size"] = 16
     config["training"]["effective_batch_size"] = 512
     config["training"]["warmup_epochs"] = 0.1
@@ -61,15 +61,15 @@ def get_random_config(model_size: str = "tiny"):
     config["training"]["max_lr"] = random.choice([5e-4, 8e-4, 1e-3, 2e-3])
 
     if config["training"]["conditioner_mode"] == "lora":
-        config["training"]["conditioner_multiplier"] = random.choice([0.5, 0.1, 0.05])
+        config["training"]["conditioner_multiplier"] = random.choice([0.1, 0.05])
     else:
         config["training"]["conditioner_multiplier"] = random.choice([1.0, 0.1])
 
     config["training"]["weight_decay"] = random.choice([0.01, 0.02, 0.05])
     config["training"]["conditioner_weight_decay"] = random.choice([0.01, 0.02, 0.05])
-    config["training"]["grad_clip"] = random.choice([True, False])
-    config["training"]["betas"] = random.choice([[0.9, 0.999], [0.9, 0.95], [0.9, 0.9]])
-    config["training"]["ema"] = random.choice([[0.996, 1.0], [0.99, 1.0], [0.95, 1.0]])
+    config["training"]["grad_clip"] = True
+    config["training"]["betas"] = [0.9, 0.999]
+    config["training"]["ema"] = ([0.996, 1.0],)
 
     ### DATA and MASKING ###
     config["training"]["shape_time_combinations"] = [
@@ -129,7 +129,7 @@ def get_random_config(model_size: str = "tiny"):
     ### LOSS ###
     config["training"]["loss_type"] = random.choice(["patch_disc", "mse"])
     if config["training"]["loss_type"] == "patch_disc":
-        config["training"]["tau"] = random.choice([0.05, 0.1, 0.2, 0.4])
+        config["training"]["tau"] = random.choice([0.1, 0.2])
         config["training"]["pred2unit"] = random.choice([True, False])
         config["training"]["loss_mask_other_samples"] = random.choice([True, False])
 
