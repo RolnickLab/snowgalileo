@@ -15,6 +15,11 @@ def get_random_config(model_size: str = "tiny"):
             "depth": 4,
             "num_heads": 8,
         },
+        "vitb-tiny": {
+            "embedding_size": 196,
+            "depth": 12,
+            "num_heads": 3,
+        },
         "base": {
             "embedding_size": 768,
             "depth": 12,
