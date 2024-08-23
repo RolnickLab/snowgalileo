@@ -23,9 +23,41 @@ class TestConfigs(unittest.TestCase):
                 assert "conditioner" not in loaded_config["model"].keys()
                 _ = Encoder(**loaded_config["model"]["encoder"])
 
-    def test_random_configs(self):
-        for _ in range(10):
-            config, _ = get_random_config()
+    def test_random_configs_tiny(self):
+        for _ in range(3):
+            config, _ = get_random_config(model_size="tiny")
+            loaded_config = check_config(config)
+
+            # check we can load the models
+            if loaded_config["training"]["conditioner_mode"] == "lora":
+                encoder_conditioner = LoRAGenerator(**loaded_config["model"]["conditioner"])
+                _ = Encoder(**loaded_config["model"]["encoder"], conditioner=encoder_conditioner)
+            elif loaded_config["training"]["conditioner_mode"] == "moe":
+                encoder_conditioner = LearnedMixture(**loaded_config["model"]["conditioner"])
+                _ = Encoder(**loaded_config["model"]["encoder"], conditioner=encoder_conditioner)
+            else:
+                assert "conditioner" not in loaded_config["model"].keys()
+                _ = Encoder(**loaded_config["model"]["encoder"])
+
+    def test_random_configs_vitb_tiny(self):
+        for _ in range(3):
+            config, _ = get_random_config(model_size="vitb-tiny")
+            loaded_config = check_config(config)
+
+            # check we can load the models
+            if loaded_config["training"]["conditioner_mode"] == "lora":
+                encoder_conditioner = LoRAGenerator(**loaded_config["model"]["conditioner"])
+                _ = Encoder(**loaded_config["model"]["encoder"], conditioner=encoder_conditioner)
+            elif loaded_config["training"]["conditioner_mode"] == "moe":
+                encoder_conditioner = LearnedMixture(**loaded_config["model"]["conditioner"])
+                _ = Encoder(**loaded_config["model"]["encoder"], conditioner=encoder_conditioner)
+            else:
+                assert "conditioner" not in loaded_config["model"].keys()
+                _ = Encoder(**loaded_config["model"]["encoder"])
+
+    def test_random_configs_base(self):
+        for _ in range(3):
+            config, _ = get_random_config(model_size="base")
             loaded_config = check_config(config)
 
             # check we can load the models

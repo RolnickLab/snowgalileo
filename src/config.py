@@ -15,6 +15,11 @@ def get_random_config(model_size: str = "tiny"):
             "depth": 4,
             "num_heads": 8,
         },
+        "vitb-tiny": {
+            "embedding_size": 192,
+            "depth": 12,
+            "num_heads": 3,
+        },
         "base": {
             "embedding_size": 768,
             "depth": 12,
@@ -31,6 +36,10 @@ def get_random_config(model_size: str = "tiny"):
         config["model"]["decoder"]["embedding_size"] = 128
         config["model"]["decoder"]["depth"] = random.choice([1, 2, 3])
         config["training"]["patch_sizes"] = [1, 2, 3, 4, 5, 6, 7, 8]
+    elif config["model"]["encoder"]["embedding_size"] == 192:
+        config["model"]["decoder"]["embedding_size"] = random.choice([128, 192])
+        config["model"]["decoder"]["depth"] = random.choice([1, 2, 3, 4])
+        config["training"]["patch_sizes"] = [1, 2, 3, 4, 5, 6, 7, 8]
     elif config["model"]["encoder"]["embedding_size"] == 768:
         config["model"]["decoder"]["embedding_size"] = random.choice([128, 256, 512])
         config["model"]["decoder"]["depth"] = random.choice([1, 2, 3, 4])
@@ -40,8 +49,11 @@ def get_random_config(model_size: str = "tiny"):
             f"encoder embedding size didn't match options: {config['model']['encoder']['embedding_size']}"
         )
 
+    if config["model"]["decoder"]["embedding_size"] == 192:
+        config["model"]["decoder"]["num_heads"] = random.choice([2, 3, 8])
+    else:
+        config["model"]["decoder"]["num_heads"] = random.choice([2, 8])
     config["model"]["decoder"]["mlp_ratio"] = 4
-    config["model"]["decoder"]["num_heads"] = random.choice([2, 8])
     config["model"]["decoder"]["max_sequence_length"] = 24
     config["model"]["decoder"]["learnable_channel_embeddings"] = random.choice([True, False])
     config["training"]["conditioner_mode"] = random.choice(["moe", "lora"])
@@ -51,6 +63,9 @@ def get_random_config(model_size: str = "tiny"):
         config["model"]["lora_generator"]["dim"] = random.choice([128, 256])
         config["model"]["lora_generator"]["rank"] = random.choice([12, 32, 64])
         config["model"]["lora_generator"]["do_input_condition"] = random.choice([True, False])
+        config["training"]["max_lr"] = random.choice([5e-4, 8e-4, 1e-3])
+    else:
+        config["training"]["max_lr"] = random.choice([1e-3, 2e-3, 3e-3])
 
     ### OPTIMIZATION ###
     config["training"]["num_epochs"] = 200
@@ -58,7 +73,6 @@ def get_random_config(model_size: str = "tiny"):
     config["training"]["effective_batch_size"] = 512
     config["training"]["warmup_epochs"] = 0.1
     config["training"]["final_lr"] = 1e-6
-    config["training"]["max_lr"] = random.choice([5e-4, 8e-4, 1e-3, 2e-3])
 
     if config["training"]["conditioner_mode"] == "lora":
         config["training"]["conditioner_multiplier"] = random.choice([0.1, 0.05])
