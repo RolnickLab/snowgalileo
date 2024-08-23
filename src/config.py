@@ -69,7 +69,7 @@ def get_random_config(model_size: str = "tiny"):
     config["training"]["conditioner_weight_decay"] = random.choice([0.01, 0.02, 0.05])
     config["training"]["grad_clip"] = True
     config["training"]["betas"] = [0.9, 0.999]
-    config["training"]["ema"] = ([0.996, 1.0],)
+    config["training"]["ema"] = [0.996, 1.0]
 
     ### DATA and MASKING ###
     config["training"]["shape_time_combinations"] = [
