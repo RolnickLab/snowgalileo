@@ -55,7 +55,6 @@ def get_random_config(model_size: str = "tiny"):
         config["model"]["decoder"]["num_heads"] = random.choice([2, 8])
     config["model"]["decoder"]["mlp_ratio"] = 4
     config["model"]["decoder"]["max_sequence_length"] = 24
-    config["model"]["decoder"]["learnable_channel_embeddings"] = random.choice([True, False])
     config["training"]["conditioner_mode"] = random.choice(["moe", "lora"])
 
     if config["training"]["conditioner_mode"] == "lora":
@@ -64,8 +63,10 @@ def get_random_config(model_size: str = "tiny"):
         config["model"]["lora_generator"]["rank"] = random.choice([12, 32, 64])
         config["model"]["lora_generator"]["do_input_condition"] = random.choice([True, False])
         config["training"]["max_lr"] = random.choice([5e-4, 8e-4, 1e-3])
+        config["model"]["decoder"]["learnable_channel_embeddings"] = False
     else:
         config["training"]["max_lr"] = random.choice([1e-3, 2e-3, 3e-3])
+        config["model"]["decoder"]["learnable_channel_embeddings"] = random.choice([True, False])
 
     ### OPTIMIZATION ###
     config["training"]["num_epochs"] = 200
@@ -141,17 +142,12 @@ def get_random_config(model_size: str = "tiny"):
     config["training"]["target_condition"] = random.choice([True, False])
 
     ### LOSS ###
-    config["training"]["loss_type"] = random.choice(["patch_disc", "mse"])
-    if config["training"]["loss_type"] == "patch_disc":
-        config["training"]["tau"] = random.choice([0.1, 0.2])
-        config["training"]["pred2unit"] = random.choice([True, False])
-        config["training"]["loss_mask_other_samples"] = random.choice([True, False])
+    config["training"]["loss_type"] = "patch_disc"
+    config["training"]["tau"] = random.choice([0.1, 0.2])
+    config["training"]["pred2unit"] = random.choice([True, False])
+    config["training"]["loss_mask_other_samples"] = random.choice([True, False])
 
     ### LOGGING ###
-    config["training"]["wandb_plot_every_n_epochs"] = 10
-    config["training"]["num_images_to_wandb_plot"] = 3
-    config["training"]["timesteps_to_wandb_plot"] = [0]
-    config["training"]["patch_sizes_to_wandb_plot"] = [2, 4, 8]
     config["training"]["eval_eurosat_every_n_epochs"] = 10
 
     ### GENERATE EXPERIMENT NAME ###
