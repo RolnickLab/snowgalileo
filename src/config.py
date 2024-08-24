@@ -142,6 +142,7 @@ def get_random_config(model_size: str = "tiny"):
 
     ### LOSS ###
     config["training"]["loss_type"] = "patch_disc"
+    loss_name = "PD"  # for the run_name
     config["training"]["tau"] = random.choice([0.1, 0.2])
     config["training"]["pred2unit"] = random.choice([True, False])
     config["training"]["loss_mask_other_samples"] = False
@@ -152,13 +153,6 @@ def get_random_config(model_size: str = "tiny"):
     ### GENERATE EXPERIMENT NAME ###
     if config["training"]["loss_type"] == "mse":
         loss_name = "mse"
-    elif config["training"]["loss_type"] == "patch_disc":
-        if config["training"]["loss_mask_other_samples"]:
-            loss_name = "PDMask"
-        else:
-            loss_name = "PD"
-    else:
-        raise ValueError("bad loss type in config")
 
     run_name = f"{model_size}_{config['training']['conditioner_mode']}_DecEmb:{config['model']['decoder']['learnable_channel_embeddings']}_Loss:{loss_name}_LRs:{config['training']['max_lr']}:{config['training']['conditioner_multiplier']}_WDs:{config['training']['weight_decay']}:{config['training']['conditioner_weight_decay']}"
 
