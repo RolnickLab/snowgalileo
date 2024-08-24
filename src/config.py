@@ -29,7 +29,7 @@ def get_random_config(model_size: str = "tiny"):
     config["model"]["encoder"] = models[model_size]
     config["model"]["encoder"]["mlp_ratio"] = 4
     config["model"]["encoder"]["max_sequence_length"] = 24
-    config["model"]["encoder"]["freeze_projections"] = random.choice([True, False])
+    config["model"]["encoder"]["freeze_projections"] = False
     config["model"]["decoder"] = {}
 
     if config["model"]["encoder"]["embedding_size"] == 128:
@@ -55,6 +55,7 @@ def get_random_config(model_size: str = "tiny"):
         config["model"]["decoder"]["num_heads"] = random.choice([2, 8])
     config["model"]["decoder"]["mlp_ratio"] = 4
     config["model"]["decoder"]["max_sequence_length"] = 24
+    config["model"]["decoder"]["learnable_channel_embeddings"] = random.choice([True, False])
     config["training"]["conditioner_mode"] = random.choice(["moe", "lora"])
 
     if config["training"]["conditioner_mode"] == "lora":
@@ -63,10 +64,8 @@ def get_random_config(model_size: str = "tiny"):
         config["model"]["lora_generator"]["rank"] = random.choice([12, 32, 64])
         config["model"]["lora_generator"]["do_input_condition"] = random.choice([True, False])
         config["training"]["max_lr"] = random.choice([5e-4, 8e-4, 1e-3])
-        config["model"]["decoder"]["learnable_channel_embeddings"] = False
     else:
         config["training"]["max_lr"] = random.choice([1e-3, 2e-3, 3e-3])
-        config["model"]["decoder"]["learnable_channel_embeddings"] = random.choice([True, False])
 
     ### OPTIMIZATION ###
     config["training"]["num_epochs"] = 200
@@ -145,7 +144,7 @@ def get_random_config(model_size: str = "tiny"):
     config["training"]["loss_type"] = "patch_disc"
     config["training"]["tau"] = random.choice([0.1, 0.2])
     config["training"]["pred2unit"] = random.choice([True, False])
-    config["training"]["loss_mask_other_samples"] = random.choice([True, False])
+    config["training"]["loss_mask_other_samples"] = False
 
     ### LOGGING ###
     config["training"]["eval_eurosat_every_n_epochs"] = 10
