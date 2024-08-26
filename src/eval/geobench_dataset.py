@@ -9,6 +9,7 @@ import torch.multiprocessing
 from einops import repeat
 from torch.utils.data import Dataset as PyTorchDataset
 
+from ..data import Normalizer
 from ..data.dataset import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_BANDS,
@@ -18,7 +19,6 @@ from ..data.dataset import (
     STATIC_BANDS,
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
-    normalize_space_time,
 )
 from ..data.earthengine.s1 import S1_BANDS
 from ..data.earthengine.s2 import S2_BANDS
@@ -36,6 +36,7 @@ class GeobenchBaseDataset(PyTorchDataset):
     def __init__(
         self,
         dataset_config_file: str,
+        normalizer: Normalizer,
         split: str = "train",
         num_subtiles_per_image: Optional[int] = 1,
         rgb: bool = False,
@@ -51,6 +52,7 @@ class GeobenchBaseDataset(PyTorchDataset):
         self.split = split
         self.config = config
         self.rgb = rgb
+        self.normalizer = normalizer
 
         for task in geobench.task_iterator(benchmark_name=self.config["benchmark_name"]):
             if task.dataset_name == self.config["dataset_name"]:
@@ -138,7 +140,7 @@ class GeobenchBaseDataset(PyTorchDataset):
             image, "c h w -> h w t c", t=self.config["num_timesteps"]
         )
 
-        return normalize_space_time(eo_style_array)
+        return self.normalizer(eo_style_array)
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         img_idx = idx // self.num_subtiles_per_image

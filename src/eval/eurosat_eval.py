@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as PyTorchDataset
 from tqdm import tqdm
 
+from ..data import Normalizer
 from ..data.dataset import (
     LOCATION_BANDS,
     SPACE_BAND_GROUPS_IDX,
@@ -25,8 +26,6 @@ from ..data.dataset import (
     STATIC_BANDS,
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
-    normalize_space_time,
-    normalize_static,
     to_cartesian,
 )
 from ..data.earthengine.s2 import ALL_S2_BANDS, REMOVED_BANDS
@@ -76,6 +75,7 @@ class EuroSatDataset(PyTorchDataset):
 
     def __init__(
         self,
+        normalizer: Normalizer,
         rgb: bool = True,
         split: str = "train",
         merge_train_val: bool = True,
@@ -88,6 +88,7 @@ class EuroSatDataset(PyTorchDataset):
         self.rgb = rgb
         self.include_latlons = include_latlons
         self.tif_files_dir = tif_files_dir
+        self.normalizer = normalizer
 
         self.images = self.split_images(merge_train_val)[split]
         self.masks = self.create_eurosat_masks()
@@ -216,8 +217,8 @@ class EuroSatDataset(PyTorchDataset):
             static_array[self.kept_static_bands] = cartesian_array
 
         return (
-            normalize_space_time(eo_style_array),
-            normalize_static(static_array),
+            self.normalizer(eo_style_array),
+            self.normalizer(static_array),
             np.array([self.labels_to_int[tif_file.parents[0].name]]),
         )
 
@@ -253,6 +254,7 @@ class EuroSatEval(EvalTask):
 
     def __init__(
         self,
+        normalizer: Normalizer,
         rgb: bool = True,
         include_latlons: bool = True,
         patch_size: int = 8,
@@ -264,6 +266,7 @@ class EuroSatEval(EvalTask):
         self.geobench = geobench
         self.include_latlons = include_latlons
         self.do_condition = do_condition
+        self.normalizer = normalizer
 
         assert not self.geobench or not self.include_latlons, "Geobench does not support latlons"
 
@@ -300,7 +303,10 @@ class EuroSatEval(EvalTask):
         if self.geobench:
             test_dl = DataLoader(
                 GeobenchBaseDataset(
-                    dataset_config_file="m-eurosat.json", split="test", rgb=self.rgb
+                    dataset_config_file="m-eurosat.json",
+                    split="test",
+                    rgb=self.rgb,
+                    normalizer=self.normalizer,
                 ),
                 batch_size=Hyperparams.batch_size,
                 shuffle=False,
@@ -312,6 +318,7 @@ class EuroSatEval(EvalTask):
                 batch_size=Hyperparams.batch_size,
                 shuffle=False,
                 num_workers=Hyperparams.num_workers,
+                normalizer=self.normalizer,
             )
         pred_dict: Dict[str, BaseEstimator] = {
             model_class_name(model): [] for model in sklearn_models
@@ -383,7 +390,10 @@ class EuroSatEval(EvalTask):
         if self.geobench:
             train_dl = DataLoader(
                 GeobenchBaseDataset(
-                    dataset_config_file="m-eurosat.json", split="train", rgb=self.rgb
+                    normalizer=self.normalizer,
+                    dataset_config_file="m-eurosat.json",
+                    split="train",
+                    rgb=self.rgb,
                 ),
                 batch_size=Hyperparams.batch_size,
                 shuffle=False,
@@ -392,6 +402,7 @@ class EuroSatEval(EvalTask):
         else:
             train_dl = DataLoader(
                 EuroSatDataset(
+                    normalizer=self.normalizer,
                     rgb=self.rgb,
                     include_latlons=self.include_latlons,
                     split="train",

@@ -204,7 +204,11 @@ else:
 
 print("Loading validation task")
 val_task_no_latlons = EuroSatEval(
-    geobench=True, rgb=False, include_latlons=False, do_condition=eval_w_condition
+    normalizer=dataset.normalizer,
+    geobench=True,
+    rgb=False,
+    include_latlons=False,
+    do_condition=eval_w_condition,
 )
 
 if wandb_enabled:
