@@ -166,11 +166,14 @@ class DatasetOutput(NamedTuple):
         months = np.stack([o.months for o in datasetoutputs], axis=0)
         return cls(s_t_x, sp_x, t_x, st_x, months)
 
-    def normalize(self, normalizer: Normalizer):
-        self.space_time_x = normalizer(self.space_time_x)
-        self.space_x = normalizer(self.space_x)
-        self.time_x = normalizer(self.time_x)
-        self.static_x = normalizer(self.static_x)
+    def normalize(self, normalizer: Normalizer) -> "DatasetOutput":
+        return DatasetOutput(
+            normalizer(self.space_time_x),
+            normalizer(self.space_x),
+            normalizer(self.time_x),
+            normalizer(self.static_x),
+            self.months,
+        )
 
 
 def to_cartesian(
@@ -635,11 +638,9 @@ class Dataset(PyTorchDataset):
 
     def __getitem__(self, idx):
         if self.h5pys_only:
-            output = self.read_and_slice_h5py_file(self.h5pys[idx])
+            return self.read_and_slice_h5py_file(self.h5pys[idx]).normalize(self.normalizer)
         else:
-            output = self.load_tif(idx)
-        output.normalize(self.normalizer)
-        return output
+            return self.load_tif(idx).normalize(self.normalizer)
 
     def process_h5pys(self):
         # iterate through the dataset and save it all as h5pys
