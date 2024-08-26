@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
+from src.beaker import is_beaker_job, maybe_get_beaker_config
 from src.collate_fns import mae_collate_fn
 from src.conditioner import LearnedMixture, LoRAGenerator
 from src.config import DEFAULT_SEED, get_random_config
@@ -223,6 +224,9 @@ if wandb_enabled:
     )
     run_id = cast(Run, run).id
     config["training"]["training_samples"] = len(dataset)
+    if is_beaker_job():
+        beaker_config = maybe_get_beaker_config()
+        config.update(vars(beaker_config))
     wandb.config.update(config)
 
 optimizer = torch.optim.AdamW(
