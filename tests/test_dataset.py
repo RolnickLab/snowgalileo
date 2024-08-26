@@ -56,7 +56,8 @@ class TestDataset(unittest.TestCase):
 
     def test_normalization(self):
         ds = Dataset(TIFS_FOLDER, download=False)
-        o = ds.compute_normalization_values()
+        o = ds.load_compute_normalization_values(save=False)
+        self.assertEqual(o["n"], len(ds))
         for t in ["space_time", "space", "time", "static"]:
             subdict = o[t]
             self.assertTrue("mean" in subdict)

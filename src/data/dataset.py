@@ -1,3 +1,4 @@
+import json
 import logging
 import math
 import os
@@ -21,6 +22,7 @@ from .config import (
     EE_BUCKET_TIFS,
     EE_FOLDER_H5PYS,
     EE_FOLDER_TIFS,
+    NORMALIZATION_DICT_FILENAME,
     NUM_TIMESTEPS,
 )
 from .earthengine.eo import (
@@ -689,7 +691,20 @@ class Dataset(PyTorchDataset):
             "std": cast(np.ndarray, std).tolist(),
         }
 
-    def compute_normalization_values(self, output_hw: int = 96, output_timesteps: int = 24):
+    def load_compute_normalization_values(
+        self, output_hw: int = 96, output_timesteps: int = 24, save: bool = True
+    ):
+        normalizing_dict_path = self.data_folder / NORMALIZATION_DICT_FILENAME
+        # check to see if the normalization dict already exists
+        if normalizing_dict_path.exists():
+            with normalizing_dict_path.open("r") as f:
+                norm_dict = json.load(f)
+            if norm_dict["n"] == len(self):
+                # we computed the normalizing dict using the same datset
+                return norm_dict
+            else:
+                normalizing_dict_path.unlink()
+
         org_hw = self.output_hw
         self.output_hw = output_hw
 
@@ -709,7 +724,7 @@ class Dataset(PyTorchDataset):
             "M2": np.zeros(len(STATIC_BANDS)),
         }
 
-        for i in range(len(self)):
+        for i in tqdm(range(len(self))):
             s_t_x, sp_x, t_x, st_x, _ = self[i]
             s_t_interim = self._update_normalizing_values(s_t_x, s_t_interim)
             sp_interim = self._update_normalizing_values(sp_x, sp_interim)
@@ -719,9 +734,16 @@ class Dataset(PyTorchDataset):
         self.output_hw = org_hw
         self.output_timesteps = org_t
 
-        return {
+        norm_dict = {
+            "n": len(self),
             "space_time": self._calculate_normalizing_dict(s_t_interim),
             "space": self._calculate_normalizing_dict(sp_interim),
             "time": self._calculate_normalizing_dict(t_interim),
             "static": self._calculate_normalizing_dict(st_interim),
         }
+
+        if save:
+            with normalizing_dict_path.open("w") as f:
+                json.dump(norm_dict, f)
+
+        return norm_dict
