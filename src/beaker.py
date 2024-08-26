@@ -28,7 +28,7 @@ def get_beaker_dataset_ids(experiment_id: str) -> Optional[List[str]]:
     )
     stdout, stderr = process.communicate()
     if process.returncode != 0:
-        logger.error(f"Failed to get Beaker experiment: {stderr}")
+        logger.error(f"Failed to get Beaker experiment: {stderr}")  # type: ignore
         return None
     experiment = json.loads(stdout)[0]
     result_ids = [job["result"]["beaker"] for job in experiment["jobs"]]
@@ -40,7 +40,7 @@ def get_beaker_dataset_ids(experiment_id: str) -> Optional[List[str]]:
         )
         stdout, stderr = process.communicate()
         if process.returncode != 0:
-            logger.error(f"Failed to get Beaker dataset: {stderr}")
+            logger.error(f"Failed to get Beaker dataset: {stderr}")  # type: ignore
             return None
         datasets = json.loads(stdout)
         dataset_ids.extend([dataset["id"] for dataset in datasets])
@@ -54,7 +54,7 @@ def get_beaker_whoami() -> Optional[str]:
     )
     stdout, stderr = process.communicate()
     if process.returncode != 0:
-        logger.error(f"Failed to get Beaker account: {stderr}")
+        logger.error(f"Failed to get Beaker account: {stderr}")  # type: ignore
         return None
     accounts = json.loads(stdout)
     return accounts[0]["name"]
