@@ -18,7 +18,7 @@ from src.beaker import is_beaker_job, maybe_get_beaker_config
 from src.collate_fns import mae_collate_fn
 from src.conditioner import LearnedMixture, LoRAGenerator
 from src.config import DEFAULT_SEED, get_random_config
-from src.data import Dataset
+from src.data import Dataset, Normalizer
 from src.data.config import (
     CONFIG_FILENAME,
     DATA_FOLDER,
@@ -133,6 +133,11 @@ dataset = Dataset(
     h5py_folder=cache_folder,
     h5pys_only=args["h5pys_only"],
 )
+
+if args["normalization"] == "data_driven":
+    normalizing_dict = dataset.load_compute_normalization_values(save=True)
+    normalizer = Normalizer(std_clip=True, normalizing_dict=normalizing_dict)
+    dataset.normalizer = normalizer
 
 dataloader = DataLoader(
     dataset,
