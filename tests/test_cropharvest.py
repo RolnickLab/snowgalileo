@@ -11,6 +11,7 @@ from src.data.dataset import (
     STATIC_BANDS,
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
+    Normalizer,
 )
 from src.eval.cropharvest_eval import BANDS, BinaryCropHarvestEval
 
@@ -22,6 +23,7 @@ class TestCropHarvest(unittest.TestCase):
             class BinaryCropHarvestEvalNoDownload(BinaryCropHarvestEval):
                 def __init__(self, include_latlons: bool = True):
                     self.include_latlons = include_latlons
+                    self.normalizer = Normalizer()
 
             eval = BinaryCropHarvestEvalNoDownload(include_latlons)
             b, t = 8, 12
