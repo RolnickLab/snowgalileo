@@ -4,7 +4,7 @@ import os
 import warnings
 from collections import OrderedDict
 from pathlib import Path
-from typing import List, NamedTuple, Optional, Sequence, Tuple, Union, cast
+from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple, Union, cast
 from typing import OrderedDict as OrderedDictType
 
 import h5py
@@ -14,7 +14,6 @@ import torch
 import xarray as xr
 from einops import rearrange, repeat
 from torch.utils.data import Dataset as PyTorchDataset
-from torch.utils.data import TensorDataset
 from tqdm import tqdm
 
 from .config import (
@@ -104,6 +103,53 @@ STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
 )
 
 
+class Normalizer:
+    shift_div_dict = {
+        "space_time": {"shift": SPACE_TIME_SHIFT_VALUES, "div": SPACE_TIME_DIV_VALUES},
+        "space": {"shift": SPACE_SHIFT_VALUES, "div": SPACE_DIV_VALUES},
+        "time": {"shift": TIME_SHIFT_VALUES, "div": TIME_DIV_VALUES},
+        "static": {"shift": STATIC_SHIFT_VALUES, "div": STATIC_DIV_VALUES},
+    }
+
+    # these are the bands we will replace with the 2*std computation
+    # if std_clip = True
+    std_bands = {
+        "space_time": [b for b in SPACE_TIME_BANDS if b != "NDVI"],
+        "space": SRTM_BANDS,
+        "time": TIME_BANDS,
+        "static": LANDSCAN_BANDS,
+    }
+
+    def __init__(self, std_clip: bool = True, normalizing_dicts: Optional[Dict] = None):
+        self.std_clip = std_clip
+        self.normalizing_dicts = normalizing_dicts
+        if std_clip:
+            assert normalizing_dicts is not None
+            for key, val in normalizing_dicts.items():
+                bands_to_replace = self.std_bands[key]
+                for band in bands_to_replace:
+                    band_idx = SPACE_TIME_BANDS.index(band)
+                    mean = val["mean"][band_idx]
+                    std = val["std"][band_idx]
+                    div = (mean + (2 * std)) - (mean - (2 * std))  # max_val - min_val
+                    self.shift_div_dict[key]["shift"][band_idx] = mean
+                    self.shift_div_dict[key]["div"][band_idx] = div
+
+    def _normalize(
+        self, x: np.ndarray, shift_values: np.ndarray, div_values: np.ndarray
+    ) -> np.ndarray:
+        x = (x - shift_values) / div_values
+        if self.std_clip:
+            return np.clip(x, a_min=0, a_max=1)
+        return x
+
+    def __call__(self, x: np.ndarray):
+        for _, val in self.shift_div_dict.items():
+            if x.shape[-1] == len(val["shift"]):
+                return self._normalize(x, val["shift"], val["div"])
+        raise ValueError(f"Unexpected input shape {x.shape}")
+
+
 class DatasetOutput(NamedTuple):
     space_time_x: np.ndarray
     space_x: np.ndarray
@@ -120,48 +166,11 @@ class DatasetOutput(NamedTuple):
         months = np.stack([o.months for o in datasetoutputs], axis=0)
         return cls(s_t_x, sp_x, t_x, st_x, months)
 
-
-class ListOfDatasetOutputs(NamedTuple):
-    space_time_x: List[np.ndarray]
-    space_x: List[np.ndarray]
-    time_x: List[np.ndarray]
-    static_x: List[np.ndarray]
-    months: List[np.ndarray]
-
-    def to_datasetoutput(self) -> DatasetOutput:
-        return DatasetOutput(
-            np.stack(self.space_time_x, axis=0),
-            np.stack(self.space_x, axis=0),
-            np.stack(self.time_x, axis=0),
-            np.stack(self.static_x, axis=0),
-            np.stack(self.months, axis=0),
-        )
-
-
-def _normalize(x: np.ndarray, shift_values: np.ndarray, div_values: np.ndarray) -> np.ndarray:
-    return (x - shift_values) / div_values
-
-
-def normalize_space_time(x: np.ndarray) -> np.ndarray:
-    assert isinstance(x, np.ndarray)
-    # assert since we added NDVI
-    assert x.shape[-1] == (len(SPACE_TIME_SHIFT_VALUES))
-    return _normalize(x, SPACE_TIME_SHIFT_VALUES, SPACE_TIME_DIV_VALUES)
-
-
-def normalize_space(x: np.ndarray) -> np.ndarray:
-    assert isinstance(x, np.ndarray)
-    return _normalize(x, SPACE_SHIFT_VALUES, SPACE_DIV_VALUES)
-
-
-def normalize_time(x: np.ndarray) -> np.ndarray:
-    assert isinstance(x, np.ndarray)
-    return _normalize(x, TIME_SHIFT_VALUES, TIME_DIV_VALUES)
-
-
-def normalize_static(x: np.ndarray) -> np.ndarray:
-    assert isinstance(x, np.ndarray)
-    return _normalize(x, STATIC_SHIFT_VALUES, STATIC_DIV_VALUES)
+    def normalize(self, normalizer: Normalizer):
+        self.space_time_x = normalizer(self.space_time_x)
+        self.space_x = normalizer(self.space_x)
+        self.time_x = normalizer(self.time_x)
+        self.static_x = normalizer(self.static_x)
 
 
 def to_cartesian(
@@ -217,11 +226,16 @@ class Dataset(PyTorchDataset):
         h5pys_only: bool = False,
         output_hw: int = DATASET_OUTPUT_HW,
         output_timesteps: int = NUM_TIMESTEPS,
+        normalizer: Optional[Normalizer] = None,
     ):
         self.data_folder = data_folder
         self.h5pys_only = h5pys_only
         self.h5py_folder = h5py_folder
         self.cache = False
+        if normalizer is None:
+            self.normalizer = Normalizer(std_clip=False, normalizing_dicts=None)
+        else:
+            self.normalizer = normalizer
 
         if h5py_folder is not None:
             self.cache = True
@@ -463,18 +477,15 @@ class Dataset(PyTorchDataset):
         ndvi = cls.calculate_ndi(space_time_x, band_1="B8", band_2="B4")
 
         space_time_x = np.concatenate((space_time_x, ndvi), axis=-1)
-        space_time_x = normalize_space_time(space_time_x)
 
         time_x = dynamic_in_time_x[:, :, :, -len(TIME_BANDS) :]
         time_x = np.nanmean(time_x, axis=(0, 1))
-        time_x = normalize_time(time_x)
 
         space_x = rearrange(
             values[-(len(SPACE_BANDS) + static_bands_in_tif) : -static_bands_in_tif],
             "c h w -> h w c",
         )
         space_x = cls._fillna(space_x, np.array(SPACE_BANDS))
-        space_x = normalize_space(space_x)
 
         static_x = values[-static_bands_in_tif:]
         # add DW_STATIC and WC_STATIC
@@ -489,7 +500,6 @@ class Dataset(PyTorchDataset):
             ]
         )
         static_x = cls._fillna(static_x, np.array(STATIC_BANDS))
-        static_x = normalize_static(static_x)
 
         months = cls.month_array_from_file(tif_path, int(num_timesteps))
 
@@ -625,29 +635,11 @@ class Dataset(PyTorchDataset):
 
     def __getitem__(self, idx):
         if self.h5pys_only:
-            return self.read_and_slice_h5py_file(self.h5pys[idx])
+            output = self.read_and_slice_h5py_file(self.h5pys[idx])
         else:
-            return self.load_tif(idx)
-
-    def as_dataset_output(self, output_hw: int = 96, output_timesteps: int = 24) -> DatasetOutput:
-        if output_hw != self.output_hw:
-            warnings.warn(f"Overwriting __init__ hw {self.output_hw} with {output_hw}")
-            self.output_hw = output_hw
-        if output_timesteps != self.output_timesteps:
-            warnings.warn(
-                f"Overwriting __init__ output_timesteps {self.output_timesteps} "
-                f"with {output_timesteps}"
-            )
-            self.output_timesteps = output_timesteps
-        output = ListOfDatasetOutputs([], [], [], [], [])
-        for i in range(len(self)):
-            s_t_x, sp_x, t_x, st_x, months = self[i]
-            output.space_time_x.append(s_t_x)
-            output.space_x.append(sp_x)
-            output.time_x.append(t_x)
-            output.static_x.append(st_x)
-            output.months.append(months)
-        return output.to_datasetoutput()
+            output = self.load_tif(idx)
+        output.normalize(self.normalizer)
+        return output
 
     def process_h5pys(self):
         # iterate through the dataset and save it all as h5pys
@@ -720,41 +712,9 @@ class Dataset(PyTorchDataset):
         self.output_hw = org_hw
         self.output_timesteps = org_t
 
-        return (
-            self._calculate_normalizing_dict(s_t_interim),
-            self._calculate_normalizing_dict(sp_interim),
-            self._calculate_normalizing_dict(t_interim),
-            self._calculate_normalizing_dict(st_interim),
-        )
-
-
-class InRAMDataset(TensorDataset):
-    def __init__(
-        self,
-        datasetoutput: DatasetOutput,
-        output_hw: int = DATASET_OUTPUT_HW,
-        output_timesteps: int = NUM_TIMESTEPS,
-    ):
-        super().__init__(
-            torch.from_numpy(datasetoutput.space_time_x),
-            torch.from_numpy(datasetoutput.space_x),
-            torch.from_numpy(datasetoutput.time_x),
-            torch.from_numpy(datasetoutput.static_x),
-            torch.from_numpy(datasetoutput.months),
-        )
-        self.output_hw = output_hw
-        self.output_timesteps = output_timesteps
-
-    def __getitem__(self, index):
-        s_t_x, sp_x, t_x, st_x, months = tuple(tensor[index] for tensor in self.tensors)
-
-        (
-            s_t_x,
-            sp_x,
-            t_x,
-            st_x,
-            months,
-        ) = Dataset.subset_image(
-            s_t_x, sp_x, t_x, st_x, months, self.output_hw, self.output_timesteps
-        )
-        return DatasetOutput(s_t_x, sp_x, t_x, st_x, months)
+        return {
+            "space_time": self._calculate_normalizing_dict(s_t_interim),
+            "space": self._calculate_normalizing_dict(sp_interim),
+            "time": self._calculate_normalizing_dict(t_interim),
+            "static": self._calculate_normalizing_dict(st_interim),
+        }

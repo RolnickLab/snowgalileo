@@ -12,7 +12,6 @@ from src.data.dataset import (
     STATIC_BANDS,
     TIME_BANDS,
     Dataset,
-    InRAMDataset,
     to_cartesian,
 )
 
@@ -57,10 +56,11 @@ class TestDataset(unittest.TestCase):
     def test_normalization(self):
         ds = Dataset(TIFS_FOLDER, download=False)
         o = ds.compute_normalization_values()
-        for i in o:
-            self.assertTrue("mean" in i)
-            self.assertTrue("std" in i)
-            self.assertTrue(len(i["mean"]) == len(i["std"]))
+        for t in ["space_time", "space", "time", "static"]:
+            subdict = o[t]
+            self.assertTrue("mean" in subdict)
+            self.assertTrue("std" in subdict)
+            self.assertTrue(len(subdict["mean"]) == len(subdict["std"]))
 
     def test_subset_image_with_minimum_size(self):
         input = np.ones((3, 3, 1))
@@ -105,22 +105,6 @@ class TestDataset(unittest.TestCase):
         _ = to_cartesian(torch.tensor([30.0]), torch.tensor([40.0]))
         with self.assertRaises(AssertionError):
             to_cartesian(torch.tensor([1000.0]), torch.tensor([1000.0]))
-
-    def test_in_ram_dataset(self):
-        dataset = dataset = Dataset(
-            TIFS_FOLDER,
-            download=False,
-            h5py_folder=None,
-            h5pys_only=False,
-        )
-        d_o = dataset.as_dataset_output()
-        self.assertEqual(d_o[0].shape[0], 3)
-
-        in_ram_dataset = InRAMDataset(d_o, output_hw=24)
-        self.assertEqual(len(in_ram_dataset), 3)
-        for i in range(len(in_ram_dataset)):
-            output = in_ram_dataset[i]
-            self.assertEqual(output[0].shape[0], 24)
 
     def test_process_h5pys(self):
         with tempfile.TemporaryDirectory() as tempdir_str:

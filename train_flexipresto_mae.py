@@ -18,7 +18,7 @@ from src.beaker import is_beaker_job, maybe_get_beaker_config
 from src.collate_fns import mae_collate_fn
 from src.conditioner import LearnedMixture, LoRAGenerator
 from src.config import DEFAULT_SEED, get_random_config
-from src.data import Dataset, InRAMDataset
+from src.data import Dataset
 from src.data.config import (
     CONFIG_FILENAME,
     DATA_FOLDER,
@@ -76,7 +76,6 @@ argparser.add_argument("--config_file", type=str, default="small.json")
 argparser.add_argument("--h5py_folder", type=str, default="")
 argparser.add_argument("--output_folder", type=str, default="")
 argparser.add_argument("--download", dest="download", action="store_true")
-argparser.add_argument("--cache_in_ram", dest="cache_in_ram", action="store_true")
 argparser.add_argument("--h5pys_only", dest="h5pys_only", action="store_true")
 argparser.add_argument("--num_workers", dest="num_workers", default=Hyperparams.num_workers)
 argparser.add_argument("--batch_size", dest="batch_size", default="")
@@ -128,22 +127,12 @@ seed_everything(DEFAULT_SEED)
 
 print("Loading dataset and dataloader")
 
-if args["cache_in_ram"]:
-    not_in_ram_dataset = Dataset(
-        TIFS_FOLDER,
-        download=args["download"],
-        h5py_folder=cache_folder,
-        h5pys_only=args["h5pys_only"],
-    )
-    d_o = not_in_ram_dataset.as_dataset_output()
-    dataset: Union[InRAMDataset, Dataset] = InRAMDataset(d_o)
-else:
-    dataset = Dataset(
-        TIFS_FOLDER,
-        download=args["download"],
-        h5py_folder=cache_folder,
-        h5pys_only=args["h5pys_only"],
-    )
+dataset = Dataset(
+    TIFS_FOLDER,
+    download=args["download"],
+    h5py_folder=cache_folder,
+    h5pys_only=args["h5pys_only"],
+)
 
 dataloader = DataLoader(
     dataset,
