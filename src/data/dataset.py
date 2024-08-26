@@ -124,11 +124,17 @@ class Normalizer:
         self.std_clip = std_clip
         self.normalizing_dicts = normalizing_dicts
         if std_clip:
+            name_to_bands = {
+                "space_time": SPACE_TIME_BANDS,
+                "space": SPACE_BANDS,
+                "time": TIME_BANDS,
+                "static": STATIC_BANDS,
+            }
             assert normalizing_dicts is not None
             for key, val in normalizing_dicts.items():
                 bands_to_replace = self.std_bands[key]
                 for band in bands_to_replace:
-                    band_idx = SPACE_TIME_BANDS.index(band)
+                    band_idx = name_to_bands[key].index(band)
                     mean = val["mean"][band_idx]
                     std = val["std"][band_idx]
                     div = (mean + (2 * std)) - (mean - (2 * std))  # max_val - min_val
