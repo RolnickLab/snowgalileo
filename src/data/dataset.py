@@ -640,22 +640,13 @@ class Dataset(PyTorchDataset):
             )
             self.output_timesteps = output_timesteps
         output = ListOfDatasetOutputs([], [], [], [], [])
-        if self.h5pys_only:
-            for h5py_path in tqdm(self.h5pys):
-                s_t_x, sp_x, t_x, st_x, months = self.read_and_slice_h5py_file(h5py_path)
-                output.space_time_x.append(s_t_x)
-                output.space_x.append(sp_x)
-                output.time_x.append(t_x)
-                output.static_x.append(st_x)
-                output.months.append(months)
-        else:
-            for i in tqdm(range(len(self.tifs))):
-                s_t_x, sp_x, t_x, st_x, months = self.load_tif(i)
-                output.space_time_x.append(s_t_x)
-                output.space_x.append(sp_x)
-                output.time_x.append(t_x)
-                output.static_x.append(st_x)
-                output.months.append(months)
+        for i in range(len(self)):
+            s_t_x, sp_x, t_x, st_x, months = self[i]
+            output.space_time_x.append(s_t_x)
+            output.space_x.append(sp_x)
+            output.time_x.append(t_x)
+            output.static_x.append(st_x)
+            output.months.append(months)
         return output.to_datasetoutput()
 
     def process_h5pys(self):
@@ -668,6 +659,71 @@ class Dataset(PyTorchDataset):
             # loading the tifs also saves them
             # if they don't exist
             _ = self[i]
+
+    @staticmethod
+    def update_normalizing_values(array, interim_dict):
+        # given an input array of shape [timesteps, bands]
+        # update the normalizing dict
+        # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
+        # https://www.johndcook.com/blog/standard_deviation/
+
+        # we want a 2d array [instances, bands]
+        if len(array.shape) > 2:
+            array = np.reshape(array, [-1, array.shape[-1]])
+        elif len(array.shape) == 1:
+            array = np.expand_dims(array, 0)
+
+        for b in range(array.shape[0]):
+            x = array[b, :]
+            interim_dict["n"] += 1
+            delta = x - interim_dict["mean"]
+            interim_dict["mean"] += delta / interim_dict["n"]
+            interim_dict["M2"] += delta * (x - interim_dict["mean"])
+        return interim_dict
+
+    @staticmethod
+    def calculate_normalizing_dict(interim_dict):
+        variance = interim_dict["M2"] / (interim_dict["n"] - 1)
+        std = np.sqrt(variance)
+        return {"mean": cast(np.ndarray, interim_dict["mean"]), "std": cast(np.ndarray, std)}
+
+    def compute_normalization_values(self, output_hw: int = 96, output_timesteps: int = 24):
+        org_hw = self.output_hw
+        self.output_hw = output_hw
+
+        org_t = self.output_timesteps
+        self.output_timesteps = output_timesteps
+
+        s_t_interim = {
+            "n": 0,
+            "mean": np.zeros(len(SPACE_TIME_BANDS)),
+            "M2": np.zeros(len(SPACE_TIME_BANDS)),
+        }
+        sp_interim = {"n": 0, "mean": np.zeros(len(SPACE_BANDS)), "M2": np.zeros(len(SPACE_BANDS))}
+        t_interim = {"n": 0, "mean": np.zeros(len(TIME_BANDS)), "M2": np.zeros(len(TIME_BANDS))}
+        st_interim = {
+            "n": 0,
+            "mean": np.zeros(len(STATIC_BANDS)),
+            "M2": np.zeros(len(STATIC_BANDS)),
+        }
+
+        for i in range(len(self)):
+            s_t_x, sp_x, t_x, st_x, _ = self[i]
+
+            s_t_interim = self.update_normalizing_values(s_t_x, s_t_interim)
+            sp_interim = self.update_normalizing_values(sp_x, sp_interim)
+            t_interim = self.update_normalizing_values(t_x, t_interim)
+            st_interim = self.update_normalizing_values(st_x, st_interim)
+
+        self.output_hw = org_hw
+        self.output_timesteps = org_t
+
+        return (
+            self.calculate_normalizing_dict(s_t_interim),
+            self.calculate_normalizing_dict(sp_interim),
+            self.calculate_normalizing_dict(t_interim),
+            self.calculate_normalizing_dict(st_interim),
+        )
 
 
 class InRAMDataset(TensorDataset):
