@@ -661,7 +661,7 @@ class Dataset(PyTorchDataset):
             _ = self[i]
 
     @staticmethod
-    def update_normalizing_values(array, interim_dict):
+    def _update_normalizing_values(array, interim_dict):
         # given an input array of shape [timesteps, bands]
         # update the normalizing dict
         # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
@@ -682,10 +682,13 @@ class Dataset(PyTorchDataset):
         return interim_dict
 
     @staticmethod
-    def calculate_normalizing_dict(interim_dict):
+    def _calculate_normalizing_dict(interim_dict):
         variance = interim_dict["M2"] / (interim_dict["n"] - 1)
         std = np.sqrt(variance)
-        return {"mean": cast(np.ndarray, interim_dict["mean"]), "std": cast(np.ndarray, std)}
+        return {
+            "mean": cast(np.ndarray, interim_dict["mean"]).tolist(),
+            "std": cast(np.ndarray, std).tolist(),
+        }
 
     def compute_normalization_values(self, output_hw: int = 96, output_timesteps: int = 24):
         org_hw = self.output_hw
@@ -709,20 +712,19 @@ class Dataset(PyTorchDataset):
 
         for i in range(len(self)):
             s_t_x, sp_x, t_x, st_x, _ = self[i]
-
-            s_t_interim = self.update_normalizing_values(s_t_x, s_t_interim)
-            sp_interim = self.update_normalizing_values(sp_x, sp_interim)
-            t_interim = self.update_normalizing_values(t_x, t_interim)
-            st_interim = self.update_normalizing_values(st_x, st_interim)
+            s_t_interim = self._update_normalizing_values(s_t_x, s_t_interim)
+            sp_interim = self._update_normalizing_values(sp_x, sp_interim)
+            t_interim = self._update_normalizing_values(t_x, t_interim)
+            st_interim = self._update_normalizing_values(st_x, st_interim)
 
         self.output_hw = org_hw
         self.output_timesteps = org_t
 
         return (
-            self.calculate_normalizing_dict(s_t_interim),
-            self.calculate_normalizing_dict(sp_interim),
-            self.calculate_normalizing_dict(t_interim),
-            self.calculate_normalizing_dict(st_interim),
+            self._calculate_normalizing_dict(s_t_interim),
+            self._calculate_normalizing_dict(sp_interim),
+            self._calculate_normalizing_dict(t_interim),
+            self._calculate_normalizing_dict(st_interim),
         )
 
 

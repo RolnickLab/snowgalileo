@@ -54,6 +54,14 @@ class TestDataset(unittest.TestCase):
             assert len(b) == 5
         assert TIFS_FOLDER / BROKEN_FILE not in ds.tifs
 
+    def test_normalization(self):
+        ds = Dataset(TIFS_FOLDER, download=False)
+        o = ds.compute_normalization_values()
+        for i in o:
+            self.assertTrue("mean" in i)
+            self.assertTrue("std" in i)
+            self.assertTrue(len(i["mean"]) == len(i["std"]))
+
     def test_subset_image_with_minimum_size(self):
         input = np.ones((3, 3, 1))
         months = static = np.ones(1)
