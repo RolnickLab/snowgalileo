@@ -1,12 +1,12 @@
+import json
 import unittest
 
-import json
 from src.conditioner import LearnedMixture, LoRAGenerator
 from src.config import get_random_config
-from src.flexipresto import Encoder
-from src.utils import check_config, config_dir, load_check_config
 from src.data.config import NORMALIZATION_DICT_FILENAME
 from src.data.dataset import Normalizer
+from src.flexipresto import Encoder
+from src.utils import check_config, config_dir, load_check_config
 
 
 class TestConfigs(unittest.TestCase):

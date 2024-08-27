@@ -113,7 +113,7 @@ class Normalizer:
         "space_time": [b for b in SPACE_TIME_BANDS if b != "NDVI"],
         "space": SRTM_BANDS,
         "time": TIME_BANDS,
-        "static": []  # LANDSCAN_BANDS,
+        "static": [],  # LANDSCAN_BANDS,
     }
 
     def __init__(self, std_clip: bool = True, normalizing_dicts: Optional[Dict] = None):
