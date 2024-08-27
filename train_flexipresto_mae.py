@@ -40,6 +40,7 @@ from src.loss import do_loss
 from src.utils import (
     AverageMeter,
     check_config,
+    config_dir,
     data_dir,
     device,
     is_bf16_available,
@@ -129,7 +130,7 @@ dataset = Dataset(
 
 if training_config["normalization"] == "std":
     normalizing_dict = dataset.load_compute_normalization_values(
-        savepath=DATA_FOLDER / NORMALIZATION_DICT_FILENAME
+        savepath=config_dir / NORMALIZATION_DICT_FILENAME
     )
     print(normalizing_dict, flush=True)
     normalizer = Normalizer(std_clip=True, normalizing_dicts=normalizing_dict)
