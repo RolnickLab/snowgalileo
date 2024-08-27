@@ -134,6 +134,8 @@ class Normalizer:
             }
             assert normalizing_dicts is not None
             for key, val in normalizing_dicts.items():
+                if key == "n":
+                    continue
                 bands_to_replace = self.std_bands[key]
                 for band in bands_to_replace:
                     band_idx = name_to_bands[key].index(band)

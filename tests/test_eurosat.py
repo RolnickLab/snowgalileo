@@ -12,6 +12,7 @@ from src.data.dataset import (
     STATIC_BANDS,
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
+    Normalizer,
 )
 from src.eval.eurosat_eval import EuroSatDataset, EuroSatEval
 from src.masking import UNMASKING_CHANNEL_GROUPS
@@ -104,7 +105,10 @@ class TestEuroSat(unittest.TestCase):
 
     def test_eurosat_dataset_rgb(self):
         dataset = EuroSatDataset(
-            normalization="std", rgb=True, split="test", tif_files_dir=DATA_FOLDER
+            normalizer=Normalizer(std_clip=False),
+            rgb=True,
+            split="test",
+            tif_files_dir=DATA_FOLDER,
         )
         sample = dataset[0]
         s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, m = sample[0]
@@ -130,7 +134,10 @@ class TestEuroSat(unittest.TestCase):
 
     def test_eurosat_dataset_msi(self):
         dataset = EuroSatDataset(
-            normalization="std", rgb=False, split="test", tif_files_dir=DATA_FOLDER
+            normalizer=Normalizer(std_clip=False),
+            rgb=False,
+            split="test",
+            tif_files_dir=DATA_FOLDER,
         )
         sample = dataset[0]
         s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, m = sample[0]

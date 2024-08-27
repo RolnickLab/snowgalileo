@@ -53,7 +53,6 @@ band_info_names_to_band_names = {
     "B7": "07 - Vegetation Red Edge",
     "B8": "08 - NIR",
     "B8A": "08A - Vegetation Red Edge",
-    "B9": "09 - Water vapour",
     "B11": "11 - SWIR",
     "B12": "12 - SWIR",
 }
