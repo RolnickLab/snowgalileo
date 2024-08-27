@@ -26,6 +26,7 @@ from src.data.config import (
     EE_BUCKET_TIFS,
     EE_PROJECT,
     ENCODER_FILENAME,
+    NORMALIZATION_DICT_FILENAME,
     OUTPUT_FOLDER,
     TIFS_FOLDER,
 )
@@ -127,7 +128,9 @@ dataset = Dataset(
 )
 
 if training_config["normalization"] == "std":
-    normalizing_dict = dataset.load_compute_normalization_values(save=True)
+    normalizing_dict = dataset.load_compute_normalization_values(
+        savepath=DATA_FOLDER / NORMALIZATION_DICT_FILENAME
+    )
     print(normalizing_dict, flush=True)
     normalizer = Normalizer(std_clip=True, normalizing_dicts=normalizing_dict)
     dataset.normalizer = normalizer

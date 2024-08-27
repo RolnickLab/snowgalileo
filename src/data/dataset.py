@@ -23,7 +23,6 @@ from .config import (
     EE_BUCKET_TIFS,
     EE_FOLDER_H5PYS,
     EE_FOLDER_TIFS,
-    NORMALIZATION_DICT_FILENAME,
     NUM_TIMESTEPS,
 )
 from .dataset_stats import RunningStatistics
@@ -699,18 +698,17 @@ class Dataset(PyTorchDataset):
         }
 
     def load_compute_normalization_values(
-        self, output_hw: int = 96, output_timesteps: int = 24, save: bool = True
+        self, output_hw: int = 96, output_timesteps: int = 24, savepath: Optional[Path] = None
     ):
-        normalizing_dict_path = self.data_folder / NORMALIZATION_DICT_FILENAME
         # check to see if the normalization dict already exists
-        if normalizing_dict_path.exists():
-            with normalizing_dict_path.open("r") as f:
+        if savepath.exists():
+            with savepath.open("r") as f:
                 norm_dict = json.load(f)
             if norm_dict["n"] == len(self):
                 # we computed the normalizing dict using the same datset
                 return norm_dict
             else:
-                normalizing_dict_path.unlink()
+                savepath.unlink()
 
         org_hw = self.output_hw
         self.output_hw = output_hw
@@ -745,8 +743,8 @@ class Dataset(PyTorchDataset):
             "static": self._calculate_normalizing_dict(st_interim),
         }
 
-        if save:
-            with normalizing_dict_path.open("w") as f:
+        if savepath is not None:
+            with savepath.open("w") as f:
                 json.dump(norm_dict, f)
 
         return norm_dict
