@@ -182,10 +182,10 @@ class DatasetOutput(NamedTuple):
 
     def normalize(self, normalizer: Normalizer) -> "DatasetOutput":
         return DatasetOutput(
-            normalizer(self.space_time_x),
-            normalizer(self.space_x),
-            normalizer(self.time_x),
-            normalizer(self.static_x),
+            normalizer(self.space_time_x).astype(np.half),
+            normalizer(self.space_x).astype(np.half),
+            normalizer(self.time_x).astype(np.half),
+            normalizer(self.static_x).astype(np.half),
             self.months,
         )
 
