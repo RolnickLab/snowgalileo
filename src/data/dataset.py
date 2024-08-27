@@ -26,6 +26,7 @@ from .config import (
     NORMALIZATION_DICT_FILENAME,
     NUM_TIMESTEPS,
 )
+from .dataset_stats import RunningStatistics
 from .earthengine.eo import (
     ALL_DYNAMIC_IN_TIME_BANDS,
     DW_BANDS,
@@ -717,12 +718,8 @@ class Dataset(PyTorchDataset):
         org_t = self.output_timesteps
         self.output_timesteps = output_timesteps
 
-        s_t_interim = {
-            "n": 0,
-            "mean": np.zeros(len(SPACE_TIME_BANDS)),
-            "M2": np.zeros(len(SPACE_TIME_BANDS)),
-        }
-        sp_interim = {"n": 0, "mean": np.zeros(len(SPACE_BANDS)), "M2": np.zeros(len(SPACE_BANDS))}
+        s_t_interim = RunningStatistics()
+        sp_interim = RunningStatistics()
         t_interim = {"n": 0, "mean": np.zeros(len(TIME_BANDS)), "M2": np.zeros(len(TIME_BANDS))}
         st_interim = {
             "n": 0,
@@ -732,8 +729,8 @@ class Dataset(PyTorchDataset):
 
         for i in tqdm(range(len(self))):
             s_t_x, sp_x, t_x, st_x, _ = self[i]
-            s_t_interim = self._update_normalizing_values(s_t_x, s_t_interim)
-            sp_interim = self._update_normalizing_values(sp_x, sp_interim)
+            s_t_interim.update(s_t_x)
+            sp_interim.update(sp_x)
             t_interim = self._update_normalizing_values(t_x, t_interim)
             st_interim = self._update_normalizing_values(st_x, st_interim)
 
@@ -742,8 +739,8 @@ class Dataset(PyTorchDataset):
 
         norm_dict = {
             "n": len(self),
-            "space_time": self._calculate_normalizing_dict(s_t_interim),
-            "space": self._calculate_normalizing_dict(sp_interim),
+            "space_time": {"mean": s_t_interim.mean, "std": s_t_interim.std},
+            "space": {"mean": sp_interim.mean, "std": sp_interim.std},
             "time": self._calculate_normalizing_dict(t_interim),
             "static": self._calculate_normalizing_dict(st_interim),
         }
