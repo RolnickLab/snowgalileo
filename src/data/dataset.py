@@ -701,7 +701,7 @@ class Dataset(PyTorchDataset):
         self, output_hw: int = 96, output_timesteps: int = 24, savepath: Optional[Path] = None
     ):
         # check to see if the normalization dict already exists
-        if (isinstance(savepath, Path) and savepath.exists()):
+        if isinstance(savepath, Path) and savepath.exists():
             with savepath.open("r") as f:
                 norm_dict = json.load(f)
             if norm_dict["n"] == len(self):
