@@ -2,7 +2,6 @@
 https://gist.github.com/thomasbrandon/ad5b1218fc573c10ea4e1f0c63658469
 """
 
-from typing import Optional
 
 import numpy as np
 
