@@ -126,7 +126,7 @@ dataset = Dataset(
     h5pys_only=args["h5pys_only"],
 )
 
-if args["normalization"] == "std":
+if training_config["normalization"] == "std":
     normalizing_dict = dataset.load_compute_normalization_values(save=True)
     print(normalizing_dict, flush=True)
     normalizer = Normalizer(std_clip=True, normalizing_dicts=normalizing_dict)
@@ -197,7 +197,7 @@ else:
 
 print("Loading validation task")
 val_task_no_latlons = EuroSatEval(
-    normalization=args["normalization"],
+    normalization=training_config["normalization"],
     geobench=True,
     rgb=False,
     include_latlons=False,
@@ -401,7 +401,7 @@ eval_tasks: List[EvalTask] = [
     ],
     *[
         EuroSatEval(
-            normalization=args["normalization"],
+            normalization=training_config["normalization"],
             rgb=rgb,
             include_latlons=False,
             geobench=True,
@@ -411,7 +411,7 @@ eval_tasks: List[EvalTask] = [
     ],
     *[
         EuroSatEval(
-            normalization=args["normalization"],
+            normalization=training_config["normalization"],
             rgb=rgb,
             include_latlons=include_latlons,
             geobench=False,
