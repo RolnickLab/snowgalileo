@@ -1,9 +1,12 @@
 import unittest
 
+import json
 from src.conditioner import LearnedMixture, LoRAGenerator
 from src.config import get_random_config
 from src.flexipresto import Encoder
 from src.utils import check_config, config_dir, load_check_config
+from src.data.config import NORMALIZATION_DICT_FILENAME
+from src.data.dataset import Normalizer
 
 
 class TestConfigs(unittest.TestCase):
@@ -70,3 +73,13 @@ class TestConfigs(unittest.TestCase):
             else:
                 assert "conditioner" not in loaded_config["model"].keys()
                 _ = Encoder(**loaded_config["model"]["encoder"])
+
+    def test_normalization_dict(self):
+        if (config_dir / NORMALIZATION_DICT_FILENAME).exists():
+            with (config_dir / NORMALIZATION_DICT_FILENAME).open("r") as f:
+                norm_dict = json.load(f)
+            normalizer = Normalizer(std_clip=True, normalizing_dicts=norm_dict)
+            for key, val in normalizer.shift_div_dict.items():
+                divs = val["div"]
+                for d in divs:
+                    self.assertNotEqual(d, 0, f"0 in {key}")

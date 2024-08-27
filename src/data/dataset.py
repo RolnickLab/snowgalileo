@@ -113,10 +113,11 @@ class Normalizer:
         "space_time": [b for b in SPACE_TIME_BANDS if b != "NDVI"],
         "space": SRTM_BANDS,
         "time": TIME_BANDS,
-        "static": LANDSCAN_BANDS,
+        "static": []  # LANDSCAN_BANDS,
     }
 
     def __init__(self, std_clip: bool = True, normalizing_dicts: Optional[Dict] = None):
+        warnings.warn("Not normalizing landscan. We probably should!")
         self.shift_div_dict = {
             "space_time": {
                 "shift": deepcopy(SPACE_TIME_SHIFT_VALUES),
@@ -146,6 +147,8 @@ class Normalizer:
                     mean = val["mean"][band_idx]
                     std = val["std"][band_idx]
                     div = (mean + (2 * std)) - (mean - (2 * std))  # max_val - min_val
+                    if div == 0:
+                        raise ValueError(f"{band} has div value of 0")
                     self.shift_div_dict[key]["shift"][band_idx] = mean
                     self.shift_div_dict[key]["div"][band_idx] = div
 
