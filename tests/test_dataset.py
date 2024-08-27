@@ -63,7 +63,6 @@ class TestDataset(unittest.TestCase):
             self.assertTrue("mean" in subdict)
             self.assertTrue("std" in subdict)
             self.assertTrue(len(subdict["mean"]) == len(subdict["std"]))
-
         normalizer = Normalizer(normalizing_dicts=o)
         ds.normalizer = normalizer
         for s_t_x, sp_x, t_x, st_x, _ in ds:
