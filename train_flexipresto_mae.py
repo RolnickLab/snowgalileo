@@ -30,16 +30,8 @@ from src.data.config import (
     TIFS_FOLDER,
 )
 from src.eval import (
-    BigEarthNetEval,
     BinaryCropHarvestEval,
-    BrickKilnEval,
-    CashewPlantEval,
     EuroSatEval,
-    PastisPatchEval,
-    PastisPixelEval,
-    SACropEval,
-    So2SatEval,
-    TreeSatEval,
 )
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
@@ -134,9 +126,10 @@ dataset = Dataset(
     h5pys_only=args["h5pys_only"],
 )
 
-if args["normalization"] == "data_driven":
+if args["normalization"] == "std":
     normalizing_dict = dataset.load_compute_normalization_values(save=True)
-    normalizer = Normalizer(std_clip=True, normalizing_dict=normalizing_dict)
+    print(normalizing_dict, flush=True)
+    normalizer = Normalizer(std_clip=True, normalizing_dicts=normalizing_dict)
     dataset.normalizer = normalizer
 
 dataloader = DataLoader(
@@ -204,7 +197,7 @@ else:
 
 print("Loading validation task")
 val_task_no_latlons = EuroSatEval(
-    normalizer=dataset.normalizer,
+    normalization=args["normalization"],
     geobench=True,
     rgb=False,
     include_latlons=False,
@@ -403,40 +396,29 @@ os.system(f"gcloud storage rsync -r gs://{EE_BUCKET_TIFS}/outputs {model_path}")
 
 eval_tasks: List[EvalTask] = [
     *[
-        BinaryCropHarvestEval(country=country, do_condition=True)
+        BinaryCropHarvestEval(normalizer=dataset.normalizer, country=country, do_condition=True)
         for country in ["Kenya", "Togo", "Brazil"]
     ],
     *[
-        EuroSatEval(rgb=rgb, include_latlons=False, geobench=True, do_condition=True)
+        EuroSatEval(
+            normalization=args["normalization"],
+            rgb=rgb,
+            include_latlons=False,
+            geobench=True,
+            do_condition=True,
+        )
         for rgb in [True, False]
     ],
-    *[So2SatEval(geobench=geobench, do_condition=True) for geobench in [True, False]],
-    BrickKilnEval(),
-    *[CashewPlantEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
-    *[SACropEval(output_mode=output_mode) for output_mode in ["mode", "norm_counts"]],
     *[
-        EuroSatEval(rgb=rgb, include_latlons=include_latlons, geobench=False)
+        EuroSatEval(
+            normalization=args["normalization"],
+            rgb=rgb,
+            include_latlons=include_latlons,
+            geobench=False,
+        )
         for rgb in [True, False]
         for include_latlons in [True, False]
     ],
-    *[
-        PastisPatchEval(
-            output_mode=output_mode,
-            num_subtiles_per_image=num_subtiles_per_image,
-            band_mode=band_mode,
-        )
-        for output_mode in ["mode", "norm_counts"]
-        # 4 has input hw 64, 16 has input hw 32
-        for num_subtiles_per_image in [4, 16]
-        for band_mode in ["combined", "s2"]
-    ],
-    *[
-        TreeSatEval(mode=mode, patch_size=patch_size)
-        for mode in ["s1", "s2", "combined"]
-        for patch_size in [6, 3]
-    ],
-    PastisPixelEval(),
-    BigEarthNetEval(),
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)

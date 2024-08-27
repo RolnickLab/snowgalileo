@@ -147,6 +147,9 @@ def get_random_config(model_size: str = "tiny"):
     config["training"]["pred2unit"] = random.choice([True, False])
     config["training"]["loss_mask_other_samples"] = False
 
+    # norm
+    config["training"]["normalization"] = "std"
+
     ### LOGGING ###
     config["training"]["eval_eurosat_every_n_epochs"] = 10
 

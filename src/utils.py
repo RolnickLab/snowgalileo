@@ -96,6 +96,7 @@ def check_config(config):
         "target_condition": bool,
         "target_exit_after": int,
         "conditioner_mode": str,
+        "normalization": str,
     }
     training_dict = config["training"]
 
@@ -112,6 +113,7 @@ def check_config(config):
         )
     assert isinstance(training_dict["warmup_epochs"], int)
     assert training_dict["num_epochs"] > training_dict["warmup_epochs"]
+    assert training_dict["normalization"] in ["std", "scaling"]
 
     assert len(training_dict["masking_probabilities"]) == len(
         MASKING_MODES
