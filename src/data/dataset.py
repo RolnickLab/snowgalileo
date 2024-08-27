@@ -4,6 +4,7 @@ import math
 import os
 import warnings
 from collections import OrderedDict
+from copy import deepcopy
 from pathlib import Path
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple, Union, cast
 from typing import OrderedDict as OrderedDictType
@@ -106,13 +107,6 @@ STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
 
 
 class Normalizer:
-    shift_div_dict = {
-        "space_time": {"shift": SPACE_TIME_SHIFT_VALUES, "div": SPACE_TIME_DIV_VALUES},
-        "space": {"shift": SPACE_SHIFT_VALUES, "div": SPACE_DIV_VALUES},
-        "time": {"shift": TIME_SHIFT_VALUES, "div": TIME_DIV_VALUES},
-        "static": {"shift": STATIC_SHIFT_VALUES, "div": STATIC_DIV_VALUES},
-    }
-
     # these are the bands we will replace with the 2*std computation
     # if std_clip = True
     std_bands = {
@@ -123,6 +117,16 @@ class Normalizer:
     }
 
     def __init__(self, std_clip: bool = True, normalizing_dicts: Optional[Dict] = None):
+        self.shift_div_dict = {
+            "space_time": {
+                "shift": deepcopy(SPACE_TIME_SHIFT_VALUES),
+                "div": deepcopy(SPACE_TIME_DIV_VALUES),
+            },
+            "space": {"shift": deepcopy(SPACE_SHIFT_VALUES), "div": deepcopy(SPACE_DIV_VALUES)},
+            "time": {"shift": deepcopy(TIME_SHIFT_VALUES), "div": deepcopy(TIME_DIV_VALUES)},
+            "static": {"shift": deepcopy(STATIC_SHIFT_VALUES), "div": deepcopy(STATIC_DIV_VALUES)},
+        }
+
         self.std_clip = std_clip
         self.normalizing_dicts = normalizing_dicts
         if std_clip:

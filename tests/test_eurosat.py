@@ -113,7 +113,6 @@ class TestEuroSat(unittest.TestCase):
         sample = dataset[0]
         s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, m = sample[0]
         label = sample[1]
-
         self.check_space_time(s_t_x, s_t_m)
         self.check_space(sp_x, sp_m)
         self.check_time(t_x, t_m)
@@ -142,7 +141,6 @@ class TestEuroSat(unittest.TestCase):
         sample = dataset[0]
         s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, m = sample[0]
         label = sample[1]
-
         self.check_space_time(s_t_x, s_t_m)
         self.check_space(sp_x, sp_m)
         self.check_time(t_x, t_m)

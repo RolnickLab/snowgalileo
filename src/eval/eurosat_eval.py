@@ -289,7 +289,7 @@ class EuroSatEval(EvalTask):
             normalizing_dict = {
                 "space_time": {
                     "mean": [0] * len(SPACE_TIME_BANDS),
-                    "std": [0] * len(SPACE_TIME_BANDS),
+                    "std": [1] * len(SPACE_TIME_BANDS),
                 }
             }
             for our_band, c_band in band_info_names_to_band_names.items():
