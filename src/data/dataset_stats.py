@@ -16,8 +16,6 @@ class RunningStatistics:
 
     def __init__(self):
         self.m: int = 0
-        self.sum: Optional[np.ndarray] = None
-        self._nvar: Optional[np.ndarray] = None
 
     def update(self, data: np.ndarray):
         if len(data.shape) > 2:
