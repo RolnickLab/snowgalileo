@@ -26,7 +26,6 @@ from .config import (
     EE_FOLDER_TIFS,
     NUM_TIMESTEPS,
 )
-from .dataset_stats import RunningStatistics
 from .earthengine.eo import (
     ALL_DYNAMIC_IN_TIME_BANDS,
     DW_BANDS,
@@ -698,42 +697,11 @@ class Dataset(PyTorchDataset):
             # if they don't exist
             _ = self[i]
 
-    @staticmethod
-    def _update_normalizing_values(array, interim_dict):
-        # given an input array of shape [timesteps, bands]
-        # update the normalizing dict
-        # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
-        # https://www.johndcook.com/blog/standard_deviation/
-
-        # we want a 2d array [instances, bands]
-        if len(array.shape) > 2:
-            array = np.reshape(array, [-1, array.shape[-1]])
-        elif len(array.shape) == 1:
-            array = np.expand_dims(array, 0)
-
-        for b in range(array.shape[0]):
-            x = array[b, :]
-            interim_dict["n"] += 1
-            delta = x - interim_dict["mean"]
-            interim_dict["mean"] += delta / interim_dict["n"]
-            interim_dict["M2"] += delta * (x - interim_dict["mean"])
-        return interim_dict
-
-    @staticmethod
-    def _calculate_normalizing_dict(interim_dict):
-        variance = interim_dict["M2"] / (interim_dict["n"] - 1)
-        std = np.sqrt(variance)
-        return {
-            "mean": cast(np.ndarray, interim_dict["mean"]).tolist(),
-            "std": cast(np.ndarray, std).tolist(),
-        }
-
     def load_compute_normalization_values(
         self,
         output_hw: int = 96,
         output_timesteps: int = 24,
         savepath: Optional[Path] = None,
-        compute_in_ram: bool = False,
         estimate_from: Optional[int] = 10000,
     ):
         # check to see if the normalization dict already exists
@@ -756,57 +724,29 @@ class Dataset(PyTorchDataset):
             indices_to_sample = sample(list(range(len(self))), k=estimate_from)
         else:
             indices_to_sample = list(range(len(self)))
-        if not compute_in_ram:
-            s_t_interim = RunningStatistics()
-            sp_interim = RunningStatistics()
-            t_interim = {
-                "n": 0,
-                "mean": np.zeros(len(TIME_BANDS)),
-                "M2": np.zeros(len(TIME_BANDS)),
-            }
-            st_interim = {
-                "n": 0,
-                "mean": np.zeros(len(STATIC_BANDS)),
-                "M2": np.zeros(len(STATIC_BANDS)),
-            }
 
-            for i in tqdm(indices_to_sample):
-                s_t_x, sp_x, t_x, st_x, _ = self[i]
-                s_t_interim.update(s_t_x)
-                sp_interim.update(sp_x)
-                t_interim = self._update_normalizing_values(t_x, t_interim)
-                st_interim = self._update_normalizing_values(st_x, st_interim)
+        output = ListOfDatasetOutputs([], [], [], [], [])
+        for i in tqdm(indices_to_sample):
+            s_t_x, sp_x, t_x, st_x, months = self[i]
+            output.space_time_x.append(s_t_x)
+            output.space_x.append(sp_x)
+            output.time_x.append(t_x)
+            output.static_x.append(st_x)
+            output.months.append(months)
+        d_o = output.to_datasetoutput()
+        norm_dict = {
+            "n": len(self),
+            "space_time": {
+                "mean": d_o.space_time_x.mean(axis=0),
+                "std": d_o.space_time_x.std(axis=0),
+            },
+            "space": {"mean": d_o.space_x.mean(axis=0), "std": d_o.space_x.std(axis=0)},
+            "time": {"mean": d_o.time_x.mean(axis=0), "std": d_o.time_x.std(axis=0)},
+            "static": {"mean": d_o.static_x.mean(axis=0), "std": d_o.static_x.std(axis=0)},
+        }
 
-            self.output_hw = org_hw
-            self.output_timesteps = org_t
-
-            norm_dict = {
-                "n": len(self),
-                "space_time": {"mean": s_t_interim.mean, "std": s_t_interim.std},
-                "space": {"mean": sp_interim.mean, "std": sp_interim.std},
-                "time": self._calculate_normalizing_dict(t_interim),
-                "static": self._calculate_normalizing_dict(st_interim),
-            }
-        else:
-            output = ListOfDatasetOutputs([], [], [], [], [])
-            for i in tqdm(indices_to_sample):
-                s_t_x, sp_x, t_x, st_x, months = self[i]
-                output.space_time_x.append(s_t_x)
-                output.space_x.append(sp_x)
-                output.time_x.append(t_x)
-                output.static_x.append(st_x)
-                output.months.append(months)
-            d_o = output.to_datasetoutput()
-            norm_dict = {
-                "n": len(self),
-                "space_time": {
-                    "mean": d_o.space_time_x.mean(axis=0),
-                    "std": d_o.space_time_x.std(axis=0),
-                },
-                "space": {"mean": d_o.space_x.mean(axis=0), "std": d_o.space_x.std(axis=0)},
-                "time": {"mean": d_o.time_x.mean(axis=0), "std": d_o.time_x.std(axis=0)},
-                "static": {"mean": d_o.static_x.mean(axis=0), "std": d_o.static_x.std(axis=0)},
-            }
+        self.output_hw = org_hw
+        self.output_timesteps = org_t
 
         if savepath is not None:
             with savepath.open("w") as f:
