@@ -203,6 +203,23 @@ class DatasetOutput(NamedTuple):
         )
 
 
+class ListOfDatasetOutputs(NamedTuple):
+    space_time_x: List[np.ndarray]
+    space_x: List[np.ndarray]
+    time_x: List[np.ndarray]
+    static_x: List[np.ndarray]
+    months: List[np.ndarray]
+
+    def to_datasetoutput(self) -> DatasetOutput:
+        return DatasetOutput(
+            np.stack(self.space_time_x, axis=0),
+            np.stack(self.space_x, axis=0),
+            np.stack(self.time_x, axis=0),
+            np.stack(self.static_x, axis=0),
+            np.stack(self.months, axis=0),
+        )
+
+
 def to_cartesian(
     lat: Union[float, np.ndarray, torch.Tensor], lon: Union[float, np.ndarray, torch.Tensor]
 ) -> Union[np.ndarray, torch.Tensor]:
@@ -711,7 +728,11 @@ class Dataset(PyTorchDataset):
         }
 
     def load_compute_normalization_values(
-        self, output_hw: int = 96, output_timesteps: int = 24, savepath: Optional[Path] = None
+        self,
+        output_hw: int = 96,
+        output_timesteps: int = 24,
+        savepath: Optional[Path] = None,
+        compute_in_ram: bool = False,
     ):
         # check to see if the normalization dict already exists
         if isinstance(savepath, Path) and savepath.exists():
@@ -728,33 +749,57 @@ class Dataset(PyTorchDataset):
 
         org_t = self.output_timesteps
         self.output_timesteps = output_timesteps
+        if not compute_in_ram:
+            s_t_interim = RunningStatistics()
+            sp_interim = RunningStatistics()
+            t_interim = {
+                "n": 0,
+                "mean": np.zeros(len(TIME_BANDS)),
+                "M2": np.zeros(len(TIME_BANDS)),
+            }
+            st_interim = {
+                "n": 0,
+                "mean": np.zeros(len(STATIC_BANDS)),
+                "M2": np.zeros(len(STATIC_BANDS)),
+            }
 
-        s_t_interim = RunningStatistics()
-        sp_interim = RunningStatistics()
-        t_interim = {"n": 0, "mean": np.zeros(len(TIME_BANDS)), "M2": np.zeros(len(TIME_BANDS))}
-        st_interim = {
-            "n": 0,
-            "mean": np.zeros(len(STATIC_BANDS)),
-            "M2": np.zeros(len(STATIC_BANDS)),
-        }
+            for i in tqdm(range(len(self))):
+                s_t_x, sp_x, t_x, st_x, _ = self[i]
+                s_t_interim.update(s_t_x)
+                sp_interim.update(sp_x)
+                t_interim = self._update_normalizing_values(t_x, t_interim)
+                st_interim = self._update_normalizing_values(st_x, st_interim)
 
-        for i in tqdm(range(len(self))):
-            s_t_x, sp_x, t_x, st_x, _ = self[i]
-            s_t_interim.update(s_t_x)
-            sp_interim.update(sp_x)
-            t_interim = self._update_normalizing_values(t_x, t_interim)
-            st_interim = self._update_normalizing_values(st_x, st_interim)
+            self.output_hw = org_hw
+            self.output_timesteps = org_t
 
-        self.output_hw = org_hw
-        self.output_timesteps = org_t
-
-        norm_dict = {
-            "n": len(self),
-            "space_time": {"mean": s_t_interim.mean, "std": s_t_interim.std},
-            "space": {"mean": sp_interim.mean, "std": sp_interim.std},
-            "time": self._calculate_normalizing_dict(t_interim),
-            "static": self._calculate_normalizing_dict(st_interim),
-        }
+            norm_dict = {
+                "n": len(self),
+                "space_time": {"mean": s_t_interim.mean, "std": s_t_interim.std},
+                "space": {"mean": sp_interim.mean, "std": sp_interim.std},
+                "time": self._calculate_normalizing_dict(t_interim),
+                "static": self._calculate_normalizing_dict(st_interim),
+            }
+        else:
+            output = ListOfDatasetOutputs([], [], [], [], [])
+            for i in tqdm(range(len(self))):
+                s_t_x, sp_x, t_x, st_x, months = self[i]
+                output.space_time_x.append(s_t_x)
+                output.space_x.append(sp_x)
+                output.time_x.append(t_x)
+                output.static_x.append(st_x)
+                output.months.append(months)
+            d_o = output.to_datasetoutput()
+            norm_dict = {
+                "n": len(self),
+                "space_time": {
+                    "mean": d_o.space_time_x.mean(axis=0),
+                    "std": d_o.space_time_x.std(axis=0),
+                },
+                "space": {"mean": d_o.space_x.mean(axis=0), "std": d_o.space_x.std(axis=0)},
+                "time": {"mean": d_o.time_x.mean(axis=0), "std": d_o.time_x.std(axis=0)},
+                "static": {"mean": d_o.static_x.mean(axis=0), "std": d_o.static_x.std(axis=0)},
+            }
 
         if savepath is not None:
             with savepath.open("w") as f:
