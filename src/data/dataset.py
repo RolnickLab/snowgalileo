@@ -6,6 +6,7 @@ import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from pathlib import Path
+from random import sample
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple, Union, cast
 from typing import OrderedDict as OrderedDictType
 
@@ -733,6 +734,7 @@ class Dataset(PyTorchDataset):
         output_timesteps: int = 24,
         savepath: Optional[Path] = None,
         compute_in_ram: bool = False,
+        estimate_from: Optional[int] = 10000,
     ):
         # check to see if the normalization dict already exists
         if isinstance(savepath, Path) and savepath.exists():
@@ -749,6 +751,11 @@ class Dataset(PyTorchDataset):
 
         org_t = self.output_timesteps
         self.output_timesteps = output_timesteps
+
+        if estimate_from is not None:
+            indices_to_sample = sample(list(range(len(self))), k=estimate_from)
+        else:
+            indices_to_sample = list(range(len(self)))
         if not compute_in_ram:
             s_t_interim = RunningStatistics()
             sp_interim = RunningStatistics()
@@ -763,7 +770,7 @@ class Dataset(PyTorchDataset):
                 "M2": np.zeros(len(STATIC_BANDS)),
             }
 
-            for i in tqdm(range(len(self))):
+            for i in tqdm(indices_to_sample):
                 s_t_x, sp_x, t_x, st_x, _ = self[i]
                 s_t_interim.update(s_t_x)
                 sp_interim.update(sp_x)
@@ -782,7 +789,7 @@ class Dataset(PyTorchDataset):
             }
         else:
             output = ListOfDatasetOutputs([], [], [], [], [])
-            for i in tqdm(range(len(self))):
+            for i in tqdm(indices_to_sample):
                 s_t_x, sp_x, t_x, st_x, months = self[i]
                 output.space_time_x.append(s_t_x)
                 output.space_x.append(sp_x)
