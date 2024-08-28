@@ -193,7 +193,9 @@ class DatasetOutput(NamedTuple):
         months = np.stack([o.months for o in datasetoutputs], axis=0)
         return cls(s_t_x, sp_x, t_x, st_x, months)
 
-    def normalize(self, normalizer: Normalizer) -> "DatasetOutput":
+    def normalize(self, normalizer: Optional[Normalizer]) -> "DatasetOutput":
+        if normalizer is None:
+            return self
         return DatasetOutput(
             normalizer(self.space_time_x).astype(np.half),
             normalizer(self.space_x).astype(np.half),
@@ -279,10 +281,7 @@ class Dataset(PyTorchDataset):
         self.h5pys_only = h5pys_only
         self.h5py_folder = h5py_folder
         self.cache = False
-        if normalizer is None:
-            self.normalizer = Normalizer(std=False, normalizing_dicts=None)
-        else:
-            self.normalizer = normalizer
+        self.normalizer = normalizer
 
         if h5py_folder is not None:
             self.cache = True
@@ -736,13 +735,22 @@ class Dataset(PyTorchDataset):
         d_o = output.to_datasetoutput()
         norm_dict = {
             "n": len(self),
-            "space_time": {
-                "mean": d_o.space_time_x.mean(axis=0),
-                "std": d_o.space_time_x.std(axis=0),
+            len(SPACE_TIME_BANDS): {
+                "mean": d_o.space_time_x.mean(axis=(0, 1, 2, 3)).tolist(),
+                "std": d_o.space_time_x.astype(np.float32).std(axis=(0, 1, 2, 3)).tolist(),
             },
-            "space": {"mean": d_o.space_x.mean(axis=0), "std": d_o.space_x.std(axis=0)},
-            "time": {"mean": d_o.time_x.mean(axis=0), "std": d_o.time_x.std(axis=0)},
-            "static": {"mean": d_o.static_x.mean(axis=0), "std": d_o.static_x.std(axis=0)},
+            len(SPACE_BANDS): {
+                "mean": d_o.space_x.mean(axis=(0, 1, 2)).tolist(),
+                "std": d_o.space_x.astype(np.float32).std(axis=(0, 1, 2)).tolist(),
+            },
+            len(TIME_BANDS): {
+                "mean": d_o.time_x.mean(axis=(0, 1)).tolist(),
+                "std": d_o.time_x.astype(np.float32).std(axis=(0, 1)).tolist(),
+            },
+            len(STATIC_BANDS): {
+                "mean": d_o.static_x.mean(axis=0).tolist(),
+                "std": d_o.static_x.astype(np.float32).std(axis=0).tolist(),
+            },
         }
 
         self.output_hw = org_hw

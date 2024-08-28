@@ -135,6 +135,9 @@ if training_config["normalization"] == "std":
     print(normalizing_dict, flush=True)
     normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
     dataset.normalizer = normalizer
+else:
+    normalizer = Normalizer(std=False)
+    dataset.normalizer = normalizer
 
 dataloader = DataLoader(
     dataset,
@@ -400,7 +403,9 @@ os.system(f"gcloud storage rsync -r gs://{EE_BUCKET_TIFS}/outputs {model_path}")
 
 eval_tasks: List[EvalTask] = [
     *[
-        BinaryCropHarvestEval(normalizer=dataset.normalizer, country=country, do_condition=True)
+        BinaryCropHarvestEval(
+            normalizer=cast(Normalizer, dataset.normalizer), country=country, do_condition=True
+        )
         for country in ["Kenya", "Togo", "Brazil"]
     ],
     *[

@@ -56,13 +56,14 @@ class TestDataset(unittest.TestCase):
 
     def test_normalization(self):
         ds = Dataset(TIFS_FOLDER, download=False)
-        o = ds.load_compute_normalization_values(savepath=None)
+        o = ds.load_compute_normalization_values(savepath=None, estimate_from=None)
         self.assertEqual(o["n"], len(ds))
-        for t in ["space_time", "space", "time", "static"]:
+        for t in [len(SPACE_TIME_BANDS), len(SPACE_BANDS), len(STATIC_BANDS), len(TIME_BANDS)]:
             subdict = o[t]
             self.assertTrue("mean" in subdict)
             self.assertTrue("std" in subdict)
             self.assertTrue(len(subdict["mean"]) == len(subdict["std"]))
+        print(o)
         normalizer = Normalizer(normalizing_dicts=o)
         ds.normalizer = normalizer
         for s_t_x, sp_x, t_x, st_x, _ in ds:
