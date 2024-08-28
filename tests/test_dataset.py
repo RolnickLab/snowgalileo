@@ -63,18 +63,11 @@ class TestDataset(unittest.TestCase):
             self.assertTrue("mean" in subdict)
             self.assertTrue("std" in subdict)
             self.assertTrue(len(subdict["mean"]) == len(subdict["std"]))
-        print(o)
         normalizer = Normalizer(normalizing_dicts=o)
         ds.normalizer = normalizer
-        for s_t_x, sp_x, t_x, st_x, _ in ds:
-            self.assertTrue(s_t_x.min() >= 0)
-            self.assertTrue(sp_x.min() >= 0)
-            self.assertTrue(t_x.min() >= 0)
-            self.assertTrue(st_x.min() >= 0)
-            self.assertTrue(s_t_x.max() <= 1)
-            self.assertTrue(sp_x.max() <= 1)
-            self.assertTrue(t_x.max() <= 1)
-            self.assertTrue(st_x.max() <= 1)
+        for _ in ds:
+            # we don't clip any more
+            pass
 
     def test_subset_image_with_minimum_size(self):
         input = np.ones((3, 3, 1))
