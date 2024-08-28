@@ -117,11 +117,10 @@ class Normalizer:
         len(SPACE_TIME_BANDS): [b for b in SPACE_TIME_BANDS if b != "NDVI"],
         len(SPACE_BANDS): SRTM_BANDS,
         len(TIME_BANDS): TIME_BANDS,
-        len(STATIC_BANDS): [],  # LANDSCAN_BANDS,
+        len(STATIC_BANDS): LANDSCAN_BANDS,
     }
 
     def __init__(self, std: bool = True, normalizing_dicts: Optional[Dict] = None):
-        warnings.warn("Not normalizing landscan. We probably should!")
         self.shift_div_dict = {
             len(SPACE_TIME_BANDS): {
                 "shift": deepcopy(SPACE_TIME_SHIFT_VALUES),
