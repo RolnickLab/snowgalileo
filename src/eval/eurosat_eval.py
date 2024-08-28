@@ -287,15 +287,19 @@ class EuroSatEval(EvalTask):
             self.normalizer = Normalizer(std=False)
         else:
             normalizing_dict = {
-                "space_time": {
+                len(SPACE_TIME_BANDS): {
                     "mean": [0] * len(SPACE_TIME_BANDS),
                     "std": [1] * len(SPACE_TIME_BANDS),
                 }
             }
             for our_band, c_band in band_info_names_to_band_names.items():
                 idx = SPACE_TIME_BANDS.index(our_band)
-                normalizing_dict["space_time"]["mean"][idx] = config["band_info"][c_band]["mean"]
-                normalizing_dict["space_time"]["std"][idx] = config["band_info"][c_band]["std"]
+                normalizing_dict[len(SPACE_TIME_BANDS)]["mean"][idx] = config["band_info"][c_band][
+                    "mean"
+                ]
+                normalizing_dict[len(SPACE_TIME_BANDS)]["std"][idx] = config["band_info"][c_band][
+                    "std"
+                ]
             self.normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
 
         assert not self.geobench or not self.include_latlons, "Geobench does not support latlons"
