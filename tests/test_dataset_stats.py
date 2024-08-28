@@ -11,32 +11,42 @@ class TestDatasetStatistics(unittest.TestCase):
     def test_dataset_statistics(self):
         mean_1, std_1 = 0, 0.1
         mean_2, std_2 = -1, 1.5
+        mean_3, std_3 = 10000, 600
         a = rearrange(
-            np.random.normal(loc=mean_1, scale=std_1, size=10000),
+            np.random.normal(loc=mean_1, scale=std_1, size=100000),
             "(b h w) -> b h w",
-            b=100,
+            b=1000,
             h=10,
             w=10,
         )
         b = rearrange(
-            np.random.normal(loc=mean_2, scale=std_2, size=10000),
+            np.random.normal(loc=mean_2, scale=std_2, size=100000),
             "(b h w) -> b h w",
-            b=100,
+            b=1000,
             h=10,
             w=10,
         )
-        combined = np.stack((a, b), axis=-1)  # b, h, w, 2
+        c = rearrange(
+            np.random.normal(loc=mean_3, scale=std_3, size=100000),
+            "(b h w) -> b h w",
+            b=1000,
+            h=10,
+            w=10,
+        )
+        combined = np.stack((a, b, c), axis=-1)  # b, h, w, 2
 
         stats = RunningStatistics()
         for i in range(combined.shape[1]):
             stats.update(combined[i])
 
         mean, std = stats.mean, stats.std
-        self.assertTrue(len(mean) == 2)
+        self.assertTrue(len(mean) == 3)
         self.assertTrue(np.isclose(mean[0], mean_1, atol=0.1))
         self.assertTrue(np.isclose(mean[1], mean_2, atol=0.1))
+        self.assertTrue(np.isclose(mean[2], mean_3, atol=50))
         self.assertTrue(np.isclose(std[0], std_1, atol=0.1))
         self.assertTrue(np.isclose(std[1], std_2, atol=0.1))
+        self.assertTrue(np.isclose(std[2], std_3, atol=20))
 
     def test_dataset_stats_v2(self):
         mean_1, std_1 = 0, 0.1

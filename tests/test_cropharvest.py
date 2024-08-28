@@ -23,7 +23,7 @@ class TestCropHarvest(unittest.TestCase):
             class BinaryCropHarvestEvalNoDownload(BinaryCropHarvestEval):
                 def __init__(self, include_latlons: bool = True):
                     self.include_latlons = include_latlons
-                    self.normalizer = Normalizer(std_clip=False)
+                    self.normalizer = Normalizer(std=False)
 
             eval = BinaryCropHarvestEvalNoDownload(include_latlons)
             b, t = 8, 12

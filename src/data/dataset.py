@@ -106,36 +106,48 @@ STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
 )
 
 
+# if this changes the normalizer will need to index against something else
+assert len(SPACE_TIME_BANDS) != len(SPACE_BANDS) != len(TIME_BANDS) != len(STATIC_BANDS)
+
+
 class Normalizer:
     # these are the bands we will replace with the 2*std computation
-    # if std_clip = True
-    std_bands = {
-        "space_time": [b for b in SPACE_TIME_BANDS if b != "NDVI"],
-        "space": SRTM_BANDS,
-        "time": TIME_BANDS,
-        "static": [],  # LANDSCAN_BANDS,
+    # if std = True
+    std_bands: Dict[int, list] = {
+        len(SPACE_TIME_BANDS): [b for b in SPACE_TIME_BANDS if b != "NDVI"],
+        len(SPACE_BANDS): SRTM_BANDS,
+        len(TIME_BANDS): TIME_BANDS,
+        len(STATIC_BANDS): [],  # LANDSCAN_BANDS,
     }
 
-    def __init__(self, std_clip: bool = True, normalizing_dicts: Optional[Dict] = None):
+    def __init__(self, std: bool = True, normalizing_dicts: Optional[Dict] = None):
         warnings.warn("Not normalizing landscan. We probably should!")
         self.shift_div_dict = {
-            "space_time": {
+            len(SPACE_TIME_BANDS): {
                 "shift": deepcopy(SPACE_TIME_SHIFT_VALUES),
                 "div": deepcopy(SPACE_TIME_DIV_VALUES),
             },
-            "space": {"shift": deepcopy(SPACE_SHIFT_VALUES), "div": deepcopy(SPACE_DIV_VALUES)},
-            "time": {"shift": deepcopy(TIME_SHIFT_VALUES), "div": deepcopy(TIME_DIV_VALUES)},
-            "static": {"shift": deepcopy(STATIC_SHIFT_VALUES), "div": deepcopy(STATIC_DIV_VALUES)},
+            len(SPACE_BANDS): {
+                "shift": deepcopy(SPACE_SHIFT_VALUES),
+                "div": deepcopy(SPACE_DIV_VALUES),
+            },
+            len(TIME_BANDS): {
+                "shift": deepcopy(TIME_SHIFT_VALUES),
+                "div": deepcopy(TIME_DIV_VALUES),
+            },
+            len(STATIC_BANDS): {
+                "shift": deepcopy(STATIC_SHIFT_VALUES),
+                "div": deepcopy(STATIC_DIV_VALUES),
+            },
         }
 
-        self.std_clip = std_clip
         self.normalizing_dicts = normalizing_dicts
-        if std_clip:
+        if std:
             name_to_bands = {
-                "space_time": SPACE_TIME_BANDS,
-                "space": SPACE_BANDS,
-                "time": TIME_BANDS,
-                "static": STATIC_BANDS,
+                len(SPACE_TIME_BANDS): SPACE_TIME_BANDS,
+                len(SPACE_BANDS): SPACE_BANDS,
+                len(TIME_BANDS): TIME_BANDS,
+                len(STATIC_BANDS): STATIC_BANDS,
             }
             assert normalizing_dicts is not None
             for key, val in normalizing_dicts.items():
@@ -146,25 +158,23 @@ class Normalizer:
                     band_idx = name_to_bands[key].index(band)
                     mean = val["mean"][band_idx]
                     std = val["std"][band_idx]
-                    div = (mean + (2 * std)) - (mean - (2 * std))  # max_val - min_val
+                    min_value = mean - (2 * std)
+                    max_value = mean + (2 * std)
+                    div = max_value - min_value
                     if div == 0:
                         raise ValueError(f"{band} has div value of 0")
-                    self.shift_div_dict[key]["shift"][band_idx] = mean
+                    self.shift_div_dict[key]["shift"][band_idx] = min_value
                     self.shift_div_dict[key]["div"][band_idx] = div
 
-    def _normalize(
-        self, x: np.ndarray, shift_values: np.ndarray, div_values: np.ndarray
-    ) -> np.ndarray:
+    @staticmethod
+    def _normalize(x: np.ndarray, shift_values: np.ndarray, div_values: np.ndarray) -> np.ndarray:
         x = (x - shift_values) / div_values
-        if self.std_clip:
-            return np.clip(x, a_min=0, a_max=1)
         return x
 
     def __call__(self, x: np.ndarray):
-        for _, val in self.shift_div_dict.items():
-            if x.shape[-1] == len(val["shift"]):
-                return self._normalize(x, val["shift"], val["div"])
-        raise ValueError(f"Unexpected input shape {x.shape}")
+        return self._normalize(
+            x, self.shift_div_dict[x.shape[-1]]["shift"], self.shift_div_dict[x.shape[-1]]["div"]
+        )
 
 
 class DatasetOutput(NamedTuple):
@@ -253,7 +263,7 @@ class Dataset(PyTorchDataset):
         self.h5py_folder = h5py_folder
         self.cache = False
         if normalizer is None:
-            self.normalizer = Normalizer(std_clip=False, normalizing_dicts=None)
+            self.normalizer = Normalizer(std=False, normalizing_dicts=None)
         else:
             self.normalizer = normalizer
 

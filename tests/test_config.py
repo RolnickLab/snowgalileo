@@ -78,7 +78,7 @@ class TestConfigs(unittest.TestCase):
         if (config_dir / NORMALIZATION_DICT_FILENAME).exists():
             with (config_dir / NORMALIZATION_DICT_FILENAME).open("r") as f:
                 norm_dict = json.load(f)
-            normalizer = Normalizer(std_clip=True, normalizing_dicts=norm_dict)
+            normalizer = Normalizer(std=True, normalizing_dicts=norm_dict)
             for key, val in normalizer.shift_div_dict.items():
                 divs = val["div"]
                 for d in divs:

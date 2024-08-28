@@ -284,7 +284,7 @@ class EuroSatEval(EvalTask):
         self.normalization = normalization
 
         if normalization == "scaling":
-            self.normalizer = Normalizer(std_clip=False)
+            self.normalizer = Normalizer(std=False)
         else:
             normalizing_dict = {
                 "space_time": {
@@ -296,7 +296,7 @@ class EuroSatEval(EvalTask):
                 idx = SPACE_TIME_BANDS.index(our_band)
                 normalizing_dict["space_time"]["mean"][idx] = config["band_info"][c_band]["mean"]
                 normalizing_dict["space_time"]["std"][idx] = config["band_info"][c_band]["std"]
-            self.normalizer = Normalizer(std_clip=True, normalizing_dicts=normalizing_dict)
+            self.normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
 
         assert not self.geobench or not self.include_latlons, "Geobench does not support latlons"
 

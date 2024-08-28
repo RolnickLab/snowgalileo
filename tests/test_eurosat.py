@@ -105,7 +105,7 @@ class TestEuroSat(unittest.TestCase):
 
     def test_eurosat_dataset_rgb(self):
         dataset = EuroSatDataset(
-            normalizer=Normalizer(std_clip=False),
+            normalizer=Normalizer(std=False),
             rgb=True,
             split="test",
             tif_files_dir=DATA_FOLDER,
@@ -133,7 +133,7 @@ class TestEuroSat(unittest.TestCase):
 
     def test_eurosat_dataset_msi(self):
         dataset = EuroSatDataset(
-            normalizer=Normalizer(std_clip=False),
+            normalizer=Normalizer(std=False),
             rgb=False,
             split="test",
             tif_files_dir=DATA_FOLDER,
