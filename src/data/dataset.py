@@ -703,7 +703,7 @@ class Dataset(PyTorchDataset):
         # we computed the normalizing dict using the same datset
         output_dict = {}
         for key, val in norm_dict.items():
-            if key != "n":
+            if "n" not in key:
                 output_dict[int(key)] = val
             else:
                 output_dict[key] = val
