@@ -47,6 +47,7 @@ from src.utils import (
     load_check_config,
     seed_everything,
     timestamp_dirname,
+    will_cause_nans,
 )
 
 process = psutil.Process()
@@ -276,10 +277,10 @@ for e in tqdm(range(training_config["num_epochs"])):
             ) = b
 
             if (
-                torch.isnan(s_t_x).any()
-                or torch.isnan(sp_x).any()
-                or torch.isnan(t_x).any()
-                or torch.isnan(st_x).any()
+                will_cause_nans(s_t_x)
+                or will_cause_nans(sp_x)
+                or will_cause_nans(t_x)
+                and will_cause_nans(st_x)
             ):
                 s += 1
                 warnings.warn(f"Skipping batch with NaNs, {s}")

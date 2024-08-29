@@ -29,6 +29,10 @@ else:
     torch.cuda.set_device(device)
 
 
+def will_cause_nans(x: torch.Tensor):
+    return torch.isnan(x).any() or torch.isinf(x).any()
+
+
 # From https://gist.github.com/ihoromi4/b681a9088f348942b01711f251e5f964
 def seed_everything(seed: int = DEFAULT_SEED):
     random.seed(seed)
