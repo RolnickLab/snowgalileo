@@ -80,7 +80,7 @@ class TestConfigs(unittest.TestCase):
                 norm_dict = json.load(f)
         output_dict = {}
         for key, val in norm_dict.items():
-            if key != "n":
+            if "n" not in key:
                 output_dict[int(key)] = val
             else:
                 output_dict[key] = val
