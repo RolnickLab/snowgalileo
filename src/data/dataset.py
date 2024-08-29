@@ -706,7 +706,7 @@ class Dataset(PyTorchDataset):
         if isinstance(savepath, Path) and savepath.exists():
             with savepath.open("r") as f:
                 norm_dict = json.load(f)
-            if norm_dict["n"] == len(self):
+            if norm_dict["n"] >= len(self):
                 # we computed the normalizing dict using the same datset
                 output_dict = {}
                 for key, val in norm_dict.items():

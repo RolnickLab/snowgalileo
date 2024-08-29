@@ -286,21 +286,7 @@ class EuroSatEval(EvalTask):
         if normalization == "scaling":
             self.normalizer = Normalizer(std=False)
         else:
-            normalizing_dict = {
-                len(SPACE_TIME_BANDS): {
-                    "mean": [0] * len(SPACE_TIME_BANDS),
-                    "std": [1] * len(SPACE_TIME_BANDS),
-                }
-            }
-            for our_band, c_band in band_info_names_to_band_names.items():
-                idx = SPACE_TIME_BANDS.index(our_band)
-                normalizing_dict[len(SPACE_TIME_BANDS)]["mean"][idx] = config["band_info"][c_band][
-                    "mean"
-                ]
-                normalizing_dict[len(SPACE_TIME_BANDS)]["std"][idx] = config["band_info"][c_band][
-                    "std"
-                ]
-            self.normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+            self.normalizer = self.load_eurosat_normalizer()
 
         assert not self.geobench or not self.include_latlons, "Geobench does not support latlons"
 
@@ -324,6 +310,24 @@ class EuroSatEval(EvalTask):
             "input_channels": torch.Tensor(input_channels).to(device),
             "output_channels": torch.Tensor(output_channels).to(device),
         }
+
+    @staticmethod
+    def load_eurosat_normalizer() -> Normalizer:
+        normalizing_dict = {
+            len(SPACE_TIME_BANDS): {
+                "mean": [0] * len(SPACE_TIME_BANDS),
+                "std": [1] * len(SPACE_TIME_BANDS),
+            }
+        }
+        for our_band, c_band in band_info_names_to_band_names.items():
+            idx = SPACE_TIME_BANDS.index(our_band)
+            normalizing_dict[len(SPACE_TIME_BANDS)]["mean"][idx] = config["band_info"][c_band][
+                "mean"
+            ]
+            normalizing_dict[len(SPACE_TIME_BANDS)]["std"][idx] = config["band_info"][c_band][
+                "std"
+            ]
+        return Normalizer(std=True, normalizing_dicts=normalizing_dict)
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         return {

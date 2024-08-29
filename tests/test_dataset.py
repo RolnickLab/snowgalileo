@@ -56,7 +56,9 @@ class TestDataset(unittest.TestCase):
 
     def test_normalization(self):
         ds = Dataset(TIFS_FOLDER, download=False)
-        o = ds.load_compute_normalization_values(savepath=None, estimate_from=None)
+        o = ds.load_compute_normalization_values(
+            savepath=Path("config/normalization.json"), estimate_from=None
+        )
         self.assertEqual(o["n"], len(ds))
         for t in [len(SPACE_TIME_BANDS), len(SPACE_BANDS), len(STATIC_BANDS), len(TIME_BANDS)]:
             subdict = o[t]
@@ -65,9 +67,9 @@ class TestDataset(unittest.TestCase):
             self.assertTrue(len(subdict["mean"]) == len(subdict["std"]))
         normalizer = Normalizer(normalizing_dicts=o)
         ds.normalizer = normalizer
-        for _ in ds:
-            # we don't clip any more
-            pass
+        for b in ds:
+            for t in b:
+                self.assertFalse(np.isnan(t).any())
 
     def test_subset_image_with_minimum_size(self):
         input = np.ones((3, 3, 1))
