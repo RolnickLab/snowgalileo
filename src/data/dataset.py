@@ -726,29 +726,29 @@ class Dataset(PyTorchDataset):
         output = ListOfDatasetOutputs([], [], [], [], [])
         for i in tqdm(indices_to_sample):
             s_t_x, sp_x, t_x, st_x, months = self[i]
-            output.space_time_x.append(s_t_x)
-            output.space_x.append(sp_x)
-            output.time_x.append(t_x)
-            output.static_x.append(st_x)
+            output.space_time_x.append(s_t_x.astype(np.float32))
+            output.space_x.append(sp_x.astype(np.float32))
+            output.time_x.append(t_x.astype(np.float32))
+            output.static_x.append(st_x.astype(np.float32))
             output.months.append(months)
         d_o = output.to_datasetoutput()
         norm_dict = {
             "n": len(self),
             len(SPACE_TIME_BANDS): {
                 "mean": d_o.space_time_x.mean(axis=(0, 1, 2, 3)).tolist(),
-                "std": d_o.space_time_x.astype(np.float32).std(axis=(0, 1, 2, 3)).tolist(),
+                "std": d_o.space_time_x.std(axis=(0, 1, 2, 3)).tolist(),
             },
             len(SPACE_BANDS): {
                 "mean": d_o.space_x.mean(axis=(0, 1, 2)).tolist(),
-                "std": d_o.space_x.astype(np.float32).std(axis=(0, 1, 2)).tolist(),
+                "std": d_o.space_x.std(axis=(0, 1, 2)).tolist(),
             },
             len(TIME_BANDS): {
                 "mean": d_o.time_x.mean(axis=(0, 1)).tolist(),
-                "std": d_o.time_x.astype(np.float32).std(axis=(0, 1)).tolist(),
+                "std": d_o.time_x.std(axis=(0, 1)).tolist(),
             },
             len(STATIC_BANDS): {
                 "mean": d_o.static_x.mean(axis=0).tolist(),
-                "std": d_o.static_x.astype(np.float32).std(axis=0).tolist(),
+                "std": d_o.static_x.std(axis=0).tolist(),
             },
         }
 
