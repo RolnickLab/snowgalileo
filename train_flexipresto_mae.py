@@ -251,6 +251,7 @@ target_encoder = copy.deepcopy(encoder)
 for p in target_encoder.parameters():
     p.requires_grad = False
 
+s = 0
 for e in tqdm(range(training_config["num_epochs"])):
     i = 0
     train_loss = AverageMeter()
@@ -273,6 +274,16 @@ for e in tqdm(range(training_config["num_epochs"])):
                 patch_size,
                 c_i,
             ) = b
+
+            if (
+                torch.isnan(s_t_x).any()
+                or torch.isnan(sp_x).any()
+                or torch.isnan(t_x).any()
+                or torch.isnan(st_x).any()
+            ):
+                s += 1
+                warnings.warn(f"Skipping batch with NaNs, {s}")
+                continue
 
             if c_i is not None:
                 # there is probably a better way to do this
@@ -333,7 +344,7 @@ for e in tqdm(range(training_config["num_epochs"])):
                         st_m,
                     ),
                 )
-
+                assert not torch.isnan(loss).any(), "NaNs in loss"
             train_loss.update(loss.item(), n=s_t_x.shape[0])
             if c_i is not None:
                 task_masking_train_loss.update(loss.item(), n=s_t_x.shape[0])
