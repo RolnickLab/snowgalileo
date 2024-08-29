@@ -737,7 +737,8 @@ class Dataset(PyTorchDataset):
             output.months.append(months)
         d_o = output.to_datasetoutput()
         norm_dict = {
-            "n": len(self),
+            "total_n": len(self),
+            "sampled_n": len(indices_to_sample),
             len(SPACE_TIME_BANDS): {
                 "mean": d_o.space_time_x.mean(axis=(0, 1, 2, 3)).tolist(),
                 "std": d_o.space_time_x.std(axis=(0, 1, 2, 3)).tolist(),
