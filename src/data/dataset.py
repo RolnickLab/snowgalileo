@@ -707,7 +707,7 @@ class Dataset(PyTorchDataset):
                 output_dict[int(key)] = val
             else:
                 output_dict[key] = val
-            return output_dict
+        return output_dict
 
     def compute_normalization_values(
         self,
