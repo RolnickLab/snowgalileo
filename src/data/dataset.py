@@ -700,14 +700,13 @@ class Dataset(PyTorchDataset):
             raise ValueError(f"No file found at path {path}")
         with path.open("r") as f:
             norm_dict = json.load(f)
-        if norm_dict["n"] >= len(self):
-            # we computed the normalizing dict using the same datset
-            output_dict = {}
-            for key, val in norm_dict.items():
-                if key != "n":
-                    output_dict[int(key)] = val
-                else:
-                    output_dict[key] = val
+        # we computed the normalizing dict using the same datset
+        output_dict = {}
+        for key, val in norm_dict.items():
+            if key != "n":
+                output_dict[int(key)] = val
+            else:
+                output_dict[key] = val
             return output_dict
 
     def compute_normalization_values(
