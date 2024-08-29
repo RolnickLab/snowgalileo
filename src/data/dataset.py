@@ -726,10 +726,10 @@ class Dataset(PyTorchDataset):
         output = ListOfDatasetOutputs([], [], [], [], [])
         for i in tqdm(indices_to_sample):
             s_t_x, sp_x, t_x, st_x, months = self[i]
-            output.space_time_x.append(s_t_x.astype(np.float32))
-            output.space_x.append(sp_x.astype(np.float32))
-            output.time_x.append(t_x.astype(np.float32))
-            output.static_x.append(st_x.astype(np.float32))
+            output.space_time_x.append(s_t_x.astype(np.float64))
+            output.space_x.append(sp_x.astype(np.float64))
+            output.time_x.append(t_x.astype(np.float64))
+            output.static_x.append(st_x.astype(np.float64))
             output.months.append(months)
         d_o = output.to_datasetoutput()
         norm_dict = {
