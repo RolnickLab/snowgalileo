@@ -13,7 +13,7 @@ from einops import rearrange, repeat
 from torch import Tensor, vmap
 from torch.jit import Final
 
-from .conditioner import ConditionalLinear, LearnedMixture
+from .conditioner import ConditionalLinear, LearnedMixture, LoRAGenerator
 from .config import BASE_GSD
 from .data import (
     SPACE_BAND_GROUPS_IDX,
@@ -918,15 +918,21 @@ class Encoder(FlexiPrestoBase):
         assert (folder / CONFIG_FILENAME).exists(), f"Missing {CONFIG_FILENAME}"
         assert (folder / ENCODER_FILENAME).exists(), f"Missing {ENCODER_FILENAME}"
 
-        conditioner_config, conditioner = None, None
+        conditioner_config = None
+        conditioner: Optional[Union[LoRAGenerator, LearnedMixture]] = None
         with (folder / CONFIG_FILENAME).open("r") as f:
-            model_config = json.load(f)["model"]
+            config = json.load(f)
+            model_config = config["model"]
             encoder_config = model_config["encoder"]
             if "conditioner" in model_config.keys():
                 conditioner_config = model_config["conditioner"]
 
         if conditioner_config is not None:
-            conditioner = LearnedMixture(**conditioner_config)
+            if config["training"]["conditioner_mode"] == "lora":
+                conditioner = LoRAGenerator(**conditioner_config)
+            else:
+                assert config["training"]["conditioner_mode"] == "moe"
+                conditioner = LearnedMixture(**conditioner_config)
         encoder = cls(**encoder_config, conditioner=conditioner)
         encoder.load_state_dict(torch.load(folder / ENCODER_FILENAME, map_location=device))
         return encoder
