@@ -78,8 +78,14 @@ class TestConfigs(unittest.TestCase):
         if (config_dir / NORMALIZATION_DICT_FILENAME).exists():
             with (config_dir / NORMALIZATION_DICT_FILENAME).open("r") as f:
                 norm_dict = json.load(f)
-            normalizer = Normalizer(std=True, normalizing_dicts=norm_dict)
-            for key, val in normalizer.shift_div_dict.items():
-                divs = val["div"]
-                for d in divs:
-                    self.assertNotEqual(d, 0, f"0 in {key}")
+        output_dict = {}
+        for key, val in norm_dict.items():
+            if key != "n":
+                output_dict[int(key)] = val
+            else:
+                output_dict[key] = val
+        normalizer = Normalizer(std=True, normalizing_dicts=output_dict)
+        for key, val in normalizer.shift_div_dict.items():
+            divs = val["div"]
+            for d in divs:
+                self.assertNotEqual(d, 0, f"0 in {key}")
