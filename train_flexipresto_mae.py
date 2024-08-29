@@ -130,8 +130,8 @@ dataset = Dataset(
 )
 
 if training_config["normalization"] == "std":
-    normalizing_dict = dataset.load_compute_normalization_values(
-        savepath=config_dir / NORMALIZATION_DICT_FILENAME
+    normalizing_dict = dataset.load_normalization_values(
+        path=config_dir / NORMALIZATION_DICT_FILENAME
     )
     print(normalizing_dict, flush=True)
     normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)

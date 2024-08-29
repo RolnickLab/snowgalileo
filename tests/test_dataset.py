@@ -56,9 +56,7 @@ class TestDataset(unittest.TestCase):
 
     def test_normalization(self):
         ds = Dataset(TIFS_FOLDER, download=False)
-        o = ds.load_compute_normalization_values(
-            savepath=Path("config/normalization.json"), estimate_from=None
-        )
+        o = ds.load_normalization_values(path=Path("config/normalization.json"))
         self.assertEqual(o["n"], len(ds))
         for t in [len(SPACE_TIME_BANDS), len(SPACE_BANDS), len(STATIC_BANDS), len(TIME_BANDS)]:
             subdict = o[t]

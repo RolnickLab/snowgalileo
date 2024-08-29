@@ -695,29 +695,27 @@ class Dataset(PyTorchDataset):
             # if they don't exist
             _ = self[i]
 
-    def load_compute_normalization_values(
+    def load_normalization_values(self, path: Path):
+        if not path.exists():
+            raise ValueError(f"No file found at path {path}")
+        with path.open("r") as f:
+            norm_dict = json.load(f)
+        if norm_dict["n"] >= len(self):
+            # we computed the normalizing dict using the same datset
+            output_dict = {}
+            for key, val in norm_dict.items():
+                if key != "n":
+                    output_dict[int(key)] = val
+                else:
+                    output_dict[key] = val
+            return output_dict
+
+    def compute_normalization_values(
         self,
         output_hw: int = 96,
         output_timesteps: int = 24,
-        savepath: Optional[Path] = None,
         estimate_from: Optional[int] = 10000,
     ):
-        # check to see if the normalization dict already exists
-        if isinstance(savepath, Path) and savepath.exists():
-            with savepath.open("r") as f:
-                norm_dict = json.load(f)
-            if norm_dict["n"] >= len(self):
-                # we computed the normalizing dict using the same datset
-                output_dict = {}
-                for key, val in norm_dict.items():
-                    if key != "n":
-                        output_dict[int(key)] = val
-                    else:
-                        output_dict[key] = val
-                return output_dict
-            else:
-                savepath.unlink()
-
         org_hw = self.output_hw
         self.output_hw = output_hw
 
@@ -760,9 +758,5 @@ class Dataset(PyTorchDataset):
 
         self.output_hw = org_hw
         self.output_timesteps = org_t
-
-        if savepath is not None:
-            with savepath.open("w") as f:
-                json.dump(norm_dict, f)
 
         return norm_dict
