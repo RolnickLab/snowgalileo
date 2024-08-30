@@ -442,6 +442,7 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
             if model_path is None:
                 model_path = output_folder / timestamp_dirname(run_id)
                 model_path.mkdir()
+            print(f"Checkpointing to {model_path}")
             torch.save(encoder.state_dict(), model_path / ENCODER_FILENAME)
             torch.save(predictor.state_dict(), model_path / DECODER_FILENAME)
             torch.save(target_encoder.state_dict(), model_path / TARGET_ENCODER_FILENAME)
