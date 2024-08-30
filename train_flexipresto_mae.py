@@ -294,135 +294,131 @@ for p in target_encoder.parameters():
     p.requires_grad = False
 
 skipped_batches = 0
-for e in tqdm(range(training_config["num_epochs"])):
-    if e >= start_epoch:
-        i = 0
-        train_loss = AverageMeter()
-        random_masking_train_loss = AverageMeter()
-        task_masking_train_loss = AverageMeter()
-        for bs in tqdm(dataloader, total=len(dataloader), leave=False):
-            for b in bs:
-                i += 1
-                b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
-                (
-                    s_t_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                    months,
-                    patch_size,
-                    c_i,
-                ) = b
+for e in tqdm(range(start_epoch, training_config["num_epochs"])):
+    i = 0
+    train_loss = AverageMeter()
+    random_masking_train_loss = AverageMeter()
+    task_masking_train_loss = AverageMeter()
+    for bs in tqdm(dataloader, total=len(dataloader), leave=False):
+        for b in bs:
+            i += 1
+            b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
+            (
+                s_t_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_m,
+                sp_m,
+                t_m,
+                st_m,
+                months,
+                patch_size,
+                c_i,
+            ) = b
 
-                if (
-                    will_cause_nans(s_t_x)
-                    or will_cause_nans(sp_x)
-                    or will_cause_nans(t_x)
-                    or will_cause_nans(st_x)
-                ):
-                    skipped_batches += 1
-                    warnings.warn(f"Skipping batch with NaNs, {skipped_batches}")
-                    continue
+            if (
+                will_cause_nans(s_t_x)
+                or will_cause_nans(sp_x)
+                or will_cause_nans(t_x)
+                or will_cause_nans(st_x)
+            ):
+                skipped_batches += 1
+                warnings.warn(f"Skipping batch with NaNs, {skipped_batches}")
+                continue
 
-                if c_i is not None:
-                    # there is probably a better way to do this
-                    c_i = {
-                        k: v.to(device) if isinstance(v, torch.Tensor) else v
-                        for k, v in c_i.items()
-                    }
-                else:
-                    raise ValueError("c_i should not be None")
+            if c_i is not None:
+                # there is probably a better way to do this
+                c_i = {
+                    k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in c_i.items()
+                }
+            else:
+                raise ValueError("c_i should not be None")
 
-                with torch.autocast(device_type=device.type, dtype=autocast_device):
-                    (p_s_t, p_sp, p_t, p_st) = predictor(
-                        *encoder(
-                            s_t_x,
-                            sp_x,
-                            t_x,
-                            st_x,
-                            s_t_m,
-                            sp_m,
-                            t_m,
-                            st_m,
-                            months.long(),
-                            c_i=c_i,
-                            patch_size=patch_size,
-                        ),
+            with torch.autocast(device_type=device.type, dtype=autocast_device):
+                (p_s_t, p_sp, p_t, p_st) = predictor(
+                    *encoder(
+                        s_t_x,
+                        sp_x,
+                        t_x,
+                        st_x,
+                        s_t_m,
+                        sp_m,
+                        t_m,
+                        st_m,
+                        months.long(),
+                        c_i=c_i,
                         patch_size=patch_size,
+                    ),
+                    patch_size=patch_size,
+                )
+
+                with torch.no_grad():
+                    t_s_t, t_sp, t_t, t_st, _, _, _, _, _ = target_encoder(
+                        s_t_x,
+                        sp_x,
+                        t_x,
+                        st_x,
+                        ~(s_t_m == 2),  # we want 0s where the mask == 2
+                        ~(sp_m == 2),
+                        ~(t_m == 2),
+                        ~(st_m == 2),
+                        months.long(),
+                        patch_size=patch_size,
+                        c_i=c_i if training_config["target_condition"] else None,
+                        exit_after=training_config["target_exit_after"],
                     )
 
-                    with torch.no_grad():
-                        t_s_t, t_sp, t_t, t_st, _, _, _, _, _ = target_encoder(
-                            s_t_x,
-                            sp_x,
-                            t_x,
-                            st_x,
-                            ~(s_t_m == 2),  # we want 0s where the mask == 2
-                            ~(sp_m == 2),
-                            ~(t_m == 2),
-                            ~(st_m == 2),
-                            months.long(),
-                            patch_size=patch_size,
-                            c_i=c_i if training_config["target_condition"] else None,
-                            exit_after=training_config["target_exit_after"],
-                        )
+                loss = do_loss(
+                    training_config,
+                    (
+                        t_s_t,
+                        t_sp,
+                        t_t,
+                        t_st,
+                        p_s_t,
+                        p_sp,
+                        p_t,
+                        p_st,
+                        s_t_m[:, 0::patch_size, 0::patch_size],
+                        sp_m[:, 0::patch_size, 0::patch_size],
+                        t_m,
+                        st_m,
+                    ),
+                )
+                assert not torch.isnan(loss).any(), "NaNs in loss"
+            train_loss.update(loss.item(), n=s_t_x.shape[0])
+            if c_i is not None:
+                task_masking_train_loss.update(loss.item(), n=s_t_x.shape[0])
+            else:
+                random_masking_train_loss.update(loss.item(), n=s_t_x.shape[0])
 
-                    loss = do_loss(
-                        training_config,
-                        (
-                            t_s_t,
-                            t_sp,
-                            t_t,
-                            t_st,
-                            p_s_t,
-                            p_sp,
-                            p_t,
-                            p_st,
-                            s_t_m[:, 0::patch_size, 0::patch_size],
-                            sp_m[:, 0::patch_size, 0::patch_size],
-                            t_m,
-                            st_m,
-                        ),
-                    )
-                    assert not torch.isnan(loss).any(), "NaNs in loss"
-                train_loss.update(loss.item(), n=s_t_x.shape[0])
-                if c_i is not None:
-                    task_masking_train_loss.update(loss.item(), n=s_t_x.shape[0])
-                else:
-                    random_masking_train_loss.update(loss.item(), n=s_t_x.shape[0])
+            loss = loss / iters_to_accumulate
+            loss.backward()
 
-                loss = loss / iters_to_accumulate
-                loss.backward()
+            if ((i + 1) % iters_to_accumulate == 0) or (i + 1 == len(dataloader)):
+                if training_config["grad_clip"]:
+                    torch.nn.utils.clip_grad_norm_(encoder.parameters(), 1.0)
+                    torch.nn.utils.clip_grad_norm_(predictor.parameters(), 1.0)
+                optimizer.step()
+                optimizer.zero_grad()
+                current_lr = adjust_learning_rate(
+                    optimizer,
+                    epoch=i / (repeat_aug * len(dataloader)) + e,
+                    warmup_epochs=training_config["warmup_epochs"],
+                    total_epochs=training_config["num_epochs"],
+                    max_lr=training_config["max_lr"],
+                    min_lr=training_config["final_lr"],
+                    conditioner_multiplier=training_config["conditioner_multiplier"],
+                )
 
-                if ((i + 1) % iters_to_accumulate == 0) or (i + 1 == len(dataloader)):
-                    if training_config["grad_clip"]:
-                        torch.nn.utils.clip_grad_norm_(encoder.parameters(), 1.0)
-                        torch.nn.utils.clip_grad_norm_(predictor.parameters(), 1.0)
-                    optimizer.step()
-                    optimizer.zero_grad()
-                    current_lr = adjust_learning_rate(
-                        optimizer,
-                        epoch=i / (repeat_aug * len(dataloader)) + e,
-                        warmup_epochs=training_config["warmup_epochs"],
-                        total_epochs=training_config["num_epochs"],
-                        max_lr=training_config["max_lr"],
-                        min_lr=training_config["final_lr"],
-                        conditioner_multiplier=training_config["conditioner_multiplier"],
-                    )
-
-                    with torch.no_grad():
-                        try:
-                            m = next(momentum_scheduler)
-                        except StopIteration:
-                            m = training_config["ema"][1]
-                        for param_q, param_k in zip(
-                            encoder.parameters(), target_encoder.parameters()
-                        ):
-                            param_k.data.mul_(m).add_((1.0 - m) * param_q.detach().data)
+                with torch.no_grad():
+                    try:
+                        m = next(momentum_scheduler)
+                    except StopIteration:
+                        m = training_config["ema"][1]
+                    for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
+                        param_k.data.mul_(m).add_((1.0 - m) * param_q.detach().data)
     if wandb_enabled:
         to_log = {
             "train_loss": train_loss.average,
