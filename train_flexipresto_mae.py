@@ -447,7 +447,7 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
             torch.save(predictor.state_dict(), model_path / DECODER_FILENAME)
             torch.save(target_encoder.state_dict(), model_path / TARGET_ENCODER_FILENAME)
             torch.save(optimizer.state_dict(), model_path / OPTIMIZER_FILENAME)
-            config["cur_epoch"] = e
+            config["cur_epoch"] = e + 1
             with (model_path / CONFIG_FILENAME).open("w") as f:
                 json.dump(config, f)
 
