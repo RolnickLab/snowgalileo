@@ -78,7 +78,7 @@ argparser.add_argument("--h5pys_only", dest="h5pys_only", action="store_true")
 argparser.add_argument("--num_workers", dest="num_workers", default=Hyperparams.num_workers)
 argparser.add_argument("--batch_size", dest="batch_size", default="")
 argparser.add_argument("--sync_models_from_service_account", action="store_true")
-argparser.add_argument("--checkpoint_every_epoch", type=int, default=-1)
+argparser.add_argument("--checkpoint_every_epoch", type=int, default=0)
 
 argparser.set_defaults(download=False)
 argparser.set_defaults(cache_in_ram=False)
@@ -437,7 +437,7 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
             )
             to_log.update(results)
         wandb.log(to_log)
-    if args["checkpoint_every_epoch"] != -1:
+    if args["checkpoint_every_epoch"] > 0:
         if e % args["checkpoint_every_epoch"] == 0:
             if model_path is None:
                 model_path = output_folder / timestamp_dirname(run_id)
