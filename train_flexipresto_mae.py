@@ -436,7 +436,7 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                 encoder, model_modes=["KNNat5 Classifier", "KNNat20 Classifier"]
             )
             to_log.update(results)
-        wandb.log(to_log)
+        wandb.log(to_log, step=e)
     if args["checkpoint_every_epoch"] > 0:
         if e % args["checkpoint_every_epoch"] == 0:
             if model_path is None:
@@ -501,5 +501,5 @@ for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)
     print(json.dumps(results, indent=2), flush=True)
     if wandb_enabled:
-        wandb.log(results)
+        wandb.log(results, step=training_config["num_epochs"])
 tracker.stop()
