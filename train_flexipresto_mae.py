@@ -287,7 +287,7 @@ if restart:
     )
     # we also want to step through the momentum scheduler since we are going to fast forward training
     for momentum_epoch in range(start_epoch):
-        for i in steps_per_epoch:
+        for i in range(steps_per_epoch):
             _ = next(momentum_scheduler)
 
 for p in target_encoder.parameters():
