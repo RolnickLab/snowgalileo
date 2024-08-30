@@ -28,6 +28,7 @@ from src.data.config import (
     EE_PROJECT,
     ENCODER_FILENAME,
     NORMALIZATION_DICT_FILENAME,
+    OPTIMIZER_FILENAME,
     OUTPUT_FOLDER,
     TARGET_ENCODER_FILENAME,
     TIFS_FOLDER,
@@ -255,13 +256,15 @@ val_task_no_latlons = EuroSatEval(
     do_condition=eval_w_condition,
 )
 
-
 optimizer = torch.optim.AdamW(
     param_groups,
     lr=0,
     weight_decay=training_config["weight_decay"],
     betas=(training_config["betas"][0], training_config["betas"][1]),
 )  # type: ignore
+if restart:
+    assert model_path is not None
+    optimizer.load_state_dict(torch.load(model_path / OPTIMIZER_FILENAME, map_location=device))
 
 assert training_config["effective_batch_size"] % training_config["batch_size"] == 0
 iters_to_accumulate = training_config["effective_batch_size"] / training_config["batch_size"]
@@ -420,7 +423,6 @@ for e in tqdm(range(training_config["num_epochs"])):
                             encoder.parameters(), target_encoder.parameters()
                         ):
                             param_k.data.mul_(m).add_((1.0 - m) * param_q.detach().data)
-
     if wandb_enabled:
         to_log = {
             "train_loss": train_loss.average,
@@ -447,7 +449,7 @@ for e in tqdm(range(training_config["num_epochs"])):
             torch.save(encoder.state_dict(), model_path / ENCODER_FILENAME)
             torch.save(predictor.state_dict(), model_path / DECODER_FILENAME)
             torch.save(target_encoder.state_dict(), model_path / TARGET_ENCODER_FILENAME)
-
+            torch.save(optimizer.state_dict(), model_path / OPTIMIZER_FILENAME)
             config["cur_epoch"] = e
             with (model_path / CONFIG_FILENAME).open("w") as f:
                 json.dump(config, f)
@@ -458,6 +460,7 @@ if model_path is None:
 torch.save(encoder.state_dict(), model_path / ENCODER_FILENAME)
 torch.save(predictor.state_dict(), model_path / DECODER_FILENAME)
 torch.save(target_encoder.state_dict(), model_path / TARGET_ENCODER_FILENAME)
+torch.save(optimizer.state_dict(), model_path / OPTIMIZER_FILENAME)
 with (model_path / CONFIG_FILENAME).open("w") as f:
     json.dump(config, f)
 
