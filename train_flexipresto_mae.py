@@ -5,11 +5,12 @@ import os
 import warnings
 from functools import partial
 from pathlib import Path
-from typing import List, Union, cast
+from typing import List, Optional, Union, cast
 
 import codecarbon
 import psutil
 import torch
+import wandb
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
@@ -28,6 +29,7 @@ from src.data.config import (
     ENCODER_FILENAME,
     NORMALIZATION_DICT_FILENAME,
     OUTPUT_FOLDER,
+    TARGET_ENCODER_FILENAME,
     TIFS_FOLDER,
 )
 from src.eval import (
@@ -75,6 +77,8 @@ argparser.add_argument("--h5pys_only", dest="h5pys_only", action="store_true")
 argparser.add_argument("--num_workers", dest="num_workers", default=Hyperparams.num_workers)
 argparser.add_argument("--batch_size", dest="batch_size", default="")
 argparser.add_argument("--sync_models_from_service_account", action="store_true")
+argparser.add_argument("--checkpoint_every_epoch", type=int, default=-1)
+
 argparser.set_defaults(download=False)
 argparser.set_defaults(cache_in_ram=False)
 args = argparser.parse_args().__dict__
@@ -90,18 +94,55 @@ if args["output_folder"] == "":
 else:
     output_folder = Path(args["output_folder"])
 
-if args["config_file"] == "random_tiny":
-    config, run_name = get_random_config("tiny")
-    config = check_config(config)
-elif args["config_file"] == "random_vitb-tiny":
-    config, run_name = get_random_config("vitb-tiny")
-    config = check_config(config)
-elif args["config_file"] == "random_base":
-    config, run_name = get_random_config("base")
-    config = check_config(config)
-else:
-    config = load_check_config(args["config_file"])
-    run_name = f"{args['config_file']} config file"
+restart = False
+model_path: Optional[Path] = None
+start_epoch = 0
+run_id = None
+wandb_enabled = True
+wandb_org = "nasa-harvest"
+wandb_output_dir = Path(__file__).parent
+
+if is_beaker_job():
+    # see if the output folder exists. If so, there
+    # was an existing job
+    # "when a job is preempted, it gets a new result dataset,
+    # which starts as a copy of the previous job's results."
+    output_dirs = [o for o in output_folder.glob("*") if o.is_dir()]
+    if len(output_dirs) > 0:
+        assert len(output_dirs) == 1, f"Got more than one output dir: {output_dirs}"
+        restart = True
+        model_path = output_dirs[0]
+        print(f"Restarting run using {model_path}")
+        with (model_path / CONFIG_FILENAME).open("r") as f:
+            config = json.load(f)
+        run_name = config["run_name"]
+        start_epoch = config["cur_epoch"]
+        run_id = config["wandb_run_id"]
+
+if not restart:
+    if args["config_file"] == "random_tiny":
+        config, run_name = get_random_config("tiny")
+        config = check_config(config)
+    elif args["config_file"] == "random_vitb-tiny":
+        config, run_name = get_random_config("vitb-tiny")
+        config = check_config(config)
+    elif args["config_file"] == "random_base":
+        config, run_name = get_random_config("base")
+        config = check_config(config)
+    else:
+        config = load_check_config(args["config_file"])
+        run_name = f"{args['config_file']} config file"
+    config["run_name"] = run_name
+
+run = wandb.init(
+    name=run_name, entity=wandb_org, project="flexipresto", dir=wandb_output_dir, id=run_id
+)
+run_id = cast(Run, run).id
+config["wandb_run_id"] = run_id
+if is_beaker_job():
+    beaker_config = maybe_get_beaker_config()
+    config.update(vars(beaker_config))
+wandb.config.update(config)
 
 training_config = config["training"]
 
@@ -112,10 +153,6 @@ if args["batch_size"] != "":
     training_config["batch_size"] = int(args["batch_size"])
     config["training"]["batch_size"] = int(args["batch_size"])
 
-run_id = None
-wandb_enabled = True
-wandb_org = "nasa-harvest"
-output_dir = Path(__file__).parent
 # we seed everything after we call get_random_config(), since
 # we want this to differ between runs
 seed_everything(DEFAULT_SEED)
@@ -128,6 +165,7 @@ dataset = Dataset(
     h5py_folder=cache_folder,
     h5pys_only=args["h5pys_only"],
 )
+config["training"]["training_samples"] = len(dataset)
 
 if training_config["normalization"] == "std":
     normalizing_dict = dataset.load_normalization_values(
@@ -202,6 +240,11 @@ else:
         }
     )
 
+if restart:
+    assert model_path is not None
+    encoder.load_state_dict(torch.load(model_path / ENCODER_FILENAME, map_location=device))
+    predictor.load_state_dict(torch.load(model_path / DECODER_FILENAME, map_location=device))
+
 
 print("Loading validation task")
 val_task_no_latlons = EuroSatEval(
@@ -212,21 +255,6 @@ val_task_no_latlons = EuroSatEval(
     do_condition=eval_w_condition,
 )
 
-if wandb_enabled:
-    import wandb
-
-    run = wandb.init(
-        name=run_name,
-        entity=wandb_org,
-        project="flexipresto",
-        dir=output_dir,
-    )
-    run_id = cast(Run, run).id
-    config["training"]["training_samples"] = len(dataset)
-    if is_beaker_job():
-        beaker_config = maybe_get_beaker_config()
-        config.update(vars(beaker_config))
-    wandb.config.update(config)
 
 optimizer = torch.optim.AdamW(
     param_groups,
@@ -249,135 +277,149 @@ momentum_scheduler = (
     for i in range(int(steps_per_epoch * training_config["num_epochs"]) + 1)
 )
 target_encoder = copy.deepcopy(encoder)
+if restart:
+    assert model_path is not None
+    target_encoder.load_state_dict(
+        torch.load(model_path / TARGET_ENCODER_FILENAME, map_location=device)
+    )
+    # we also want to step through the momentum scheduler since we are going to fast forward training
+    for momentum_epoch in range(start_epoch):
+        for i in steps_per_epoch:
+            _ = next(momentum_scheduler)
+
 for p in target_encoder.parameters():
     p.requires_grad = False
 
-s = 0
+skipped_batches = 0
 for e in tqdm(range(training_config["num_epochs"])):
-    i = 0
-    train_loss = AverageMeter()
-    random_masking_train_loss = AverageMeter()
-    task_masking_train_loss = AverageMeter()
-    for bs in tqdm(dataloader, total=len(dataloader), leave=False):
-        for b in bs:
-            i += 1
-            b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
-            (
-                s_t_x,
-                sp_x,
-                t_x,
-                st_x,
-                s_t_m,
-                sp_m,
-                t_m,
-                st_m,
-                months,
-                patch_size,
-                c_i,
-            ) = b
+    if e >= start_epoch:
+        i = 0
+        train_loss = AverageMeter()
+        random_masking_train_loss = AverageMeter()
+        task_masking_train_loss = AverageMeter()
+        for bs in tqdm(dataloader, total=len(dataloader), leave=False):
+            for b in bs:
+                i += 1
+                b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
+                (
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                    patch_size,
+                    c_i,
+                ) = b
 
-            if (
-                will_cause_nans(s_t_x)
-                or will_cause_nans(sp_x)
-                or will_cause_nans(t_x)
-                or will_cause_nans(st_x)
-            ):
-                s += 1
-                warnings.warn(f"Skipping batch with NaNs, {s}")
-                continue
+                if (
+                    will_cause_nans(s_t_x)
+                    or will_cause_nans(sp_x)
+                    or will_cause_nans(t_x)
+                    or will_cause_nans(st_x)
+                ):
+                    skipped_batches += 1
+                    warnings.warn(f"Skipping batch with NaNs, {skipped_batches}")
+                    continue
 
-            if c_i is not None:
-                # there is probably a better way to do this
-                c_i = {
-                    k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in c_i.items()
-                }
-            else:
-                raise ValueError("c_i should not be None")
+                if c_i is not None:
+                    # there is probably a better way to do this
+                    c_i = {
+                        k: v.to(device) if isinstance(v, torch.Tensor) else v
+                        for k, v in c_i.items()
+                    }
+                else:
+                    raise ValueError("c_i should not be None")
 
-            with torch.autocast(device_type=device.type, dtype=autocast_device):
-                (p_s_t, p_sp, p_t, p_st) = predictor(
-                    *encoder(
-                        s_t_x,
-                        sp_x,
-                        t_x,
-                        st_x,
-                        s_t_m,
-                        sp_m,
-                        t_m,
-                        st_m,
-                        months.long(),
-                        c_i=c_i,
+                with torch.autocast(device_type=device.type, dtype=autocast_device):
+                    (p_s_t, p_sp, p_t, p_st) = predictor(
+                        *encoder(
+                            s_t_x,
+                            sp_x,
+                            t_x,
+                            st_x,
+                            s_t_m,
+                            sp_m,
+                            t_m,
+                            st_m,
+                            months.long(),
+                            c_i=c_i,
+                            patch_size=patch_size,
+                        ),
                         patch_size=patch_size,
-                    ),
-                    patch_size=patch_size,
-                )
-
-                with torch.no_grad():
-                    t_s_t, t_sp, t_t, t_st, _, _, _, _, _ = target_encoder(
-                        s_t_x,
-                        sp_x,
-                        t_x,
-                        st_x,
-                        ~(s_t_m == 2),  # we want 0s where the mask == 2
-                        ~(sp_m == 2),
-                        ~(t_m == 2),
-                        ~(st_m == 2),
-                        months.long(),
-                        patch_size=patch_size,
-                        c_i=c_i if training_config["target_condition"] else None,
-                        exit_after=training_config["target_exit_after"],
                     )
 
-                loss = do_loss(
-                    training_config,
-                    (
-                        t_s_t,
-                        t_sp,
-                        t_t,
-                        t_st,
-                        p_s_t,
-                        p_sp,
-                        p_t,
-                        p_st,
-                        s_t_m[:, 0::patch_size, 0::patch_size],
-                        sp_m[:, 0::patch_size, 0::patch_size],
-                        t_m,
-                        st_m,
-                    ),
-                )
-                assert not torch.isnan(loss).any(), "NaNs in loss"
-            train_loss.update(loss.item(), n=s_t_x.shape[0])
-            if c_i is not None:
-                task_masking_train_loss.update(loss.item(), n=s_t_x.shape[0])
-            else:
-                random_masking_train_loss.update(loss.item(), n=s_t_x.shape[0])
+                    with torch.no_grad():
+                        t_s_t, t_sp, t_t, t_st, _, _, _, _, _ = target_encoder(
+                            s_t_x,
+                            sp_x,
+                            t_x,
+                            st_x,
+                            ~(s_t_m == 2),  # we want 0s where the mask == 2
+                            ~(sp_m == 2),
+                            ~(t_m == 2),
+                            ~(st_m == 2),
+                            months.long(),
+                            patch_size=patch_size,
+                            c_i=c_i if training_config["target_condition"] else None,
+                            exit_after=training_config["target_exit_after"],
+                        )
 
-            loss = loss / iters_to_accumulate
-            loss.backward()
+                    loss = do_loss(
+                        training_config,
+                        (
+                            t_s_t,
+                            t_sp,
+                            t_t,
+                            t_st,
+                            p_s_t,
+                            p_sp,
+                            p_t,
+                            p_st,
+                            s_t_m[:, 0::patch_size, 0::patch_size],
+                            sp_m[:, 0::patch_size, 0::patch_size],
+                            t_m,
+                            st_m,
+                        ),
+                    )
+                    assert not torch.isnan(loss).any(), "NaNs in loss"
+                train_loss.update(loss.item(), n=s_t_x.shape[0])
+                if c_i is not None:
+                    task_masking_train_loss.update(loss.item(), n=s_t_x.shape[0])
+                else:
+                    random_masking_train_loss.update(loss.item(), n=s_t_x.shape[0])
 
-            if ((i + 1) % iters_to_accumulate == 0) or (i + 1 == len(dataloader)):
-                if training_config["grad_clip"]:
-                    torch.nn.utils.clip_grad_norm_(encoder.parameters(), 1.0)
-                    torch.nn.utils.clip_grad_norm_(predictor.parameters(), 1.0)
-                optimizer.step()
-                optimizer.zero_grad()
-                current_lr = adjust_learning_rate(
-                    optimizer,
-                    epoch=i / (repeat_aug * len(dataloader)) + e,
-                    warmup_epochs=training_config["warmup_epochs"],
-                    total_epochs=training_config["num_epochs"],
-                    max_lr=training_config["max_lr"],
-                    min_lr=training_config["final_lr"],
-                    conditioner_multiplier=training_config["conditioner_multiplier"],
-                )
+                loss = loss / iters_to_accumulate
+                loss.backward()
 
-                with torch.no_grad():
-                    try:
-                        m = next(momentum_scheduler)
-                    except StopIteration:
-                        m = training_config["ema"][1]
-                    for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
-                        param_k.data.mul_(m).add_((1.0 - m) * param_q.detach().data)
+                if ((i + 1) % iters_to_accumulate == 0) or (i + 1 == len(dataloader)):
+                    if training_config["grad_clip"]:
+                        torch.nn.utils.clip_grad_norm_(encoder.parameters(), 1.0)
+                        torch.nn.utils.clip_grad_norm_(predictor.parameters(), 1.0)
+                    optimizer.step()
+                    optimizer.zero_grad()
+                    current_lr = adjust_learning_rate(
+                        optimizer,
+                        epoch=i / (repeat_aug * len(dataloader)) + e,
+                        warmup_epochs=training_config["warmup_epochs"],
+                        total_epochs=training_config["num_epochs"],
+                        max_lr=training_config["max_lr"],
+                        min_lr=training_config["final_lr"],
+                        conditioner_multiplier=training_config["conditioner_multiplier"],
+                    )
+
+                    with torch.no_grad():
+                        try:
+                            m = next(momentum_scheduler)
+                        except StopIteration:
+                            m = training_config["ema"][1]
+                        for param_q, param_k in zip(
+                            encoder.parameters(), target_encoder.parameters()
+                        ):
+                            param_k.data.mul_(m).add_((1.0 - m) * param_q.detach().data)
 
     if wandb_enabled:
         to_log = {
@@ -397,11 +439,25 @@ for e in tqdm(range(training_config["num_epochs"])):
             )
             to_log.update(results)
         wandb.log(to_log)
+    if args["checkpoint_every_epoch"] != -1:
+        if e % args["checkpoint_every_epoch"] == 0:
+            if model_path is None:
+                model_path = output_folder / timestamp_dirname(run_id)
+                model_path.mkdir()
+            torch.save(encoder.state_dict(), model_path / ENCODER_FILENAME)
+            torch.save(predictor.state_dict(), model_path / DECODER_FILENAME)
+            torch.save(target_encoder.state_dict(), model_path / TARGET_ENCODER_FILENAME)
 
-model_path = output_folder / timestamp_dirname(run_id)
-model_path.mkdir()
+            config["cur_epoch"] = e
+            with (model_path / CONFIG_FILENAME).open("w") as f:
+                json.dump(config, f)
+
+if model_path is None:
+    model_path = output_folder / timestamp_dirname(run_id)
+    model_path.mkdir()
 torch.save(encoder.state_dict(), model_path / ENCODER_FILENAME)
 torch.save(predictor.state_dict(), model_path / DECODER_FILENAME)
+torch.save(target_encoder.state_dict(), model_path / TARGET_ENCODER_FILENAME)
 with (model_path / CONFIG_FILENAME).open("w") as f:
     json.dump(config, f)
 
