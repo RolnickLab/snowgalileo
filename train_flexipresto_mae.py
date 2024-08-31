@@ -136,7 +136,12 @@ if not restart:
     config["run_name"] = run_name
 
 run = wandb.init(
-    name=run_name, entity=wandb_org, project="flexipresto", dir=wandb_output_dir, id=run_id
+    name=run_name,
+    entity=wandb_org,
+    project="flexipresto",
+    dir=wandb_output_dir,
+    id=run_id,
+    resume="allow",
 )
 run_id = cast(Run, run).id
 config["wandb_run_id"] = run_id
