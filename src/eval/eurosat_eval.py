@@ -1,7 +1,7 @@
 import json
 import urllib.request
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple, cast
+from typing import Dict, List, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
 import rioxarray as xr
@@ -268,7 +268,7 @@ class EuroSatEval(EvalTask):
 
     def __init__(
         self,
-        normalization: str = "std",  # or "scaling"
+        normalization: Union[str, Normalizer] = "std",  # or "scaling"
         rgb: bool = True,
         include_latlons: bool = True,
         patch_size: int = 8,
@@ -280,13 +280,17 @@ class EuroSatEval(EvalTask):
         self.geobench = geobench
         self.include_latlons = include_latlons
         self.do_condition = do_condition
-        assert normalization in ["std", "scaling"]
-        self.normalization = normalization
-
-        if normalization == "scaling":
-            self.normalizer = Normalizer(std=False)
+        if isinstance(normalization, Normalizer):
+            self.normalization = "custom"
+            self.normalizer = normalization
         else:
-            self.normalizer = self.load_eurosat_normalizer()
+            assert normalization in ["std", "scaling"]
+            self.normalization = normalization
+
+            if normalization == "scaling":
+                self.normalizer = Normalizer(std=False)
+            else:
+                self.normalizer = self.load_eurosat_normalizer()
 
         assert not self.geobench or not self.include_latlons, "Geobench does not support latlons"
 

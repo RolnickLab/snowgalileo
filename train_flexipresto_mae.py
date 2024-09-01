@@ -257,7 +257,7 @@ if restart:
 
 print("Loading validation task")
 val_task_no_latlons = EuroSatEval(
-    normalization=training_config["normalization"],
+    normalization=dataset.normalizer,
     geobench=True,
     rgb=False,
     include_latlons=False,
