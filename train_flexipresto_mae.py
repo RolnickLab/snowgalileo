@@ -148,7 +148,10 @@ config["wandb_run_id"] = run_id
 if is_beaker_job():
     beaker_config = maybe_get_beaker_config()
     config.update(vars(beaker_config))
-wandb.config.update(config)
+if not restart:
+    # we can't reset these values without wandb
+    # complaining
+    wandb.config.update(config)
 
 training_config = config["training"]
 
