@@ -23,10 +23,7 @@ from ..data.dataset import (
     STATIC_BANDS,
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
-    normalize_space,
-    normalize_space_time,
-    normalize_static,
-    normalize_time,
+    Normalizer,
     to_cartesian,
 )
 from ..flexipresto import Encoder
@@ -150,11 +147,13 @@ class CropHarvestEvalBase(EvalTask):
         self,
         name: str,
         patch_size: int,
+        normalizer: Normalizer,
         include_latlons: bool = True,
         seed: int = DEFAULT_SEED,
     ):
         self.include_latlons = include_latlons
         self.name = f"{name}{'_latlons' if include_latlons else ''}"
+        self.normalizer = normalizer
         super().__init__(patch_size, seed)
 
         output_channels = [0] * len(MASKING_MODES)
@@ -210,10 +209,10 @@ class CropHarvestEvalBase(EvalTask):
         months = repeat(months, "t -> b t", b=b)
 
         return masked_output_np_to_tensor(
-            normalize_space_time(s_t_x),
-            normalize_space(sp_x),
-            normalize_time(t_x),
-            normalize_static(st_x),
+            self.normalizer(s_t_x),
+            self.normalizer(sp_x),
+            self.normalizer(t_x),
+            self.normalizer(st_x),
             s_t_m,
             sp_m,
             t_m,
@@ -238,6 +237,7 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
     def __init__(
         self,
         country: str,
+        normalizer: Normalizer,
         num_timesteps: Optional[int] = None,
         sample_size: Optional[int] = None,
         seed: int = DEFAULT_SEED,
@@ -248,6 +248,7 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         suffix = f"{suffix}_{num_timesteps}" if num_timesteps is not None else suffix
         super().__init__(
             name=f"CropHarvest_{country}{suffix}",
+            normalizer=normalizer,
             include_latlons=include_latlons,
             patch_size=1,
             seed=seed,
@@ -365,6 +366,7 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
 
     def __init__(
         self,
+        normalizer: Normalizer,
         test_ratio: float = 0.2,
         n_per_class: Optional[int] = 100,
         seed: int = DEFAULT_SEED,
@@ -377,6 +379,7 @@ class MultiClassCropHarvestEval(CropHarvestEvalBase):
             name=f"CropHarvest_multiclass_global{name_suffix}_{seed}",
             patch_size=1,
             seed=seed,
+            normalizer=normalizer,
             include_latlons=include_latlons,
         )
 

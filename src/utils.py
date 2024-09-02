@@ -29,6 +29,10 @@ else:
     torch.cuda.set_device(device)
 
 
+def will_cause_nans(x: torch.Tensor):
+    return torch.isnan(x).any() or torch.isinf(x).any()
+
+
 # From https://gist.github.com/ihoromi4/b681a9088f348942b01711f251e5f964
 def seed_everything(seed: int = DEFAULT_SEED):
     random.seed(seed)
@@ -96,6 +100,7 @@ def check_config(config):
         "target_condition": bool,
         "target_exit_after": int,
         "conditioner_mode": str,
+        "normalization": str,
     }
     training_dict = config["training"]
 
@@ -112,6 +117,7 @@ def check_config(config):
         )
     assert isinstance(training_dict["warmup_epochs"], int)
     assert training_dict["num_epochs"] > training_dict["warmup_epochs"]
+    assert training_dict["normalization"] in ["std", "scaling"]
 
     assert len(training_dict["masking_probabilities"]) == len(
         MASKING_MODES

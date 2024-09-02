@@ -18,6 +18,7 @@ RUN pip install -r requirements.txt
 # Copy the file `main.py` to `/stage/main.py`
 # You might need multiple of these statements to copy all the files you need for your experiment.
 COPY train_flexipresto_mae.py .
+COPY scripts/compute_norm.py .
 
 # Copy the folder `scripts` to `scripts/`
 # You might need multiple of these statements to copy all the folders you need for your experiment.

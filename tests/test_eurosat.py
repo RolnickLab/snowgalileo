@@ -103,11 +103,15 @@ class TestEuroSat(unittest.TestCase):
         self.assertTrue(label in EuroSatDataset.labels_to_int.values())
 
     def test_eurosat_dataset_rgb(self):
-        dataset = EuroSatDataset(rgb=True, split="test", tif_files_dir=DATA_FOLDER)
+        dataset = EuroSatDataset(
+            normalizer=EuroSatEval.load_eurosat_normalizer(),
+            rgb=True,
+            split="test",
+            tif_files_dir=DATA_FOLDER,
+        )
         sample = dataset[0]
         s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, m = sample[0]
         label = sample[1]
-
         self.check_space_time(s_t_x, s_t_m)
         self.check_space(sp_x, sp_m)
         self.check_time(t_x, t_m)
@@ -127,11 +131,15 @@ class TestEuroSat(unittest.TestCase):
         self.assertTrue(torch.all(s_t_m[:, :, :, unpresent_bands] == 1))
 
     def test_eurosat_dataset_msi(self):
-        dataset = EuroSatDataset(rgb=False, split="test", tif_files_dir=DATA_FOLDER)
+        dataset = EuroSatDataset(
+            normalizer=EuroSatEval.load_eurosat_normalizer(),
+            rgb=False,
+            split="test",
+            tif_files_dir=DATA_FOLDER,
+        )
         sample = dataset[0]
         s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, m = sample[0]
         label = sample[1]
-
         self.check_space_time(s_t_x, s_t_m)
         self.check_space(sp_x, sp_m)
         self.check_time(t_x, t_m)
@@ -153,7 +161,7 @@ class TestEuroSat(unittest.TestCase):
         self.assertTrue(torch.all(s_t_m[:, :, :, unpresent_band_groups] == 1))
 
     def test_eurosat_conditions(self):
-        task = EuroSatEval()
+        task = EuroSatEval(normalization="std")
 
         self.assertEqual(len(task.condition["output_channels"]), len(UNMASKING_CHANNEL_GROUPS))
 

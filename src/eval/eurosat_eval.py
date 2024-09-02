@@ -1,7 +1,7 @@
 import json
 import urllib.request
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple, cast
+from typing import Dict, List, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
 import rioxarray as xr
@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as PyTorchDataset
 from tqdm import tqdm
 
+from ..data import Normalizer
 from ..data.dataset import (
     LOCATION_BANDS,
     SPACE_BAND_GROUPS_IDX,
@@ -25,8 +26,6 @@ from ..data.dataset import (
     STATIC_BANDS,
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
-    normalize_space_time,
-    normalize_static,
     to_cartesian,
 )
 from ..data.earthengine.s2 import ALL_S2_BANDS, REMOVED_BANDS
@@ -43,6 +42,20 @@ with (Path(__file__).parents[0] / Path("geobench_configs") / Path("m-eurosat.jso
     "r"
 ) as f:
     config = json.load(f)
+
+
+band_info_names_to_band_names = {
+    "B2": "02 - Blue",
+    "B3": "03 - Green",
+    "B4": "04 - Red",
+    "B5": "05 - Vegetation Red Edge",
+    "B6": "06 - Vegetation Red Edge",
+    "B7": "07 - Vegetation Red Edge",
+    "B8": "08 - NIR",
+    "B8A": "08A - Vegetation Red Edge",
+    "B11": "11 - SWIR",
+    "B12": "12 - SWIR",
+}
 
 
 class EuroSatDataset(PyTorchDataset):
@@ -76,6 +89,7 @@ class EuroSatDataset(PyTorchDataset):
 
     def __init__(
         self,
+        normalizer: Normalizer,
         rgb: bool = True,
         split: str = "train",
         merge_train_val: bool = True,
@@ -88,6 +102,7 @@ class EuroSatDataset(PyTorchDataset):
         self.rgb = rgb
         self.include_latlons = include_latlons
         self.tif_files_dir = tif_files_dir
+        self.normalizer = normalizer
 
         self.images = self.split_images(merge_train_val)[split]
         self.masks = self.create_eurosat_masks()
@@ -216,8 +231,8 @@ class EuroSatDataset(PyTorchDataset):
             static_array[self.kept_static_bands] = cartesian_array
 
         return (
-            normalize_space_time(eo_style_array),
-            normalize_static(static_array),
+            self.normalizer(eo_style_array),
+            self.normalizer(static_array),
             np.array([self.labels_to_int[tif_file.parents[0].name]]),
         )
 
@@ -253,6 +268,7 @@ class EuroSatEval(EvalTask):
 
     def __init__(
         self,
+        normalization: Union[str, Normalizer] = "std",  # or "scaling"
         rgb: bool = True,
         include_latlons: bool = True,
         patch_size: int = 8,
@@ -264,6 +280,17 @@ class EuroSatEval(EvalTask):
         self.geobench = geobench
         self.include_latlons = include_latlons
         self.do_condition = do_condition
+        if isinstance(normalization, Normalizer):
+            self.normalization = "custom"
+            self.normalizer = normalization
+        else:
+            assert normalization in ["std", "scaling"]
+            self.normalization = normalization
+
+            if normalization == "scaling":
+                self.normalizer = Normalizer(std=False)
+            else:
+                self.normalizer = self.load_eurosat_normalizer()
 
         assert not self.geobench or not self.include_latlons, "Geobench does not support latlons"
 
@@ -288,6 +315,24 @@ class EuroSatEval(EvalTask):
             "output_channels": torch.Tensor(output_channels).to(device),
         }
 
+    @staticmethod
+    def load_eurosat_normalizer() -> Normalizer:
+        normalizing_dict = {
+            len(SPACE_TIME_BANDS): {
+                "mean": [0] * len(SPACE_TIME_BANDS),
+                "std": [1] * len(SPACE_TIME_BANDS),
+            }
+        }
+        for our_band, c_band in band_info_names_to_band_names.items():
+            idx = SPACE_TIME_BANDS.index(our_band)
+            normalizing_dict[len(SPACE_TIME_BANDS)]["mean"][idx] = config["band_info"][c_band][
+                "mean"
+            ]
+            normalizing_dict[len(SPACE_TIME_BANDS)]["std"][idx] = config["band_info"][c_band][
+                "std"
+            ]
+        return Normalizer(std=True, normalizing_dicts=normalizing_dict)
+
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         return {
             f"{self.name}: {model_name}_accuracy_score": accuracy_score(target, preds),
@@ -300,7 +345,10 @@ class EuroSatEval(EvalTask):
         if self.geobench:
             test_dl = DataLoader(
                 GeobenchBaseDataset(
-                    dataset_config_file="m-eurosat.json", split="test", rgb=self.rgb
+                    normalizer=self.normalizer,
+                    dataset_config_file="m-eurosat.json",
+                    split="test",
+                    rgb=self.rgb,
                 ),
                 batch_size=Hyperparams.batch_size,
                 shuffle=False,
@@ -308,7 +356,12 @@ class EuroSatEval(EvalTask):
             )
         else:
             test_dl = DataLoader(
-                EuroSatDataset(rgb=self.rgb, include_latlons=self.include_latlons, split="test"),
+                EuroSatDataset(
+                    normalizer=self.normalizer,
+                    rgb=self.rgb,
+                    include_latlons=self.include_latlons,
+                    split="test",
+                ),
                 batch_size=Hyperparams.batch_size,
                 shuffle=False,
                 num_workers=Hyperparams.num_workers,
@@ -383,7 +436,10 @@ class EuroSatEval(EvalTask):
         if self.geobench:
             train_dl = DataLoader(
                 GeobenchBaseDataset(
-                    dataset_config_file="m-eurosat.json", split="train", rgb=self.rgb
+                    normalizer=self.normalizer,
+                    dataset_config_file="m-eurosat.json",
+                    split="train",
+                    rgb=self.rgb,
                 ),
                 batch_size=Hyperparams.batch_size,
                 shuffle=False,
@@ -392,6 +448,7 @@ class EuroSatEval(EvalTask):
         else:
             train_dl = DataLoader(
                 EuroSatDataset(
+                    normalizer=self.normalizer,
                     rgb=self.rgb,
                     include_latlons=self.include_latlons,
                     split="train",
