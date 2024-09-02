@@ -486,7 +486,7 @@ eval_tasks: List[EvalTask] = [
     ],
     *[
         EuroSatEval(
-            normalization=training_config["normalization"],
+            normalization=dataset.normalizer,
             rgb=rgb,
             include_latlons=False,
             geobench=True,
@@ -496,7 +496,7 @@ eval_tasks: List[EvalTask] = [
     ],
     *[
         EuroSatEval(
-            normalization=training_config["normalization"],
+            normalization=dataset.normalizer,
             rgb=rgb,
             include_latlons=include_latlons,
             geobench=False,
