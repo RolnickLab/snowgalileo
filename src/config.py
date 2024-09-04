@@ -65,7 +65,7 @@ def get_random_config(model_size: str = "tiny"):
     config["training"]["max_lr"] = random.choice([5e-4, 8e-4, 1e-3])
 
     ### OPTIMIZATION ###
-    config["training"]["num_epochs"] = 200
+    config["training"]["num_epochs"] = 300
     config["training"]["batch_size"] = 16
     config["training"]["effective_batch_size"] = 512
     config["training"]["warmup_epochs"] = 0.1
