@@ -56,28 +56,21 @@ def get_random_config(model_size: str = "tiny"):
     config["model"]["decoder"]["mlp_ratio"] = 4
     config["model"]["decoder"]["max_sequence_length"] = 24
     config["model"]["decoder"]["learnable_channel_embeddings"] = random.choice([True, False])
-    config["training"]["conditioner_mode"] = random.choice(["moe", "lora"])
 
-    if config["training"]["conditioner_mode"] == "lora":
-        config["model"]["lora_generator"] = {}
-        config["model"]["lora_generator"]["dim"] = random.choice([128, 256])
-        config["model"]["lora_generator"]["rank"] = random.choice([12, 32, 64])
-        config["model"]["lora_generator"]["do_input_condition"] = random.choice([True, False])
-        config["training"]["max_lr"] = random.choice([5e-4, 8e-4, 1e-3])
-    else:
-        config["training"]["max_lr"] = random.choice([1e-3, 2e-3, 3e-3])
+    config["training"]["conditioner_mode"] = "lora"
+    config["model"]["lora_generator"] = {}
+    config["model"]["lora_generator"]["dim"] = random.choice([128, 256])
+    config["model"]["lora_generator"]["rank"] = random.choice([12, 32, 64])
+    config["model"]["lora_generator"]["do_input_condition"] = random.choice([True, False])
+    config["training"]["max_lr"] = random.choice([5e-4, 8e-4, 1e-3])
 
     ### OPTIMIZATION ###
-    config["training"]["num_epochs"] = 200
+    config["training"]["num_epochs"] = 300
     config["training"]["batch_size"] = 16
     config["training"]["effective_batch_size"] = 512
     config["training"]["warmup_epochs"] = 0.1
     config["training"]["final_lr"] = 1e-6
-
-    if config["training"]["conditioner_mode"] == "lora":
-        config["training"]["conditioner_multiplier"] = random.choice([0.1, 0.05])
-    else:
-        config["training"]["conditioner_multiplier"] = random.choice([1.0, 0.1])
+    config["training"]["conditioner_multiplier"] = random.choice([0.1, 0.05])
 
     config["training"]["weight_decay"] = random.choice([0.01, 0.02, 0.05])
     config["training"]["conditioner_weight_decay"] = random.choice([0.01, 0.02, 0.05])
@@ -153,10 +146,5 @@ def get_random_config(model_size: str = "tiny"):
     ### LOGGING ###
     config["training"]["eval_eurosat_every_n_epochs"] = 10
 
-    ### GENERATE EXPERIMENT NAME ###
-    if config["training"]["loss_type"] == "mse":
-        loss_name = "mse"
-
     run_name = f"{model_size}_{config['training']['conditioner_mode']}_DecEmb:{config['model']['decoder']['learnable_channel_embeddings']}_Loss:{loss_name}_LRs:{config['training']['max_lr']}:{config['training']['conditioner_multiplier']}_WDs:{config['training']['weight_decay']}:{config['training']['conditioner_weight_decay']}"
-
     return config, run_name

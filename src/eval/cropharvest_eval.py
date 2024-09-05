@@ -27,7 +27,7 @@ from ..data.dataset import (
     to_cartesian,
 )
 from ..flexipresto import Encoder
-from ..masking import MASKING_MODES, MaskedOutput
+from ..masking import MASKING_MODES, UNMASKING_CHANNEL_GROUPS, MaskedOutput
 from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
 from .cropharvest.bands import BANDS
 from .cropharvest.columns import NullableColumns, RequiredColumns
@@ -160,7 +160,27 @@ class CropHarvestEvalBase(EvalTask):
         for i, val in enumerate(MASKING_MODES):
             if val[1] == "WC":  # should this be static or space?
                 output_channels[i] = 1
-        self.condition = {"output_channels": torch.Tensor(output_channels).to(device)}
+        input_channels = [0] * len(UNMASKING_CHANNEL_GROUPS)
+        for i, val in enumerate(UNMASKING_CHANNEL_GROUPS):
+            if val[1] in [
+                "S1",
+                "S2_RGB",
+                "S2_SWIR",
+                "S2_Red_Edge",
+                "S2_NIR_10m",
+                "S2_NIR_20m",
+                "ERA5",
+                "SRTM",
+            ]:
+                input_channels[i] = 1
+
+        self.condition = {
+            "hw": 1 // patch_size,
+            "patch_size": patch_size,
+            "timesteps": 12,
+            "input_channels": torch.Tensor(input_channels).to(device),
+            "output_channels": torch.Tensor(output_channels).to(device),
+        }
 
     @staticmethod
     def truncate_timesteps(x, num_timesteps: Optional[int]):
@@ -343,7 +363,7 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         results_dict = {}
         for sklearn_model in trained_sklearn_models:
             results_dict.update(self._evaluate_model(pretrained_model, sklearn_model, None))
-        if self.do_condition:
+        if not self.do_condition:
             return results_dict
 
         conditioned_sklearn_models = self.train_sklearn_model(
