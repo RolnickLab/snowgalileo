@@ -30,7 +30,7 @@ def get_random_config(model_size: str = "tiny"):
     config["model"]["encoder"]["mlp_ratio"] = 4
     config["model"]["encoder"]["max_sequence_length"] = 24
     config["model"]["encoder"]["freeze_projections"] = False
-    config["model"]["encoder"]["drop_path"] = random.choice([0, 0.1])
+    config["model"]["encoder"]["drop_path"] = random.choice([0.0, 0.1])
     config["model"]["decoder"] = {}
 
     if config["model"]["encoder"]["embedding_size"] == 128:
