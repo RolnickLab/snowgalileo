@@ -36,7 +36,8 @@
             "mlp_ratio": 4,
             "num_heads": 8,
             "max_sequence_length": 24,
-            "freeze_projections": false
+            "freeze_projections": false,
+            "drop_path": 0.1
         },
         "decoder": {
             "embedding_size": 256,

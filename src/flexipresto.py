@@ -317,6 +317,28 @@ class LayerScale(nn.Module):
         return x.mul_(self.gamma) if self.inplace else x * self.gamma
 
 
+def drop_path(x, drop_prob: float = 0.0, training: bool = False):
+    if drop_prob == 0.0 or not training:
+        return x
+    keep_prob = 1 - drop_prob
+    shape = (x.shape[0],) + (1,) * (x.ndim - 1)  # work with diff dim tensors, not just 2D ConvNets
+    random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
+    random_tensor.floor_()  # binarize
+    output = x.div(keep_prob) * random_tensor
+    return output
+
+
+class DropPath(nn.Module):
+    """Drop paths (Stochastic Depth) per sample  (when applied in main path of residual blocks)."""
+
+    def __init__(self, drop_prob=None):
+        super(DropPath, self).__init__()
+        self.drop_prob = drop_prob
+
+    def forward(self, x):
+        return drop_path(x, self.drop_prob, self.training)
+
+
 class Block(nn.Module):
     def __init__(
         self,
@@ -327,6 +349,7 @@ class Block(nn.Module):
         qk_norm=False,
         drop=0.0,
         attn_drop=0.0,
+        drop_path=0.0,
         init_values=None,
         act_layer=nn.GELU,
         norm_layer=nn.LayerNorm,
@@ -345,6 +368,7 @@ class Block(nn.Module):
             cross_attn=cross_attn,
         )
         self.ls1 = LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
+        self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
 
         self.norm2 = norm_layer(dim)
         self.mlp = Mlp(
@@ -356,8 +380,8 @@ class Block(nn.Module):
         self.ls2 = LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
 
     def forward(self, x, y, attn_mask):
-        x = x + self.ls1(self.attn(self.norm1(x), y, attn_mask))
-        x = x + self.ls2(self.mlp(self.norm2(x)))
+        x = x + self.drop_path(self.ls1(self.attn(self.norm1(x), y, attn_mask)))
+        x = x + self.drop_path(self.ls2(self.mlp(self.norm2(x))))
         return x
 
 
@@ -382,6 +406,7 @@ class FlexiPrestoBase(nn.Module):
         max_sequence_length=24,
         base_patch_size: int = 4,
         use_channel_embs: bool = True,
+        drop_path: float = 0.0,
     ):
         super().__init__()
 
@@ -401,6 +426,7 @@ class FlexiPrestoBase(nn.Module):
                     qkv_bias=True,
                     norm_layer=nn.LayerNorm,
                     cross_attn=self.cross_attn,
+                    drop_path=drop_path,
                 )
                 for _ in range(depth)
             ]
@@ -571,6 +597,7 @@ class Encoder(FlexiPrestoBase):
         max_sequence_length=24,
         freeze_projections: bool = False,
         conditioner=None,
+        drop_path: float = 0.0,
     ):
         super().__init__(
             embedding_size,
@@ -580,6 +607,7 @@ class Encoder(FlexiPrestoBase):
             max_sequence_length,
             max_patch_size,
             use_channel_embs=True,
+            drop_path=drop_path,
         )
 
         self.space_time_embed = nn.ModuleDict(
@@ -1018,6 +1046,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             max_sequence_length,
             max_patch_size,
             use_channel_embs=learnable_channel_embeddings,
+            drop_path=0.0,
         )
         self.learnable_channel_embeddings = learnable_channel_embeddings
         self.encoder_embedding_size = encoder_embedding_size

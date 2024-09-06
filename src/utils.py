@@ -136,7 +136,7 @@ def check_config(config):
         "max_sequence_length": int,
     }
 
-    expected_encoder_only_keys_type = {"freeze_projections": bool}
+    expected_encoder_only_keys_type = {"freeze_projections": bool, "drop_path": float}
     expected_decoder_only_keys_type = {"learnable_channel_embeddings": bool}
 
     model_dict = config["model"]
