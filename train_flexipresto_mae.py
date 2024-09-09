@@ -288,6 +288,7 @@ momentum_scheduler = (
     for i in range(int(steps_per_epoch * training_config["num_epochs"]) + 1)
 )
 target_encoder = copy.deepcopy(encoder)
+target_encoder.eval()
 if restart:
     assert model_path is not None
     target_encoder.load_state_dict(
