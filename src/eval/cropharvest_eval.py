@@ -158,7 +158,7 @@ class CropHarvestEvalBase(EvalTask):
 
         output_channels = [0] * len(MASKING_MODES)
         for i, val in enumerate(MASKING_MODES):
-            if val[1] == "WC":  # should this be static or space?
+            if val[1] == "WC_static":  # should this be static or space?
                 output_channels[i] = 1
         input_channels = [0] * len(UNMASKING_CHANNEL_GROUPS)
         for i, val in enumerate(UNMASKING_CHANNEL_GROUPS):
