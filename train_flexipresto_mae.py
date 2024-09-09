@@ -263,6 +263,9 @@ val_task_no_latlons = EuroSatEval(
     include_latlons=False,
     do_condition=eval_w_condition,
 )
+val_task_ts = BinaryCropHarvestEval(
+    normalizer=dataset.normalizer, country="Togo", do_condition=True
+)
 
 optimizer = torch.optim.AdamW(
     param_groups,
@@ -441,10 +444,16 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
         if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
             e % training_config["eval_eurosat_every_n_epochs"] == 0
         ):
-            results = val_task_no_latlons.evaluate_model_on_task(
-                encoder, model_modes=["KNNat5 Classifier", "KNNat20 Classifier"]
+            to_log.update(
+                val_task_no_latlons.evaluate_model_on_task(
+                    encoder, model_modes=["KNNat5 Classifier", "KNNat20 Classifier"]
+                )
             )
-            to_log.update(results)
+            to_log.update(
+                val_task_ts.evaluate_model_on_task(
+                    encoder, model_modes=["KNNat5 Classifier", "Logistic Regression"]
+                )
+            )
         wandb.log(to_log, step=e)
     if args["checkpoint_every_epoch"] > 0:
         if e % args["checkpoint_every_epoch"] == 0:
