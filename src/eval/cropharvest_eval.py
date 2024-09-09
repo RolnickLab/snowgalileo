@@ -372,7 +372,7 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         conditioned_results_dict = {}
         for sklearn_model in conditioned_sklearn_models:
             conditioned_results_dict.update(
-                self._evaluate_model(pretrained_model, sklearn_model, None)
+                self._evaluate_model(pretrained_model, sklearn_model, self.condition)
             )
         conditioned_results_dict = {
             f"{key}_c": value for key, value in conditioned_results_dict.items()
