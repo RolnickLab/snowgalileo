@@ -1,11 +1,11 @@
 import random
-from typing import Dict
+from typing import Dict, Optional
 
 BASE_GSD = 10
 DEFAULT_SEED = 42
 
 
-def get_random_config(model_size: str = "tiny"):
+def get_random_config(model_size: str = "tiny", conditioner_mode: Optional[str] = None):
     config: Dict[str, Dict] = {"training": {}, "model": {}}
 
     ### MODELS ###
@@ -58,12 +58,19 @@ def get_random_config(model_size: str = "tiny"):
     config["model"]["decoder"]["max_sequence_length"] = 24
     config["model"]["decoder"]["learnable_channel_embeddings"] = random.choice([True, False])
 
-    config["training"]["conditioner_mode"] = "lora"
-    config["model"]["lora_generator"] = {}
-    config["model"]["lora_generator"]["dim"] = random.choice([128, 256])
-    config["model"]["lora_generator"]["rank"] = random.choice([12, 32, 64])
-    config["model"]["lora_generator"]["do_input_condition"] = False
-    config["training"]["max_lr"] = random.choice([5e-4, 8e-4, 1e-3])
+    if conditioner_mode is not None:
+        assert conditioner_mode in ["moe", "lora"], f"Expected moe or lora, got {conditioner_mode}"
+        config["training"]["conditioner_mode"] = conditioner_mode
+    else:
+        config["training"]["conditioner_mode"] = random.choice(["moe", "lora"])
+    if config["training"]["conditioner_mode"] == "lora":
+        config["model"]["lora_generator"] = {}
+        config["model"]["lora_generator"]["dim"] = random.choice([128, 256])
+        config["model"]["lora_generator"]["rank"] = random.choice([12, 32, 64])
+        config["model"]["lora_generator"]["do_input_condition"] = random.choice([True, False])
+        config["training"]["max_lr"] = random.choice([5e-4, 8e-4, 1e-3])
+    else:
+        config["training"]["max_lr"] = random.choice([1e-3, 2e-3, 3e-3])
 
     ### OPTIMIZATION ###
     config["training"]["num_epochs"] = 300
