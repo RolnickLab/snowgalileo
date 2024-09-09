@@ -71,6 +71,7 @@ tracker.start()
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--config_file", type=str, default="small.json")
+argparser.add_argument("--conditioner_mode", type=str, default="")
 argparser.add_argument("--h5py_folder", type=str, default="")
 argparser.add_argument("--output_folder", type=str, default="")
 argparser.add_argument("--download", dest="download", action="store_true")
@@ -121,14 +122,18 @@ if is_beaker_job():
         run_id = config["wandb_run_id"]
 
 if not restart:
+    if len(args["conditioner_mode"]) == 0:
+        conditioner_mode: Optional[str] = None
+    else:
+        conditioner_mode = args["conditioner_mode"]
     if args["config_file"] == "random_tiny":
-        config, run_name = get_random_config("tiny")
+        config, run_name = get_random_config("tiny", conditioner_mode)
         config = check_config(config)
     elif args["config_file"] == "random_vitb-tiny":
-        config, run_name = get_random_config("vitb-tiny")
+        config, run_name = get_random_config("vitb-tiny", conditioner_mode)
         config = check_config(config)
     elif args["config_file"] == "random_base":
-        config, run_name = get_random_config("base")
+        config, run_name = get_random_config("base", conditioner_mode)
         config = check_config(config)
     else:
         config = load_check_config(args["config_file"])
