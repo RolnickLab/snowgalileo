@@ -62,7 +62,7 @@ def get_random_config(model_size: str = "tiny"):
     config["model"]["lora_generator"] = {}
     config["model"]["lora_generator"]["dim"] = random.choice([128, 256])
     config["model"]["lora_generator"]["rank"] = random.choice([12, 32, 64])
-    config["model"]["lora_generator"]["do_input_condition"] = random.choice([True, False])
+    config["model"]["lora_generator"]["do_input_condition"] = False
     config["training"]["max_lr"] = random.choice([5e-4, 8e-4, 1e-3])
 
     ### OPTIMIZATION ###
@@ -127,8 +127,8 @@ def get_random_config(model_size: str = "tiny"):
         0.8,
     ]
     config["training"]["augmentation"] = {"flip+rotate": True}
-    config["training"]["encode_ratio"] = random.choice([0.1, 0.2])
-    config["training"]["decode_ratio"] = random.choice([0.5, 0.7, 0.8])
+    config["training"]["encode_ratio"] = 0.1
+    config["training"]["decode_ratio"] = 0.8
     config["training"]["target_exit_after"] = random.choice(
         range(config["model"]["encoder"]["depth"] + 1)
     )
