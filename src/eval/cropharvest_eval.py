@@ -158,7 +158,7 @@ class CropHarvestEvalBase(EvalTask):
 
         output_channels = [0] * len(MASKING_MODES)
         for i, val in enumerate(MASKING_MODES):
-            if val[1] == "WC":  # should this be static or space?
+            if val[1] == "WC_static":  # should this be static or space?
                 output_channels[i] = 1
         input_channels = [0] * len(UNMASKING_CHANNEL_GROUPS)
         for i, val in enumerate(UNMASKING_CHANNEL_GROUPS):
@@ -372,7 +372,7 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         conditioned_results_dict = {}
         for sklearn_model in conditioned_sklearn_models:
             conditioned_results_dict.update(
-                self._evaluate_model(pretrained_model, sklearn_model, None)
+                self._evaluate_model(pretrained_model, sklearn_model, self.condition)
             )
         conditioned_results_dict = {
             f"{key}_c": value for key, value in conditioned_results_dict.items()

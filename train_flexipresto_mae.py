@@ -71,6 +71,7 @@ tracker.start()
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--config_file", type=str, default="small.json")
+argparser.add_argument("--conditioner_mode", type=str, default="")
 argparser.add_argument("--h5py_folder", type=str, default="")
 argparser.add_argument("--output_folder", type=str, default="")
 argparser.add_argument("--download", dest="download", action="store_true")
@@ -121,14 +122,18 @@ if is_beaker_job():
         run_id = config["wandb_run_id"]
 
 if not restart:
+    if len(args["conditioner_mode"]) == 0:
+        conditioner_mode: Optional[str] = None
+    else:
+        conditioner_mode = args["conditioner_mode"]
     if args["config_file"] == "random_tiny":
-        config, run_name = get_random_config("tiny")
+        config, run_name = get_random_config("tiny", conditioner_mode)
         config = check_config(config)
     elif args["config_file"] == "random_vitb-tiny":
-        config, run_name = get_random_config("vitb-tiny")
+        config, run_name = get_random_config("vitb-tiny", conditioner_mode)
         config = check_config(config)
     elif args["config_file"] == "random_base":
-        config, run_name = get_random_config("base")
+        config, run_name = get_random_config("base", conditioner_mode)
         config = check_config(config)
     else:
         config = load_check_config(args["config_file"])
@@ -263,6 +268,9 @@ val_task_no_latlons = EuroSatEval(
     include_latlons=False,
     do_condition=eval_w_condition,
 )
+val_task_ts = BinaryCropHarvestEval(
+    normalizer=dataset.normalizer, country="Togo", do_condition=True
+)
 
 optimizer = torch.optim.AdamW(
     param_groups,
@@ -288,6 +296,7 @@ momentum_scheduler = (
     for i in range(int(steps_per_epoch * training_config["num_epochs"]) + 1)
 )
 target_encoder = copy.deepcopy(encoder)
+target_encoder.eval()
 if restart:
     assert model_path is not None
     target_encoder.load_state_dict(
@@ -440,10 +449,16 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
         if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
             e % training_config["eval_eurosat_every_n_epochs"] == 0
         ):
-            results = val_task_no_latlons.evaluate_model_on_task(
-                encoder, model_modes=["KNNat5 Classifier", "KNNat20 Classifier"]
+            to_log.update(
+                val_task_no_latlons.evaluate_model_on_task(
+                    encoder, model_modes=["KNNat5 Classifier", "KNNat20 Classifier"]
+                )
             )
-            to_log.update(results)
+            to_log.update(
+                val_task_ts.evaluate_model_on_task(
+                    encoder, model_modes=["KNNat5 Classifier", "Logistic Regression"]
+                )
+            )
         wandb.log(to_log, step=e)
     if args["checkpoint_every_epoch"] > 0:
         if e % args["checkpoint_every_epoch"] == 0:

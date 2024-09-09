@@ -695,7 +695,8 @@ class Dataset(PyTorchDataset):
             # if they don't exist
             _ = self[i]
 
-    def load_normalization_values(self, path: Path):
+    @staticmethod
+    def load_normalization_values(path: Path):
         if not path.exists():
             raise ValueError(f"No file found at path {path}")
         with path.open("r") as f:
