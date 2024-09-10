@@ -138,7 +138,7 @@ def get_random_config(model_size: str = "tiny", conditioner_mode: Optional[str] 
     config["training"]["target_exit_after"] = random.choice(
         range(config["model"]["encoder"]["depth"] + 1)
     )
-    config["training"]["target_condition"] = random.choice([True, False])
+    config["training"]["target_condition"] = False
 
     ### LOSS ###
     config["training"]["loss_type"] = "patch_disc"
