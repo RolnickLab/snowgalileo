@@ -33,17 +33,15 @@ def get_random_config(model_size: str = "tiny", conditioner_mode: Optional[str] 
     config["model"]["encoder"]["drop_path"] = random.choice([0.0, 0.1])
     config["model"]["decoder"] = {}
 
+    config["model"]["decoder"]["depth"] = 1
     if config["model"]["encoder"]["embedding_size"] == 128:
         config["model"]["decoder"]["embedding_size"] = 128
-        config["model"]["decoder"]["depth"] = random.choice([1, 2, 3])
         config["training"]["patch_sizes"] = [1, 2, 3, 4, 5, 6, 7, 8]
     elif config["model"]["encoder"]["embedding_size"] == 192:
         config["model"]["decoder"]["embedding_size"] = random.choice([128, 192])
-        config["model"]["decoder"]["depth"] = random.choice([1, 2, 3, 4])
         config["training"]["patch_sizes"] = [1, 2, 3, 4, 5, 6, 7, 8]
     elif config["model"]["encoder"]["embedding_size"] == 768:
         config["model"]["decoder"]["embedding_size"] = random.choice([128, 256, 512])
-        config["model"]["decoder"]["depth"] = random.choice([1, 2, 3, 4])
         config["training"]["patch_sizes"] = [6, 8, 10, 12, 14, 16]
     else:
         raise ValueError(
@@ -67,7 +65,7 @@ def get_random_config(model_size: str = "tiny", conditioner_mode: Optional[str] 
         config["model"]["lora_generator"] = {}
         config["model"]["lora_generator"]["dim"] = random.choice([128, 256])
         config["model"]["lora_generator"]["rank"] = random.choice([12, 32, 64])
-        config["model"]["lora_generator"]["do_input_condition"] = random.choice([True, False])
+        config["model"]["lora_generator"]["do_input_condition"] = False
         config["training"]["max_lr"] = random.choice([5e-4, 8e-4, 1e-3])
     else:
         config["training"]["max_lr"] = random.choice([1e-3, 2e-3, 3e-3])
@@ -80,8 +78,9 @@ def get_random_config(model_size: str = "tiny", conditioner_mode: Optional[str] 
     config["training"]["final_lr"] = 1e-6
     config["training"]["conditioner_multiplier"] = random.choice([0.1, 0.05])
 
-    config["training"]["weight_decay"] = random.choice([0.01, 0.02, 0.05])
-    config["training"]["conditioner_weight_decay"] = random.choice([0.01, 0.02, 0.05])
+    weight_decay = random.choice([0.01, 0.02, 0.05])
+    config["training"]["weight_decay"] = weight_decay
+    config["training"]["conditioner_weight_decay"] = weight_decay
     config["training"]["grad_clip"] = True
     config["training"]["betas"] = [0.9, 0.999]
     config["training"]["ema"] = [0.996, 1.0]
