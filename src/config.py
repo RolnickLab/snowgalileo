@@ -1,11 +1,15 @@
 import random
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Union
 
 BASE_GSD = 10
 DEFAULT_SEED = 42
 
 
-def get_random_config(model_size: str = "tiny", conditioner_mode: Optional[str] = None):
+def get_random_config(
+    model_size: str = "tiny",
+    conditioner_mode: Optional[str] = None,
+    force_variable_exit_depth: bool = True,
+):
     config: Dict[str, Dict] = {"training": {}, "model": {}}
 
     ### MODELS ###
@@ -135,9 +139,24 @@ def get_random_config(model_size: str = "tiny", conditioner_mode: Optional[str] 
     config["training"]["augmentation"] = {"flip+rotate": True}
     config["training"]["encode_ratio"] = 0.1
     config["training"]["decode_ratio"] = 0.8
-    config["training"]["target_exit_after"] = random.choice(
-        range(config["model"]["encoder"]["depth"] + 1)
-    )
+    if force_variable_exit_depth:
+        assert config["training"]["conditioner_mode"] == "lora"
+        config["training"]["target_exit_after"] = "variable"
+    else:
+        if config["training"]["conditioner_mode"] == "moe":
+            possible_exit_depths: List[Union[str, int]] = list(
+                range(config["model"]["encoder"]["depth"] + 1)
+            )
+        else:
+            possible_exit_depths = list(range(config["model"]["encoder"]["depth"] + 1)) + [
+                "variable"
+            ]
+        config["training"]["target_exit_after"] = possible_exit_depths
+
+    if config["training"]["conditioner_mode"] == "lora":
+        variable_exit_depth = config["training"]["target_exit_after"] == "variable"
+        config["model"]["lora_generator"]["variable_exit_depth"] = variable_exit_depth
+
     config["training"]["target_condition"] = False
 
     ### LOSS ###
