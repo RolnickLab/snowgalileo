@@ -8,7 +8,7 @@ DEFAULT_SEED = 42
 def get_random_config(
     model_size: str = "tiny",
     conditioner_mode: Optional[str] = None,
-    force_variable_exit_depth: bool = True,
+    force_variable_exit_depth: bool = False,
 ):
     config: Dict[str, Dict] = {"training": {}, "model": {}}
 
