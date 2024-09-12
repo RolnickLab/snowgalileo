@@ -34,10 +34,10 @@ def get_random_config(
     config["model"]["encoder"]["mlp_ratio"] = 4
     config["model"]["encoder"]["max_sequence_length"] = 24
     config["model"]["encoder"]["freeze_projections"] = False
-    config["model"]["encoder"]["drop_path"] = random.choice([0.0, 0.1])
+    config["model"]["encoder"]["drop_path"] = 0.1
     config["model"]["decoder"] = {}
 
-    config["model"]["decoder"]["depth"] = 1
+    config["model"]["decoder"]["depth"] = random.choice([1, 2, 3, 4])
     if config["model"]["encoder"]["embedding_size"] == 128:
         config["model"]["decoder"]["embedding_size"] = 128
         config["training"]["patch_sizes"] = [1, 2, 3, 4, 5, 6, 7, 8]
@@ -162,8 +162,8 @@ def get_random_config(
     ### LOSS ###
     config["training"]["loss_type"] = "patch_disc"
     loss_name = "PD"  # for the run_name
-    config["training"]["tau"] = random.choice([0.1, 0.2])
-    config["training"]["pred2unit"] = random.choice([True, False])
+    config["training"]["tau"] = 0.1
+    config["training"]["pred2unit"] = False
     config["training"]["loss_mask_other_samples"] = False
 
     # norm

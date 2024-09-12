@@ -316,7 +316,7 @@ class LoRAGenerator(nn.Module):
             condition = torch.cat(
                 [
                     condition,
-                    torch.tensor(exit_depth, device=condition.device, dtype=condition.dtype),
+                    torch.tensor([exit_depth], device=condition.device, dtype=condition.dtype),
                 ]
             )
 

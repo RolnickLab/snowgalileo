@@ -361,7 +361,8 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                 raise ValueError("c_i should not be None")
 
             if config["training"]["target_exit_after"] == "variable":
-                exit_depth = random.choice(range(config["model"]["encoder"]["depth"] + 1))
+                encoder_depth = config["model"]["encoder"]["depth"]
+                exit_depth = random.choice([0, encoder_depth // 2, encoder_depth])
                 c_i["target_exit_after"] = exit_depth
             else:
                 exit_depth = config["training"]["target_exit_after"]
