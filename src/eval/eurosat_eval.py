@@ -313,6 +313,7 @@ class EuroSatEval(EvalTask):
             "timesteps": 1,  # WE CURRENTLY ARE NOT TRAINING WITH THIS, PROBABLY HURTS PERF
             "input_channels": torch.Tensor(input_channels).to(device),
             "output_channels": torch.Tensor(output_channels).to(device),
+            "target_exit_after": 0,
         }
 
     @staticmethod
