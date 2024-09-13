@@ -151,7 +151,7 @@ def get_random_config(
             possible_exit_depths = list(range(config["model"]["encoder"]["depth"] + 1)) + [
                 "variable"
             ]
-        config["training"]["target_exit_after"] = possible_exit_depths
+        config["training"]["target_exit_after"] = random.choice(possible_exit_depths)
 
     if config["training"]["conditioner_mode"] == "lora":
         variable_exit_depth = config["training"]["target_exit_after"] == "variable"
