@@ -50,8 +50,8 @@ def update_output_channels(
 
 
 if __name__ == "__main__":
-    model_path = "data/outputs/vitb_tiny_20240910"
-    savefile_path = "cropharvest_sweep.csv"
+    model_path = "data/outputs/2j8f4v32"
+    savefile_path = "2j8f4v32_cropharvest_sweep.csv"
     model = Encoder.load_from_folder(Path(model_path))
     encoder_depth = len(model.blocks)
     normalizing_dict = Dataset.load_normalization_values(
