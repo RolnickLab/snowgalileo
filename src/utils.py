@@ -98,7 +98,7 @@ def check_config(config):
         "unmasking_probabilities": list,
         "grad_clip": bool,
         "target_condition": bool,
-        "target_exit_after": int,
+        "target_exit_after": (int, str),
         "conditioner_mode": str,
         "normalization": str,
     }

@@ -89,3 +89,16 @@ class TestConfigs(unittest.TestCase):
             divs = val["div"]
             for d in divs:
                 self.assertNotEqual(d, 0, f"0 in {key}")
+
+    def test_random_configs_tiny_with_exit_depth(self):
+        for _ in range(3):
+            config, _ = get_random_config(
+                model_size="tiny", conditioner_mode="lora", force_variable_exit_depth=True
+            )
+            loaded_config = check_config(config)
+
+            # check we can load the models
+            if loaded_config["training"]["conditioner_mode"] == "lora":
+                self.assertTrue(loaded_config["model"]["conditioner"]["variable_exit_depth"])
+                encoder_conditioner = LoRAGenerator(**loaded_config["model"]["conditioner"])
+                _ = Encoder(**loaded_config["model"]["encoder"], conditioner=encoder_conditioner)

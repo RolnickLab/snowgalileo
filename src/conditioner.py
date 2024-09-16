@@ -178,6 +178,7 @@ class LoRAGenerator(nn.Module):
         do_input_condition: bool,
         rank: int,
         num_output_channels: int,
+        variable_exit_depth: bool = False,
         param_types: List[str] = ["q", "k", "v"],
     ):
         super().__init__()
@@ -204,11 +205,14 @@ class LoRAGenerator(nn.Module):
 
         else:
             condition_length = self.num_channels
+        if variable_exit_depth:
+            condition_length += 1
 
         self.condition_proj = nn.Linear(condition_length, dim)
         self.embedding = nn.Embedding(self.sequence_length, dim)
         self.blocks_before = nn.Sequential(*[MLPBlock(dim=dim) for _ in range(2)])
         self.blocks_during = nn.Sequential(*[MLPBlock(dim=dim) for _ in range(backbone_depth)])
+        self.variable_exit_depth = variable_exit_depth
 
         # Create output projections
         self.output_projections = nn.ModuleDict()
@@ -307,6 +311,14 @@ class LoRAGenerator(nn.Module):
             )
         else:
             condition = c_i["output_channels"]
+        if self.variable_exit_depth:
+            exit_depth = c_i["target_exit_after"]
+            condition = torch.cat(
+                [
+                    condition,
+                    torch.tensor([exit_depth], device=condition.device, dtype=condition.dtype),
+                ]
+            )
 
         condition = rearrange(condition, "c -> 1 1 c")  # (1, 1, N)
         condition = self.condition_proj(condition)  # (1, 1, dim)

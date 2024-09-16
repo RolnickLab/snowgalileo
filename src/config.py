@@ -1,11 +1,15 @@
 import random
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Union
 
 BASE_GSD = 10
 DEFAULT_SEED = 42
 
 
-def get_random_config(model_size: str = "tiny", conditioner_mode: Optional[str] = None):
+def get_random_config(
+    model_size: str = "tiny",
+    conditioner_mode: Optional[str] = None,
+    force_variable_exit_depth: bool = False,
+):
     config: Dict[str, Dict] = {"training": {}, "model": {}}
 
     ### MODELS ###
@@ -30,20 +34,18 @@ def get_random_config(model_size: str = "tiny", conditioner_mode: Optional[str] 
     config["model"]["encoder"]["mlp_ratio"] = 4
     config["model"]["encoder"]["max_sequence_length"] = 24
     config["model"]["encoder"]["freeze_projections"] = False
-    config["model"]["encoder"]["drop_path"] = random.choice([0.0, 0.1])
+    config["model"]["encoder"]["drop_path"] = 0.1
     config["model"]["decoder"] = {}
 
+    config["model"]["decoder"]["depth"] = random.choice([1, 2, 3, 4])
     if config["model"]["encoder"]["embedding_size"] == 128:
         config["model"]["decoder"]["embedding_size"] = 128
-        config["model"]["decoder"]["depth"] = random.choice([1, 2, 3])
         config["training"]["patch_sizes"] = [1, 2, 3, 4, 5, 6, 7, 8]
     elif config["model"]["encoder"]["embedding_size"] == 192:
         config["model"]["decoder"]["embedding_size"] = random.choice([128, 192])
-        config["model"]["decoder"]["depth"] = random.choice([1, 2, 3, 4])
         config["training"]["patch_sizes"] = [1, 2, 3, 4, 5, 6, 7, 8]
     elif config["model"]["encoder"]["embedding_size"] == 768:
         config["model"]["decoder"]["embedding_size"] = random.choice([128, 256, 512])
-        config["model"]["decoder"]["depth"] = random.choice([1, 2, 3, 4])
         config["training"]["patch_sizes"] = [6, 8, 10, 12, 14, 16]
     else:
         raise ValueError(
@@ -67,7 +69,7 @@ def get_random_config(model_size: str = "tiny", conditioner_mode: Optional[str] 
         config["model"]["lora_generator"] = {}
         config["model"]["lora_generator"]["dim"] = random.choice([128, 256])
         config["model"]["lora_generator"]["rank"] = random.choice([12, 32, 64])
-        config["model"]["lora_generator"]["do_input_condition"] = random.choice([True, False])
+        config["model"]["lora_generator"]["do_input_condition"] = False
         config["training"]["max_lr"] = random.choice([5e-4, 8e-4, 1e-3])
     else:
         config["training"]["max_lr"] = random.choice([1e-3, 2e-3, 3e-3])
@@ -80,8 +82,9 @@ def get_random_config(model_size: str = "tiny", conditioner_mode: Optional[str] 
     config["training"]["final_lr"] = 1e-6
     config["training"]["conditioner_multiplier"] = random.choice([0.1, 0.05])
 
-    config["training"]["weight_decay"] = random.choice([0.01, 0.02, 0.05])
-    config["training"]["conditioner_weight_decay"] = random.choice([0.01, 0.02, 0.05])
+    weight_decay = random.choice([0.01, 0.02, 0.05])
+    config["training"]["weight_decay"] = weight_decay
+    config["training"]["conditioner_weight_decay"] = weight_decay
     config["training"]["grad_clip"] = True
     config["training"]["betas"] = [0.9, 0.999]
     config["training"]["ema"] = [0.996, 1.0]
@@ -136,16 +139,31 @@ def get_random_config(model_size: str = "tiny", conditioner_mode: Optional[str] 
     config["training"]["augmentation"] = {"flip+rotate": True}
     config["training"]["encode_ratio"] = 0.1
     config["training"]["decode_ratio"] = 0.8
-    config["training"]["target_exit_after"] = random.choice(
-        range(config["model"]["encoder"]["depth"] + 1)
-    )
-    config["training"]["target_condition"] = random.choice([True, False])
+    if force_variable_exit_depth:
+        assert config["training"]["conditioner_mode"] == "lora"
+        config["training"]["target_exit_after"] = "variable"
+    else:
+        if config["training"]["conditioner_mode"] == "moe":
+            possible_exit_depths: List[Union[str, int]] = list(
+                range(config["model"]["encoder"]["depth"] + 1)
+            )
+        else:
+            possible_exit_depths = list(range(config["model"]["encoder"]["depth"] + 1)) + [
+                "variable"
+            ]
+        config["training"]["target_exit_after"] = random.choice(possible_exit_depths)
+
+    if config["training"]["conditioner_mode"] == "lora":
+        variable_exit_depth = config["training"]["target_exit_after"] == "variable"
+        config["model"]["lora_generator"]["variable_exit_depth"] = variable_exit_depth
+
+    config["training"]["target_condition"] = False
 
     ### LOSS ###
     config["training"]["loss_type"] = "patch_disc"
     loss_name = "PD"  # for the run_name
-    config["training"]["tau"] = random.choice([0.1, 0.2])
-    config["training"]["pred2unit"] = random.choice([True, False])
+    config["training"]["tau"] = 0.1
+    config["training"]["pred2unit"] = False
     config["training"]["loss_mask_other_samples"] = False
 
     # norm

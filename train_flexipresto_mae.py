@@ -2,6 +2,7 @@ import argparse
 import copy
 import json
 import os
+import random
 import warnings
 from functools import partial
 from pathlib import Path
@@ -75,6 +76,9 @@ argparser.add_argument("--conditioner_mode", type=str, default="")
 argparser.add_argument("--h5py_folder", type=str, default="")
 argparser.add_argument("--output_folder", type=str, default="")
 argparser.add_argument("--download", dest="download", action="store_true")
+argparser.add_argument(
+    "--force_variable_exit_depth", dest="force_variable_exit_depth", action="store_true"
+)
 argparser.add_argument("--h5pys_only", dest="h5pys_only", action="store_true")
 argparser.add_argument("--num_workers", dest="num_workers", default=Hyperparams.num_workers)
 argparser.add_argument("--batch_size", dest="batch_size", default="")
@@ -83,6 +87,7 @@ argparser.add_argument("--checkpoint_every_epoch", type=int, default=0)
 
 argparser.set_defaults(download=False)
 argparser.set_defaults(cache_in_ram=False)
+argparser.set_defaults(force_variable_exit_depth=False)
 args = argparser.parse_args().__dict__
 
 if args["h5py_folder"] == "":
@@ -126,14 +131,17 @@ if not restart:
         conditioner_mode: Optional[str] = None
     else:
         conditioner_mode = args["conditioner_mode"]
+    force_variable_exit_depth = args["force_variable_exit_depth"]
     if args["config_file"] == "random_tiny":
-        config, run_name = get_random_config("tiny", conditioner_mode)
+        config, run_name = get_random_config("tiny", conditioner_mode, force_variable_exit_depth)
         config = check_config(config)
     elif args["config_file"] == "random_vitb-tiny":
-        config, run_name = get_random_config("vitb-tiny", conditioner_mode)
+        config, run_name = get_random_config(
+            "vitb-tiny", conditioner_mode, force_variable_exit_depth
+        )
         config = check_config(config)
     elif args["config_file"] == "random_base":
-        config, run_name = get_random_config("base", conditioner_mode)
+        config, run_name = get_random_config("base", conditioner_mode, force_variable_exit_depth)
         config = check_config(config)
     else:
         config = load_check_config(args["config_file"])
@@ -352,6 +360,13 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
             else:
                 raise ValueError("c_i should not be None")
 
+            if config["training"]["target_exit_after"] == "variable":
+                encoder_depth = config["model"]["encoder"]["depth"]
+                exit_depth = random.choice([0, encoder_depth // 2, encoder_depth])
+                c_i["target_exit_after"] = exit_depth
+            else:
+                exit_depth = config["training"]["target_exit_after"]
+
             with torch.autocast(device_type=device.type, dtype=autocast_device):
                 (p_s_t, p_sp, p_t, p_st) = predictor(
                     *encoder(
@@ -383,7 +398,7 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                         months.long(),
                         patch_size=patch_size,
                         c_i=c_i if training_config["target_condition"] else None,
-                        exit_after=training_config["target_exit_after"],
+                        exit_after=exit_depth,
                     )
 
                 loss = do_loss(

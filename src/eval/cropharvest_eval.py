@@ -180,6 +180,7 @@ class CropHarvestEvalBase(EvalTask):
             "timesteps": 12,
             "input_channels": torch.Tensor(input_channels).to(device),
             "output_channels": torch.Tensor(output_channels).to(device),
+            "target_exit_after": 0,
         }
 
     @staticmethod
