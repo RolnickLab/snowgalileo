@@ -44,7 +44,7 @@ def update_output_channels(
     for i, val in enumerate(MASKING_MODES):
         if val[1] in new_output_channels:
             output_channels[i] = 1
-    device = task.condition["output_channels"].device
+    device = task.condition["output_channels"].device  # type: ignore
     task.condition["output_channels"] = torch.Tensor(output_channels).to(device)
     task.condition["target_exit_after"] = exit_depth
 
