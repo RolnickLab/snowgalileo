@@ -61,16 +61,6 @@ if __name__ == "__main__":
 
     output_channel_combinations = generate_combinations()
 
-    output_dict = {
-        "country": [],
-        "output_channels": [],
-        "exit_depth": [],
-        "KNN@5": [],
-        "KNN@5_c": [],
-        "LR": [],
-        "LR_c": [],
-    }
-
     append_to_csv(
         file_path=savefile_path,
         input_list=["country", "output_channels", "exit_depth", "KNN@5", "KNN@5_c", "LR", "LR_c"],
@@ -80,6 +70,7 @@ if __name__ == "__main__":
         task = BinaryCropHarvestEval(country=country, normalizer=normalizer, do_condition=True)
         for channel_combo in output_channel_combinations:
             for exit_depth in [0, encoder_depth // 2, encoder_depth]:
+                print(f"Running for {channel_combo}, {exit_depth}")
                 update_output_channels(task, channel_combo, exit_depth)
                 output = task.evaluate_model_on_task(
                     model, model_modes=["Logistic Regression", "KNNat5 Classifier"]
@@ -95,9 +86,6 @@ if __name__ == "__main__":
                 ]
                 k_key = [k for k in output_keys if "KNNat5" in k and not k.endswith("_c")]
                 k_c_key = [k for k in output_keys if "KNNat5" in k and not k.endswith("_c")]
-
-                output_dict["country"].append(country)
-                output_dict["output_channels"].append(str())
                 # save and print
                 full_row = [
                     country,
