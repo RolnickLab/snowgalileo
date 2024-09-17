@@ -76,33 +76,37 @@ if __name__ == "__main__":
         input_list=["country", "output_channels", "exit_depth", "KNN@5", "KNN@5_c", "LR", "LR_c"],
     )
 
-    for country in ["Brazil", "Togo", "Kenya", "China"]:
+    for country in ["Togo", "Brazil", "Kenya", "China"]:
         task = BinaryCropHarvestEval(country=country, normalizer=normalizer, do_condition=True)
         for channel_combo in output_channel_combinations:
             for exit_depth in [0, encoder_depth // 2, encoder_depth]:
                 update_output_channels(task, channel_combo, exit_depth)
-        output = task.evaluate_model_on_task(
-            model, model_modes=["Logistic Regression", "KNNat5 Classifier"]
-        )
+                output = task.evaluate_model_on_task(
+                    model, model_modes=["Logistic Regression", "KNNat5 Classifier"]
+                )
 
-        # retrieve the appropriate keys
-        output_keys = list(output.keys())
-        lr_key = [k for k in output_keys if "Logistic Regression" in k and not k.endswith("_c")]
-        lr_c_key = [k for k in output_keys if "Logistic Regression" in k and k.endswith("_c")]
-        k_key = [k for k in output_keys if "KNNat5" in k and not k.endswith("_c")]
-        k_c_key = [k for k in output_keys if "KNNat5" in k and not k.endswith("_c")]
+                # retrieve the appropriate keys
+                output_keys = list(output.keys())
+                lr_key = [
+                    k for k in output_keys if "Logistic Regression" in k and not k.endswith("_c")
+                ]
+                lr_c_key = [
+                    k for k in output_keys if "Logistic Regression" in k and k.endswith("_c")
+                ]
+                k_key = [k for k in output_keys if "KNNat5" in k and not k.endswith("_c")]
+                k_c_key = [k for k in output_keys if "KNNat5" in k and not k.endswith("_c")]
 
-        output_dict["country"].append(country)
-        output_dict["output_channels"].append(str())
-        # save and print
-        full_row = [
-            country,
-            channel_combo,
-            exit_depth,
-            output[k_key],
-            output[k_c_key],
-            output[lr_key],
-            output[lr_c_key],
-        ]
-        print(full_row)
-        append_to_csv(file_path=savefile_path, input_list=full_row)
+                output_dict["country"].append(country)
+                output_dict["output_channels"].append(str())
+                # save and print
+                full_row = [
+                    country,
+                    channel_combo,
+                    exit_depth,
+                    output[k_key],
+                    output[k_c_key],
+                    output[lr_key],
+                    output[lr_c_key],
+                ]
+                print(full_row)
+                append_to_csv(file_path=savefile_path, input_list=full_row)
