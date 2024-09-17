@@ -10,7 +10,7 @@ from src.data.config import NORMALIZATION_DICT_FILENAME
 from src.eval import BinaryCropHarvestEval
 from src.flexipresto import Encoder
 from src.masking import MASKING_MODES, STR2DICT
-from src.utils import config_dir
+from src.utils import config_dir, device
 
 SHAPES = list(STR2DICT.keys())
 
@@ -52,7 +52,7 @@ def update_output_channels(
 if __name__ == "__main__":
     model_path = "data/outputs/2j8f4v32"
     savefile_path = "2j8f4v32_cropharvest_sweep.csv"
-    model = Encoder.load_from_folder(Path(model_path))
+    model = Encoder.load_from_folder(Path(model_path)).to(device)
     encoder_depth = len(model.blocks)
     normalizing_dict = Dataset.load_normalization_values(
         path=config_dir / NORMALIZATION_DICT_FILENAME
