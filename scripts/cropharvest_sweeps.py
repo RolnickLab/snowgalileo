@@ -81,7 +81,7 @@ if __name__ == "__main__":
                 lr_key = [k for k in output_keys if "Regression" in k and not k.endswith("_c")][0]
                 lr_c_key = [k for k in output_keys if "Regression" in k and k.endswith("_c")][0]
                 k_key = [k for k in output_keys if "KNNat5" in k and not k.endswith("_c")][0]
-                k_c_key = [k for k in output_keys if "KNNat5" in k and not k.endswith("_c")][0]
+                k_c_key = [k for k in output_keys if "KNNat5" in k and k.endswith("_c")][0]
                 # save and print
                 full_row = [
                     country,
