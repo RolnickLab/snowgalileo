@@ -37,12 +37,12 @@ def get_random_config(
     config["model"]["encoder"]["drop_path"] = 0.1
     config["model"]["decoder"] = {}
 
-    config["model"]["decoder"]["depth"] = random.choice([1, 2, 3, 4])
+    config["model"]["decoder"]["depth"] = random.choice([2, 3, 4])
     if config["model"]["encoder"]["embedding_size"] == 128:
         config["model"]["decoder"]["embedding_size"] = 128
         config["training"]["patch_sizes"] = [1, 2, 3, 4, 5, 6, 7, 8]
     elif config["model"]["encoder"]["embedding_size"] == 192:
-        config["model"]["decoder"]["embedding_size"] = random.choice([128, 192])
+        config["model"]["decoder"]["embedding_size"] = 192
         config["training"]["patch_sizes"] = [1, 2, 3, 4, 5, 6, 7, 8]
     elif config["model"]["encoder"]["embedding_size"] == 768:
         config["model"]["decoder"]["embedding_size"] = random.choice([128, 256, 512])
@@ -52,10 +52,7 @@ def get_random_config(
             f"encoder embedding size didn't match options: {config['model']['encoder']['embedding_size']}"
         )
 
-    if config["model"]["decoder"]["embedding_size"] == 192:
-        config["model"]["decoder"]["num_heads"] = random.choice([2, 3, 8])
-    else:
-        config["model"]["decoder"]["num_heads"] = random.choice([2, 8])
+    config["model"]["decoder"]["num_heads"] = 4
     config["model"]["decoder"]["mlp_ratio"] = 4
     config["model"]["decoder"]["max_sequence_length"] = 24
     config["model"]["decoder"]["learnable_channel_embeddings"] = random.choice([True, False])
@@ -80,9 +77,9 @@ def get_random_config(
     config["training"]["effective_batch_size"] = 512
     config["training"]["warmup_epochs"] = 0.1
     config["training"]["final_lr"] = 1e-6
-    config["training"]["conditioner_multiplier"] = random.choice([0.1, 0.05])
+    config["training"]["conditioner_multiplier"] = 0.1
 
-    weight_decay = random.choice([0.01, 0.02, 0.05])
+    weight_decay = random.choice([0.01, 0.02])
     config["training"]["weight_decay"] = weight_decay
     config["training"]["conditioner_weight_decay"] = weight_decay
     config["training"]["grad_clip"] = True
