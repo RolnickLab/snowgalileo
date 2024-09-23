@@ -37,7 +37,7 @@ def get_random_config(
     config["model"]["encoder"]["drop_path"] = 0.1
     config["model"]["decoder"] = {}
 
-    config["model"]["decoder"]["depth"] = random.choice([2, 3, 4])
+    config["model"]["decoder"]["depth"] = random.choice([3, 4, 5])
     if config["model"]["encoder"]["embedding_size"] == 128:
         config["model"]["decoder"]["embedding_size"] = 128
         config["training"]["patch_sizes"] = [1, 2, 3, 4, 5, 6, 7, 8]
@@ -65,9 +65,9 @@ def get_random_config(
     if config["training"]["conditioner_mode"] == "lora":
         config["model"]["lora_generator"] = {}
         config["model"]["lora_generator"]["dim"] = random.choice([128, 256])
-        config["model"]["lora_generator"]["rank"] = random.choice([12, 32, 64])
+        config["model"]["lora_generator"]["rank"] = random.choice([12, 32])
         config["model"]["lora_generator"]["do_input_condition"] = False
-        config["training"]["max_lr"] = random.choice([5e-4, 8e-4, 1e-3])
+        config["training"]["max_lr"] = random.choice([8e-4, 1e-3])
     else:
         config["training"]["max_lr"] = random.choice([1e-3, 2e-3, 3e-3])
 

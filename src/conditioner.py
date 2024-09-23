@@ -312,7 +312,7 @@ class LoRAGenerator(nn.Module):
         else:
             condition = c_i["output_channels"]
         if self.variable_exit_depth:
-            exit_depth = c_i["target_exit_after"]
+            exit_depth = c_i["target_exit_after"] / self.backbone_depth
             condition = torch.cat(
                 [
                     condition,
