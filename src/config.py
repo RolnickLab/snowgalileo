@@ -37,7 +37,7 @@ def get_random_config(
     config["model"]["encoder"]["drop_path"] = 0.1
     config["model"]["decoder"] = {}
 
-    config["model"]["decoder"]["depth"] = random.choice([3, 4])
+    config["model"]["decoder"]["depth"] = random.choice([3, 4, 5])
     if config["model"]["encoder"]["embedding_size"] == 128:
         config["model"]["decoder"]["embedding_size"] = 128
         config["training"]["patch_sizes"] = [1, 2, 3, 4, 5, 6, 7, 8]
