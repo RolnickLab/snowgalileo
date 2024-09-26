@@ -206,6 +206,6 @@ class LoRAGenerator(nn.Module):
             for dim in range(self.backbone_dim):
                 for param_type in self.param_types:
                     output_loras[idx][f"{dim}_{param_type}"] = self.get_lora_weights(
-                        channel_idx, dim, param_type
+                        int(channel_idx), dim, param_type
                     )
         return self.average_loras(output_loras)
