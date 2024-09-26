@@ -136,6 +136,7 @@ def get_random_config(
     config["training"]["augmentation"] = {"flip+rotate": True}
     config["training"]["encode_ratio"] = 0.1
     config["training"]["decode_ratio"] = 0.8
+    config["training"]["max_unmasking_channels"] = random.choice([1, 2, 3, 4])
     if force_variable_exit_depth:
         assert config["training"]["conditioner_mode"] == "lora"
         config["training"]["target_exit_after"] = "variable"
