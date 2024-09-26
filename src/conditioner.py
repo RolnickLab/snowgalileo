@@ -194,6 +194,7 @@ class LoRAGenerator(nn.Module):
             new_weight = sum([weight * weights[i][key] for i in range(len(weights))])
             assert new_weight is not None, f"{key} is None"
             output_dict[key] = new_weight
+        return output_dict
 
     def forward(self, c_i):
         output_channels = c_i["output_channels"]
