@@ -175,6 +175,7 @@ def check_config(config):
             "embedding_size"
         ]
         config["model"]["conditioner"]["backbone_depth"] = config["model"]["encoder"]["depth"]
+        config["model"]["conditioner"]["mlp_ratio"] = config["model"]["encoder"]["mlp_ratio"]
 
     return config
 

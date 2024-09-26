@@ -153,7 +153,7 @@ class LoRAGenerator(nn.Module):
 
         self.loras = nn.ParameterDict()
         for idx in range(num_output_channels):
-            for dim in self.backbone_dim:
+            for dim in range(self.backbone_dim):
                 for param_type in param_types:
                     in_dim, out_dim = (
                         self.get_param_type_dims(param_type)["input_dim"],
