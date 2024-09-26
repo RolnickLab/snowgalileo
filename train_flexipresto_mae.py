@@ -75,9 +75,6 @@ argparser.add_argument("--conditioner_mode", type=str, default="")
 argparser.add_argument("--h5py_folder", type=str, default="")
 argparser.add_argument("--output_folder", type=str, default="")
 argparser.add_argument("--download", dest="download", action="store_true")
-argparser.add_argument(
-    "--force_variable_exit_depth", dest="force_variable_exit_depth", action="store_true"
-)
 argparser.add_argument("--h5pys_only", dest="h5pys_only", action="store_true")
 argparser.add_argument("--num_workers", dest="num_workers", default=Hyperparams.num_workers)
 argparser.add_argument("--batch_size", dest="batch_size", default="")
@@ -86,7 +83,6 @@ argparser.add_argument("--checkpoint_every_epoch", type=int, default=0)
 
 argparser.set_defaults(download=False)
 argparser.set_defaults(cache_in_ram=False)
-argparser.set_defaults(force_variable_exit_depth=False)
 args = argparser.parse_args().__dict__
 
 if args["h5py_folder"] == "":
