@@ -203,7 +203,7 @@ class LoRAGenerator(nn.Module):
         output_loras = []
         for idx, channel_idx in enumerate(torch.argwhere(output_channels)):
             output_loras.append(dict())
-            for dim in self.backbone_dim:
+            for dim in range(self.backbone_dim):
                 for param_type in self.param_types:
                     output_loras[idx][f"{dim}_{param_type}"] = self.get_lora_weights(
                         channel_idx, dim, param_type
