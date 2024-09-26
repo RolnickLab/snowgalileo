@@ -157,7 +157,7 @@ class LoRAGenerator(nn.Module):
                         self.get_param_type_dims(param_type)["output_dim"],
                     )
                     self.loras[f"{idx}_{dim}_{param_type}_a"] = nn.Parameter(
-                        torch.zeros((2 * rank, in_dim))
+                        torch.zeros((in_dim, 2 * rank))
                     )
                     self.loras[f"{idx}_{dim}_{param_type}_b"] = nn.Parameter(
                         torch.zeros((2 * rank, out_dim))
