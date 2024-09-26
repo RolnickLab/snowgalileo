@@ -130,17 +130,14 @@ if not restart:
         conditioner_mode: Optional[str] = None
     else:
         conditioner_mode = args["conditioner_mode"]
-    force_variable_exit_depth = args["force_variable_exit_depth"]
     if args["config_file"] == "random_tiny":
-        config, run_name = get_random_config("tiny", conditioner_mode, force_variable_exit_depth)
+        config, run_name = get_random_config("tiny", conditioner_mode)
         config = check_config(config)
     elif args["config_file"] == "random_vitb-tiny":
-        config, run_name = get_random_config(
-            "vitb-tiny", conditioner_mode, force_variable_exit_depth
-        )
+        config, run_name = get_random_config("vitb-tiny", conditioner_mode)
         config = check_config(config)
     elif args["config_file"] == "random_base":
-        config, run_name = get_random_config("base", conditioner_mode, force_variable_exit_depth)
+        config, run_name = get_random_config("base", conditioner_mode)
         config = check_config(config)
     else:
         config = load_check_config(args["config_file"])
