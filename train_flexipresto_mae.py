@@ -161,10 +161,6 @@ config["wandb_run_id"] = run_id
 if is_beaker_job():
     beaker_config = maybe_get_beaker_config()
     config.update(vars(beaker_config))
-if not restart:
-    # we can't reset these values without wandb
-    # complaining
-    wandb.config.update(config)
 
 training_config = config["training"]
 
@@ -188,6 +184,11 @@ dataset = Dataset(
     h5pys_only=args["h5pys_only"],
 )
 config["training"]["training_samples"] = len(dataset)
+
+if not restart:
+    # we can't reset these values without wandb
+    # complaining
+    wandb.config.update(config)
 
 if training_config["normalization"] == "std":
     normalizing_dict = dataset.load_normalization_values(
@@ -214,6 +215,7 @@ dataloader = DataLoader(
         augmentation_strategies=training_config["augmentation"],
         masking_probabilities=training_config["masking_probabilities"],
         unmasking_probabilities=training_config["unmasking_probabilities"],
+        max_unmasking_channels=training_config["max_unmasking_channels"],
     ),
     pin_memory=True,
 )
