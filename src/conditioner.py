@@ -131,7 +131,6 @@ class LearnedMixture(nn.Module):
 class LoRAGenerator(nn.Module):
     def __init__(
         self,
-        dim: int,
         backbone_dim: int,
         backbone_depth: int,
         rank: int,
@@ -148,8 +147,6 @@ class LoRAGenerator(nn.Module):
         self.rank = rank
         self.num_channels = num_output_channels
         self.param_types = param_types
-
-        # Create output projections
 
         self.loras = nn.ParameterDict()
         for idx in range(num_output_channels):
