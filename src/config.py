@@ -8,7 +8,6 @@ DEFAULT_SEED = 42
 def get_random_config(
     model_size: str = "tiny",
     conditioner_mode: Optional[str] = None,
-    force_variable_exit_depth: bool = False,
 ):
     config: Dict[str, Dict] = {"training": {}, "model": {}}
 
@@ -64,9 +63,7 @@ def get_random_config(
         config["training"]["conditioner_mode"] = random.choice(["moe", "lora"])
     if config["training"]["conditioner_mode"] == "lora":
         config["model"]["lora_generator"] = {}
-        config["model"]["lora_generator"]["dim"] = random.choice([128, 256])
         config["model"]["lora_generator"]["rank"] = random.choice([12, 32])
-        config["model"]["lora_generator"]["do_input_condition"] = False
         config["training"]["max_lr"] = random.choice([8e-4, 1e-3])
     else:
         config["training"]["max_lr"] = random.choice([1e-3, 2e-3, 3e-3])
@@ -137,23 +134,9 @@ def get_random_config(
     config["training"]["encode_ratio"] = 0.1
     config["training"]["decode_ratio"] = 0.8
     config["training"]["max_unmasking_channels"] = 2
-    if force_variable_exit_depth:
-        assert config["training"]["conditioner_mode"] == "lora"
-        config["training"]["target_exit_after"] = "variable"
-    else:
-        if config["training"]["conditioner_mode"] == "moe":
-            encoder_depth = config["model"]["encoder"]["depth"]
-            possible_exit_depths: List[Union[str, int]] = [0, encoder_depth // 2, encoder_depth]
-        else:
-            possible_exit_depths = list(range(config["model"]["encoder"]["depth"] + 1)) + [
-                "variable"
-            ]
-        config["training"]["target_exit_after"] = random.choice(possible_exit_depths)
-
-    if config["training"]["conditioner_mode"] == "lora":
-        variable_exit_depth = config["training"]["target_exit_after"] == "variable"
-        config["model"]["lora_generator"]["variable_exit_depth"] = variable_exit_depth
-
+    encoder_depth = config["model"]["encoder"]["depth"]
+    possible_exit_depths: List[Union[str, int]] = [0, encoder_depth // 2, encoder_depth]
+    config["training"]["target_exit_after"] = random.choice(possible_exit_depths)
     config["training"]["target_condition"] = False
 
     ### LOSS ###

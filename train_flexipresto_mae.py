@@ -2,7 +2,6 @@ import argparse
 import copy
 import json
 import os
-import random
 import warnings
 from functools import partial
 from pathlib import Path
@@ -362,13 +361,6 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
             else:
                 raise ValueError("c_i should not be None")
 
-            if config["training"]["target_exit_after"] == "variable":
-                encoder_depth = config["model"]["encoder"]["depth"]
-                exit_depth = random.choice([0, encoder_depth // 2, encoder_depth])
-                c_i["target_exit_after"] = exit_depth
-            else:
-                exit_depth = config["training"]["target_exit_after"]
-
             with torch.autocast(device_type=device.type, dtype=autocast_device):
                 (p_s_t, p_sp, p_t, p_st) = predictor(
                     *encoder(
@@ -400,7 +392,7 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                         months.long(),
                         patch_size=patch_size,
                         c_i=c_i if training_config["target_condition"] else None,
-                        exit_after=exit_depth,
+                        exit_after=config["training"]["target_exit_after"],
                     )
 
                 loss = do_loss(
