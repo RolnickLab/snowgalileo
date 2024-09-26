@@ -136,14 +136,14 @@ def get_random_config(
     config["training"]["augmentation"] = {"flip+rotate": True}
     config["training"]["encode_ratio"] = 0.1
     config["training"]["decode_ratio"] = 0.8
+    config["training"]["max_unmasking_channels"] = 2
     if force_variable_exit_depth:
         assert config["training"]["conditioner_mode"] == "lora"
         config["training"]["target_exit_after"] = "variable"
     else:
         if config["training"]["conditioner_mode"] == "moe":
-            possible_exit_depths: List[Union[str, int]] = list(
-                range(config["model"]["encoder"]["depth"] + 1)
-            )
+            encoder_depth = config["model"]["encoder"]["depth"]
+            possible_exit_depths: List[Union[str, int]] = [0, encoder_depth // 2, encoder_depth]
         else:
             possible_exit_depths = list(range(config["model"]["encoder"]["depth"] + 1)) + [
                 "variable"

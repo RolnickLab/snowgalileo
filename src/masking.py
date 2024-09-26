@@ -172,6 +172,7 @@ def batch_subset_mask_presto(
     masking_probabilities: List[float],
     unmasking_probabilities: List[float],
     masking_function: MaskingFunctions,
+    max_unmasking_channels: int,
 ) -> Tuple[MaskedOutput, Optional[Dict]]:
     assert len(masking_probabilities) == len(MASKING_MODES)
 
@@ -191,10 +192,13 @@ def batch_subset_mask_presto(
         )
 
         unmasking_modes, unmasking_shapes = [], [random.choice(SHAPES)]
-        for shape in SHAPES:
-            if shape != unmasking_shapes[0]:
-                if random.random() <= decode_ratio:
-                    unmasking_shapes.append(shape)
+        if max_unmasking_channels > 1:
+            for shape in SHAPES:
+                if shape != unmasking_shapes[0]:
+                    if random.random() <= decode_ratio:
+                        unmasking_shapes.append(shape)
+                        if len(unmasking_shapes) == max_unmasking_channels:
+                            break
 
         for shape in unmasking_shapes:
             shape_modes, shape_probs = [], []

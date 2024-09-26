@@ -73,6 +73,7 @@ class TestPresto(unittest.TestCase):
                 masking_probabilities=[1] * len(MASKING_MODES),
                 unmasking_probabilities=[1] * len(MASKING_MODES),
                 masking_function=MaskingFunctions.SPACE,
+                max_unmasking_channels=4,
             )
 
             # for now, we just make sure it all runs
