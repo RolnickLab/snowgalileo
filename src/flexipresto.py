@@ -993,30 +993,29 @@ class Encoder(FlexiPrestoBase):
             if c_i is not None:
                 conditional_weights = self.conditioner(c_i)
                 for block_idx, block in enumerate(self.blocks):
-                    block_conditional_weights = conditional_weights[block_idx]
-                    if f"{block_idx}_q" in block_conditional_weights:
+                    if f"{block_idx}_q" in conditional_weights:
                         block.attn.q.apply_condition(
-                            block_conditional_weights[f"{block_idx}_q"], None, "lora"
+                            conditional_weights[f"{block_idx}_q"], None, "lora"
                         )
-                    if f"{block_idx}_k" in block_conditional_weights:
+                    if f"{block_idx}_k" in conditional_weights:
                         block.attn.k.apply_condition(
-                            block_conditional_weights[f"{block_idx}_k"], None, "lora"
+                            conditional_weights[f"{block_idx}_k"], None, "lora"
                         )
-                    if f"{block_idx}_v" in block_conditional_weights:
+                    if f"{block_idx}_v" in conditional_weights:
                         block.attn.v.apply_condition(
-                            block_conditional_weights[f"{block_idx}_v"], None, "lora"
+                            conditional_weights[f"{block_idx}_v"], None, "lora"
                         )
-                    if f"{block_idx}_proj" in block_conditional_weights:
+                    if f"{block_idx}_proj" in conditional_weights:
                         block.attn.proj.apply_condition(
-                            block_conditional_weights[f"{block_idx}_proj"], None, "lora"
+                            conditional_weights[f"{block_idx}_proj"], None, "lora"
                         )
-                    if f"{block_idx}_fc1" in block_conditional_weights:
+                    if f"{block_idx}_fc1" in conditional_weights:
                         block.mlp.fc1.apply_condition(
-                            block_conditional_weights[f"{block_idx}_fc1"], None, "lora"
+                            conditional_weights[f"{block_idx}_fc1"], None, "lora"
                         )
-                    if f"{block_idx}_fc2" in block_conditional_weights:
+                    if f"{block_idx}_fc2" in conditional_weights:
                         block.mlp.fc2.apply_condition(
-                            block_conditional_weights[f"{block_idx}_fc2"], None, "lora"
+                            conditional_weights[f"{block_idx}_fc2"], None, "lora"
                         )
             else:
                 for block in self.blocks:
