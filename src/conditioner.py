@@ -1,3 +1,4 @@
+import math
 from copy import deepcopy
 from typing import Dict, List
 
@@ -157,7 +158,11 @@ class LoRAGenerator(nn.Module):
                         self.get_param_type_dims(param_type)["output_dim"],
                     )
                     self.loras[f"{idx}_{depth}_{param_type}_a"] = nn.Parameter(
-                        torch.zeros((in_dim, rank))
+                        torch.empty((in_dim, rank))
+                    )
+                    # https://github.com/microsoft/LoRA/blob/4c0333854cb905966f8cc4e9a74068c1e507c7b7/loralib/layers.py#L124C13-L124C66
+                    nn.init.kaiming_uniform_(
+                        self.loras[f"{idx}_{depth}_{param_type}_a"], a=math.sqrt(5)
                     )
                     self.loras[f"{idx}_{depth}_{param_type}_b"] = nn.Parameter(
                         torch.zeros((rank, out_dim))
