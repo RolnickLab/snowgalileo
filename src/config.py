@@ -141,13 +141,8 @@ def get_random_config(
         assert config["training"]["conditioner_mode"] == "lora"
         config["training"]["target_exit_after"] = "variable"
     else:
-        if config["training"]["conditioner_mode"] == "moe":
-            encoder_depth = config["model"]["encoder"]["depth"]
-            possible_exit_depths: List[Union[str, int]] = [0, encoder_depth // 2, encoder_depth]
-        else:
-            possible_exit_depths = list(range(config["model"]["encoder"]["depth"] + 1)) + [
-                "variable"
-            ]
+        encoder_depth = config["model"]["encoder"]["depth"]
+        possible_exit_depths: List[Union[str, int]] = [0, encoder_depth // 2, encoder_depth]
         config["training"]["target_exit_after"] = random.choice(possible_exit_depths)
 
     if config["training"]["conditioner_mode"] == "lora":
