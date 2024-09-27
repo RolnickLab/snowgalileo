@@ -104,7 +104,7 @@ class LearnedMixture(nn.Module):
         self.num_templates = num_output_channels
         self.templates: nn.ModuleList = nn.ModuleList()
 
-    def add_templates(self, template: nn.Module):
+    def add_templates(self, template: nn.ModuleList):
         self.templates = nn.ModuleList(
             [
                 nn.ModuleList(
