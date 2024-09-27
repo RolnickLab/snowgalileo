@@ -8,10 +8,11 @@ import numpy as np
 import torch
 from einops import repeat
 from sklearn.base import BaseEstimator
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, roc_auc_score
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, TensorDataset, default_collate
 from torch.utils.data import Dataset as TorchDataset
+from tqdm import tqdm
 
 from ..data.dataset import (
     LOCATION_BANDS,
@@ -264,7 +265,11 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         seed: int = DEFAULT_SEED,
         include_latlons: bool = True,
         do_condition: bool = False,
+        eval_mode: str = "test",
     ):
+        if eval_mode == "val":
+            assert country in list(self.country_to_sizes.keys())
+        self.eval_mode = eval_mode
         suffix = f"_{sample_size}" if sample_size else ""
         suffix = f"{suffix}_{num_timesteps}" if num_timesteps is not None else suffix
         super().__init__(
@@ -334,15 +339,84 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         prefix = sklearn_model.__class__.__name__
         return {f"{self.name}: {prefix}_{key}": val for key, val in combined_results.items()}
 
+    @torch.no_grad()
+    def _validate_model(
+        self, val_dl, pretrained_model: Encoder, sklearn_model: BaseEstimator, c_i: Optional[Dict]
+    ) -> Dict:
+        pretrained_model.eval()
+        label_list, pred_list = [], []
+        for masked_output, label in tqdm(val_dl, desc="Computing encodings for sklearn"):
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = [
+                t.to(device) for t in masked_output
+            ]
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = pretrained_model(
+                s_t_x=s_t_x,
+                sp_x=sp_x,
+                t_x=t_x,
+                st_x=st_x,
+                s_t_m=s_t_m,
+                sp_m=sp_m,
+                t_m=t_m,
+                st_m=st_m,
+                months=months,
+                patch_size=self.patch_size,
+                c_i=c_i,
+            )
+            encodings = (
+                pretrained_model.average_tokens(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
+                .cpu()
+                .numpy()
+            )
+            preds = sklearn_model.predict_proba(encodings)[:, 1]
+            pred_list.append(preds)
+            label_list.append(label)
+
+        preds_np = np.concatenate(pred_list)
+        labels_np = np.concatenate(label_list)
+        combined_results = {
+            "auc_roc": roc_auc_score(labels_np, preds_np),
+            "f1_score": f1_score(labels_np, preds_np > 0.5),
+        }
+        prefix = sklearn_model.__class__.__name__
+        return {f"{self.name}: {prefix}_{key}": val for key, val in combined_results.items()}
+
     def evaluate_model_on_task(
         self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
     ) -> Dict:
+        if self.eval_mode == "val":
+            assert self.country == "Togo"
         if model_modes is None:
             model_modes = self.all_classification_sklearn_models
         for model_mode in model_modes:
             assert model_mode in self.all_classification_sklearn_models
 
         array, latlons, labels = self.dataset.as_array()
+        if self.eval_mode == "val":
+            half_points = len(array) // 2
+            val_array = array[:half_points]
+            val_latlons = latlons[:half_points]
+            val_labels = labels[:half_points]
+            array = array[half_points:]
+            latlons = latlons[half_points:]
+            labels = labels[half_points:]
+            val_dl = DataLoader(
+                TensorDataset(
+                    *self.cropharvest_array_to_normalized_presto(
+                        val_array,
+                        val_latlons,
+                        timesteps=self.num_timesteps,
+                        start_month=self.start_month,
+                    ),
+                    torch.from_numpy(val_labels),
+                ),
+                batch_size=Hyperparams.batch_size,
+                shuffle=False,
+                num_workers=Hyperparams.num_workers,
+                collate_fn=self.collate_fn,
+            )
+        else:
+            val_dl = None
+
         train_dl = DataLoader(
             TensorDataset(
                 *self.cropharvest_array_to_normalized_presto(
@@ -363,7 +437,12 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         )
         results_dict = {}
         for sklearn_model in trained_sklearn_models:
-            results_dict.update(self._evaluate_model(pretrained_model, sklearn_model, None))
+            if self.eval_mode == "val":
+                results_dict.update(
+                    self._validate_model(val_dl, pretrained_model, sklearn_model, None)
+                )
+            else:
+                results_dict.update(self._evaluate_model(pretrained_model, sklearn_model, None))
         if not self.do_condition:
             return results_dict
 
@@ -372,9 +451,14 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         )
         conditioned_results_dict = {}
         for sklearn_model in conditioned_sklearn_models:
-            conditioned_results_dict.update(
-                self._evaluate_model(pretrained_model, sklearn_model, self.condition)
-            )
+            if self.eval_mode == "val":
+                conditioned_results_dict.update(
+                    self._validate_model(val_dl, pretrained_model, sklearn_model, self.condition)
+                )
+            else:
+                conditioned_results_dict.update(
+                    self._evaluate_model(pretrained_model, sklearn_model, self.condition)
+                )
         conditioned_results_dict = {
             f"{key}_c": value for key, value in conditioned_results_dict.items()
         }
