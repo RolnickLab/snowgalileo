@@ -383,8 +383,6 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
     def evaluate_model_on_task(
         self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
     ) -> Dict:
-        if self.eval_mode == "val":
-            assert self.country == "Togo"
         if model_modes is None:
             model_modes = self.all_classification_sklearn_models
         for model_mode in model_modes:
