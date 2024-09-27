@@ -150,17 +150,17 @@ class LoRAGenerator(nn.Module):
 
         self.loras = nn.ParameterDict()
         for idx in range(num_output_channels):
-            for dim in range(self.backbone_dim):
+            for depth in range(self.backbone_depth):
                 for param_type in param_types:
                     in_dim, out_dim = (
                         self.get_param_type_dims(param_type)["input_dim"],
                         self.get_param_type_dims(param_type)["output_dim"],
                     )
-                    self.loras[f"{idx}_{dim}_{param_type}_a"] = nn.Parameter(
-                        torch.zeros((in_dim, 2 * rank))
+                    self.loras[f"{idx}_{depth}_{param_type}_a"] = nn.Parameter(
+                        torch.zeros((in_dim, rank))
                     )
-                    self.loras[f"{idx}_{dim}_{param_type}_b"] = nn.Parameter(
-                        torch.zeros((2 * rank, out_dim))
+                    self.loras[f"{idx}_{depth}_{param_type}_b"] = nn.Parameter(
+                        torch.zeros((rank, out_dim))
                     )
 
     def get_param_type_dims(self, param_type):
@@ -169,9 +169,9 @@ class LoRAGenerator(nn.Module):
             out_dim = self.backbone_dim
         elif param_type == "fc1":
             in_dim = self.backbone_dim
-            out_dim = int(self.backbone_dim * 4)  # Using MLP ratio of 4
+            out_dim = int(self.backbone_dim * self.mlp_ratio)
         elif param_type == "fc2":
-            in_dim = int(self.backbone_dim * 4)
+            in_dim = int(self.backbone_dim * self.mlp_ratio)
             out_dim = self.backbone_dim
         else:
             raise ValueError(
@@ -199,14 +199,15 @@ class LoRAGenerator(nn.Module):
     def forward(self, c_i):
         output_channels = c_i["output_channels"]
         assert (
-            len(self.loras) == 2 * len(output_channels) * len(self.param_types) * self.backbone_dim
+            len(self.loras)
+            == 2 * len(output_channels) * len(self.param_types) * self.backbone_depth
         )
         output_loras = []
         for idx, channel_idx in enumerate(torch.argwhere(output_channels)):
             output_loras.append(dict())
-            for dim in range(self.backbone_dim):
+            for depth in range(self.backbone_depth):
                 for param_type in self.param_types:
-                    output_loras[idx][f"{dim}_{param_type}"] = self.get_lora_weights(
-                        int(channel_idx), dim, param_type
+                    output_loras[idx][f"{depth}_{param_type}"] = self.get_lora_weights(
+                        int(channel_idx), depth, param_type
                     )
         return self.average_loras(output_loras)
