@@ -105,9 +105,14 @@ class LearnedMixture(nn.Module):
         self.templates: nn.ModuleList = nn.ModuleList()
 
     def add_templates(self, template: nn.Module):
-        self.templates = nn.ModuleList([deepcopy(template) for _ in range(self.num_templates)])
-        # for t in self.e_templates:
-        #     t.apply(t._init_weights)
+        self.templates = nn.ModuleList(
+            [
+                nn.ModuleList(
+                    [deepcopy(template[i].attn.proj.backbone) for i in range(len(template))]
+                )
+                for _ in range(self.num_templates)
+            ]
+        )
 
     @staticmethod
     def average_modules(templates: List[nn.Module]):

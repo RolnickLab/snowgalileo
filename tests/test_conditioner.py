@@ -40,18 +40,11 @@ class TestConditioner(unittest.TestCase):
         sum([d.sum() for d in decoder_output]).backward()
 
         for t_i, t in enumerate(encoder.conditioner.templates[:2]):
-            for n, p in t.named_parameters():
-                if "proj" in n:
-                    self.assertTrue(
-                        p.grad is not None, f"{t_i}, {n} has an unexpectedly None grad"
-                    )
-                else:
-                    self.assertTrue(
-                        p.grad is None, f"{t_i}, {n} has an unexpectedly not None grad"
-                    )
+            for p in t.parameters():
+                self.assertTrue(p.grad is not None, f"{t_i}, has an unexpectedly None grad")
         for t_i, t in enumerate(encoder.conditioner.templates[2:]):
             for p in t.parameters():
-                self.assertTrue(p.grad is None, f"{t_i}, {n} has an unexpectedly not None grad")
+                self.assertTrue(p.grad is None, f"{t_i}, has an unexpectedly not None grad")
 
         # next, test with c_i = None
         encoder.zero_grad(set_to_none=True)
