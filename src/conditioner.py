@@ -274,7 +274,7 @@ class LoRAGenerator(nn.Module):
         rank: int,
         num_output_channels: int,
         mlp_ratio: int,
-        param_types: List[str] = ["q", "k", "v"],
+        param_types: List[str] = ["q", "k", "v", "proj"],
     ):
         super().__init__()
 
