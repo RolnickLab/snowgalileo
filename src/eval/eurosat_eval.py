@@ -348,7 +348,7 @@ class EuroSatEval(EvalTask):
                 GeobenchBaseDataset(
                     normalizer=self.normalizer,
                     dataset_config_file="m-eurosat.json",
-                    split="test",
+                    split="valid",
                     rgb=self.rgb,
                 ),
                 batch_size=Hyperparams.batch_size,
@@ -361,7 +361,7 @@ class EuroSatEval(EvalTask):
                     normalizer=self.normalizer,
                     rgb=self.rgb,
                     include_latlons=self.include_latlons,
-                    split="test",
+                    split="val",
                 ),
                 batch_size=Hyperparams.batch_size,
                 shuffle=False,
