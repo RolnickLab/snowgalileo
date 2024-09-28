@@ -1,6 +1,7 @@
 import random
 from collections import OrderedDict
 from enum import Enum
+from itertools import combinations, product
 from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
 import numpy as np
@@ -33,6 +34,12 @@ STR2DICT = OrderedDict(
         "static": STATIC_BAND_GROUPS_IDX,
     }
 )
+
+REVERSED_STR2DICT = {}
+for key, values in STR2DICT.items():
+    for v in values:
+        REVERSED_STR2DICT[v] = key
+
 SHAPES = list(STR2DICT.keys())
 MASKING_MODES: List[Tuple[str, str]] = [
     ("space", "SRTM"),
@@ -58,6 +65,24 @@ UNMASKING_CHANNEL_GROUPS: List[Tuple[str, str]] = MASKING_MODES
 
 MAX_MASKING_STRATEGIES = 6
 NUM_RECON_OBJS = 2
+
+
+def generate_combinations():
+    all_combinations = []
+    for r in range(1, 5):
+        shape_combos = combinations(SHAPES, r)
+
+        for shape_combo in shape_combos:
+            mode_lists = [STR2DICT[shape] for shape in shape_combo]
+            mode_combos = product(*mode_lists)
+            for mode_combo in mode_combos:
+                all_combinations.append([(REVERSED_STR2DICT[x], x) for x in mode_combo])
+
+    return all_combinations
+
+
+# Generate all 639 combinations
+ALL_MASKING_COMBINATIONS = generate_combinations()
 
 
 class MaskingFunctions(Enum):
@@ -170,7 +195,6 @@ def batch_subset_mask_presto(
     num_timesteps: int,
     augmentation_strategies: Optional[Dict],
     masking_probabilities: List[float],
-    unmasking_probabilities: List[float],
     masking_function: MaskingFunctions,
     max_unmasking_channels: int,
 ) -> Tuple[MaskedOutput, Optional[Dict]]:
@@ -191,24 +215,14 @@ def batch_subset_mask_presto(
             MASKING_MODES, weights=masking_probabilities, k=num_masking_modes
         )
 
-        unmasking_modes, unmasking_shapes = [], [random.choice(SHAPES)]
-        if max_unmasking_channels > 1:
-            for shape in SHAPES:
-                if shape != unmasking_shapes[0]:
-                    if random.random() <= decode_ratio:
-                        unmasking_shapes.append(shape)
-                        if len(unmasking_shapes) == max_unmasking_channels:
-                            break
-
-        for shape in unmasking_shapes:
-            shape_modes, shape_probs = [], []
-            for idx, mode in enumerate(MASKING_MODES):
-                if mode[0] == shape:
-                    shape_modes.append(mode)
-                    shape_probs.append(unmasking_probabilities[idx])
-            unmasking_modes.append(
-                weighted_sample_without_replacement(shape_modes, shape_probs, 1)[0]
-            )
+        # isolate the unmasking candidates which (1) have the right number of channels and
+        # (b) don't intersect with the masking_modes
+        unmasking_mode_candidates = [
+            x
+            for x in ALL_MASKING_COMBINATIONS
+            if ((len(x) <= max_unmasking_channels) and (len(set(x) & set(masking_modes)) == 0))
+        ]
+        unmasking_modes = random.choice(unmasking_mode_candidates)
 
         masking_modes, unmasking_modes = check_modes_for_conflicts(masking_modes, unmasking_modes)
         masked_output = f(

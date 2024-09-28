@@ -214,7 +214,6 @@ dataloader = DataLoader(
         decode_ratio=training_config["decode_ratio"],
         augmentation_strategies=training_config["augmentation"],
         masking_probabilities=training_config["masking_probabilities"],
-        unmasking_probabilities=training_config["unmasking_probabilities"],
         max_unmasking_channels=training_config["max_unmasking_channels"],
     ),
     pin_memory=True,
