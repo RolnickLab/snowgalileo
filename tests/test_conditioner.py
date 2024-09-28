@@ -3,7 +3,7 @@ import unittest
 import torch
 from einops import repeat
 
-from src.conditioner import LearnedMixture, LoRAGenerator
+from src.conditioner import LearnedMixture, LoRATemplates
 from src.data.dataset import SPACE_BANDS, SPACE_TIME_BANDS, STATIC_BANDS, TIME_BANDS
 from src.flexipresto import Encoder, PrestoPixelDecoder
 from src.masking import UNMASKING_CHANNEL_GROUPS, batch_mask_random
@@ -102,7 +102,7 @@ class TestConditioner(unittest.TestCase):
             "backbone_dim": 64,
             "rank": 32,
         }
-        mixer = LoRAGenerator(**conditioner_dict)
+        mixer = LoRATemplates(**conditioner_dict)
         encoder = Encoder(**encoder_dict, conditioner=mixer)
         decoder = PrestoPixelDecoder(encoder_embedding_size=64)
         conditioner_inputs = {
