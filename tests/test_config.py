@@ -1,7 +1,7 @@
 import json
 import unittest
 
-from src.conditioner import LearnedMixture, LoRAGenerator
+from src.conditioner import LearnedMixture, LoRAGenerator, LoRATemplates
 from src.config import get_random_config
 from src.data.config import NORMALIZATION_DICT_FILENAME
 from src.data.dataset import Normalizer
@@ -10,69 +10,46 @@ from src.utils import check_config, config_dir, load_check_config
 
 
 class TestConfigs(unittest.TestCase):
+    @staticmethod
+    def check_models_can_be_loaded(config):
+        # check we can load the models
+        if config["training"]["conditioner_mode"] == "lora-g":
+            encoder_conditioner = LoRAGenerator(**config["model"]["conditioner"])
+            _ = Encoder(**config["model"]["encoder"], conditioner=encoder_conditioner)
+        elif config["training"]["conditioner_mode"] == "moe":
+            encoder_conditioner = LearnedMixture(**config["model"]["conditioner"])
+            _ = Encoder(**config["model"]["encoder"], conditioner=encoder_conditioner)
+        elif config["training"]["conditioner_mode"] == "lora-t":
+            encoder_conditioner = LoRATemplates(**config["model"]["conditioner"])
+            _ = Encoder(**config["model"]["encoder"], conditioner=encoder_conditioner)
+        else:
+            assert "conditioner" not in config["model"].keys()
+            _ = Encoder(**config["model"]["encoder"])
+
     def test_configs_mae(self):
         configs = list((config_dir / "mae").glob("*.json"))
 
         for config_path in configs:
             loaded_config = load_check_config(config_path.name)
-
-            if loaded_config["training"]["conditioner_mode"] == "lora":
-                encoder_conditioner = LoRAGenerator(**loaded_config["model"]["conditioner"])
-                _ = Encoder(**loaded_config["model"]["encoder"], conditioner=encoder_conditioner)
-            elif loaded_config["training"]["conditioner_mode"] == "moe":
-                encoder_conditioner = LearnedMixture(**loaded_config["model"]["conditioner"])
-                _ = Encoder(**loaded_config["model"]["encoder"], conditioner=encoder_conditioner)
-            else:
-                assert "conditioner" not in loaded_config["model"].keys()
-                _ = Encoder(**loaded_config["model"]["encoder"])
+            self.check_models_can_be_loaded(loaded_config)
 
     def test_random_configs_tiny(self):
-        for _ in range(3):
-            config, _ = get_random_config(model_size="tiny")
+        for c in ["lora-g", "lora-t", "moe"]:
+            config, _ = get_random_config(model_size="tiny", conditioner_mode=c)
             loaded_config = check_config(config)
-
-            # check we can load the models
-            if loaded_config["training"]["conditioner_mode"] == "lora":
-                encoder_conditioner = LoRAGenerator(**loaded_config["model"]["conditioner"])
-                _ = Encoder(**loaded_config["model"]["encoder"], conditioner=encoder_conditioner)
-            elif loaded_config["training"]["conditioner_mode"] == "moe":
-                encoder_conditioner = LearnedMixture(**loaded_config["model"]["conditioner"])
-                _ = Encoder(**loaded_config["model"]["encoder"], conditioner=encoder_conditioner)
-            else:
-                assert "conditioner" not in loaded_config["model"].keys()
-                _ = Encoder(**loaded_config["model"]["encoder"])
+            self.check_models_can_be_loaded(loaded_config)
 
     def test_random_configs_vitb_tiny(self):
-        for _ in range(3):
-            config, _ = get_random_config(model_size="vitb-tiny")
+        for c in ["lora-g", "lora-t", "moe"]:
+            config, _ = get_random_config(model_size="vitb-tiny", conditioner_mode=c)
             loaded_config = check_config(config)
-
-            # check we can load the models
-            if loaded_config["training"]["conditioner_mode"] == "lora":
-                encoder_conditioner = LoRAGenerator(**loaded_config["model"]["conditioner"])
-                _ = Encoder(**loaded_config["model"]["encoder"], conditioner=encoder_conditioner)
-            elif loaded_config["training"]["conditioner_mode"] == "moe":
-                encoder_conditioner = LearnedMixture(**loaded_config["model"]["conditioner"])
-                _ = Encoder(**loaded_config["model"]["encoder"], conditioner=encoder_conditioner)
-            else:
-                assert "conditioner" not in loaded_config["model"].keys()
-                _ = Encoder(**loaded_config["model"]["encoder"])
+            self.check_models_can_be_loaded(loaded_config)
 
     def test_random_configs_base(self):
-        for _ in range(3):
-            config, _ = get_random_config(model_size="base")
+        for c in ["lora-g", "lora-t", "moe"]:
+            config, _ = get_random_config(model_size="base", conditioner_mode=c)
             loaded_config = check_config(config)
-
-            # check we can load the models
-            if loaded_config["training"]["conditioner_mode"] == "lora":
-                encoder_conditioner = LoRAGenerator(**loaded_config["model"]["conditioner"])
-                _ = Encoder(**loaded_config["model"]["encoder"], conditioner=encoder_conditioner)
-            elif loaded_config["training"]["conditioner_mode"] == "moe":
-                encoder_conditioner = LearnedMixture(**loaded_config["model"]["conditioner"])
-                _ = Encoder(**loaded_config["model"]["encoder"], conditioner=encoder_conditioner)
-            else:
-                assert "conditioner" not in loaded_config["model"].keys()
-                _ = Encoder(**loaded_config["model"]["encoder"])
+            self.check_models_can_be_loaded(loaded_config)
 
     def test_normalization_dict(self):
         if (config_dir / NORMALIZATION_DICT_FILENAME).exists():
@@ -89,16 +66,3 @@ class TestConfigs(unittest.TestCase):
             divs = val["div"]
             for d in divs:
                 self.assertNotEqual(d, 0, f"0 in {key}")
-
-    def test_random_configs_tiny_with_exit_depth(self):
-        for _ in range(3):
-            config, _ = get_random_config(
-                model_size="tiny", conditioner_mode="lora", force_variable_exit_depth=True
-            )
-            loaded_config = check_config(config)
-
-            # check we can load the models
-            if loaded_config["training"]["conditioner_mode"] == "lora":
-                self.assertTrue(loaded_config["model"]["conditioner"]["variable_exit_depth"])
-                encoder_conditioner = LoRAGenerator(**loaded_config["model"]["conditioner"])
-                _ = Encoder(**loaded_config["model"]["encoder"], conditioner=encoder_conditioner)

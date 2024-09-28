@@ -8,7 +8,6 @@ DEFAULT_SEED = 42
 def get_random_config(
     model_size: str = "tiny",
     conditioner_mode: Optional[str] = None,
-    force_variable_exit_depth: bool = False,
 ):
     config: Dict[str, Dict] = {"training": {}, "model": {}}
 
@@ -58,16 +57,21 @@ def get_random_config(
     config["model"]["decoder"]["learnable_channel_embeddings"] = random.choice([True, False])
 
     if conditioner_mode is not None:
-        assert conditioner_mode in ["moe", "lora"], f"Expected moe or lora, got {conditioner_mode}"
+        assert conditioner_mode in [
+            "moe",
+            "lora-t",
+            "lora-g",
+        ], f"Expected moe or lora-[t,g], got {conditioner_mode}"
         config["training"]["conditioner_mode"] = conditioner_mode
     else:
-        config["training"]["conditioner_mode"] = random.choice(["moe", "lora"])
-    if config["training"]["conditioner_mode"] == "lora":
-        config["model"]["lora_generator"] = {}
-        config["model"]["lora_generator"]["dim"] = random.choice([128, 256])
-        config["model"]["lora_generator"]["rank"] = random.choice([12, 32])
-        config["model"]["lora_generator"]["do_input_condition"] = False
+        config["training"]["conditioner_mode"] = random.choice(["moe", "lora-t", "lora-g"])
+    if "lora" in config["training"]["conditioner_mode"]:
+        config["model"]["conditioner"] = {}
+        config["model"]["conditioner"]["rank"] = random.choice([12, 32])
         config["training"]["max_lr"] = random.choice([8e-4, 1e-3])
+        if config["training"]["conditioner_mode"] == "lora-g":
+            config["model"]["conditioner"]["do_input_condition"] = False
+            config["model"]["conditioner"]["dim"] = random.choice([128, 256])
     else:
         config["training"]["max_lr"] = random.choice([1e-3, 2e-3, 3e-3])
 
@@ -137,18 +141,9 @@ def get_random_config(
     config["training"]["encode_ratio"] = 0.1
     config["training"]["decode_ratio"] = 0.8
     config["training"]["max_unmasking_channels"] = 2
-    if force_variable_exit_depth:
-        assert config["training"]["conditioner_mode"] == "lora"
-        config["training"]["target_exit_after"] = "variable"
-    else:
-        encoder_depth = config["model"]["encoder"]["depth"]
-        possible_exit_depths: List[Union[str, int]] = [0, encoder_depth // 2, encoder_depth]
-        config["training"]["target_exit_after"] = random.choice(possible_exit_depths)
-
-    if config["training"]["conditioner_mode"] == "lora":
-        variable_exit_depth = config["training"]["target_exit_after"] == "variable"
-        config["model"]["lora_generator"]["variable_exit_depth"] = variable_exit_depth
-
+    encoder_depth = config["model"]["encoder"]["depth"]
+    possible_exit_depths: List[Union[str, int]] = [0, (encoder_depth // 2) + 1, encoder_depth]
+    config["training"]["target_exit_after"] = random.choice(possible_exit_depths)
     config["training"]["target_condition"] = False
 
     ### LOSS ###
