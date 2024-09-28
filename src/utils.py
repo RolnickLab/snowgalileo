@@ -162,18 +162,18 @@ def check_config(config):
         "embedding_size"
     )
 
-    assert config["training"]["conditioner_mode"] in ["moe", "lora", "no_cond"]
+    assert config["training"]["conditioner_mode"] in ["moe", "lora-t", "lora-g", "no_cond"]
 
     if config["training"]["conditioner_mode"] == "moe":
         config["model"]["conditioner"] = {"num_output_channels": len(UNMASKING_CHANNEL_GROUPS)}
 
-    elif config["training"]["conditioner_mode"] == "lora":
-        config["model"]["conditioner"] = config["model"]["lora_generator"].copy()
+    elif "lora" in config["training"]["conditioner_mode"]:
         config["model"]["conditioner"]["num_output_channels"] = len(UNMASKING_CHANNEL_GROUPS)
         config["model"]["conditioner"]["backbone_dim"] = config["model"]["encoder"][
             "embedding_size"
         ]
         config["model"]["conditioner"]["backbone_depth"] = config["model"]["encoder"]["depth"]
+        config["model"]["conditioner"]["mlp_ratio"] = config["model"]["encoder"]["mlp_ratio"]
 
     return config
 

@@ -1,6 +1,7 @@
+import math
 import warnings
 from copy import deepcopy
-from typing import List
+from typing import Dict, List
 
 import torch
 import torch.nn as nn
@@ -105,10 +106,15 @@ class LearnedMixture(nn.Module):
         self.num_templates = num_output_channels
         self.templates: nn.ModuleList = nn.ModuleList()
 
-    def add_templates(self, template: nn.Module):
-        self.templates = nn.ModuleList([deepcopy(template) for _ in range(self.num_templates)])
-        # for t in self.e_templates:
-        #     t.apply(t._init_weights)
+    def add_templates(self, template: nn.ModuleList):
+        self.templates = nn.ModuleList(
+            [
+                nn.ModuleList(
+                    [deepcopy(template[i].attn.proj.backbone) for i in range(len(template))]
+                )
+                for _ in range(self.num_templates)
+            ]
+        )
 
     @staticmethod
     def average_modules(templates: List[nn.Module]):
@@ -128,6 +134,95 @@ class LearnedMixture(nn.Module):
         for i in torch.argwhere(output_channels):
             selected_templates.append(self.templates[i])
         return self.average_modules(selected_templates)
+
+
+class LoRATemplates(nn.Module):
+    def __init__(
+        self,
+        backbone_dim: int,
+        backbone_depth: int,
+        rank: int,
+        num_output_channels: int,
+        mlp_ratio: int,
+        param_types: List[str] = ["q", "k", "v", "proj"],
+    ):
+        super().__init__()
+
+        self.mode = "lora"
+        self.mlp_ratio = mlp_ratio
+        self.backbone_dim = backbone_dim
+        self.backbone_depth = backbone_depth
+        self.rank = rank
+        self.num_channels = num_output_channels
+        self.param_types = param_types
+
+        self.loras = nn.ParameterDict()
+        for idx in range(num_output_channels):
+            for depth in range(self.backbone_depth):
+                for param_type in param_types:
+                    in_dim, out_dim = (
+                        self.get_param_type_dims(param_type)["input_dim"],
+                        self.get_param_type_dims(param_type)["output_dim"],
+                    )
+                    self.loras[f"{idx}_{depth}_{param_type}_a"] = nn.Parameter(
+                        torch.empty((in_dim, rank))
+                    )
+                    # https://github.com/microsoft/LoRA/blob/4c0333854cb905966f8cc4e9a74068c1e507c7b7/loralib/layers.py#L124C13-L124C66
+                    nn.init.kaiming_uniform_(
+                        self.loras[f"{idx}_{depth}_{param_type}_a"], a=math.sqrt(5)
+                    )
+                    self.loras[f"{idx}_{depth}_{param_type}_b"] = nn.Parameter(
+                        torch.zeros((rank, out_dim))
+                    )
+
+    def get_param_type_dims(self, param_type):
+        if param_type in ["q", "k", "v", "proj"]:
+            in_dim = self.backbone_dim
+            out_dim = self.backbone_dim
+        elif param_type == "fc1":
+            in_dim = self.backbone_dim
+            out_dim = int(self.backbone_dim * self.mlp_ratio)
+        elif param_type == "fc2":
+            in_dim = int(self.backbone_dim * self.mlp_ratio)
+            out_dim = self.backbone_dim
+        else:
+            raise ValueError(
+                f"Invalid param_type {param_type}. Must be q, k, v, proj, fc1, or fc2."
+            )
+        return {"input_dim": in_dim, "output_dim": out_dim}
+
+    def get_lora_weights(self, channel_idx, backbone_dim, param_type):
+        # Project input weights
+        a = self.loras[f"{channel_idx}_{backbone_dim}_{param_type}_a"]
+        b = self.loras[f"{channel_idx}_{backbone_dim}_{param_type}_b"]
+        # Compute the low-rank weight matrix
+        return torch.matmul(a, b) / (self.rank**0.5)
+
+    @staticmethod
+    def average_loras(weights: List[Dict]):
+        output_dict = {}
+        weight = 1 / len(weights)
+        for key in weights[0].keys():
+            new_weight = sum([weight * weights[i][key] for i in range(len(weights))])
+            assert new_weight is not None, f"{key} is None"
+            output_dict[key] = new_weight
+        return output_dict
+
+    def forward(self, c_i):
+        output_channels = c_i["output_channels"]
+        assert (
+            len(self.loras)
+            == 2 * len(output_channels) * len(self.param_types) * self.backbone_depth
+        )
+        output_loras = []
+        for idx, channel_idx in enumerate(torch.argwhere(output_channels)):
+            output_loras.append(dict())
+            for depth in range(self.backbone_depth):
+                for param_type in self.param_types:
+                    output_loras[idx][f"{depth}_{param_type}"] = self.get_lora_weights(
+                        int(channel_idx), depth, param_type
+                    )
+        return self.average_loras(output_loras)
 
 
 class LayerScale(nn.Module):
@@ -178,12 +273,13 @@ class LoRAGenerator(nn.Module):
         do_input_condition: bool,
         rank: int,
         num_output_channels: int,
-        variable_exit_depth: bool = False,
-        param_types: List[str] = ["q", "k", "v"],
+        mlp_ratio: int,
+        param_types: List[str] = ["q", "k", "v", "proj"],
     ):
         super().__init__()
 
         self.mode = "lora"
+        self.mlp_ratio = mlp_ratio
         self.dim = dim
         self.backbone_dim = backbone_dim
         self.backbone_depth = backbone_depth
@@ -205,14 +301,10 @@ class LoRAGenerator(nn.Module):
 
         else:
             condition_length = self.num_channels
-        if variable_exit_depth:
-            condition_length += 1
-
         self.condition_proj = nn.Linear(condition_length, dim)
         self.embedding = nn.Embedding(self.sequence_length, dim)
         self.blocks_before = nn.Sequential(*[MLPBlock(dim=dim) for _ in range(2)])
         self.blocks_during = nn.Sequential(*[MLPBlock(dim=dim) for _ in range(backbone_depth)])
-        self.variable_exit_depth = variable_exit_depth
 
         # Create output projections
         self.output_projections = nn.ModuleDict()
@@ -236,9 +328,9 @@ class LoRAGenerator(nn.Module):
             out_dim = self.backbone_dim
         elif param_type == "fc1":
             in_dim = self.backbone_dim
-            out_dim = int(self.backbone_dim * 4)  # Using MLP ratio of 4
+            out_dim = int(self.backbone_dim * self.mlp_ratio)
         elif param_type == "fc2":
-            in_dim = int(self.backbone_dim * 4)
+            in_dim = int(self.backbone_dim * self.mlp_ratio)
             out_dim = self.backbone_dim
         else:
             raise ValueError(
@@ -311,14 +403,6 @@ class LoRAGenerator(nn.Module):
             )
         else:
             condition = c_i["output_channels"]
-        if self.variable_exit_depth:
-            exit_depth = c_i["target_exit_after"] / self.backbone_depth
-            condition = torch.cat(
-                [
-                    condition,
-                    torch.tensor([exit_depth], device=condition.device, dtype=condition.dtype),
-                ]
-            )
 
         condition = rearrange(condition, "c -> 1 1 c")  # (1, 1, N)
         condition = self.condition_proj(condition)  # (1, 1, dim)
