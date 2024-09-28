@@ -142,7 +142,7 @@ def get_random_config(
     config["training"]["decode_ratio"] = 0.8
     config["training"]["max_unmasking_channels"] = 2
     encoder_depth = config["model"]["encoder"]["depth"]
-    possible_exit_depths: List[Union[str, int]] = [0, encoder_depth // 2, encoder_depth]
+    possible_exit_depths: List[Union[str, int]] = [0, (encoder_depth // 2) + 1, encoder_depth]
     config["training"]["target_exit_after"] = random.choice(possible_exit_depths)
     config["training"]["target_condition"] = False
 

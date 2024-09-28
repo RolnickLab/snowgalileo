@@ -273,7 +273,7 @@ val_task_no_latlons = EuroSatEval(
     do_condition=eval_w_condition,
 )
 val_task_ts = BinaryCropHarvestEval(
-    normalizer=dataset.normalizer, country="Togo", do_condition=True
+    normalizer=dataset.normalizer, country="Togo", do_condition=True, eval_mode="val"
 )
 
 optimizer = torch.optim.AdamW(

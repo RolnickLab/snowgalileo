@@ -46,7 +46,7 @@ class GeobenchBaseDataset(PyTorchDataset):
         ).open("r") as f:
             config = json.load(f)
 
-        assert split in ["train", "test"]
+        assert split in ["train", "valid", "test"]
         assert config["benchmark_name"] in ["classification_v1.0", "segmentation_v1.0"]
 
         self.split = split
