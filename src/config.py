@@ -57,14 +57,21 @@ def get_random_config(
     config["model"]["decoder"]["learnable_channel_embeddings"] = random.choice([True, False])
 
     if conditioner_mode is not None:
-        assert conditioner_mode in ["moe", "lora"], f"Expected moe or lora, got {conditioner_mode}"
+        assert conditioner_mode in [
+            "moe",
+            "lora-t",
+            "lora-g",
+        ], f"Expected moe or lora-[t,g], got {conditioner_mode}"
         config["training"]["conditioner_mode"] = conditioner_mode
     else:
-        config["training"]["conditioner_mode"] = random.choice(["moe", "lora"])
-    if config["training"]["conditioner_mode"] == "lora":
-        config["model"]["lora_generator"] = {}
-        config["model"]["lora_generator"]["rank"] = random.choice([12, 32])
+        config["training"]["conditioner_mode"] = random.choice(["moe", "lora-t", "lora-g"])
+    if "lora" in config["training"]["conditioner_mode"]:
+        config["model"]["conditioner"] = {}
+        config["model"]["conditioner"]["rank"] = random.choice([12, 32])
         config["training"]["max_lr"] = random.choice([8e-4, 1e-3])
+        if config["training"]["conditioner_mode"] == "lora-g":
+            config["model"]["conditioner"]["do_input_condition"] = False
+            config["model"]["conditioner"]["dim"] = random.choice([128, 256])
     else:
         config["training"]["max_lr"] = random.choice([1e-3, 2e-3, 3e-3])
 
