@@ -40,7 +40,6 @@ def collated_batch_to_output(
     fixed_patch_size=None,
     fixed_space_time_combination=None,
     masking_probabilities=None,
-    unmasking_probabilities=None,
     max_unmasking_channels=4,
 ) -> CollateFnOutput:
     if fixed_patch_size is not None:
@@ -62,8 +61,6 @@ def collated_batch_to_output(
     image_size = patch_size * spatial_patches_per_dim
     if masking_probabilities is None:
         masking_probabilities = [1] * len(MASKING_MODES)
-    if unmasking_probabilities is None:
-        unmasking_probabilities = [1] * len(MASKING_MODES)
 
     # randomly select a masking strategy
     (s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months), c_i = batch_subset_mask_presto(
@@ -80,7 +77,6 @@ def collated_batch_to_output(
         augmentation_strategies=augmentation_strategies,
         masking_probabilities=masking_probabilities,
         masking_function=masking_function,
-        unmasking_probabilities=unmasking_probabilities,
         max_unmasking_channels=max_unmasking_channels,
     )
 
@@ -110,7 +106,6 @@ def mae_collate_fn(
     fixed_patch_size=None,
     fixed_space_time_combination=None,
     masking_probabilities=None,
-    unmasking_probabilities=None,
     max_unmasking_channels=4,
 ) -> Tuple[CollateFnOutput, CollateFnOutput, CollateFnOutput, CollateFnOutput]:
     s_t_x, sp_x, t_x, st_x, months = default_collate(batch)
@@ -129,7 +124,6 @@ def mae_collate_fn(
         "fixed_space_time_combination": fixed_space_time_combination,
         "masking_probabilities": masking_probabilities,
         "shape_time_combinations": shape_time_combinations,
-        "unmasking_probabilities": unmasking_probabilities,
         "max_unmasking_channels": max_unmasking_channels,
     }
     return (
