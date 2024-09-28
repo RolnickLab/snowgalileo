@@ -95,7 +95,6 @@ def check_config(config):
         "shape_time_combinations": list,
         "augmentation": dict,
         "masking_probabilities": list,
-        "unmasking_probabilities": list,
         "grad_clip": bool,
         "target_condition": bool,
         "target_exit_after": (int, str),
