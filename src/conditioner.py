@@ -148,7 +148,7 @@ class LoRATemplates(nn.Module):
     ):
         super().__init__()
 
-        self.mode = "lora"
+        self.mode = "lora-t"
         self.mlp_ratio = mlp_ratio
         self.backbone_dim = backbone_dim
         self.backbone_depth = backbone_depth
@@ -278,7 +278,7 @@ class LoRAGenerator(nn.Module):
     ):
         super().__init__()
 
-        self.mode = "lora"
+        self.mode = "lora-g"
         self.mlp_ratio = mlp_ratio
         self.dim = dim
         self.backbone_dim = backbone_dim
