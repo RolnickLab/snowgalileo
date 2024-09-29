@@ -983,7 +983,7 @@ class Encoder(FlexiPrestoBase):
             if c_i is not None:
                 conditional_weights = self.conditioner(c_i)
                 for block_idx, block in enumerate(self.blocks):
-                    if self.conditioner_mode == "lora-t":
+                    if self.conditioner.mode == "lora-t":
                         if f"{block_idx}_q" in conditional_weights:
                             block.attn.q.apply_condition(
                                 conditional_weights[f"{block_idx}_q"], None, "lora"
@@ -1008,7 +1008,7 @@ class Encoder(FlexiPrestoBase):
                             block.mlp.fc2.apply_condition(
                                 conditional_weights[f"{block_idx}_fc2"], None, "lora"
                             )
-                    elif self.conditioner_mode == "lora-g":
+                    elif self.conditioner.mode == "lora-g":
                         block_conditional_weights = conditional_weights[block_idx]
                         if "q" in block_conditional_weights:
                             block.attn.q.apply_condition(
