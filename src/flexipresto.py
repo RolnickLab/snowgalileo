@@ -912,6 +912,8 @@ class Encoder(FlexiPrestoBase):
             # c_i_token will be None unless
             # we are using token conditioning
             c_i_token = self.apply_condition(c_i)
+        else:
+            c_i_token = None
 
         (
             s_t_x,
