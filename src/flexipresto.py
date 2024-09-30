@@ -826,7 +826,7 @@ class Encoder(FlexiPrestoBase):
         if c_i_token is not None:
             c_i_as_batch = repeat(c_i_token, "d -> b s d", s=1, b=x.shape[0])
             x = torch.cat((x, c_i_as_batch), dim=1)
-            new_m = torch.cat((new_m, torch.zeros_like(new_m)[:, 0]), dim=1)
+            new_m = torch.cat((new_m, torch.zeros_like(new_m)[:, 0:1]), dim=1)
 
         for i_blk, blk in enumerate(self.blocks):
             if (exit_after is not None) and ((i_blk + 1) >= exit_after):
@@ -842,6 +842,7 @@ class Encoder(FlexiPrestoBase):
         if c_i_token is not None:
             # remove the c_i_token
             x = x[:, :-1, :]
+            new_m = new_m[:, :-1]
         # we don't care about the mask returned by add_removed_tokens, since we will
         # just use the original, unclipped mask here
         x, _ = self.add_removed_tokens(x, indices, new_m)
@@ -1055,7 +1056,8 @@ class Encoder(FlexiPrestoBase):
                     block.mlp.fc1.apply_condition(None, None, "lora")
                     block.mlp.fc2.apply_condition(None, None, "lora")
         elif "token" in self.conditioner.mode:
-            return self.conditioner(c_i)
+            if c_i is not None:
+                return self.conditioner(c_i)
         else:
             raise ValueError(
                 f"Called apply_condition but self.conditioner.mode is {self.conditioner.mode}"

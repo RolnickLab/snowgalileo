@@ -17,7 +17,7 @@ from wandb.sdk.wandb_run import Run
 
 from src.beaker import is_beaker_job, maybe_get_beaker_config
 from src.collate_fns import mae_collate_fn
-from src.conditioner import LearnedMixture, LoRAGenerator, LoRATemplates
+from src.conditioner import LearnedMixture, LoRAGenerator, LoRATemplates, TokenConditioner
 from src.config import DEFAULT_SEED, get_random_config
 from src.data import Dataset, Normalizer
 from src.data.config import (
@@ -224,13 +224,15 @@ eval_w_condition = False
 if "conditioner" in config["model"]:
     eval_w_condition = True
     if training_config["conditioner_mode"] == "moe":
-        encoder_conditioner: Union[LearnedMixture, LoRAGenerator, LoRATemplates] = LearnedMixture(
-            **config["model"]["conditioner"]
-        ).to(device)
+        encoder_conditioner: Union[
+            LearnedMixture, LoRAGenerator, LoRATemplates, TokenConditioner
+        ] = LearnedMixture(**config["model"]["conditioner"]).to(device)
     elif training_config["conditioner_mode"] == "lora-g":
         encoder_conditioner = LoRAGenerator(**config["model"]["conditioner"]).to(device)
     elif training_config["conditioner_mode"] == "lora-t":
         encoder_conditioner = LoRATemplates(**config["model"]["conditioner"]).to(device)
+    elif training_config["conditioner_mode"] == "token":
+        encoder_conditioner = TokenConditioner(**config["model"]["conditioner"]).to(device)
 
     encoder = Encoder(**config["model"]["encoder"], conditioner=encoder_conditioner).to(device)
     param_groups.extend(
