@@ -1,36 +1,61 @@
 import json
 import urllib.request
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple, cast
+from typing import Dict, List, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
 import rioxarray as xr
 import torch.multiprocessing
 import xarray
 from einops import repeat
+from pyproj import Transformer
 from sklearn.base import BaseEstimator
 from sklearn.metrics import accuracy_score
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as PyTorchDataset
 from tqdm import tqdm
 
+from ..data import Normalizer
 from ..data.dataset import (
+    LOCATION_BANDS,
     SPACE_BAND_GROUPS_IDX,
     SPACE_BANDS,
     SPACE_TIME_BANDS,
     SPACE_TIME_BANDS_GROUPS_IDX,
+    STATIC_BAND_GROUPS_IDX,
+    STATIC_BANDS,
     TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
-    normalize_space_time,
+    to_cartesian,
 )
 from ..data.earthengine.s2 import ALL_S2_BANDS, REMOVED_BANDS
 from ..flexipresto import Encoder
-from ..masking import MaskedOutput
+from ..masking import UNMASKING_CHANNEL_GROUPS, MaskedOutput
 from ..utils import DEFAULT_SEED, data_dir, device, masked_output_np_to_tensor
 from .eval import EvalTask, Hyperparams, model_class_name
+from .geobench_dataset import GeobenchBaseDataset
 
 ### SETUP
 torch.multiprocessing.set_sharing_strategy("file_system")
+
+with (Path(__file__).parents[0] / Path("geobench_configs") / Path("m-eurosat.json")).open(
+    "r"
+) as f:
+    config = json.load(f)
+
+
+band_info_names_to_band_names = {
+    "B2": "02 - Blue",
+    "B3": "03 - Green",
+    "B4": "04 - Red",
+    "B5": "05 - Vegetation Red Edge",
+    "B6": "06 - Vegetation Red Edge",
+    "B7": "07 - Vegetation Red Edge",
+    "B8": "08 - NIR",
+    "B8A": "08A - Vegetation Red Edge",
+    "B11": "11 - SWIR",
+    "B12": "12 - SWIR",
+}
 
 
 class EuroSatDataset(PyTorchDataset):
@@ -64,19 +89,35 @@ class EuroSatDataset(PyTorchDataset):
 
     def __init__(
         self,
+        normalizer: Normalizer,
         rgb: bool = True,
         split: str = "train",
         merge_train_val: bool = True,
         tif_files_dir: Optional[str] = "eurosat/EuroSAT_MS",
+        include_latlons: bool = True,
     ):
         assert split in ["train", "val", "test"]
 
         self.split = split
         self.rgb = rgb
+        self.include_latlons = include_latlons
         self.tif_files_dir = tif_files_dir
+        self.normalizer = normalizer
 
         self.images = self.split_images(merge_train_val)[split]
         self.masks = self.create_eurosat_masks()
+
+        # used in the tif_to_array function
+        indices_to_remove = []
+        for band in REMOVED_BANDS:
+            indices_to_remove.append(ALL_S2_BANDS.index(band))
+        self.kept_s2_bands = [i for i in range(len(ALL_S2_BANDS)) if i not in indices_to_remove]
+        self.kept_dynamic_bands = [
+            idx
+            for idx, x in enumerate(SPACE_TIME_BANDS)
+            if ((x in ALL_S2_BANDS) and (x not in REMOVED_BANDS))
+        ]
+        self.kept_static_bands = [idx for idx, x in enumerate(STATIC_BANDS) if x in LOCATION_BANDS]
 
     def image_name_to_path(self, name: str) -> Path:
         class_name = name.split("_")[0]
@@ -89,8 +130,8 @@ class EuroSatDataset(PyTorchDataset):
         data = urllib.request.urlopen(url).read()
         return data.decode("utf-8").split("\n")
 
-    @staticmethod
-    def split_images(merge_train_val: bool = True) -> Dict[str, List[str]]:
+    @classmethod
+    def split_images(cls, merge_train_val: bool = True) -> Dict[str, List[str]]:
         # updated to use the splits stored in
         # https://storage.googleapis.com/remote_sensing_representations
         # as per torchgeo
@@ -106,21 +147,17 @@ class EuroSatDataset(PyTorchDataset):
         else:
             # this code was only run once (the dictionary is then saved)
             # but is saved here for clarity
-            train_images = EuroSatDataset.url_to_list(EuroSatDataset.split_urls["train"])
-            test_images = EuroSatDataset.url_to_list(EuroSatDataset.split_urls["test"])
+            train_images = cls.url_to_list(cls.split_urls["train"])
+            test_images = cls.url_to_list(cls.split_urls["test"])
             train_test_split = {"train": train_images, "test": test_images}
             if merge_train_val:
-                train_test_split["train"] += EuroSatDataset.url_to_list(
-                    EuroSatDataset.split_urls["val"]
-                )
+                train_test_split["train"] += cls.url_to_list(cls.split_urls["val"])
             else:
-                train_test_split["val"] = EuroSatDataset.url_to_list(
-                    EuroSatDataset.split_urls["val"]
-                )
+                train_test_split["val"] = cls.url_to_list(cls.split_urls["val"])
             json.dump(train_test_split, split_path.open("w"))
         return train_test_split
 
-    def create_eurosat_masks(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def create_eurosat_masks(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         if self.rgb:
             space_time_channels = [
                 idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S2_RGB" in key
@@ -148,24 +185,25 @@ class EuroSatDataset(PyTorchDataset):
             [self.input_height_width, self.input_height_width, len(SPACE_BAND_GROUPS_IDX)]
         )
         time_mask = np.ones([self.num_timesteps, len(TIME_BAND_GROUPS_IDX)])
+        static_mask = np.ones([len(STATIC_BAND_GROUPS_IDX)])
+        if self.include_latlons:
+            location_channels = [
+                idx for idx, key in enumerate(STATIC_BAND_GROUPS_IDX) if "location" in key
+            ]
+            static_mask[location_channels] = 0
+            assert ((static_mask == 0) | (static_mask == 1)).all()
+        else:
+            assert (static_mask == 1).all()
 
         assert ((space_time_mask == 0) | (space_time_mask == 1)).all()
         assert (space_mask == 1).all()
         assert (time_mask == 1).all()
 
-        return (space_time_mask, space_mask, time_mask)
+        return (space_time_mask, space_mask, time_mask, static_mask)
 
-    def image_to_space_time_array(self, tif_filename: str) -> Tuple[np.ndarray, np.ndarray]:
-        indices_to_remove = []
-        for band in REMOVED_BANDS:
-            indices_to_remove.append(ALL_S2_BANDS.index(band))
-        kept_s2_bands = [i for i in range(len(ALL_S2_BANDS)) if i not in indices_to_remove]
-        kept_dynamic_bands = [
-            idx
-            for idx, x in enumerate(SPACE_TIME_BANDS)
-            if ((x in ALL_S2_BANDS) and (x not in REMOVED_BANDS))
-        ]
-
+    def image_to_space_time_array(
+        self, tif_filename: str
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         tif_file = self.image_name_to_path(tif_filename)
 
         with cast(xarray.DataArray, xr.open_rasterio(tif_file)) as image:
@@ -177,30 +215,44 @@ class EuroSatDataset(PyTorchDataset):
                     len(SPACE_TIME_BANDS),
                 ]
             )
-            image_kept_bands = image.values[kept_s2_bands]
-            eo_style_array[:, :, :, kept_dynamic_bands] = repeat(
+            image_kept_bands = image.values[self.kept_s2_bands]
+            eo_style_array[:, :, :, self.kept_dynamic_bands] = repeat(
                 image_kept_bands, "c h w -> h w t c", t=self.num_timesteps
             )
+            # from (e.g.) +init=epsg:32630 to epsg:32630
+            crs = image.rio.crs.data["init"]
+            transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
+            lon, lat = transformer.transform(np.mean(image.x).item(), np.mean(image.y).item())
+            cartesian_array = to_cartesian(lat, lon)
+
+            static_array = np.zeros(
+                len(STATIC_BANDS),
+            )
+            static_array[self.kept_static_bands] = cartesian_array
 
         return (
-            normalize_space_time(eo_style_array),
+            self.normalizer(eo_style_array),
+            self.normalizer(static_array),
             np.array([self.labels_to_int[tif_file.parents[0].name]]),
         )
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         image = self.images[idx]
-        s_t_x, label = self.image_to_space_time_array(image.strip())
+        s_t_x, st_x, label = self.image_to_space_time_array(image.strip())
 
         # static bands are not provided by eurosat
-        s_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
+        sp_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
         t_x = np.zeros((s_t_x.shape[2], len(TIME_BANDS)))
 
-        s_t_m, s_m, t_m = self.masks
+        s_t_m, sp_m, t_m, st_m = self.masks
         month = np.zeros((self.num_timesteps,))
 
         label_torch = torch.tensor(label, dtype=torch.long)
 
-        return (masked_output_np_to_tensor(s_t_x, s_x, t_x, s_t_m, s_m, t_m, month), label_torch)
+        return (
+            masked_output_np_to_tensor(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, month),
+            label_torch,
+        )
 
     def __len__(self):
         return len(self.images)
@@ -209,12 +261,78 @@ class EuroSatDataset(PyTorchDataset):
 class EuroSatEval(EvalTask):
     name = "eurosat"
     regression = False
+    spatial_token_prediction = False
     multilabel = False
+    input_height_width = EuroSatDataset.input_height_width
+    num_outputs = len(EuroSatDataset.labels_to_int)
 
-    def __init__(self, rgb: bool = True, patch_size: int = 8, seed=DEFAULT_SEED):
+    def __init__(
+        self,
+        normalization: Union[str, Normalizer] = "std",  # or "scaling"
+        rgb: bool = True,
+        include_latlons: bool = True,
+        patch_size: int = 8,
+        seed=DEFAULT_SEED,
+        geobench: bool = False,
+        do_condition: bool = False,
+    ):
         self.rgb = rgb
+        self.geobench = geobench
+        self.include_latlons = include_latlons
+        self.do_condition = do_condition
+        if isinstance(normalization, Normalizer):
+            self.normalization = "custom"
+            self.normalizer = normalization
+        else:
+            assert normalization in ["std", "scaling"]
+            self.normalization = normalization
+
+            if normalization == "scaling":
+                self.normalizer = Normalizer(std=False)
+            else:
+                self.normalizer = self.load_eurosat_normalizer()
+
+        assert not self.geobench or not self.include_latlons, "Geobench does not support latlons"
+
         super().__init__(patch_size, seed)
-        self.name = f"{self.name}_{'RGB' if self.rgb else 'MS'}"
+        self.name = f"{self.name}_{'RGB' if self.rgb else 'MS'}{'_latlons' if include_latlons else ''}_{'_geobench' if geobench else ''}"
+
+        output_channels = [0] * len(UNMASKING_CHANNEL_GROUPS)
+        for i, val in enumerate(UNMASKING_CHANNEL_GROUPS):
+            if val[1] == "DW_static":
+                output_channels[i] = 1
+
+        input_channels = [0] * len(UNMASKING_CHANNEL_GROUPS)
+        for i, val in enumerate(UNMASKING_CHANNEL_GROUPS):
+            if val[1] in ["S2_RGB", "S2_SWIR", "S2_Red_Edge", "S2_NIR_10m", "S2_NIR_20m"]:
+                input_channels[i] = 1
+
+        self.condition = {
+            "hw": 64 // patch_size,
+            "patch_size": patch_size,
+            "timesteps": 1,  # WE CURRENTLY ARE NOT TRAINING WITH THIS, PROBABLY HURTS PERF
+            "input_channels": torch.Tensor(input_channels).to(device),
+            "output_channels": torch.Tensor(output_channels).to(device),
+            "target_exit_after": 0,
+        }
+
+    @staticmethod
+    def load_eurosat_normalizer() -> Normalizer:
+        normalizing_dict = {
+            len(SPACE_TIME_BANDS): {
+                "mean": [0] * len(SPACE_TIME_BANDS),
+                "std": [1] * len(SPACE_TIME_BANDS),
+            }
+        }
+        for our_band, c_band in band_info_names_to_band_names.items():
+            idx = SPACE_TIME_BANDS.index(our_band)
+            normalizing_dict[len(SPACE_TIME_BANDS)]["mean"][idx] = config["band_info"][c_band][
+                "mean"
+            ]
+            normalizing_dict[len(SPACE_TIME_BANDS)]["std"][idx] = config["band_info"][c_band][
+                "std"
+            ]
+        return Normalizer(std=True, normalizing_dicts=normalizing_dict)
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         return {
@@ -223,14 +341,32 @@ class EuroSatEval(EvalTask):
 
     @torch.no_grad()
     def _evaluate_model(
-        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator]
+        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator], c_i
     ) -> Dict:
-        test_dl = DataLoader(
-            EuroSatDataset(rgb=self.rgb, split="test"),
-            batch_size=Hyperparams.batch_size,
-            shuffle=False,
-            num_workers=Hyperparams.num_workers,
-        )
+        if self.geobench:
+            test_dl = DataLoader(
+                GeobenchBaseDataset(
+                    normalizer=self.normalizer,
+                    dataset_config_file="m-eurosat.json",
+                    split="valid",
+                    rgb=self.rgb,
+                ),
+                batch_size=Hyperparams.batch_size,
+                shuffle=False,
+                num_workers=Hyperparams.num_workers,
+            )
+        else:
+            test_dl = DataLoader(
+                EuroSatDataset(
+                    normalizer=self.normalizer,
+                    rgb=self.rgb,
+                    include_latlons=self.include_latlons,
+                    split="val",
+                ),
+                batch_size=Hyperparams.batch_size,
+                shuffle=False,
+                num_workers=Hyperparams.num_workers,
+            )
         pred_dict: Dict[str, BaseEstimator] = {
             model_class_name(model): [] for model in sklearn_models
         }
@@ -238,16 +374,40 @@ class EuroSatEval(EvalTask):
         labels_list = []
 
         for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months = [t.to(device) for t in masked_output]
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = [
+                t.to(device) for t in masked_output
+            ]
 
             pretrained_model.eval()
 
             with torch.no_grad():
-                s_t_x, s_x, t_x, s_t_m, s_m, t_m, _ = pretrained_model(
-                    s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size=self.patch_size
+                (
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    _,
+                ) = pretrained_model(
+                    s_t_x=s_t_x,
+                    sp_x=sp_x,
+                    t_x=t_x,
+                    st_x=st_x,
+                    s_t_m=s_t_m,
+                    sp_m=sp_m,
+                    t_m=t_m,
+                    st_m=st_m,
+                    months=months,
+                    c_i=c_i,
+                    patch_size=self.patch_size,
                 )
                 encodings = (
-                    pretrained_model.average_tokens(s_t_x, s_x, t_x, s_t_m, s_m, t_m).cpu().numpy()
+                    pretrained_model.average_tokens(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
+                    .cpu()
+                    .numpy()
                 )
 
             labels_list.append(label.cpu().numpy())
@@ -263,6 +423,7 @@ class EuroSatEval(EvalTask):
             test_preds_np = np.concatenate(pred_list, axis=0)
             prefix = f"{model_name_str}"
             results_dict.update(self.compute_metrics(prefix, test_preds_np, target))
+
         return results_dict
 
     def evaluate_model_on_task(
@@ -273,11 +434,48 @@ class EuroSatEval(EvalTask):
         for model_mode in model_modes:
             assert model_mode in self.all_classification_sklearn_models
 
-        train_dl = DataLoader(
-            EuroSatDataset(rgb=self.rgb, split="train", merge_train_val=True),
-            batch_size=Hyperparams.batch_size,
-            shuffle=True,
-            num_workers=Hyperparams.num_workers,
+        if self.geobench:
+            train_dl = DataLoader(
+                GeobenchBaseDataset(
+                    normalizer=self.normalizer,
+                    dataset_config_file="m-eurosat.json",
+                    split="train",
+                    rgb=self.rgb,
+                ),
+                batch_size=Hyperparams.batch_size,
+                shuffle=False,
+                num_workers=Hyperparams.num_workers,
+            )
+        else:
+            train_dl = DataLoader(
+                EuroSatDataset(
+                    normalizer=self.normalizer,
+                    rgb=self.rgb,
+                    include_latlons=self.include_latlons,
+                    split="train",
+                    merge_train_val=True,
+                ),
+                batch_size=Hyperparams.batch_size,
+                shuffle=True,
+                num_workers=Hyperparams.num_workers,
+            )
+
+        unconditioned_trained_sklearn_models = self.train_sklearn_model(
+            train_dl, pretrained_model, model_modes, None
         )
-        trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
-        return self._evaluate_model(pretrained_model, trained_sklearn_models)
+        unconditioned_results = self._evaluate_model(
+            pretrained_model, unconditioned_trained_sklearn_models, None
+        )
+
+        if not self.do_condition:
+            return unconditioned_results
+
+        conditioned_trained_sklearn_models = self.train_sklearn_model(
+            train_dl, pretrained_model, model_modes, self.condition
+        )
+        conditioned_results = self._evaluate_model(
+            pretrained_model, conditioned_trained_sklearn_models, self.condition
+        )
+        conditioned_results = {f"{key}_c": value for key, value in conditioned_results.items()}
+
+        return {**conditioned_results, **unconditioned_results}

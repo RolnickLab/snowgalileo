@@ -1,6 +1,8 @@
 import collections.abc
 import itertools
+import json
 import math
+from pathlib import Path
 from typing import Any, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -11,25 +13,45 @@ from einops import rearrange, repeat
 from torch import Tensor, vmap
 from torch.jit import Final
 
+from .conditioner import ConditionalLinear, LearnedMixture, LoRAGenerator
 from .config import BASE_GSD
-from .data import SPACE_BAND_GROUPS_IDX, SPACE_TIME_BANDS_GROUPS_IDX, TIME_BAND_GROUPS_IDX
+from .data import (
+    SPACE_BAND_GROUPS_IDX,
+    SPACE_TIME_BANDS_GROUPS_IDX,
+    STATIC_BAND_GROUPS_IDX,
+    TIME_BAND_GROUPS_IDX,
+)
+from .data.config import CONFIG_FILENAME, ENCODER_FILENAME
 from .embeddings import (
     get_1d_sincos_pos_embed_from_grid_torch,
     get_2d_sincos_pos_embed_with_resolution,
     get_month_encoding_table,
 )
+from .utils import device
 
 
-def adjust_learning_rate(optimizer, epoch, warmup_epochs, total_epochs, start_lr, max_lr, min_lr):
+def adjust_learning_rate(
+    optimizer,
+    epoch,
+    warmup_epochs,
+    total_epochs,
+    max_lr,
+    min_lr,
+    conditioner_multiplier=None,
+):
     """Decay the learning rate with half-cycle cosine after warmup"""
     if epoch < warmup_epochs:
-        lr = start_lr + (max_lr * epoch / warmup_epochs)
+        lr = max_lr * epoch / warmup_epochs
     else:
         lr = min_lr + (max_lr - min_lr) * 0.5 * (
             1.0 + math.cos(math.pi * (epoch - warmup_epochs) / (total_epochs - warmup_epochs))
         )
     for group in optimizer.param_groups:
-        group["lr"] = lr
+        if "conditioner" in group["name"]:
+            assert conditioner_multiplier is not None
+            group["lr"] = lr * conditioner_multiplier
+        else:
+            group["lr"] = lr
     return lr
 
 
@@ -188,6 +210,7 @@ class Attention(nn.Module):
         attn_drop=0.0,
         proj_drop=0.0,
         norm_layer=nn.LayerNorm,
+        cross_attn: bool = False,
     ):
         super().__init__()
         assert dim % num_heads == 0, "dim should be divisible by num_heads"
@@ -196,32 +219,40 @@ class Attention(nn.Module):
         self.scale = self.head_dim**-0.5
         self.fast_attn = hasattr(torch.nn.functional, "scaled_dot_product_attention")  # FIXME
 
-        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        self.cross_attn = cross_attn
+
+        self.q = ConditionalLinear(dim, dim, bias=qkv_bias)
+        self.k = ConditionalLinear(dim, dim, bias=qkv_bias)
+        self.v = ConditionalLinear(dim, dim, bias=qkv_bias)
+
         self.q_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
         self.k_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
         self.attn_drop = nn.Dropout(attn_drop)
-        self.proj = nn.Linear(dim, dim)
+        self.proj = ConditionalLinear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
-    def forward(self, x, attn_mask=None):
+    def forward(self, x, y=None, attn_mask=None):
         B, N, C = x.shape
-        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv.unbind(0)
-        q, k = self.q_norm(q), self.k_norm(k)
 
+        q = self.q(x)
+
+        if y is None:
+            assert not self.cross_attn
+            k = self.k(x)
+            v = self.v(x)
+        else:
+            assert self.cross_attn
+            k = self.k(y)
+            v = self.v(y)
+
+        q = rearrange(q, "b n (h d) -> b h n d", h=self.num_heads)
+        k = rearrange(k, "b n (h d) -> b h n d", h=self.num_heads)
+        v = rearrange(v, "b n (h d) -> b h n d", h=self.num_heads)
+
+        q, k = self.q_norm(q), self.k_norm(k)
         if self.fast_attn:
             if attn_mask is not None:
                 attn_mask = attn_mask[:, None, None].repeat((1, self.num_heads, N, 1))
-                # attn_mask will have shape [batch, num_heads, N, N]
-                # we want to make sure the trace is unmasked; otherwise
-                # we get NaNs
-                diagonal = repeat(
-                    torch.eye(N, device=attn_mask.device).bool(),
-                    "s1 s2 -> b h s1 s2",
-                    b=B,
-                    h=self.num_heads,
-                )
-                attn_mask = attn_mask + diagonal
             x = F.scaled_dot_product_attention(
                 q,
                 k,
@@ -261,10 +292,10 @@ class Mlp(nn.Module):
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
 
-        self.fc1 = nn.Linear(in_features, hidden_features, bias=bias)
+        self.fc1 = ConditionalLinear(in_features, hidden_features, bias=bias)
         self.act = act_layer()
         self.drop1 = nn.Dropout(drop)
-        self.fc2 = nn.Linear(hidden_features, out_features, bias=bias)
+        self.fc2 = ConditionalLinear(hidden_features, out_features, bias=bias)
         self.drop2 = nn.Dropout(drop)
 
     def forward(self, x):
@@ -286,6 +317,28 @@ class LayerScale(nn.Module):
         return x.mul_(self.gamma) if self.inplace else x * self.gamma
 
 
+def drop_path(x, drop_prob: float = 0.0, training: bool = False):
+    if drop_prob == 0.0 or not training:
+        return x
+    keep_prob = 1 - drop_prob
+    shape = (x.shape[0],) + (1,) * (x.ndim - 1)  # work with diff dim tensors, not just 2D ConvNets
+    random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
+    random_tensor.floor_()  # binarize
+    output = x.div(keep_prob) * random_tensor
+    return output
+
+
+class DropPath(nn.Module):
+    """Drop paths (Stochastic Depth) per sample  (when applied in main path of residual blocks)."""
+
+    def __init__(self, drop_prob=None):
+        super(DropPath, self).__init__()
+        self.drop_prob = drop_prob
+
+    def forward(self, x):
+        return drop_path(x, self.drop_prob, self.training)
+
+
 class Block(nn.Module):
     def __init__(
         self,
@@ -296,9 +349,11 @@ class Block(nn.Module):
         qk_norm=False,
         drop=0.0,
         attn_drop=0.0,
+        drop_path=0.0,
         init_values=None,
         act_layer=nn.GELU,
         norm_layer=nn.LayerNorm,
+        cross_attn: bool = False,
     ):
         super().__init__()
         self.norm1 = norm_layer(dim)
@@ -310,8 +365,10 @@ class Block(nn.Module):
             attn_drop=attn_drop,
             proj_drop=drop,
             norm_layer=norm_layer,
+            cross_attn=cross_attn,
         )
         self.ls1 = LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
+        self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
 
         self.norm2 = norm_layer(dim)
         self.mlp = Mlp(
@@ -322,13 +379,24 @@ class Block(nn.Module):
         )
         self.ls2 = LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
 
-    def forward(self, x, attn_mask):
-        x = x + self.ls1(self.attn(self.norm1(x), attn_mask))
-        x = x + self.ls2(self.mlp(self.norm2(x)))
+    def forward(self, x, y, attn_mask):
+        x = x + self.drop_path(self.ls1(self.attn(self.norm1(x), y, attn_mask)))
+        x = x + self.drop_path(self.ls2(self.mlp(self.norm2(x))))
         return x
 
 
+class ModuleListWithInit(nn.ModuleList):
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            # we use xavier_uniform following official JAX ViT:
+            torch.nn.init.xavier_uniform_(m.weight)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+
+
 class FlexiPrestoBase(nn.Module):
+    cross_attn: bool
+
     def __init__(
         self,
         embedding_size: int = 128,
@@ -337,16 +405,19 @@ class FlexiPrestoBase(nn.Module):
         num_heads=8,
         max_sequence_length=24,
         base_patch_size: int = 4,
+        use_channel_embs: bool = True,
+        drop_path: float = 0.0,
     ):
         super().__init__()
 
         self.space_time_groups = SPACE_TIME_BANDS_GROUPS_IDX
         self.space_groups = SPACE_BAND_GROUPS_IDX
         self.time_groups = TIME_BAND_GROUPS_IDX
+        self.static_groups = STATIC_BAND_GROUPS_IDX
         self.embedding_size = embedding_size
         self.base_patch_size = base_patch_size
 
-        self.blocks = nn.ModuleList(
+        self.blocks = ModuleListWithInit(
             [
                 Block(
                     embedding_size,
@@ -354,6 +425,8 @@ class FlexiPrestoBase(nn.Module):
                     mlp_ratio,
                     qkv_bias=True,
                     norm_layer=nn.LayerNorm,
+                    cross_attn=self.cross_attn,
+                    drop_path=drop_path,
                 )
                 for _ in range(depth)
             ]
@@ -368,16 +441,23 @@ class FlexiPrestoBase(nn.Module):
             ),
             requires_grad=False,
         )
-        month_tab = torch.from_numpy(get_month_encoding_table(int(embedding_size * 0.25))).float()
+        month_tab = get_month_encoding_table(int(embedding_size * 0.25))
         self.month_embed = nn.Embedding.from_pretrained(month_tab, freeze=True)
+        if use_channel_embs:
+            args = {"requires_grad": True}
+        else:
+            args = {"requires_grad": False}
         self.s_t_channel_embed = nn.Parameter(
-            torch.zeros(len(SPACE_TIME_BANDS_GROUPS_IDX), int(embedding_size * 0.25))
+            torch.zeros(len(SPACE_TIME_BANDS_GROUPS_IDX), int(embedding_size * 0.25)), **args
         )
-        self.s_channel_embed = nn.Parameter(
-            torch.zeros(len(SPACE_BAND_GROUPS_IDX), int(embedding_size * 0.25))
+        self.sp_channel_embed = nn.Parameter(
+            torch.zeros(len(SPACE_BAND_GROUPS_IDX), int(embedding_size * 0.25)), **args
         )
         self.t_channel_embed = nn.Parameter(
-            torch.zeros(len(TIME_BAND_GROUPS_IDX), int(embedding_size * 0.25))
+            torch.zeros(len(TIME_BAND_GROUPS_IDX), int(embedding_size * 0.25)), **args
+        )
+        self.st_channel_embed = nn.Parameter(
+            torch.zeros(len(STATIC_BAND_GROUPS_IDX), int(embedding_size * 0.25)), **args
         )
 
         self.apply(self._init_weights)
@@ -393,30 +473,285 @@ class FlexiPrestoBase(nn.Module):
     def collapse_and_combine_hwtc(
         cls,
         s_t_x: torch.Tensor,
-        s_x: torch.Tensor,
+        sp_x: torch.Tensor,
         t_x: torch.Tensor,
+        st_x: torch.Tensor,
         s_t_m: torch.Tensor,
-        s_m: torch.Tensor,
+        sp_m: torch.Tensor,
         t_m: torch.Tensor,
+        st_m: torch.Tensor,
     ):
         s_t_x = rearrange(s_t_x, "b h w t c_g d -> b (h w t c_g) d")
-        s_x = rearrange(s_x, "b h w c_g d -> b (h w c_g) d")
+        sp_x = rearrange(sp_x, "b h w c_g d -> b (h w c_g) d")
         t_x = rearrange(t_x, "b t c_g d -> b (t c_g) d")
 
         s_t_m = rearrange(s_t_m, "b h w t c_g-> b (h w t c_g)")
-        s_m = rearrange(s_m, "b h w c_g-> b (h w c_g)")
+        sp_m = rearrange(sp_m, "b h w c_g-> b (h w c_g)")
         t_m = rearrange(t_m, "b t c_g -> b (t c_g)")
 
         x = torch.cat(
             [
                 s_t_x,
-                s_x,
+                sp_x,
                 t_x,
+                st_x,
             ],
             dim=1,
         )
-        m = torch.cat([s_t_m, s_m, t_m], dim=1)
-        return cls.remove_masked_tokens(x, m)
+        m = torch.cat([s_t_m, sp_m, t_m, st_m], dim=1)
+        return x, m
+
+    @classmethod
+    def split_and_expand_hwtc(
+        cls,
+        x: torch.Tensor,
+        h: int,
+        w: int,
+        t: int,
+        s_t_c_g: int,
+        sp_c_g: int,
+        t_c_g: int,
+        st_c_g: int,
+    ):
+        n_s_t_t = h * w * t * s_t_c_g
+        n_t_t = t * t_c_g
+
+        s_t_x = rearrange(x[:, :n_s_t_t], "b (h w t c) d -> b h w t c d", h=h, w=w, t=t, c=s_t_c_g)
+        sp_x = rearrange(
+            x[:, n_s_t_t : -(n_t_t + st_c_g)], "b (h w c) d -> b h w c d", h=h, w=w, c=sp_c_g
+        )
+        t_x = rearrange(x[:, -(n_t_t + st_c_g) : -st_c_g], "b (t c) d -> b t c d", t=t, c=t_c_g)
+        st_x = x[:, -st_c_g:]
+
+        return s_t_x, sp_x, t_x, st_x
+
+    def apply_encodings(self, s_t_x, sp_x, t_x, st_x, months, patch_size, input_res):
+        b, h, w, t, s_t_c_g, _ = s_t_x.shape
+        sp_c_g, t_c_g = sp_x.shape[-2], t_x.shape[-2]
+        st_c_g = st_x.shape[-2]
+
+        s_t_channel = repeat(self.s_t_channel_embed, "c_g d -> b h w t c_g d", b=b, h=h, w=w, t=t)
+        t_channel = repeat(self.t_channel_embed, "c_g d -> b t c_g d", b=b, t=t)
+        st_channel = repeat(self.st_channel_embed, "c_g d -> b c_g d", b=b)
+        sp_channel = repeat(self.sp_channel_embed, "c_g d -> b h w c_g d", b=b, h=h, w=w)
+
+        pos_embed_s_t = repeat(
+            self.pos_embed[:t], "t d -> b h w t c_g d", b=b, h=h, w=w, c_g=s_t_c_g
+        )
+        m_embed_s_t = repeat(
+            self.month_embed(months), "b t d -> b h w t c_g d", h=h, w=w, c_g=s_t_c_g
+        )
+
+        pos_embed_t = repeat(self.pos_embed[:t], "t d -> b t c_g d", b=b, c_g=t_c_g)
+        m_embed_t = repeat(self.month_embed(months), "b t d -> b t c_g d", c_g=t_c_g)
+        t_zeros = torch.zeros(b, t, t_c_g, int(self.embedding_size * 0.25), device=t_x.device)
+
+        sp_zeros = torch.zeros(
+            b,
+            h,
+            w,
+            sp_c_g,
+            sp_channel.shape[-1] * 2,
+            device=sp_channel.device,
+        )
+
+        st_zeros = torch.zeros(b, st_c_g, st_channel.shape[-1] * 3, device=st_channel.device)
+
+        # find the resolution that each token represents, which will be
+        # the number of pixels in a patch * the resolution of each pixel
+        if patch_size is None:
+            patch_size = self.base_patch_size
+        token_res = input_res * patch_size
+        gsd_ratio = token_res / BASE_GSD
+
+        assert h == w, "get_2d_sincos_pos_embed_with_resolution currently requires that h==w"
+        spatial_embed = get_2d_sincos_pos_embed_with_resolution(
+            int(self.embedding_size * 0.25),
+            h,
+            torch.ones(b).to(s_t_x.device) * gsd_ratio,
+            device=s_t_x.device,
+        )
+        spatial_embed = rearrange(spatial_embed, "b (h w) d -> b h w d", h=h, w=w)
+        spatial_embed_s_t = repeat(
+            spatial_embed, "b h w d -> b h w t c_g d", h=h, w=w, t=t, c_g=s_t_c_g
+        )
+        spatial_embed_s = repeat(spatial_embed, "b h w d -> b h w c_g d", h=h, w=w, c_g=sp_c_g)
+
+        s_t_embed = torch.cat([s_t_channel, pos_embed_s_t, m_embed_s_t, spatial_embed_s_t], dim=-1)
+        sp_embed = torch.cat([sp_channel, sp_zeros, spatial_embed_s], dim=-1)
+        t_embed = torch.cat([t_channel, pos_embed_t, m_embed_t, t_zeros], dim=-1)
+        st_embed = torch.cat([st_channel, st_zeros], dim=-1)
+        return s_t_x + s_t_embed, sp_x + sp_embed, t_x + t_embed, st_x + st_embed
+
+
+class Encoder(FlexiPrestoBase):
+    cross_attn = False
+
+    def __init__(
+        self,
+        max_patch_size: int = 8,
+        embedding_size: int = 128,
+        depth=2,
+        mlp_ratio=2,
+        num_heads=8,
+        max_sequence_length=24,
+        freeze_projections: bool = False,
+        conditioner=None,
+        drop_path: float = 0.0,
+    ):
+        super().__init__(
+            embedding_size,
+            depth,
+            mlp_ratio,
+            num_heads,
+            max_sequence_length,
+            max_patch_size,
+            use_channel_embs=True,
+            drop_path=drop_path,
+        )
+
+        self.space_time_embed = nn.ModuleDict(
+            {
+                group_name: FlexiPatchEmbed(
+                    in_chans=len(group), embed_dim=embedding_size, patch_size=max_patch_size
+                )
+                for group_name, group in self.space_time_groups.items()
+            }
+        )
+        self.space_embed = nn.ModuleDict(
+            {
+                group_name: FlexiPatchEmbed(
+                    in_chans=len(group), embed_dim=embedding_size, patch_size=max_patch_size
+                )
+                for group_name, group in self.space_groups.items()
+            }
+        )
+        self.time_embed = nn.ModuleDict(
+            {
+                group_name: nn.Linear(in_features=len(group), out_features=embedding_size)
+                for group_name, group in self.time_groups.items()
+            }
+        )
+        self.static_embed = nn.ModuleDict(
+            {
+                group_name: nn.Linear(in_features=len(group), out_features=embedding_size)
+                for group_name, group in self.static_groups.items()
+            }
+        )
+        if freeze_projections:
+            self.space_time_embed.requires_grad_(False)
+            self.space_embed.requires_grad_(False)
+            self.time_embed.requires_grad_(False)
+            self.static_embed.requires_grad_(False)
+        self.norm = nn.LayerNorm(embedding_size)
+
+        self.apply(self._init_weights)
+        self.conditioner = conditioner
+        if conditioner is not None:
+            if conditioner.mode == "moe":
+                self.conditioner.add_templates(self.blocks)
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            # we use xavier_uniform following official JAX ViT:
+            torch.nn.init.xavier_uniform_(m.weight)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+
+    def apply_linear_projection(
+        self,
+        s_t_x: torch.Tensor,
+        sp_x: torch.Tensor,
+        t_x: torch.Tensor,
+        st_x: torch.Tensor,
+        s_t_m: torch.Tensor,
+        sp_m: torch.Tensor,
+        t_m: torch.Tensor,
+        st_m: torch.Tensor,
+        patch_size: int,
+    ):
+        """
+        Given a [B, H, W, (T), C] inputs, returns a [B, H, W, (T), C_G, D] output.
+        We assume that the spatial masks are consistent for the given patch size,
+        so that if patch_size == 2 then one possible mask would be
+        [0, 0, 1, 1]
+        [0, 0, 1, 1]
+        [1, 1, 0, 0]
+        [1, 1, 0, 0]
+        for the H, W dimensions
+        """
+        b, h, w, t, _ = s_t_x.shape
+        new_h, new_w = h // patch_size, w // patch_size
+
+        s_t_l, sp_l, t_l, st_l, s_t_m_l, sp_m_l, t_m_l, st_m_l = [], [], [], [], [], [], [], []
+        for idx, (channel_group, channel_idxs) in enumerate(self.space_time_groups.items()):
+            s_t_m_l.append(s_t_m[:, 0::patch_size, 0::patch_size, :, idx])
+            if s_t_m_l[-1].min() == 0:
+                s_t_l.append(
+                    self.space_time_embed[channel_group](
+                        s_t_x[:, :, :, :, channel_idxs], patch_size=patch_size
+                    )
+                )
+            else:
+                s_t_l.append(
+                    torch.empty(
+                        b,
+                        new_h,
+                        new_w,
+                        t,
+                        self.embedding_size,
+                        dtype=s_t_x.dtype,
+                        device=s_t_x.device,
+                    )
+                )
+        for idx, (channel_group, channel_idxs) in enumerate(self.space_groups.items()):
+            sp_m_l.append(sp_m[:, 0::patch_size, 0::patch_size, idx])
+            if sp_m_l[-1].min() == 0:
+                sp_l.append(
+                    self.space_embed[channel_group](
+                        sp_x[:, :, :, channel_idxs], patch_size=patch_size
+                    )
+                )
+            else:
+                sp_l.append(
+                    torch.empty(
+                        b,
+                        new_h,
+                        new_w,
+                        self.embedding_size,
+                        dtype=sp_x.dtype,
+                        device=sp_x.device,
+                    )
+                )
+
+        for idx, (channel_group, channel_idxs) in enumerate(self.time_groups.items()):
+            t_m_l.append(t_m[:, :, idx])
+            if t_m_l[-1].min() == 0:
+                t_l.append(self.time_embed[channel_group](t_x[:, :, channel_idxs]))
+            else:
+                t_l.append(
+                    torch.empty(b, t, self.embedding_size, dtype=t_x.dtype, device=t_x.device)
+                )
+
+        for idx, (channel_group, channel_idxs) in enumerate(self.static_groups.items()):
+            st_m_l.append(st_m[:, idx])
+            if st_m_l[-1].min() == 0:
+                st_l.append(self.static_embed[channel_group](st_x[:, channel_idxs]))
+            else:
+                st_l.append(
+                    torch.empty(b, self.embedding_size, dtype=st_x.dtype, device=st_x.device)
+                )
+
+        return (
+            torch.stack(s_t_l, dim=-2),
+            torch.stack(sp_l, dim=-2),
+            torch.stack(t_l, dim=-2),
+            torch.stack(st_l, dim=-2),
+            torch.stack(s_t_m_l, dim=-1),
+            torch.stack(sp_m_l, dim=-1),
+            torch.stack(t_m_l, dim=-1),
+            torch.stack(st_m_l, dim=-1),
+        )
 
     @staticmethod
     def remove_masked_tokens(x, mask):
@@ -459,229 +794,261 @@ class FlexiPrestoBase(nn.Module):
         full_mask = full_mask.scatter(1, indices.expand_as(full_mask), full_mask)
         return out, full_mask
 
-    @classmethod
-    def split_and_expand_hwtc(
-        cls,
-        x: torch.Tensor,
-        indices: torch.Tensor,
-        m: torch.Tensor,
-        h: int,
-        w: int,
-        t: int,
-        s_t_c_g: int,
-        s_c_g: int,
-        t_c_g: int,
+    def apply_attn(
+        self,
+        s_t_x,
+        sp_x,
+        t_x,
+        st_x,
+        s_t_m,
+        sp_m,
+        t_m,
+        st_m,
+        months,
+        patch_size,
+        input_res,
+        exit_after,
     ):
-        x, m = cls.add_removed_tokens(x, indices, m)
-        n_s_t_t = h * w * t * s_t_c_g
-        n_t_t = t * t_c_g
-
-        s_t_x = rearrange(x[:, :n_s_t_t], "b (h w t c) d -> b h w t c d", h=h, w=w, t=t, c=s_t_c_g)
-        s_x = rearrange(x[:, n_s_t_t:-n_t_t], "b (h w c) d -> b h w c d", h=h, w=w, c=s_c_g)
-        t_x = rearrange(x[:, -n_t_t:], "b (t c) d -> b t c d", t=t, c=t_c_g)
-
-        s_t_m = rearrange(m[:, :n_s_t_t], "b (h w t c) -> b h w t c", h=h, w=w, t=t, c=s_t_c_g)
-        s_m = rearrange(m[:, n_s_t_t:-n_t_t], "b (h w c) -> b h w c", h=h, w=w, c=s_c_g)
-        t_m = rearrange(m[:, -n_t_t:], "b (t c) -> b t c", t=t, c=t_c_g)
-        return s_t_x, s_x, t_x, s_t_m, s_m, t_m
-
-    def apply_encodings(self, s_t_x, s_x, t_x, months, patch_size, input_res):
-        b, h, w, t, s_t_c_g, _ = s_t_x.shape
-        s_c_g, t_c_g = s_x.shape[-2], t_x.shape[-2]
-
-        s_t_channel = repeat(self.s_t_channel_embed, "c_g d -> b h w t c_g d", b=b, h=h, w=w, t=t)
-        pos_embed_s_t = repeat(
-            self.pos_embed[:t], "t d -> b h w t c_g d", b=b, h=h, w=w, c_g=s_t_c_g
-        )
-        m_embed_s_t = repeat(
-            self.month_embed(months), "b t d -> b h w t c_g d", h=h, w=w, c_g=s_t_c_g
-        )
-
-        t_channel = repeat(self.t_channel_embed, "c_g d -> b t c_g d", b=b, t=t)
-        pos_embed_t = repeat(self.pos_embed[:t], "t d -> b t c_g d", b=b, c_g=t_c_g)
-        m_embed_t = repeat(self.month_embed(months), "b t d -> b t c_g d", c_g=t_c_g)
-        t_zeros = torch.zeros(
-            b, t, t_c_g, int(self.embedding_size * 0.25), device=t_x.device
-        ).float()
-
-        s_channel = repeat(self.s_channel_embed, "c_g d -> b h w c_g d", b=b, h=h, w=w)
-        s_zeros = torch.zeros(
-            b,
-            h,
-            w,
-            s_c_g,
-            s_channel.shape[-1] * 2,
-            device=s_channel.device,
-        ).float()
-
-        # find the resolution that each token represents, which will be
-        # the number of pixels in a patch * the resolution of each pixel
-        if patch_size is None:
-            patch_size = self.base_patch_size
-        token_res = input_res * patch_size
-        gsd_ratio = token_res / BASE_GSD
-
-        assert h == w, "get_2d_sincos_pos_embed_with_resolution currently requires that h==w"
-        spatial_embed = get_2d_sincos_pos_embed_with_resolution(
-            int(self.embedding_size * 0.25),
-            h,
-            torch.ones(b).to(s_t_x.device) * gsd_ratio,
-            device=s_t_x.device,
-        )
-        spatial_embed = rearrange(spatial_embed, "b (h w) d -> b h w d", h=h, w=w)
-        spatial_embed_s_t = repeat(
-            spatial_embed, "b h w d -> b h w t c_g d", h=h, w=w, t=t, c_g=s_t_c_g
-        )
-        spatial_embed_s = repeat(spatial_embed, "b h w d -> b h w c_g d", h=h, w=w, c_g=s_c_g)
-
-        s_t_embed = torch.cat([s_t_channel, pos_embed_s_t, m_embed_s_t, spatial_embed_s_t], dim=-1)
-        s_embed = torch.cat([s_channel, s_zeros, spatial_embed_s], dim=-1)
-        t_embed = torch.cat([t_channel, pos_embed_t, m_embed_t, t_zeros], dim=-1)
-        return s_t_x + s_t_embed, s_x + s_embed, t_x + t_embed
-
-    def apply_attn(self, s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size, input_res):
-        # todo - add encodings
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
-        s_c_g, t_c_g = s_x.shape[3], t_x.shape[-2]
-        s_t_x, s_x, t_x = self.apply_encodings(s_t_x, s_x, t_x, months, patch_size, input_res)
-        x, indices, m = self.collapse_and_combine_hwtc(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
-        for blk in self.blocks:
+        sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
+        s_t_x, sp_x, t_x, st_x = self.apply_encodings(
+            s_t_x, sp_x, t_x, st_x, months, patch_size, input_res
+        )
+        x, m = self.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
+
+        # we only care about the values <= 1 for this mask, since 2 just tells the decoder
+        # to decode those tokens. From the perspective of the encoder, 1 and 2 are equivalent
+        # since they both represent masked values
+        new_m = m >= 1
+        x, indices, new_m = self.remove_masked_tokens(x, new_m)  # new_m is shape (bsz, seq_len)
+
+        for i_blk, blk in enumerate(self.blocks):
+            if (exit_after is not None) and ((i_blk + 1) >= exit_after):
+                # if exit_after is N, then we exit after the Nth layer
+                # if exit_after is 0, then all layers are skipped
+                break
+
             # we take the inverse of the mask because a value
             # of True indicates the value *should* take part in
             # attention
-            x = blk(x, attn_mask=~m.bool())
-        return self.split_and_expand_hwtc(x, indices, m, h, w, t, s_t_c_g, s_c_g, t_c_g)
+            x = blk(x=x, y=None, attn_mask=~new_m.bool())
 
-
-class Encoder(FlexiPrestoBase):
-    def __init__(
-        self,
-        max_patch_size: int = 8,
-        embedding_size: int = 128,
-        depth=2,
-        mlp_ratio=2,
-        num_heads=8,
-        max_sequence_length=24,
-    ):
-        super().__init__(
-            embedding_size,
-            depth,
-            mlp_ratio,
-            num_heads,
-            max_sequence_length,
-            max_patch_size,
-        )
-
-        self.space_time_embed = nn.ModuleDict(
-            {
-                group_name: FlexiPatchEmbed(
-                    in_chans=len(group), embed_dim=embedding_size, patch_size=max_patch_size
-                )
-                for group_name, group in self.space_time_groups.items()
-            }
-        )
-        self.space_embed = nn.ModuleDict(
-            {
-                group_name: FlexiPatchEmbed(
-                    in_chans=len(group), embed_dim=embedding_size, patch_size=max_patch_size
-                )
-                for group_name, group in self.space_groups.items()
-            }
-        )
-        self.time_embed = nn.ModuleDict(
-            {
-                group_name: nn.Linear(in_features=len(group), out_features=embedding_size)
-                for group_name, group in self.time_groups.items()
-            }
-        )
-
-        self.norm = nn.LayerNorm(embedding_size)
-
-        self.apply(self._init_weights)
-
-    def _init_weights(self, m):
-        if isinstance(m, nn.Linear):
-            # we use xavier_uniform following official JAX ViT:
-            torch.nn.init.xavier_uniform_(m.weight)
-            if isinstance(m, nn.Linear) and m.bias is not None:
-                nn.init.constant_(m.bias, 0)
-
-    def apply_linear_projection(
-        self,
-        s_t_x: torch.Tensor,
-        s_x: torch.Tensor,
-        t_x: torch.Tensor,
-        s_t_m: torch.Tensor,
-        s_m: torch.Tensor,
-        t_m: torch.Tensor,
-        patch_size: Optional[int],
-    ):
-        """
-        Given a [B, H, W, (T), C] inputs, returns a [B, H, W, (T), C_G, D] output.
-        We assume that the spatial masks are consistent for the given patch size,
-        so that if patch_size == 2 then one possible mask would be
-        [0, 0, 1, 1]
-        [0, 0, 1, 1]
-        [1, 1, 0, 0]
-        [1, 1, 0, 0]
-        for the H, W dimensions
-        """
-        s_t_l, s_l, t_l, s_t_m_l, s_m_l, t_m_l = [], [], [], [], [], []
-        for idx, (channel_group, channel_idxs) in enumerate(self.space_time_groups.items()):
-            s_t_l.append(
-                self.space_time_embed[channel_group](
-                    s_t_x[:, :, :, :, channel_idxs], patch_size=patch_size
-                )
-            )
-            s_t_m_l.append(s_t_m[:, 0::patch_size, 0::patch_size, :, idx])
-        for idx, (channel_group, channel_idxs) in enumerate(self.space_groups.items()):
-            s_l.append(
-                self.space_embed[channel_group](s_x[:, :, :, channel_idxs], patch_size=patch_size)
-            )
-            s_m_l.append(s_m[:, 0::patch_size, 0::patch_size, idx])
-
-        for idx, (channel_group, channel_idxs) in enumerate(self.time_groups.items()):
-            t_l.append(self.time_embed[channel_group](t_x[:, :, channel_idxs]))
-            t_m_l.append(t_m[:, :, idx])
-
+        # we don't care about the mask returned by add_removed_tokens, since we will
+        # just use the original, unclipped mask here
+        x, _ = self.add_removed_tokens(x, indices, new_m)
         return (
-            torch.stack(s_t_l, dim=-2),
-            torch.stack(s_l, dim=-2),
-            torch.stack(t_l, dim=-2),
-            torch.stack(s_t_m_l, dim=-1),
-            torch.stack(s_m_l, dim=-1),
-            torch.stack(t_m_l, dim=-1),
+            *self.split_and_expand_hwtc(x, h, w, t, s_t_c_g, sp_c_g, t_c_g, st_c_g),
+            s_t_m,
+            sp_m,
+            t_m,
+            st_m,
         )
 
     @classmethod
-    def average_tokens(cls, s_t_x, s_x, t_x, s_t_m, s_m, t_m):
-        x, _, m = cls.collapse_and_combine_hwtc(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
+    def average_tokens(cls, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m):
+        x, m = cls.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
+        x, _, m = cls.remove_masked_tokens(x, m)
         x_for_mean = x * (1 - m.unsqueeze(-1))
         return x_for_mean.sum(dim=1) / torch.sum(1 - m, -1, keepdim=True)
+
+    @classmethod
+    def apply_mask_and_average_tokens_per_patch(
+        cls,
+        s_t_x: torch.Tensor,
+        sp_x: torch.Tensor,
+        t_x: torch.Tensor,
+        st_x: torch.Tensor,
+        s_t_m: torch.Tensor,
+        sp_m: torch.Tensor,
+        t_m: torch.Tensor,
+        st_m: torch.Tensor,
+    ):
+        s_t_x = rearrange(s_t_x, "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d")
+        sp_x = rearrange(sp_x, "b t_h t_w c_g d -> b (t_h t_w) c_g d")
+        # repeat time tokens over space
+        t_x = repeat(
+            rearrange(t_x, "b t c_g d -> b (t c_g) d"), "b n d -> b s n d", s=sp_x.shape[1]
+        )
+        st_x = repeat(st_x, "b c_g d -> b s c_g d", s=sp_x.shape[1])
+        s_t_m = rearrange(s_t_m, "b t_h t_w t c_g-> b (t_h t_w) (t c_g)")
+        sp_m = rearrange(sp_m, "b t_h t_w c_g-> b (t_h t_w) c_g")
+        t_m = repeat(rearrange(t_m, "b t c_g -> b (t c_g)"), "b n -> b s n", s=sp_x.shape[1])
+        st_m = repeat(st_m, "b c_g -> b s c_g", s=sp_x.shape[1])
+
+        x = torch.cat([s_t_x, sp_x, t_x, st_x], dim=2)  # B, S, N, D
+        m = torch.cat([s_t_m, sp_m, t_m, st_m], dim=2)  # B, S, N
+
+        x_for_mean = x * (1 - m.unsqueeze(-1))
+
+        return x_for_mean.sum(dim=2) / torch.sum(1 - m, -1, keepdim=True)
 
     def forward(
         self,
         s_t_x: torch.Tensor,
-        s_x: torch.Tensor,
+        sp_x: torch.Tensor,
         t_x: torch.Tensor,
+        st_x: torch.Tensor,
         s_t_m: torch.Tensor,
-        s_m: torch.Tensor,
+        sp_m: torch.Tensor,
         t_m: torch.Tensor,
+        st_m: torch.Tensor,
         months: torch.Tensor,
-        patch_size: Optional[int] = None,
+        patch_size: int,
+        c_i=None,
         input_resolution_m: Optional[int] = BASE_GSD,
+        exit_after: Optional[int] = None,
     ):
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m = self.apply_linear_projection(
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, patch_size
+        if self.conditioner is not None:
+            self.apply_condition(c_i)
+
+        (
+            s_t_x,
+            sp_x,
+            t_x,
+            st_x,
+            s_t_m,
+            sp_m,
+            t_m,
+            st_m,
+        ) = self.apply_linear_projection(
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, patch_size
         )
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m = self.apply_attn(
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size, input_resolution_m
+        if (exit_after is None) or (exit_after > 0):
+            s_t_x, sp_x, t_x, st_x, s_t_m, st_m, t_m, st_m = self.apply_attn(
+                s_t_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_m,
+                sp_m,
+                t_m,
+                st_m,
+                months,
+                patch_size,
+                input_resolution_m,
+                exit_after,
+            )
+
+        return (
+            self.norm(s_t_x),
+            self.norm(sp_x),
+            self.norm(t_x),
+            self.norm(st_x),
+            s_t_m,
+            sp_m,
+            t_m,
+            st_m,
+            months,
         )
 
-        return self.norm(s_t_x), self.norm(s_x), self.norm(t_x), s_t_m, s_m, t_m, months
+    @classmethod
+    def load_from_folder(cls, folder: Path):
+        assert (folder / CONFIG_FILENAME).exists(), f"Missing {CONFIG_FILENAME}"
+        assert (folder / ENCODER_FILENAME).exists(), f"Missing {ENCODER_FILENAME}"
+
+        conditioner_config = None
+        conditioner: Optional[Union[LoRAGenerator, LearnedMixture]] = None
+        with (folder / CONFIG_FILENAME).open("r") as f:
+            config = json.load(f)
+            model_config = config["model"]
+            encoder_config = model_config["encoder"]
+            if "conditioner" in model_config.keys():
+                conditioner_config = model_config["conditioner"]
+
+        if conditioner_config is not None:
+            if config["training"]["conditioner_mode"] == "lora":
+                conditioner = LoRAGenerator(**conditioner_config)
+            else:
+                assert config["training"]["conditioner_mode"] == "moe"
+                conditioner = LearnedMixture(**conditioner_config)
+        encoder = cls(**encoder_config, conditioner=conditioner)
+        encoder.load_state_dict(torch.load(folder / ENCODER_FILENAME, map_location=device))
+        return encoder
+
+    def apply_condition(self, c_i):
+        if self.conditioner.mode == "moe":
+            if c_i is not None:
+                conditional_weights = self.conditioner(c_i)
+                for i, block in enumerate(self.blocks):
+                    block.attn.proj.apply_condition(
+                        conditional_weights[f"{i}.weight"],
+                        conditional_weights[f"{i}.bias"],
+                        "moe",
+                    )
+            else:
+                for block in self.blocks:
+                    block.attn.proj.apply_condition(None, None, "moe")
+
+        elif "lora" in self.conditioner.mode:
+            if c_i is not None:
+                conditional_weights = self.conditioner(c_i)
+                for block_idx, block in enumerate(self.blocks):
+                    if self.conditioner.mode == "lora-t":
+                        if f"{block_idx}_q" in conditional_weights:
+                            block.attn.q.apply_condition(
+                                conditional_weights[f"{block_idx}_q"], None, "lora"
+                            )
+                        if f"{block_idx}_k" in conditional_weights:
+                            block.attn.k.apply_condition(
+                                conditional_weights[f"{block_idx}_k"], None, "lora"
+                            )
+                        if f"{block_idx}_v" in conditional_weights:
+                            block.attn.v.apply_condition(
+                                conditional_weights[f"{block_idx}_v"], None, "lora"
+                            )
+                        if f"{block_idx}_proj" in conditional_weights:
+                            block.attn.proj.apply_condition(
+                                conditional_weights[f"{block_idx}_proj"], None, "lora"
+                            )
+                        if f"{block_idx}_fc1" in conditional_weights:
+                            block.mlp.fc1.apply_condition(
+                                conditional_weights[f"{block_idx}_fc1"], None, "lora"
+                            )
+                        if f"{block_idx}_fc2" in conditional_weights:
+                            block.mlp.fc2.apply_condition(
+                                conditional_weights[f"{block_idx}_fc2"], None, "lora"
+                            )
+                    elif self.conditioner.mode == "lora-g":
+                        block_conditional_weights = conditional_weights[block_idx]
+                        if "q" in block_conditional_weights:
+                            block.attn.q.apply_condition(
+                                block_conditional_weights["q"], None, "lora"
+                            )
+                        if "k" in block_conditional_weights:
+                            block.attn.k.apply_condition(
+                                block_conditional_weights["k"], None, "lora"
+                            )
+                        if "v" in block_conditional_weights:
+                            block.attn.v.apply_condition(
+                                block_conditional_weights["v"], None, "lora"
+                            )
+                        if "proj" in block_conditional_weights:
+                            block.attn.proj.apply_condition(
+                                block_conditional_weights["proj"], None, "lora"
+                            )
+                        if "fc1" in block_conditional_weights:
+                            block.mlp.fc1.apply_condition(
+                                block_conditional_weights["fc1"], None, "lora"
+                            )
+                        if "fc2" in block_conditional_weights:
+                            block.mlp.fc2.apply_condition(
+                                block_conditional_weights["fc2"], None, "lora"
+                            )
+            else:
+                for block in self.blocks:
+                    block.attn.q.apply_condition(None, None, "lora")
+                    block.attn.k.apply_condition(None, None, "lora")
+                    block.attn.v.apply_condition(None, None, "lora")
+                    block.attn.proj.apply_condition(None, None, "lora")
+                    block.mlp.fc1.apply_condition(None, None, "lora")
+                    block.mlp.fc2.apply_condition(None, None, "lora")
+        else:
+            raise f"Called apply_condition but self.conditioner.mode is {self.conditioner.mode}"
 
 
 class PrestoPixelDecoder(FlexiPrestoBase):
+    cross_attn = True
+
     def __init__(
         self,
         encoder_embedding_size: int = 128,
@@ -691,6 +1058,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         num_heads=8,
         max_sequence_length=24,
         max_patch_size: int = 8,
+        learnable_channel_embeddings: bool = False,
     ):
         super().__init__(
             decoder_embedding_size,
@@ -699,185 +1067,191 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             num_heads,
             max_sequence_length,
             max_patch_size,
+            use_channel_embs=learnable_channel_embeddings,
+            drop_path=0.0,
         )
+        self.learnable_channel_embeddings = learnable_channel_embeddings
+        self.encoder_embedding_size = encoder_embedding_size
         self.encoder_to_decoder_embed = nn.Linear(
             encoder_embedding_size, decoder_embedding_size, bias=True
         )
+        self.to_output_embed = nn.Linear(decoder_embedding_size, encoder_embedding_size, bias=True)
         self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
 
         self.max_patch_size = max_patch_size
-        self.space_time_embed = nn.ModuleDict(
-            {
-                group_name: nn.Linear(decoder_embedding_size, len(group) * max_patch_size**2)
-                for group_name, group in self.space_time_groups.items()
-            }
-        )
-        self.space_embed = nn.ModuleDict(
-            {
-                group_name: nn.Linear(decoder_embedding_size, len(group) * max_patch_size**2)
-                for group_name, group in self.space_groups.items()
-            }
-        )
-        self.time_embed = nn.ModuleDict(
-            {
-                group_name: nn.Linear(decoder_embedding_size, len(group))
-                for group_name, group in self.time_groups.items()
-            }
-        )
+        self.input_norm = nn.LayerNorm(encoder_embedding_size)
+        self.norm = nn.LayerNorm(decoder_embedding_size)
+        self.apply(self._init_weights)
 
-    def add_masks(self, s_t_x, s_x, t_x, s_t_m, s_m, t_m):
-        s_t_x = s_t_x * (1 - s_t_m).unsqueeze(-1)
+    def add_masks(self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m):
+        def to_kept_boolean(m: torch.Tensor):
+            # returns a mask where 1 indicates the value should be decoded
+            # (i.e. was 2) and 0 elsewhere
+            return (m == 2).to(dtype=m.dtype)
+
+        s_t_x = s_t_x * (1 - to_kept_boolean(s_t_m)).unsqueeze(-1)
         B, H, W, T, S_T_C, _ = s_t_x.shape
         s_t_m_reshaped = repeat(self.mask_token, "d -> b h w t c d", b=B, h=H, w=W, t=T, c=S_T_C)
-        s_t_m_add = s_t_m_reshaped * s_t_m.unsqueeze(-1)
-        s_t_m = s_t_m * 0  # all values are unmasked now
+        s_t_m_add = s_t_m_reshaped * to_kept_boolean(s_t_m).unsqueeze(-1)
 
-        s_x = s_x * (1 - s_m).unsqueeze(-1)
-        S_C = s_x.shape[-2]
-        s_m_reshaped = repeat(self.mask_token, "d -> b h w c d", b=B, h=H, w=W, c=S_C)
-        s_m_add = s_m_reshaped * s_m.unsqueeze(-1)
-        s_m = s_m * 0
+        sp_x = sp_x * (1 - to_kept_boolean(sp_m)).unsqueeze(-1)
+        SP_C = sp_x.shape[-2]
+        sp_m_reshaped = repeat(self.mask_token, "d -> b h w c d", b=B, h=H, w=W, c=SP_C)
+        sp_m_add = sp_m_reshaped * to_kept_boolean(sp_m).unsqueeze(-1)
 
-        t_x = t_x * (1 - t_m).unsqueeze(-1)
+        t_x = t_x * (1 - to_kept_boolean(t_m)).unsqueeze(-1)
         T_C = t_x.shape[-2]
         t_m_reshaped = repeat(self.mask_token, "d -> b t c d", b=B, t=T, c=T_C)
-        t_m_add = t_m_reshaped * t_m.unsqueeze(-1)
-        t_m = t_m * 0
+        t_m_add = t_m_reshaped * to_kept_boolean(t_m).unsqueeze(-1)
 
-        return s_t_x + s_t_m_add, s_x + s_m_add, t_x + t_m_add, s_t_m, s_m, t_m
-
-    def forward(
-        self,
-        s_t_x: torch.Tensor,
-        s_x: torch.Tensor,
-        t_x: torch.Tensor,
-        s_t_m: torch.Tensor,
-        s_m: torch.Tensor,
-        t_m: torch.Tensor,
-        months: torch.Tensor,
-        patch_size: Optional[int] = None,
-        input_resolution_m: Optional[int] = BASE_GSD,
-    ):
-        s_t_x = self.encoder_to_decoder_embed(s_t_x)
-        s_x = self.encoder_to_decoder_embed(s_x)
-        t_x = self.encoder_to_decoder_embed(t_x)
-
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m = self.add_masks(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m = self.apply_attn(
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size, input_resolution_m
-        )
-        output_s_t, output_s, output_t = [], [], []
-        for idx, (group_name, c_g) in enumerate(self.space_time_groups.items()):
-            # decoded has shape [b, h, w, t, len(c_g) * patch_size ** 2]
-            decoded = self.space_time_embed[group_name](s_t_x[:, :, :, :, idx])
-            output_s_t.append(
-                rearrange(
-                    decoded,
-                    "b t_h t_w t (c_g p_h p_w) -> b (t_h p_h) (t_w p_w) t c_g",
-                    c_g=len(c_g),
-                    p_w=self.max_patch_size,
-                    p_h=self.max_patch_size,
-                )
-            )
-
-        for idx, (group_name, c_g) in enumerate(self.space_groups.items()):
-            # decoded has shape [b, h, w, len(c_g) * patch_size ** 2]
-            decoded = self.space_embed[group_name](s_x[:, :, :, idx])
-            output_s.append(
-                rearrange(
-                    decoded,
-                    "b t_h t_w (c_g p_h p_w) -> b (t_h p_h) (t_w p_w) c_g",
-                    c_g=len(c_g),
-                    p_w=self.max_patch_size,
-                    p_h=self.max_patch_size,
-                )
-            )
-
-        for idx, (group_name, c_g) in enumerate(self.time_groups.items()):
-            decoded = self.time_embed[group_name](t_x[:, :, idx])
-            output_t.append(decoded)
+        st_x = st_x * (1 - to_kept_boolean(st_m)).unsqueeze(-1)
+        ST_C = st_x.shape[-2]
+        st_m_reshaped = repeat(self.mask_token, "d -> b c d", b=B, c=ST_C)
+        st_m_add = st_m_reshaped * to_kept_boolean(st_m).unsqueeze(-1)
 
         return (
-            torch.cat(output_s_t, dim=-1),
-            torch.cat(output_s, dim=-1),
-            torch.cat(output_t, dim=-1),
+            s_t_x + s_t_m_add,
+            sp_x + sp_m_add,
+            t_x + t_m_add,
+            st_x + st_m_add,
         )
 
+    @staticmethod
+    def split_x_y(tokens, mask):
+        org_mask_dtype = mask.dtype
+        # https://stackoverflow.com/a/68621610/2332296
+        # move all non-masked values to the front of their rows
+        # and all masked values to be decoded to the end of their rows
+        # since we multiply by -1, we now have that -2: to be decoded, -1: masked and ignored, 0: unmasked
+        sorted_mask, indices = torch.sort(mask.int(), dim=1, descending=True, stable=True)
+        tokens = tokens.gather(1, indices[:, :, None].expand_as(tokens))
+        # cut off to the length of the longest sequence
+        max_length_to_be_decoded = (sorted_mask == 2).sum(-1).max()
+        max_length_of_unmasked_tokens = (sorted_mask == 0).sum(-1).max()
+        # x will be the query tokens, and y will be the key / value tokens
+        x = tokens[:, :max_length_to_be_decoded]
+        y = tokens[:, -max_length_of_unmasked_tokens:]
 
-class PrestoRepresentationDecoder(FlexiPrestoBase):
-    def __init__(
-        self,
-        encoder_embedding_size: int = 128,
-        decoder_embedding_size: int = 128,
-        depth=2,
-        mlp_ratio=2,
-        num_heads=8,
-        max_sequence_length=24,
-        max_patch_size=8,
+        # the x_mask is just going to be used in the reconstruction, to know which
+        # x tokens to add back into the token list. TODO is this even necessary? it could
+        # get padded with noise tokens since we don't care about reconstruction at all
+        # for a whole bunch of tokens
+        x_mask = (sorted_mask == 2)[:, :max_length_to_be_decoded].to(dtype=org_mask_dtype)
+        # the y mask is going to be used to determine which of the y values take. True values
+        # take part in the attention (we don't take the inverse here, unlike in the decoder)
+        y_mask = (sorted_mask == 0)[:, -max_length_of_unmasked_tokens:].to(dtype=org_mask_dtype)
+        return x, y, x_mask, y_mask, indices
+
+    @staticmethod
+    def combine_x_y(x, y, x_mask, y_mask, indices):
+        # multiply by mask to zero out, then add
+        B, T = indices.shape[0], indices.shape[1]
+        D = x.shape[-1]
+        tokens = torch.zeros((B, T, D), dtype=x.dtype, device=x.device)
+        tokens[:, -y.shape[1] :] = y * y_mask.unsqueeze(-1)
+        tokens[:, : x.shape[1]] += x * x_mask.unsqueeze(-1)
+        tokens = tokens.scatter(1, indices[:, :, None].expand_as(tokens), tokens)
+        return tokens
+
+    def apply_attn(
+        self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_res
     ):
-        super().__init__(
-            decoder_embedding_size,
-            depth,
-            mlp_ratio,
-            num_heads,
-            max_sequence_length,
-            max_patch_size,
+        _, h, w, t, s_t_c_g, _ = s_t_x.shape
+        sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
+        s_t_x, sp_x, t_x, st_x = self.apply_encodings(
+            s_t_x, sp_x, t_x, st_x, months, patch_size, input_res
         )
-
-        self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
-        self.encoder_to_decoder_embed = nn.Linear(
-            encoder_embedding_size, decoder_embedding_size, bias=True
-        )
-        self.decoder_to_encoder_embed = nn.Linear(
-            decoder_embedding_size, encoder_embedding_size, bias=True
-        )
-
-    def add_masks(self, s_t_x, s_x, t_x, s_t_m, s_m, t_m):
-        s_t_x = s_t_x * (1 - s_t_m).unsqueeze(-1)
-        B, H, W, T, S_T_C, _ = s_t_x.shape
-        s_t_m_reshaped = repeat(self.mask_token, "d -> b h w t c d", b=B, h=H, w=W, t=T, c=S_T_C)
-        s_t_m_add = s_t_m_reshaped * s_t_m.unsqueeze(-1)
-        s_t_m = s_t_m * 0  # all values are unmasked now
-
-        s_x = s_x * (1 - s_m).unsqueeze(-1)
-        S_C = s_x.shape[-2]
-        s_m_reshaped = repeat(self.mask_token, "d -> b h w c d", b=B, h=H, w=W, c=S_C)
-        s_m_add = s_m_reshaped * s_m.unsqueeze(-1)
-        s_m = s_m * 0
-
-        t_x = t_x * (1 - t_m).unsqueeze(-1)
-        T_C = t_x.shape[-2]
-        t_m_reshaped = repeat(self.mask_token, "d -> b t c d", b=B, t=T, c=T_C)
-        t_m_add = t_m_reshaped * t_m.unsqueeze(-1)
-        t_m = t_m * 0
-
-        return s_t_x + s_t_m_add, s_x + s_m_add, t_x + t_m_add, s_t_m, s_m, t_m
-
-    def forward(
-        self,
-        s_t_x: torch.Tensor,
-        s_x: torch.Tensor,
-        t_x: torch.Tensor,
-        s_t_m: torch.Tensor,
-        s_m: torch.Tensor,
-        t_m: torch.Tensor,
-        months: torch.Tensor,
-        patch_size: Optional[int] = None,
-        input_resolution_m: Optional[int] = BASE_GSD,
-    ):
-        s_t_x = self.encoder_to_decoder_embed(s_t_x)
-        s_x = self.encoder_to_decoder_embed(s_x)
-        t_x = self.encoder_to_decoder_embed(t_x)
-
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m = self.add_masks(s_t_x, s_x, t_x, s_t_m, s_m, t_m)
-        s_t_x, s_x, t_x, s_t_m, s_m, t_m = self.apply_attn(
-            s_t_x, s_x, t_x, s_t_m, s_m, t_m, months, patch_size, input_resolution_m
-        )
+        x, m = self.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
+        x, y, x_mask, y_mask, indices = self.split_x_y(x, m)
+        for blk in self.blocks:
+            # note that we are not taking the inverse of the mask, since split_x_y gives us
+            # true values for values we want to take part in attention
+            x = blk(x=x, y=y, attn_mask=y_mask.bool())
+        x = self.combine_x_y(x, y, x_mask, y_mask, indices)
         return (
-            self.decoder_to_encoder_embed(s_t_x),
-            self.decoder_to_encoder_embed(s_x),
-            self.decoder_to_encoder_embed(t_x),
+            *self.split_and_expand_hwtc(x, h, w, t, s_t_c_g, sp_c_g, t_c_g, st_c_g),
             s_t_m,
-            s_m,
+            sp_m,
             t_m,
+            st_m,
+        )
+
+    def forward(
+        self,
+        s_t_x: torch.Tensor,
+        sp_x: torch.Tensor,
+        t_x: torch.Tensor,
+        st_x: torch.Tensor,
+        s_t_m: torch.Tensor,
+        sp_m: torch.Tensor,
+        t_m: torch.Tensor,
+        st_m: torch.Tensor,
+        months: torch.Tensor,
+        patch_size: Optional[int] = None,
+        input_resolution_m: Optional[int] = BASE_GSD,
+    ):
+        s_t_x = self.encoder_to_decoder_embed(self.input_norm(s_t_x))
+        sp_x = self.encoder_to_decoder_embed(self.input_norm(sp_x))
+        t_x = self.encoder_to_decoder_embed(self.input_norm(t_x))
+        st_x = self.encoder_to_decoder_embed(self.input_norm(st_x))
+
+        s_t_x, sp_x, t_x, st_x = self.add_masks(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
+        s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m = self.apply_attn(
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_resolution_m
+        )
+
+        b, h, w, t, _, _ = s_t_x.shape
+        output_s_t, output_sp, output_t, output_st = [], [], [], []
+        for idx in range(len(self.space_time_groups)):
+            if s_t_m[:, :, :, :, idx].max() == 2:
+                output_s_t.append(self.to_output_embed(self.norm(s_t_x[:, :, :, :, idx])))
+            else:
+                output_s_t.append(
+                    torch.empty(
+                        b,
+                        h,
+                        w,
+                        t,
+                        self.encoder_embedding_size,
+                        dtype=s_t_x.dtype,
+                        device=s_t_x.device,
+                    )
+                )
+
+        for idx in range(len(self.space_groups)):
+            # decoded has shape [b, h, w, len(c_g) * patch_size ** 2]
+            if sp_m[:, :, :, idx].max() == 2:
+                output_sp.append(self.to_output_embed(self.norm(sp_x[:, :, :, idx])))
+            else:
+                output_sp.append(
+                    torch.empty(
+                        b, h, w, self.encoder_embedding_size, dtype=sp_x.dtype, device=sp_x.device
+                    )
+                )
+
+        for idx in range(len(self.time_groups)):
+            if t_m[:, :, idx].max() == 2:
+                output_t.append(self.to_output_embed(self.norm(t_x[:, :, idx])))
+            else:
+                output_t.append(
+                    torch.empty(
+                        b, t, self.encoder_embedding_size, dtype=t_x.dtype, device=t_x.device
+                    )
+                )
+
+        for idx in range(len(self.static_groups)):
+            if st_m[:, idx].max() == 2:
+                output_st.append(self.to_output_embed(self.norm(st_x[:, idx])))
+            else:
+                output_st.append(
+                    torch.empty(
+                        b, self.encoder_embedding_size, dtype=st_x.dtype, device=st_x.device
+                    )
+                )
+
+        return (
+            torch.stack(output_s_t, dim=-2),  # shape = b h w t c_g, d
+            torch.stack(output_sp, dim=-2),
+            torch.stack(output_t, dim=-2),
+            torch.stack(output_st, dim=-2),
         )
