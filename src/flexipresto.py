@@ -13,7 +13,13 @@ from einops import rearrange, repeat
 from torch import Tensor, vmap
 from torch.jit import Final
 
-from .conditioner import ConditionalLinear, LearnedMixture, LoRAGenerator
+from .conditioner import (
+    ConditionalLinear,
+    LearnedMixture,
+    LoRAGenerator,
+    LoRATemplates,
+    TokenConditioner,
+)
 from .config import BASE_GSD
 from .data import (
     SPACE_BAND_GROUPS_IDX,
@@ -962,7 +968,15 @@ class Encoder(FlexiPrestoBase):
         assert (folder / ENCODER_FILENAME).exists(), f"Missing {ENCODER_FILENAME}"
 
         conditioner_config = None
-        conditioner: Optional[Union[LoRAGenerator, LearnedMixture]] = None
+        conditioner: Optional[
+            Union[LoRAGenerator, LearnedMixture, LoRATemplates, TokenConditioner]
+        ] = None
+        str2conditioner = {
+            "lora-t": LoRATemplates,
+            "lora-g": LoRAGenerator,
+            "moe": LearnedMixture,
+            "token": TokenConditioner,
+        }
         with (folder / CONFIG_FILENAME).open("r") as f:
             config = json.load(f)
             model_config = config["model"]
@@ -971,11 +985,10 @@ class Encoder(FlexiPrestoBase):
                 conditioner_config = model_config["conditioner"]
 
         if conditioner_config is not None:
-            if config["training"]["conditioner_mode"] == "lora":
-                conditioner = LoRAGenerator(**conditioner_config)
-            else:
-                assert config["training"]["conditioner_mode"] == "moe"
-                conditioner = LearnedMixture(**conditioner_config)
+            assert config["training"]["conditioner_mode"] in str2conditioner.keys()
+            conditioner = str2conditioner[config["training"]["conditioner_mode"]](
+                **conditioner_config
+            )
         encoder = cls(**encoder_config, conditioner=conditioner)
         encoder.load_state_dict(torch.load(folder / ENCODER_FILENAME, map_location=device))
         return encoder
