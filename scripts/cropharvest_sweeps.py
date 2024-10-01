@@ -48,7 +48,7 @@ def update_output_channels(task: BinaryCropHarvestEval, new_output_channels: Lis
 
 if __name__ == "__main__":
     model_path = "data/outputs/ezoy5r08"
-    savefile_path = "ezoy5r08_cropharvest_sweep.csv"
+    savefile_path = "ezoy5r08_auc_cropharvest_sweep.csv"
     model = Encoder.load_from_folder(Path(model_path)).to(device)
     encoder_depth = len(model.blocks)
     normalizing_dict = Dataset.load_normalization_values(
@@ -76,15 +76,17 @@ if __name__ == "__main__":
         # retrieve the appropriate keys
         output_keys = list(output.keys())
         lr_keys = [
-            k for k in output_keys if "Regression" in k and "f1" in k and not k.endswith("_c")
+            k for k in output_keys if "Regression" in k and "auc" in k and not k.endswith("_c")
         ]
         assert len(lr_keys) == 1
         lr_key = lr_keys[0]
         lr_c_key = [
-            k for k in output_keys if "Regression" in k and "f1" in k and k.endswith("_c")
+            k for k in output_keys if "Regression" in k and "auc" in k and k.endswith("_c")
         ][0]
-        k_key = [k for k in output_keys if "KNNat5" in k and "f1" in k and not k.endswith("_c")][0]
-        k_c_key = [k for k in output_keys if "KNNat5" in k and "f1" in k and k.endswith("_c")][0]
+        k_key = [k for k in output_keys if "KNNat5" in k and "auc" in k and not k.endswith("_c")][
+            0
+        ]
+        k_c_key = [k for k in output_keys if "KNNat5" in k and "auc" in k and k.endswith("_c")][0]
         # save and print
         full_row = [
             "Togo",
