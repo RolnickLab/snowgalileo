@@ -10,7 +10,6 @@ from einops import repeat
 from sklearn.base import BaseEstimator
 from sklearn.metrics import f1_score, roc_auc_score
 from sklearn.model_selection import train_test_split
-from sklearn.utils import shuffle
 from torch.utils.data import DataLoader, TensorDataset, default_collate
 from torch.utils.data import Dataset as TorchDataset
 from tqdm import tqdm
@@ -391,14 +390,9 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
 
         array, latlons, labels = self.dataset.as_array()
         if self.eval_mode == "val":
-            array, latlons, labels = shuffle(array, latlons, labels, random_state=DEFAULT_SEED)
-            half_points = len(array) // 2
-            val_array = array[:half_points]
-            val_latlons = latlons[:half_points]
-            val_labels = labels[:half_points]
-            array = array[half_points:]
-            latlons = latlons[half_points:]
-            labels = labels[half_points:]
+            array, val_array, latlons, val_latlons, labels, val_labels = train_test_split(
+                array, latlons, labels, test_size=0.5, random_state=DEFAULT_SEED, stratify=labels
+            )
             val_dl = DataLoader(
                 TensorDataset(
                     *self.cropharvest_array_to_normalized_presto(
