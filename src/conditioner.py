@@ -422,3 +422,18 @@ class LoRAGenerator(nn.Module):
             all_lora_weights[block_idx] = self.get_lora_weights(x)
 
         return all_lora_weights
+
+
+class TokenConditioner(nn.Module):
+    def __init__(
+        self,
+        num_output_channels: int,
+        backbone_dim: int,
+    ):
+        super().__init__()
+        self.mode = "token"
+        self.projection = nn.Linear(num_output_channels, backbone_dim)
+
+    def forward(self, c_i):
+        condition = c_i["output_channels"]  # num_output_channels
+        return self.projection(condition)

@@ -86,8 +86,8 @@ ALL_MASKING_COMBINATIONS = generate_combinations()
 
 
 class MaskingFunctions(Enum):
-    SPACE = 0
-    TIME = 1
+    SPACE = 1
+    TIME = 0
     RANDOM = 2
 
 

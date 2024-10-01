@@ -61,10 +61,13 @@ def get_random_config(
             "moe",
             "lora-t",
             "lora-g",
+            "token",
         ], f"Expected moe or lora-[t,g], got {conditioner_mode}"
         config["training"]["conditioner_mode"] = conditioner_mode
     else:
-        config["training"]["conditioner_mode"] = random.choice(["moe", "lora-t", "lora-g"])
+        config["training"]["conditioner_mode"] = random.choice(
+            ["moe", "lora-t", "lora-g", "token"]
+        )
     if "lora" in config["training"]["conditioner_mode"]:
         config["model"]["conditioner"] = {}
         config["model"]["conditioner"]["rank"] = random.choice([12, 32])

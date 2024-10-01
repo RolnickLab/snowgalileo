@@ -3,7 +3,7 @@ import unittest
 import torch
 from einops import repeat
 
-from src.conditioner import LearnedMixture, LoRATemplates
+from src.conditioner import LearnedMixture, LoRATemplates, TokenConditioner
 from src.data.dataset import SPACE_BANDS, SPACE_TIME_BANDS, STATIC_BANDS, TIME_BANDS
 from src.flexipresto import Encoder, PrestoPixelDecoder
 from src.masking import UNMASKING_CHANNEL_GROUPS, batch_mask_random
@@ -146,6 +146,68 @@ class TestConditioner(unittest.TestCase):
                     self.assertTrue(
                         encoder.conditioner.loras[f"{channel}_{depth}_{param}_b"].grad is None
                     )
+
+        # next, test with c_i = None
+        encoder.zero_grad(set_to_none=True)
+        decoder.zero_grad(set_to_none=True)
+        # check zero grad worked
+        for p in encoder.conditioner.parameters():
+            self.assertTrue(p.grad is None)
+
+        encoder_output = encoder(
+            masked_output.space_time_x,
+            masked_output.space_x,
+            masked_output.time_x,
+            masked_output.static_x,
+            masked_output.space_time_mask,
+            masked_output.space_mask,
+            masked_output.time_mask,
+            masked_output.static_mask,
+            masked_output.months.long(),
+            patch_size=patch_size,
+            c_i=None,
+        )
+        decoder_output = decoder(*encoder_output)
+        sum([d.sum() for d in decoder_output]).backward()
+
+        for p in encoder.conditioner.parameters():
+            self.assertTrue(p.grad is None)
+
+    def test_end_to_end_grads_nonzero_token(self):
+        backbone_depth = 2
+        encoder_dict = {"depth": backbone_depth, "mlp_ratio": 2, "embedding_size": 64}
+        conditioner_dict = {
+            "num_output_channels": len(UNMASKING_CHANNEL_GROUPS),
+            "backbone_dim": 64,
+        }
+        mixer = TokenConditioner(**conditioner_dict)
+        encoder = Encoder(**encoder_dict, conditioner=mixer)
+        decoder = PrestoPixelDecoder(encoder_embedding_size=64)
+        conditioner_inputs = {
+            "output_channels": torch.zeros(len(UNMASKING_CHANNEL_GROUPS)).float()
+        }
+        conditioner_inputs["output_channels"][0] = 1
+        conditioner_inputs["output_channels"][1] = 1
+
+        masked_output, patch_size = self.construct_inputs()
+        encoder_output = encoder(
+            masked_output.space_time_x,
+            masked_output.space_x,
+            masked_output.time_x,
+            masked_output.static_x,
+            masked_output.space_time_mask,
+            masked_output.space_mask,
+            masked_output.time_mask,
+            masked_output.static_mask,
+            masked_output.months.long(),
+            patch_size=patch_size,
+            c_i=conditioner_inputs,
+        )
+        decoder_output = decoder(*encoder_output)
+        sum([d.sum() for d in decoder_output]).backward()
+
+        for param in encoder.conditioner.parameters():
+            self.assertTrue(param.grad is not None)
 
         # next, test with c_i = None
         encoder.zero_grad(set_to_none=True)
