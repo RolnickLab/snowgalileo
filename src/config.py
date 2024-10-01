@@ -61,6 +61,7 @@ def get_random_config(
             "moe",
             "lora-t",
             "lora-g",
+            "token",
         ], f"Expected moe or lora-[t,g], got {conditioner_mode}"
         config["training"]["conditioner_mode"] = conditioner_mode
     else:
