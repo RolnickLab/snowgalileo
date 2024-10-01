@@ -35,9 +35,7 @@ def generate_combinations():
     return all_combinations
 
 
-def update_output_channels(
-    task: BinaryCropHarvestEval, new_output_channels: List[str], exit_depth: int
-):
+def update_output_channels(task: BinaryCropHarvestEval, new_output_channels: List[str]):
     if isinstance(new_output_channels, str):
         new_output_channels = [new_output_channels]
     output_channels = [0] * len(MASKING_MODES)
@@ -46,7 +44,6 @@ def update_output_channels(
             output_channels[i] = 1
     device = task.condition["output_channels"].device  # type: ignore
     task.condition["output_channels"] = torch.Tensor(output_channels).to(device)
-    task.condition["target_exit_after"] = exit_depth
 
 
 if __name__ == "__main__":
@@ -63,46 +60,39 @@ if __name__ == "__main__":
 
     append_to_csv(
         file_path=savefile_path,
-        input_list=["country", "output_channels", "exit_depth", "KNN@5", "KNN@5_c", "LR", "LR_c"],
+        input_list=["country", "output_channels", "KNN@5", "KNN@5_c", "LR", "LR_c"],
     )
 
-    for country in ["Togo", "Brazil", "Kenya", "China"]:
-        task = BinaryCropHarvestEval(country=country, normalizer=normalizer, do_condition=True)
-        for channel_combo in output_channel_combinations:
-            for exit_depth in [0, encoder_depth // 2, encoder_depth]:
-                print(f"Running for {channel_combo}, {exit_depth}")
-                update_output_channels(task, channel_combo, exit_depth)
-                output = task.evaluate_model_on_task(
-                    model, model_modes=["Logistic Regression", "KNNat5 Classifier"]
-                )
+    task = BinaryCropHarvestEval(
+        country="Togo", normalizer=normalizer, do_condition=True, eval_mode="val"
+    )
+    for channel_combo in output_channel_combinations:
+        print(f"Running for {channel_combo}")
+        update_output_channels(task, channel_combo)
+        output = task.evaluate_model_on_task(
+            model, model_modes=["Logistic Regression", "KNNat5 Classifier"]
+        )
 
-                # retrieve the appropriate keys
-                output_keys = list(output.keys())
-                lr_keys = [
-                    k
-                    for k in output_keys
-                    if "Regression" in k and "f1" in k and not k.endswith("_c")
-                ]
-                assert len(lr_keys) == 1
-                lr_key = lr_keys[0]
-                lr_c_key = [
-                    k for k in output_keys if "Regression" in k and "f1" in k and k.endswith("_c")
-                ][0]
-                k_key = [
-                    k for k in output_keys if "KNNat5" in k and "f1" in k and not k.endswith("_c")
-                ][0]
-                k_c_key = [
-                    k for k in output_keys if "KNNat5" in k and "f1" in k and k.endswith("_c")
-                ][0]
-                # save and print
-                full_row = [
-                    country,
-                    channel_combo,
-                    exit_depth,
-                    output[k_key],
-                    output[k_c_key],
-                    output[lr_key],
-                    output[lr_c_key],
-                ]
-                print(full_row)
-                append_to_csv(file_path=savefile_path, input_list=full_row)
+        # retrieve the appropriate keys
+        output_keys = list(output.keys())
+        lr_keys = [
+            k for k in output_keys if "Regression" in k and "f1" in k and not k.endswith("_c")
+        ]
+        assert len(lr_keys) == 1
+        lr_key = lr_keys[0]
+        lr_c_key = [
+            k for k in output_keys if "Regression" in k and "f1" in k and k.endswith("_c")
+        ][0]
+        k_key = [k for k in output_keys if "KNNat5" in k and "f1" in k and not k.endswith("_c")][0]
+        k_c_key = [k for k in output_keys if "KNNat5" in k and "f1" in k and k.endswith("_c")][0]
+        # save and print
+        full_row = [
+            "Togo",
+            channel_combo,
+            output[k_key],
+            output[k_c_key],
+            output[lr_key],
+            output[lr_c_key],
+        ]
+        print(full_row)
+        append_to_csv(file_path=savefile_path, input_list=full_row)
