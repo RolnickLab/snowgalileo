@@ -48,7 +48,7 @@ def update_output_channels(task: BinaryCropHarvestEval, new_output_channels: Lis
 
 if __name__ == "__main__":
     for model in ["vo395wty", "tokmabnz", "h1ctqt4s", "6iy6iv4x", "jmq1v3ze", "ezoy5r08"]:
-        for fraction in [0.1, 0.5, 1.0]:
+        for fraction in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
             model_path = f"data/outputs/{model}"
             savefile_path = f"{model}_{fraction}_f1_cropharvest_sweep.csv"
             model = Encoder.load_from_folder(Path(model_path)).to(device)
