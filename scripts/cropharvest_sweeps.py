@@ -47,54 +47,62 @@ def update_output_channels(task: BinaryCropHarvestEval, new_output_channels: Lis
 
 
 if __name__ == "__main__":
-    model_path = "data/outputs/ezoy5r08"
-    savefile_path = "ezoy5r08_auc_cropharvest_sweep.csv"
-    model = Encoder.load_from_folder(Path(model_path)).to(device)
-    encoder_depth = len(model.blocks)
-    normalizing_dict = Dataset.load_normalization_values(
-        path=config_dir / NORMALIZATION_DICT_FILENAME
-    )
-    normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+    for model in ["vo395wty", "tokmabnz", "h1ctqt4s", "6iy6iv4x", "jmq1v3ze", "ezoy5r08"]:
+        for fraction in [0.1, 0.5, 1.0]:
+            model_path = f"data/outputs/{model}"
+            savefile_path = f"{model}_{fraction}_f1_cropharvest_sweep.csv"
+            model = Encoder.load_from_folder(Path(model_path)).to(device)
+            encoder_depth = len(model.blocks)
+            normalizing_dict = Dataset.load_normalization_values(
+                path=config_dir / NORMALIZATION_DICT_FILENAME
+            )
+            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
 
-    output_channel_combinations = generate_combinations()
+            output_channel_combinations = generate_combinations()
 
-    append_to_csv(
-        file_path=savefile_path,
-        input_list=["country", "output_channels", "KNN@5", "KNN@5_c", "LR", "LR_c"],
-    )
+            append_to_csv(
+                file_path=savefile_path,
+                input_list=["country", "output_channels", "KNN@5", "KNN@5_c", "LR", "LR_c"],
+            )
 
-    task = BinaryCropHarvestEval(
-        country="Togo", normalizer=normalizer, do_condition=True, eval_mode="val"
-    )
-    for channel_combo in output_channel_combinations:
-        print(f"Running for {channel_combo}")
-        update_output_channels(task, channel_combo)
-        output = task.evaluate_model_on_task(
-            model, model_modes=["Logistic Regression", "KNNat5 Classifier"]
-        )
+            task = BinaryCropHarvestEval(
+                country="Togo", normalizer=normalizer, do_condition=True, eval_mode="val"
+            )
+            for channel_combo in output_channel_combinations:
+                print(f"Running for {channel_combo}")
+                update_output_channels(task, channel_combo)
+                output = task.evaluate_model_on_task(
+                    model,
+                    model_modes=["Logistic Regression", "KNNat5 Classifier"],
+                    fraction=fraction,
+                )
 
-        # retrieve the appropriate keys
-        output_keys = list(output.keys())
-        lr_keys = [
-            k for k in output_keys if "Regression" in k and "auc" in k and not k.endswith("_c")
-        ]
-        assert len(lr_keys) == 1
-        lr_key = lr_keys[0]
-        lr_c_key = [
-            k for k in output_keys if "Regression" in k and "auc" in k and k.endswith("_c")
-        ][0]
-        k_key = [k for k in output_keys if "KNNat5" in k and "auc" in k and not k.endswith("_c")][
-            0
-        ]
-        k_c_key = [k for k in output_keys if "KNNat5" in k and "auc" in k and k.endswith("_c")][0]
-        # save and print
-        full_row = [
-            "Togo",
-            channel_combo,
-            output[k_key],
-            output[k_c_key],
-            output[lr_key],
-            output[lr_c_key],
-        ]
-        print(full_row)
-        append_to_csv(file_path=savefile_path, input_list=full_row)
+                # retrieve the appropriate keys
+                output_keys = list(output.keys())
+                lr_keys = [
+                    k
+                    for k in output_keys
+                    if "Regression" in k and "f1" in k and not k.endswith("_c")
+                ]
+                assert len(lr_keys) == 1
+                lr_key = lr_keys[0]
+                lr_c_key = [
+                    k for k in output_keys if "Regression" in k and "f1" in k and k.endswith("_c")
+                ][0]
+                k_key = [
+                    k for k in output_keys if "KNNat5" in k and "f1" in k and not k.endswith("_c")
+                ][0]
+                k_c_key = [
+                    k for k in output_keys if "KNNat5" in k and "f1" in k and k.endswith("_c")
+                ][0]
+                # save and print
+                full_row = [
+                    "Togo",
+                    channel_combo,
+                    output[k_key],
+                    output[k_c_key],
+                    output[lr_key],
+                    output[lr_c_key],
+                ]
+                print(full_row)
+                append_to_csv(file_path=savefile_path, input_list=full_row)
