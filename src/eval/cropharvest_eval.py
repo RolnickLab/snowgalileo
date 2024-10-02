@@ -383,16 +383,19 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
 
     @staticmethod
     def random_subset(
-        array: np.ndarray, latlons: np.ndarray, labels: np.ndarray, fraction: float
+        array: np.ndarray, latlons: np.ndarray, labels: np.ndarray, fraction: Optional[float]
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        num_samples = int(array.shape[0] * fraction)
-        return shuffle(array, latlons, labels, random_state=DEFAULT_SEED, num_samples=num_samples)
+        if fraction is not None:
+            num_samples = int(array.shape[0] * fraction)
+        else:
+            num_samples = array.shape[0]
+        return shuffle(array, latlons, labels, random_state=DEFAULT_SEED, n_samples=num_samples)
 
     def evaluate_model_on_task(
         self,
         pretrained_model: Encoder,
         model_modes: Optional[List[str]] = None,
-        fraction: Optional[int] = None,
+        fraction: Optional[float] = None,
     ) -> Dict:
         if model_modes is None:
             model_modes = self.all_classification_sklearn_models
