@@ -1,7 +1,7 @@
 import csv
 from itertools import combinations, product
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import torch
 
@@ -21,7 +21,7 @@ def append_to_csv(file_path, input_list):
         csvwriter.writerow(input_list)
 
 
-def generate_combinations():
+def generate_combinations(max_combinations: Optional[int] = None):
     all_combinations = []
     for r in range(1, 5):
         shape_combos = combinations(SHAPES, r)
@@ -30,7 +30,12 @@ def generate_combinations():
             mode_lists = [STR2DICT[shape] for shape in shape_combo]
             mode_combos = product(*mode_lists)
             for mode_combo in mode_combos:
-                all_combinations.append(list(mode_combo))
+                mode_combo_list = list(mode_combo)
+                if max_combinations is not None:
+                    if len(mode_combo_list) <= max_combinations:
+                        all_combinations.append(mode_combo_list)
+                else:
+                    all_combinations.append(mode_combo_list)
 
     return all_combinations
 
@@ -58,7 +63,7 @@ if __name__ == "__main__":
             )
             normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
 
-            output_channel_combinations = generate_combinations()
+            output_channel_combinations = generate_combinations(max_combinations=2)
 
             append_to_csv(
                 file_path=savefile_path,
