@@ -1,7 +1,7 @@
 {"training": {
     "patch_sizes": [1, 2, 3, 4, 5, 6, 7, 8],
     "conditioner_mode": "lora-t",
-    "max_lr": 0.003,
+    "max_lr": 0.001,
     "num_epochs": 500,
     "batch_size": 128,
     "effective_batch_size": 512,
@@ -29,9 +29,9 @@
     },
     "model": {
         "encoder": {
-            "embedding_size": 192,
+            "embedding_size": 768,
             "depth": 12,
-            "num_heads": 3,
+            "num_heads": 12,
             "mlp_ratio": 4,
             "max_sequence_length": 24,
             "freeze_projections": false,
@@ -40,12 +40,12 @@
         },
         "decoder": {
             "depth": 4,
-            "num_heads": 3,
+            "num_heads": 12,
             "mlp_ratio": 4,
             "max_sequence_length": 24,
             "learnable_channel_embeddings": true,
             "max_patch_size": 8,
-            "embedding_size": 192
+            "embedding_size": 768
         },
         "conditioner": {
             "rank": 32

@@ -40,20 +40,15 @@
         },
         "decoder": {
             "depth": 4,
-            "num_heads": 4,
+            "num_heads": 3,
             "mlp_ratio": 4,
             "max_sequence_length": 24,
             "learnable_channel_embeddings": true,
             "max_patch_size": 8,
-            "encoder_embedding_size": 192,
-            "decoder_embedding_size": 192
+            "embedding_size": 192
         },
         "conditioner": {
-            "rank": 32,
-            "num_output_channels": 17,
-            "backbone_dim": 192,
-            "backbone_depth": 12,
-            "mlp_ratio": 4
+            "rank": 32
         }
     }
 }
