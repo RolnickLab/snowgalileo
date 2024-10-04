@@ -71,6 +71,7 @@ tracker.start()
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--config_file", type=str, default="small.json")
+argparser.add_argument("--run_name_prefix", type=str, default="")
 argparser.add_argument("--conditioner_mode", type=str, default="")
 argparser.add_argument("--h5py_folder", type=str, default="")
 argparser.add_argument("--output_folder", type=str, default="")
@@ -138,6 +139,9 @@ if not restart:
     else:
         config = load_check_config(args["config_file"])
         run_name = f"{args['config_file']} config file"
+    if args["run_name_prefix"] != "":
+        prefix = args["run_name_prefix"]
+        run_name = f"{prefix}_{run_name}"
     config["run_name"] = run_name
 
 run = wandb.init(
