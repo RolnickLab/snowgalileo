@@ -835,7 +835,7 @@ class Encoder(FlexiPrestoBase):
             new_m = torch.cat((new_m, torch.zeros_like(new_m)[:, 0:1]), dim=1)
 
         for i_blk, blk in enumerate(self.blocks):
-            if (exit_after is not None) and ((i_blk + 1) >= exit_after):
+            if (exit_after is not None) and ((i_blk + 1) > exit_after):
                 # if exit_after is N, then we exit after the Nth layer
                 # if exit_after is 0, then all layers are skipped
                 break

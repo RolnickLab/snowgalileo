@@ -121,31 +121,12 @@ def get_random_config(
         0.2,
         0.2,
     ]
-    config["training"]["unmasking_probabilities"] = [
-        0.5,
-        0.8,
-        0.8,
-        0.6,
-        0.3,
-        0.3,
-        0.4,
-        0.4,
-        0.4,
-        0.4,
-        0.6,
-        0.6,
-        0.6,
-        0.6,
-        0.5,
-        0.8,
-        0.8,
-    ]
     config["training"]["augmentation"] = {"flip+rotate": True}
     config["training"]["encode_ratio"] = 0.1
     config["training"]["decode_ratio"] = 0.8
     config["training"]["max_unmasking_channels"] = 2
     encoder_depth = config["model"]["encoder"]["depth"]
-    possible_exit_depths: List[Union[str, int]] = [0, (encoder_depth // 2) + 1, encoder_depth]
+    possible_exit_depths: List[Union[str, int]] = [0, encoder_depth // 2, encoder_depth]
     config["training"]["target_exit_after"] = random.choice(possible_exit_depths)
     config["training"]["target_condition"] = False
 
