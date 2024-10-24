@@ -381,8 +381,21 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
         prefix = sklearn_model.__class__.__name__
         return {f"{self.name}: {prefix}_{key}": val for key, val in combined_results.items()}
 
+    @staticmethod
+    def random_subset(
+        array: np.ndarray, latlons: np.ndarray, labels: np.ndarray, fraction: Optional[float]
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        if fraction is not None:
+            num_samples = int(array.shape[0] * fraction)
+        else:
+            num_samples = array.shape[0]
+        return shuffle(array, latlons, labels, random_state=DEFAULT_SEED, n_samples=num_samples)
+
     def evaluate_model_on_task(
-        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
+        self,
+        pretrained_model: Encoder,
+        model_modes: Optional[List[str]] = None,
+        fraction: Optional[float] = None,
     ) -> Dict:
         if model_modes is None:
             model_modes = self.all_classification_sklearn_models
@@ -391,14 +404,13 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
 
         array, latlons, labels = self.dataset.as_array()
         if self.eval_mode == "val":
-            array, latlons, labels = shuffle(array, latlons, labels, random_state=DEFAULT_SEED)
-            half_points = len(array) // 2
-            val_array = array[:half_points]
-            val_latlons = latlons[:half_points]
-            val_labels = labels[:half_points]
-            array = array[half_points:]
-            latlons = latlons[half_points:]
-            labels = labels[half_points:]
+            array, val_array, latlons, val_latlons, labels, val_labels = train_test_split(
+                array, latlons, labels, test_size=0.5, random_state=DEFAULT_SEED, stratify=labels
+            )
+            array, latlons, labels = self.random_subset(array, latlons, labels, fraction=fraction)
+            val_array, val_latlons, val_labels = self.random_subset(
+                val_array, val_latlons, val_labels, fraction=fraction
+            )
             val_dl = DataLoader(
                 TensorDataset(
                     *self.cropharvest_array_to_normalized_presto(
@@ -415,6 +427,7 @@ class BinaryCropHarvestEval(CropHarvestEvalBase):
                 collate_fn=self.collate_fn,
             )
         else:
+            array, latlons, labels = self.random_subset(array, latlons, labels, fraction=fraction)
             val_dl = None
 
         train_dl = DataLoader(

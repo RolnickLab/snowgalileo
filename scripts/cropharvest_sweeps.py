@@ -1,7 +1,7 @@
 import csv
 from itertools import combinations, product
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import torch
 
@@ -21,7 +21,7 @@ def append_to_csv(file_path, input_list):
         csvwriter.writerow(input_list)
 
 
-def generate_combinations():
+def generate_combinations(max_combinations: Optional[int] = None):
     all_combinations = []
     for r in range(1, 5):
         shape_combos = combinations(SHAPES, r)
@@ -30,14 +30,17 @@ def generate_combinations():
             mode_lists = [STR2DICT[shape] for shape in shape_combo]
             mode_combos = product(*mode_lists)
             for mode_combo in mode_combos:
-                all_combinations.append(list(mode_combo))
+                mode_combo_list = list(mode_combo)
+                if max_combinations is not None:
+                    if len(mode_combo_list) <= max_combinations:
+                        all_combinations.append(mode_combo_list)
+                else:
+                    all_combinations.append(mode_combo_list)
 
     return all_combinations
 
 
-def update_output_channels(
-    task: BinaryCropHarvestEval, new_output_channels: List[str], exit_depth: int
-):
+def update_output_channels(task: BinaryCropHarvestEval, new_output_channels: List[str]):
     if isinstance(new_output_channels, str):
         new_output_channels = [new_output_channels]
     output_channels = [0] * len(MASKING_MODES)
@@ -46,34 +49,37 @@ def update_output_channels(
             output_channels[i] = 1
     device = task.condition["output_channels"].device  # type: ignore
     task.condition["output_channels"] = torch.Tensor(output_channels).to(device)
-    task.condition["target_exit_after"] = exit_depth
 
 
 if __name__ == "__main__":
-    model_path = "data/outputs/2j8f4v32"
-    savefile_path = "2j8f4v32_cropharvest_sweep.csv"
-    model = Encoder.load_from_folder(Path(model_path)).to(device)
-    encoder_depth = len(model.blocks)
-    normalizing_dict = Dataset.load_normalization_values(
-        path=config_dir / NORMALIZATION_DICT_FILENAME
-    )
-    normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+    for run_id in ["vo395wty", "tokmabnz", "h1ctqt4s", "6iy6iv4x", "jmq1v3ze", "ezoy5r08"]:
+        for fraction in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
+            model_path = f"data/outputs/{run_id}"
+            savefile_path = f"{run_id}_{fraction}_f1_cropharvest_sweep.csv"
+            model = Encoder.load_from_folder(Path(model_path)).to(device)
+            encoder_depth = len(model.blocks)
+            normalizing_dict = Dataset.load_normalization_values(
+                path=config_dir / NORMALIZATION_DICT_FILENAME
+            )
+            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
 
-    output_channel_combinations = generate_combinations()
+            output_channel_combinations = generate_combinations(max_combinations=2)
 
-    append_to_csv(
-        file_path=savefile_path,
-        input_list=["country", "output_channels", "exit_depth", "KNN@5", "KNN@5_c", "LR", "LR_c"],
-    )
+            append_to_csv(
+                file_path=savefile_path,
+                input_list=["country", "output_channels", "KNN@5", "KNN@5_c", "LR", "LR_c"],
+            )
 
-    for country in ["Togo", "Brazil", "Kenya", "China"]:
-        task = BinaryCropHarvestEval(country=country, normalizer=normalizer, do_condition=True)
-        for channel_combo in output_channel_combinations:
-            for exit_depth in [0, encoder_depth // 2, encoder_depth]:
-                print(f"Running for {channel_combo}, {exit_depth}")
-                update_output_channels(task, channel_combo, exit_depth)
+            task = BinaryCropHarvestEval(
+                country="Togo", normalizer=normalizer, do_condition=True, eval_mode="val"
+            )
+            for channel_combo in output_channel_combinations:
+                print(f"Running for {channel_combo}")
+                update_output_channels(task, channel_combo)
                 output = task.evaluate_model_on_task(
-                    model, model_modes=["Logistic Regression", "KNNat5 Classifier"]
+                    model,
+                    model_modes=["Logistic Regression", "KNNat5 Classifier"],
+                    fraction=fraction,
                 )
 
                 # retrieve the appropriate keys
@@ -96,9 +102,8 @@ if __name__ == "__main__":
                 ][0]
                 # save and print
                 full_row = [
-                    country,
+                    "Togo",
                     channel_combo,
-                    exit_depth,
                     output[k_key],
                     output[k_c_key],
                     output[lr_key],

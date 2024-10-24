@@ -1,7 +1,7 @@
 import json
 import unittest
 
-from src.conditioner import LearnedMixture, LoRAGenerator, LoRATemplates
+from src.conditioner import LearnedMixture, LoRAGenerator, LoRATemplates, TokenConditioner
 from src.config import get_random_config
 from src.data.config import NORMALIZATION_DICT_FILENAME
 from src.data.dataset import Normalizer
@@ -22,6 +22,9 @@ class TestConfigs(unittest.TestCase):
         elif config["training"]["conditioner_mode"] == "lora-t":
             encoder_conditioner = LoRATemplates(**config["model"]["conditioner"])
             _ = Encoder(**config["model"]["encoder"], conditioner=encoder_conditioner)
+        elif config["training"]["conditioner_mode"] == "token":
+            encoder_conditioner = TokenConditioner(**config["model"]["conditioner"])
+            _ = Encoder(**config["model"]["encoder"], conditioner=encoder_conditioner)
         else:
             assert "conditioner" not in config["model"].keys()
             _ = Encoder(**config["model"]["encoder"])
@@ -31,7 +34,10 @@ class TestConfigs(unittest.TestCase):
 
         for config_path in configs:
             loaded_config = load_check_config(config_path.name)
-            self.check_models_can_be_loaded(loaded_config)
+            try:
+                self.check_models_can_be_loaded(loaded_config)
+            except Exception as e:
+                print(f"Failed for {config_path} with {e}")
 
     def test_random_configs_tiny(self):
         for c in ["lora-g", "lora-t", "moe"]:

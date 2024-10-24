@@ -61,10 +61,13 @@ def get_random_config(
             "moe",
             "lora-t",
             "lora-g",
+            "token",
         ], f"Expected moe or lora-[t,g], got {conditioner_mode}"
         config["training"]["conditioner_mode"] = conditioner_mode
     else:
-        config["training"]["conditioner_mode"] = random.choice(["moe", "lora-t", "lora-g"])
+        config["training"]["conditioner_mode"] = random.choice(
+            ["moe", "lora-t", "lora-g", "token"]
+        )
     if "lora" in config["training"]["conditioner_mode"]:
         config["model"]["conditioner"] = {}
         config["model"]["conditioner"]["rank"] = random.choice([12, 32])
@@ -118,31 +121,12 @@ def get_random_config(
         0.2,
         0.2,
     ]
-    config["training"]["unmasking_probabilities"] = [
-        0.5,
-        0.8,
-        0.8,
-        0.6,
-        0.3,
-        0.3,
-        0.4,
-        0.4,
-        0.4,
-        0.4,
-        0.6,
-        0.6,
-        0.6,
-        0.6,
-        0.5,
-        0.8,
-        0.8,
-    ]
     config["training"]["augmentation"] = {"flip+rotate": True}
     config["training"]["encode_ratio"] = 0.1
     config["training"]["decode_ratio"] = 0.8
     config["training"]["max_unmasking_channels"] = 2
     encoder_depth = config["model"]["encoder"]["depth"]
-    possible_exit_depths: List[Union[str, int]] = [0, (encoder_depth // 2) + 1, encoder_depth]
+    possible_exit_depths: List[Union[str, int]] = [0, encoder_depth // 2, encoder_depth]
     config["training"]["target_exit_after"] = random.choice(possible_exit_depths)
     config["training"]["target_condition"] = False
 

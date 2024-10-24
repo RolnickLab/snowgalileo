@@ -13,7 +13,13 @@ from einops import rearrange, repeat
 from torch import Tensor, vmap
 from torch.jit import Final
 
-from .conditioner import ConditionalLinear, LearnedMixture, LoRAGenerator
+from .conditioner import (
+    ConditionalLinear,
+    LearnedMixture,
+    LoRAGenerator,
+    LoRATemplates,
+    TokenConditioner,
+)
 from .config import BASE_GSD
 from .data import (
     SPACE_BAND_GROUPS_IDX,
@@ -808,6 +814,7 @@ class Encoder(FlexiPrestoBase):
         patch_size,
         input_res,
         exit_after,
+        c_i_token: Optional[torch.Tensor] = None,
     ):
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
         sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
@@ -822,8 +829,13 @@ class Encoder(FlexiPrestoBase):
         new_m = m >= 1
         x, indices, new_m = self.remove_masked_tokens(x, new_m)  # new_m is shape (bsz, seq_len)
 
+        if c_i_token is not None:
+            c_i_as_batch = repeat(c_i_token, "d -> b s d", s=1, b=x.shape[0])
+            x = torch.cat((x, c_i_as_batch), dim=1)
+            new_m = torch.cat((new_m, torch.zeros_like(new_m)[:, 0:1]), dim=1)
+
         for i_blk, blk in enumerate(self.blocks):
-            if (exit_after is not None) and ((i_blk + 1) >= exit_after):
+            if (exit_after is not None) and ((i_blk + 1) > exit_after):
                 # if exit_after is N, then we exit after the Nth layer
                 # if exit_after is 0, then all layers are skipped
                 break
@@ -833,6 +845,10 @@ class Encoder(FlexiPrestoBase):
             # attention
             x = blk(x=x, y=None, attn_mask=~new_m.bool())
 
+        if c_i_token is not None:
+            # remove the c_i_token
+            x = x[:, :-1, :]
+            new_m = new_m[:, :-1]
         # we don't care about the mask returned by add_removed_tokens, since we will
         # just use the original, unclipped mask here
         x, _ = self.add_removed_tokens(x, indices, new_m)
@@ -899,7 +915,11 @@ class Encoder(FlexiPrestoBase):
         exit_after: Optional[int] = None,
     ):
         if self.conditioner is not None:
-            self.apply_condition(c_i)
+            # c_i_token will be None unless
+            # we are using token conditioning
+            c_i_token = self.apply_condition(c_i)
+        else:
+            c_i_token = None
 
         (
             s_t_x,
@@ -927,6 +947,7 @@ class Encoder(FlexiPrestoBase):
                 patch_size,
                 input_resolution_m,
                 exit_after,
+                c_i_token=c_i_token,
             )
 
         return (
@@ -947,7 +968,15 @@ class Encoder(FlexiPrestoBase):
         assert (folder / ENCODER_FILENAME).exists(), f"Missing {ENCODER_FILENAME}"
 
         conditioner_config = None
-        conditioner: Optional[Union[LoRAGenerator, LearnedMixture]] = None
+        conditioner: Optional[
+            Union[LoRAGenerator, LearnedMixture, LoRATemplates, TokenConditioner]
+        ] = None
+        str2conditioner = {
+            "lora-t": LoRATemplates,
+            "lora-g": LoRAGenerator,
+            "moe": LearnedMixture,
+            "token": TokenConditioner,
+        }
         with (folder / CONFIG_FILENAME).open("r") as f:
             config = json.load(f)
             model_config = config["model"]
@@ -956,16 +985,15 @@ class Encoder(FlexiPrestoBase):
                 conditioner_config = model_config["conditioner"]
 
         if conditioner_config is not None:
-            if config["training"]["conditioner_mode"] == "lora":
-                conditioner = LoRAGenerator(**conditioner_config)
-            else:
-                assert config["training"]["conditioner_mode"] == "moe"
-                conditioner = LearnedMixture(**conditioner_config)
+            assert config["training"]["conditioner_mode"] in str2conditioner.keys()
+            conditioner = str2conditioner[config["training"]["conditioner_mode"]](
+                **conditioner_config
+            )
         encoder = cls(**encoder_config, conditioner=conditioner)
         encoder.load_state_dict(torch.load(folder / ENCODER_FILENAME, map_location=device))
         return encoder
 
-    def apply_condition(self, c_i):
+    def apply_condition(self, c_i) -> Optional[torch.Tensor]:
         if self.conditioner.mode == "moe":
             if c_i is not None:
                 conditional_weights = self.conditioner(c_i)
@@ -1042,8 +1070,14 @@ class Encoder(FlexiPrestoBase):
                     block.attn.proj.apply_condition(None, None, "lora")
                     block.mlp.fc1.apply_condition(None, None, "lora")
                     block.mlp.fc2.apply_condition(None, None, "lora")
+        elif "token" in self.conditioner.mode:
+            if c_i is not None:
+                return self.conditioner(c_i)
         else:
-            raise f"Called apply_condition but self.conditioner.mode is {self.conditioner.mode}"
+            raise ValueError(
+                f"Called apply_condition but self.conditioner.mode is {self.conditioner.mode}"
+            )
+        return None
 
 
 class PrestoPixelDecoder(FlexiPrestoBase):
