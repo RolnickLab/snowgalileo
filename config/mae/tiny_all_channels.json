@@ -1,7 +1,7 @@
 {"training": {
     "patch_sizes": [1, 2, 3, 4, 5, 6, 7, 8],
     "conditioner_mode": "no_cond",
-    "max_lr": 0.0008,
+    "max_lr": 0.002,
     "num_epochs": 500,
     "batch_size": 128,
     "effective_batch_size": 512,
@@ -18,8 +18,8 @@
     "augmentation": {"flip+rotate": true},
     "encode_ratio": 0.1,
     "decode_ratio": 0.8,
-    "max_unmasking_channels": 2,
-    "target_exit_after": 12,
+    "max_unmasking_channels": 4,
+    "target_exit_after": 6,
     "target_condition": false,
     "loss_type": "patch_disc",
     "tau": 0.1,
@@ -28,13 +28,13 @@
     "normalization": "std",
     "eval_eurosat_every_n_epochs": 10,
     "random_masking": "none",
-    "unmasking_channels_combo": "shapes"
+    "unmasking_channels_combo": "all"
     },
     "model": {
         "encoder": {
-            "embedding_size": 768,
+            "embedding_size": 192,
             "depth": 12,
-            "num_heads": 12,
+            "num_heads": 3,
             "mlp_ratio": 4,
             "max_sequence_length": 24,
             "freeze_projections": false,
@@ -43,12 +43,12 @@
         },
         "decoder": {
             "depth": 4,
-            "num_heads": 12,
+            "num_heads": 3,
             "mlp_ratio": 4,
             "max_sequence_length": 24,
             "learnable_channel_embeddings": true,
             "max_patch_size": 8,
-            "embedding_size": 768
+            "embedding_size": 192
+            }
         }
-    }
 }

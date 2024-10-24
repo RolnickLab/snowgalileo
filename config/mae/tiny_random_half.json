@@ -27,7 +27,7 @@
     "loss_mask_other_samples": false,
     "normalization": "std",
     "eval_eurosat_every_n_epochs": 10,
-    "use_random_masking_only": "half",
+    "random_masking": "half",
     "unmasking_channels_combo": "all"
     },
     "model": {
