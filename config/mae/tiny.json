@@ -26,7 +26,8 @@
     "pred2unit": false,
     "loss_mask_other_samples": false,
     "normalization": "std",
-    "eval_eurosat_every_n_epochs": 10
+    "eval_eurosat_every_n_epochs": 10,
+    "use_random_masking_only": false
     },
     "model": {
         "encoder": {

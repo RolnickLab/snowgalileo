@@ -107,6 +107,7 @@ def mae_collate_fn(
     fixed_space_time_combination=None,
     masking_probabilities=None,
     max_unmasking_channels=4,
+    use_random_masking_only: bool = False,
 ) -> Tuple[CollateFnOutput, CollateFnOutput, CollateFnOutput, CollateFnOutput]:
     s_t_x, sp_x, t_x, st_x, months = default_collate(batch)
 
@@ -126,21 +127,41 @@ def mae_collate_fn(
         "shape_time_combinations": shape_time_combinations,
         "max_unmasking_channels": max_unmasking_channels,
     }
-    return (
-        collated_batch_to_output(
-            **input_args,
-            masking_function=MaskingFunctions.TIME,
-        ),
-        collated_batch_to_output(
-            **input_args,
-            masking_function=MaskingFunctions.SPACE,
-        ),
-        collated_batch_to_output(
-            **input_args,
-            masking_function=MaskingFunctions.TIME,
-        ),
-        collated_batch_to_output(
-            **input_args,
-            masking_function=MaskingFunctions.SPACE,
-        ),
-    )
+    if not use_random_masking_only:
+        return (
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.TIME,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.SPACE,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.TIME,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.SPACE,
+            ),
+        )
+    else:
+        return (
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.RANDOM,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.RANDOM,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.RANDOM,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.RANDOM,
+            ),
+        )

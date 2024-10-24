@@ -100,6 +100,7 @@ def check_config(config):
         "target_exit_after": (int, str),
         "conditioner_mode": str,
         "normalization": str,
+        "use_random_masking_only": bool,
     }
     training_dict = config["training"]
 
