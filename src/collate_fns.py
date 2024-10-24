@@ -107,7 +107,7 @@ def mae_collate_fn(
     fixed_space_time_combination=None,
     masking_probabilities=None,
     max_unmasking_channels=4,
-    use_random_masking_only: bool = False,
+    random_masking: str = "None",
 ) -> Tuple[CollateFnOutput, CollateFnOutput, CollateFnOutput, CollateFnOutput]:
     s_t_x, sp_x, t_x, st_x, months = default_collate(batch)
 
@@ -127,7 +127,7 @@ def mae_collate_fn(
         "shape_time_combinations": shape_time_combinations,
         "max_unmasking_channels": max_unmasking_channels,
     }
-    if not use_random_masking_only:
+    if random_masking == "none":
         return (
             collated_batch_to_output(
                 **input_args,
@@ -146,7 +146,26 @@ def mae_collate_fn(
                 masking_function=MaskingFunctions.SPACE,
             ),
         )
-    else:
+    elif random_masking == "half":
+        return (
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.TIME,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.SPACE,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.RANDOM,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.RANDOM,
+            ),
+        )
+    elif random_masking == "full":
         return (
             collated_batch_to_output(
                 **input_args,
@@ -164,4 +183,8 @@ def mae_collate_fn(
                 **input_args,
                 masking_function=MaskingFunctions.RANDOM,
             ),
+        )
+    else:
+        raise ValueError(
+            f"Expected random_masking to be one of none, half full, got {random_masking}"
         )

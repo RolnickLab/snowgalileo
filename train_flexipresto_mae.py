@@ -211,7 +211,7 @@ dataloader = DataLoader(
         augmentation_strategies=training_config["augmentation"],
         masking_probabilities=training_config["masking_probabilities"],
         max_unmasking_channels=training_config["max_unmasking_channels"],
-        use_random_masking_only=training_config["use_random_masking_only"],
+        random_masking=training_config["random_masking"],
     ),
     pin_memory=True,
 )
