@@ -41,6 +41,7 @@ def collated_batch_to_output(
     fixed_space_time_combination=None,
     masking_probabilities=None,
     max_unmasking_channels=4,
+    unmasking_channels_combo: str = "shapes",
 ) -> CollateFnOutput:
     if fixed_patch_size is not None:
         patch_size = fixed_patch_size
@@ -78,6 +79,7 @@ def collated_batch_to_output(
         masking_probabilities=masking_probabilities,
         masking_function=masking_function,
         max_unmasking_channels=max_unmasking_channels,
+        unmasking_channels_combo=unmasking_channels_combo,
     )
 
     return CollateFnOutput(
