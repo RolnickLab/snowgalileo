@@ -108,6 +108,7 @@ def mae_collate_fn(
     masking_probabilities=None,
     max_unmasking_channels=4,
     random_masking: str = "None",
+    unmasking_channels_combo: str = "shapes",
 ) -> Tuple[CollateFnOutput, CollateFnOutput, CollateFnOutput, CollateFnOutput]:
     s_t_x, sp_x, t_x, st_x, months = default_collate(batch)
 
@@ -126,6 +127,7 @@ def mae_collate_fn(
         "masking_probabilities": masking_probabilities,
         "shape_time_combinations": shape_time_combinations,
         "max_unmasking_channels": max_unmasking_channels,
+        "unmasking_channels_combo": unmasking_channels_combo,
     }
     if random_masking == "none":
         return (

@@ -1,7 +1,7 @@
 import random
 from collections import OrderedDict
 from enum import Enum
-from itertools import combinations, product
+from itertools import chain, combinations, product
 from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
 import numpy as np
@@ -81,8 +81,15 @@ def generate_combinations():
     return all_combinations
 
 
+def powerset(iterable):
+    "powerset([1,2,3]) → () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
+    s = list(iterable)
+    return list(chain.from_iterable(combinations(s, r) for r in range(len(s) + 1)))
+
+
 # Generate all 639 combinations
-ALL_MASKING_COMBINATIONS = generate_combinations()
+ALL_MASKING_COMBINATIONS_SHAPES = generate_combinations()
+ALL_MASKING_COMBINATIONS = powerset(MASKING_MODES)
 
 
 class MaskingFunctions(Enum):
@@ -197,6 +204,7 @@ def batch_subset_mask_presto(
     masking_probabilities: List[float],
     masking_function: MaskingFunctions,
     max_unmasking_channels: int,
+    unmasking_channels_combo: str = "shapes",
 ) -> Tuple[MaskedOutput, Optional[Dict]]:
     assert len(masking_probabilities) == len(MASKING_MODES)
 
@@ -217,11 +225,23 @@ def batch_subset_mask_presto(
 
         # isolate the unmasking candidates which (1) have the right number of channels and
         # (b) don't intersect with the masking_modes
-        unmasking_mode_candidates = [
-            x
-            for x in ALL_MASKING_COMBINATIONS
-            if ((len(x) <= max_unmasking_channels) and (len(set(x) & set(masking_modes)) == 0))
-        ]
+        if unmasking_channels_combo == "shapes":
+            unmasking_mode_candidates = [
+                x
+                for x in ALL_MASKING_COMBINATIONS_SHAPES
+                if ((len(x) <= max_unmasking_channels) and (len(set(x) & set(masking_modes)) == 0))
+            ]
+        elif unmasking_channels_combo == "all":
+            unmasking_mode_candidates = [
+                x
+                for x in ALL_MASKING_COMBINATIONS
+                if ((len(x) <= max_unmasking_channels) and (len(set(x) & set(masking_modes)) == 0))
+            ]
+        else:
+            raise ValueError(
+                "Expected unmasking_channels_combo to be "
+                f"'shapes' or 'all', got {unmasking_channels_combo}"
+            )
         unmasking_modes = random.choice(unmasking_mode_candidates)
 
         masking_modes, unmasking_modes = check_modes_for_conflicts(masking_modes, unmasking_modes)

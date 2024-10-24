@@ -212,6 +212,7 @@ dataloader = DataLoader(
         masking_probabilities=training_config["masking_probabilities"],
         max_unmasking_channels=training_config["max_unmasking_channels"],
         random_masking=training_config["random_masking"],
+        unmasking_channels_combo=config["unmasking_channels_combo"],
     ),
     pin_memory=True,
 )
