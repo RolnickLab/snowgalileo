@@ -171,10 +171,10 @@ def check_config(config):
         max_patch_size = max(config["training"]["patch_sizes"])
         max_group_length = max(
             [
-                max([len(k) for k, v in SPACE_TIME_BANDS_GROUPS_IDX]),
-                max([len(k) for k, v in TIME_BAND_GROUPS_IDX]),
-                max([len(k) for k, v in SPACE_BAND_GROUPS_IDX]),
-                max([len(k) for k, v in STATIC_BAND_GROUPS_IDX]),
+                max([len(v) for _, v in SPACE_TIME_BANDS_GROUPS_IDX.items()]),
+                max([len(v) for _, v in TIME_BAND_GROUPS_IDX]),
+                max([len(v) for _, v in SPACE_BAND_GROUPS_IDX]),
+                max([len(v) for _, v in STATIC_BAND_GROUPS_IDX]),
             ]
         )
         config["model"]["encoder"]["output_embedding_size"] = (

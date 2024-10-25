@@ -428,6 +428,8 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                             sp_m,
                             t_m,
                             st_m,
+                            patch_size,
+                            max(training_config["patch_sizes"]),
                         ),
                     )
                 assert not torch.isnan(loss).any(), "NaNs in loss"
