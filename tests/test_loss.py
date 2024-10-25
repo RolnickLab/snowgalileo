@@ -30,17 +30,18 @@ class TestLoss(unittest.TestCase):
                 t_h,
                 t_w,
                 t,
-                len(SPACE_TIME_BANDS_GROUPS_IDX) * max_group_length * (max_patch_size**2),
+                len(SPACE_TIME_BANDS_GROUPS_IDX),
+                max_group_length * (max_patch_size**2),
             )
         )
         p_sp = torch.randn(
-            (b, t_h, t_w, len(SPACE_BAND_GROUPS_IDX) * max_group_length * (max_patch_size**2))
+            (b, t_h, t_w, len(SPACE_BAND_GROUPS_IDX), max_group_length * (max_patch_size**2))
         )
         p_t = torch.randn(
-            (b, t, len(TIME_BAND_GROUPS_IDX) * max_group_length * (max_patch_size**2))
+            (b, t, len(TIME_BAND_GROUPS_IDX), max_group_length * (max_patch_size**2))
         )
         p_st = torch.randn(
-            (b, len(STATIC_BAND_GROUPS_IDX) * max_group_length * (max_patch_size**2))
+            (b, len(STATIC_BAND_GROUPS_IDX), max_group_length * (max_patch_size**2))
         )
         s_t_x = torch.randn(
             b, pixel_h, pixel_w, t, sum([len(x) for _, x in SPACE_TIME_BANDS_GROUPS_IDX.items()])
@@ -56,7 +57,7 @@ class TestLoss(unittest.TestCase):
         st_m = torch.ones((b, len(STATIC_BAND_GROUPS_IDX))) * 2
         max_patch_size = 8
 
-        _ = mae_loss(
+        loss = mae_loss(
             p_s_t,
             p_sp,
             p_t,
@@ -72,3 +73,4 @@ class TestLoss(unittest.TestCase):
             patch_size,
             max_patch_size,
         )
+        self.assertFalse(torch.isnan(loss))
