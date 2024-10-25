@@ -39,5 +39,5 @@ class TestLoss(unittest.TestCase):
         max_patch_size = 8
 
         _ = mae_loss(
-            p_s_t, p_sp, p_t, p_st, s_t_x, sp_x. t_x, st_x, s_t_m, sp_m, t_m, st_m, patch_size, max_patch_size
+            p_s_t, p_sp, p_t, p_st, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, patch_size, max_patch_size
         )
