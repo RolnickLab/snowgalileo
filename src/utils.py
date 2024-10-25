@@ -172,12 +172,12 @@ def check_config(config):
         max_group_length = max(
             [
                 max([len(v) for _, v in SPACE_TIME_BANDS_GROUPS_IDX.items()]),
-                max([len(v) for _, v in TIME_BAND_GROUPS_IDX]),
-                max([len(v) for _, v in SPACE_BAND_GROUPS_IDX]),
-                max([len(v) for _, v in STATIC_BAND_GROUPS_IDX]),
+                max([len(v) for _, v in TIME_BAND_GROUPS_IDX.items()]),
+                max([len(v) for _, v in SPACE_BAND_GROUPS_IDX.items()]),
+                max([len(v) for _, v in STATIC_BAND_GROUPS_IDX.items()]),
             ]
         )
-        config["model"]["encoder"]["output_embedding_size"] = (
+        config["model"]["decoder"]["output_embedding_size"] = (
             max_patch_size**2
         ) * max_group_length
 
