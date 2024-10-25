@@ -249,7 +249,9 @@ def do_loss(config, loss_inputs):
         )
     elif config["loss_type"] == "mse":
         loss = mse_loss(*loss_inputs)
+    elif config["loss_type"] == "MAE":
+        loss = mae_loss(*loss_inputs)
     else:
-        raise f"loss_type must be patch_disc or mse, not {config['loss_type']}"
+        raise f"loss_type must be patch_disc, MAE or mse, not {config['loss_type']}"
 
     return loss
