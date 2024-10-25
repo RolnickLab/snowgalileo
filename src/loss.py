@@ -143,19 +143,25 @@ def mae_loss(
     patch_size,
     max_patch_size,
 ):
+
+    SPACE_TIME_BAND_EXPANSION = torch.tensor([len(x) for x in SPACE_TIME_BANDS_GROUPS_IDX.values()], device=sp_m.device).long()
+    SPACE_BAND_EXPANSION = torch.tensor([len(x) for x in SPACE_BAND_GROUPS_IDX.values()], device=sp_m.device).long()
+    TIME_BAND_EXPANSION = torch.tensor([len(x) for x in TIME_BAND_GROUPS_IDX.values()], device=sp_m.device).long()
+    STATIC_BAND_EXPANSION = torch.tensor([len(x) for x in STATIC_BAND_GROUPS_IDX.values()], device=sp_m.device).long()
+
     pixel_s_t_m = torch.repeat_interleave(
-        s_t_m, repeats=SPACE_TIME_BANDS_GROUPS_IDX, dim=-1
+        s_t_m, repeats=SPACE_TIME_BAND_EXPANSION, dim=-1
     ).bool()
-    pixel_sp_m = torch.repeat_interleave(sp_m, repeats=SPACE_BAND_GROUPS_IDX, dim=-1).bool()
-    pixel_st_m = torch.repeat_interleave(st_m, repeats=STATIC_BAND_GROUPS_IDX, dim=-1).bool()
-    pixel_t_m = torch.repeat_interleave(t_m, repeats=TIME_BAND_GROUPS_IDX, dim=-1).bool()
+    pixel_sp_m = torch.repeat_interleave(sp_m, repeats=SPACE_BAND_EXPANSION, dim=-1).bool()
+    pixel_st_m = torch.repeat_interleave(st_m, repeats=STATIC_BAND_EXPANSION, dim=-1).bool()
+    pixel_t_m = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION, dim=-1).bool()
 
     # p_s_t has shape [b, token_h, token_w, t, max_patch_size ** 2 * max_channel_groups]
-    max_channel_groups = (p_s_t.shape[-1] / (max_patch_size**2)) / len(SPACE_TIME_BANDS_GROUPS_IDX)
+    max_channel_groups = int((p_s_t.shape[-1] / (max_patch_size**2)) / len(SPACE_TIME_BANDS_GROUPS_IDX))
     output_p_s_t = []
     for idx, (_, c_g) in enumerate(SPACE_TIME_BANDS_GROUPS_IDX.items()):
         # decoded has shape [b, h, w, t, len(c_g) * patch_size ** 2]
-        start_idx = idx * max_channel_groups
+        start_idx = idx * max_channel_groups * (max_patch_size**2)
         channel_group_p_s_t = p_s_t[
             :, :, :, :, start_idx : start_idx + ((max_patch_size**2) * len(c_g))
         ]
@@ -181,7 +187,7 @@ def mae_loss(
 
     output_p_sp = []
     for idx, (_, c_g) in enumerate(SPACE_BAND_GROUPS_IDX.items()):
-        start_idx = idx * max_channel_groups
+        start_idx = idx * max_channel_groups * (max_patch_size**2)
         channel_group_p_sp = p_sp[
             :, :, :, start_idx : start_idx + ((max_patch_size**2) * len(c_g))
         ]
