@@ -378,40 +378,58 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                     ),
                     patch_size=patch_size,
                 )
+                if training_config["loss_type"] != "MAE":
+                    with torch.no_grad():
+                        t_s_t, t_sp, t_t, t_st, _, _, _, _, _ = target_encoder(
+                            s_t_x,
+                            sp_x,
+                            t_x,
+                            st_x,
+                            ~(s_t_m == 2),  # we want 0s where the mask == 2
+                            ~(sp_m == 2),
+                            ~(t_m == 2),
+                            ~(st_m == 2),
+                            months.long(),
+                            patch_size=patch_size,
+                            c_i=c_i if training_config["target_condition"] else None,
+                            exit_after=config["training"]["target_exit_after"],
+                        )
 
-                with torch.no_grad():
-                    t_s_t, t_sp, t_t, t_st, _, _, _, _, _ = target_encoder(
-                        s_t_x,
-                        sp_x,
-                        t_x,
-                        st_x,
-                        ~(s_t_m == 2),  # we want 0s where the mask == 2
-                        ~(sp_m == 2),
-                        ~(t_m == 2),
-                        ~(st_m == 2),
-                        months.long(),
-                        patch_size=patch_size,
-                        c_i=c_i if training_config["target_condition"] else None,
-                        exit_after=config["training"]["target_exit_after"],
+                    loss = do_loss(
+                        training_config,
+                        (
+                            t_s_t,
+                            t_sp,
+                            t_t,
+                            t_st,
+                            p_s_t,
+                            p_sp,
+                            p_t,
+                            p_st,
+                            s_t_m[:, 0::patch_size, 0::patch_size],
+                            sp_m[:, 0::patch_size, 0::patch_size],
+                            t_m,
+                            st_m,
+                        ),
                     )
-
-                loss = do_loss(
-                    training_config,
-                    (
-                        t_s_t,
-                        t_sp,
-                        t_t,
-                        t_st,
-                        p_s_t,
-                        p_sp,
-                        p_t,
-                        p_st,
-                        s_t_m[:, 0::patch_size, 0::patch_size],
-                        sp_m[:, 0::patch_size, 0::patch_size],
-                        t_m,
-                        st_m,
-                    ),
-                )
+                else:
+                    loss = do_loss(
+                        training_config,
+                        (
+                            p_s_t,
+                            p_sp,
+                            p_t,
+                            p_st,
+                            s_t_x,
+                            sp_x,
+                            t_x,
+                            st_x,
+                            s_t_m,
+                            sp_m,
+                            t_m,
+                            st_m,
+                        ),
+                    )
                 assert not torch.isnan(loss).any(), "NaNs in loss"
             train_loss.update(loss.item(), n=s_t_x.shape[0])
             if c_i is not None:
