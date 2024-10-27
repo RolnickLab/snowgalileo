@@ -28,7 +28,7 @@
     "normalization": "std",
     "eval_eurosat_every_n_epochs": 10,
     "random_masking": "half",
-    "unmasking_channels_combo": "shapes"
+    "unmasking_channels_combo": "all"
     },
     "model": {
         "encoder": {
