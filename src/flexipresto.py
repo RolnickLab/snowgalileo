@@ -814,6 +814,8 @@ class Encoder(FlexiPrestoBase):
         patch_size,
         input_res,
         exit_after,
+        exit_ids_seq: Optional[torch.Tensor] = None,
+        exited_tokens: Optional[torch.Tensor] = None,
         c_i_token: Optional[torch.Tensor] = None,
     ):
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
@@ -829,6 +831,10 @@ class Encoder(FlexiPrestoBase):
         new_m = m >= 1
         x, indices, new_m = self.remove_masked_tokens(x, new_m)  # new_m is shape (bsz, seq_len)
 
+        if exit_ids_seq is not None:
+            exit_ids_seq, _, _ = self.remove_masked_tokens(exit_ids_seq, m >= 1)  # (bsz, seq_len, dim)
+            exited_tokens, _, _ = self.remove_masked_tokens(exited_tokens, m >= 1)  # still linear projections
+
         if c_i_token is not None:
             c_i_as_batch = repeat(c_i_token, "d -> b s d", s=1, b=x.shape[0])
             x = torch.cat((x, c_i_as_batch), dim=1)
@@ -840,10 +846,27 @@ class Encoder(FlexiPrestoBase):
                 # if exit_after is 0, then all layers are skipped
                 break
 
+            if (exit_ids_seq is not None) and ((i_blk + 1) == 6):
+                # half depth
+                exited_tokens = torch.where(
+                    condition=(exit_ids_seq == 1),  # 1 for half depth
+                    input=x,
+                    other=exited_tokens
+                )
+
             # we take the inverse of the mask because a value
             # of True indicates the value *should* take part in
             # attention
             x = blk(x=x, y=None, attn_mask=~new_m.bool())
+        
+        if exit_ids_seq is not None:
+            # full depth
+            # IMPORTANT: write this to x
+            x = torch.where(
+                condition=(exit_ids_seq == 2),  # 2 for full depth
+                input=x,
+                other=exited_tokens
+            )
 
         if c_i_token is not None:
             # remove the c_i_token
@@ -897,6 +920,41 @@ class Encoder(FlexiPrestoBase):
         x_for_mean = x * (1 - m.unsqueeze(-1))
 
         return x_for_mean.sum(dim=2) / torch.sum(1 - m, -1, keepdim=True)
+    
+
+    def create_token_exit_ids(self, s_t_x, sp_x, t_x, st_x, token_exit_cfg):
+        # token_exit = 0 -> zero depth
+        # token_exit = 1 -> half depth
+        # token_exit = 2 -> full depth
+
+        exit_s_t = torch.zeros_like(s_t_x)
+        exit_sp = torch.zeros_like(sp_x)
+        exit_t = torch.zeros_like(t_x)
+        exit_st = torch.zeros_like(st_x)
+
+        exit_s_t[:, :, :, :, 0, :] = token_exit_cfg["S1"]
+        exit_s_t[:, :, :, :, 1, :] = token_exit_cfg["S2_RGB"]
+        exit_s_t[:, :, :, :, 2, :] = token_exit_cfg["S2_Red_Edge"]
+        exit_s_t[:, :, :, :, 3, :] = token_exit_cfg["S2_NIR_10m"]
+        exit_s_t[:, :, :, :, 4, :] = token_exit_cfg["S2_NIR_20m"]
+        exit_s_t[:, :, :, :, 5, :] = token_exit_cfg["S2_SWIR"]
+        exit_s_t[:, :, :, :, 6, :] = token_exit_cfg["NDVI"]
+
+        exit_sp[:, :, :, 0, :] = token_exit_cfg["SRTM"]
+        exit_sp[:, :, :, 1, :] = token_exit_cfg["DW"]
+        exit_sp[:, :, :, 2, :] = token_exit_cfg["WC"]
+
+        exit_t[:, :, 0, :] = token_exit_cfg["ERA5"]
+        exit_t[:, :, 1, :] = token_exit_cfg["TC"]
+        exit_t[:, :, 2, :] = token_exit_cfg["VIIRS"]
+
+        exit_st[:, 0, :] = token_exit_cfg["LS"]
+        exit_st[:, 1, :] = token_exit_cfg["location"]
+        exit_st[:, 2, :] = token_exit_cfg["DW_static"]
+        exit_st[:, 3, :] = token_exit_cfg["WC_static"]
+
+        return exit_s_t, exit_sp, exit_t, exit_st
+
 
     def forward(
         self,
@@ -913,6 +971,7 @@ class Encoder(FlexiPrestoBase):
         c_i=None,
         input_resolution_m: Optional[int] = BASE_GSD,
         exit_after: Optional[int] = None,
+        token_exit_cfg: Optional[int] = None,
     ):
         if self.conditioner is not None:
             # c_i_token will be None unless
@@ -933,6 +992,16 @@ class Encoder(FlexiPrestoBase):
         ) = self.apply_linear_projection(
             s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, patch_size
         )
+
+        if token_exit_cfg:
+            exit_s_t, exit_sp, exit_t, exit_st = self.create_token_exit_ids(s_t_x, sp_x, t_x, st_x, token_exit_cfg)
+            exit_ids_seq, _ = self.collapse_and_combine_hwtc(exit_s_t, exit_sp, exit_t, exit_st, s_t_m, sp_m, t_m, st_m)
+            # exited_tokens starts as linear projections!
+            exited_tokens, _ = self.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
+        else:
+            exit_ids_seq = None
+            exited_tokens = None
+
         if (exit_after is None) or (exit_after > 0):
             s_t_x, sp_x, t_x, st_x, s_t_m, st_m, t_m, st_m = self.apply_attn(
                 s_t_x,
@@ -947,6 +1016,8 @@ class Encoder(FlexiPrestoBase):
                 patch_size,
                 input_resolution_m,
                 exit_after,
+                exit_ids_seq,
+                exited_tokens,
                 c_i_token=c_i_token,
             )
 
