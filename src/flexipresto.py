@@ -846,7 +846,7 @@ class Encoder(FlexiPrestoBase):
                 # if exit_after is 0, then all layers are skipped
                 break
 
-            if (exit_ids_seq is not None) and ((i_blk + 1) == 6):
+            if (exit_ids_seq is not None) and (i_blk == 6):
                 # half depth
                 exited_tokens = torch.where(
                     condition=(exit_ids_seq == 1),  # 1 for half depth
