@@ -393,6 +393,7 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                             patch_size=patch_size,
                             c_i=c_i if training_config["target_condition"] else None,
                             exit_after=config["training"]["target_exit_after"],
+                            token_exit_cfg=config["training"]["token_exit_cfg"],
                         )
 
                     loss = do_loss(

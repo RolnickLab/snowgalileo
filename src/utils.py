@@ -100,7 +100,6 @@ def check_config(config):
         "masking_probabilities": list,
         "grad_clip": bool,
         "target_condition": bool,
-        "target_exit_after": (int, str),
         "conditioner_mode": str,
         "normalization": str,
         "random_masking": str,
@@ -113,6 +112,18 @@ def check_config(config):
             training_dict[key],
             val,  # type: ignore
         ), f"Expected {key} to be {val}, got {type(training_dict[key])}"
+
+    assert ("target_exit_after" in training_dict.keys()) or (
+        "token_exit_cfg" in training_dict.keys()
+    )
+    if "target_exit_after" in training_dict.keys():
+        assert isinstance(training_dict["target_exit_after"], int)
+        assert "token_exit_cfg" not in training_dict.keys()
+        training_dict["token_exit_cfg"] = None
+    if "token_exit_cfg" in training_dict.keys():
+        assert isinstance(training_dict["token_exit_cfg"], dict)
+        assert "target_exit_after" not in training_dict.keys()
+        training_dict["target_exit_after"] = None
 
     if isinstance(training_dict["warmup_epochs"], float):
         training_dict["warmup_epochs"] = int(
