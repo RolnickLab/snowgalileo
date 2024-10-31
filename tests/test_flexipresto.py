@@ -416,3 +416,73 @@ class TestPresto(unittest.TestCase):
             )
             x, _, _, _, _ = decoder.split_x_y(x, m)
             self.assertTrue(x.shape[1] == 1, x.shape)
+
+    @torch.no_grad()
+    def test_token_exit_cfgs(self):
+        embedding_size, patch_size = 32, 4
+        image_size = patch_size * 4
+        num_timesteps = 3
+        encoder = Encoder(embedding_size=embedding_size, num_heads=1)
+        ds = Dataset(DATA_FOLDER, False)
+        for i in range(len(ds)):
+            s_t_x, sp_x, t_x, st_x, months = self.to_tensor_with_batch_d(ds[i])
+            masked_output, _ = batch_subset_mask_presto(
+                s_t_x,
+                sp_x,
+                t_x,
+                st_x,
+                months,
+                encode_ratio=0.25,
+                decode_ratio=0.25,
+                patch_size=patch_size,
+                image_size=image_size,
+                num_timesteps=num_timesteps,
+                augmentation_strategies=None,
+                masking_probabilities=[1] * len(MASKING_MODES),
+                masking_function=MaskingFunctions.SPACE,
+                max_unmasking_channels=4,
+            )
+
+            # for now, we just make sure it all runs
+            with torch.autocast(device_type=device.type, dtype=torch.float16):
+                encoder_output_depth_0 = encoder(
+                    masked_output.space_time_x,
+                    masked_output.space_x,
+                    masked_output.time_x,
+                    masked_output.static_x,
+                    masked_output.space_time_mask,
+                    masked_output.space_mask,
+                    masked_output.time_mask,
+                    masked_output.static_mask,
+                    masked_output.months.long(),
+                    patch_size=patch_size,
+                    exit_after=0,
+                )
+
+                encoder_output_depth_6 = encoder(
+                    masked_output.space_time_x,
+                    masked_output.space_x,
+                    masked_output.time_x,
+                    masked_output.static_x,
+                    masked_output.space_time_mask,
+                    masked_output.space_mask,
+                    masked_output.time_mask,
+                    masked_output.static_mask,
+                    masked_output.months.long(),
+                    patch_size=patch_size,
+                    exit_after=6,
+                )
+
+                encoder_output_depth_full = encoder(
+                    masked_output.space_time_x,
+                    masked_output.space_x,
+                    masked_output.time_x,
+                    masked_output.static_x,
+                    masked_output.space_time_mask,
+                    masked_output.space_mask,
+                    masked_output.time_mask,
+                    masked_output.static_mask,
+                    masked_output.months.long(),
+                    patch_size=patch_size,
+                    exit_after=12,
+                )

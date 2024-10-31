@@ -3,7 +3,7 @@ import itertools
 import json
 import math
 from pathlib import Path
-from typing import Any, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
@@ -851,6 +851,7 @@ class Encoder(FlexiPrestoBase):
                 break
 
             if (exit_ids_seq is not None) and (i_blk == 6):
+                assert exited_tokens is not None
                 # half depth
                 exited_tokens = torch.where(
                     condition=(exit_ids_seq == 1),  # 1 for half depth
@@ -864,6 +865,7 @@ class Encoder(FlexiPrestoBase):
             x = blk(x=x, y=None, attn_mask=~new_m.bool())
 
         if exit_ids_seq is not None:
+            assert exited_tokens is not None
             # full depth
             # IMPORTANT: write this to x
             x = torch.where(
@@ -935,26 +937,17 @@ class Encoder(FlexiPrestoBase):
         exit_t = torch.zeros_like(t_x)
         exit_st = torch.zeros_like(st_x)
 
-        exit_s_t[:, :, :, :, 0, :] = token_exit_cfg["S1"]
-        exit_s_t[:, :, :, :, 1, :] = token_exit_cfg["S2_RGB"]
-        exit_s_t[:, :, :, :, 2, :] = token_exit_cfg["S2_Red_Edge"]
-        exit_s_t[:, :, :, :, 3, :] = token_exit_cfg["S2_NIR_10m"]
-        exit_s_t[:, :, :, :, 4, :] = token_exit_cfg["S2_NIR_20m"]
-        exit_s_t[:, :, :, :, 5, :] = token_exit_cfg["S2_SWIR"]
-        exit_s_t[:, :, :, :, 6, :] = token_exit_cfg["NDVI"]
+        for idx, (key, _) in enumerate(self.space_time_groups.items()):
+            exit_s_t[:, :, :, :, idx, :] = token_exit_cfg[key]
 
-        exit_sp[:, :, :, 0, :] = token_exit_cfg["SRTM"]
-        exit_sp[:, :, :, 1, :] = token_exit_cfg["DW"]
-        exit_sp[:, :, :, 2, :] = token_exit_cfg["WC"]
+        for idx, (key, _) in enumerate(self.space_groups.items()):
+            exit_sp[:, :, :, :, idx, :] = token_exit_cfg[key]
 
-        exit_t[:, :, 0, :] = token_exit_cfg["ERA5"]
-        exit_t[:, :, 1, :] = token_exit_cfg["TC"]
-        exit_t[:, :, 2, :] = token_exit_cfg["VIIRS"]
+        for idx, (key, _) in enumerate(self.time_groups.items()):
+            exit_t[:, :, :, :, idx, :] = token_exit_cfg[key]
 
-        exit_st[:, 0, :] = token_exit_cfg["LS"]
-        exit_st[:, 1, :] = token_exit_cfg["location"]
-        exit_st[:, 2, :] = token_exit_cfg["DW_static"]
-        exit_st[:, 3, :] = token_exit_cfg["WC_static"]
+        for idx, (key, _) in enumerate(self.static_groups.items()):
+            exit_st[:, :, :, :, idx, :] = token_exit_cfg[key]
 
         return exit_s_t, exit_sp, exit_t, exit_st
 
@@ -973,7 +966,7 @@ class Encoder(FlexiPrestoBase):
         c_i=None,
         input_resolution_m: Optional[int] = BASE_GSD,
         exit_after: Optional[int] = None,
-        token_exit_cfg: Optional[int] = None,
+        token_exit_cfg: Optional[Dict] = None,
     ):
         if self.conditioner is not None:
             # c_i_token will be None unless
