@@ -419,10 +419,11 @@ class TestPresto(unittest.TestCase):
 
     @torch.no_grad()
     def test_token_exit_cfgs(self):
-        embedding_size, patch_size = 32, 4
+        embedding_size, patch_size = 16, 1
         image_size = patch_size * 4
         num_timesteps = 3
         encoder = Encoder(embedding_size=embedding_size, num_heads=1)
+        encoder.eval()
         ds = Dataset(DATA_FOLDER, False)
         for i in range(len(ds)):
             s_t_x, sp_x, t_x, st_x, months = self.to_tensor_with_batch_d(ds[i])
@@ -443,46 +444,102 @@ class TestPresto(unittest.TestCase):
                 max_unmasking_channels=4,
             )
 
+            # for this test, we will keep the same
+            # values per shape since we call layer norm
+            # on each shape output
+            token_exit_cfgs = {
+                "S1": 12,
+                "S2_RGB": 12,
+                "S2_Red_Edge": 12,
+                "S2_NIR_10m": 12,
+                "S2_NIR_20m": 12,
+                "S2_SWIR": 12,
+                "NDVI": 12,
+                "ERA5": 6,
+                "TC": 6,
+                "VIIRS": 6,
+                "SRTM": 0,
+                "DW": 0,
+                "WC": 0,
+                "LS": 0,
+                "location": 12,
+                "DW_static": 12,
+                "WC_static": 12,
+            }
+
             # for now, we just make sure it all runs
-            with torch.autocast(device_type=device.type, dtype=torch.float16):
-                encoder_output_depth_0 = encoder(
-                    masked_output.space_time_x,
-                    masked_output.space_x,
-                    masked_output.time_x,
-                    masked_output.static_x,
-                    masked_output.space_time_mask,
-                    masked_output.space_mask,
-                    masked_output.time_mask,
-                    masked_output.static_mask,
-                    masked_output.months.long(),
-                    patch_size=patch_size,
-                    exit_after=0,
-                )
+            encoder_output_depth_0 = encoder(
+                masked_output.space_time_x,
+                masked_output.space_x,
+                masked_output.time_x,
+                masked_output.static_x,
+                torch.zeros_like(masked_output.space_time_mask),
+                torch.zeros_like(masked_output.space_mask),
+                torch.zeros_like(masked_output.time_mask),
+                torch.zeros_like(masked_output.static_mask),
+                masked_output.months.long(),
+                patch_size=patch_size,
+                exit_after=0,
+            )
 
-                encoder_output_depth_6 = encoder(
-                    masked_output.space_time_x,
-                    masked_output.space_x,
-                    masked_output.time_x,
-                    masked_output.static_x,
-                    masked_output.space_time_mask,
-                    masked_output.space_mask,
-                    masked_output.time_mask,
-                    masked_output.static_mask,
-                    masked_output.months.long(),
-                    patch_size=patch_size,
-                    exit_after=6,
-                )
+            encoder_output_depth_6 = encoder(
+                masked_output.space_time_x,
+                masked_output.space_x,
+                masked_output.time_x,
+                masked_output.static_x,
+                torch.zeros_like(masked_output.space_time_mask),
+                torch.zeros_like(masked_output.space_mask),
+                torch.zeros_like(masked_output.time_mask),
+                torch.zeros_like(masked_output.static_mask),
+                masked_output.months.long(),
+                patch_size=patch_size,
+                exit_after=6,
+            )
 
-                encoder_output_depth_full = encoder(
-                    masked_output.space_time_x,
-                    masked_output.space_x,
-                    masked_output.time_x,
-                    masked_output.static_x,
-                    masked_output.space_time_mask,
-                    masked_output.space_mask,
-                    masked_output.time_mask,
-                    masked_output.static_mask,
-                    masked_output.months.long(),
-                    patch_size=patch_size,
-                    exit_after=12,
-                )
+            encoder_output_depth_full = encoder(
+                masked_output.space_time_x,
+                masked_output.space_x,
+                masked_output.time_x,
+                masked_output.static_x,
+                torch.zeros_like(masked_output.space_time_mask),
+                torch.zeros_like(masked_output.space_mask),
+                torch.zeros_like(masked_output.time_mask),
+                torch.zeros_like(masked_output.static_mask),
+                masked_output.months.long(),
+                patch_size=patch_size,
+                exit_after=12,
+            )
+
+            encoder_output_depth_varied = encoder(
+                masked_output.space_time_x,
+                masked_output.space_x,
+                masked_output.time_x,
+                masked_output.static_x,
+                torch.zeros_like(masked_output.space_time_mask),
+                torch.zeros_like(masked_output.space_mask),
+                torch.zeros_like(masked_output.time_mask),
+                torch.zeros_like(masked_output.static_mask),
+                masked_output.months.long(),
+                patch_size=patch_size,
+                token_exit_cfg=token_exit_cfgs,
+            )
+
+            # s_t_x
+            print(encoder_output_depth_varied[0][0, 0, 0, 0])
+            print(encoder_output_depth_full[0][0, 0, 0, 0])
+            self.assertTrue(
+                torch.equal(encoder_output_depth_varied[0], encoder_output_depth_full[0])
+            )
+
+            # sp_x
+            print(encoder_output_depth_varied[1][0, 0, 0, 0])
+            print(encoder_output_depth_0[1][0, 0, 0, 0])
+            self.assertTrue(torch.equal(encoder_output_depth_varied[1], encoder_output_depth_0[1]))
+
+            # t_x
+            self.assertTrue(torch.equal(encoder_output_depth_varied[2], encoder_output_depth_6[2]))
+
+            # st_x
+            self.assertTrue(
+                torch.equal(encoder_output_depth_varied[3], encoder_output_depth_full[3])
+            )
