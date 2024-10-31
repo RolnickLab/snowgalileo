@@ -211,6 +211,8 @@ dataloader = DataLoader(
         augmentation_strategies=training_config["augmentation"],
         masking_probabilities=training_config["masking_probabilities"],
         max_unmasking_channels=training_config["max_unmasking_channels"],
+        random_masking=training_config["random_masking"],
+        unmasking_channels_combo=training_config["unmasking_channels_combo"],
     ),
     pin_memory=True,
 )
@@ -358,8 +360,6 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                 c_i = {
                     k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in c_i.items()
                 }
-            else:
-                raise ValueError("c_i should not be None")
 
             with torch.autocast(device_type=device.type, dtype=autocast_device):
                 (p_s_t, p_sp, p_t, p_st) = predictor(
@@ -378,40 +378,61 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                     ),
                     patch_size=patch_size,
                 )
+                if training_config["loss_type"] != "MAE":
+                    with torch.no_grad():
+                        t_s_t, t_sp, t_t, t_st, _, _, _, _, _ = target_encoder(
+                            s_t_x,
+                            sp_x,
+                            t_x,
+                            st_x,
+                            ~(s_t_m == 2),  # we want 0s where the mask == 2
+                            ~(sp_m == 2),
+                            ~(t_m == 2),
+                            ~(st_m == 2),
+                            months.long(),
+                            patch_size=patch_size,
+                            c_i=c_i if training_config["target_condition"] else None,
+                            exit_after=config["training"]["target_exit_after"],
+                            token_exit_cfg=config["training"]["token_exit_cfg"],
+                        )
 
-                with torch.no_grad():
-                    t_s_t, t_sp, t_t, t_st, _, _, _, _, _ = target_encoder(
-                        s_t_x,
-                        sp_x,
-                        t_x,
-                        st_x,
-                        ~(s_t_m == 2),  # we want 0s where the mask == 2
-                        ~(sp_m == 2),
-                        ~(t_m == 2),
-                        ~(st_m == 2),
-                        months.long(),
-                        patch_size=patch_size,
-                        c_i=c_i if training_config["target_condition"] else None,
-                        exit_after=config["training"]["target_exit_after"],
+                    loss = do_loss(
+                        training_config,
+                        (
+                            t_s_t,
+                            t_sp,
+                            t_t,
+                            t_st,
+                            p_s_t,
+                            p_sp,
+                            p_t,
+                            p_st,
+                            s_t_m[:, 0::patch_size, 0::patch_size],
+                            sp_m[:, 0::patch_size, 0::patch_size],
+                            t_m,
+                            st_m,
+                        ),
                     )
-
-                loss = do_loss(
-                    training_config,
-                    (
-                        t_s_t,
-                        t_sp,
-                        t_t,
-                        t_st,
-                        p_s_t,
-                        p_sp,
-                        p_t,
-                        p_st,
-                        s_t_m[:, 0::patch_size, 0::patch_size],
-                        sp_m[:, 0::patch_size, 0::patch_size],
-                        t_m,
-                        st_m,
-                    ),
-                )
+                else:
+                    loss = do_loss(
+                        training_config,
+                        (
+                            p_s_t,
+                            p_sp,
+                            p_t,
+                            p_st,
+                            s_t_x,
+                            sp_x,
+                            t_x,
+                            st_x,
+                            s_t_m,
+                            sp_m,
+                            t_m,
+                            st_m,
+                            patch_size,
+                            max(training_config["patch_sizes"]),
+                        ),
+                    )
                 assert not torch.isnan(loss).any(), "NaNs in loss"
             train_loss.update(loss.item(), n=s_t_x.shape[0])
             if c_i is not None:

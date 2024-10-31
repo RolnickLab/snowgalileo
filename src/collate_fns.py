@@ -41,6 +41,7 @@ def collated_batch_to_output(
     fixed_space_time_combination=None,
     masking_probabilities=None,
     max_unmasking_channels=4,
+    unmasking_channels_combo: str = "shapes",
 ) -> CollateFnOutput:
     if fixed_patch_size is not None:
         patch_size = fixed_patch_size
@@ -78,6 +79,7 @@ def collated_batch_to_output(
         masking_probabilities=masking_probabilities,
         masking_function=masking_function,
         max_unmasking_channels=max_unmasking_channels,
+        unmasking_channels_combo=unmasking_channels_combo,
     )
 
     return CollateFnOutput(
@@ -107,6 +109,8 @@ def mae_collate_fn(
     fixed_space_time_combination=None,
     masking_probabilities=None,
     max_unmasking_channels=4,
+    random_masking: str = "None",
+    unmasking_channels_combo: str = "shapes",
 ) -> Tuple[CollateFnOutput, CollateFnOutput, CollateFnOutput, CollateFnOutput]:
     s_t_x, sp_x, t_x, st_x, months = default_collate(batch)
 
@@ -125,22 +129,66 @@ def mae_collate_fn(
         "masking_probabilities": masking_probabilities,
         "shape_time_combinations": shape_time_combinations,
         "max_unmasking_channels": max_unmasking_channels,
+        "unmasking_channels_combo": unmasking_channels_combo,
     }
-    return (
-        collated_batch_to_output(
-            **input_args,
-            masking_function=MaskingFunctions.TIME,
-        ),
-        collated_batch_to_output(
-            **input_args,
-            masking_function=MaskingFunctions.SPACE,
-        ),
-        collated_batch_to_output(
-            **input_args,
-            masking_function=MaskingFunctions.TIME,
-        ),
-        collated_batch_to_output(
-            **input_args,
-            masking_function=MaskingFunctions.SPACE,
-        ),
-    )
+    if random_masking == "none":
+        return (
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.TIME,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.SPACE,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.TIME,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.SPACE,
+            ),
+        )
+    elif random_masking == "half":
+        return (
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.TIME,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.SPACE,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.RANDOM,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.RANDOM,
+            ),
+        )
+    elif random_masking == "full":
+        return (
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.RANDOM,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.RANDOM,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.RANDOM,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.RANDOM,
+            ),
+        )
+    else:
+        raise ValueError(
+            f"Expected random_masking to be one of none, half full, got {random_masking}"
+        )

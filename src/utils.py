@@ -13,8 +13,11 @@ import wandb
 
 from .config import DEFAULT_SEED
 from .data.dataset import (
+    SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_BANDS,
     SPACE_TIME_BANDS_GROUPS_IDX,
+    STATIC_BAND_GROUPS_IDX,
+    TIME_BAND_GROUPS_IDX,
 )
 from .masking import MASKING_MODES, UNMASKING_CHANNEL_GROUPS, MaskedOutput
 
@@ -97,9 +100,9 @@ def check_config(config):
         "masking_probabilities": list,
         "grad_clip": bool,
         "target_condition": bool,
-        "target_exit_after": (int, str),
         "conditioner_mode": str,
         "normalization": str,
+        "random_masking": str,
     }
     training_dict = config["training"]
 
@@ -110,6 +113,18 @@ def check_config(config):
             val,  # type: ignore
         ), f"Expected {key} to be {val}, got {type(training_dict[key])}"
 
+    assert ("target_exit_after" in training_dict.keys()) or (
+        "token_exit_cfg" in training_dict.keys()
+    )
+    if "target_exit_after" in training_dict.keys():
+        assert isinstance(training_dict["target_exit_after"], int)
+        assert "token_exit_cfg" not in training_dict.keys()
+        training_dict["token_exit_cfg"] = None
+    elif "token_exit_cfg" in training_dict.keys():
+        assert isinstance(training_dict["token_exit_cfg"], dict)
+        assert "target_exit_after" not in training_dict.keys()
+        training_dict["target_exit_after"] = None
+
     if isinstance(training_dict["warmup_epochs"], float):
         training_dict["warmup_epochs"] = int(
             training_dict["warmup_epochs"] * training_dict["num_epochs"]
@@ -117,6 +132,7 @@ def check_config(config):
     assert isinstance(training_dict["warmup_epochs"], int)
     assert training_dict["num_epochs"] > training_dict["warmup_epochs"]
     assert training_dict["normalization"] in ["std", "scaling"]
+    assert training_dict["random_masking"] in ["half", "full", "none"]
 
     assert len(training_dict["masking_probabilities"]) == len(
         MASKING_MODES
@@ -161,6 +177,20 @@ def check_config(config):
     config["model"]["decoder"]["decoder_embedding_size"] = config["model"]["decoder"].pop(
         "embedding_size"
     )
+
+    if config["training"]["loss_type"] == "MAE":
+        max_patch_size = max(config["training"]["patch_sizes"])
+        max_group_length = max(
+            [
+                max([len(v) for _, v in SPACE_TIME_BANDS_GROUPS_IDX.items()]),
+                max([len(v) for _, v in TIME_BAND_GROUPS_IDX.items()]),
+                max([len(v) for _, v in SPACE_BAND_GROUPS_IDX.items()]),
+                max([len(v) for _, v in STATIC_BAND_GROUPS_IDX.items()]),
+            ]
+        )
+        config["model"]["decoder"]["output_embedding_size"] = (
+            max_patch_size**2
+        ) * max_group_length
 
     assert config["training"]["conditioner_mode"] in [
         "moe",
