@@ -13,8 +13,11 @@ import wandb
 
 from .config import DEFAULT_SEED
 from .data.dataset import (
+    SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_BANDS,
     SPACE_TIME_BANDS_GROUPS_IDX,
+    STATIC_BAND_GROUPS_IDX,
+    TIME_BAND_GROUPS_IDX,
 )
 from .masking import MASKING_MODES, UNMASKING_CHANNEL_GROUPS, MaskedOutput
 
@@ -163,6 +166,20 @@ def check_config(config):
     config["model"]["decoder"]["decoder_embedding_size"] = config["model"]["decoder"].pop(
         "embedding_size"
     )
+
+    if config["training"]["loss_type"] == "MAE":
+        max_patch_size = max(config["training"]["patch_sizes"])
+        max_group_length = max(
+            [
+                max([len(v) for _, v in SPACE_TIME_BANDS_GROUPS_IDX.items()]),
+                max([len(v) for _, v in TIME_BAND_GROUPS_IDX.items()]),
+                max([len(v) for _, v in SPACE_BAND_GROUPS_IDX.items()]),
+                max([len(v) for _, v in STATIC_BAND_GROUPS_IDX.items()]),
+            ]
+        )
+        config["model"]["decoder"]["output_embedding_size"] = (
+            max_patch_size**2
+        ) * max_group_length
 
     assert config["training"]["conditioner_mode"] in [
         "moe",

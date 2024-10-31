@@ -1164,6 +1164,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         max_sequence_length=24,
         max_patch_size: int = 8,
         learnable_channel_embeddings: bool = False,
+        output_embedding_size: Optional[int] = None,
     ):
         super().__init__(
             decoder_embedding_size,
@@ -1180,7 +1181,10 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         self.encoder_to_decoder_embed = nn.Linear(
             encoder_embedding_size, decoder_embedding_size, bias=True
         )
-        self.to_output_embed = nn.Linear(decoder_embedding_size, encoder_embedding_size, bias=True)
+        if output_embedding_size is None:
+            output_embedding_size = encoder_embedding_size
+        self.output_embedding_size = output_embedding_size
+        self.to_output_embed = nn.Linear(decoder_embedding_size, output_embedding_size, bias=True)
         self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
 
         self.max_patch_size = max_patch_size
@@ -1317,7 +1321,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
                         h,
                         w,
                         t,
-                        self.encoder_embedding_size,
+                        self.output_embedding_size,
                         dtype=s_t_x.dtype,
                         device=s_t_x.device,
                     )
@@ -1330,7 +1334,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             else:
                 output_sp.append(
                     torch.empty(
-                        b, h, w, self.encoder_embedding_size, dtype=sp_x.dtype, device=sp_x.device
+                        b, h, w, self.output_embedding_size, dtype=sp_x.dtype, device=sp_x.device
                     )
                 )
 
@@ -1340,7 +1344,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             else:
                 output_t.append(
                     torch.empty(
-                        b, t, self.encoder_embedding_size, dtype=t_x.dtype, device=t_x.device
+                        b, t, self.output_embedding_size, dtype=t_x.dtype, device=t_x.device
                     )
                 )
 
@@ -1350,7 +1354,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             else:
                 output_st.append(
                     torch.empty(
-                        b, self.encoder_embedding_size, dtype=st_x.dtype, device=st_x.device
+                        b, self.output_embedding_size, dtype=st_x.dtype, device=st_x.device
                     )
                 )
 
