@@ -120,7 +120,7 @@ def check_config(config):
         assert isinstance(training_dict["target_exit_after"], int)
         assert "token_exit_cfg" not in training_dict.keys()
         training_dict["token_exit_cfg"] = None
-    if "token_exit_cfg" in training_dict.keys():
+    elif "token_exit_cfg" in training_dict.keys():
         assert isinstance(training_dict["token_exit_cfg"], dict)
         assert "target_exit_after" not in training_dict.keys()
         training_dict["target_exit_after"] = None
