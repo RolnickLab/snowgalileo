@@ -832,8 +832,12 @@ class Encoder(FlexiPrestoBase):
         x, indices, new_m = self.remove_masked_tokens(x, new_m)  # new_m is shape (bsz, seq_len)
 
         if exit_ids_seq is not None:
-            exit_ids_seq, _, _ = self.remove_masked_tokens(exit_ids_seq, m >= 1)  # (bsz, seq_len, dim)
-            exited_tokens, _, _ = self.remove_masked_tokens(exited_tokens, m >= 1)  # still linear projections
+            exit_ids_seq, _, _ = self.remove_masked_tokens(
+                exit_ids_seq, m >= 1
+            )  # (bsz, seq_len, dim)
+            exited_tokens, _, _ = self.remove_masked_tokens(
+                exited_tokens, m >= 1
+            )  # still linear projections
 
         if c_i_token is not None:
             c_i_as_batch = repeat(c_i_token, "d -> b s d", s=1, b=x.shape[0])
@@ -851,21 +855,21 @@ class Encoder(FlexiPrestoBase):
                 exited_tokens = torch.where(
                     condition=(exit_ids_seq == 1),  # 1 for half depth
                     input=x,
-                    other=exited_tokens
+                    other=exited_tokens,
                 )
 
             # we take the inverse of the mask because a value
             # of True indicates the value *should* take part in
             # attention
             x = blk(x=x, y=None, attn_mask=~new_m.bool())
-        
+
         if exit_ids_seq is not None:
             # full depth
             # IMPORTANT: write this to x
             x = torch.where(
                 condition=(exit_ids_seq == 2),  # 2 for full depth
                 input=x,
-                other=exited_tokens
+                other=exited_tokens,
             )
 
         if c_i_token is not None:
@@ -920,7 +924,6 @@ class Encoder(FlexiPrestoBase):
         x_for_mean = x * (1 - m.unsqueeze(-1))
 
         return x_for_mean.sum(dim=2) / torch.sum(1 - m, -1, keepdim=True)
-    
 
     def create_token_exit_ids(self, s_t_x, sp_x, t_x, st_x, token_exit_cfg):
         # token_exit = 0 -> zero depth
@@ -954,7 +957,6 @@ class Encoder(FlexiPrestoBase):
         exit_st[:, 3, :] = token_exit_cfg["WC_static"]
 
         return exit_s_t, exit_sp, exit_t, exit_st
-
 
     def forward(
         self,
@@ -994,10 +996,16 @@ class Encoder(FlexiPrestoBase):
         )
 
         if token_exit_cfg:
-            exit_s_t, exit_sp, exit_t, exit_st = self.create_token_exit_ids(s_t_x, sp_x, t_x, st_x, token_exit_cfg)
-            exit_ids_seq, _ = self.collapse_and_combine_hwtc(exit_s_t, exit_sp, exit_t, exit_st, s_t_m, sp_m, t_m, st_m)
+            exit_s_t, exit_sp, exit_t, exit_st = self.create_token_exit_ids(
+                s_t_x, sp_x, t_x, st_x, token_exit_cfg
+            )
+            exit_ids_seq, _ = self.collapse_and_combine_hwtc(
+                exit_s_t, exit_sp, exit_t, exit_st, s_t_m, sp_m, t_m, st_m
+            )
             # exited_tokens starts as linear projections!
-            exited_tokens, _ = self.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
+            exited_tokens, _ = self.collapse_and_combine_hwtc(
+                s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m
+            )
         else:
             exit_ids_seq = None
             exited_tokens = None
