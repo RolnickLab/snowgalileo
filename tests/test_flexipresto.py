@@ -360,7 +360,7 @@ class TestPresto(unittest.TestCase):
         self.assertTrue(torch.equal(tokens, new_tokens))
 
     def test_load_from_device(self):
-        config = load_check_config("medium.json")
+        config = load_check_config("0.json")
         if "conditioner" in config["model"].keys():
             conditioner = LearnedMixture(**config["model"]["conditioner"])
         original_encoder = Encoder(**config["model"]["encoder"], conditioner=conditioner)
