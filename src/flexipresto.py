@@ -861,13 +861,15 @@ class Encoder(FlexiPrestoBase):
                 # if exit_after is 0, then all layers are skipped
                 break
 
-            if exit_ids_seq is not None:
+            # skip the 0th block since this is just the linear
+            # projection
+            if (exit_ids_seq is not None) and (i_blk > 0):
                 assert exited_tokens is not None
                 # half depth
                 exited_tokens = torch.where(
-                    condition=(exit_ids_seq == (i_blk + 1)),
-                    input=x,
-                    other=exited_tokens,
+                    condition=(exit_ids_seq == i_blk),
+                    input=x.detach(),
+                    other=exited_tokens.detach(),
                 )
 
             # we take the inverse of the mask because a value
@@ -881,8 +883,8 @@ class Encoder(FlexiPrestoBase):
             # IMPORTANT: write this to x
             x = torch.where(
                 condition=(exit_ids_seq == (i_blk + 1)),  # 2 for full depth
-                input=x,
-                other=exited_tokens,
+                input=x.detach(),
+                other=exited_tokens.detach(),
             )
 
         if c_i_token is not None:
