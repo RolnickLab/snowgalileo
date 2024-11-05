@@ -120,7 +120,7 @@ def check_config(config):
             ), f"Expected {key} to be {val}, got {type(training_dict[key])}"
         else:
             print(f"{key} missing from training dict. Filling with default value {val[1]}")
-            config["training"][key] = val[0]
+            config["training"][key] = val[1]
 
     assert ("target_exit_after" in training_dict.keys()) or (
         "token_exit_cfg" in training_dict.keys()
