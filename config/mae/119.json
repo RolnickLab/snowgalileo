@@ -89,7 +89,8 @@
     "eval_eurosat_every_n_epochs": 10,
     "random_masking": "half",
     "unmasking_channels_combo": "all",
-    "target_exit_after": 12
+    "target_exit_after": 12,
+    "target_masking": "all"
   },
   "model": {
     "encoder": {
@@ -111,6 +112,5 @@
       "max_patch_size": 8,
       "embedding_size": 192
     }
-  },
-  "target_masking": "all"
+  }
 }

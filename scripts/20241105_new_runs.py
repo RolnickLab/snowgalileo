@@ -163,7 +163,7 @@ if __name__ == "__main__":
                         working_config["training"]["random_masking"] = "half"
                         working_config["training"]["unmasking_channels_combo"] = "shapes"
 
-                    working_config["target_masking"] = decoder_context
+                    working_config["training"]["target_masking"] = decoder_context
 
                     config_values["id"].append(cur_config)
                     config_values["target_depth"].append(depth)

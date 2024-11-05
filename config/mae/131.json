@@ -107,7 +107,8 @@
       "location": 12,
       "DW_static": 0,
       "WC_static": 0
-    }
+    },
+    "target_masking": "all"
   },
   "model": {
     "encoder": {
@@ -129,6 +130,5 @@
       "max_patch_size": 8,
       "embedding_size": 192
     }
-  },
-  "target_masking": "all"
+  }
 }
