@@ -116,10 +116,10 @@ def check_config(config):
     for key, val in optional_training_keys_type_default.items():
         if key in training_dict:
             assert isinstance(
-                training_dict[key], val[1]
+                training_dict[key], val[0]
             ), f"Expected {key} to be {val}, got {type(training_dict[key])}"
         else:
-            print(f"{key} missing from training dict. Filling with default value {val[0]}")
+            print(f"{key} missing from training dict. Filling with default value {val[1]}")
             config["training"][key] = val[0]
 
     assert ("target_exit_after" in training_dict.keys()) or (
