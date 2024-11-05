@@ -81,14 +81,15 @@
     "decode_ratio": 0.5,
     "max_unmasking_channels": 17,
     "target_condition": false,
-    "loss_type": "MAE",
+    "loss_type": "patch_disc",
     "tau": 0.1,
     "pred2unit": false,
     "loss_mask_other_samples": false,
     "normalization": "std",
     "eval_eurosat_every_n_epochs": 10,
     "random_masking": "full",
-    "unmasking_channels_combo": "all"
+    "unmasking_channels_combo": "all",
+    "target_exit_after": 6
   },
   "model": {
     "encoder": {
@@ -111,10 +112,5 @@
       "embedding_size": 192
     }
   },
-  "target_exit_after": 6,
-  "loss_type": "patch_disc",
-  "loss_mask_other_samples": false,
-  "random_masking": "full",
-  "unmasking_channels_combo": "all",
   "target_masking": "decoder_and_encoder"
 }

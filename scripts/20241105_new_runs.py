@@ -132,36 +132,36 @@ if __name__ == "__main__":
                     working_config = deepcopy(template)
 
                     if depth == "half":
-                        working_config["target_exit_after"] = 6
+                        working_config["training"]["target_exit_after"] = 6
                     elif depth == "full":
-                        working_config["target_exit_after"] = 12
+                        working_config["training"]["target_exit_after"] = 12
                     elif depth == "varied":
-                        working_config["token_exit_cfg"] = deepcopy(token_exit_cfg)
+                        working_config["training"]["token_exit_cfg"] = deepcopy(token_exit_cfg)
 
                     if loss == "MSE":
-                        working_config["loss_type"] = "MSE"
+                        working_config["training"]["loss_type"] = "MSE"
                     elif loss == "LatentMIM":
-                        working_config["loss_type"] = "patch_disc"
-                        working_config["loss_mask_other_samples"] = True
+                        working_config["training"]["loss_type"] = "patch_disc"
+                        working_config["training"]["loss_mask_other_samples"] = True
                     elif loss == "ours":
-                        working_config["loss_type"] = "patch_disc"
-                        working_config["loss_mask_other_samples"] = False
+                        working_config["training"]["loss_type"] = "patch_disc"
+                        working_config["training"]["loss_mask_other_samples"] = False
 
                     if masking == "random":
-                        working_config["random_masking"] = "full"
-                        working_config["unmasking_channels_combo"] = "all"
+                        working_config["training"]["random_masking"] = "full"
+                        working_config["training"]["unmasking_channels_combo"] = "all"
                     elif masking == "space+time":
-                        working_config["random_masking"] = "none"
-                        working_config["unmasking_channels_combo"] = "all"
+                        working_config["training"]["random_masking"] = "none"
+                        working_config["training"]["unmasking_channels_combo"] = "all"
                     elif masking == "random+space+time":
-                        working_config["random_masking"] = "half"
-                        working_config["unmasking_channels_combo"] = "all"
+                        working_config["training"]["random_masking"] = "half"
+                        working_config["training"]["unmasking_channels_combo"] = "all"
                     elif masking == "space+time, channel shapes":
-                        working_config["random_masking"] = "none"
-                        working_config["unmasking_channels_combo"] = "shapes"
+                        working_config["training"]["random_masking"] = "none"
+                        working_config["training"]["unmasking_channels_combo"] = "shapes"
                     elif masking == "random+space+time, channel shapes":
-                        working_config["random_masking"] = "half"
-                        working_config["unmasking_channels_combo"] = "shapes"
+                        working_config["training"]["random_masking"] = "half"
+                        working_config["training"]["unmasking_channels_combo"] = "shapes"
 
                     working_config["target_masking"] = decoder_context
 
