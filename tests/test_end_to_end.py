@@ -40,6 +40,7 @@ class TestEndtoEnd(unittest.TestCase):
                 ],
                 encode_ratio=0.25,
                 decode_ratio=0.25,
+                random_masking="half",
             ),
             pin_memory=True,
         )

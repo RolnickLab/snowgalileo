@@ -85,7 +85,8 @@ def get_random_config(
     config["training"]["warmup_epochs"] = 0.1
     config["training"]["final_lr"] = 1e-6
     config["training"]["conditioner_multiplier"] = 0.1
-
+    config["training"]["random_masking"] = random.choice(["full", "half", "none"])
+    config["training"]["unmasking_channels_combo"] = random.choice(["shapes", "all"])
     weight_decay = random.choice([0.01, 0.02])
     config["training"]["weight_decay"] = weight_decay
     config["training"]["conditioner_weight_decay"] = weight_decay

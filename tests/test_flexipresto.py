@@ -360,9 +360,11 @@ class TestPresto(unittest.TestCase):
         self.assertTrue(torch.equal(tokens, new_tokens))
 
     def test_load_from_device(self):
-        config = load_check_config("medium.json")
+        config = load_check_config("0.json")
         if "conditioner" in config["model"].keys():
             conditioner = LearnedMixture(**config["model"]["conditioner"])
+        else:
+            conditioner = None
         original_encoder = Encoder(**config["model"]["encoder"], conditioner=conditioner)
 
         with tempfile.TemporaryDirectory() as tempdir:
@@ -416,3 +418,99 @@ class TestPresto(unittest.TestCase):
             )
             x, _, _, _, _ = decoder.split_x_y(x, m)
             self.assertTrue(x.shape[1] == 1, x.shape)
+
+    def test_token_exit_cfgs_single_exit_equivalency(self):
+        self._token_exit_cfgs_single_exit_equivalency(0)
+        self._token_exit_cfgs_single_exit_equivalency(6)
+        self._token_exit_cfgs_single_exit_equivalency(12)
+
+    @torch.no_grad()
+    def _token_exit_cfgs_single_exit_equivalency(self, depth):
+        embedding_size, patch_size = 16, 1
+        image_size = patch_size * 4
+        num_timesteps = 3
+        encoder = Encoder(embedding_size=embedding_size, num_heads=1, depth=12)
+        encoder.eval()
+        ds = Dataset(DATA_FOLDER, False)
+        for i in range(len(ds)):
+            s_t_x, sp_x, t_x, st_x, months = self.to_tensor_with_batch_d(ds[i])
+            masked_output, _ = batch_subset_mask_presto(
+                s_t_x,
+                sp_x,
+                t_x,
+                st_x,
+                months,
+                encode_ratio=0.25,
+                decode_ratio=0.25,
+                patch_size=patch_size,
+                image_size=image_size,
+                num_timesteps=num_timesteps,
+                augmentation_strategies=None,
+                masking_probabilities=[1] * len(MASKING_MODES),
+                masking_function=MaskingFunctions.SPACE,
+                max_unmasking_channels=4,
+            )
+
+            # for this test, we will keep the same
+            # values per shape since we call layer norm
+            # on each shape output
+            token_exit_cfgs = {
+                "S1": depth,
+                "S2_RGB": depth,
+                "S2_Red_Edge": depth,
+                "S2_NIR_10m": depth,
+                "S2_NIR_20m": depth,
+                "S2_SWIR": depth,
+                "NDVI": depth,
+                "ERA5": depth,
+                "TC": depth,
+                "VIIRS": depth,
+                "SRTM": depth,
+                "DW": depth,
+                "WC": depth,
+                "LS": depth,
+                "location": depth,
+                "DW_static": depth,
+                "WC_static": depth,
+            }
+
+            encoder_output_depth = encoder(
+                masked_output.space_time_x,
+                masked_output.space_x,
+                masked_output.time_x,
+                masked_output.static_x,
+                torch.zeros_like(masked_output.space_time_mask),
+                torch.zeros_like(masked_output.space_mask),
+                torch.zeros_like(masked_output.time_mask),
+                torch.zeros_like(masked_output.static_mask),
+                masked_output.months.long(),
+                patch_size=patch_size,
+                exit_after=depth,
+            )
+
+            encoder_output_depth_varied = encoder(
+                masked_output.space_time_x,
+                masked_output.space_x,
+                masked_output.time_x,
+                masked_output.static_x,
+                torch.zeros_like(masked_output.space_time_mask),
+                torch.zeros_like(masked_output.space_mask),
+                torch.zeros_like(masked_output.time_mask),
+                torch.zeros_like(masked_output.static_mask),
+                masked_output.months.long(),
+                patch_size=patch_size,
+                token_exit_cfg=token_exit_cfgs,
+                exit_after=None,
+            )
+
+            # s_t_x
+            self.assertTrue(torch.equal(encoder_output_depth_varied[0], encoder_output_depth[0]))
+
+            # sp_x
+            self.assertTrue(torch.equal(encoder_output_depth_varied[1], encoder_output_depth[1]))
+
+            # t_x
+            self.assertTrue(torch.equal(encoder_output_depth_varied[2], encoder_output_depth[2]))
+
+            # st_x
+            self.assertTrue(torch.equal(encoder_output_depth_varied[3], encoder_output_depth[3]))

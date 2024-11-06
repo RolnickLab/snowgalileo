@@ -3,7 +3,7 @@ import itertools
 import json
 import math
 from pathlib import Path
-from typing import Any, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
@@ -814,8 +814,24 @@ class Encoder(FlexiPrestoBase):
         patch_size,
         input_res,
         exit_after,
+        token_exit_cfg,
         c_i_token: Optional[torch.Tensor] = None,
     ):
+        if token_exit_cfg:
+            exit_s_t, exit_sp, exit_t, exit_st = self.create_token_exit_ids(
+                s_t_x, sp_x, t_x, st_x, token_exit_cfg
+            )
+            exit_ids_seq, _ = self.collapse_and_combine_hwtc(
+                exit_s_t, exit_sp, exit_t, exit_st, s_t_m, sp_m, t_m, st_m
+            )
+            # exited_tokens starts as linear projections!
+            exited_tokens, _ = self.collapse_and_combine_hwtc(
+                s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m
+            )
+        else:
+            exit_ids_seq = None
+            exited_tokens = None
+
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
         sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
         s_t_x, sp_x, t_x, st_x = self.apply_encodings(
@@ -829,6 +845,11 @@ class Encoder(FlexiPrestoBase):
         new_m = m >= 1
         x, indices, new_m = self.remove_masked_tokens(x, new_m)  # new_m is shape (bsz, seq_len)
 
+        if exit_ids_seq is not None:
+            exit_ids_seq, _, _ = self.remove_masked_tokens(exit_ids_seq, m >= 1)
+            # still linear projections
+            exited_tokens, _, _ = self.remove_masked_tokens(exited_tokens, m >= 1)
+
         if c_i_token is not None:
             c_i_as_batch = repeat(c_i_token, "d -> b s d", s=1, b=x.shape[0])
             x = torch.cat((x, c_i_as_batch), dim=1)
@@ -840,10 +861,31 @@ class Encoder(FlexiPrestoBase):
                 # if exit_after is 0, then all layers are skipped
                 break
 
+            # skip the 0th block since this is just the linear
+            # projection
+            if (exit_ids_seq is not None) and (i_blk > 0):
+                assert exited_tokens is not None
+                # half depth
+                exited_tokens = torch.where(
+                    condition=(exit_ids_seq == i_blk),
+                    input=x.detach(),
+                    other=exited_tokens.detach(),
+                )
+
             # we take the inverse of the mask because a value
             # of True indicates the value *should* take part in
             # attention
             x = blk(x=x, y=None, attn_mask=~new_m.bool())
+
+        if exit_ids_seq is not None:
+            assert exited_tokens is not None
+            # full depth
+            # IMPORTANT: write this to x
+            x = torch.where(
+                condition=(exit_ids_seq == (i_blk + 1)),  # 2 for full depth
+                input=x.detach(),
+                other=exited_tokens.detach(),
+            )
 
         if c_i_token is not None:
             # remove the c_i_token
@@ -898,6 +940,25 @@ class Encoder(FlexiPrestoBase):
 
         return x_for_mean.sum(dim=2) / torch.sum(1 - m, -1, keepdim=True)
 
+    def create_token_exit_ids(self, s_t_x, sp_x, t_x, st_x, token_exit_cfg):
+        exit_s_t = torch.zeros_like(s_t_x)
+        exit_sp = torch.zeros_like(sp_x)
+        exit_t = torch.zeros_like(t_x)
+        exit_st = torch.zeros_like(st_x)
+
+        for idx, (key, _) in enumerate(self.space_time_groups.items()):
+            exit_s_t[:, :, :, :, idx, :] = token_exit_cfg[key]
+
+        for idx, (key, _) in enumerate(self.space_groups.items()):
+            exit_sp[:, :, :, idx, :] = token_exit_cfg[key]
+
+        for idx, (key, _) in enumerate(self.time_groups.items()):
+            exit_t[:, :, idx, :] = token_exit_cfg[key]
+
+        for idx, (key, _) in enumerate(self.static_groups.items()):
+            exit_st[:, idx, :] = token_exit_cfg[key]
+        return exit_s_t, exit_sp, exit_t, exit_st
+
     def forward(
         self,
         s_t_x: torch.Tensor,
@@ -913,6 +974,7 @@ class Encoder(FlexiPrestoBase):
         c_i=None,
         input_resolution_m: Optional[int] = BASE_GSD,
         exit_after: Optional[int] = None,
+        token_exit_cfg: Optional[Dict] = None,
     ):
         if self.conditioner is not None:
             # c_i_token will be None unless
@@ -933,6 +995,7 @@ class Encoder(FlexiPrestoBase):
         ) = self.apply_linear_projection(
             s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, patch_size
         )
+
         if (exit_after is None) or (exit_after > 0):
             s_t_x, sp_x, t_x, st_x, s_t_m, st_m, t_m, st_m = self.apply_attn(
                 s_t_x,
@@ -946,7 +1009,8 @@ class Encoder(FlexiPrestoBase):
                 months,
                 patch_size,
                 input_resolution_m,
-                exit_after,
+                exit_after=exit_after,
+                token_exit_cfg=token_exit_cfg,
                 c_i_token=c_i_token,
             )
 
@@ -1093,6 +1157,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         max_sequence_length=24,
         max_patch_size: int = 8,
         learnable_channel_embeddings: bool = False,
+        output_embedding_size: Optional[int] = None,
     ):
         super().__init__(
             decoder_embedding_size,
@@ -1109,7 +1174,10 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         self.encoder_to_decoder_embed = nn.Linear(
             encoder_embedding_size, decoder_embedding_size, bias=True
         )
-        self.to_output_embed = nn.Linear(decoder_embedding_size, encoder_embedding_size, bias=True)
+        if output_embedding_size is None:
+            output_embedding_size = encoder_embedding_size
+        self.output_embedding_size = output_embedding_size
+        self.to_output_embed = nn.Linear(decoder_embedding_size, output_embedding_size, bias=True)
         self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
 
         self.max_patch_size = max_patch_size
@@ -1246,7 +1314,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
                         h,
                         w,
                         t,
-                        self.encoder_embedding_size,
+                        self.output_embedding_size,
                         dtype=s_t_x.dtype,
                         device=s_t_x.device,
                     )
@@ -1259,7 +1327,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             else:
                 output_sp.append(
                     torch.empty(
-                        b, h, w, self.encoder_embedding_size, dtype=sp_x.dtype, device=sp_x.device
+                        b, h, w, self.output_embedding_size, dtype=sp_x.dtype, device=sp_x.device
                     )
                 )
 
@@ -1269,7 +1337,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             else:
                 output_t.append(
                     torch.empty(
-                        b, t, self.encoder_embedding_size, dtype=t_x.dtype, device=t_x.device
+                        b, t, self.output_embedding_size, dtype=t_x.dtype, device=t_x.device
                     )
                 )
 
@@ -1279,7 +1347,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             else:
                 output_st.append(
                     torch.empty(
-                        b, self.encoder_embedding_size, dtype=st_x.dtype, device=st_x.device
+                        b, self.output_embedding_size, dtype=st_x.dtype, device=st_x.device
                     )
                 )
 
