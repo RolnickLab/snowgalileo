@@ -81,7 +81,7 @@
     "decode_ratio": 0.5,
     "max_unmasking_channels": 17,
     "target_condition": false,
-    "loss_type": "MSE",
+    "loss_type": "MAE",
     "tau": 0.1,
     "pred2unit": false,
     "loss_mask_other_samples": false,
