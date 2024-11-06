@@ -122,7 +122,7 @@ if __name__ == "__main__":
         "decoder_context": [],
     }
     for depth in ["half", "full", "varied"]:
-        for loss in ["MSE", "LatentMIM", "ours"]:
+        for loss in ["mse", "LatentMIM", "ours"]:
             for masking in [
                 "random",
                 "space+time",
@@ -138,8 +138,8 @@ if __name__ == "__main__":
                     elif depth == "varied":
                         working_config["training"]["token_exit_cfg"] = deepcopy(token_exit_cfg)
 
-                    if loss == "MSE":
-                        working_config["training"]["loss_type"] = "MSE"
+                    if loss == "mse":
+                        working_config["training"]["loss_type"] = "mse"
                     elif loss == "LatentMIM":
                         working_config["training"]["loss_type"] = "patch_disc"
                         working_config["training"]["loss_mask_other_samples"] = True
