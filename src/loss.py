@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
@@ -9,6 +11,27 @@ from src.data.dataset import (
     STATIC_BAND_GROUPS_IDX,
     TIME_BAND_GROUPS_IDX,
 )
+
+
+def construct_target_encoder_masks(
+    s_t_m: torch.Tensor, sp_m: torch.Tensor, t_m: torch.Tensor, st_m: torch.Tensor, method: str
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    if method == "decoder_only":
+        # we want 0s where the mask == 2
+        return ~(s_t_m == 2), ~(sp_m == 2), ~(t_m == 2), ~(st_m == 2)
+    elif method == "all":
+        # we want all zeros
+        return (
+            torch.zeros_like(s_t_m),
+            torch.zeros_like(sp_m),
+            torch.zeros_like(t_m),
+            torch.zeros_like(st_m),
+        )
+    elif method == "decoder_and_encoder":
+        # we want 0s where the mask is not equal to 1
+        return s_t_m == 1, sp_m == 1, t_m == 1, st_m == 1
+    else:
+        raise ValueError(f"Unexpected method {method}")
 
 
 def mse_loss(

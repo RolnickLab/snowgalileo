@@ -39,7 +39,7 @@ from src.eval import (
 )
 from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
-from src.loss import do_loss
+from src.loss import construct_target_encoder_masks, do_loss
 from src.utils import (
     AverageMeter,
     check_config,
@@ -385,10 +385,9 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                             sp_x,
                             t_x,
                             st_x,
-                            ~(s_t_m == 2),  # we want 0s where the mask == 2
-                            ~(sp_m == 2),
-                            ~(t_m == 2),
-                            ~(st_m == 2),
+                            *construct_target_encoder_masks(
+                                s_t_m, sp_m, t_m, st_m, config["training"]["target_masking"]
+                            ),
                             months.long(),
                             patch_size=patch_size,
                             c_i=c_i if training_config["target_condition"] else None,

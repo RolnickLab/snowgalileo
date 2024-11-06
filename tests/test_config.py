@@ -33,11 +33,12 @@ class TestConfigs(unittest.TestCase):
         configs = list((config_dir / "mae").glob("*.json"))
 
         for config_path in configs:
-            loaded_config = load_check_config(config_path.name)
             try:
+                loaded_config = load_check_config(config_path.name)
                 self.check_models_can_be_loaded(loaded_config)
             except Exception as e:
                 print(f"Failed for {config_path} with {e}")
+                raise e
 
     def test_random_configs_tiny(self):
         for c in ["lora-g", "lora-t", "moe"]:
