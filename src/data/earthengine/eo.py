@@ -221,14 +221,6 @@ def create_ee_image(
                 end_date=end_date + timedelta(days=31),
             )
         )
-    for static_image_function in STATIC_IMAGE_FUNCTIONS:
-        total_image_list.append(
-            static_image_function(
-                region=polygon,
-                start_date=start_date - timedelta(days=31),
-                end_date=end_date + timedelta(days=31),
-            )
-        )
 
     return ee.Image.cat(total_image_list)
 

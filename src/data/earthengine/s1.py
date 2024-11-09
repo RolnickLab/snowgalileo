@@ -13,7 +13,7 @@ S1_DIV_VALUES = [25.0, 25.0]
 
 
 def get_s1_image_collection(
-    region: ee.Geometry, start_date: date, end_date: date
+    region: ee.Geometry, date: date,
 ) -> Tuple[ee.ImageCollection, ee.ImageCollection]:
     dates = ee.DateRange(
         date_to_string(start_date),
