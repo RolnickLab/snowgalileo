@@ -1,7 +1,7 @@
 from pathlib import Path
 
-DAYS_PER_TIMESTEP = 30
-NUM_TIMESTEPS = 12
+DAYS_PER_TIMESTEP = 1
+NUM_TIMESTEPS = 10
 # this is the maximum patch_size * num_patches.
 # we will need to change this if that assumption changes
 DATASET_OUTPUT_HW = 96
@@ -11,8 +11,10 @@ START_YEAR = 2022
 END_YEAR = 2023
 EXPORTED_HEIGHT_WIDTH_METRES = 1000
 
-EE_PROJECT = "large-earth-model"
-EE_BUCKET_TIFS = "presto-tifs"
+USE_INDECES = False
+
+EE_PROJECT = ""
+EE_BUCKET_TIFS = ""
 EE_FOLDER_TIFS = "tifs4"
 EE_FOLDER_H5PYS = "h5pys"
 

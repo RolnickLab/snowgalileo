@@ -23,20 +23,8 @@ from ..config import (
     START_YEAR,
     TIFS_FOLDER,
 )
-from .dynamic_world import (
-    DW_BANDS,
-    DW_DIV_VALUES,
-    DW_SHIFT_VALUES,
-    get_single_dw_image,
-)
 from .ee_bbox import EEBoundingBox
 from .era5 import ERA5_BANDS, ERA5_DIV_VALUES, ERA5_SHIFT_VALUES, get_single_era5_image
-from .landscan import (
-    LANDSCAN_BANDS,
-    LANDSCAN_DIV_VALUES,
-    LANDSCAN_SHIFT_VALUES,
-    get_single_landscan_image,
-)
 from .s1 import (
     S1_BANDS,
     S1_DIV_VALUES,
@@ -45,10 +33,10 @@ from .s1 import (
     get_single_s1_image,
 )
 from .s2 import S2_BANDS, S2_DIV_VALUES, S2_SHIFT_VALUES, get_single_s2_image
+from .s3 import S3_BANDS, S3_DIV_VALUES, S3_SHIFT_VALUES, get_single_s3_image
 from .srtm import SRTM_BANDS, SRTM_DIV_VALUES, SRTM_SHIFT_VALUES, get_single_srtm_image
-from .terraclimate import TC_BANDS, TC_DIV_VALUES, TC_SHIFT_VALUES, get_single_terraclimate_image
-from .viirs import VIIRS_BANDS, VIIRS_DIV_VALUES, VIIRS_SHIFT_VALUES, get_single_viirs_image
-from .worldcereal import WC_BANDS, WC_DIV_VALUES, WC_SHIFT_VALUES, get_single_wc_image
+from .viirs import VIIRS_BANDS_500m, VIIRS_BANDS_1000m, VIIRS_DIV_VALUES, VIIRS_SHIFT_VALUES, get_single_viirs_image
+from .modis import MODIS_BANDS, MODIS_DIV_VALUES, MODIS_SHIFT_VALUES, get_single_modis_image
 
 # dataframe constants when exporting the labels
 LAT = "lat"
@@ -57,32 +45,45 @@ START_DATE = date(START_YEAR, 1, 1)
 END_DATE = date(END_YEAR, 12, 31)
 
 TIME_IMAGE_FUNCTIONS = [
+    get_single_s1_image,
     get_single_s2_image,
+    get_single_s3_image,
     get_single_era5_image,
-    get_single_terraclimate_image,
+    get_single_modis_image,
     get_single_viirs_image,
 ]
-SPACE_TIME_BANDS = S1_BANDS + S2_BANDS
-SPACE_TIME_SHIFT_VALUES = np.array(S1_SHIFT_VALUES + S2_SHIFT_VALUES)
-SPACE_TIME_DIV_VALUES = np.array(S1_DIV_VALUES + S2_DIV_VALUES)
+SPACE_TIME_HIGH_RES_BANDS = S1_BANDS + S2_BANDS
+SPACE_TIME_HIGH_RES_SHIFT_VALUES = np.array(S1_SHIFT_VALUES + S2_SHIFT_VALUES)
+SPACE_TIME_HIGH_RES_DIV_VALUES = np.array(S1_DIV_VALUES + S2_DIV_VALUES)
 
-TIME_BANDS = ERA5_BANDS + TC_BANDS + VIIRS_BANDS
-TIME_SHIFT_VALUES = np.array(ERA5_SHIFT_VALUES + TC_SHIFT_VALUES + VIIRS_SHIFT_VALUES)
-TIME_DIV_VALUES = np.array(ERA5_DIV_VALUES + TC_DIV_VALUES + VIIRS_DIV_VALUES)
+SPACE_TIME_MED_RES_BANDS = S3_BANDS
+SPACE_TIME_MED_RES_SHIFT_VALUES = np.array(S3_SHIFT_VALUES)
+SPACE_TIME_MED_RES_DIV_VALUES = np.array(S3_DIV_VALUES)
 
-ALL_DYNAMIC_IN_TIME_BANDS = SPACE_TIME_BANDS + TIME_BANDS
+SPACE_TIME_LOW_RES_BANDS = MODIS_BANDS, VIIRS_BANDS_500m
+SPACE_TIME_LOW_RES_SHIFT_VALUES = np.array(MODIS_SHIFT_VALUES + VIIRS_SHIFT_VALUES)
+SPACE_TIME_LOW_RES_DIV_VALUES = np.array(MODIS_DIV_VALUES + VIIRS_DIV_VALUES)
 
-SPACE_BANDS = SRTM_BANDS + DW_BANDS + WC_BANDS
-SPACE_IMAGE_FUNCTIONS = [get_single_srtm_image, get_single_dw_image, get_single_wc_image]
-SPACE_SHIFT_VALUES = np.array(SRTM_SHIFT_VALUES + DW_SHIFT_VALUES + WC_SHIFT_VALUES)
-SPACE_DIV_VALUES = np.array(SRTM_DIV_VALUES + DW_DIV_VALUES + WC_DIV_VALUES)
+SPACE_TIME_BANDS = SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS
+SPACE_TIME_SHIFT_VALUES = SPACE_TIME_HIGH_RES_SHIFT_VALUES + SPACE_TIME_MED_RES_SHIFT_VALUES + SPACE_TIME_LOW_RES_SHIFT_VALUES
+SPACE_TIME_DIV_VALUES = SPACE_TIME_HIGH_RES_DIV_VALUES + SPACE_TIME_MED_RES_DIV_VALUES + SPACE_TIME_LOW_RES_DIV_VALUES
 
-STATIC_IMAGE_FUNCTIONS = [get_single_landscan_image]
+TIME_BANDS = ERA5_BANDS + VIIRS_BANDS_1000m
+TIME_SHIFT_VALUES = np.array(ERA5_SHIFT_VALUES + VIIRS_SHIFT_VALUES)
+TIME_DIV_VALUES = np.array(ERA5_DIV_VALUES + VIIRS_DIV_VALUES)
+
+ALL_DYNAMIC_IN_TIME_BANDS = SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS + TIME_BANDS
+
+SPACE_BANDS = SRTM_BANDS
+SPACE_IMAGE_FUNCTIONS = [get_single_srtm_image]
+SPACE_SHIFT_VALUES = np.array(SRTM_SHIFT_VALUES)
+SPACE_DIV_VALUES = np.array(SRTM_DIV_VALUES)
+
 # we will add latlons in dataset.py function
 LOCATION_BANDS = ["x", "y", "z"]
-STATIC_BANDS = LANDSCAN_BANDS + LOCATION_BANDS
-STATIC_SHIFT_VALUES = np.array(LANDSCAN_SHIFT_VALUES + [0, 0, 0])
-STATIC_DIV_VALUES = np.array(LANDSCAN_DIV_VALUES + [1, 1, 1])
+STATIC_BANDS = LOCATION_BANDS
+STATIC_SHIFT_VALUES = np.array([0, 0, 0])
+STATIC_DIV_VALUES = np.array([1, 1, 1])
 
 
 def get_ee_task_list(key: str = "description") -> List[str]:

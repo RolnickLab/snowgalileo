@@ -4,8 +4,8 @@ import ee
 
 from .utils import get_monthly_data
 
-image_collection = "ECMWF/ERA5_LAND/MONTHLY_AGGR"
-ERA5_BANDS = ["temperature_2m", "total_precipitation_sum"]
+image_collection = "ECMWF/ERA5_LAND/DAILY_AGGR"
+ERA5_BANDS = ["skin_temperature", "temperature_2m", "total_precipitation_sum"]
 # for temperature, shift to celcius and then divide by 35 based on notebook (ranges from)
 # 37 to -22 degrees celcius
 # For rainfall, based on
