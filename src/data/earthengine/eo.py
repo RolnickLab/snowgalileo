@@ -35,7 +35,7 @@ from .s1 import (
 from .s2 import S2_BANDS, S2_DIV_VALUES, S2_SHIFT_VALUES, get_single_s2_image
 from .s3 import S3_BANDS, S3_DIV_VALUES, S3_SHIFT_VALUES, get_single_s3_image
 from .srtm import SRTM_BANDS, SRTM_DIV_VALUES, SRTM_SHIFT_VALUES, get_single_srtm_image
-from .viirs import VIIRS_BANDS_500m, VIIRS_BANDS_1000m, VIIRS_DIV_VALUES, VIIRS_SHIFT_VALUES, get_single_viirs_image
+from .viirs import VIIRS_BANDS_500m, VIIRS_BANDS_1000m, VIIRS_500m_DIV_VALUES, VIIRS_500m_SHIFT_VALUES, VIIRS_1000m_DIV_VALUES, VIIRS_1000m_SHIFT_VALUES, get_single_viirs_image
 from .modis import MODIS_BANDS, MODIS_DIV_VALUES, MODIS_SHIFT_VALUES, get_single_modis_image
 
 # dataframe constants when exporting the labels
@@ -61,16 +61,16 @@ SPACE_TIME_MED_RES_SHIFT_VALUES = np.array(S3_SHIFT_VALUES)
 SPACE_TIME_MED_RES_DIV_VALUES = np.array(S3_DIV_VALUES)
 
 SPACE_TIME_LOW_RES_BANDS = MODIS_BANDS, VIIRS_BANDS_500m
-SPACE_TIME_LOW_RES_SHIFT_VALUES = np.array(MODIS_SHIFT_VALUES + VIIRS_SHIFT_VALUES)
-SPACE_TIME_LOW_RES_DIV_VALUES = np.array(MODIS_DIV_VALUES + VIIRS_DIV_VALUES)
+SPACE_TIME_LOW_RES_SHIFT_VALUES = np.array(MODIS_SHIFT_VALUES + VIIRS_500m_SHIFT_VALUES)
+SPACE_TIME_LOW_RES_DIV_VALUES = np.array(MODIS_DIV_VALUES + VIIRS_500m_DIV_VALUES)
 
 SPACE_TIME_BANDS = SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS
 SPACE_TIME_SHIFT_VALUES = SPACE_TIME_HIGH_RES_SHIFT_VALUES + SPACE_TIME_MED_RES_SHIFT_VALUES + SPACE_TIME_LOW_RES_SHIFT_VALUES
 SPACE_TIME_DIV_VALUES = SPACE_TIME_HIGH_RES_DIV_VALUES + SPACE_TIME_MED_RES_DIV_VALUES + SPACE_TIME_LOW_RES_DIV_VALUES
 
 TIME_BANDS = ERA5_BANDS + VIIRS_BANDS_1000m
-TIME_SHIFT_VALUES = np.array(ERA5_SHIFT_VALUES + VIIRS_SHIFT_VALUES)
-TIME_DIV_VALUES = np.array(ERA5_DIV_VALUES + VIIRS_DIV_VALUES)
+TIME_SHIFT_VALUES = np.array(ERA5_SHIFT_VALUES + VIIRS_1000m_SHIFT_VALUES)
+TIME_DIV_VALUES = np.array(ERA5_DIV_VALUES + VIIRS_1000m_DIV_VALUES)
 
 ALL_DYNAMIC_IN_TIME_BANDS = SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS + TIME_BANDS
 
@@ -158,11 +158,13 @@ def ee_safe_str(s: str):
     """Earth Engine descriptions only allow certain characters"""
     return s.replace(".", "-").replace("=", "-").replace("/", "-")[:100]
 
+def fill_nan(img, region):
+    return ee.Image.constant(np.nan).clip(region) if isinstance(img, float) else img
 
 def create_ee_image(
     polygon: ee.Geometry,
-    start_date: date,
-    end_date: date,
+    interval_start_date: date,
+    interval_end_date: date,
     days_per_timestep: int = DAYS_PER_TIMESTEP,
 ) -> ee.Image:
     """
@@ -172,37 +174,25 @@ def create_ee_image(
     days_per_timestep. Each timestep will be a different channel in the
     image (e.g. if I have 3 timesteps, then I'll have VV, VV_1, VV_2 for the
     S1 VV bands). The static in time SRTM bands will also be in the image.
+
+    AI4SNOW: interval will be 10 days and days per timestep 1. This results in 
+    10 images per band, if daily data is available, else in less.
     """
     image_collection_list: List[ee.Image] = []
-    cur_date = start_date
+    cur_date = interval_start_date
     cur_end_date = cur_date + timedelta(days=days_per_timestep)
 
-    # We get all the S1 images in an exaggerated date range. We do this because
-    # S1 data is sparser, so we will pull from outside the days_per_timestep
-    # range if we are missing data within that range
-    vv_imcol, vh_imcol = get_s1_image_collection(
-        polygon, start_date - timedelta(days=31), end_date + timedelta(days=31)
-    )
-
-    while cur_end_date <= end_date:
+    while cur_end_date <= interval_end_date:
         image_list: List[ee.Image] = []
 
-        # first, the S1 image which gets the entire s1 collection
-        image_list.append(
-            get_single_s1_image(
-                region=polygon,
-                start_date=cur_date,
-                end_date=cur_end_date,
-                vv_imcol=vv_imcol,
-                vh_imcol=vh_imcol,
-            )
-        )
         for image_function in TIME_IMAGE_FUNCTIONS:
             image_list.append(
                 image_function(region=polygon, start_date=cur_date, end_date=cur_end_date)
             )
 
-        image_collection_list.append(ee.Image.cat(image_list))
+        filled_images = [fill_nan(img, polygon) for img in image_list]
+
+        image_collection_list.append(ee.Image.cat(filled_images))
         cur_date += timedelta(days=days_per_timestep)
         cur_end_date += timedelta(days=days_per_timestep)
 
@@ -286,8 +276,8 @@ class EarthEngineExporter:
         self,
         polygon: ee.Geometry,
         polygon_identifier: Union[int, str],
-        start_date: date,
-        end_date: date,
+        interval_start_date: date,
+        interval_end_date: date,
         file_dimensions: Optional[int] = None,
     ) -> bool:
         cloud_filename = f"{EE_FOLDER_TIFS}/{str(polygon_identifier)}"
@@ -316,7 +306,7 @@ class EarthEngineExporter:
             print("3000 exports started")
             return False
 
-        img = create_ee_image(polygon, start_date, end_date)
+        img = create_ee_image(polygon, interval_start_date, interval_end_date)
 
         if self.mode == "batch":
             try:
@@ -381,11 +371,14 @@ class EarthEngineExporter:
                 surrounding_metres=int(self.surrounding_metres),
             )
 
+            # iterate through 3 seasons and sample from each season a 10-days time window
+            # set this as START_DATE and END_DATE
+
             export_started = self._export_for_polygon(
                 polygon=ee_bbox.to_ee_polygon(),
                 polygon_identifier=ee_bbox.get_identifier(START_DATE, END_DATE),
-                start_date=START_DATE,
-                end_date=END_DATE,
+                interval_start_date=START_DATE,
+                interval_end_date=END_DATE,
             )
             if export_started:
                 exports_started += 1

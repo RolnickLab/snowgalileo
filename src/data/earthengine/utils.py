@@ -74,3 +74,32 @@ def get_monthly_data(
 
     # there should only be one timestep per daterange, so a mean shouldn't change the values
     return imcol.mean().toDouble()
+
+    def get_daily_data_or_nan(
+    collection: str, bands: List[str], region: ee.Geometry, start_date: date, unmask: bool = False
+) -> ee.Image:
+    # should return the data for a day if available, else return NaN
+    month, year = start_date.month, start_date.year
+    start = date(year, month, 1)
+    # first day of next month
+    end = (date(year, month, 1) + timedelta(days=32)).replace(day=1)
+
+    if (date.today().replace(day=1) - end) < timedelta(days=32):
+        raise ValueError(
+            f"Cannot get data for range {start} - {end}, please set an earlier end date"
+        )
+    dates = ee.DateRange(date_to_string(start), date_to_string(end))
+    startDate = ee.DateRange(dates).start()  # type: ignore
+    endDate = ee.DateRange(dates).end()  # type: ignore
+
+    imcol = (
+        ee.ImageCollection(collection)
+        .filterDate(startDate, endDate)
+        .filterBounds(region)
+        .select(bands)
+    )
+    if unmask:
+        imcol = imcol.map(lambda x: x.unmask(0))
+
+    # there should only be one timestep per daterange, so a mean shouldn't change the values
+    return imcol.mean().toDouble()

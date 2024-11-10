@@ -15,4 +15,19 @@ ERA5_DIV_VALUES = [35.0, 0.03]
 
 
 def get_single_era5_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
-    return get_monthly_data(image_collection, ERA5_BANDS, region, start_date)
+    dates = ee.DateRange(
+        date_to_string(start_date),
+        date_to_string(end_date),
+    )
+
+    startDate = ee.DateRange(dates).start()
+    endDate = ee.DateRange(dates).end()
+
+    image = (
+        ee.ImageCollection(image_collection)
+        .filterBounds(region)
+        .filterDate(startDate, endDate)
+        .select(ERA5_BANDS)
+    ).first().toDouble()
+    
+    return image
