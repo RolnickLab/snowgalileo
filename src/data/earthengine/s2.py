@@ -1,5 +1,6 @@
 import math
 from datetime import date
+import numpy as np
 
 import ee
 
@@ -60,4 +61,6 @@ def get_single_s2_image(region: ee.Geometry, start_date: date, end_date: date) -
         print("No S2 Image on date: {}".format(start_date))
         return np.nan
 
+    # has to be double to be compatible with the sentinel 1 imagery, which is in
+    # float64
     return image.toDouble()

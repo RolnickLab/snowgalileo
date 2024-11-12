@@ -1,5 +1,6 @@
 from datetime import date
 from typing import Tuple
+import numpy as np
 
 import ee
 
@@ -10,6 +11,10 @@ S1_BANDS = ["VV", "VH"]
 # EarthEngine estimates Sentinel-1 values range from -50 to 1
 S1_SHIFT_VALUES = [25.0, 25.0]
 S1_DIV_VALUES = [25.0, 25.0]
+
+
+# TODO: check if we are OK in using both orbit passes or should constrain on one
+# (would leave us with less frequent images)
 
 
 def get_single_s1_image(
@@ -28,7 +33,7 @@ def get_single_s1_image(
 
     s1 = ee.ImageCollection(image_collection).filterDate(startDate, endDate).filterBounds(region)
 
-    if ee.Image(s1).getInfo() is None:
+    if (s1.size().getInfo()== 0):
         print("No S1 Image on date: {}".format(start_date))
         return np.nan
 

@@ -1,9 +1,10 @@
 from datetime import date
 from typing import Tuple
+import numpy as np
 
 import ee
 
-from .utils import date_to_string, get_closest_dates
+from .utils import date_to_string
 
 image_collection_terra = "MODIS/061/MOD09GA"
 
@@ -27,10 +28,16 @@ def get_single_modis_image(region: ee.Geometry, start_date: date, end_date: date
     endDate = ee.DateRange(dates).end()
 
     image = (
-        ee.ImageCollection(image_collection)
+        ee.ImageCollection(image_collection_terra)
         .filterBounds(region)
         .filterDate(startDate, endDate)
         .select(MODIS_BANDS)
-    ).first().toDouble()
+    ).first()
 
-    return image
+    if image.getInfo() is None:
+        print("No MODIS Image on date: {}".format(start_date))
+        return np.nan
+
+    # has to be double to be compatible with the sentinel 1 imagery, which is in
+    # float64
+    return image.toDouble()

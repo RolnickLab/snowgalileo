@@ -16,12 +16,14 @@ from tqdm import tqdm
 from ..config import (
     DAYS_PER_TIMESTEP,
     EE_BUCKET_TIFS,
+    EE_DRIVE_FOLDER_TIFS,
     EE_FOLDER_TIFS,
     EE_PROJECT,
     END_YEAR,
     EXPORTED_HEIGHT_WIDTH_METRES,
     START_YEAR,
     TIFS_FOLDER,
+    NO_DATA_VALUE,
 )
 from .ee_bbox import EEBoundingBox
 from .era5 import ERA5_BANDS, ERA5_DIV_VALUES, ERA5_SHIFT_VALUES, get_single_era5_image
@@ -29,13 +31,12 @@ from .s1 import (
     S1_BANDS,
     S1_DIV_VALUES,
     S1_SHIFT_VALUES,
-    get_s1_image_collection,
     get_single_s1_image,
 )
 from .s2 import S2_BANDS, S2_DIV_VALUES, S2_SHIFT_VALUES, get_single_s2_image
 from .s3 import S3_BANDS, S3_DIV_VALUES, S3_SHIFT_VALUES, get_single_s3_image
 from .srtm import SRTM_BANDS, SRTM_DIV_VALUES, SRTM_SHIFT_VALUES, get_single_srtm_image
-from .viirs import VIIRS_BANDS_500m, VIIRS_BANDS_1000m, VIIRS_500m_DIV_VALUES, VIIRS_500m_SHIFT_VALUES, VIIRS_1000m_DIV_VALUES, VIIRS_1000m_SHIFT_VALUES, get_single_viirs_image
+from .viirs import VIIRS_BANDS_500m, VIIRS_BANDS_1000m, VIIRS_500m_DIV_VALUES, VIIRS_500m_SHIFT_VALUES, VIIRS_1000m_DIV_VALUES, VIIRS_1000m_SHIFT_VALUES, get_single_viirs_500m_image, get_single_viirs_1000m_image
 from .modis import MODIS_BANDS, MODIS_DIV_VALUES, MODIS_SHIFT_VALUES, get_single_modis_image
 
 # dataframe constants when exporting the labels
@@ -50,7 +51,8 @@ TIME_IMAGE_FUNCTIONS = [
     get_single_s3_image,
     get_single_era5_image,
     get_single_modis_image,
-    get_single_viirs_image,
+    get_single_viirs_500m_image,
+    get_single_viirs_1000m_image,
 ]
 SPACE_TIME_HIGH_RES_BANDS = S1_BANDS + S2_BANDS
 SPACE_TIME_HIGH_RES_SHIFT_VALUES = np.array(S1_SHIFT_VALUES + S2_SHIFT_VALUES)
@@ -159,7 +161,9 @@ def ee_safe_str(s: str):
     return s.replace(".", "-").replace("=", "-").replace("/", "-")[:100]
 
 def fill_nan(img, region):
-    return ee.Image.constant(np.nan).clip(region) if isinstance(img, float) else img
+    # create an image with the same dimensions as the region filled with placeholder value
+    # if the image is a float, it means that the image is empty
+    return ee.Image.constant(NO_DATA_VALUE).clip(region) if isinstance(img, float) else img
 
 def create_ee_image(
     polygon: ee.Geometry,
@@ -167,6 +171,9 @@ def create_ee_image(
     interval_end_date: date,
     days_per_timestep: int = DAYS_PER_TIMESTEP,
 ) -> ee.Image:
+    
+    # TODO: change function header
+
     """
     Returns an ee.Image which we can then export.
     This image will contain S1, S2, ERA5 and Dynamic World data
@@ -207,8 +214,8 @@ def create_ee_image(
         total_image_list.append(
             space_image_function(
                 region=polygon,
-                start_date=start_date - timedelta(days=31),
-                end_date=end_date + timedelta(days=31),
+                start_date=interval_start_date - timedelta(days=31),
+                end_date=interval_end_date + timedelta(days=31),
             )
         )
 
@@ -245,17 +252,20 @@ class EarthEngineExporter:
     def __init__(
         self,
         dest_bucket: str = EE_BUCKET_TIFS,
+        dest_drive_folder: str = EE_DRIVE_FOLDER_TIFS,
         check_ee: bool = False,
         check_gcp: bool = False,
         credentials=None,
-        mode: str = "batch",
+        mode: str = "cloud",
+        no_data_val: int = NO_DATA_VALUE,
     ) -> None:
-        assert mode in ["batch", "url"]
+        assert mode in ["cloud", "drive", "url"]
         self.mode = mode
         if mode == "url":
             print(f"Mode: url. Files will be saved to {TIFS_FOLDER} and rsynced to google cloud")
         self.surrounding_metres = EXPORTED_HEIGHT_WIDTH_METRES / 2
         self.dest_bucket = dest_bucket
+        self.dest_drive_folder = dest_drive_folder
         initialize_args = {
             "credentials": credentials if credentials else get_ee_credentials(),
             "project": EE_PROJECT,
@@ -268,6 +278,7 @@ class EarthEngineExporter:
         self.check_gcp = check_gcp
         self.cloud_tif_list = get_cloud_tif_list(dest_bucket) if self.check_gcp else []
         self.local_tif_list = [x.name for x in TIFS_FOLDER.glob("*.tif*")]
+        self.no_data_val = no_data_val
 
     def sync_local_and_gcloud(self):
         os.system(f"gcloud storage rsync -r {TIFS_FOLDER} gs://{EE_BUCKET_TIFS}/{EE_FOLDER_TIFS}")
@@ -308,7 +319,9 @@ class EarthEngineExporter:
 
         img = create_ee_image(polygon, interval_start_date, interval_end_date)
 
-        if self.mode == "batch":
+        # TODO: check if we can use the scale parameter of should use crs and crs_transform instead
+
+        if self.mode == "cloud":
             try:
                 ee.batch.Export.image.toCloudStorage(
                     bucket=self.dest_bucket,
@@ -319,11 +332,29 @@ class EarthEngineExporter:
                     region=polygon,
                     maxPixels=1e13,
                     fileDimensions=file_dimensions,
+                    formatOptions={'noData': self.no_data_val}
                 ).start()
                 self.ee_task_list.append(description)
             except ee.ee_exception.EEException as e:
                 print(f"Task not started! Got exception {e}")
-                return False
+                return False    
+        elif self.mode == "drive":
+            try:
+                ee.batch.Export.image.toDrive(
+                    folder=self.drive_folder,
+                    fileNamePrefix=cloud_filename,
+                    image=img.clip(polygon),
+                    description=description,
+                    scale=10,
+                    region=polygon,
+                    maxPixels=1e13,
+                    fileDimensions=file_dimensions,
+                    formatOptions={'noData': self.no_data_val}
+                ).start()
+                self.ee_task_list.append(description)
+            except ee.ee_exception.EEException as e:
+                print(f"Task not started! Got exception {e}")
+                return False   
         elif self.mode == "url":
             try:
                 url = img.getDownloadURL(
@@ -371,7 +402,7 @@ class EarthEngineExporter:
                 surrounding_metres=int(self.surrounding_metres),
             )
 
-            # iterate through 3 seasons and sample from each season a 10-days time window
+            # TODO: Iterate through 3 seasons and sample from each season a 10-days time window
             # set this as START_DATE and END_DATE
 
             export_started = self._export_for_polygon(

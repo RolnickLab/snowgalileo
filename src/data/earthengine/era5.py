@@ -1,11 +1,12 @@
 from datetime import date
+import numpy as np
 
 import ee
 
-from .utils import get_monthly_data
+from .utils import date_to_string
 
 image_collection = "ECMWF/ERA5_LAND/DAILY_AGGR"
-ERA5_BANDS = ["skin_temperature", "temperature_2m", "total_precipitation_sum"]
+ERA5_BANDS = ["skin_temperature", "total_precipitation_sum"]
 # for temperature, shift to celcius and then divide by 35 based on notebook (ranges from)
 # 37 to -22 degrees celcius
 # For rainfall, based on
@@ -13,8 +14,10 @@ ERA5_BANDS = ["skin_temperature", "temperature_2m", "total_precipitation_sum"]
 ERA5_SHIFT_VALUES = [-272.15, 0.0]
 ERA5_DIV_VALUES = [35.0, 0.03]
 
+# TODO: add more compatible era5 bands
 
 def get_single_era5_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
+    
     dates = ee.DateRange(
         date_to_string(start_date),
         date_to_string(end_date),
@@ -28,6 +31,12 @@ def get_single_era5_image(region: ee.Geometry, start_date: date, end_date: date)
         .filterBounds(region)
         .filterDate(startDate, endDate)
         .select(ERA5_BANDS)
-    ).first().toDouble()
-    
-    return image
+    ).first()
+
+    if image.getInfo() is None:
+        print("No ERA5 Image on date: {}".format(start_date))
+        return np.nan
+
+    # has to be double to be compatible with the sentinel 1 imagery, which is in
+    # float64
+    return image.toDouble()
