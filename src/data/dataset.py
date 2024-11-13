@@ -61,8 +61,8 @@ if USE_INDECES:
     EO_SPACE_TIME_LOW_RES_BANDS = SPACE_TIME_LOW_RES_BANDS
 
     SPACE_TIME_LOW_RES_BANDS = EO_SPACE_TIME_LOW_RES_BANDS + ["NDVI"] + ["NDSI"]
-    SPACE_TIME_LOW_RES_SHIFT_VALUES = np.append(EO_SPACE_TIME_LOW_RES_SHIFT_VALUES, [0], [0])
-    SPACE_TIME_LOW_RES_DIV_VALUES = np.append(EO_SPACE_TIME_LOW_RES_DIV_VALUES, [1], [1])
+    SPACE_TIME_LOW_RES_SHIFT_VALUES = np.append(SPACE_TIME_LOW_RES_SHIFT_VALUES, [0], [0])
+    SPACE_TIME_LOW_RES_DIV_VALUES = np.append(SPACE_TIME_LOW_RES_DIV_VALUES, [1], [1])
 
 # spatial resolution per pixel: 10m or 20m
 SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
@@ -125,7 +125,7 @@ class Normalizer:
     std_bands: Dict[int, list] = {
         len(SPACE_TIME_HIGH_RES_BANDS): SPACE_TIME_HIGH_RES_BANDS,
         len(SPACE_TIME_MED_RES_BANDS): SPACE_TIME_MED_RES_BANDS,
-        len(SPACE_TIME_LOW_RES_BANDS): [b for b in SPACE_TIME_LOW_RES_BANDS if b != "NDVI" and if b != "NDSI"],
+        len(SPACE_TIME_LOW_RES_BANDS): [b for b in SPACE_TIME_LOW_RES_BANDS if b != "NDVI" and b != "NDSI"],
         len(SPACE_BANDS): SPACE_BANDS,
         len(TIME_BANDS): TIME_BANDS,
         len(STATIC_BANDS): STATIC_BANDS,
