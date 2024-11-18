@@ -4,7 +4,7 @@ import numpy as np
 
 import ee
 
-from .utils import date_to_string
+from .utils import date_to_string, create_placeholder
 
 image_collection = "NASA/VIIRS/002/VNP09GA"
 VIIRS_BANDS_500m = ["I1", "I3"]
@@ -34,8 +34,7 @@ def get_single_viirs_500m_image(region: ee.Geometry, start_date: date, end_date:
     ).first()
 
     if image.getInfo() is None:
-        print("No VIIRS 500m Image on date: {}".format(start_date))
-        return np.nan
+        return create_placeholder(region, VIIRS_BANDS_500m)
 
     # has to be double to be compatible with the sentinel 1 imagery, which is in
     # float64
@@ -59,8 +58,7 @@ def get_single_viirs_1000m_image(region: ee.Geometry, start_date: date, end_date
     ).first()
 
     if image.getInfo() is None:
-        print("No VIIRS 1000m Image on date: {}".format(start_date))
-        return np.nan
+        return create_placeholder(region, VIIRS_BANDS_1000m)
 
     # has to be double to be compatible with the sentinel 1 imagery, which is in
     # float64

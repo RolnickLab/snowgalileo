@@ -1,5 +1,8 @@
 from datetime import date, timedelta
 from typing import List, Union
+import random
+from datetime import datetime
+from ..config import NO_DATA_VALUE
 
 import ee
 
@@ -12,94 +15,43 @@ def date_to_string(input_date: Union[date, str]) -> str:
         return input_date.strftime("%Y-%m-%d")
 
 
-def get_closest_dates(mid_date: date, imcol: ee.ImageCollection) -> ee.ImageCollection:
-    fifteen_days_in_ms = 1296000000
-
-    mid_date_ee = ee.Date(date_to_string(mid_date))
-    # first, order by distance from mid_date
-    from_mid_date = imcol.map(
-        lambda image: image.set(
-            "dateDist",
-            ee.Number(image.get("system:time_start"))
-            .subtract(mid_date_ee.millis())  # type: ignore
-            .abs(),
-        )
-    )
-    from_mid_date = from_mid_date.sort("dateDist", opt_ascending=True)
-
-    # no matter what, we take the first element in the image collection
-    # and we add 1 to ensure the less_than condition triggers
-    max_diff = ee.Number(from_mid_date.first().get("dateDist")).max(  # type: ignore
-        ee.Number(fifteen_days_in_ms)
-    )
-
-    kept_images = from_mid_date.filterMetadata("dateDist", "not_greater_than", max_diff)
-    return kept_images
+def create_placeholder(region: ee.Geometry, selected_bands, fill_value=NO_DATA_VALUE):
+    """
+    Creates a placeholder image for a region with constant values for each band in selected_bands.
+    """
+    constant_bands = [ee.Image.constant(fill_value).rename(band) for band in selected_bands]
+    
+    placeholder_image = ee.Image.cat(constant_bands).clip(region)
+    return placeholder_image
 
 
-def get_monthly_data(
-    collection: str, bands: List[str], region: ee.Geometry, start_date: date, unmask: bool = False
-) -> ee.Image:
-    # This only really works with the values currently in config.
-    # What happens is that the images are associated with the first day of the month,
-    # so if we just use the given start_date and end_date, then we will often get
-    # the image from the following month (e.g. the start and end dates of
-    # 2016-02-07, 2016-03-08 respectively return data from March 2016, even though
-    # February 2016 has a much higher overlap). It also means that the final month
-    # timestep, with range 2017-01-02 to 2017-02-01 was returning no data (but we'd)
-    # like it to return data for January
-    # TODO: in the future, this could be updated to an overlapping_month function, similar
-    # to what happens with the Plant Village labels
-    month, year = start_date.month, start_date.year
-    start = date(year, month, 1)
-    # first day of next month
-    end = (date(year, month, 1) + timedelta(days=32)).replace(day=1)
+def sample_time_window(start_date: str, end_date: str, window_size: int):
+    """
+    Sample random time window within a specified date range.
 
-    if (date.today().replace(day=1) - end) < timedelta(days=32):
-        raise ValueError(
-            f"Cannot get data for range {start} - {end}, please set an earlier end date"
-        )
-    dates = ee.DateRange(date_to_string(start), date_to_string(end))
-    startDate = ee.DateRange(dates).start()  # type: ignore
-    endDate = ee.DateRange(dates).end()  # type: ignore
+    Args:
+        start_date: Start of the timeframe in 'YYYY-MM-DD' format.
+        end_date: End of the timeframe in 'YYYY-MM-DD' format.
+        window_size: Length of each time window in days.
 
-    imcol = (
-        ee.ImageCollection(collection)
-        .filterDate(startDate, endDate)
-        .filterBounds(region)
-        .select(bands)
-    )
-    if unmask:
-        imcol = imcol.map(lambda x: x.unmask(0))
+    Returns:
+        list of tuples: Each tuple contains the start and end dates of a sampled time window.
+    """
 
-    # there should only be one timestep per daterange, so a mean shouldn't change the values
-    return imcol.mean().toDouble()
+    start_date = datetime.strptime(start_date, "%Y-%m-%d")
+    end_date = datetime.strptime(end_date, "%Y-%m-%d")
 
-    def get_daily_data_or_nan(
-    collection: str, bands: List[str], region: ee.Geometry, start_date: date, unmask: bool = False
-) -> ee.Image:
-    # should return the data for a day if available, else return NaN
-    month, year = start_date.month, start_date.year
-    start = date(year, month, 1)
-    # first day of next month
-    end = (date(year, month, 1) + timedelta(days=32)).replace(day=1)
+    total_days = (end_date - start_date).days + 1
 
-    if (date.today().replace(day=1) - end) < timedelta(days=32):
-        raise ValueError(
-            f"Cannot get data for range {start} - {end}, please set an earlier end date"
-        )
-    dates = ee.DateRange(date_to_string(start), date_to_string(end))
-    startDate = ee.DateRange(dates).start()  # type: ignore
-    endDate = ee.DateRange(dates).end()  # type: ignore
+    # ensure the window fits in the range
+    max_start_day = total_days - window_size
+    if max_start_day < 0:
+        raise ValueError("Window size is larger than the total date range.")
 
-    imcol = (
-        ee.ImageCollection(collection)
-        .filterDate(startDate, endDate)
-        .filterBounds(region)
-        .select(bands)
-    )
-    if unmask:
-        imcol = imcol.map(lambda x: x.unmask(0))
+    random_start = random.randint(0, max_start_day + 1)
 
-    # there should only be one timestep per daterange, so a mean shouldn't change the values
-    return imcol.mean().toDouble()
+    window_start = start_date + timedelta(days=random_start)
+    window_end = window_start + timedelta(days=window_size - 1)
+    time_window = (window_start.date(), window_end.date())
+    
+    return time_window

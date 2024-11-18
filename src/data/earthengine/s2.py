@@ -1,17 +1,19 @@
-import math
 from datetime import date
 import numpy as np
 
 import ee
 
-from .utils import date_to_string
+from .utils import date_to_string, create_placeholder
+
+
+# TODO: check if we have to convert no data values to double
+
 
 # After 2022-01-25, Sentinel-2 scenes with PROCESSING_BASELINE '04.00' or
 # above have their DN (value) range shifted by 1000. The HARMONIZED
 # collection shifts data in newer scenes to be in the same range as in older scenes.
 image_collection = "COPERNICUS/S2_HARMONIZED"
 
-# removed B1, B9, B10
 ALL_S2_BANDS = [
     "B1",
     "B2",
@@ -27,6 +29,7 @@ ALL_S2_BANDS = [
     "B11",
     "B12",
 ]
+# Snow-specific bands
 S2_BANDS = [
     "B2",
     "B3",
@@ -58,8 +61,7 @@ def get_single_s2_image(region: ee.Geometry, start_date: date, end_date: date) -
     ).first()
 
     if image.getInfo() is None:
-        print("No S2 Image on date: {}".format(start_date))
-        return np.nan
+        return create_placeholder(region, S2_BANDS)
 
     # has to be double to be compatible with the sentinel 1 imagery, which is in
     # float64

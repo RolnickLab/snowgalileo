@@ -16,6 +16,8 @@ S1_DIV_VALUES = [25.0, 25.0]
 # TODO: check if we are OK in using both orbit passes or should constrain on one
 # (would leave us with less frequent images)
 
+# TODO: update script to match current state
+
 
 def get_single_s1_image(
     region: ee.Geometry,

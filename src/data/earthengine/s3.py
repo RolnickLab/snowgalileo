@@ -4,7 +4,7 @@ import numpy as np
 
 import ee
 
-from .utils import date_to_string
+from .utils import date_to_string, create_placeholder
 
 image_collection = "COPERNICUS/S3/OLCI"
 S3_BANDS = ["Oa17_radiance", "Oa21_radiance"]
@@ -29,8 +29,7 @@ def get_single_s3_image(region: ee.Geometry, start_date: date, end_date: date) -
     ).first()
 
     if image.getInfo() is None:
-        print("No S3 Image on date: {}".format(start_date))
-        return np.nan
+        return create_placeholder(region, S3_BANDS)
 
     # has to be double to be compatible with the sentinel 1 imagery, which is in
     # float64

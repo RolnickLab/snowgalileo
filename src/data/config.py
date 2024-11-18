@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import date
 
 DAYS_PER_TIMESTEP = 1
 NUM_TIMESTEPS = 10
@@ -6,10 +7,17 @@ NUM_TIMESTEPS = 10
 # we will need to change this if that assumption changes
 DATASET_OUTPUT_HW = 96
 
-# TODO: Update when ERA5 gets updated
+# TODO: Remove start_year and end_year in case we don't need them (defined in seasons instead)
 START_YEAR = 2022
 END_YEAR = 2023
 EXPORTED_HEIGHT_WIDTH_METRES = 1000
+
+# TODO: adjust seasons based on domain knowledge
+SEASONS = {
+    "early": ("2023-10-01", "2023-12-31"),
+    "mid": ("2023-01-01", "2023-3-31"),
+    "late": ("2023-04-01", "2023-6-30"),
+}
 
 NO_DATA_VALUE = -9999
 

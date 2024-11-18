@@ -24,7 +24,10 @@ from ..config import (
     START_YEAR,
     TIFS_FOLDER,
     NO_DATA_VALUE,
+    SEASONS,
+    NUM_TIMESTEPS,
 )
+from .utils import sample_time_window
 from .ee_bbox import EEBoundingBox
 from .era5 import ERA5_BANDS, ERA5_DIV_VALUES, ERA5_SHIFT_VALUES, get_single_era5_image
 from .s1 import (
@@ -45,8 +48,10 @@ LON = "lon"
 START_DATE = date(START_YEAR, 1, 1)
 END_DATE = date(END_YEAR, 12, 31)
 
+# TODO: uncomment s1 when we have decided on a strategy
+
 TIME_IMAGE_FUNCTIONS = [
-    get_single_s1_image,
+    #get_single_s1_image,
     get_single_s2_image,
     get_single_s3_image,
     get_single_era5_image,
@@ -402,20 +407,25 @@ class EarthEngineExporter:
                 surrounding_metres=int(self.surrounding_metres),
             )
 
-            # TODO: Iterate through 3 seasons and sample from each season a 10-days time window
-            # set this as START_DATE and END_DATE
+            # Sample each point for each season
+            for season in SEASONS:
+                SEASON_START_DATE = SEASONS[season][0]
+                SEASON_END_DATE = SEASONS[season][1]
 
-            export_started = self._export_for_polygon(
-                polygon=ee_bbox.to_ee_polygon(),
-                polygon_identifier=ee_bbox.get_identifier(START_DATE, END_DATE),
-                interval_start_date=START_DATE,
-                interval_end_date=END_DATE,
-            )
-            if export_started:
-                exports_started += 1
-                if num_exports_to_start is not None and exports_started >= num_exports_to_start:
-                    print(f"Started {exports_started} exports. Ending export")
-                    return None
+                WINDOW_START_DATE, WINDOW_END_DATE = sample_time_window(SEASON_START_DATE, SEASON_END_DATE, NUM_TIMESTEPS)
+
+                export_started = self._export_for_polygon(
+                    polygon=ee_bbox.to_ee_polygon(),
+                    polygon_identifier=ee_bbox.get_identifier(WINDOW_START_DATE, WINDOW_END_DATE),
+                    interval_start_date=WINDOW_START_DATE,
+                    interval_end_date=WINDOW_END_DATE,
+                )
+                if export_started:
+                    exports_started += 1
+                    if num_exports_to_start is not None and exports_started >= num_exports_to_start:
+                        print(f"Started {exports_started} exports. Ending export")
+                        return None
+
         if self.mode == "url":
             print("Export finished. Syncing to google cloud")
             self.sync_local_and_gcloud()

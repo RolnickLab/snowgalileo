@@ -4,11 +4,12 @@ import numpy as np
 
 import ee
 
-from .utils import date_to_string
+from .utils import date_to_string, create_placeholder
 
 image_collection_terra = "MODIS/061/MOD09GA"
 
-# TODO (optional): include these products
+# TODO (optional): include these products or remove
+
 image_collection_aqua = "MODIS/061/MYD09GA"
 image_collection_albedo = "MODIS/061/MCD43A1"
 image_collection_terra_snow_cover = "MODIS/061/MOD10A1"
@@ -35,8 +36,7 @@ def get_single_modis_image(region: ee.Geometry, start_date: date, end_date: date
     ).first()
 
     if image.getInfo() is None:
-        print("No MODIS Image on date: {}".format(start_date))
-        return np.nan
+        return create_placeholder(region, MODIS_BANDS)
 
     # has to be double to be compatible with the sentinel 1 imagery, which is in
     # float64
