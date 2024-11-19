@@ -8,8 +8,10 @@ from .utils import date_to_string, create_placeholder
 
 image_collection = "COPERNICUS/S3/OLCI"
 S3_BANDS = ["Oa17_radiance", "Oa21_radiance"]
-S3_SHIFT_VALUES = []
-S3_DIV_VALUES = []
+
+# TODO: change these values
+S3_SHIFT_VALUES = [float(0.0)] * len(S3_BANDS)
+S3_DIV_VALUES = [float(1.0)] * len(S3_BANDS)
 
 def get_single_s3_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
 
