@@ -23,8 +23,8 @@ NO_DATA_VALUE = -9999
 
 USE_INDECES = False
 
-EE_PROJECT = ""
-EE_BUCKET_TIFS = "snow_ee_exports"
+EE_PROJECT = None
+EE_BUCKET_TIFS = None
 EE_DRIVE_FOLDER_TIFS = "snow_ee_exports"
 EE_FOLDER_TIFS = "tifs4"
 EE_FOLDER_H5PYS = "h5pys"

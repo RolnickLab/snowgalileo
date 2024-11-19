@@ -261,7 +261,7 @@ class EarthEngineExporter:
         check_ee: bool = False,
         check_gcp: bool = False,
         credentials=None,
-        mode: str = "cloud",
+        mode: str = "drive",
         no_data_val: int = NO_DATA_VALUE,
     ) -> None:
         assert mode in ["cloud", "drive", "url"]
@@ -271,9 +271,11 @@ class EarthEngineExporter:
         self.surrounding_metres = EXPORTED_HEIGHT_WIDTH_METRES / 2
         self.dest_bucket = dest_bucket
         self.dest_drive_folder = dest_drive_folder
+
+        # TODO: check if we need to use the project parameter
         initialize_args = {
             "credentials": credentials if credentials else get_ee_credentials(),
-            "project": EE_PROJECT,
+            #"project": EE_PROJECT,
         }
         if mode == "url":
             initialize_args["opt_url"] = "https://earthengine-highvolume.googleapis.com"
@@ -346,7 +348,7 @@ class EarthEngineExporter:
         elif self.mode == "drive":
             try:
                 ee.batch.Export.image.toDrive(
-                    folder=self.drive_folder,
+                    folder=self.dest_drive_folder,
                     fileNamePrefix=cloud_filename,
                     image=img.clip(polygon),
                     description=description,

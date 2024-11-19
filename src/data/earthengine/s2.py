@@ -61,8 +61,7 @@ def get_single_s2_image(region: ee.Geometry, start_date: date, end_date: date) -
     ).first()
 
     if image.getInfo() is None:
-        return create_placeholder(region, S2_BANDS)
+        return create_placeholder(region, S2_BANDS).toDouble()
 
-    # has to be double to be compatible with the sentinel 1 imagery, which is in
-    # float64
+    # all imagery has to have the same data type to be compatible
     return image.toDouble()
