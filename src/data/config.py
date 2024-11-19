@@ -23,7 +23,7 @@ NO_DATA_VALUE = -9999
 
 USE_INDECES = False
 
-EE_PROJECT = None
+EE_PROJECT = "ee-marlena"
 EE_BUCKET_TIFS = None
 EE_DRIVE_FOLDER_TIFS = "snow_ee_exports"
 EE_FOLDER_TIFS = "tifs4"
