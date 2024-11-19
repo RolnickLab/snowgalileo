@@ -19,6 +19,7 @@ argparser.add_argument("--start_export_from_idx", type=int, default=0)
 argparser.add_argument("--num_exports", type=int, default=3000)
 argparser.add_argument("--filename", type=str, default="combined_points.csv")
 argparser.add_argument("--mode", type=str, default="drive")
+argparser.add_argument("--check_gcp", type=bool, default=False)
 args = argparser.parse_args().__dict__
 
 filepath = DATA_FOLDER / "pretraining_points" / args["filename"]
@@ -29,5 +30,5 @@ if LAT not in latlons.columns:
     latlons[LON] = latlons.geometry.centroid.x.values
     latlons[LAT] = latlons.geometry.centroid.y.values
 
-exporter = EarthEngineExporter(check_gcp=True, mode=args["mode"])
+exporter = EarthEngineExporter(check_gcp=args["check_gcp"], mode=args["mode"])
 exporter.export_for_latlons(latlons[args["start_export_from_idx"] :], args["num_exports"])
