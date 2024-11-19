@@ -65,9 +65,10 @@ if USE_INDECES:
     SPACE_TIME_LOW_RES_DIV_VALUES = np.append(SPACE_TIME_LOW_RES_DIV_VALUES, [1], [1])
 
 # spatial resolution per pixel: 10m or 20m
+# TODO: readd S1
 SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
-        "S1": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in S1_BANDS],
+        #"S1": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in S1_BANDS],
         "S2_RGB": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B2", "B3", "B4"]],
         "S2_NIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B8"]],
         "S2_SWIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B11", "B12"]],
