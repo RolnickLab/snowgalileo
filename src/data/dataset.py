@@ -21,6 +21,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from torch.utils.data import Dataset as PyTorchDataset
 from tqdm import tqdm
+import google.auth
 
 from .config import (
     DATASET_OUTPUT_HW,
@@ -370,7 +371,7 @@ class Dataset(PyTorchDataset):
         Modified from: https://developers.google.com/drive/api/guides/manage-downloads
         """
 
-        creds = get_ee_credentials()
+        creds, _ = google.auth.default()
 
         os.makedirs(TIFS_FOLDER, exist_ok=True)
 
