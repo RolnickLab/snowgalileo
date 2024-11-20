@@ -1,12 +1,4 @@
-In addition to the two files stored in git, the GeoGLANCE dataset can be exported with the following GEE code:
+Pre-training points relevant to the AI4Snow project:
 
-```js
-var glance_training = ee.FeatureCollection("projects/sat-io/open-datasets/GLANCE/GLANCE_TRAINING_DATA_V1")
-var glance_locs = glance_training.select("Glance_ID")
-Export.table.toDrive({
-  collection: glance_locs,
-  description: 'glance_locations_only',
-  fileFormat: 'GeoJSON'
-});
-
-```
+- `sampling_points_mountains.csv` (by Sebastian Roessler): based on [GMBA dataset](https://www.gmba.unibe.ch), filtered by mountains with well-recognized names, mean snow cover duration >=50 days per year.
+- `combined_points.csv` (by Gabriel Tseng): global (land-) sampling points, more documentation currently missing.
