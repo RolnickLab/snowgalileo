@@ -1,3 +1,4 @@
+import io
 import json
 import logging
 import math
@@ -16,46 +17,53 @@ import rioxarray
 import torch
 import xarray as xr
 from einops import rearrange, repeat
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
 from torch.utils.data import Dataset as PyTorchDataset
 from tqdm import tqdm
 
 from .config import (
     DATASET_OUTPUT_HW,
     EE_BUCKET_TIFS,
+    EE_DRIVE_FOLDER_ID,
+    EE_DRIVE_FOLDER_NAME,
     EE_FOLDER_H5PYS,
     EE_FOLDER_TIFS,
     NUM_TIMESTEPS,
+    TIFS_FOLDER,
     USE_INDECES,
 )
 from .earthengine.eo import (
     ALL_DYNAMIC_IN_TIME_BANDS,
     ERA5_BANDS,
     LOCATION_BANDS,
-    S1_BANDS,
-    SPACE_TIME_HIGH_RES_BANDS,
-    SPACE_TIME_HIGH_RES_DIV_VALUES,
-    SPACE_TIME_HIGH_RES_SHIFT_VALUES,
-    SPACE_TIME_MED_RES_BANDS,
-    SPACE_TIME_MED_RES_DIV_VALUES,
-    SPACE_TIME_MED_RES_SHIFT_VALUES,
-    SPACE_TIME_LOW_RES_BANDS,
-    SPACE_TIME_LOW_RES_DIV_VALUES,
-    SPACE_TIME_LOW_RES_SHIFT_VALUES,
     SPACE_BANDS,
     SPACE_DIV_VALUES,
     SPACE_SHIFT_VALUES,
+    SPACE_TIME_HIGH_RES_BANDS,
+    SPACE_TIME_HIGH_RES_DIV_VALUES,
+    SPACE_TIME_HIGH_RES_SHIFT_VALUES,
+    SPACE_TIME_LOW_RES_BANDS,
+    SPACE_TIME_LOW_RES_DIV_VALUES,
+    SPACE_TIME_LOW_RES_SHIFT_VALUES,
+    SPACE_TIME_MED_RES_BANDS,
+    SPACE_TIME_MED_RES_DIV_VALUES,
+    SPACE_TIME_MED_RES_SHIFT_VALUES,
     SRTM_BANDS,
-    TIME_BANDS,
-    TIME_DIV_VALUES,
-    TIME_SHIFT_VALUES,
     STATIC_BANDS,
     STATIC_DIV_VALUES,
     STATIC_SHIFT_VALUES,
+    TIME_BANDS,
+    TIME_DIV_VALUES,
+    TIME_SHIFT_VALUES,
+    get_ee_credentials,
 )
 
 logger = logging.getLogger("__main__")
 
-EO_DYNAMIC_IN_TIME_BANDS_NP = np.array(SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS + TIME_BANDS)
+EO_DYNAMIC_IN_TIME_BANDS_NP = np.array(
+    SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS + TIME_BANDS
+)
 
 if USE_INDECES:
     EO_SPACE_TIME_LOW_RES_BANDS = SPACE_TIME_LOW_RES_BANDS
@@ -68,7 +76,7 @@ if USE_INDECES:
 # TODO: readd S1
 SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
-        #"S1": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in S1_BANDS],
+        # "S1": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in S1_BANDS],
         "S2_RGB": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B2", "B3", "B4"]],
         "S2_NIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B8"]],
         "S2_SWIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B11", "B12"]],
@@ -86,7 +94,10 @@ SPACE_TIME_MED_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDi
 SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
         "MODIS_RGB": [SPACE_TIME_LOW_RES_BANDS.index(b) for b in ["sur_refl_b03", "sur_refl_b04"]],
-        "MODIS_SWIR": [SPACE_TIME_LOW_RES_BANDS.index(b) for b in ["sur_refl_b05", "sur_refl_b06", "sur_refl_b07"]],
+        "MODIS_SWIR": [
+            SPACE_TIME_LOW_RES_BANDS.index(b)
+            for b in ["sur_refl_b05", "sur_refl_b06", "sur_refl_b07"]
+        ],
         "VIIRS_RGB": [SPACE_TIME_LOW_RES_BANDS.index(b) for b in ["I1"]],
         "VIIRS_SWIR": [SPACE_TIME_LOW_RES_BANDS.index(b) for b in ["I3"]],
     }
@@ -117,7 +128,14 @@ STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
 
 
 # if this changes the normalizer will need to index against something else
-assert len(SPACE_TIME_HIGH_RES_BANDS) != len(SPACE_TIME_MED_RES_BANDS) != len(SPACE_TIME_LOW_RES_BANDS) != len(SPACE_BANDS) != len(TIME_BANDS) != len(STATIC_BANDS)
+assert (
+    len(SPACE_TIME_HIGH_RES_BANDS)
+    != len(SPACE_TIME_MED_RES_BANDS)
+    != len(SPACE_TIME_LOW_RES_BANDS)
+    != len(SPACE_BANDS)
+    != len(TIME_BANDS)
+    != len(STATIC_BANDS)
+)
 
 
 class Normalizer:
@@ -126,7 +144,9 @@ class Normalizer:
     std_bands: Dict[int, list] = {
         len(SPACE_TIME_HIGH_RES_BANDS): SPACE_TIME_HIGH_RES_BANDS,
         len(SPACE_TIME_MED_RES_BANDS): SPACE_TIME_MED_RES_BANDS,
-        len(SPACE_TIME_LOW_RES_BANDS): [b for b in SPACE_TIME_LOW_RES_BANDS if b != "NDVI" and b != "NDSI"],
+        len(SPACE_TIME_LOW_RES_BANDS): [
+            b for b in SPACE_TIME_LOW_RES_BANDS if b != "NDVI" and b != "NDSI"
+        ],
         len(SPACE_BANDS): SPACE_BANDS,
         len(TIME_BANDS): TIME_BANDS,
         len(STATIC_BANDS): STATIC_BANDS,
@@ -324,7 +344,7 @@ class Dataset(PyTorchDataset):
             self.h5pys = list(h5py_folder.glob("*.h5"))
         else:
             if download:
-                self.download_tifs(data_folder)
+                self.download_tifs_from_drive_folder()
             self.tifs = []
             tifs = list(data_folder.glob("*.tif")) + list(data_folder.glob("*.tiff"))
             for tif in tifs:
@@ -344,7 +364,44 @@ class Dataset(PyTorchDataset):
         return len(self.tifs)
 
     @staticmethod
-    def download_tifs(data_folder):
+    def download_tifs_from_drive_folder():
+        """
+        Downloads all filed from a folder in Google Drive. Drive folder ID and destination folder are defined in the config file.
+        Modified from: https://developers.google.com/drive/api/guides/manage-downloads
+        """
+
+        creds = get_ee_credentials()
+
+        os.makedirs(TIFS_FOLDER, exist_ok=True)
+
+        # create drive api client
+        service = build("drive", "v3", credentials=creds)
+
+        # List files in the folder
+        results = (
+            service.files()
+            .list(q=f"'{EE_DRIVE_FOLDER_ID}' in parents", fields="files(id, name)")
+            .execute()
+        )
+        items = results.get("files", [])
+
+        if not items:
+            print("No files found in the folder.")
+        else:
+            for item in items:
+                print(f"Downloading {item['name']}...")
+                request = service.files().get_media(fileId=item["id"])
+                filename = item["name"]
+                filename = filename.replace("/", "_").replace("\\", "_").strip()
+                fh = io.FileIO(os.path.join(EE_DRIVE_FOLDER_NAME, filename), "wb")
+                downloader = MediaIoBaseDownload(fh, request)
+                done = False
+                while not done:
+                    status, done = downloader.next_chunk()
+                    print(f"Download {int(status.progress() * 100)}% complete.")
+
+    @staticmethod
+    def download_tifs_from_cloud(data_folder):
         # Download files (faster than using Python API)
         os.system(f"gcloud storage rsync -r gs://{EE_BUCKET_TIFS}/{EE_FOLDER_TIFS} {data_folder}")
 
@@ -416,10 +473,23 @@ class Dataset(PyTorchDataset):
 
         size must be greater or equal to H & W
         """
-        assert (space_time_high_res_x.shape[0] == space_time_med_res_x.shape[0] == space_time_low_res_x.shape[0] == space_x.shape[0]) & (
-            space_time_high_res_x.shape[1] == space_time_med_res_x.shape[1] == space_time_low_res_x.shape[1] == space_x.shape[1]
+        assert (
+            space_time_high_res_x.shape[0]
+            == space_time_med_res_x.shape[0]
+            == space_time_low_res_x.shape[0]
+            == space_x.shape[0]
+        ) & (
+            space_time_high_res_x.shape[1]
+            == space_time_med_res_x.shape[1]
+            == space_time_low_res_x.shape[1]
+            == space_x.shape[1]
         )
-        assert space_time_high_res_x.shape[2] == space_time_med_res_x.shape[2] == space_time_low_res_x.shape[2] == time_x.shape[0]
+        assert (
+            space_time_high_res_x.shape[2]
+            == space_time_med_res_x.shape[2]
+            == space_time_low_res_x.shape[2]
+            == time_x.shape[0]
+        )
         possible_h = space_time_high_res_x.shape[0] - size
         possible_w = space_time_high_res_x.shape[1] - size
         assert (possible_h >= 0) & (possible_w >= 0)
@@ -548,9 +618,7 @@ class Dataset(PyTorchDataset):
             lon = np.mean(cast(np.ndarray, data.x)).item()
             lat = np.mean(cast(np.ndarray, data.y)).item()
 
-        num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(
-            ALL_DYNAMIC_IN_TIME_BANDS
-        )
+        num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(ALL_DYNAMIC_IN_TIME_BANDS)
         assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
         dynamic_in_time_x = rearrange(
             values[: -(len(SPACE_BANDS))],
@@ -559,9 +627,23 @@ class Dataset(PyTorchDataset):
             t=int(num_timesteps),
         )
         dynamic_in_time_x = cls._fillna(dynamic_in_time_x, EO_DYNAMIC_IN_TIME_BANDS_NP)
-        space_time_high_res_x = dynamic_in_time_x[:, :, :, : -(len(SPACE_TIME_MED_RES_BANDS) + len(SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS))]
-        space_time_med_res_x = dynamic_in_time_x[:, :, :, -(len(SPACE_TIME_MED_RES_BANDS) + len(SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)) : -(len(SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS))]
-        space_time_low_res_x = dynamic_in_time_x[:, :, :, -(len(SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)) : -len(TIME_BANDS)]
+        space_time_high_res_x = dynamic_in_time_x[
+            :,
+            :,
+            :,
+            : -(len(SPACE_TIME_MED_RES_BANDS) + len(SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)),
+        ]
+        space_time_med_res_x = dynamic_in_time_x[
+            :,
+            :,
+            :,
+            -(len(SPACE_TIME_MED_RES_BANDS) + len(SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)) : -(
+                len(SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)
+            ),
+        ]
+        space_time_low_res_x = dynamic_in_time_x[
+            :, :, :, -(len(SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)) : -len(TIME_BANDS)
+        ]
 
         if USE_INDECES:
             # TODO: change to actual indeces calculations
@@ -628,7 +710,9 @@ class Dataset(PyTorchDataset):
 
     def load_tif(self, idx: int) -> DatasetOutput:
         if self.h5py_folder is None:
-            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
+            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(
+                idx
+            )
             return DatasetOutput(
                 *self.subset_image(
                     s_t_h_x,
@@ -650,19 +734,39 @@ class Dataset(PyTorchDataset):
                 except Exception as e:
                     logger.warn(f"Exception {e} for {self.tifs[idx]}")
                     h5py_path.unlink()
-                    s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
+                    s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = (
+                        self._tif_to_array_with_checks(idx)
+                    )
                     self.save_h5py(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, self.tifs[idx].stem)
                     return DatasetOutput(
                         *self.subset_image(
-                            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months, self.output_hw, self.output_timesteps
+                            s_t_h_x,
+                            s_t_m_x,
+                            s_t_l_x,
+                            sp_x,
+                            t_x,
+                            st_x,
+                            months,
+                            self.output_hw,
+                            self.output_timesteps,
                         )
                     )
             else:
-                s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
+                s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = (
+                    self._tif_to_array_with_checks(idx)
+                )
                 self.save_h5py(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, self.tifs[idx].stem)
                 return DatasetOutput(
                     *self.subset_image(
-                        s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months, self.output_hw, self.output_timesteps
+                        s_t_h_x,
+                        s_t_m_x,
+                        s_t_l_x,
+                        sp_x,
+                        t_x,
+                        st_x,
+                        months,
+                        self.output_hw,
+                        self.output_timesteps,
                     )
                 )
 

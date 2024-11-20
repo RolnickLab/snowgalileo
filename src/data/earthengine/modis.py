@@ -1,10 +1,8 @@
 from datetime import date
-from typing import Tuple
-import numpy as np
 
 import ee
 
-from .utils import date_to_string, create_placeholder
+from .utils import create_placeholder, date_to_string
 
 image_collection_terra = "MODIS/061/MOD09GA"
 
@@ -18,8 +16,8 @@ MODIS_BANDS = ["sur_refl_b03", "sur_refl_b04", "sur_refl_b05", "sur_refl_b06", "
 MODIS_SHIFT_VALUES = [-7950.0, -7950.0, -7950.0, -7950.0, -7950.0]
 MODIS_DIV_VALUES = [8050, 8050, 8050, 8050, 8050]
 
-def get_single_modis_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
 
+def get_single_modis_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
     dates = ee.DateRange(
         date_to_string(start_date),
         date_to_string(end_date),

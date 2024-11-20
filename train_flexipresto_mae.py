@@ -58,8 +58,8 @@ process = psutil.Process()
 os.environ["GOOGLE_CLOUD_PROJECT"] = EE_PROJECT
 
 tracker = codecarbon.EmissionsTracker(
-    project_name="flexipresto",
-    experiment_name="train_flexipresto.py",
+    project_name="ai4snow",
+    experiment_name="ai4snow.py",
     save_to_api=False,
     output_dir=data_dir,
 )
@@ -102,7 +102,7 @@ model_path: Optional[Path] = None
 start_epoch = 0
 run_id = None
 wandb_enabled = True
-wandb_org = "nasa-harvest"
+wandb_org = "sea-ice"
 wandb_output_dir = Path(__file__).parent
 
 if is_beaker_job():
@@ -147,7 +147,7 @@ if not restart:
 run = wandb.init(
     name=run_name,
     entity=wandb_org,
-    project="flexipresto",
+    project="ai4snow",
     dir=wandb_output_dir,
     id=run_id,
     resume="allow",

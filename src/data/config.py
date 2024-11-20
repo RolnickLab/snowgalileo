@@ -1,5 +1,4 @@
 from pathlib import Path
-from datetime import date
 
 DAYS_PER_TIMESTEP = 1
 NUM_TIMESTEPS = 10
@@ -25,7 +24,8 @@ USE_INDECES = False
 
 EE_PROJECT = "ee-marlena"
 EE_BUCKET_TIFS = None
-EE_DRIVE_FOLDER_TIFS = "snow_ee_exports"
+EE_DRIVE_FOLDER_NAME = "snow_ee_exports"
+EE_DRIVE_FOLDER_ID = "1r_wu96zPmSPts2ez0zUXLQ_X7MfM9S1r"
 EE_FOLDER_TIFS = "tifs4"
 EE_FOLDER_H5PYS = "h5pys"
 

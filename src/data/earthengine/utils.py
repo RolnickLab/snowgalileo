@@ -1,10 +1,23 @@
-from datetime import date, timedelta
-from typing import List, Union
+import json
+import os
 import random
-from datetime import datetime
-from ..config import NO_DATA_VALUE
+from datetime import date, datetime, timedelta
+from typing import Union
 
 import ee
+
+from ..config import NO_DATA_VALUE
+
+
+def get_ee_credentials():
+    gcp_sa_key = os.environ.get("GCP_SA_KEY")
+    if gcp_sa_key is not None:
+        gcp_sa_email = json.loads(gcp_sa_key)["client_email"]
+        print(f"Logging into EarthEngine with {gcp_sa_email}")
+        return ee.ServiceAccountCredentials(gcp_sa_email, key_data=gcp_sa_key)
+    else:
+        print("Logging into EarthEngine with default credentials")
+        return "persistent"
 
 
 def date_to_string(input_date: Union[date, str]) -> str:
@@ -20,7 +33,7 @@ def create_placeholder(region: ee.Geometry, selected_bands, fill_value=NO_DATA_V
     Creates a placeholder image for a region with constant values for each band in selected_bands.
     """
     constant_bands = [ee.Image.constant(fill_value).rename(band) for band in selected_bands]
-    
+
     placeholder_image = ee.Image.cat(constant_bands).clip(region)
     return placeholder_image
 
@@ -53,5 +66,5 @@ def sample_time_window(start_date: str, end_date: str, window_size: int):
     window_start = start_date + timedelta(days=random_start)
     window_end = window_start + timedelta(days=window_size - 1)
     time_window = (window_start.date(), window_end.date())
-    
+
     return time_window

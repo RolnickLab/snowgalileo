@@ -1,10 +1,8 @@
 from datetime import date
-from typing import Tuple
-import numpy as np
 
 import ee
 
-from .utils import date_to_string, create_placeholder
+from .utils import create_placeholder, date_to_string
 
 image_collection = "NASA/VIIRS/002/VNP09GA"
 VIIRS_BANDS_500m = ["I1", "I3"]
@@ -16,8 +14,8 @@ VIIRS_1000m_DIV_VALUES = [0.805, 0.805, 0.805, 0.805]
 
 # TODO: check if two functions are really necessary
 
-def get_single_viirs_500m_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
 
+def get_single_viirs_500m_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
     dates = ee.DateRange(
         date_to_string(start_date),
         date_to_string(end_date),
@@ -40,8 +38,10 @@ def get_single_viirs_500m_image(region: ee.Geometry, start_date: date, end_date:
     # float64
     return image.toDouble()
 
-def get_single_viirs_1000m_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
 
+def get_single_viirs_1000m_image(
+    region: ee.Geometry, start_date: date, end_date: date
+) -> ee.Image:
     dates = ee.DateRange(
         date_to_string(start_date),
         date_to_string(end_date),

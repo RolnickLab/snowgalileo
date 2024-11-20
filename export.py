@@ -3,15 +3,14 @@ Script to export data to a Google Cloud Bucket
 """
 
 import argparse
-import os
 
 import geopandas
 
 from src.data import EarthEngineExporter
-from src.data.config import DATA_FOLDER, EE_PROJECT
+from src.data.config import DATA_FOLDER
 from src.data.earthengine.eo import LAT, LON
 
-#os.environ["GOOGLE_CLOUD_PROJECT"] = EE_PROJECT
+# os.environ["GOOGLE_CLOUD_PROJECT"] = EE_PROJECT
 
 # Parse command line arguments
 argparser = argparse.ArgumentParser()

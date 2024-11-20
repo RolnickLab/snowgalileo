@@ -1,10 +1,8 @@
 from datetime import date
-import numpy as np
 
 import ee
 
-from .utils import date_to_string, create_placeholder
-
+from .utils import create_placeholder, date_to_string
 
 # TODO: check if we have to convert no data values to double
 
@@ -44,7 +42,6 @@ S2_DIV_VALUES = [float(1e4)] * len(S2_BANDS)
 
 
 def get_single_s2_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
-
     dates = ee.DateRange(
         date_to_string(start_date),
         date_to_string(end_date),

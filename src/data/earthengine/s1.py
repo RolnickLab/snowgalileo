@@ -1,8 +1,7 @@
 from datetime import date
-from typing import Tuple
-import numpy as np
 
 import ee
+import numpy as np
 
 from .utils import date_to_string
 
@@ -24,7 +23,6 @@ def get_single_s1_image(
     start_date: date,
     end_date: date,
 ) -> ee.Image:
-
     dates = ee.DateRange(
         date_to_string(start_date),
         date_to_string(end_date),
@@ -35,7 +33,7 @@ def get_single_s1_image(
 
     s1 = ee.ImageCollection(image_collection).filterDate(startDate, endDate).filterBounds(region)
 
-    if (s1.size().getInfo()== 0):
+    if s1.size().getInfo() == 0:
         print("No S1 Image on date: {}".format(start_date))
         return np.nan
 
@@ -61,4 +59,3 @@ def get_single_s1_image(
     image = composite.select(S1_BANDS)
 
     return image
-

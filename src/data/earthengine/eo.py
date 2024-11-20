@@ -1,5 +1,4 @@
 # https://github.com/nasaharvest/openmapflow/blob/main/openmapflow/ee_exporter.py
-import json
 import os
 import shutil
 from datetime import date, timedelta
@@ -16,31 +15,34 @@ from tqdm import tqdm
 from ..config import (
     DAYS_PER_TIMESTEP,
     EE_BUCKET_TIFS,
-    EE_DRIVE_FOLDER_TIFS,
+    EE_DRIVE_FOLDER_NAME,
     EE_FOLDER_TIFS,
     EE_PROJECT,
     END_YEAR,
     EXPORTED_HEIGHT_WIDTH_METRES,
+    NO_DATA_VALUE,
+    NUM_TIMESTEPS,
+    SEASONS,
     START_YEAR,
     TIFS_FOLDER,
-    NO_DATA_VALUE,
-    SEASONS,
-    NUM_TIMESTEPS,
 )
-from .utils import sample_time_window
 from .ee_bbox import EEBoundingBox
 from .era5 import ERA5_BANDS, ERA5_DIV_VALUES, ERA5_SHIFT_VALUES, get_single_era5_image
-from .s1 import (
-    S1_BANDS,
-    S1_DIV_VALUES,
-    S1_SHIFT_VALUES,
-    get_single_s1_image,
-)
+from .modis import MODIS_BANDS, MODIS_DIV_VALUES, MODIS_SHIFT_VALUES, get_single_modis_image
 from .s2 import S2_BANDS, S2_DIV_VALUES, S2_SHIFT_VALUES, get_single_s2_image
 from .s3 import S3_BANDS, S3_DIV_VALUES, S3_SHIFT_VALUES, get_single_s3_image
 from .srtm import SRTM_BANDS, SRTM_DIV_VALUES, SRTM_SHIFT_VALUES, get_single_srtm_image
-from .viirs import VIIRS_BANDS_500m, VIIRS_BANDS_1000m, VIIRS_500m_DIV_VALUES, VIIRS_500m_SHIFT_VALUES, VIIRS_1000m_DIV_VALUES, VIIRS_1000m_SHIFT_VALUES, get_single_viirs_500m_image, get_single_viirs_1000m_image
-from .modis import MODIS_BANDS, MODIS_DIV_VALUES, MODIS_SHIFT_VALUES, get_single_modis_image
+from .utils import get_ee_credentials, sample_time_window
+from .viirs import (
+    VIIRS_500m_DIV_VALUES,
+    VIIRS_500m_SHIFT_VALUES,
+    VIIRS_1000m_DIV_VALUES,
+    VIIRS_1000m_SHIFT_VALUES,
+    VIIRS_BANDS_500m,
+    VIIRS_BANDS_1000m,
+    get_single_viirs_500m_image,
+    get_single_viirs_1000m_image,
+)
 
 # dataframe constants when exporting the labels
 LAT = "Latitude"
@@ -51,7 +53,7 @@ END_DATE = date(END_YEAR, 12, 31)
 # TODO: uncomment s1 when we have decided on a strategy
 
 TIME_IMAGE_FUNCTIONS = [
-    #get_single_s1_image,
+    # get_single_s1_image,
     get_single_s2_image,
     get_single_s3_image,
     get_single_era5_image,
@@ -74,14 +76,22 @@ SPACE_TIME_LOW_RES_SHIFT_VALUES = MODIS_SHIFT_VALUES + VIIRS_500m_SHIFT_VALUES
 SPACE_TIME_LOW_RES_DIV_VALUES = MODIS_DIV_VALUES + VIIRS_500m_DIV_VALUES
 
 SPACE_TIME_BANDS = SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS
-SPACE_TIME_SHIFT_VALUES = np.array(SPACE_TIME_HIGH_RES_SHIFT_VALUES + SPACE_TIME_MED_RES_SHIFT_VALUES + SPACE_TIME_LOW_RES_SHIFT_VALUES)
-SPACE_TIME_DIV_VALUES = np.array(SPACE_TIME_HIGH_RES_DIV_VALUES + SPACE_TIME_MED_RES_DIV_VALUES + SPACE_TIME_LOW_RES_DIV_VALUES)
+SPACE_TIME_SHIFT_VALUES = np.array(
+    SPACE_TIME_HIGH_RES_SHIFT_VALUES
+    + SPACE_TIME_MED_RES_SHIFT_VALUES
+    + SPACE_TIME_LOW_RES_SHIFT_VALUES
+)
+SPACE_TIME_DIV_VALUES = np.array(
+    SPACE_TIME_HIGH_RES_DIV_VALUES + SPACE_TIME_MED_RES_DIV_VALUES + SPACE_TIME_LOW_RES_DIV_VALUES
+)
 
 TIME_BANDS = ERA5_BANDS + VIIRS_BANDS_1000m
 TIME_SHIFT_VALUES = np.array(ERA5_SHIFT_VALUES + VIIRS_1000m_SHIFT_VALUES)
 TIME_DIV_VALUES = np.array(ERA5_DIV_VALUES + VIIRS_1000m_DIV_VALUES)
 
-ALL_DYNAMIC_IN_TIME_BANDS = SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS + TIME_BANDS
+ALL_DYNAMIC_IN_TIME_BANDS = (
+    SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS + TIME_BANDS
+)
 
 SPACE_BANDS = SRTM_BANDS
 SPACE_IMAGE_FUNCTIONS = [get_single_srtm_image]
@@ -167,10 +177,12 @@ def ee_safe_str(s: str):
     """Earth Engine descriptions only allow certain characters"""
     return s.replace(".", "-").replace("=", "-").replace("/", "-")[:100]
 
+
 def fill_nan(img, region):
     # create an image with the same dimensions as the region filled with placeholder value
     # if the image is a float, it means that the image is empty
     return ee.Image.constant(NO_DATA_VALUE).clip(region) if isinstance(img, float) else img
+
 
 def create_ee_image(
     polygon: ee.Geometry,
@@ -178,7 +190,6 @@ def create_ee_image(
     interval_end_date: date,
     days_per_timestep: int = DAYS_PER_TIMESTEP,
 ) -> ee.Image:
-    
     # TODO: change function header
 
     """
@@ -189,7 +200,7 @@ def create_ee_image(
     image (e.g. if I have 3 timesteps, then I'll have VV, VV_1, VV_2 for the
     S1 VV bands). The static in time SRTM bands will also be in the image.
 
-    AI4SNOW: interval will be 10 days and days per timestep 1. This results in 
+    AI4SNOW: interval will be 10 days and days per timestep 1. This results in
     10 images per band, if daily data is available, else in less.
     """
     image_collection_list: List[ee.Image] = []
@@ -229,17 +240,6 @@ def create_ee_image(
     return ee.Image.cat(total_image_list)
 
 
-def get_ee_credentials():
-    gcp_sa_key = os.environ.get("GCP_SA_KEY")
-    if gcp_sa_key is not None:
-        gcp_sa_email = json.loads(gcp_sa_key)["client_email"]
-        print(f"Logging into EarthEngine with {gcp_sa_email}")
-        return ee.ServiceAccountCredentials(gcp_sa_email, key_data=gcp_sa_key)
-    else:
-        print("Logging into EarthEngine with default credentials")
-        return "persistent"
-
-
 class EarthEngineExporter:
     """
     Export satellite data from Earth engine. It's called using the following
@@ -259,7 +259,7 @@ class EarthEngineExporter:
     def __init__(
         self,
         dest_bucket: str = EE_BUCKET_TIFS,
-        dest_drive_folder: str = EE_DRIVE_FOLDER_TIFS,
+        dest_drive_folder: str = EE_DRIVE_FOLDER_NAME,
         check_ee: bool = False,
         check_gcp: bool = False,
         credentials=None,
@@ -277,7 +277,7 @@ class EarthEngineExporter:
         # TODO: check if we need to use the project parameter
         initialize_args = {
             "credentials": credentials if credentials else get_ee_credentials(),
-            #"project": EE_PROJECT,
+            "project": EE_PROJECT,
         }
         if mode == "url":
             initialize_args["opt_url"] = "https://earthengine-highvolume.googleapis.com"
@@ -341,12 +341,12 @@ class EarthEngineExporter:
                     region=polygon,
                     maxPixels=1e13,
                     fileDimensions=file_dimensions,
-                    formatOptions={'noData': self.no_data_val}
+                    formatOptions={"noData": self.no_data_val},
                 ).start()
                 self.ee_task_list.append(description)
             except ee.ee_exception.EEException as e:
                 print(f"Task not started! Got exception {e}")
-                return False    
+                return False
         elif self.mode == "drive":
             try:
                 ee.batch.Export.image.toDrive(
@@ -358,12 +358,12 @@ class EarthEngineExporter:
                     region=polygon,
                     maxPixels=1e13,
                     fileDimensions=file_dimensions,
-                    formatOptions={'noData': self.no_data_val}
+                    formatOptions={"noData": self.no_data_val},
                 ).start()
                 self.ee_task_list.append(description)
             except ee.ee_exception.EEException as e:
                 print(f"Task not started! Got exception {e}")
-                return False   
+                return False
         elif self.mode == "url":
             try:
                 url = img.getDownloadURL(
@@ -416,7 +416,9 @@ class EarthEngineExporter:
                 SEASON_START_DATE = SEASONS[season][0]
                 SEASON_END_DATE = SEASONS[season][1]
 
-                WINDOW_START_DATE, WINDOW_END_DATE = sample_time_window(SEASON_START_DATE, SEASON_END_DATE, NUM_TIMESTEPS)
+                WINDOW_START_DATE, WINDOW_END_DATE = sample_time_window(
+                    SEASON_START_DATE, SEASON_END_DATE, NUM_TIMESTEPS
+                )
 
                 export_started = self._export_for_polygon(
                     polygon=ee_bbox.to_ee_polygon(),
@@ -426,7 +428,10 @@ class EarthEngineExporter:
                 )
                 if export_started:
                     exports_started += 1
-                    if num_exports_to_start is not None and exports_started >= num_exports_to_start:
+                    if (
+                        num_exports_to_start is not None
+                        and exports_started >= num_exports_to_start
+                    ):
                         print(f"Started {exports_started} exports. Ending export")
                         return None
 

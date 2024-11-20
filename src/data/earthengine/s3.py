@@ -1,10 +1,8 @@
 from datetime import date
-from typing import Tuple
-import numpy as np
 
 import ee
 
-from .utils import date_to_string, create_placeholder
+from .utils import create_placeholder, date_to_string
 
 image_collection = "COPERNICUS/S3/OLCI"
 S3_BANDS = ["Oa17_radiance", "Oa21_radiance"]
@@ -13,8 +11,8 @@ S3_BANDS = ["Oa17_radiance", "Oa21_radiance"]
 S3_SHIFT_VALUES = [float(0.0)] * len(S3_BANDS)
 S3_DIV_VALUES = [float(1.0)] * len(S3_BANDS)
 
-def get_single_s3_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
 
+def get_single_s3_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
     dates = ee.DateRange(
         date_to_string(start_date),
         date_to_string(end_date),

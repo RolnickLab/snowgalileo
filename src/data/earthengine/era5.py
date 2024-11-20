@@ -1,9 +1,8 @@
 from datetime import date
-import numpy as np
 
 import ee
 
-from .utils import date_to_string, create_placeholder
+from .utils import create_placeholder, date_to_string
 
 image_collection = "ECMWF/ERA5_LAND/DAILY_AGGR"
 ERA5_BANDS = ["skin_temperature", "total_precipitation_sum"]
@@ -16,8 +15,8 @@ ERA5_DIV_VALUES = [35.0, 0.03]
 
 # TODO: add more compatible era5 bands
 
+
 def get_single_era5_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
-    
     dates = ee.DateRange(
         date_to_string(start_date),
         date_to_string(end_date),
