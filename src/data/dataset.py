@@ -22,6 +22,7 @@ from googleapiclient.http import MediaIoBaseDownload
 from torch.utils.data import Dataset as PyTorchDataset
 from tqdm import tqdm
 import google.auth
+from googleapiclient.errors import HttpError
 
 from .config import (
     DATASET_OUTPUT_HW,
@@ -389,17 +390,21 @@ class Dataset(PyTorchDataset):
         if not items:
             print("No files found in the folder.")
         else:
-            for item in items:
-                print(f"Downloading {item['name']}...")
-                request = service.files().get_media(fileId=item["id"])
-                filename = item["name"]
-                filename = filename.replace("/", "_").replace("\\", "_").strip()
-                fh = io.FileIO(os.path.join(EE_DRIVE_FOLDER_NAME, filename), "wb")
-                downloader = MediaIoBaseDownload(fh, request)
-                done = False
-                while not done:
-                    status, done = downloader.next_chunk()
-                    print(f"Download {int(status.progress() * 100)}% complete.")
+            try:
+                for item in items:
+                    print(f"Downloading {item['name']}...")
+                    request = service.files().get_media(fileId=item["id"])
+                    filename = item["name"]
+                    filename = filename.replace("/", "_").replace("\\", "_").strip()
+                    fh = io.FileIO(os.path.join(EE_DRIVE_FOLDER_NAME, filename), "wb")
+                    downloader = MediaIoBaseDownload(fh, request)
+                    done = False
+                    while not done:
+                        status, done = downloader.next_chunk()
+                        print(f"Download {int(status.progress() * 100)}% complete.")
+            except HttpError as e:
+                print(f"HttpError: {e}")
+                print("Response content:", e.content)
 
     @staticmethod
     def download_tifs_from_cloud(data_folder):
