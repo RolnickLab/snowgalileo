@@ -43,8 +43,8 @@ from .viirs import VIIRS_BANDS_500m, VIIRS_BANDS_1000m, VIIRS_500m_DIV_VALUES, V
 from .modis import MODIS_BANDS, MODIS_DIV_VALUES, MODIS_SHIFT_VALUES, get_single_modis_image
 
 # dataframe constants when exporting the labels
-LAT = "lat"
-LON = "lon"
+LAT = "Latitude"
+LON = "Longitude"
 START_DATE = date(START_YEAR, 1, 1)
 END_DATE = date(END_YEAR, 12, 31)
 

@@ -17,7 +17,7 @@ from src.data.earthengine.eo import LAT, LON
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--start_export_from_idx", type=int, default=0)
 argparser.add_argument("--num_exports", type=int, default=3000)
-argparser.add_argument("--filename", type=str, default="combined_points.csv")
+argparser.add_argument("--filename", type=str, default="sampling_points_mountains.csv")
 argparser.add_argument("--mode", type=str, default="drive")
 argparser.add_argument("--check_gcp", type=bool, default=False)
 args = argparser.parse_args().__dict__
