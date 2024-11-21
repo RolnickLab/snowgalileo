@@ -20,6 +20,7 @@ from einops import rearrange, repeat
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from torch.utils.data import Dataset as PyTorchDataset
+from google.oauth2.service_account import Credentials
 from tqdm import tqdm
 import google.auth
 from googleapiclient.errors import HttpError
@@ -373,6 +374,11 @@ class Dataset(PyTorchDataset):
         """
 
         creds, _ = google.auth.default()
+
+        SERVICE_ACCOUNT_FILE = Path(__file__).parents[2] / "ee-marlena-credentials.json"
+        SCOPES = ['https://www.googleapis.com/auth/drive']
+
+        credentials = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
 
         os.makedirs(TIFS_FOLDER, exist_ok=True)
 
