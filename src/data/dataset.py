@@ -373,12 +373,10 @@ class Dataset(PyTorchDataset):
         Modified from: https://developers.google.com/drive/api/guides/manage-downloads
         """
 
-        creds, _ = google.auth.default()
-
         SERVICE_ACCOUNT_FILE = Path(__file__).parents[2] / "ee-marlena-credentials.json"
         SCOPES = ['https://www.googleapis.com/auth/drive']
 
-        credentials = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+        creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
 
         os.makedirs(TIFS_FOLDER, exist_ok=True)
 

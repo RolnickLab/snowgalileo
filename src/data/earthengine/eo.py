@@ -300,7 +300,7 @@ class EarthEngineExporter:
         interval_end_date: date,
         file_dimensions: Optional[int] = None,
     ) -> bool:
-        cloud_filename = f"{EE_FOLDER_TIFS}/{str(polygon_identifier)}"
+        cloud_filename = f"{str(polygon_identifier)}"
         local_filename = f"{str(polygon_identifier).replace('/', '_')}.tif"
 
         # Description of the export cannot contain certrain characters
