@@ -383,13 +383,20 @@ class Dataset(PyTorchDataset):
         # create drive api client
         service = build("drive", "v3", credentials=creds)
 
-        # List files in the folder
-        results = (
-            service.files()
-            .list(q=f"'{EE_DRIVE_FOLDER_ID}' in parents", fields="files(id, name)")
-            .execute()
-        )
-        items = results.get("files", [])
+        # page token to get all files
+        page_token = None
+        items= []
+        while True:
+            # List files in the folder
+            results = (
+                service.files()
+                .list(q=f"'{EE_DRIVE_FOLDER_ID}' in parents", fields="nextPageToken, files(id, name)", pageToken=page_token)
+                .execute()
+            )
+            items.extend(results.get("files", []))
+            page_token = results.get("nextPageToken", None)
+            if page_token is None:
+                break
 
         if not items:
             print("No files found in the folder.")
@@ -399,13 +406,17 @@ class Dataset(PyTorchDataset):
                     print(f"Downloading {item['name']}...")
                     request = service.files().get_media(fileId=item["id"])
                     filename = item["name"]
-                    filename = filename.replace("/", "_").replace("\\", "_").strip()
-                    fh = io.FileIO(os.path.join(EE_DRIVE_FOLDER_NAME, filename), "wb")
-                    downloader = MediaIoBaseDownload(fh, request)
-                    done = False
-                    while not done:
-                        status, done = downloader.next_chunk()
-                        print(f"Download {int(status.progress() * 100)}% complete.")
+
+                    # Define the full path for the local file
+                    local_file_path = os.path.join(TIFS_FOLDER, filename)
+                    
+                    # Save the file
+                    with open(local_file_path, "wb") as fh:
+                        downloader = MediaIoBaseDownload(fh, request)
+                        done = False
+                        while not done:
+                            status, done = downloader.next_chunk()
+                            print(f"Download {int(status.progress() * 100)}% complete.")
             except HttpError as e:
                 print(f"HttpError: {e}")
                 print("Response content:", e.content)
