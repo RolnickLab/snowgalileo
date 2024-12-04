@@ -33,7 +33,7 @@ from .s1 import S1_BANDS, S1_DIV_VALUES, S1_SHIFT_VALUES, get_single_s1_image
 from .s2 import S2_BANDS, S2_DIV_VALUES, S2_SHIFT_VALUES, get_single_s2_image
 from .s3 import S3_BANDS, S3_DIV_VALUES, S3_SHIFT_VALUES, get_single_s3_image
 from .srtm import SRTM_BANDS, SRTM_DIV_VALUES, SRTM_SHIFT_VALUES, get_single_srtm_image
-from .utils import get_ee_credentials, sample_time_window, sample_season_years
+from .utils import get_ee_credentials, sample_time_window, sample_season_year
 from .viirs import (
     VIIRS_500m_DIV_VALUES,
     VIIRS_500m_SHIFT_VALUES,
@@ -176,12 +176,6 @@ def ee_safe_str(s: str):
     return s.replace(".", "-").replace("=", "-").replace("/", "-")[:100]
 
 
-def fill_nan(img, region):
-    # create an image with the same dimensions as the region filled with placeholder value
-    # if the image is a float, it means that the image is empty
-    return ee.Image.constant(NO_DATA_VALUE).clip(region) if isinstance(img, float) else img
-
-
 def create_ee_image(
     polygon: ee.Geometry,
     interval_start_date: date,
@@ -213,9 +207,7 @@ def create_ee_image(
                 image_function(region=polygon, start_date=cur_date, end_date=cur_end_date)
             )
 
-        filled_images = [fill_nan(img, polygon) for img in image_list]
-
-        image_collection_list.append(ee.Image.cat(filled_images))
+        image_collection_list.append(ee.Image.cat(image_list))
         cur_date += timedelta(days=days_per_timestep)
         cur_end_date += timedelta(days=days_per_timestep)
 
@@ -407,13 +399,13 @@ class EarthEngineExporter:
                 surrounding_metres=int(self.surrounding_metres),
             )
 
-            # For each season, randomly choose year to sample from
-            seasons = sample_season_years(SEASONS, START_YEAR, END_YEAR)
-
             # Sample each point for each season
-            for season in SEASONS:
-                SEASON_START_DATE = seasons[season][0]
-                SEASON_END_DATE = seasons[season][1]
+            for season in SEASONS.items():
+                # randomly choose year to sample from
+                season = sample_season_year(season, START_YEAR, END_YEAR)
+
+                SEASON_START_DATE = season[0]
+                SEASON_END_DATE = season[1]
 
                 WINDOW_START_DATE, WINDOW_END_DATE = sample_time_window(
                     SEASON_START_DATE, SEASON_END_DATE, NUM_TIMESTEPS

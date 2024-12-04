@@ -4,7 +4,7 @@ import ee
 
 from .utils import create_placeholder, date_to_string
 
-image_collection = "LANDSAT/LC09/C02/T1_TOA"
+image_collection = "LANDSAT/LC08/C02/T1_TOA"
 
 # Snow-specific Landsat bands
 LANDSAT_BANDS = [

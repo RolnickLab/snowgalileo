@@ -11,8 +11,10 @@ DATASET_OUTPUT_HW = 96
 # time range to sample a random time window from. End year is inclusive (START_YEAR <= N <= END_YEAR)
 # if the season spans two years, the end year will be the following year
 # (i.e., if the end year is 2019, it is possible to get data from early 2020)
-START_YEAR = 2014
-END_YEAR = 2019
+# for the start year, we are limited by Sentinel-3 data availability (starting 2016-10-18)
+# This means effectively, we can sample from (START_YEAR - 1)-12-16 to (END_YEAR + 1)-02-28
+START_YEAR = 2017
+END_YEAR = 2020
 
 EXPORTED_HEIGHT_WIDTH_METRES = 1000
 
@@ -29,8 +31,8 @@ USE_INDECES = False
 
 EE_PROJECT = "ee-marlena"
 EE_BUCKET_TIFS = None
-EE_DRIVE_FOLDER_NAME = "snow_ee_exports_20112024"
-EE_DRIVE_FOLDER_ID = "1P30lIdBDbwztXUpHtsBPkE5smXKcJr-a"
+EE_DRIVE_FOLDER_NAME = "Presto4Snow/snow_ee_exports_20241204"
+EE_DRIVE_FOLDER_ID = "1bE35gXxPZQl4Q-C3V885EzLL19gdW0jc"
 EE_FOLDER_TIFS = "tifs4"
 EE_FOLDER_H5PYS = "h5pys"
 
