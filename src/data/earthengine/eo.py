@@ -29,6 +29,7 @@ from ..config import (
 from .ee_bbox import EEBoundingBox
 from .era5 import ERA5_BANDS, ERA5_DIV_VALUES, ERA5_SHIFT_VALUES, get_single_era5_image
 from .modis import MODIS_BANDS, MODIS_DIV_VALUES, MODIS_SHIFT_VALUES, get_single_modis_image
+from .s1 import S1_BANDS, S1_DIV_VALUES, S1_SHIFT_VALUES, get_single_s1_image
 from .s2 import S2_BANDS, S2_DIV_VALUES, S2_SHIFT_VALUES, get_single_s2_image
 from .s3 import S3_BANDS, S3_DIV_VALUES, S3_SHIFT_VALUES, get_single_s3_image
 from .srtm import SRTM_BANDS, SRTM_DIV_VALUES, SRTM_SHIFT_VALUES, get_single_srtm_image
@@ -50,10 +51,8 @@ LON = "Longitude"
 START_DATE = date(START_YEAR, 1, 1)
 END_DATE = date(END_YEAR, 12, 31)
 
-# TODO: uncomment s1 when we have decided on a strategy
-
 TIME_IMAGE_FUNCTIONS = [
-    # get_single_s1_image,
+    get_single_s1_image,
     get_single_s2_image,
     get_single_s3_image,
     get_single_era5_image,
@@ -62,10 +61,9 @@ TIME_IMAGE_FUNCTIONS = [
     get_single_viirs_1000m_image,
 ]
 
-# TODO: readd S1 when we have decided on a strategy
-SPACE_TIME_HIGH_RES_BANDS = S2_BANDS
-SPACE_TIME_HIGH_RES_SHIFT_VALUES = S2_SHIFT_VALUES
-SPACE_TIME_HIGH_RES_DIV_VALUES = S2_DIV_VALUES
+SPACE_TIME_HIGH_RES_BANDS = S1_BANDS + S2_BANDS
+SPACE_TIME_HIGH_RES_SHIFT_VALUES = S1_SHIFT_VALUES + S2_SHIFT_VALUES
+SPACE_TIME_HIGH_RES_DIV_VALUES = S1_DIV_VALUES + S2_DIV_VALUES
 
 SPACE_TIME_MED_RES_BANDS = S3_BANDS
 SPACE_TIME_MED_RES_SHIFT_VALUES = S3_SHIFT_VALUES
@@ -274,7 +272,6 @@ class EarthEngineExporter:
         self.dest_bucket = dest_bucket
         self.dest_drive_folder = dest_drive_folder
 
-        # TODO: check if we need to use the project parameter
         initialize_args = {
             "credentials": credentials if credentials else get_ee_credentials(),
             "project": EE_PROJECT,
@@ -329,7 +326,6 @@ class EarthEngineExporter:
         img = create_ee_image(polygon, interval_start_date, interval_end_date)
 
         # TODO: check if we can use the scale parameter of should use crs and crs_transform instead
-
         if self.mode == "cloud":
             try:
                 ee.batch.Export.image.toCloudStorage(

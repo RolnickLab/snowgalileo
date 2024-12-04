@@ -5,16 +5,13 @@ import ee
 from .utils import create_placeholder, date_to_string
 
 image_collection = "ECMWF/ERA5_LAND/DAILY_AGGR"
-ERA5_BANDS = ["skin_temperature", "total_precipitation_sum"]
+ERA5_BANDS = ["skin_temperature", "temperature_2m", "total_precipitation_sum", "u_component_of_wind_10m", "v_component_of_wind_10m"]
 # for temperature, shift to celcius and then divide by 35 based on notebook (ranges from)
 # 37 to -22 degrees celcius
 # For rainfall, based on
 # https://github.com/nasaharvest/lem/blob/main/notebooks/exploratory_data_analysis.ipynb
 ERA5_SHIFT_VALUES = [-272.15, 0.0]
 ERA5_DIV_VALUES = [35.0, 0.03]
-
-# TODO: add more compatible era5 bands
-
 
 def get_single_era5_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
     dates = ee.DateRange(

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 DAYS_PER_TIMESTEP = 1
-NUM_TIMESTEPS = 10
+NUM_TIMESTEPS = 16
 # this is the maximum patch_size * num_patches.
 # we will need to change this if that assumption changes
 DATASET_OUTPUT_HW = 96

@@ -1,4 +1,3 @@
-import io
 import json
 import logging
 import math
@@ -17,19 +16,17 @@ import rioxarray
 import torch
 import xarray as xr
 from einops import rearrange, repeat
+from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
 from torch.utils.data import Dataset as PyTorchDataset
-from google.oauth2.service_account import Credentials
 from tqdm import tqdm
-import google.auth
-from googleapiclient.errors import HttpError
 
 from .config import (
     DATASET_OUTPUT_HW,
     EE_BUCKET_TIFS,
     EE_DRIVE_FOLDER_ID,
-    EE_DRIVE_FOLDER_NAME,
     EE_FOLDER_H5PYS,
     EE_FOLDER_TIFS,
     NUM_TIMESTEPS,
@@ -38,6 +35,7 @@ from .config import (
 )
 from .earthengine.eo import (
     ALL_DYNAMIC_IN_TIME_BANDS,
+    S1_BANDS,
     ERA5_BANDS,
     LOCATION_BANDS,
     SPACE_BANDS,
@@ -59,7 +57,6 @@ from .earthengine.eo import (
     TIME_BANDS,
     TIME_DIV_VALUES,
     TIME_SHIFT_VALUES,
-    get_ee_credentials,
 )
 
 logger = logging.getLogger("__main__")
@@ -76,17 +73,16 @@ if USE_INDECES:
     SPACE_TIME_LOW_RES_DIV_VALUES = np.append(SPACE_TIME_LOW_RES_DIV_VALUES, [1], [1])
 
 # spatial resolution per pixel: 10m or 20m
-# TODO: readd S1
 SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
-        # "S1": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in S1_BANDS],
+        "S1": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in S1_BANDS],
         "S2_RGB": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B2", "B3", "B4"]],
         "S2_NIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B8"]],
         "S2_SWIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B11", "B12"]],
     }
 )
 
-# spatial resolution per pixel:
+# spatial resolution per pixel: 300m
 SPACE_TIME_MED_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
         "S3_NIR": [SPACE_TIME_MED_RES_BANDS.index(b) for b in ["Oa17_radiance", "Oa21_radiance"]],
@@ -374,7 +370,7 @@ class Dataset(PyTorchDataset):
         """
 
         SERVICE_ACCOUNT_FILE = Path(__file__).parents[2] / "ee-marlena-credentials.json"
-        SCOPES = ['https://www.googleapis.com/auth/drive']
+        SCOPES = ["https://www.googleapis.com/auth/drive"]
 
         creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
 
@@ -385,12 +381,16 @@ class Dataset(PyTorchDataset):
 
         # page token to get all files
         page_token = None
-        items= []
+        items = []
         while True:
             # List files in the folder
             results = (
                 service.files()
-                .list(q=f"'{EE_DRIVE_FOLDER_ID}' in parents", fields="nextPageToken, files(id, name)", pageToken=page_token)
+                .list(
+                    q=f"'{EE_DRIVE_FOLDER_ID}' in parents",
+                    fields="nextPageToken, files(id, name)",
+                    pageToken=page_token,
+                )
                 .execute()
             )
             items.extend(results.get("files", []))
@@ -409,7 +409,7 @@ class Dataset(PyTorchDataset):
 
                     # Define the full path for the local file
                     local_file_path = os.path.join(TIFS_FOLDER, filename)
-                    
+
                     # Save the file
                     with open(local_file_path, "wb") as fh:
                         downloader = MediaIoBaseDownload(fh, request)
