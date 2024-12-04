@@ -68,3 +68,34 @@ def sample_time_window(start_date: str, end_date: str, window_size: int):
     time_window = (window_start.date(), window_end.date())
 
     return time_window
+
+
+def sample_season_years(seasons, start_year, end_year):
+    """
+    Randomly samples a year between start_year and end_year and assigns it to the seasons.
+
+    Args:
+        seasons (dict): Dictionary with season names as keys and date ranges as values.
+        start_year (int): Start year for random sampling.
+        end_year (int): End year for random sampling.
+
+    Returns:
+        dict: A dictionary with seasons as keys and randomly sampled year-specific date ranges.
+    """
+    sampled_year = random.randint(start_year, end_year)
+    season_with_year = {}
+
+    for season, (start_date, end_date) in seasons.items():
+        # If the season spans two years (e.g., mid: "12-15" to "02-28"), handle it
+        if end_date.startswith("02"):
+            season_with_year[season] = (
+                f"{sampled_year}-{start_date}",  # Start year remains the sampled year
+                f"{sampled_year + 1}-{end_date}",  # End year goes into the next year
+            )
+        else:
+            season_with_year[season] = (
+                f"{sampled_year}-{start_date}",
+                f"{sampled_year}-{end_date}",
+            )
+
+    return season_with_year

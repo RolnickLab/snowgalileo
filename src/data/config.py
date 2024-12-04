@@ -1,21 +1,26 @@
 from pathlib import Path
 
 DAYS_PER_TIMESTEP = 1
+
 NUM_TIMESTEPS = 16
+
 # this is the maximum patch_size * num_patches.
 # we will need to change this if that assumption changes
 DATASET_OUTPUT_HW = 96
 
-# TODO: Remove start_year and end_year in case we don't need them (defined in seasons instead)
-START_YEAR = 2022
-END_YEAR = 2023
+# time range to sample a random time window from. End year is inclusive (START_YEAR <= N <= END_YEAR)
+# if the season spans two years, the end year will be the following year
+# (i.e., if the end year is 2019, it is possible to get data from early 2020)
+START_YEAR = 2014
+END_YEAR = 2019
+
 EXPORTED_HEIGHT_WIDTH_METRES = 1000
 
-# TODO: adjust seasons based on domain knowledge
+# inclusive (i.e., the end date of a season is included in the season)
 SEASONS = {
-    "early": ("2023-10-01", "2023-12-31"),
-    "mid": ("2023-01-01", "2023-3-31"),
-    "late": ("2023-04-01", "2023-6-30"),
+    "early": ("10-01", "12-15"),
+    "mid": ("12-16", "02-28"),
+    "late": ("03-01", "06-30"),
 }
 
 NO_DATA_VALUE = -9999

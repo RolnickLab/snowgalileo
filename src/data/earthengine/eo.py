@@ -33,7 +33,7 @@ from .s1 import S1_BANDS, S1_DIV_VALUES, S1_SHIFT_VALUES, get_single_s1_image
 from .s2 import S2_BANDS, S2_DIV_VALUES, S2_SHIFT_VALUES, get_single_s2_image
 from .s3 import S3_BANDS, S3_DIV_VALUES, S3_SHIFT_VALUES, get_single_s3_image
 from .srtm import SRTM_BANDS, SRTM_DIV_VALUES, SRTM_SHIFT_VALUES, get_single_srtm_image
-from .utils import get_ee_credentials, sample_time_window
+from .utils import get_ee_credentials, sample_time_window, sample_season_years
 from .viirs import (
     VIIRS_500m_DIV_VALUES,
     VIIRS_500m_SHIFT_VALUES,
@@ -197,15 +197,15 @@ def create_ee_image(
     days_per_timestep. Each timestep will be a different channel in the
     image (e.g. if I have 3 timesteps, then I'll have VV, VV_1, VV_2 for the
     S1 VV bands). The static in time SRTM bands will also be in the image.
-
-    AI4SNOW: interval will be 10 days and days per timestep 1. This results in
-    10 images per band, if daily data is available, else in less.
     """
     image_collection_list: List[ee.Image] = []
     cur_date = interval_start_date
     cur_end_date = cur_date + timedelta(days=days_per_timestep)
 
-    while cur_end_date <= interval_end_date:
+    # Note: we add a day to the end date to make sure we get the last day inclusive
+    # (the ee.filterDate function is exclusive)
+    # TODO: check if this makes sense if days_per_timestep is greater than 1
+    while cur_end_date <= interval_end_date + timedelta(days=days_per_timestep):
         image_list: List[ee.Image] = []
 
         for image_function in TIME_IMAGE_FUNCTIONS:
@@ -407,10 +407,13 @@ class EarthEngineExporter:
                 surrounding_metres=int(self.surrounding_metres),
             )
 
+            # For each season, randomly choose year to sample from
+            seasons = sample_season_years(SEASONS, START_YEAR, END_YEAR)
+
             # Sample each point for each season
             for season in SEASONS:
-                SEASON_START_DATE = SEASONS[season][0]
-                SEASON_END_DATE = SEASONS[season][1]
+                SEASON_START_DATE = seasons[season][0]
+                SEASON_END_DATE = seasons[season][1]
 
                 WINDOW_START_DATE, WINDOW_END_DATE = sample_time_window(
                     SEASON_START_DATE, SEASON_END_DATE, NUM_TIMESTEPS
