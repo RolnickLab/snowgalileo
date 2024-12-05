@@ -11,6 +11,7 @@ S1_BANDS = ["VV", "VH", "angle"]
 S1_SHIFT_VALUES = [25.0, 25.0, 0.0]
 S1_DIV_VALUES = [25.0, 25.0, 90.0]
 
+
 def get_single_s1_image(
     region: ee.Geometry,
     start_date: date,
@@ -24,27 +25,18 @@ def get_single_s1_image(
     startDate = ee.DateRange(dates).start()
     endDate = ee.DateRange(dates).end()
 
-    # there is max 1 image per date
-    image = ee.ImageCollection(image_collection).filterDate(startDate, endDate).filterBounds(region).select(S1_BANDS).first()
+    s1 = ee.ImageCollection(image_collection).filterDate(startDate, endDate).filterBounds(region)
 
-    if image.getInfo() is None:
+    if s1.size().getInfo() == 0:
+        print("No VV, VH Image on date: {}".format(start_date))
         return create_placeholder(region, S1_BANDS).toDouble()
 
-    # print the orbit properties to see if we have any data
-    print(image.get("orbitProperties_pass").filter(ee.Filter.eq("instrumentMode", "IW")).getInfo())
-
-    # different areas have either ascending, descending coverage or both.
-    # https://sentinel.esa.int/web/sentinel/missions/sentinel-1/observation-scenario
-    # we want the coverage to be consistent (so don't want to take both) but also want to
-    # take whatever is available
-    orbit = image.filter(
+    orbit = s1.filter(
         ee.Filter.eq("orbitProperties_pass", image.first().get("orbitProperties_pass"))
     ).filter(ee.Filter.eq("instrumentMode", "IW"))
 
     image = (
-        ee.ImageCollection(image_collection)
-        .filterBounds(region)
-        .filterDate(startDate, endDate)
+        ee.ImageCollection(orbit)
         .select(S1_BANDS)
     ).first()
 
