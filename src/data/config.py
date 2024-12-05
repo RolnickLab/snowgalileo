@@ -31,7 +31,7 @@ USE_INDECES = False
 
 EE_PROJECT = "ee-marlena"
 EE_BUCKET_TIFS = None
-EE_DRIVE_FOLDER_NAME = "Presto4Snow/snow_ee_exports_20241204"
+EE_DRIVE_FOLDER_NAME = "snow_ee_exports_20241205"
 EE_DRIVE_FOLDER_ID = "1bE35gXxPZQl4Q-C3V885EzLL19gdW0jc"
 EE_FOLDER_TIFS = "tifs4"
 EE_FOLDER_H5PYS = "h5pys"
