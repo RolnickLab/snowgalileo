@@ -32,7 +32,7 @@ def get_single_s1_image(
         return create_placeholder(region, S1_BANDS).toDouble()
 
     orbit = s1.filter(
-        ee.Filter.eq("orbitProperties_pass", image.first().get("orbitProperties_pass"))
+        ee.Filter.eq("orbitProperties_pass", s1.first().get("orbitProperties_pass"))
     ).filter(ee.Filter.eq("instrumentMode", "IW"))
 
     image = (
