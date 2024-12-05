@@ -25,20 +25,13 @@ def get_single_s1_image(
     startDate = ee.DateRange(dates).start()
     endDate = ee.DateRange(dates).end()
 
-    s1 = ee.ImageCollection(image_collection).filterDate(startDate, endDate).filterBounds(region)
+    s1 = ee.ImageCollection(image_collection).filterDate(startDate, endDate).filterBounds(region).filter(ee.Filter.eq("instrumentMode", "IW"))
 
     if s1.size().getInfo() == 0:
         print("No VV, VH Image on date: {}".format(start_date))
         return create_placeholder(region, S1_BANDS).toDouble()
 
-    orbit = s1.filter(
-        ee.Filter.eq("orbitProperties_pass", s1.first().get("orbitProperties_pass"))
-    ).filter(ee.Filter.eq("instrumentMode", "IW"))
-
-    image = (
-        ee.ImageCollection(orbit)
-        .select(S1_BANDS)
-    ).first()
+    image = s1.select(S1_BANDS).first()
 
     # all imagery has to have the same data type to be compatible
     return image.toDouble()
