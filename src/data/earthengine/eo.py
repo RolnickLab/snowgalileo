@@ -44,6 +44,7 @@ from .viirs import (
     get_single_viirs_500m_image,
     get_single_viirs_1000m_image,
 )
+from .landsat import LANDSAT_BANDS, LANDSAT_DIV_VALUES, LANDSAT_SHIFT_VALUES, get_single_landsat_image
 
 # dataframe constants when exporting the labels
 LAT = "Latitude"
@@ -54,16 +55,17 @@ END_DATE = date(END_YEAR, 12, 31)
 TIME_IMAGE_FUNCTIONS = [
     get_single_s1_image,
     get_single_s2_image,
+    get_single_landsat_image,
     get_single_s3_image,
-    get_single_era5_image,
     get_single_modis_image,
     get_single_viirs_500m_image,
+    get_single_era5_image,
     get_single_viirs_1000m_image,
 ]
 
-SPACE_TIME_HIGH_RES_BANDS = S1_BANDS + S2_BANDS
-SPACE_TIME_HIGH_RES_SHIFT_VALUES = S1_SHIFT_VALUES + S2_SHIFT_VALUES
-SPACE_TIME_HIGH_RES_DIV_VALUES = S1_DIV_VALUES + S2_DIV_VALUES
+SPACE_TIME_HIGH_RES_BANDS = S1_BANDS + S2_BANDS + LANDSAT_BANDS
+SPACE_TIME_HIGH_RES_SHIFT_VALUES = S1_SHIFT_VALUES + S2_SHIFT_VALUES + LANDSAT_SHIFT_VALUES
+SPACE_TIME_HIGH_RES_DIV_VALUES = S1_DIV_VALUES + S2_DIV_VALUES + LANDSAT_DIV_VALUES
 
 SPACE_TIME_MED_RES_BANDS = S3_BANDS
 SPACE_TIME_MED_RES_SHIFT_VALUES = S3_SHIFT_VALUES
