@@ -7,13 +7,21 @@ from .utils import create_placeholder, date_to_string
 image_collection = "LANDSAT/LC08/C02/T1_TOA"
 
 # Snow-specific Landsat bands
-LANDSAT_BANDS = [
+ORIG_LANDSAT_BANDS = [
     "B2",
     "B3",
     "B4",
     "B5",
     "B6",
     "B7",
+]
+LANDSAT_BANDS = [
+    "B2_landsat",
+    "B3_landsat",
+    "B4_landsat",
+    "B5_landsat",
+    "B6_landsat",
+    "B7_landsat",
 ]
 LANDSAT_SHIFT_VALUES = [float(0.0)] * len(LANDSAT_BANDS)
 LANDSAT_DIV_VALUES = [float(1e4)] * len(LANDSAT_BANDS)
@@ -32,11 +40,17 @@ def get_single_landsat_image(region: ee.Geometry, start_date: date, end_date: da
         ee.ImageCollection(image_collection)
         .filterBounds(region)
         .filterDate(startDate, endDate)
-        .select(LANDSAT_BANDS)
+        .select(ORIG_LANDSAT_BANDS)
     ).first()
 
     if image.getInfo() is None:
         return create_placeholder(region, LANDSAT_BANDS).toDouble()
 
-    # all imagery has to have the same data type to be compatible
-    return image.toDouble()
+    # Rename the bands to be unique
+    renamed_image = image.select(
+        ORIG_LANDSAT_BANDS,
+        LANDSAT_BANDS
+    )
+
+    # All imagery has to have the same data type to be compatible
+    return renamed_image.toDouble()
