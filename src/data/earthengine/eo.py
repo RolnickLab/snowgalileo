@@ -61,6 +61,15 @@ TIME_IMAGE_FUNCTIONS = [
     get_single_era5_image,
 ]
 
+TIME_IMAGE_FUNCTIONS_WO_VIIRS = [
+    get_single_s1_image,
+    get_single_s2_image,
+    get_single_landsat_image,
+    get_single_s3_image,
+    get_single_modis_image,
+    get_single_era5_image,
+]
+
 SPACE_TIME_HIGH_RES_BANDS = S1_BANDS + S2_BANDS + LANDSAT_BANDS
 SPACE_TIME_HIGH_RES_SHIFT_VALUES = S1_SHIFT_VALUES + S2_SHIFT_VALUES + LANDSAT_SHIFT_VALUES
 SPACE_TIME_HIGH_RES_DIV_VALUES = S1_DIV_VALUES + S2_DIV_VALUES + LANDSAT_DIV_VALUES
@@ -89,6 +98,10 @@ TIME_DIV_VALUES = np.array(ERA5_DIV_VALUES + VIIRS_DIV_VALUES_1000m)
 
 ALL_DYNAMIC_IN_TIME_BANDS = (
     SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS + TIME_BANDS
+)
+
+ALL_DYNAMIC_IN_TIME_BANDS_WO_VIIRS = (
+    SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + MODIS_BANDS + ERA5_BANDS
 )
 
 SPACE_BANDS = SRTM_BANDS
@@ -202,7 +215,7 @@ def create_ee_image(
     while cur_end_date <= interval_end_date + timedelta(days=days_per_timestep):
         image_list: List[ee.Image] = []
 
-        for image_function in TIME_IMAGE_FUNCTIONS:
+        for image_function in TIME_IMAGE_FUNCTIONS_WO_VIIRS:
             image_list.append(
                 image_function(region=polygon, start_date=cur_date, end_date=cur_end_date)
             )
@@ -213,7 +226,7 @@ def create_ee_image(
 
     # now, we want to take our image collection and append the bands into a single image
     imcoll = ee.ImageCollection(image_collection_list)
-    combine_bands_function = make_combine_bands_function(ALL_DYNAMIC_IN_TIME_BANDS)
+    combine_bands_function = make_combine_bands_function(ALL_DYNAMIC_IN_TIME_BANDS_WO_VIIRS)
     img = ee.Image(imcoll.iterate(combine_bands_function))
 
     # finally, we add the static in time images
