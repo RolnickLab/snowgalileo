@@ -27,14 +27,13 @@ from ..config import (
     TIFS_FOLDER,
 )
 from .ee_bbox import EEBoundingBox
-from ..bbox import get_location_season_identifier
 from .era5 import ERA5_BANDS, ERA5_DIV_VALUES, ERA5_SHIFT_VALUES, get_single_era5_image
 from .modis import MODIS_BANDS, MODIS_DIV_VALUES, MODIS_SHIFT_VALUES, get_single_modis_image
 from .s1 import S1_BANDS, S1_DIV_VALUES, S1_SHIFT_VALUES, get_single_s1_image
 from .s2 import S2_BANDS, S2_DIV_VALUES, S2_SHIFT_VALUES, get_single_s2_image
 from .s3 import S3_BANDS, S3_DIV_VALUES, S3_SHIFT_VALUES, get_single_s3_image
 from .srtm import SRTM_BANDS, SRTM_DIV_VALUES, SRTM_SHIFT_VALUES, get_single_srtm_image
-from .utils import get_ee_credentials, sample_time_window, sample_season_year
+from .utils import get_ee_credentials, sample_time_window, sample_season_year, get_location_season_identifier
 from .viirs import (
     VIIRS_BANDS_1000m,
     VIIRS_SHIFT_VALUES_1000m,
