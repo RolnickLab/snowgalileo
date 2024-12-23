@@ -52,7 +52,7 @@ def sample_time_window(start_date: str, end_date: str, window_size: int):
         list of tuples: Each tuple contains the start and end dates of a sampled time window.
     """
     # set seed for reproducibility
-    random.seed(DEFAULT SEED)
+    random.seed(DEFAULT_SEED)
 
     start_date = datetime.strptime(start_date, "%Y-%m-%d")
     end_date = datetime.strptime(end_date, "%Y-%m-%d")
@@ -86,7 +86,7 @@ def sample_season_year(season, start_year, end_year):
         dict: A dictionary with seasons as keys and randomly sampled year-specific date ranges.
     """
 
-    random.seed(DEFAULT SEED)
+    random.seed(DEFAULT_SEED)
 
     season, (start_date, end_date) = season
 
