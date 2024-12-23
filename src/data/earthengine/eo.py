@@ -27,6 +27,7 @@ from ..config import (
     TIFS_FOLDER,
 )
 from .ee_bbox import EEBoundingBox
+from ..bbox import get_location_season_identifier
 from .era5 import ERA5_BANDS, ERA5_DIV_VALUES, ERA5_SHIFT_VALUES, get_single_era5_image
 from .modis import MODIS_BANDS, MODIS_DIV_VALUES, MODIS_SHIFT_VALUES, get_single_modis_image
 from .s1 import S1_BANDS, S1_DIV_VALUES, S1_SHIFT_VALUES, get_single_s1_image
@@ -288,6 +289,8 @@ class EarthEngineExporter:
         self.check_gcp = check_gcp
         self.cloud_tif_list = get_cloud_tif_list(dest_bucket) if self.check_gcp else []
         self.local_tif_list = [x.name for x in TIFS_FOLDER.glob("*.tif*")]
+        self.cloud_location_season_tif_list = [get_location_season_identifier(x) for x in self.cloud_tif_list]
+        self.local_location_season_tif_list = [get_location_season_identifier(x) for x in self.local_tif_list]
         self.no_data_val = no_data_val
 
     def sync_local_and_gcloud(self):
@@ -303,20 +306,26 @@ class EarthEngineExporter:
     ) -> bool:
         cloud_filename = f"{str(polygon_identifier)}"
         local_filename = f"{str(polygon_identifier).replace('/', '_')}.tif"
-        location_season_identifier = local_filename.split("_dates=")[0] + ".tif"
+        location_season_identifier = get_location_season_identifier(local_filename)
+        print(f"location_season_identifier: {location_season_identifier}", flush=True)
 
         # Description of the export cannot contain certrain characters
         description = ee_safe_str(cloud_filename)
 
-        if location_season_identifier in self.cloud_tif_list:
+        if cloud_filename in self.cloud_tif_list:
             # checks that we haven't already exported this file
             print(f"{cloud_filename}.tif already in cloud_tif_files", flush=True)
             return False
 
-        if location_season_identifier in self.local_tif_list:
+        if local_filename in self.local_tif_list:
             # checks that we haven't already exported this file
-            print(f"{location_season_identifier} already in local_tif_files, but not in the cloud", flush=True)
+            print(f"{local_filename} already in local_tif_files, but not in the cloud", flush=True)
             return False
+        
+        if location_season_identifier in self.local_location_season_tif_list:
+            # checks that we haven't already exported this file
+            print(f"{location_season_identifier} already in local_tif_files", flush=True)
+            return
 
         # Check if task is already started in EarthEngine
         if description in self.ee_task_list:

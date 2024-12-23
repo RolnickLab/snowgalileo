@@ -67,6 +67,9 @@ class BBox:
             f"min_lat={min_lat}_min_lon={min_lon}_max_lat={max_lat}_max_lon={max_lon}_"
             f"season={season}_dates={start_date}_{end_date}"
         )
+    
+    def get_location_season_identifier(self, filename) -> str:
+        return filename.split("_dates=")[0] + ".tif"
 
     def __add__(self, other_box: "BBox") -> "BBox":
         return BBox(
