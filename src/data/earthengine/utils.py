@@ -3,7 +3,6 @@ import os
 import random
 from datetime import date, datetime, timedelta
 from typing import Union
-from ...config import DEFAULT_SEED
 
 import ee
 
@@ -39,7 +38,7 @@ def create_placeholder(region: ee.Geometry, selected_bands, fill_value=NO_DATA_V
     return placeholder_image
 
 
-def sample_time_window(start_date: str, end_date: str, window_size: int):
+def sample_time_window(start_date: str, end_date: str, window_size: int, seed=None):
     """
     Sample random time window within a specified date range.
 
@@ -51,8 +50,8 @@ def sample_time_window(start_date: str, end_date: str, window_size: int):
     Returns:
         list of tuples: Each tuple contains the start and end dates of a sampled time window.
     """
-    # set seed for reproducibility
-    random.seed(DEFAULT_SEED)
+    if seed is not None:
+        random.seed(seed)
 
     start_date = datetime.strptime(start_date, "%Y-%m-%d")
     end_date = datetime.strptime(end_date, "%Y-%m-%d")
@@ -73,7 +72,7 @@ def sample_time_window(start_date: str, end_date: str, window_size: int):
     return time_window
 
 
-def sample_season_year(season, start_year, end_year):
+def sample_season_year(season, start_year, end_year, seed=None):
     """
     Randomly samples a year between start_year and end_year and assigns it to the season.
 
@@ -85,8 +84,8 @@ def sample_season_year(season, start_year, end_year):
     Returns:
         dict: A dictionary with seasons as keys and randomly sampled year-specific date ranges.
     """
-
-    random.seed(DEFAULT_SEED)
+    if seed is not None:
+        random.seed(seed)
 
     season, (start_date, end_date) = season
 

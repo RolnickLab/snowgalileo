@@ -26,6 +26,7 @@ from ..config import (
     START_YEAR,
     TIFS_FOLDER,
 )
+from ...config import DEFAULT_SEED
 from .ee_bbox import EEBoundingBox
 from .era5 import ERA5_BANDS, ERA5_DIV_VALUES, ERA5_SHIFT_VALUES, get_single_era5_image
 from .modis import MODIS_BANDS, MODIS_DIV_VALUES, MODIS_SHIFT_VALUES, get_single_modis_image
@@ -412,7 +413,7 @@ class EarthEngineExporter:
         exports_started = 0
         print(f"Exporting {len(latlons)} latlons: ")
 
-        for _, row in tqdm(latlons.iterrows(), desc="Exporting", total=len(latlons)):
+        for i, row in tqdm(latlons.iterrows(), desc="Exporting", total=len(latlons)):
             ee_bbox = EEBoundingBox.from_centre(
                 # worldstrat points are strings
                 mid_lat=float(row[LAT]),
@@ -420,18 +421,20 @@ class EarthEngineExporter:
                 surrounding_metres=int(self.surrounding_metres),
             )
 
+            seed = DEFAULT_SEED + i
+
             # Sample each point for each season
             for season in SEASONS.items():
 
                 season_key = season[0]
                 # randomly choose year to sample from
-                season = sample_season_year(season, START_YEAR, END_YEAR)
+                season = sample_season_year(season, START_YEAR, END_YEAR, seed=seed)
 
                 SEASON_START_DATE = season[0]
                 SEASON_END_DATE = season[1]
 
                 WINDOW_START_DATE, WINDOW_END_DATE = sample_time_window(
-                    SEASON_START_DATE, SEASON_END_DATE, NUM_TIMESTEPS
+                    SEASON_START_DATE, SEASON_END_DATE, NUM_TIMESTEPS, seed=seed
                 )
 
                 export_started = self._export_for_polygon(
