@@ -107,5 +107,5 @@ def sample_season_year(season, start_year, end_year):
 
 
 
-def get_location_season_identifier(self, filename) -> str:
+def get_location_season_identifier(filename) -> str:
     return filename.split("_dates=")[0] + ".tif"
