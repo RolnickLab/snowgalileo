@@ -57,7 +57,7 @@ class BBox:
         else:
             return lat, lon
 
-    def get_identifier(self, start_date, end_date) -> str:
+    def get_identifier(self, season, start_date, end_date) -> str:
         # Identifier is rounded to the nearest ~10m
         min_lon = round(self.min_lon, 4)
         min_lat = round(self.min_lat, 4)
@@ -65,7 +65,7 @@ class BBox:
         max_lat = round(self.max_lat, 4)
         return (
             f"min_lat={min_lat}_min_lon={min_lon}_max_lat={max_lat}_max_lon={max_lon}_"
-            f"dates={start_date}_{end_date}"
+            f"season={season}_dates={start_date}_{end_date}"
         )
 
     def __add__(self, other_box: "BBox") -> "BBox":

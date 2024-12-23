@@ -303,18 +303,19 @@ class EarthEngineExporter:
     ) -> bool:
         cloud_filename = f"{str(polygon_identifier)}"
         local_filename = f"{str(polygon_identifier).replace('/', '_')}.tif"
+        location_season_identifier = local_filename.split("_dates=")[0] + ".tif"
 
         # Description of the export cannot contain certrain characters
         description = ee_safe_str(cloud_filename)
 
-        if f"{cloud_filename}.tif" in self.cloud_tif_list:
+        if location_season_identifier in self.cloud_tif_list:
             # checks that we haven't already exported this file
             print(f"{cloud_filename}.tif already in cloud_tif_files")
             return False
 
-        if local_filename in self.local_tif_list:
+        if location_season_identifier in self.local_tif_list:
             # checks that we haven't already exported this file
-            print(f"{local_filename} already in local_tif_files, but not in the cloud")
+            print(f"{location_season_identifier} already in local_tif_files, but not in the cloud")
             return False
 
         # Check if task is already started in EarthEngine
@@ -385,6 +386,7 @@ class EarthEngineExporter:
                 local_path = Path(TIFS_FOLDER / local_filename)
                 with local_path.open("wb") as f:
                     shutil.copyfileobj(r.raw, f)
+                    print("Downloaded file" + local_filename, flush=True)
         return True
 
     def export_for_latlons(
@@ -413,6 +415,8 @@ class EarthEngineExporter:
 
             # Sample each point for each season
             for season in SEASONS.items():
+
+                season_key = season[0]
                 # randomly choose year to sample from
                 season = sample_season_year(season, START_YEAR, END_YEAR)
 
@@ -425,7 +429,7 @@ class EarthEngineExporter:
 
                 export_started = self._export_for_polygon(
                     polygon=ee_bbox.to_ee_polygon(),
-                    polygon_identifier=ee_bbox.get_identifier(WINDOW_START_DATE, WINDOW_END_DATE),
+                    polygon_identifier=ee_bbox.get_identifier(season_key, WINDOW_START_DATE, WINDOW_END_DATE),
                     interval_start_date=WINDOW_START_DATE,
                     interval_end_date=WINDOW_END_DATE,
                 )
