@@ -306,7 +306,6 @@ class EarthEngineExporter:
         cloud_filename = f"{str(polygon_identifier)}"
         local_filename = f"{str(polygon_identifier).replace('/', '_')}.tif"
         location_season_identifier = get_location_season_identifier(local_filename)
-        print(f"location_season_identifier: {location_season_identifier}", flush=True)
 
         # Description of the export cannot contain certrain characters
         description = ee_safe_str(cloud_filename)
