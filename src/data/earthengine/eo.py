@@ -395,7 +395,7 @@ class EarthEngineExporter:
                 local_path = Path(TIFS_FOLDER / local_filename)
                 with local_path.open("wb") as f:
                     shutil.copyfileobj(r.raw, f)
-                    print("Downloaded file " + local_filename, flush=True, flush=True)
+                    print("Downloaded file " + local_filename, flush=True)
         return True
 
     def export_for_latlons(
