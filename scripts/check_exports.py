@@ -7,7 +7,7 @@ import argparse
 import os
 from typing import cast
 
-from src.data.config import TIFS_FOLDER
+from src.data.config import TIFS_FOLDER, NO_DATA_VALUE
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--tif_folder", type=str, default=TIFS_FOLDER)
@@ -35,6 +35,7 @@ def count_geotiff_values_and_nans(folder_path):
                     values = cast(np.ndarray, data.values)
                     total_values += values.size
                     total_nans += np.count_nonzero(np.isnan(values))
+                    total_nodata = np.count_nonzero(values == NO_DATA_VALUE)
             except Exception as e:
                 print(f"Error processing {file_path}: {e}")
 
