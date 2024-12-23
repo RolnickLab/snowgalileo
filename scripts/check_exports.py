@@ -42,7 +42,8 @@ def count_geotiff_values_and_nans(folder_path):
     return {
         "total_files": len(os.listdir(folder_path)),
         "total_values": total_values,
-        "total_nans": total_nans
+        "total_nans": total_nans,
+        "total_nodata": total_nodata,
     }
 
 
@@ -51,4 +52,5 @@ if __name__ == "__main__":
     result = count_geotiff_values_and_nans(args["tif_folder"])
     print("Total values:", result["total_values"])
     print("Total NaNs:", result["total_nans"])
+    print("Total NoData values:", result["total_nodata"])
     print("Total files:", result["total_files"])
