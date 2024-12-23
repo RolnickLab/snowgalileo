@@ -310,22 +310,22 @@ class EarthEngineExporter:
 
         if location_season_identifier in self.cloud_tif_list:
             # checks that we haven't already exported this file
-            print(f"{cloud_filename}.tif already in cloud_tif_files")
+            print(f"{cloud_filename}.tif already in cloud_tif_files", flush=True)
             return False
 
         if location_season_identifier in self.local_tif_list:
             # checks that we haven't already exported this file
-            print(f"{location_season_identifier} already in local_tif_files, but not in the cloud")
+            print(f"{location_season_identifier} already in local_tif_files, but not in the cloud", flush=True)
             return False
 
         # Check if task is already started in EarthEngine
         if description in self.ee_task_list:
-            print(f"{description} already in ee task list")
+            print(f"{description} already in ee task list", flush=True)
             return False
 
         if len(self.ee_task_list) >= 3000:
             # we can only have 3000 running exports at once
-            print("3000 exports started")
+            print("3000 exports started", flush=True)
             return False
 
         img = create_ee_image(polygon, interval_start_date, interval_end_date)
@@ -346,7 +346,7 @@ class EarthEngineExporter:
                 ).start()
                 self.ee_task_list.append(description)
             except ee.ee_exception.EEException as e:
-                print(f"Task not started! Got exception {e}")
+                print(f"Task not started! Got exception {e}", flush=True)
                 return False
         elif self.mode == "drive":
             try:
@@ -363,7 +363,7 @@ class EarthEngineExporter:
                 ).start()
                 self.ee_task_list.append(description)
             except ee.ee_exception.EEException as e:
-                print(f"Task not started! Got exception {e}")
+                print(f"Task not started! Got exception {e}", flush=True)
                 return False
         elif self.mode == "url":
             try:
@@ -386,7 +386,7 @@ class EarthEngineExporter:
                 local_path = Path(TIFS_FOLDER / local_filename)
                 with local_path.open("wb") as f:
                     shutil.copyfileobj(r.raw, f)
-                    print("Downloaded file" + local_filename, flush=True)
+                    print("Downloaded file " + local_filename, flush=True, flush=True)
         return True
 
     def export_for_latlons(
