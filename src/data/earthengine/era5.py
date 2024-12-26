@@ -10,8 +10,8 @@ ERA5_BANDS = ["skin_temperature", "temperature_2m", "total_precipitation_sum", "
 # 37 to -22 degrees celcius
 # For rainfall, based on
 # https://github.com/nasaharvest/lem/blob/main/notebooks/exploratory_data_analysis.ipynb
-ERA5_SHIFT_VALUES = [-272.15, 0.0]
-ERA5_DIV_VALUES = [35.0, 0.03]
+ERA5_SHIFT_VALUES = [-272.15, -272.15, 0.0, 0.0, 0.0]
+ERA5_DIV_VALUES = [35.0, 35.0, 0.03, float(1e4), float(1e4)]
 
 def get_single_era5_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
     dates = ee.DateRange(

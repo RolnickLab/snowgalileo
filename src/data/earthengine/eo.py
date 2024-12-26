@@ -194,6 +194,7 @@ def create_ee_image(
     interval_start_date: date,
     interval_end_date: date,
     days_per_timestep: int = DAYS_PER_TIMESTEP,
+    all_bands: bool = True,
 ) -> ee.Image:
     # TODO: change function header
 
@@ -209,13 +210,20 @@ def create_ee_image(
     cur_date = interval_start_date
     cur_end_date = cur_date + timedelta(days=days_per_timestep)
 
+    if all_bands:
+        time_image_functions = TIME_IMAGE_FUNCTIONS
+        all_dynamic_in_time_bands = ALL_DYNAMIC_IN_TIME_BANDS
+    else:
+        time_image_functions = TIME_IMAGE_FUNCTIONS_REDUCED
+        all_dynamic_in_time_bands = ALL_DYNAMIC_IN_TIME_BANDS_REDUCED
+
     # Note: we add a day to the end date to make sure we get the last day inclusive
     # (the ee.filterDate function is exclusive)
     # TODO: check if this makes sense if days_per_timestep is greater than 1
     while cur_end_date <= interval_end_date + timedelta(days=days_per_timestep):
         image_list: List[ee.Image] = []
 
-        for image_function in TIME_IMAGE_FUNCTIONS_REDUCED:
+        for image_function in time_image_functions:
             image_list.append(
                 image_function(region=polygon, start_date=cur_date, end_date=cur_end_date)
             )
@@ -226,7 +234,7 @@ def create_ee_image(
 
     # now, we want to take our image collection and append the bands into a single image
     imcoll = ee.ImageCollection(image_collection_list)
-    combine_bands_function = make_combine_bands_function(ALL_DYNAMIC_IN_TIME_BANDS_REDUCED)
+    combine_bands_function = make_combine_bands_function(all_dynamic_in_time_bands)
     img = ee.Image(imcoll.iterate(combine_bands_function))
 
     # finally, we add the static in time images
@@ -303,6 +311,7 @@ class EarthEngineExporter:
         interval_start_date: date,
         interval_end_date: date,
         file_dimensions: Optional[int] = None,
+        all_bands: bool = True,
     ) -> bool:
         cloud_filename = f"{str(polygon_identifier)}"
         local_filename = f"{str(polygon_identifier).replace('/', '_')}.tif"
@@ -336,7 +345,7 @@ class EarthEngineExporter:
             print("3000 exports started", flush=True)
             return False
 
-        img = create_ee_image(polygon, interval_start_date, interval_end_date)
+        img = create_ee_image(polygon, interval_start_date, interval_end_date, all_bands=all_bands)
 
         # TODO: check if we can use the scale parameter of should use crs and crs_transform instead
         if self.mode == "cloud":
@@ -401,6 +410,7 @@ class EarthEngineExporter:
         self,
         latlons: pd.DataFrame,
         num_exports_to_start: int = 3000,
+        all_bands: bool = True,
     ) -> None:
         """
         Export boxes with length and width EXPORTED_HEIGHT_WIDTH_METRES
@@ -442,6 +452,7 @@ class EarthEngineExporter:
                     polygon_identifier=ee_bbox.get_identifier(season_key, WINDOW_START_DATE, WINDOW_END_DATE),
                     interval_start_date=WINDOW_START_DATE,
                     interval_end_date=WINDOW_END_DATE,
+                    all_bands=all_bands,
                 )
                 if export_started:
                     exports_started += 1

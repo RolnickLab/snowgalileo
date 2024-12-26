@@ -19,6 +19,7 @@ argparser.add_argument("--num_exports", type=int, default=3000)
 argparser.add_argument("--filename", type=str, default="sampling_points_mountains_lat_42-60.csv")
 argparser.add_argument("--mode", type=str, default="drive")
 argparser.add_argument("--check_gcp", type=bool, default=False)
+argparser.add_argument("--export_all_bands", type=bool, default=False, help="Workaround to deal with URL download limit - if false, exclude VIIRS and ERA5")
 args = argparser.parse_args().__dict__
 
 filepath = DATA_FOLDER / "pretraining_points" / args["filename"]
@@ -30,4 +31,4 @@ if LAT not in latlons.columns:
     latlons[LAT] = latlons.geometry.centroid.y.values
 
 exporter = EarthEngineExporter(check_gcp=args["check_gcp"], mode=args["mode"])
-exporter.export_for_latlons(latlons[args["start_export_from_idx"] :], args["num_exports"])
+exporter.export_for_latlons(latlons=latlons[args["start_export_from_idx"] :], num_exports_to_start=args["num_exports"], all_bands=args["export_all_bands"])
