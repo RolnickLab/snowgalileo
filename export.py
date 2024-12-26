@@ -19,7 +19,7 @@ argparser.add_argument("--num_exports", type=int, default=3000)
 argparser.add_argument("--filename", type=str, default="sampling_points_mountains_lat_42-60.csv")
 argparser.add_argument("--mode", type=str, default="drive")
 argparser.add_argument("--check_gcp", type=bool, default=False)
-argparser.add_argument("--export_all_bands", type=bool, default=False, help="Workaround to deal with URL download limit - if false, exclude VIIRS and ERA5")
+argparser.add_argument("--export_all_bands", action="store_true", help="Workaround to deal with URL download limit - if false, exclude VIIRS and ERA5")
 args = argparser.parse_args().__dict__
 
 filepath = DATA_FOLDER / "pretraining_points" / args["filename"]
