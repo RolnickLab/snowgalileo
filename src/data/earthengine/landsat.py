@@ -53,4 +53,5 @@ def get_single_landsat_image(region: ee.Geometry, start_date: date, end_date: da
     )
 
     # All imagery has to have the same data type to be compatible
-    return renamed_image.toDouble()
+    #return renamed_image.toDouble()
+    return renamed_image

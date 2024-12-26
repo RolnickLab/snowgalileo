@@ -34,4 +34,5 @@ def get_single_viirs_image(region: ee.Geometry, start_date: date, end_date: date
 
     # has to be double to be compatible with the sentinel 1 imagery, which is in
     # float64
-    return image.toDouble()
+    #return image.toDouble()
+    return image

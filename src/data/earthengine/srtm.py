@@ -13,6 +13,7 @@ SRTM_DIV_VALUES = [2000.0, 50.0]
 def get_single_srtm_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
     elevation = ee.Image(image_collection).clip(region).select(SRTM_BANDS[0])
     slope = ee.Terrain.slope(elevation)  # type: ignore
-    together = ee.Image.cat([elevation, slope]).toDouble()  # type: ignore
+    together = ee.Image.cat([elevation, slope])  # type: ignore
 
+    #return together.toDouble()
     return together
