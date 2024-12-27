@@ -15,5 +15,4 @@ def get_single_srtm_image(region: ee.Geometry, start_date: date, end_date: date)
     slope = ee.Terrain.slope(elevation)  # type: ignore
     together = ee.Image.cat([elevation, slope])  # type: ignore
 
-    #return together.toDouble()
     return together

@@ -60,6 +60,4 @@ def get_single_s2_image(region: ee.Geometry, start_date: date, end_date: date) -
     if image.getInfo() is None:
         return create_placeholder(region, S2_BANDS).toDouble()
 
-    # all imagery has to have the same data type to be compatible
-    #return image.toDouble()
     return image

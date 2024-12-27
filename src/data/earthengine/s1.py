@@ -33,5 +33,4 @@ def get_single_s1_image(
 
     image = s1.select(S1_BANDS).first()
 
-    # all imagery has to have the same data type to be compatible
-    return image.toDouble()
+    return image
