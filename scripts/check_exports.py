@@ -7,10 +7,10 @@ import argparse
 import os
 from typing import cast
 
-from src.data.config import TIFS_FOLDER, NO_DATA_VALUE
+from src.data.config import TIFS_FOLDER, NO_DATA_VALUE, DATA_FOLDER
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument("--tif_folder", type=str, default=TIFS_FOLDER)
+argparser.add_argument("--tif_folder", default=None)
 
 
 def count_geotiff_values_and_nans(folder_path):
@@ -23,6 +23,12 @@ def count_geotiff_values_and_nans(folder_path):
     Returns:
         dict: A dictionary with the total number of values and NaNs.
     """
+
+    if folder_path is None:
+        folder_path = TIFS_FOLDER
+    else:
+        folder_path = DATA_FOLDER / folder_path
+
     total_values = 0
     total_nans = 0
 
