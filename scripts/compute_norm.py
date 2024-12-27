@@ -18,6 +18,7 @@ seed_everything(DEFAULT_SEED)
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--h5py_folder", type=str, default="")
+argparser.add_argument("--tifs_folder", type=str, default="tifs")
 argparser.add_argument("--download", dest="download", action="store_true")
 argparser.add_argument("--h5pys_only", dest="h5pys_only", action="store_true")
 argparser.add_argument("--estimate_from", type=int, default=1000)
@@ -30,10 +31,15 @@ if args["h5py_folder"] == "":
 else:
     cache_folder = Path(args["h5py_folder"])
 
+if args["tifs_folder"] == "":
+    tifs_folder = TIFS_FOLDER
+else:
+    tifs_folder = Path(DATA_FOLDER / args["tifs_folder"])
+
 print("Loading dataset and dataloader")
 
 dataset = Dataset(
-    TIFS_FOLDER,
+    data_folder=tifs_folder,
     download=args["download"],
     h5py_folder=cache_folder,
     h5pys_only=args["h5pys_only"],
