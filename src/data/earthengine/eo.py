@@ -24,6 +24,7 @@ from ..config import (
     NUM_TIMESTEPS,
     SEASONS,
     START_YEAR,
+    DATA_FOLDER,
     TIFS_FOLDER,
 )
 from ...config import DEFAULT_SEED
@@ -273,14 +274,19 @@ class EarthEngineExporter:
         dest_drive_folder: str = EE_DRIVE_FOLDER_NAME,
         check_ee: bool = False,
         check_gcp: bool = False,
-        credentials=None,
+        credentials = None,
         mode: str = "drive",
         no_data_val: int = NO_DATA_VALUE,
+        tifs_folder = None,
     ) -> None:
         assert mode in ["cloud", "drive", "url"]
         self.mode = mode
+        if tifs_folder is None:
+            self.tifs_folder = Path(TIFS_FOLDER)
+        else:
+            self.tifs_folder = DATA_FOLDER / tifs_folder
         if mode == "url":
-            print(f"Mode: url. Files will be saved to {TIFS_FOLDER} and rsynced to google cloud")
+            print(f"Mode: url. Files will be saved to {self.tifs_folder} and rsynced to google cloud")
         self.surrounding_metres = EXPORTED_HEIGHT_WIDTH_METRES / 2
         self.dest_bucket = dest_bucket
         self.dest_drive_folder = dest_drive_folder
@@ -296,13 +302,13 @@ class EarthEngineExporter:
         self.ee_task_list = get_ee_task_list() if self.check_ee else []
         self.check_gcp = check_gcp
         self.cloud_tif_list = get_cloud_tif_list(dest_bucket) if self.check_gcp else []
-        self.local_tif_list = [x.name for x in TIFS_FOLDER.glob("*.tif*")]
+        self.local_tif_list = [x.name for x in self.tifs_folder.glob("*.tif*")]
         self.cloud_location_season_tif_list = [get_location_season_identifier(x) for x in self.cloud_tif_list]
         self.local_location_season_tif_list = [get_location_season_identifier(x) for x in self.local_tif_list]
         self.no_data_val = no_data_val
 
     def sync_local_and_gcloud(self):
-        os.system(f"gcloud storage rsync -r {TIFS_FOLDER} gs://{EE_BUCKET_TIFS}/{EE_FOLDER_TIFS}")
+        os.system(f"gcloud storage rsync -r {self.tifs_folder} gs://{EE_BUCKET_TIFS}/{EE_FOLDER_TIFS}")
 
     def _export_for_polygon(
         self,
@@ -400,7 +406,7 @@ class EarthEngineExporter:
                 print(f"Task failed with status {r.status_code}", flush=True)
                 return False
             else:
-                local_path = Path(TIFS_FOLDER / local_filename)
+                local_path = Path(self.tifs_folder / local_filename)
                 with local_path.open("wb") as f:
                     shutil.copyfileobj(r.raw, f)
                     print("Downloaded file " + local_filename, flush=True)
