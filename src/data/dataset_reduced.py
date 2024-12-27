@@ -32,12 +32,11 @@ from .config import (
     NUM_TIMESTEPS,
     TIFS_FOLDER,
     USE_INDECES,
-    NO_DATA_VALUE,
+    NO_DATA_VALUE
 )
 from .earthengine.eo import (
-    ALL_DYNAMIC_IN_TIME_BANDS,
+    ALL_DYNAMIC_IN_TIME_BANDS_REDUCED,
     S1_BANDS,
-    ERA5_BANDS,
     LOCATION_BANDS,
     SPACE_BANDS,
     SPACE_DIV_VALUES,
@@ -45,9 +44,9 @@ from .earthengine.eo import (
     SPACE_TIME_HIGH_RES_BANDS,
     SPACE_TIME_HIGH_RES_DIV_VALUES,
     SPACE_TIME_HIGH_RES_SHIFT_VALUES,
-    SPACE_TIME_LOW_RES_BANDS,
-    SPACE_TIME_LOW_RES_DIV_VALUES,
-    SPACE_TIME_LOW_RES_SHIFT_VALUES,
+    MODIS_BANDS,
+    MODIS_DIV_VALUES,
+    MODIS_SHIFT_VALUES,
     SPACE_TIME_MED_RES_BANDS,
     SPACE_TIME_MED_RES_DIV_VALUES,
     SPACE_TIME_MED_RES_SHIFT_VALUES,
@@ -56,14 +55,17 @@ from .earthengine.eo import (
     STATIC_DIV_VALUES,
     STATIC_SHIFT_VALUES,
     TIME_BANDS,
-    TIME_DIV_VALUES,
-    TIME_SHIFT_VALUES,
+    ERA5_BANDS
 )
 
 logger = logging.getLogger("__main__")
 
+SPACE_TIME_LOW_RES_BANDS = MODIS_BANDS
+SPACE_TIME_LOW_RES_SHIFT_VALUES = MODIS_SHIFT_VALUES
+SPACE_TIME_LOW_RES_DIV_VALUES = MODIS_DIV_VALUES
+
 EO_DYNAMIC_IN_TIME_BANDS_NP = np.array(
-    SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS + TIME_BANDS
+    SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS
 )
 
 if USE_INDECES:
@@ -102,17 +104,14 @@ SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDi
             SPACE_TIME_LOW_RES_BANDS.index(b)
             for b in ["sur_refl_b05", "sur_refl_b06", "sur_refl_b07"]
         ],
-        "VIIRS_RGB": [SPACE_TIME_LOW_RES_BANDS.index(b) for b in ["I1"]],
-        "VIIRS_SWIR": [SPACE_TIME_LOW_RES_BANDS.index(b) for b in ["I3"]],
     }
 )
 
-# spatial resolution per pixel: 1000m or larger
 TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
         "ERA5": [TIME_BANDS.index(b) for b in ERA5_BANDS],
         "VIIRS_RGB": [TIME_BANDS.index(b) for b in ["M5", "M7"]],
-        "VIIRS_NIR": [TIME_BANDS.index(b) for b in ["M10"]],
+        "VIIRS_VNIR": [TIME_BANDS.index(b) for b in ["M10"]],
         "VIIRS_SWIR": [TIME_BANDS.index(b) for b in ["M11"]],
     }
 )
@@ -137,7 +136,6 @@ assert (
     != len(SPACE_TIME_MED_RES_BANDS)
     != len(SPACE_TIME_LOW_RES_BANDS)
     != len(SPACE_BANDS)
-    != len(TIME_BANDS)
     != len(STATIC_BANDS)
 )
 
@@ -152,7 +150,6 @@ class Normalizer:
             b for b in SPACE_TIME_LOW_RES_BANDS if b != "NDVI" and b != "NDSI"
         ],
         len(SPACE_BANDS): SPACE_BANDS,
-        len(TIME_BANDS): TIME_BANDS,
         len(STATIC_BANDS): STATIC_BANDS,
     }
 
@@ -174,10 +171,6 @@ class Normalizer:
                 "shift": deepcopy(SPACE_SHIFT_VALUES),
                 "div": deepcopy(SPACE_DIV_VALUES),
             },
-            len(TIME_BANDS): {
-                "shift": deepcopy(TIME_SHIFT_VALUES),
-                "div": deepcopy(TIME_DIV_VALUES),
-            },
             len(STATIC_BANDS): {
                 "shift": deepcopy(STATIC_SHIFT_VALUES),
                 "div": deepcopy(STATIC_DIV_VALUES),
@@ -191,7 +184,6 @@ class Normalizer:
                 len(SPACE_TIME_MED_RES_BANDS): SPACE_TIME_MED_RES_BANDS,
                 len(SPACE_TIME_LOW_RES_BANDS): SPACE_TIME_LOW_RES_BANDS,
                 len(SPACE_BANDS): SPACE_BANDS,
-                len(TIME_BANDS): TIME_BANDS,
                 len(STATIC_BANDS): STATIC_BANDS,
             }
             assert normalizing_dicts is not None
@@ -646,12 +638,12 @@ class Dataset(PyTorchDataset):
             lon = np.mean(cast(np.ndarray, data.x)).item()
             lat = np.mean(cast(np.ndarray, data.y)).item()
 
-        num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(ALL_DYNAMIC_IN_TIME_BANDS)
+        num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(ALL_DYNAMIC_IN_TIME_BANDS_REDUCED)
         assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
         dynamic_in_time_x = rearrange(
             values[: -(len(SPACE_BANDS))],
             "(t c) h w -> h w t c",
-            c=len(ALL_DYNAMIC_IN_TIME_BANDS),
+            c=len(ALL_DYNAMIC_IN_TIME_BANDS_REDUCED),
             t=int(num_timesteps),
         )
         dynamic_in_time_x = cls._fillna(dynamic_in_time_x, EO_DYNAMIC_IN_TIME_BANDS_NP)
@@ -659,18 +651,18 @@ class Dataset(PyTorchDataset):
             :,
             :,
             :,
-            : -(len(SPACE_TIME_MED_RES_BANDS) + len(SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)),
+            : -(len(SPACE_TIME_MED_RES_BANDS) + len(SPACE_TIME_LOW_RES_BANDS)),
         ]
         space_time_med_res_x = dynamic_in_time_x[
             :,
             :,
             :,
-            -(len(SPACE_TIME_MED_RES_BANDS) + len(SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)) : -(
-                len(SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)
+            -(len(SPACE_TIME_MED_RES_BANDS) + len(SPACE_TIME_LOW_RES_BANDS)) : -(
+                len(SPACE_TIME_LOW_RES_BANDS)
             ),
         ]
         space_time_low_res_x = dynamic_in_time_x[
-            :, :, :, -(len(SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)) : -len(TIME_BANDS)
+            :, :, :, -len(SPACE_TIME_LOW_RES_BANDS) :
         ]
 
         if USE_INDECES:
@@ -682,7 +674,7 @@ class Dataset(PyTorchDataset):
             # TODO: add ndvi
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndsi), axis=-1)
 
-        time_x = dynamic_in_time_x[:, :, :, -len(TIME_BANDS) :]
+        time_x = np.ones((dynamic_in_time_x.shape[0], dynamic_in_time_x.shape[1], int(num_timesteps), len(TIME_BANDS))) * NO_DATA_VALUE
         time_x = np.nanmean(time_x, axis=(0, 1))
 
         space_x = rearrange(
@@ -903,7 +895,7 @@ class Dataset(PyTorchDataset):
     def compute_normalization_values(
         self,
         output_hw: int = 96,
-        output_timesteps: int = 16,
+        output_timesteps: int = 24,
         estimate_from: Optional[int] = 10000,
     ):
         org_hw = self.output_hw
