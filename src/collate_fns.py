@@ -12,11 +12,15 @@ from src.masking import (
 
 
 class CollateFnOutput(NamedTuple):
-    s_t_x: torch.Tensor
+    s_t_h_x: torch.Tensor
+    s_t_m_x: torch.Tensor
+    s_t_l_x: torch.Tensor
     sp_x: torch.Tensor
     t_x: torch.Tensor
     st_x: torch.Tensor
-    s_t_m: torch.Tensor
+    s_t_h_m: torch.Tensor
+    s_t_m_m: torch.Tensor
+    s_t_l_m: torch.Tensor
     sp_m: torch.Tensor
     t_m: torch.Tensor
     st_m: torch.Tensor
@@ -26,7 +30,9 @@ class CollateFnOutput(NamedTuple):
 
 
 def collated_batch_to_output(
-    s_t_x: torch.Tensor,
+    s_t_h_x: torch.Tensor,
+    s_t_m_x: torch.Tensor,
+    s_t_l_x: torch.Tensor,
     sp_x: torch.Tensor,
     t_x: torch.Tensor,
     st_x: torch.Tensor,
@@ -54,8 +60,8 @@ def collated_batch_to_output(
     else:
         space_time_combination = np.random.choice(shape_time_combinations)
         spatial_patches_per_dim = space_time_combination["size"]
-        if int(spatial_patches_per_dim * patch_size) > s_t_x.shape[1]:
-            spatial_patches_per_dim = int(s_t_x.shape[1] / patch_size)
+        if int(spatial_patches_per_dim * patch_size) > s_t_h_x.shape[1]:
+            spatial_patches_per_dim = int(s_t_h_x.shape[1] / patch_size)
 
     timesteps = space_time_combination["timesteps"]
 
@@ -64,8 +70,10 @@ def collated_batch_to_output(
         masking_probabilities = [1] * len(MASKING_MODES)
 
     # randomly select a masking strategy
-    (s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months), c_i = batch_subset_mask_presto(
-        s_t_x,
+    (s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, months), c_i = batch_subset_mask_presto(
+        s_t_h_x,
+        s_t_m_x,
+        s_t_l_x,
         sp_x,
         t_x,
         st_x,
@@ -83,11 +91,15 @@ def collated_batch_to_output(
     )
 
     return CollateFnOutput(
-        s_t_x,
+        s_t_h_x,
+        s_t_m_x,
+        s_t_l_x,
         sp_x,
         t_x,
         st_x,
-        s_t_m,
+        s_t_h_m,
+        s_t_m_m,
+        s_t_l_m,
         sp_m,
         t_m,
         st_m,
@@ -112,10 +124,12 @@ def mae_collate_fn(
     random_masking: str = "None",
     unmasking_channels_combo: str = "shapes",
 ) -> Tuple[CollateFnOutput, CollateFnOutput, CollateFnOutput, CollateFnOutput]:
-    s_t_x, sp_x, t_x, st_x, months = default_collate(batch)
+    s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = default_collate(batch)
 
     input_args = {
-        "s_t_x": s_t_x,
+        "s_t_h_x": s_t_h_x,
+        "s_t_m_x": s_t_m_x,
+        "s_t_l_x": s_t_l_x,
         "sp_x": sp_x,
         "t_x": t_x,
         "st_x": st_x,

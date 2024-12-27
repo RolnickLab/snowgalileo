@@ -10,27 +10,38 @@ from einops import rearrange, repeat
 
 from .data.dataset import (
     SPACE_BAND_GROUPS_IDX,
-    SPACE_TIME_BANDS_GROUPS_IDX,
+    SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
+    SPACE_TIME_MED_RES_BANDS_GROUPS_IDX,
+    SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
-    TIME_BAND_GROUPS_IDX,
+    TIME_BANDS_GROUPS_IDX,
 )
 from .data_augmentation import Augmentation
+from .data.config import NO_DATA_VALUE
 
 # This is to allow a quick expansion of the mask from
 # group-channel space into real-channel space
-SPACE_TIME_BAND_EXPANSION = torch.tensor(
-    [len(x) for x in SPACE_TIME_BANDS_GROUPS_IDX.values()]
+SPACE_TIME_HIGH_RES_BAND_EXPANSION = torch.tensor(
+    [len(x) for x in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.values()]
+).long()
+SPACE_TIME_MED_RES_BAND_EXPANSION = torch.tensor(
+    [len(x) for x in SPACE_TIME_MED_RES_BANDS_GROUPS_IDX.values()]
+).long()
+SPACE_TIME_LOW_RES_BAND_EXPANSION = torch.tensor(
+    [len(x) for x in SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX.values()]
 ).long()
 SPACE_BAND_EXPANSION = torch.tensor([len(x) for x in SPACE_BAND_GROUPS_IDX.values()]).long()
-TIME_BAND_EXPANSION = torch.tensor([len(x) for x in TIME_BAND_GROUPS_IDX.values()]).long()
+TIME_BAND_EXPANSION = torch.tensor([len(x) for x in TIME_BANDS_GROUPS_IDX.values()]).long()
 STATIC_BAND_EXPANSION = torch.tensor([len(x) for x in STATIC_BAND_GROUPS_IDX.values()]).long()
 
 
 STR2DICT = OrderedDict(
     {
-        "space_time": SPACE_TIME_BANDS_GROUPS_IDX,
+        "space_time_high_res": SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
+        "space_time_med_res": SPACE_TIME_MED_RES_BANDS_GROUPS_IDX,
+        "space_time_low_res": SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX,
         "space": SPACE_BAND_GROUPS_IDX,
-        "time": TIME_BAND_GROUPS_IDX,
+        "time": TIME_BANDS_GROUPS_IDX,
         "static": STATIC_BAND_GROUPS_IDX,
     }
 )
@@ -43,22 +54,40 @@ for key, values in STR2DICT.items():
 SHAPES = list(STR2DICT.keys())
 MASKING_MODES: List[Tuple[str, str]] = [
     ("space", "SRTM"),
-    ("space", "DW"),
-    ("space", "WC"),
-    ("space_time", "NDVI"),
-    ("space_time", "S1"),
-    ("space_time", "S2_RGB"),
-    ("space_time", "S2_SWIR"),
-    ("space_time", "S2_Red_Edge"),
-    ("space_time", "S2_NIR_10m"),
-    ("space_time", "S2_NIR_20m"),
+    ("space_time_high_res", "S1"),
+    ("space_time_high_res", "S2_RGB"),
+    ("space_time_high_res", "S2_NIR"),
+    ("space_time_high_res", "S2_SWIR"),
+    ("space_time_high_res", "L8_RGB"),
+    ("space_time_high_res", "L8_NIR"),
+    ("space_time_high_res", "L8_SWIR"),
+    ("space_time_med_res", "S3_NIR"),
+    #("space_time_low_res", "NDVI"),
+    ("space_time_low_res", "NDSI"),
+    ("space_time_low_res", "MODIS_RGB"),
+    ("space_time_low_res", "MODIS_SWIR"),
+    ("space_time_low_res", "VIIRS_RGB"),
+    ("space_time_low_res", "VIIRS_SWIR"),
     ("time", "ERA5"),
-    ("time", "TC"),
-    ("time", "VIIRS"),
-    ("static", "LS"),
+    ("time", "VIIRS_RGB"),
+    ("time", "VIIRS_NIR"),
+    ("time", "VIIRS_SWIR"),
     ("static", "location"),
-    ("static", "DW_static"),
-    ("static", "WC_static"),
+]
+
+MASKING_MODES_REDUCED: List[Tuple[str, str]] = [
+    ("space", "SRTM"),
+    ("space_time_high_res", "S1"),
+    ("space_time_high_res", "S2_RGB"),
+    ("space_time_high_res", "S2_NIR"),
+    ("space_time_high_res", "S2_SWIR"),
+    ("space_time_high_res", "L8_RGB"),
+    ("space_time_high_res", "L8_NIR"),
+    ("space_time_high_res", "L8_SWIR"),
+    ("space_time_med_res", "S3_NIR"),
+    ("space_time_low_res", "MODIS_RGB"),
+    ("space_time_low_res", "MODIS_SWIR"),
+    ("static", "location"),
 ]
 
 UNMASKING_CHANNEL_GROUPS: List[Tuple[str, str]] = MASKING_MODES
@@ -69,7 +98,7 @@ NUM_RECON_OBJS = 2
 
 def generate_combinations():
     all_combinations = []
-    for r in range(1, 5):
+    for r in range(1, len(SHAPES) + 1):
         shape_combos = combinations(SHAPES, r)
 
         for shape_combo in shape_combos:
@@ -121,11 +150,15 @@ class MaskedOutput(NamedTuple):
     2: not seen by the encoder, and processed by the decoder (the decoder's query values)
     """
 
-    space_time_x: torch.Tensor
+    space_time_high_x: torch.Tensor
+    space_time_med_x: torch.Tensor
+    space_time_low_x: torch.Tensor
     space_x: torch.Tensor
     time_x: torch.Tensor
     static_x: torch.Tensor
-    space_time_mask: torch.Tensor
+    space_time_high_mask: torch.Tensor
+    space_time_med_mask: torch.Tensor
+    space_time_low_mask: torch.Tensor
     space_mask: torch.Tensor
     time_mask: torch.Tensor
     static_mask: torch.Tensor
@@ -191,7 +224,9 @@ def round_school(x: float) -> float:
 
 
 def batch_subset_mask_presto(
-    s_t_x: torch.Tensor,
+    s_t_h_x: torch.Tensor,
+    s_t_m_x: torch.Tensor,
+    s_t_l_x: torch.Tensor,
     sp_x: torch.Tensor,
     t_x: torch.Tensor,
     st_x: torch.Tensor,
@@ -213,8 +248,8 @@ def batch_subset_mask_presto(
         "hw": image_size // patch_size,
         "patch_size": patch_size,
         "timesteps": num_timesteps,
-        "input_channels": torch.zeros(len(MASKING_MODES)).to(s_t_x.device),
-        "output_channels": torch.zeros(len(MASKING_MODES)).to(s_t_x.device),
+        "input_channels": torch.zeros(len(MASKING_MODES)).to(s_t_h_x.device),
+        "output_channels": torch.zeros(len(MASKING_MODES)).to(s_t_h_x.device),
     }
 
     if masking_function.value < 2:
@@ -248,7 +283,9 @@ def batch_subset_mask_presto(
         masking_modes, unmasking_modes = check_modes_for_conflicts(masking_modes, unmasking_modes)
         masked_output = f(
             *subset_and_augment_batch_of_images(
-                s_t_x,
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
                 sp_x,
                 t_x,
                 st_x,
@@ -271,7 +308,9 @@ def batch_subset_mask_presto(
         # 2 is random
         masked_output = batch_mask_random(
             *subset_and_augment_batch_of_images(
-                s_t_x,
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
                 sp_x,
                 t_x,
                 st_x,
@@ -293,7 +332,9 @@ def batch_subset_mask_presto(
 
 
 def subset_and_augment_batch_of_images(
-    space_time_x: torch.Tensor,
+    space_time_high_x: torch.Tensor,
+    space_time_med_x: torch.Tensor,
+    space_time_low_x: torch.Tensor,
     space_x: torch.Tensor,
     time_x: torch.Tensor,
     static_x: torch.Tensor,
@@ -301,14 +342,14 @@ def subset_and_augment_batch_of_images(
     size: int,
     num_timesteps: int,
     augmentation_strategies: Optional[Dict],
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    assert (space_time_x.shape[1] == space_x.shape[1]) & (
-        space_time_x.shape[2] == space_x.shape[2]
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    assert (space_time_high_x.shape[1] == space_time_med_x.shape[1] == space_time_low_x.shape[1] == space_x.shape[1]) & (
+        space_time_high_x.shape[2] == space_x.shape[2] == space_time_med_x.shape[2] == space_time_low_x.shape[2]
     )
-    assert time_x.shape[1] == space_time_x.shape[3] == months.shape[1]
-    possible_h = space_time_x.shape[1] - size
-    possible_w = space_time_x.shape[2] - size
-    possible_t = space_time_x.shape[3] - num_timesteps
+    assert time_x.shape[1] == space_time_high_x.shape[3] == space_time_med_x.shape[3] == space_time_low_x.shape[3] == months.shape[1]
+    possible_h = space_time_high_x.shape[1] - size
+    possible_w = space_time_high_x.shape[2] - size
+    possible_t = space_time_high_x.shape[3] - num_timesteps
     assert (possible_h >= 0) & (possible_w >= 0) & (possible_t >= 0)
 
     if possible_h > 0:
@@ -327,7 +368,19 @@ def subset_and_augment_batch_of_images(
         start_t = possible_t
 
     # do augmentations, if enabled
-    space_time_x = space_time_x[
+    space_time_high_x = space_time_high_x[
+        :,
+        start_h : start_h + size,
+        start_w : start_w + size,
+        start_t : start_t + num_timesteps,
+    ]
+    space_time_med_x = space_time_med_x[
+        :,
+        start_h : start_h + size,
+        start_w : start_w + size,
+        start_t : start_t + num_timesteps,
+    ]
+    space_time_low_x = space_time_low_x[
         :,
         start_h : start_h + size,
         start_w : start_w + size,
@@ -339,9 +392,9 @@ def subset_and_augment_batch_of_images(
 
     if augmentation_strategies is not None:
         return Augmentation(augmentation_strategies).apply(
-            space_time_x, space_x, time_x, static_x, months
+            space_time_high_x, space_time_med_x, space_time_low_x, space_x, time_x, static_x, months
         )
-    return space_time_x, space_x, time_x, static_x, months
+    return space_time_high_x, space_time_med_x, space_time_low_x, space_x, time_x, static_x, months
 
 
 def _random_mask_for_b(
@@ -356,7 +409,9 @@ def _random_mask_for_b(
 
 
 def batch_mask_time(
-    space_time_x: torch.Tensor,
+    space_time_high_x: torch.Tensor,
+    space_time_med_x: torch.Tensor,
+    space_time_low_x: torch.Tensor,
     space_x: torch.Tensor,
     time_x: torch.Tensor,
     static_x: torch.Tensor,
@@ -374,7 +429,7 @@ def batch_mask_time(
 
     Operates over batches where each item in the batch has independently masked timesteps
     """
-    b, h, w, t, _ = space_time_x.shape
+    b, h, w, t, _ = space_time_high_x.shape
     assert t >= 3
 
     bands_to_encode = check_mode_and_return_channels(mode)
@@ -395,20 +450,34 @@ def batch_mask_time(
     # hopefully this will allow for reproducibility, since random is seeded
     rng = np.random.default_rng(random.randint(0, 100))
     b_flat_timesteps_t = torch.from_numpy(rng.permuted(b_flat_timesteps, axis=1)).to(
-        space_time_x.device
+        space_time_high_x.device
     )
-    space_time_mask = repeat(
+    space_time_high_res_mask = repeat(
         b_flat_timesteps_t,
         "b t-> b h w t c_g",
         h=h,
         w=w,
-        c_g=len(SPACE_TIME_BANDS_GROUPS_IDX),
+        c_g=len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX),
+    ).clone()
+    space_time_med_res_mask = repeat(
+        b_flat_timesteps_t,
+        "b t-> b h w t c_g",
+        h=h,
+        w=w,
+        c_g=len(SPACE_TIME_MED_RES_BANDS_GROUPS_IDX),
+    ).clone()
+    space_time_low_res_mask = repeat(
+        b_flat_timesteps_t,
+        "b t-> b h w t c_g",
+        h=h,
+        w=w,
+        c_g=len(SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX),
     ).clone()
     # make the mask as if bands_to_mask and bands_to_decode both = None
     time_mask = repeat(
         b_flat_timesteps_t,
         "b t-> b t c_g",
-        c_g=len(TIME_BAND_GROUPS_IDX),
+        c_g=len(TIME_BANDS_GROUPS_IDX),
     ).clone()
     space_mask = _random_mask_for_b(b, space_x.device, encode_ratio, decode_ratio)
     space_mask = repeat(
@@ -422,16 +491,34 @@ def batch_mask_time(
         static_mask = torch.clamp(static_mask, min=1)
         space_mask = torch.clamp(space_mask, min=1)
 
-        s_t_e, s_e, t_e, st_e = bands_to_encode
+        s_t_h_e, s_t_m_e, s_t_l_e, s_e, t_e, st_e = bands_to_encode
 
-        if len(s_t_e[0]) > 0:
-            # there are space time bands to decode
-            s_t_bands_to_mask = s_t_e[1]
-            space_time_mask[:, :, :, :, s_t_bands_to_mask] = torch.clamp(
-                space_time_mask[:, :, :, :, s_t_bands_to_mask], min=1
+        if len(s_t_h_e[0]) > 0:
+            # there are high res space time bands to encode
+            s_t_high_bands_to_mask = s_t_h_e[1]
+            space_time_high_res_mask[:, :, :, :, s_t_high_bands_to_mask] = torch.clamp(
+                space_time_high_res_mask[:, :, :, :, s_t_high_bands_to_mask], min=1
             )
         else:
-            space_time_mask = torch.clamp(space_time_mask, min=1)
+            space_time_high_res_mask = torch.clamp(space_time_high_res_mask, min=1)
+
+        if len(s_t_m_e[0]) > 0:
+            # there are medium res space time bands to encode
+            s_t_med_bands_to_mask = s_t_m_e[1]
+            space_time_med_res_mask[:, :, :, :, s_t_med_bands_to_mask] = torch.clamp(
+                space_time_med_res_mask[:, :, :, :, s_t_med_bands_to_mask], min=1
+            )
+        else:
+            space_time_med_res_mask = torch.clamp(space_time_med_res_mask, min=1)
+
+        if len(s_t_l_e[0]) > 0:
+            # there are low res space time bands to encode
+            s_t_low_bands_to_mask = s_t_l_e[1]
+            space_time_low_res_mask[:, :, :, :, s_t_low_bands_to_mask] = torch.clamp(
+                space_time_low_res_mask[:, :, :, :, s_t_low_bands_to_mask], min=1
+            )
+        else:
+            space_time_low_res_mask = torch.clamp(space_time_low_res_mask, min=1)
 
         if len(s_e[0]) > 0:
             s_bands_to_encode = s_e[0]
@@ -454,16 +541,34 @@ def batch_mask_time(
         static_mask = torch.clamp(static_mask, max=1)
         space_mask = torch.clamp(space_mask, max=1)
 
-        s_t_d, s_d, t_d, st_d = bands_to_decode
+        s_t_h_d, s_t_m_d, s_t_l_d, s_d, t_d, st_d = bands_to_decode
 
-        if len(s_t_d[0]) > 0:
+        if len(s_t_h_d[0]) > 0:
             # there are space time bands to decode
-            s_t_bands_to_mask = s_t_d[1]
-            space_time_mask[:, :, :, :, s_t_bands_to_mask] = torch.clamp(
-                space_time_mask[:, :, :, :, s_t_bands_to_mask], max=1
+            s_t_high_bands_to_mask = s_t_h_d[1]
+            space_time_high_res_mask[:, :, :, :, s_t_high_bands_to_mask] = torch.clamp(
+                space_time_high_res_mask[:, :, :, :, s_t_high_bands_to_mask], max=1
             )
         else:
-            space_time_mask = torch.clamp(space_time_mask, max=1)
+            space_time_high_res_mask = torch.clamp(space_time_high_res_mask, max=1)
+
+        if len(s_t_m_d[0]) > 0:
+            # there are space time bands to decode
+            s_t_med_bands_to_mask = s_t_m_d[1]
+            space_time_med_res_mask[:, :, :, :, s_t_med_bands_to_mask] = torch.clamp(
+                space_time_med_res_mask[:, :, :, :, s_t_med_bands_to_mask], max=1
+            )
+        else:
+            space_time_med_res_mask = torch.clamp(space_time_med_res_mask, max=1)
+
+        if len(s_t_l_d[0]) > 0:
+            # there are space time bands to decode
+            s_t_low_bands_to_mask = s_t_l_d[1]
+            space_time_low_res_mask[:, :, :, :, s_t_low_bands_to_mask] = torch.clamp(
+                space_time_low_res_mask[:, :, :, :, s_t_low_bands_to_mask], max=1
+            )
+        else:
+            space_time_low_res_mask = torch.clamp(space_time_low_res_mask, max=1)
 
         if len(s_d[0]) > 0:
             s_bands_to_decode = s_d[0]
@@ -479,13 +584,25 @@ def batch_mask_time(
         if len(st_d[0]) > 0:
             st_bands_to_decode = st_d[0]
             static_mask[:, st_bands_to_decode] = 2
+    
+    # handle no data values
+    space_time_high_res_mask[space_time_high_x == NO_DATA_VALUE] = 1
+    space_time_med_res_mask[space_time_med_x == NO_DATA_VALUE] = 1
+    space_time_low_res_mask[space_time_low_x == NO_DATA_VALUE] = 1
+    space_mask[space_x == NO_DATA_VALUE] = 1
+    time_mask[time_x == NO_DATA_VALUE] = 1
+    static_mask[static_x == NO_DATA_VALUE] = 1
 
     return MaskedOutput(
-        space_time_x.clone(),
+        space_time_high_x.clone(),
+        space_time_med_x.clone(),
+        space_time_low_x.clone(),
         space_x.clone(),
         time_x.clone(),
         static_x.clone(),
-        space_time_mask,
+        space_time_high_res_mask,
+        space_time_med_res_mask,
+        space_time_low_res_mask,
         space_mask,
         time_mask,
         static_mask,
@@ -493,8 +610,11 @@ def batch_mask_time(
     )
 
 
+# batch mask space will (at this point) only work for high res data
 def batch_mask_space(
-    space_time_x: torch.Tensor,
+    space_time_high_x: torch.Tensor,
+    space_time_med_x: torch.Tensor,
+    space_time_low_x: torch.Tensor,
     space_x: torch.Tensor,
     time_x: torch.Tensor,
     static_x: torch.Tensor,
@@ -517,7 +637,7 @@ def batch_mask_space(
     """
     bands_to_encode = check_mode_and_return_channels(mode)
     bands_to_decode = check_mode_and_return_channels(decoder_mode)
-    b, h, w, t, _ = space_time_x.shape
+    b, h, w, t, _ = space_time_high_x.shape
     assert (h % patch_size == 0) and (w % patch_size == 0)
     h_p = int(h / patch_size)
     w_p = int(w / patch_size)
@@ -543,17 +663,17 @@ def batch_mask_space(
     two_d_mask = np.repeat(
         np.repeat(two_d_patch_mask, repeats=patch_size, axis=1), repeats=patch_size, axis=2
     )
-    space_time_mask = (
+    space_time_high_res_mask = (
         torch.from_numpy(
             repeat(
                 two_d_mask,
                 "b h w -> b h w t c_g",
                 t=t,
-                c_g=len(SPACE_TIME_BANDS_GROUPS_IDX),
+                c_g=len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX),
             )
         )
         .clone()
-        .to(space_time_x.device)
+        .to(space_time_high_x.device)
     )
 
     space_mask = (
@@ -567,8 +687,12 @@ def batch_mask_space(
         .clone()
         .to(space_x.device)
     )
+    space_time_med_res_mask = _random_mask_for_b(b, space_time_med_x.device, encode_ratio, decode_ratio)
+    space_time_med_res_mask = repeat(space_time_med_res_mask, "b -> b h w t c_g", t=t, c_g=len(SPACE_TIME_MED_RES_BANDS_GROUPS_IDX)).clone()
+    space_time_low_res_mask = _random_mask_for_b(b, space_time_low_x.device, encode_ratio, decode_ratio)
+    space_time_low_res_mask = repeat(space_time_low_res_mask, "b -> b h w t c_g", t=t, c_g=len(SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX)).clone()
     time_mask = _random_mask_for_b(b, time_x.device, encode_ratio, decode_ratio)
-    time_mask = repeat(time_mask, "b -> b t c_g", t=t, c_g=len(TIME_BAND_GROUPS_IDX)).clone()
+    time_mask = repeat(time_mask, "b -> b t c_g", t=t, c_g=len(TIME_BANDS_GROUPS_IDX)).clone()
     static_mask = _random_mask_for_b(b, static_x.device, encode_ratio, decode_ratio)
     static_mask = repeat(static_mask, "b -> b c_g", c_g=len(STATIC_BAND_GROUPS_IDX)).clone()
 
@@ -578,16 +702,34 @@ def batch_mask_space(
         static_mask = torch.clamp(static_mask, min=1)
         time_mask = torch.clamp(time_mask, min=1)
 
-        s_t_e, s_e, t_e, st_e = bands_to_encode
+        s_t_h_e, s_t_m_e, s_t_l_e, s_e, t_e, st_e = bands_to_encode
 
-        if len(s_t_e[0]) > 0:
-            # there are space time bands to decode
-            s_t_bands_to_mask = s_t_e[1]
-            space_time_mask[:, :, :, :, s_t_bands_to_mask] = torch.clamp(
-                space_time_mask[:, :, :, :, s_t_bands_to_mask], min=1
+        if len(s_t_h_e[0]) > 0:
+            # there are high res space time bands to encode
+            s_t_high_bands_to_mask = s_t_h_e[1]
+            space_time_high_res_mask[:, :, :, :, s_t_high_bands_to_mask] = torch.clamp(
+                space_time_high_res_mask[:, :, :, :, s_t_high_bands_to_mask], min=1
             )
         else:
-            space_time_mask = torch.clamp(space_time_mask, min=1)
+            space_time_high_res_mask = torch.clamp(space_time_high_res_mask, min=1)
+
+        if len(s_t_m_e[0]) > 0:
+            # there are medium res space time bands to encode
+            s_t_med_bands_to_mask = s_t_m_e[1]
+            space_time_med_res_mask[:, :, :, :, s_t_med_bands_to_mask] = torch.clamp(
+                space_time_med_res_mask[:, :, :, :, s_t_med_bands_to_mask], min=1
+            )
+        else:
+            space_time_med_res_mask = torch.clamp(space_time_med_res_mask, min=1)
+
+        if len(s_t_l_e[0]) > 0:
+            # there are low res space time bands to encode
+            s_t_low_bands_to_mask = s_t_l_e[1]
+            space_time_low_res_mask[:, :, :, :, s_t_low_bands_to_mask] = torch.clamp(
+                space_time_low_res_mask[:, :, :, :, s_t_low_bands_to_mask], min=1
+            )
+        else:
+            space_time_low_res_mask = torch.clamp(space_time_low_res_mask, min=1)
 
         if len(s_e[0]) > 0:
             s_bands_to_mask = s_e[1]
@@ -612,16 +754,34 @@ def batch_mask_space(
         static_mask = torch.clamp(static_mask, max=1)
         time_mask = torch.clamp(time_mask, max=1)
 
-        s_t_d, s_d, t_d, st_d = bands_to_decode
+        s_t_h_d, s_t_m_d, s_t_l_d, s_d, t_d, st_d = bands_to_decode
 
-        if len(s_t_d[0]) > 0:
+        if len(s_t_h_d[0]) > 0:
             # there are space time bands to decode
-            s_t_bands_to_mask = s_t_d[1]
-            space_time_mask[:, :, :, :, s_t_bands_to_mask] = torch.clamp(
-                space_time_mask[:, :, :, :, s_t_bands_to_mask], max=1
+            s_t_high_bands_to_mask = s_t_h_d[1]
+            space_time_high_res_mask[:, :, :, :, s_t_high_bands_to_mask] = torch.clamp(
+                space_time_high_res_mask[:, :, :, :, s_t_high_bands_to_mask], max=1
             )
         else:
-            space_time_mask = torch.clamp(space_time_mask, max=1)
+            space_time_high_res_mask = torch.clamp(space_time_high_res_mask, max=1)
+
+        if len(s_t_m_d[0]) > 0:
+            # there are space time bands to decode
+            s_t_med_bands_to_mask = s_t_m_d[1]
+            space_time_med_res_mask[:, :, :, :, s_t_med_bands_to_mask] = torch.clamp(
+                space_time_med_res_mask[:, :, :, :, s_t_med_bands_to_mask], max=1
+            )
+        else:
+            space_time_med_res_mask = torch.clamp(space_time_med_res_mask, max=1)
+
+        if len(s_t_l_d[0]) > 0:
+            # there are space time bands to decode
+            s_t_low_bands_to_mask = s_t_l_d[1]
+            space_time_low_res_mask[:, :, :, :, s_t_low_bands_to_mask] = torch.clamp(
+                space_time_low_res_mask[:, :, :, :, s_t_low_bands_to_mask], max=1
+            )
+        else:
+            space_time_low_res_mask = torch.clamp(space_time_low_res_mask, max=1)
 
         if len(s_d[0]) > 0:
             s_bands_to_mask = s_d[1]
@@ -640,12 +800,24 @@ def batch_mask_space(
             st_bands_to_decode = st_d[0]
             static_mask[:, st_bands_to_decode] = 2
 
+    # handle no data values
+    space_time_high_res_mask[space_time_high_x == NO_DATA_VALUE] = 1
+    space_time_med_res_mask[space_time_med_x == NO_DATA_VALUE] = 1
+    space_time_low_res_mask[space_time_low_x == NO_DATA_VALUE] = 1
+    space_mask[space_x == NO_DATA_VALUE] = 1
+    time_mask[time_x == NO_DATA_VALUE] = 1
+    static_mask[static_x == NO_DATA_VALUE] = 1
+
     return MaskedOutput(
-        space_time_x.clone(),
+        space_time_high_x.clone(),
+        space_time_med_x.clone(),
+        space_time_low_x.clone(),
         space_x.clone(),
         time_x.clone(),
         static_x.clone(),
-        space_time_mask,
+        space_time_high_res_mask,
+        space_time_med_res_mask,
+        space_time_low_res_mask,
         space_mask,
         time_mask,
         static_mask,
@@ -653,8 +825,11 @@ def batch_mask_space(
     )
 
 
+# not functional at this point (because med and low are treated the same as high)
 def batch_mask_random(
-    space_time_x: torch.Tensor,
+    space_time_high_x: torch.Tensor,
+    space_time_med_x: torch.Tensor,
+    space_time_low_x: torch.Tensor,
     space_x: torch.Tensor,
     time_x: torch.Tensor,
     static_x: torch.Tensor,
@@ -673,21 +848,25 @@ def batch_mask_random(
     [0 0 0 0]
     Operates over batches where each item in the batch is independently masked
     """
-    b, h, w, t, _ = space_time_x.shape
-    c_s_t = len(SPACE_TIME_BANDS_GROUPS_IDX)
+    b, h, w, t, _ = space_time_high_x.shape
+    c_s_t_h = len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX)
+    c_s_t_m = len(SPACE_TIME_MED_RES_BANDS_GROUPS_IDX)
+    c_s_t_l = len(SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX)
     c_sp = len(SPACE_BAND_GROUPS_IDX)
-    c_t = len(TIME_BAND_GROUPS_IDX)
+    c_t = len(TIME_BANDS_GROUPS_IDX)
     c_st = len(STATIC_BAND_GROUPS_IDX)
     assert (h % patch_size == 0) and (w % patch_size == 0)
     h_p = int(h / patch_size)
     w_p = int(w / patch_size)
 
-    num_space_time_tokens = h_p * w_p * t * c_s_t
+    num_space_time_high_res_tokens = h_p * w_p * t * c_s_t_h
+    num_space_time_med_res_tokens = h_p * w_p * t * c_s_t_m
+    num_space_time_low_res_tokens = h_p * w_p * t * c_s_t_l
     num_space_tokens = h_p * w_p * c_sp
     num_time_tokens = t * c_t
     num_static_tokens = c_st
 
-    total_tokens = num_space_time_tokens + num_space_tokens + num_time_tokens + num_static_tokens
+    total_tokens = num_space_time_high_res_tokens + num_space_time_med_res_tokens + num_space_time_low_res_tokens + num_space_tokens + num_time_tokens + num_static_tokens
     tokens_the_decoder_will_unmask = int(total_tokens * decode_ratio)
     tokens_the_encoder_will_encode = int(total_tokens * encode_ratio)
     # we do this as a numpy array to take advantage of
@@ -710,13 +889,25 @@ def batch_mask_random(
     rng = np.random.default_rng(random.randint(0, 100))
     b_flat_tokens = rng.permuted(b_flat_tokens, axis=1)
 
-    s_t_tokens = b_flat_tokens[:, :num_space_time_tokens]
-    s_t_tokens = rearrange(s_t_tokens, "b (h w t c) -> b h w t c", h=h_p, w=w_p, t=t, c=c_s_t)
-    space_time_mask = torch.from_numpy(
-        np.repeat(np.repeat(s_t_tokens, repeats=patch_size, axis=1), repeats=patch_size, axis=2)
-    ).to(space_time_x.device)
+    s_t_h_tokens = b_flat_tokens[:, :num_space_time_high_res_tokens]
+    s_t_h_tokens = rearrange(s_t_h_tokens, "b (h w t c) -> b h w t c", h=h_p, w=w_p, t=t, c=c_s_t_h)
+    space_time_high_res_mask = torch.from_numpy(
+        np.repeat(np.repeat(s_t_h_tokens, repeats=patch_size, axis=1), repeats=patch_size, axis=2)
+    ).to(space_time_high_x.device)
 
-    space_tokens = b_flat_tokens[:, num_space_time_tokens : -(num_time_tokens + num_static_tokens)]
+    s_t_m_tokens = b_flat_tokens[:, num_space_time_high_res_tokens : (num_space_time_high_res_tokens + num_space_time_med_res_tokens)]
+    s_t_m_tokens = rearrange(s_t_m_tokens, "b (h w t c) -> b h w t c", h=h_p, w=w_p, t=t, c=c_s_t_m)
+    space_time_med_res_mask = torch.from_numpy(
+        np.repeat(np.repeat(s_t_m_tokens, repeats=patch_size, axis=1), repeats=patch_size, axis=2)
+    ).to(space_time_med_x.device)
+
+    s_t_l_tokens = b_flat_tokens[:, (num_space_time_high_res_tokens + num_space_time_med_res_tokens) : -(num_space_tokens + num_time_tokens + num_static_tokens)]
+    s_t_l_tokens = rearrange(s_t_l_tokens, "b (h w t c) -> b h w t c", h=h_p, w=w_p, t=t, c=c_s_t_l)
+    space_time_low_res_mask = torch.from_numpy(
+        np.repeat(np.repeat(s_t_l_tokens, repeats=patch_size, axis=1), repeats=patch_size, axis=2)
+    ).to(space_time_low_x.device)
+
+    space_tokens = b_flat_tokens[:, -(num_space_tokens + num_time_tokens + num_static_tokens) : -(num_time_tokens + num_static_tokens)]
     space_tokens = rearrange(space_tokens, "b (h w c) -> b h w c", h=h_p, w=w_p, c=c_sp)
     space_mask = torch.from_numpy(
         np.repeat(np.repeat(space_tokens, repeats=patch_size, axis=1), repeats=patch_size, axis=2)
@@ -730,12 +921,24 @@ def batch_mask_random(
     static_tokens = b_flat_tokens[:, -num_static_tokens:]
     static_mask = torch.from_numpy(static_tokens).to(static_x.device)
 
+    # handle no data values
+    space_time_high_res_mask[space_time_high_x == NO_DATA_VALUE] = 1
+    space_time_med_res_mask[space_time_med_x == NO_DATA_VALUE] = 1
+    space_time_low_res_mask[space_time_low_x == NO_DATA_VALUE] = 1
+    space_mask[space_x == NO_DATA_VALUE] = 1
+    time_mask[time_x == NO_DATA_VALUE] = 1
+    static_mask[static_x == NO_DATA_VALUE] = 1
+
     return MaskedOutput(
-        space_time_x.clone(),
+        space_time_high_x.clone(),
+        space_time_med_x.clone(),
+        space_time_low_x.clone(),
         space_x.clone(),
         time_x.clone(),
         static_x.clone(),
-        space_time_mask,
+        space_time_high_res_mask,
+        space_time_med_res_mask,
+        space_time_low_res_mask,
         space_mask,
         time_mask,
         static_mask,
