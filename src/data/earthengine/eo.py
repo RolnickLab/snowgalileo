@@ -361,6 +361,7 @@ class EarthEngineExporter:
                     fileNamePrefix=cloud_filename,
                     image=img.clip(polygon),
                     description=description,
+                    crs='EPSG:4326',
                     scale=10,
                     region=polygon,
                     maxPixels=1e13,
@@ -378,6 +379,7 @@ class EarthEngineExporter:
                     fileNamePrefix=cloud_filename,
                     image=img.clip(polygon),
                     description=description,
+                    crs='EPSG:4326',
                     scale=10,
                     region=polygon,
                     maxPixels=1e13,
@@ -394,6 +396,7 @@ class EarthEngineExporter:
                     {
                         "region": polygon,
                         "scale": 10,
+                        "crs": 'EPSG:4326',
                         "filePerBand": False,
                         "format": "GEO_TIFF",
                     }

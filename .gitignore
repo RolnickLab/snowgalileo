@@ -1,6 +1,6 @@
 __pycache__
 # data needs to be explicitly added
-#data/*
+data/*
 !data/pretraining_points/sampling_points_mountains.csv
 .ipynb_checkpoints
 baseline_weights
@@ -20,3 +20,4 @@ gha-creds-*.json
 scrap
 imgs
 local
+output_texts/
