@@ -1,6 +1,7 @@
-from src.data.earthengine.utils import copy_files_with_partial_check
-from src.data.config import DATA_FOLDER
 import argparse
+
+from src.data.config import DATA_FOLDER
+from src.data.earthengine.utils import copy_files_with_partial_check
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--src_folder", type=str, default="tifs3000")

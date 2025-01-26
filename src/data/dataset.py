@@ -2,13 +2,13 @@ import json
 import logging
 import math
 import os
+import re
 import warnings
 from copy import deepcopy
 from pathlib import Path
 from random import sample
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple, Union, cast
 
-import re
 import h5py
 import numpy as np
 import rioxarray
@@ -28,13 +28,15 @@ from .config import (
     EE_DRIVE_FOLDER_ID,
     EE_FOLDER_H5PYS,
     EE_FOLDER_TIFS,
+    MODALITIES,
+    NO_DATA_VALUE,
     NUM_TIMESTEPS,
     TIFS_FOLDER,
-    MODALITIES,
-    NO_DATA_VALUE
 )
 from .earthengine.eo import (
     ALL_DYNAMIC_IN_TIME_BANDS,
+    EO_DYNAMIC_IN_TIME_BANDS_NP,
+    EO_TIME_BANDS,
     SPACE_BANDS,
     SPACE_DIV_VALUES,
     SPACE_SHIFT_VALUES,
@@ -45,13 +47,12 @@ from .earthengine.eo import (
     STATIC_DIV_VALUES,
     STATIC_SHIFT_VALUES,
     TIME_BANDS,
-    EO_TIME_BANDS,
     TIME_DIV_VALUES,
     TIME_SHIFT_VALUES,
-    EO_DYNAMIC_IN_TIME_BANDS_NP
 )
 
 logger = logging.getLogger("__main__")
+
 
 class Normalizer:
     # these are the bands we will replace with the 2*std computation
@@ -384,17 +385,10 @@ class Dataset(PyTorchDataset):
 
         size must be greater or equal to H & W
         """
-        assert (
-            space_time_high_res_x.shape[0]
-            == space_x.shape[0]
-        ) & (
-            space_time_high_res_x.shape[1]
-            == space_x.shape[1]
+        assert (space_time_high_res_x.shape[0] == space_x.shape[0]) & (
+            space_time_high_res_x.shape[1] == space_x.shape[1]
         )
-        assert (
-            space_time_high_res_x.shape[2]
-            == time_x.shape[0]
-        )
+        assert space_time_high_res_x.shape[2] == time_x.shape[0]
         print(space_time_high_res_x.shape)
         possible_h = space_time_high_res_x.shape[0] - size
         possible_w = space_time_high_res_x.shape[1] - size
@@ -454,7 +448,7 @@ class Dataset(PyTorchDataset):
         data = np.nan_to_num(data, nan=np.nan, posinf=np.nan, neginf=np.nan)
 
         # if any of the bands has only nan values, array should be markes as invalid
-        #assert np.isnan(data).all(axis=tuple(range(data.ndim - 1))).any()
+        # assert np.isnan(data).all(axis=tuple(range(data.ndim - 1))).any()
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)
@@ -510,7 +504,6 @@ class Dataset(PyTorchDataset):
 
     @classmethod
     def _tif_to_array(cls, tif_path: Path) -> DatasetOutput:
-
         with cast(xr.Dataset, rioxarray.open_rasterio(tif_path)) as data:
             # [all_combined_bands, H, W]
             # all_combined_bands includes all dynamic-in-time bands
@@ -598,9 +591,7 @@ class Dataset(PyTorchDataset):
 
     def load_tif(self, idx: int) -> DatasetOutput:
         if self.h5py_folder is None:
-            s_t_h_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(
-                idx
-            )
+            s_t_h_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
             return DatasetOutput(
                 *self.subset_image(
                     s_t_h_x,
@@ -620,9 +611,7 @@ class Dataset(PyTorchDataset):
                 except Exception as e:
                     logger.warn(f"Exception {e} for {self.tifs[idx]}")
                     h5py_path.unlink()
-                    s_t_h_x, sp_x, t_x, st_x, months = (
-                        self._tif_to_array_with_checks(idx)
-                    )
+                    s_t_h_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
                     self.save_h5py(s_t_h_x, sp_x, t_x, st_x, self.tifs[idx].stem)
                     return DatasetOutput(
                         *self.subset_image(
@@ -636,9 +625,7 @@ class Dataset(PyTorchDataset):
                         )
                     )
             else:
-                s_t_h_x, sp_x, t_x, st_x, months = (
-                    self._tif_to_array_with_checks(idx)
-                )
+                s_t_h_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
                 self.save_h5py(s_t_h_x, sp_x, t_x, st_x, self.tifs[idx].stem)
                 return DatasetOutput(
                     *self.subset_image(
@@ -766,10 +753,26 @@ class Dataset(PyTorchDataset):
         output = ListOfDatasetOutputs([], [], [], [], [])
         for i in tqdm(indices_to_sample):
             s_t_h_x, sp_x, t_x, st_x, months = self[i]
-            output.space_time_high_res_x.append(np.where(s_t_h_x != np.array(NO_DATA_VALUE, dtype=s_t_h_x.dtype), s_t_h_x, np.nan).astype(np.float64))
-            output.space_x.append(np.where(sp_x != np.array(NO_DATA_VALUE, dtype=sp_x.dtype), sp_x, np.nan).astype(np.float64))
-            output.time_x.append(np.where(t_x != np.array(NO_DATA_VALUE, dtype=t_x.dtype), t_x, np.nan).astype(np.float64))
-            output.static_x.append(np.where(st_x != np.array(NO_DATA_VALUE, dtype=st_x.dtype), st_x, np.nan).astype(np.float64))
+            output.space_time_high_res_x.append(
+                np.where(
+                    s_t_h_x != np.array(NO_DATA_VALUE, dtype=s_t_h_x.dtype), s_t_h_x, np.nan
+                ).astype(np.float64)
+            )
+            output.space_x.append(
+                np.where(sp_x != np.array(NO_DATA_VALUE, dtype=sp_x.dtype), sp_x, np.nan).astype(
+                    np.float64
+                )
+            )
+            output.time_x.append(
+                np.where(t_x != np.array(NO_DATA_VALUE, dtype=t_x.dtype), t_x, np.nan).astype(
+                    np.float64
+                )
+            )
+            output.static_x.append(
+                np.where(st_x != np.array(NO_DATA_VALUE, dtype=st_x.dtype), st_x, np.nan).astype(
+                    np.float64
+                )
+            )
             output.months.append(months)
         d_o = output.to_datasetoutput()
 
@@ -783,7 +786,7 @@ class Dataset(PyTorchDataset):
             "space": {
                 "mean": np.nanmean(d_o.space_x, axis=(0, 1, 2)).tolist(),
                 "std": np.nanstd(d_o.space_x, axis=(0, 1, 2)).tolist(),
-            },       
+            },
             "time": {
                 "mean": np.ones(d_o.time_x.shape[-1]).tolist(),
                 "std": np.ones(d_o.time_x.shape[-1]).tolist(),

@@ -1,9 +1,8 @@
 from datetime import date
 
 import ee
-import numpy as np
 
-from .utils import date_to_string, create_placeholder
+from .utils import create_placeholder, date_to_string
 
 image_collection = "COPERNICUS/S1_GRD"
 S1_BANDS = ["VV", "VH", "angle"]
@@ -25,7 +24,12 @@ def get_single_s1_image(
     startDate = ee.DateRange(dates).start()
     endDate = ee.DateRange(dates).end()
 
-    s1 = ee.ImageCollection(image_collection).filterDate(startDate, endDate).filterBounds(region).filter(ee.Filter.eq("instrumentMode", "IW"))
+    s1 = (
+        ee.ImageCollection(image_collection)
+        .filterDate(startDate, endDate)
+        .filterBounds(region)
+        .filter(ee.Filter.eq("instrumentMode", "IW"))
+    )
 
     if s1.size().getInfo() == 0:
         print("No VV, VH Image on date: {}".format(start_date))

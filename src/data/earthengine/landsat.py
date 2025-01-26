@@ -47,9 +47,6 @@ def get_single_landsat_image(region: ee.Geometry, start_date: date, end_date: da
         return create_placeholder(region, LANDSAT_BANDS).toDouble()
 
     # Rename the bands to be unique
-    renamed_image = image.select(
-        ORIG_LANDSAT_BANDS,
-        LANDSAT_BANDS
-    )
+    renamed_image = image.select(ORIG_LANDSAT_BANDS, LANDSAT_BANDS)
 
     return renamed_image

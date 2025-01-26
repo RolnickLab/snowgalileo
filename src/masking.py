@@ -8,16 +8,16 @@ import numpy as np
 import torch
 from einops import rearrange, repeat
 
+from .data.config import NO_DATA_VALUE
 from .data.dataset import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
-    SPACE_TIME_MED_RES_BANDS_GROUPS_IDX,
     SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX,
+    SPACE_TIME_MED_RES_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
     TIME_BANDS_GROUPS_IDX,
 )
 from .data_augmentation import Augmentation
-from .data.config import NO_DATA_VALUE
 
 # This is to allow a quick expansion of the mask from
 # group-channel space into real-channel space
@@ -62,7 +62,7 @@ MASKING_MODES: List[Tuple[str, str]] = [
     ("space_time_high_res", "L8_NIR"),
     ("space_time_high_res", "L8_SWIR"),
     ("space_time_med_res", "S3_NIR"),
-    #("space_time_low_res", "NDVI"),
+    # ("space_time_low_res", "NDVI"),
     ("space_time_low_res", "NDSI"),
     ("space_time_low_res", "MODIS_RGB"),
     ("space_time_low_res", "MODIS_SWIR"),
@@ -342,11 +342,33 @@ def subset_and_augment_batch_of_images(
     size: int,
     num_timesteps: int,
     augmentation_strategies: Optional[Dict],
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    assert (space_time_high_x.shape[1] == space_time_med_x.shape[1] == space_time_low_x.shape[1] == space_x.shape[1]) & (
-        space_time_high_x.shape[2] == space_x.shape[2] == space_time_med_x.shape[2] == space_time_low_x.shape[2]
+) -> Tuple[
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+]:
+    assert (
+        space_time_high_x.shape[1]
+        == space_time_med_x.shape[1]
+        == space_time_low_x.shape[1]
+        == space_x.shape[1]
+    ) & (
+        space_time_high_x.shape[2]
+        == space_x.shape[2]
+        == space_time_med_x.shape[2]
+        == space_time_low_x.shape[2]
     )
-    assert time_x.shape[1] == space_time_high_x.shape[3] == space_time_med_x.shape[3] == space_time_low_x.shape[3] == months.shape[1]
+    assert (
+        time_x.shape[1]
+        == space_time_high_x.shape[3]
+        == space_time_med_x.shape[3]
+        == space_time_low_x.shape[3]
+        == months.shape[1]
+    )
     possible_h = space_time_high_x.shape[1] - size
     possible_w = space_time_high_x.shape[2] - size
     possible_t = space_time_high_x.shape[3] - num_timesteps
@@ -392,7 +414,13 @@ def subset_and_augment_batch_of_images(
 
     if augmentation_strategies is not None:
         return Augmentation(augmentation_strategies).apply(
-            space_time_high_x, space_time_med_x, space_time_low_x, space_x, time_x, static_x, months
+            space_time_high_x,
+            space_time_med_x,
+            space_time_low_x,
+            space_x,
+            time_x,
+            static_x,
+            months,
         )
     return space_time_high_x, space_time_med_x, space_time_low_x, space_x, time_x, static_x, months
 
@@ -584,7 +612,7 @@ def batch_mask_time(
         if len(st_d[0]) > 0:
             st_bands_to_decode = st_d[0]
             static_mask[:, st_bands_to_decode] = 2
-    
+
     # handle no data values
     space_time_high_res_mask[space_time_high_x == NO_DATA_VALUE] = 1
     space_time_med_res_mask[space_time_med_x == NO_DATA_VALUE] = 1
@@ -687,10 +715,24 @@ def batch_mask_space(
         .clone()
         .to(space_x.device)
     )
-    space_time_med_res_mask = _random_mask_for_b(b, space_time_med_x.device, encode_ratio, decode_ratio)
-    space_time_med_res_mask = repeat(space_time_med_res_mask, "b -> b h w t c_g", t=t, c_g=len(SPACE_TIME_MED_RES_BANDS_GROUPS_IDX)).clone()
-    space_time_low_res_mask = _random_mask_for_b(b, space_time_low_x.device, encode_ratio, decode_ratio)
-    space_time_low_res_mask = repeat(space_time_low_res_mask, "b -> b h w t c_g", t=t, c_g=len(SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX)).clone()
+    space_time_med_res_mask = _random_mask_for_b(
+        b, space_time_med_x.device, encode_ratio, decode_ratio
+    )
+    space_time_med_res_mask = repeat(
+        space_time_med_res_mask,
+        "b -> b h w t c_g",
+        t=t,
+        c_g=len(SPACE_TIME_MED_RES_BANDS_GROUPS_IDX),
+    ).clone()
+    space_time_low_res_mask = _random_mask_for_b(
+        b, space_time_low_x.device, encode_ratio, decode_ratio
+    )
+    space_time_low_res_mask = repeat(
+        space_time_low_res_mask,
+        "b -> b h w t c_g",
+        t=t,
+        c_g=len(SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX),
+    ).clone()
     time_mask = _random_mask_for_b(b, time_x.device, encode_ratio, decode_ratio)
     time_mask = repeat(time_mask, "b -> b t c_g", t=t, c_g=len(TIME_BANDS_GROUPS_IDX)).clone()
     static_mask = _random_mask_for_b(b, static_x.device, encode_ratio, decode_ratio)
@@ -866,7 +908,14 @@ def batch_mask_random(
     num_time_tokens = t * c_t
     num_static_tokens = c_st
 
-    total_tokens = num_space_time_high_res_tokens + num_space_time_med_res_tokens + num_space_time_low_res_tokens + num_space_tokens + num_time_tokens + num_static_tokens
+    total_tokens = (
+        num_space_time_high_res_tokens
+        + num_space_time_med_res_tokens
+        + num_space_time_low_res_tokens
+        + num_space_tokens
+        + num_time_tokens
+        + num_static_tokens
+    )
     tokens_the_decoder_will_unmask = int(total_tokens * decode_ratio)
     tokens_the_encoder_will_encode = int(total_tokens * encode_ratio)
     # we do this as a numpy array to take advantage of
@@ -890,24 +939,45 @@ def batch_mask_random(
     b_flat_tokens = rng.permuted(b_flat_tokens, axis=1)
 
     s_t_h_tokens = b_flat_tokens[:, :num_space_time_high_res_tokens]
-    s_t_h_tokens = rearrange(s_t_h_tokens, "b (h w t c) -> b h w t c", h=h_p, w=w_p, t=t, c=c_s_t_h)
+    s_t_h_tokens = rearrange(
+        s_t_h_tokens, "b (h w t c) -> b h w t c", h=h_p, w=w_p, t=t, c=c_s_t_h
+    )
     space_time_high_res_mask = torch.from_numpy(
         np.repeat(np.repeat(s_t_h_tokens, repeats=patch_size, axis=1), repeats=patch_size, axis=2)
     ).to(space_time_high_x.device)
 
-    s_t_m_tokens = b_flat_tokens[:, num_space_time_high_res_tokens : (num_space_time_high_res_tokens + num_space_time_med_res_tokens)]
-    s_t_m_tokens = rearrange(s_t_m_tokens, "b (h w t c) -> b h w t c", h=h_p, w=w_p, t=t, c=c_s_t_m)
+    s_t_m_tokens = b_flat_tokens[
+        :,
+        num_space_time_high_res_tokens : (
+            num_space_time_high_res_tokens + num_space_time_med_res_tokens
+        ),
+    ]
+    s_t_m_tokens = rearrange(
+        s_t_m_tokens, "b (h w t c) -> b h w t c", h=h_p, w=w_p, t=t, c=c_s_t_m
+    )
     space_time_med_res_mask = torch.from_numpy(
         np.repeat(np.repeat(s_t_m_tokens, repeats=patch_size, axis=1), repeats=patch_size, axis=2)
     ).to(space_time_med_x.device)
 
-    s_t_l_tokens = b_flat_tokens[:, (num_space_time_high_res_tokens + num_space_time_med_res_tokens) : -(num_space_tokens + num_time_tokens + num_static_tokens)]
-    s_t_l_tokens = rearrange(s_t_l_tokens, "b (h w t c) -> b h w t c", h=h_p, w=w_p, t=t, c=c_s_t_l)
+    s_t_l_tokens = b_flat_tokens[
+        :,
+        (num_space_time_high_res_tokens + num_space_time_med_res_tokens) : -(
+            num_space_tokens + num_time_tokens + num_static_tokens
+        ),
+    ]
+    s_t_l_tokens = rearrange(
+        s_t_l_tokens, "b (h w t c) -> b h w t c", h=h_p, w=w_p, t=t, c=c_s_t_l
+    )
     space_time_low_res_mask = torch.from_numpy(
         np.repeat(np.repeat(s_t_l_tokens, repeats=patch_size, axis=1), repeats=patch_size, axis=2)
     ).to(space_time_low_x.device)
 
-    space_tokens = b_flat_tokens[:, -(num_space_tokens + num_time_tokens + num_static_tokens) : -(num_time_tokens + num_static_tokens)]
+    space_tokens = b_flat_tokens[
+        :,
+        -(num_space_tokens + num_time_tokens + num_static_tokens) : -(
+            num_time_tokens + num_static_tokens
+        ),
+    ]
     space_tokens = rearrange(space_tokens, "b (h w c) -> b h w c", h=h_p, w=w_p, c=c_sp)
     space_mask = torch.from_numpy(
         np.repeat(np.repeat(space_tokens, repeats=patch_size, axis=1), repeats=patch_size, axis=2)

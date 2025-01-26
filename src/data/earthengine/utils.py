@@ -1,7 +1,7 @@
 import json
 import os
-import shutil
 import random
+import shutil
 from datetime import date, datetime, timedelta
 from typing import Union
 
@@ -117,7 +117,7 @@ def get_location_season_identifier(filename) -> str:
 
 def copy_files_with_partial_check(src_folder, dest_folder):
     os.makedirs(dest_folder, exist_ok=True)
-    
+
     dest_files = os.listdir(dest_folder)
     dest_location_season = {get_location_season_identifier(f) for f in dest_files}
 

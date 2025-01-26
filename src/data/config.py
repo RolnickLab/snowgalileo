@@ -22,17 +22,78 @@ EXPORTED_HEIGHT_WIDTH_METRES = 500
 # i.e., sort the modalities into different shape_types, add / remove satellite modalities
 # for using / not using modalities, the "active" flag should get used
 MODALITIES = {
-    "s1": {"original_resolution": 10, "shape_type": "s_t_h_x", "dynamic_in_time": True, "active": True, "export": True},
-    "s2": {"original_resolution": 10, "shape_type": "s_t_h_x", "dynamic_in_time": True, "active": True, "export": True},
-    "s3": {"original_resolution": 300, "shape_type": "t_x", "dynamic_in_time": True, "active": True, "export": True},
-    "landsat": {"original_resolution": 30, "shape_type": "s_t_h_x", "dynamic_in_time": True, "active": True, "export": True},
-    "modis": {"original_resolution": 500, "shape_type": "t_x", "dynamic_in_time": True, "active": True, "export": True},
-    "viirs_coarse": {"original_resolution": 1000, "shape_type": "t_x", "dynamic_in_time": True, "active": True, "export": True},
-    "viirs_fine": {"original_resolution": 500, "shape_type": "t_x", "dynamic_in_time": True, "active": True, "export": True},
-    "era5": {"original_resolution": 11132, "shape_type": "t_x", "dynamic_in_time": True, "active": True, "export": True},
-    "srtm": {"original_resolution": 30, "shape_type": "sp_x", "dynamic_in_time": False, "active": True, "export": True},
-    "ndsi": {"original_resolution": 500, "shape_type": "t_x", "dynamic_in_time": True, "active": True, "export": False},
-    "ndvi": {"original_resolution": 500, "shape_type": "t_x", "dynamic_in_time": True, "active": False, "export": False}
+    "s1": {
+        "original_resolution": 10,
+        "shape_type": "s_t_h_x",
+        "active": True,
+        "export": True,
+    },
+    "s2": {
+        "original_resolution": 10,
+        "shape_type": "s_t_h_x",
+        "active": True,
+        "export": True,
+    },
+    "landsat": {
+        "original_resolution": 30,
+        "shape_type": "s_t_h_x",
+        "active": True,
+        "export": True,
+    },
+    "s3": {
+        "original_resolution": 300,
+        "shape_type": "t_x",
+        "active": True,
+        "export": True,
+    },
+    "modis": {
+        "original_resolution": 500,
+        "shape_type": "t_x",
+        "active": True,
+        "export": True,
+    },
+    "viirs_fine": {
+        "original_resolution": 500,
+        "shape_type": "t_x",
+        "active": True,
+        "export": True,
+    },
+    "viirs_coarse": {
+        "original_resolution": 1000,
+        "shape_type": "t_x",
+        "active": True,
+        "export": True,
+    },
+    "era5": {
+        "original_resolution": 11132,
+        "shape_type": "t_x",
+        "active": True,
+        "export": True,
+    },
+    "srtm": {
+        "original_resolution": 30,
+        "shape_type": "sp_x",
+        "active": True,
+        "export": True,
+    },
+    "location": {
+        "original_resolution": None,
+        "shape_type": "st_x",
+        "active": True,
+        "export": False,
+    },
+    "ndsi": {
+        "original_resolution": 500,
+        "shape_type": "t_x",
+        "active": True,
+        "export": False,
+    },
+    "ndvi": {
+        "original_resolution": 500,
+        "shape_type": "t_x",
+        "active": False,
+        "export": False,
+    },
 }
 
 # inclusive (i.e., the end date of a season is included in the season)
@@ -62,4 +123,3 @@ OPTIMIZER_FILENAME = "optimizer.pt"
 TARGET_ENCODER_FILENAME = "target_encoder.pt"
 DECODER_FILENAME = "decoder.pt"
 CONFIG_FILENAME = "config.json"
-
