@@ -3,13 +3,12 @@ import logging
 import math
 import os
 import warnings
-from collections import OrderedDict
 from copy import deepcopy
 from pathlib import Path
 from random import sample
 from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple, Union, cast
-from typing import OrderedDict as OrderedDictType
 
+import re
 import h5py
 import numpy as np
 import rioxarray
@@ -31,154 +30,54 @@ from .config import (
     EE_FOLDER_TIFS,
     NUM_TIMESTEPS,
     TIFS_FOLDER,
-    USE_INDECES,
-    NO_DATA_VALUE,
+    MODALITIES,
+    NO_DATA_VALUE
 )
 from .earthengine.eo import (
     ALL_DYNAMIC_IN_TIME_BANDS,
-    S1_BANDS,
-    ERA5_BANDS,
-    LOCATION_BANDS,
     SPACE_BANDS,
     SPACE_DIV_VALUES,
     SPACE_SHIFT_VALUES,
     SPACE_TIME_HIGH_RES_BANDS,
     SPACE_TIME_HIGH_RES_DIV_VALUES,
     SPACE_TIME_HIGH_RES_SHIFT_VALUES,
-    SPACE_TIME_LOW_RES_BANDS,
-    SPACE_TIME_LOW_RES_DIV_VALUES,
-    SPACE_TIME_LOW_RES_SHIFT_VALUES,
-    SPACE_TIME_MED_RES_BANDS,
-    SPACE_TIME_MED_RES_DIV_VALUES,
-    SPACE_TIME_MED_RES_SHIFT_VALUES,
-    SRTM_BANDS,
     STATIC_BANDS,
     STATIC_DIV_VALUES,
     STATIC_SHIFT_VALUES,
     TIME_BANDS,
+    EO_TIME_BANDS,
     TIME_DIV_VALUES,
     TIME_SHIFT_VALUES,
+    EO_DYNAMIC_IN_TIME_BANDS_NP
 )
 
 logger = logging.getLogger("__main__")
 
-EO_DYNAMIC_IN_TIME_BANDS_NP = np.array(
-    SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS + TIME_BANDS
-)
-
-if USE_INDECES:
-    EO_SPACE_TIME_LOW_RES_BANDS = SPACE_TIME_LOW_RES_BANDS
-
-    # TODO: add NDVI
-    SPACE_TIME_LOW_RES_BANDS = EO_SPACE_TIME_LOW_RES_BANDS + ["NDSI"]
-    SPACE_TIME_LOW_RES_SHIFT_VALUES = np.append(SPACE_TIME_LOW_RES_SHIFT_VALUES, [0])
-    SPACE_TIME_LOW_RES_DIV_VALUES = np.append(SPACE_TIME_LOW_RES_DIV_VALUES, [1])
-
-# spatial resolution per pixel: 10m or 20m
-SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
-    {
-        "S1": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in S1_BANDS],
-        "S2_RGB": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B2", "B3", "B4"]],
-        "S2_NIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B8"]],
-        "S2_SWIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B11", "B12"]],
-        "L8_RGB": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B2_landsat", "B3_landsat", "B4_landsat"]],
-        "L8_NIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B5_landsat"]],
-        "L8_SWIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B6_landsat", "B7_landsat"]],
-    }
-)
-
-# spatial resolution per pixel: 300m
-SPACE_TIME_MED_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
-    {
-        "S3_NIR": [SPACE_TIME_MED_RES_BANDS.index(b) for b in ["Oa17_radiance", "Oa21_radiance"]],
-    }
-)
-
-# spatial resolution per pixel: 500m
-SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
-    {
-        "MODIS_RGB": [SPACE_TIME_LOW_RES_BANDS.index(b) for b in ["sur_refl_b03", "sur_refl_b04"]],
-        "MODIS_SWIR": [
-            SPACE_TIME_LOW_RES_BANDS.index(b)
-            for b in ["sur_refl_b05", "sur_refl_b06", "sur_refl_b07"]
-        ],
-        "VIIRS_RGB": [SPACE_TIME_LOW_RES_BANDS.index(b) for b in ["I1"]],
-        "VIIRS_SWIR": [SPACE_TIME_LOW_RES_BANDS.index(b) for b in ["I3"]],
-    }
-)
-
-# spatial resolution per pixel: 1000m or larger
-TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
-    {
-        "ERA5": [TIME_BANDS.index(b) for b in ERA5_BANDS],
-        "VIIRS_RGB": [TIME_BANDS.index(b) for b in ["M5", "M7"]],
-        "VIIRS_NIR": [TIME_BANDS.index(b) for b in ["M10"]],
-        "VIIRS_SWIR": [TIME_BANDS.index(b) for b in ["M11"]],
-    }
-)
-
-# spatial resolution per pixel: 30m
-SPACE_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
-    {
-        "SRTM": [SPACE_BANDS.index(b) for b in SRTM_BANDS],
-    }
-)
-
-STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
-    {
-        "location": [STATIC_BANDS.index(b) for b in LOCATION_BANDS],
-    }
-)
-
-
-# if this changes the normalizer will need to index against something else
-assert (
-    len(SPACE_TIME_HIGH_RES_BANDS)
-    != len(SPACE_TIME_MED_RES_BANDS)
-    != len(SPACE_TIME_LOW_RES_BANDS)
-    != len(SPACE_BANDS)
-    != len(TIME_BANDS)
-    != len(STATIC_BANDS)
-)
-
-
 class Normalizer:
     # these are the bands we will replace with the 2*std computation
     # if std = True
-    std_bands: Dict[int, list] = {
-        len(SPACE_TIME_HIGH_RES_BANDS): SPACE_TIME_HIGH_RES_BANDS,
-        len(SPACE_TIME_MED_RES_BANDS): SPACE_TIME_MED_RES_BANDS,
-        len(SPACE_TIME_LOW_RES_BANDS): [
-            b for b in SPACE_TIME_LOW_RES_BANDS if b != "NDVI" and b != "NDSI"
-        ],
-        len(SPACE_BANDS): SPACE_BANDS,
-        len(TIME_BANDS): TIME_BANDS,
-        len(STATIC_BANDS): STATIC_BANDS,
+    std_bands: Dict[str, list] = {
+        "space_time_high_res": SPACE_TIME_HIGH_RES_BANDS,
+        "space": SPACE_BANDS,
+        "time": TIME_BANDS,
+        "static": STATIC_BANDS,
     }
 
     def __init__(self, std: bool = True, normalizing_dicts: Optional[Dict] = None):
         self.shift_div_dict = {
-            len(SPACE_TIME_HIGH_RES_BANDS): {
+            "space_time_high_res": {
                 "shift": deepcopy(SPACE_TIME_HIGH_RES_SHIFT_VALUES),
                 "div": deepcopy(SPACE_TIME_HIGH_RES_DIV_VALUES),
             },
-            len(SPACE_TIME_MED_RES_BANDS): {
-                "shift": deepcopy(SPACE_TIME_MED_RES_SHIFT_VALUES),
-                "div": deepcopy(SPACE_TIME_MED_RES_DIV_VALUES),
-            },
-            len(SPACE_TIME_LOW_RES_BANDS): {
-                "shift": deepcopy(SPACE_TIME_LOW_RES_SHIFT_VALUES),
-                "div": deepcopy(SPACE_TIME_LOW_RES_DIV_VALUES),
-            },
-            len(SPACE_BANDS): {
+            "space": {
                 "shift": deepcopy(SPACE_SHIFT_VALUES),
                 "div": deepcopy(SPACE_DIV_VALUES),
             },
-            len(TIME_BANDS): {
+            "time": {
                 "shift": deepcopy(TIME_SHIFT_VALUES),
                 "div": deepcopy(TIME_DIV_VALUES),
             },
-            len(STATIC_BANDS): {
+            "static": {
                 "shift": deepcopy(STATIC_SHIFT_VALUES),
                 "div": deepcopy(STATIC_DIV_VALUES),
             },
@@ -188,8 +87,6 @@ class Normalizer:
         if std:
             name_to_bands = {
                 len(SPACE_TIME_HIGH_RES_BANDS): SPACE_TIME_HIGH_RES_BANDS,
-                len(SPACE_TIME_MED_RES_BANDS): SPACE_TIME_MED_RES_BANDS,
-                len(SPACE_TIME_LOW_RES_BANDS): SPACE_TIME_LOW_RES_BANDS,
                 len(SPACE_BANDS): SPACE_BANDS,
                 len(TIME_BANDS): TIME_BANDS,
                 len(STATIC_BANDS): STATIC_BANDS,
@@ -214,20 +111,20 @@ class Normalizer:
     @staticmethod
     def _normalize(x: np.ndarray, shift_values: np.ndarray, div_values: np.ndarray) -> np.ndarray:
         # we don't want to normalize the no data values to be able to identify them later
-        if not np.any(x == -9999):
-            x = (x - shift_values) / div_values
+        valid_data_mask = x != np.array(NO_DATA_VALUE, dtype=x.dtype)
+        x[valid_data_mask] = (x[valid_data_mask] - shift_values) / div_values
         return x
 
-    def __call__(self, x: np.ndarray):
+    def __call__(self, x: np.ndarray, array_type: str):
+        if array_type not in self.shift_div_dict:
+            raise ValueError(f"Unknown array type: {array_type}")
         return self._normalize(
-            x, self.shift_div_dict[x.shape[-1]]["shift"], self.shift_div_dict[x.shape[-1]]["div"]
+            x, self.shift_div_dict[array_type]["shift"], self.shift_div_dict[array_type]["div"]
         )
 
 
 class DatasetOutput(NamedTuple):
     space_time_high_res_x: np.ndarray
-    space_time_med_res_x: np.ndarray
-    space_time_low_res_x: np.ndarray
     space_x: np.ndarray
     time_x: np.ndarray
     static_x: np.ndarray
@@ -236,32 +133,26 @@ class DatasetOutput(NamedTuple):
     @classmethod
     def concatenate(cls, datasetoutputs: Sequence["DatasetOutput"]) -> "DatasetOutput":
         s_t_h_x = np.stack([o.space_time_high_res_x for o in datasetoutputs], axis=0)
-        s_t_m_x = np.stack([o.space_time_med_res_x for o in datasetoutputs], axis=0)
-        s_t_l_x = np.stack([o.space_time_low_res_x for o in datasetoutputs], axis=0)
         sp_x = np.stack([o.space_x for o in datasetoutputs], axis=0)
         t_x = np.stack([o.time_x for o in datasetoutputs], axis=0)
         st_x = np.stack([o.static_x for o in datasetoutputs], axis=0)
         months = np.stack([o.months for o in datasetoutputs], axis=0)
-        return cls(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months)
+        return cls(s_t_h_x, sp_x, t_x, st_x, months)
 
     def normalize(self, normalizer: Optional[Normalizer]) -> "DatasetOutput":
         if normalizer is None:
             return self
         return DatasetOutput(
-            normalizer(self.space_time_high_res_x).astype(np.half),
-            normalizer(self.space_time_med_res_x).astype(np.half),
-            normalizer(self.space_time_low_res_x).astype(np.half),
-            normalizer(self.space_x).astype(np.half),
-            normalizer(self.time_x).astype(np.half),
-            normalizer(self.static_x).astype(np.half),
+            normalizer(self.space_time_high_res_x, "space_time_high_res").astype(np.half),
+            normalizer(self.space_x, "space").astype(np.half),
+            normalizer(self.time_x, "time").astype(np.half),
+            normalizer(self.static_x, "static").astype(np.half),
             self.months,
         )
 
 
 class ListOfDatasetOutputs(NamedTuple):
     space_time_high_res_x: List[np.ndarray]
-    space_time_med_res_x: List[np.ndarray]
-    space_time_low_res_x: List[np.ndarray]
     space_x: List[np.ndarray]
     time_x: List[np.ndarray]
     static_x: List[np.ndarray]
@@ -270,8 +161,6 @@ class ListOfDatasetOutputs(NamedTuple):
     def to_datasetoutput(self) -> DatasetOutput:
         return DatasetOutput(
             np.stack(self.space_time_high_res_x, axis=0),
-            np.stack(self.space_time_med_res_x, axis=0),
-            np.stack(self.space_time_low_res_x, axis=0),
             np.stack(self.space_x, axis=0),
             np.stack(self.time_x, axis=0),
             np.stack(self.static_x, axis=0),
@@ -448,8 +337,6 @@ class Dataset(PyTorchDataset):
     ) -> Tuple[int, int, int]:
         """
         space_time_high_res_x: array of shape [H, W, T, D]
-        space_time_med_res_x: array of shape [H, W, T, D]
-        space_time_low_res_x: array of shape [H, W, T, D]
         space_x: array of shape [H, W, D]
         time_x: array of shape [T, D]
         static_x: array of shape [D]
@@ -482,8 +369,6 @@ class Dataset(PyTorchDataset):
     @staticmethod
     def subset_image(
         space_time_high_res_x: np.ndarray,
-        space_time_med_res_x: np.ndarray,
-        space_time_low_res_x: np.ndarray,
         space_x: np.ndarray,
         time_x: np.ndarray,
         static_x: np.ndarray,
@@ -493,8 +378,6 @@ class Dataset(PyTorchDataset):
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         space_time_high_res_x: array of shape [H, W, T, D]
-        space_time_med_res_x: array of shape [H, W, T, D]
-        space_time_low_res_x: array of shape [H, W, T, D]
         space_x: array of shape [H, W, D]
         time_x: array of shape [T, D]
         static_x: array of shape [D]
@@ -503,21 +386,16 @@ class Dataset(PyTorchDataset):
         """
         assert (
             space_time_high_res_x.shape[0]
-            == space_time_med_res_x.shape[0]
-            == space_time_low_res_x.shape[0]
             == space_x.shape[0]
         ) & (
             space_time_high_res_x.shape[1]
-            == space_time_med_res_x.shape[1]
-            == space_time_low_res_x.shape[1]
             == space_x.shape[1]
         )
         assert (
             space_time_high_res_x.shape[2]
-            == space_time_med_res_x.shape[2]
-            == space_time_low_res_x.shape[2]
             == time_x.shape[0]
         )
+        print(space_time_high_res_x.shape)
         possible_h = space_time_high_res_x.shape[0] - size
         possible_w = space_time_high_res_x.shape[1] - size
         assert (possible_h >= 0) & (possible_w >= 0)
@@ -545,16 +423,6 @@ class Dataset(PyTorchDataset):
                 start_w : start_w + size,
                 start_t : start_t + num_timesteps,
             ],
-            space_time_med_res_x[
-                start_h : start_h + size,
-                start_w : start_w + size,
-                start_t : start_t + num_timesteps,
-            ],
-            space_time_low_res_x[
-                start_h : start_h + size,
-                start_w : start_w + size,
-                start_t : start_t + num_timesteps,
-            ],
             space_x[start_h : start_h + size, start_w : start_w + size],
             time_x[start_t : start_t + num_timesteps],
             static_x,
@@ -562,11 +430,12 @@ class Dataset(PyTorchDataset):
         )
 
     @staticmethod
-    def _fillna(data: np.ndarray, bands_np: np.ndarray):
+    def _check_and_fillna(data: np.ndarray, bands_np: np.ndarray):
         """Fill in the missing values in the data array"""
         if data.shape[-1] != len(bands_np):
             raise ValueError(f"Expected data to have {len(bands_np)} bands - got {data.shape[-1]}")
         is_nan_inf = np.isnan(data) | np.isinf(data)
+
         if not is_nan_inf.any():
             return data
 
@@ -583,6 +452,10 @@ class Dataset(PyTorchDataset):
 
         # treat infinities as NaNs
         data = np.nan_to_num(data, nan=np.nan, posinf=np.nan, neginf=np.nan)
+
+        # if any of the bands has only nan values, array should be markes as invalid
+        #assert np.isnan(data).all(axis=tuple(range(data.ndim - 1))).any()
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)
             mean_per_time_band = np.nanmean(data, axis=(0, 1))  # t, b or b
@@ -637,14 +510,22 @@ class Dataset(PyTorchDataset):
 
     @classmethod
     def _tif_to_array(cls, tif_path: Path) -> DatasetOutput:
+
         with cast(xr.Dataset, rioxarray.open_rasterio(tif_path)) as data:
             # [all_combined_bands, H, W]
             # all_combined_bands includes all dynamic-in-time bands
             # interleaved for all timesteps
             # followed by the static-in-time bands
             values = cast(np.ndarray, data.values)
-            lon = np.mean(cast(np.ndarray, data.x)).item()
-            lat = np.mean(cast(np.ndarray, data.y)).item()
+
+            # extract lat, lon in EPSG:4326 from tif_path
+            lat_pattern = r"lat=(.*?)_"
+            lon_pattern = r"lon=(.*?)_"
+            lat = np.mean([float(value) for value in re.findall(lat_pattern, str(tif_path))])
+            lon = np.mean([float(value) for value in re.findall(lon_pattern, str(tif_path))])
+
+            print("Crs: " + str(data.rio.crs))
+            print("Resolution: " + str(data.rio.resolution()))
 
         num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(ALL_DYNAMIC_IN_TIME_BANDS)
         assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
@@ -654,65 +535,43 @@ class Dataset(PyTorchDataset):
             c=len(ALL_DYNAMIC_IN_TIME_BANDS),
             t=int(num_timesteps),
         )
-        dynamic_in_time_x = cls._fillna(dynamic_in_time_x, EO_DYNAMIC_IN_TIME_BANDS_NP)
+        dynamic_in_time_x = cls._check_and_fillna(dynamic_in_time_x, EO_DYNAMIC_IN_TIME_BANDS_NP)
         space_time_high_res_x = dynamic_in_time_x[
             :,
             :,
             :,
-            : -(len(SPACE_TIME_MED_RES_BANDS) + len(SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)),
-        ]
-        space_time_med_res_x = dynamic_in_time_x[
-            :,
-            :,
-            :,
-            -(len(SPACE_TIME_MED_RES_BANDS) + len(SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)) : -(
-                len(SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)
-            ),
-        ]
-        space_time_low_res_x = dynamic_in_time_x[
-            :, :, :, -(len(SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)) : -len(TIME_BANDS)
+            : -len(EO_TIME_BANDS),
         ]
 
-        if USE_INDECES:
-            # TODO: add ndvi
-            # calculate indices, which have shape [h, w, t, 1]
-            #ndvi = cls.calculate_ndi(space_time_low_res_x, band_1=, band_2="B4")
-            ndsi = cls.calculate_ndi(space_time_low_res_x, band_1="sur_refl_b04", band_2="sur_refl_b06")
-
-            # TODO: add ndvi
-            space_time_low_res_x = np.concatenate((space_time_low_res_x, ndsi), axis=-1)
-
-        time_x = dynamic_in_time_x[:, :, :, -len(TIME_BANDS) :]
+        time_x = dynamic_in_time_x[:, :, :, -len(EO_TIME_BANDS) :]
         time_x = np.nanmean(time_x, axis=(0, 1))
+
+        if MODALITIES["ndsi"].get("active"):
+            ndsi = cls.calculate_ndi(time_x, band_1="sur_refl_b04", band_2="sur_refl_b06")
+            time_x = np.concatenate((time_x, ndsi), axis=-1)
 
         space_x = rearrange(
             values[-len(SPACE_BANDS) :],
             "c h w -> h w c",
         )
-        space_x = cls._fillna(space_x, np.array(SPACE_BANDS))
+        space_x = cls._check_and_fillna(space_x, np.array(SPACE_BANDS))
 
         static_x = to_cartesian(lat, lon)
-        static_x = cls._fillna(static_x, np.array(STATIC_BANDS))
+        static_x = cls._check_and_fillna(static_x, np.array(STATIC_BANDS))
 
         months = cls.month_array_from_file(tif_path, int(num_timesteps))
 
         try:
             assert not np.isnan(space_time_high_res_x).any(), f"NaNs in s_t_h_x for {tif_path}"
-            assert not np.isnan(space_time_med_res_x).any(), f"NaNs in s_t_m_x for {tif_path}"
-            assert not np.isnan(space_time_low_res_x).any(), f"NaNs in s_t_l_x for {tif_path}"
             assert not np.isnan(space_x).any(), f"NaNs in sp_x for {tif_path}"
             assert not np.isnan(time_x).any(), f"NaNs in t_x for {tif_path}"
             assert not np.isnan(static_x).any(), f"NaNs in st_x for {tif_path}"
             assert not np.isinf(space_time_high_res_x).any(), f"Infs in s_t_h_x for {tif_path}"
-            assert not np.isinf(space_time_med_res_x).any(), f"Infs in s_t_m_x for {tif_path}"
-            assert not np.isinf(space_time_low_res_x).any(), f"Infs in s_t_l_x for {tif_path}"
             assert not np.isinf(space_x).any(), f"Infs in sp_x for {tif_path}"
             assert not np.isinf(time_x).any(), f"Infs in t_x for {tif_path}"
             assert not np.isinf(static_x).any(), f"Infs in st_x for {tif_path}"
             return DatasetOutput(
                 space_time_high_res_x.astype(np.half),
-                space_time_med_res_x.astype(np.half),
-                space_time_low_res_x.astype(np.half),
                 space_x.astype(np.half),
                 time_x.astype(np.half),
                 static_x.astype(np.half),
@@ -739,14 +598,12 @@ class Dataset(PyTorchDataset):
 
     def load_tif(self, idx: int) -> DatasetOutput:
         if self.h5py_folder is None:
-            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(
+            s_t_h_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(
                 idx
             )
             return DatasetOutput(
                 *self.subset_image(
                     s_t_h_x,
-                    s_t_m_x,
-                    s_t_l_x,
                     sp_x,
                     t_x,
                     st_x,
@@ -763,15 +620,13 @@ class Dataset(PyTorchDataset):
                 except Exception as e:
                     logger.warn(f"Exception {e} for {self.tifs[idx]}")
                     h5py_path.unlink()
-                    s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = (
+                    s_t_h_x, sp_x, t_x, st_x, months = (
                         self._tif_to_array_with_checks(idx)
                     )
-                    self.save_h5py(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, self.tifs[idx].stem)
+                    self.save_h5py(s_t_h_x, sp_x, t_x, st_x, self.tifs[idx].stem)
                     return DatasetOutput(
                         *self.subset_image(
                             s_t_h_x,
-                            s_t_m_x,
-                            s_t_l_x,
                             sp_x,
                             t_x,
                             st_x,
@@ -781,15 +636,13 @@ class Dataset(PyTorchDataset):
                         )
                     )
             else:
-                s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = (
+                s_t_h_x, sp_x, t_x, st_x, months = (
                     self._tif_to_array_with_checks(idx)
                 )
-                self.save_h5py(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, self.tifs[idx].stem)
+                self.save_h5py(s_t_h_x, sp_x, t_x, st_x, self.tifs[idx].stem)
                 return DatasetOutput(
                     *self.subset_image(
                         s_t_h_x,
-                        s_t_m_x,
-                        s_t_l_x,
                         sp_x,
                         t_x,
                         st_x,
@@ -799,12 +652,10 @@ class Dataset(PyTorchDataset):
                     )
                 )
 
-    def save_h5py(self, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, tif_stem):
+    def save_h5py(self, s_t_h_x, sp_x, t_x, st_x, tif_stem):
         assert self.h5py_folder is not None
         with h5py.File(self.h5py_folder / f"{tif_stem}.h5", "w") as hf:
             hf.create_dataset("s_t_h_x", data=s_t_h_x)
-            hf.create_dataset("s_t_m_x", data=s_t_m_x)
-            hf.create_dataset("s_t_l_x", data=s_t_l_x)
             hf.create_dataset("sp_x", data=sp_x)
             hf.create_dataset("t_x", data=t_x)
             hf.create_dataset("st_x", data=st_x)
@@ -817,8 +668,13 @@ class Dataset(PyTorchDataset):
         [h, w, t, 1] representing NDI,
         (band_1 - band_2) / (band_1 + band_2)
         """
-        band_1_np = input_array[:, :, :, EO_SPACE_TIME_LOW_RES_BANDS.index(band_1)]
-        band_2_np = input_array[:, :, :, EO_SPACE_TIME_LOW_RES_BANDS.index(band_2)]
+
+        # TODO: make this dynamic instead (if MODIS is later in space time bands)
+        assert band_1 in EO_TIME_BANDS
+        assert band_2 in EO_TIME_BANDS
+
+        band_1_np = input_array[:, :, :, EO_TIME_BANDS.index(band_1)]
+        band_2_np = input_array[:, :, :, EO_TIME_BANDS.index(band_2)]
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message="invalid value encountered in divide")
@@ -844,16 +700,6 @@ class Dataset(PyTorchDataset):
             months = self.month_array_from_file(h5py_path, t)
             output = DatasetOutput(
                 hf["s_t_h_x"][
-                    start_h : start_h + self.output_hw,
-                    start_w : start_w + self.output_hw,
-                    start_t : start_t + self.output_timesteps,
-                ],
-                hf["s_t_m_x"][
-                    start_h : start_h + self.output_hw,
-                    start_w : start_w + self.output_hw,
-                    start_t : start_t + self.output_timesteps,
-                ],
-                hf["s_t_l_x"][
                     start_h : start_h + self.output_hw,
                     start_w : start_w + self.output_hw,
                     start_t : start_t + self.output_timesteps,
@@ -902,8 +748,8 @@ class Dataset(PyTorchDataset):
 
     def compute_normalization_values(
         self,
-        output_hw: int = 96,
-        output_timesteps: int = 16,
+        output_hw: int = DATASET_OUTPUT_HW,
+        output_timesteps: int = NUM_TIMESTEPS,
         estimate_from: Optional[int] = 10000,
     ):
         org_hw = self.output_hw
@@ -917,43 +763,34 @@ class Dataset(PyTorchDataset):
         else:
             indices_to_sample = list(range(len(self)))
 
-        output = ListOfDatasetOutputs([], [], [], [], [], [], [])
+        output = ListOfDatasetOutputs([], [], [], [], [])
         for i in tqdm(indices_to_sample):
-            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = self[i]
-            output.space_time_high_res_x.append(s_t_h_x.astype(np.float64))
-            output.space_time_med_res_x.append(s_t_m_x.astype(np.float64))
-            output.space_time_low_res_x.append(s_t_l_x.astype(np.float64))
-            output.space_x.append(sp_x.astype(np.float64))
-            output.time_x.append(t_x.astype(np.float64))
-            output.static_x.append(st_x.astype(np.float64))
+            s_t_h_x, sp_x, t_x, st_x, months = self[i]
+            output.space_time_high_res_x.append(np.where(s_t_h_x != np.array(NO_DATA_VALUE, dtype=s_t_h_x.dtype), s_t_h_x, np.nan).astype(np.float64))
+            output.space_x.append(np.where(sp_x != np.array(NO_DATA_VALUE, dtype=sp_x.dtype), sp_x, np.nan).astype(np.float64))
+            output.time_x.append(np.where(t_x != np.array(NO_DATA_VALUE, dtype=t_x.dtype), t_x, np.nan).astype(np.float64))
+            output.static_x.append(np.where(st_x != np.array(NO_DATA_VALUE, dtype=st_x.dtype), st_x, np.nan).astype(np.float64))
             output.months.append(months)
         d_o = output.to_datasetoutput()
+
         norm_dict = {
             "total_n": len(self),
             "sampled_n": len(indices_to_sample),
-            len(SPACE_TIME_HIGH_RES_BANDS): {
-                "mean": np.mean(d_o.space_time_high_res_x[d_o.space_time_high_res_x != NO_DATA_VALUE], axis=(0, 1, 2, 3)).tolist(),
-                "std": np.std(d_o.space_time_high_res_x[d_o.space_time_high_res_x != NO_DATA_VALUE], axis=(0, 1, 2, 3)).tolist(),
+            "space_time_high_res": {
+                "mean": np.nanmean(d_o.space_time_high_res_x, axis=(0, 1, 2, 3)).tolist(),
+                "std": np.nanstd(d_o.space_time_high_res_x, axis=(0, 1, 2, 3)).tolist(),
             },
-            len(SPACE_TIME_MED_RES_BANDS): {
-                "mean": np.mean(d_o.space_time_med_res_x[d_o.space_time_med_res_x != NO_DATA_VALUE], axis=(0, 1, 2, 3)).tolist(),
-                "std": np.std(d_o.space_time_med_res_x[d_o.space_time_med_res_x != NO_DATA_VALUE], axis=(0, 1, 2, 3)).tolist(),
+            "space": {
+                "mean": np.nanmean(d_o.space_x, axis=(0, 1, 2)).tolist(),
+                "std": np.nanstd(d_o.space_x, axis=(0, 1, 2)).tolist(),
+            },       
+            "time": {
+                "mean": np.ones(d_o.time_x.shape[-1]).tolist(),
+                "std": np.ones(d_o.time_x.shape[-1]).tolist(),
             },
-            len(SPACE_TIME_LOW_RES_BANDS): {
-                "mean": np.mean(d_o.space_time_low_res_x[d_o.space_time_low_res_x != NO_DATA_VALUE], axis=(0, 1, 2, 3)).tolist(),
-                "std": np.std(d_o.space_time_low_res_x[d_o.space_time_low_res_x != NO_DATA_VALUE], axis=(0, 1, 2, 3)).tolist(),
-            },
-            len(SPACE_BANDS): {
-                "mean": np.mean(d_o.space_x[d_o.space_x != NO_DATA_VALUE], axis=(0, 1, 2)).tolist(),
-                "std": np.std(d_o.space_x[d_o.space_x != NO_DATA_VALUE], axis=(0, 1, 2)).tolist(),
-            },
-            len(TIME_BANDS): {
-                "mean": np.mean(d_o.time_x[d_o.time_x != NO_DATA_VALUE], axis=(0, 1)).tolist(),
-                "std": np.std(d_o.time_x[d_o.time_x != NO_DATA_VALUE], axis=(0, 1)).tolist(),
-            },
-            len(STATIC_BANDS): {
-                "mean": np.mean(d_o.static_x[d_o.static_x != NO_DATA_VALUE], axis=0).tolist(),
-                "std": np.std(d_o.static_x[d_o.static_x != NO_DATA_VALUE], axis=0).tolist(),
+            "static": {
+                "mean": np.nanmean(d_o.static_x, axis=0).tolist(),
+                "std": np.nanstd(d_o.static_x, axis=0).tolist(),
             },
         }
 

@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import random
 from datetime import date, datetime, timedelta
 from typing import Union
@@ -110,6 +111,23 @@ def sample_season_year(season, start_year, end_year, seed=None):
     return season_with_year
 
 
-
 def get_location_season_identifier(filename) -> str:
     return filename.split("_dates=")[0] + ".tif"
+
+
+def copy_files_with_partial_check(src_folder, dest_folder):
+    os.makedirs(dest_folder, exist_ok=True)
+    
+    dest_files = os.listdir(dest_folder)
+    dest_location_season = {get_location_season_identifier(f) for f in dest_files}
+
+    for file_name in os.listdir(src_folder):
+        src_file = os.path.join(src_folder, file_name)
+        if os.path.isfile(src_file):
+            src_location_season = get_location_season_identifier(file_name)
+            if src_location_season in dest_location_season:
+                print(f"Duplicate found, skipping: {src_location_season}")
+            else:
+                dest_file = os.path.join(dest_folder, file_name)
+                shutil.copy2(src_file, dest_file)  # Copy the file
+                print(f"Copied: {src_file} to {dest_file}")

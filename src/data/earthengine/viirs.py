@@ -5,13 +5,14 @@ import ee
 from .utils import create_placeholder, date_to_string
 
 image_collection = "NASA/VIIRS/002/VNP09GA"
-ALL_VIIRS_BANDS = ["I1", "I3", "M5", "M7", "M10", "M11"]
-VIIRS_BANDS_500m = ["I1", "I3"]
-VIIRS_BANDS_1000m = ["M5", "M7", "M10", "M11"]
-VIIRS_SHIFT_VALUES_500m = [-0.795, -0.795]
-VIIRS_DIV_VALUES_500m = [0.805, 0.805]
-VIIRS_SHIFT_VALUES_1000m = [-0.795, -0.795, -0.795, -0.795]
-VIIRS_DIV_VALUES_1000m = [0.805, 0.805, 0.805, 0.805]
+VIIRS_FINE_BANDS = ["I1", "I3"]
+VIIRS_COARSE_BANDS = ["M5", "M7", "M10", "M11"]
+VIIRS_FINE_SHIFT_VALUES = [-0.795, -0.795]
+VIIRS_FINE_DIV_VALUES = [0.805, 0.805]
+VIIRS_COARSE_SHIFT_VALUES = [-0.795, -0.795, -0.795, -0.795]
+VIIRS_COARSE_DIV_VALUES = [0.805, 0.805, 0.805, 0.805]
+
+ALL_VIIRS_BANDS = VIIRS_FINE_BANDS + VIIRS_COARSE_BANDS
 
 def get_single_viirs_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
     dates = ee.DateRange(

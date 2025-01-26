@@ -20,4 +20,6 @@ gha-creds-*.json
 scrap
 imgs
 local
-output_texts/
+old_slurms/
+*.sh
+error*
