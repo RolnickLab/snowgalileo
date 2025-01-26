@@ -61,3 +61,24 @@ def get_single_s2_image(region: ee.Geometry, start_date: date, end_date: date) -
         return create_placeholder(region, S2_BANDS).toDouble()
 
     return image
+
+def get_s2_projection(region: ee.Geometry, start_date: date, end_date: date):
+    dates = ee.DateRange(
+        date_to_string(start_date),
+        date_to_string(end_date),
+    )
+
+    startDate = ee.DateRange(dates).start()
+    endDate = ee.DateRange(dates).end()
+
+    image = (
+        ee.ImageCollection(image_collection)
+        .filterBounds(region)
+        .filterDate(startDate, endDate)
+        .select(S2_BANDS[0])
+    ).first()
+
+    if image.getInfo() is None:
+        return None
+
+    return image.projection().getInfo()
