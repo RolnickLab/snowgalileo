@@ -113,8 +113,13 @@ class Normalizer:
     def _normalize(x: np.ndarray, shift_values: np.ndarray, div_values: np.ndarray) -> np.ndarray:
         # we don't want to normalize the no data values to be able to identify them later
         valid_data_mask = x != np.array(NO_DATA_VALUE, dtype=x.dtype)
-        x[valid_data_mask] = (x[valid_data_mask] - shift_values) / div_values
-        return x
+        assert np.all(x[valid_data_mask] != NO_DATA_VALUE)
+        x_normalized = np.where(
+            valid_data_mask,
+            (x - shift_values) / div_values,
+            NO_DATA_VALUE
+        )
+        return x_normalized
 
     def __call__(self, x: np.ndarray, array_type: str):
         if array_type not in self.shift_div_dict:
@@ -378,6 +383,10 @@ class Dataset(PyTorchDataset):
         num_timesteps: int,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
+        Crops the exported image into a size that can be processed by the model.
+        Exported image size: can be larger that exported area / scale
+        Size that can be processed by the model: max(patch_size * number_of_patches_per_dim)
+
         space_time_high_res_x: array of shape [H, W, T, D]
         space_x: array of shape [H, W, D]
         time_x: array of shape [T, D]
@@ -500,7 +509,7 @@ class Dataset(PyTorchDataset):
         # >>> np.fmod(np.array([9., 10, 11, 12, 13, 14]), 12)
         # array([ 9., 10., 11.,  0.,  1.,  2.])
         # - 1 because we want to index from 0
-        return np.fmod(np.arange(start_month - 1, start_month - 1 + num_timesteps), 12)
+        return np.full(num_timesteps, start_month - 1)
 
     @classmethod
     def _tif_to_array(cls, tif_path: Path) -> DatasetOutput:
@@ -660,8 +669,8 @@ class Dataset(PyTorchDataset):
         assert band_1 in EO_TIME_BANDS
         assert band_2 in EO_TIME_BANDS
 
-        band_1_np = input_array[:, :, :, EO_TIME_BANDS.index(band_1)]
-        band_2_np = input_array[:, :, :, EO_TIME_BANDS.index(band_2)]
+        band_1_np = input_array[:, EO_TIME_BANDS.index(band_1)]
+        band_2_np = input_array[:, EO_TIME_BANDS.index(band_2)]
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message="invalid value encountered in divide")
@@ -727,10 +736,7 @@ class Dataset(PyTorchDataset):
         # we computed the normalizing dict using the same datset
         output_dict = {}
         for key, val in norm_dict.items():
-            if "n" not in key:
-                output_dict[int(key)] = val
-            else:
-                output_dict[key] = val
+            output_dict[key] = val
         return output_dict
 
     def compute_normalization_values(

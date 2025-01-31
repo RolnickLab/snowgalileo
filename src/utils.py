@@ -12,7 +12,7 @@ import torch
 import wandb
 
 from .config import DEFAULT_SEED
-from .data.dataset import (
+from .data.earthengine.eo import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_HIGH_RES_BANDS,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,

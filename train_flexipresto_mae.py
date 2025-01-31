@@ -33,11 +33,6 @@ from src.data.config import (
     TARGET_ENCODER_FILENAME,
     TIFS_FOLDER,
 )
-from src.eval import (
-    BinaryCropHarvestEval,
-    EuroSatEval,
-)
-from src.eval.eval import EvalTask, Hyperparams
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
 from src.loss import construct_target_encoder_masks, do_loss
 from src.utils import (
@@ -70,14 +65,14 @@ autocast_device = torch.bfloat16 if is_bf16_available() else torch.float32
 tracker.start()
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument("--config_file", type=str, default="small.json")
+argparser.add_argument("--config_file", type=str, default="ai4snow.json")
 argparser.add_argument("--run_name_prefix", type=str, default="")
 argparser.add_argument("--conditioner_mode", type=str, default="")
 argparser.add_argument("--h5py_folder", type=str, default="")
 argparser.add_argument("--output_folder", type=str, default="")
 argparser.add_argument("--download", dest="download", action="store_true")
 argparser.add_argument("--h5pys_only", dest="h5pys_only", action="store_true")
-argparser.add_argument("--num_workers", dest="num_workers", default=Hyperparams.num_workers)
+argparser.add_argument("--num_workers", dest="num_workers", default=0)
 argparser.add_argument("--batch_size", dest="batch_size", default="")
 argparser.add_argument("--sync_models_from_service_account", action="store_true")
 argparser.add_argument("--checkpoint_every_epoch", type=int, default=0)
@@ -271,6 +266,7 @@ if restart:
     predictor.load_state_dict(torch.load(model_path / DECODER_FILENAME, map_location=device))
 
 
+"""
 print("Loading validation task")
 val_task_no_latlons = EuroSatEval(
     normalization=dataset.normalizer,
@@ -282,6 +278,7 @@ val_task_no_latlons = EuroSatEval(
 val_task_ts = BinaryCropHarvestEval(
     normalizer=dataset.normalizer, country="Togo", do_condition=True, eval_mode="val"
 )
+"""
 
 optimizer = torch.optim.AdamW(
     param_groups,
@@ -344,6 +341,8 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                 patch_size,
                 c_i,
             ) = b
+
+            print("t shape: " + str(t_x.shape))
 
             if (
                 will_cause_nans(s_t_x)
@@ -433,6 +432,7 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                         ),
                     )
                 assert not torch.isnan(loss).any(), "NaNs in loss"
+                print("Got through one loss calc w/o assertion error - yay!")
             train_loss.update(loss.item(), n=s_t_x.shape[0])
             if c_i is not None:
                 task_masking_train_loss.update(loss.item(), n=s_t_x.shape[0])
@@ -474,7 +474,7 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
             "momentum": m,
             "lr": current_lr,
         }
-
+        """
         if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
             e % training_config["eval_eurosat_every_n_epochs"] == 0
         ):
@@ -488,6 +488,7 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                     encoder, model_modes=["KNNat5 Classifier", "Logistic Regression"]
                 )
             )
+        """
         wandb.log(to_log, step=e)
     if args["checkpoint_every_epoch"] > 0:
         if e % args["checkpoint_every_epoch"] == 0:
@@ -521,6 +522,7 @@ if args["sync_models_from_service_account"]:
     )
 os.system(f"gcloud storage rsync -r gs://{EE_BUCKET_TIFS}/outputs {model_path}")
 
+"""
 eval_tasks: List[EvalTask] = [
     *[
         BinaryCropHarvestEval(
@@ -549,6 +551,9 @@ eval_tasks: List[EvalTask] = [
         for include_latlons in [True, False]
     ],
 ]
+"""
+
+eval_tasks = []
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)
     print(json.dumps(results, indent=2), flush=True)

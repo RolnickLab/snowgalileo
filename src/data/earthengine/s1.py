@@ -32,7 +32,6 @@ def get_single_s1_image(
     )
 
     if s1.size().getInfo() == 0:
-        print("No VV, VH Image on date: {}".format(start_date))
         return create_placeholder(region, S1_BANDS).toDouble()
 
     image = s1.select(S1_BANDS).first()
