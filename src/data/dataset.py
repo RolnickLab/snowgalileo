@@ -36,7 +36,7 @@ from .config import (
 from .earthengine.eo import (
     ALL_DYNAMIC_IN_TIME_BANDS,
     EO_DYNAMIC_IN_TIME_BANDS_NP,
-    EO_TIME_BANDS,
+    EO_SPACE_TIME_LOW_RES_BANDS,
     SPACE_BANDS,
     SPACE_DIV_VALUES,
     SPACE_SHIFT_VALUES,
@@ -546,6 +546,23 @@ class Dataset(PyTorchDataset):
         tif_name = tif_path.stem
         return self.h5py_folder / f"{tif_name}.h5"
 
+    @staticmethod
+    def downsample_dynamic_in_time_with_mean(arr, target_shape=(2, 2)):
+
+        # make sure that we are processing dynamic-in-time array
+        assert arr.ndim == 4
+        assert H % new_H == 0 and W % new_W == 0, "H and W must be divisible by target dimensions"
+
+        H, W, T, C = arr.shape
+        new_H, new_W = target_shape
+
+        # Compute block sizes
+        h_block = H // new_H
+        w_block = W // new_W
+
+        # Reshape and take mean over blocks
+        return arr.reshape(new_H, h_block, new_W, w_block, T, C).mean(axis=(1, 3))
+
     @classmethod
     def start_month_from_file(cls, tif_path: Path) -> int:
         start_date = tif_path.name.partition("dates=")[2][:10]
@@ -596,27 +613,29 @@ class Dataset(PyTorchDataset):
             :,
             :,
             :,
-            : -(len(SPACE_TIME_MED_RES_BANDS) + len(SPACE_TIME_LOW_RES_BANDS)),
+            : -(len(SPACE_TIME_MED_RES_BANDS) + len(EO_SPACE_TIME_LOW_RES_BANDS)),
         ]
         space_time_med_res_x = dynamic_in_time_x[
             :,
             :,
             :,
-            -(len(SPACE_TIME_MED_RES_BANDS) + len(SPACE_TIME_LOW_RES_BANDS)) : -(
-                len(SPACE_TIME_LOW_RES_BANDS)
+            -(len(SPACE_TIME_MED_RES_BANDS) + len(EO_SPACE_TIME_LOW_RES_BANDS)) : -(
+                len(EO_SPACE_TIME_LOW_RES_BANDS)
             ),
         ]
         space_time_low_res_x = dynamic_in_time_x[
-            :, :, :, -len(SPACE_TIME_LOW_RES_BANDS) :
+            :, :, :, -len(EO_SPACE_TIME_LOW_RES_BANDS) :
         ]
 
-        # TODO: time-only is not used in this version so either remove or switch to full dataset version
-        time_x = np.ones((dynamic_in_time_x.shape[0], dynamic_in_time_x.shape[1], int(num_timesteps), len(TIME_BANDS))) * NO_DATA_VALUE
-        time_x = np.nanmean(time_x, axis=(0, 1))
-
         if MODALITIES["ndsi"].get("active"):
-            ndsi = cls.calculate_ndi(time_x, band_1="sur_refl_b04", band_2="sur_refl_b06")
-            time_x = np.concatenate((time_x, ndsi), axis=-1)
+            ndsi = cls.calculate_ndi(space_time_low_res_x, band_1="sur_refl_b04", band_2="sur_refl_b06")
+            space_time_low_res_x = np.concatenate((space_time_low_res_x, ndsi), axis=-1)
+
+        space_time_med_res_x = cls.downsample_dynamic_in_time_with_mean(space_time_med_res_x, target_shape=(3, 3))
+        space_time_low_res_x = cls.downsample_dynamic_in_time_with_mean(space_time_low_res_x, target_shape=(2, 2))
+
+        time_x = dynamic_in_time_x[:, :, :, -len(TIME_BANDS) :]
+        time_x = np.nanmean(time_x, axis=(0, 1))
 
         space_x = rearrange(
             values[-len(SPACE_BANDS) :],
