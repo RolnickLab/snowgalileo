@@ -1,13 +1,12 @@
-import os
-import numpy as np
-import rioxarray
-import xarray as xr
-
 import argparse
 import os
 from typing import cast
 
-from src.data.config import TIFS_FOLDER, NO_DATA_VALUE, DATA_FOLDER
+import numpy as np
+import rioxarray
+import xarray as xr
+
+from src.data.config import DATA_FOLDER, NO_DATA_VALUE, TIFS_FOLDER
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--tif_folder", default=None)
@@ -33,12 +32,13 @@ def count_geotiff_values_and_nans(folder_path):
     total_nans = 0
 
     # Iterate through all files in the folder
-    for filename in os.listdir(folder_path):
+    for idx, filename in enumerate(os.listdir(folder_path)):
         if filename.endswith(".tif") or filename.endswith(".tiff"):
             file_path = os.path.join(folder_path, filename)
             try:
                 with cast(xr.Dataset, rioxarray.open_rasterio(file_path)) as data:
                     values = cast(np.ndarray, data.values)
+                    print(values.shape)
                     total_values += values.size
                     total_nans += np.count_nonzero(np.isnan(values))
                     total_nodata = np.count_nonzero(values == NO_DATA_VALUE)

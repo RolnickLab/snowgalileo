@@ -1,5 +1,13 @@
 ## A Pretrained Remote Sensing model
 
+Project Stage:
+- Data export all_bands_500m, EPSG:4326, scale 10m
+- Running second 500 of each index subgroup
+
+TODO:
+- Visually test exports
+- transfer normalization values
+
 ### 0. Structure
 
 Functionalities:
@@ -29,8 +37,6 @@ Presto Model:
         - gets embedded images
         - Applies attention
         - bring back into pixel space
-
-![alt text](IMG_0826.JPG)
 
 ### 1. Training the model from scratch
 

@@ -1,9 +1,11 @@
 # https://github.com/nasaharvest/openmapflow/blob/main/openmapflow/ee_exporter.py
 import os
 import shutil
+from collections import OrderedDict
 from datetime import date, timedelta
 from pathlib import Path
 from typing import List, Optional, Union
+from typing import OrderedDict as OrderedDictType
 
 import ee
 import numpy as np
@@ -12,7 +14,9 @@ import requests
 from pandas.compat._optional import import_optional_dependency
 from tqdm import tqdm
 
+from ...config import DEFAULT_SEED
 from ..config import (
+    DATA_FOLDER,
     DAYS_PER_TIMESTEP,
     EE_BUCKET_TIFS,
     EE_DRIVE_FOLDER_NAME,
@@ -20,32 +24,42 @@ from ..config import (
     EE_PROJECT,
     END_YEAR,
     EXPORTED_HEIGHT_WIDTH_METRES,
+    MODALITIES,
     NO_DATA_VALUE,
     NUM_TIMESTEPS,
     SEASONS,
     START_YEAR,
-    DATA_FOLDER,
     TIFS_FOLDER,
 )
-from ...config import DEFAULT_SEED
 from .ee_bbox import EEBoundingBox
 from .era5 import ERA5_BANDS, ERA5_DIV_VALUES, ERA5_SHIFT_VALUES, get_single_era5_image
+from .landsat import (
+    LANDSAT_BANDS,
+    LANDSAT_DIV_VALUES,
+    LANDSAT_SHIFT_VALUES,
+    get_single_landsat_image,
+)
 from .modis import MODIS_BANDS, MODIS_DIV_VALUES, MODIS_SHIFT_VALUES, get_single_modis_image
 from .s1 import S1_BANDS, S1_DIV_VALUES, S1_SHIFT_VALUES, get_single_s1_image
 from .s2 import S2_BANDS, S2_DIV_VALUES, S2_SHIFT_VALUES, get_single_s2_image
 from .s3 import S3_BANDS, S3_DIV_VALUES, S3_SHIFT_VALUES, get_single_s3_image
 from .srtm import SRTM_BANDS, SRTM_DIV_VALUES, SRTM_SHIFT_VALUES, get_single_srtm_image
-from .utils import get_ee_credentials, sample_time_window, sample_season_year, get_location_season_identifier
-from .viirs import (
-    VIIRS_BANDS_1000m,
-    VIIRS_SHIFT_VALUES_1000m,
-    VIIRS_DIV_VALUES_1000m,
-    VIIRS_BANDS_500m,
-    VIIRS_SHIFT_VALUES_500m,
-    VIIRS_DIV_VALUES_500m,
-    get_single_viirs_image,
+from .utils import (
+    get_ee_credentials,
+    get_location_season_identifier,
+    sample_season_year,
+    sample_time_window,
 )
-from .landsat import LANDSAT_BANDS, LANDSAT_DIV_VALUES, LANDSAT_SHIFT_VALUES, get_single_landsat_image
+from .viirs import (
+    VIIRS_COARSE_BANDS,
+    VIIRS_COARSE_DIV_VALUES,
+    VIIRS_COARSE_SHIFT_VALUES,
+    VIIRS_FINE_BANDS,
+    VIIRS_FINE_DIV_VALUES,
+    VIIRS_FINE_SHIFT_VALUES,
+    get_single_viirs_fine_image,
+    get_single_viirs_coarse_image
+)
 
 # dataframe constants when exporting the labels
 LAT = "Latitude"
@@ -53,35 +67,127 @@ LON = "Longitude"
 START_DATE = date(START_YEAR, 1, 1)
 END_DATE = date(END_YEAR, 12, 31)
 
-TIME_IMAGE_FUNCTIONS = [
+# construct time image functions
+TIME_IMAGE_FUNCTIONS = []
+SPACE_IMAGE_FUNCTIONS = []
+
+SPACE_TIME_HIGH_RES_BANDS = []
+SPACE_TIME_HIGH_RES_SHIFT_VALUES = []
+SPACE_TIME_HIGH_RES_DIV_VALUES = []
+
+SPACE_TIME_MED_RES_BANDS = []
+SPACE_TIME_MED_RES_SHIFT_VALUES = []
+SPACE_TIME_MED_RES_DIV_VALUES = []
+
+SPACE_TIME_LOW_RES_BANDS = []
+SPACE_TIME_LOW_RES_SHIFT_VALUES = []
+SPACE_TIME_LOW_RES_DIV_VALUES = []
+
+TIME_BANDS = []
+TIME_SHIFT_VALUES = []
+TIME_DIV_VALUES = []
+
+SPACE_BANDS = []
+SPACE_SHIFT_VALUES = []
+SPACE_DIV_VALUES = []
+
+for modality in MODALITIES:
+
+    if MODALITIES[modality].get("active") and MODALITIES[modality].get("export"):
+        print(MODALITIES[modality])
+        try:
+            band_list = globals()[f"{modality.upper()}_BANDS"]
+            shift_values = globals()[f"{modality.upper()}_SHIFT_VALUES"]
+            div_values = globals()[f"{modality.upper()}_DIV_VALUES"]
+
+            if MODALITIES[modality].get("shape_type") == "s_t_h_x":
+                SPACE_TIME_HIGH_RES_BANDS.extend(band_list)
+                SPACE_TIME_HIGH_RES_SHIFT_VALUES.extend(shift_values)
+                SPACE_TIME_HIGH_RES_DIV_VALUES.extend(div_values)
+
+                function = globals()[f"get_single_{modality}_image"]
+                TIME_IMAGE_FUNCTIONS.append(function)
+
+            elif MODALITIES[modality].get("shape_type") == "s_t_m_x":
+                SPACE_TIME_MED_RES_BANDS.extend(band_list)
+                SPACE_TIME_MED_RES_SHIFT_VALUES.extend(shift_values)
+                SPACE_TIME_MED_RES_DIV_VALUES.extend(div_values)
+
+                function = globals()[f"get_single_{modality}_image"]
+                TIME_IMAGE_FUNCTIONS.append(function)
+
+            elif MODALITIES[modality].get("shape_type") == "s_t_l_x":
+                SPACE_TIME_LOW_RES_BANDS.extend(band_list)
+                SPACE_TIME_LOW_RES_SHIFT_VALUES.extend(shift_values)
+                SPACE_TIME_LOW_RES_DIV_VALUES.extend(div_values)
+
+                function = globals()[f"get_single_{modality}_image"]
+                TIME_IMAGE_FUNCTIONS.append(function)
+
+            elif MODALITIES[modality].get("shape_type") == "t_x":
+                TIME_BANDS.extend(band_list)
+                TIME_SHIFT_VALUES.extend(shift_values)
+                TIME_DIV_VALUES.extend(div_values)
+
+                function = globals()[f"get_single_{modality}_image"]
+                TIME_IMAGE_FUNCTIONS.append(function)
+
+            elif MODALITIES[modality].get("shape_type") == "sp_x":
+                SPACE_BANDS.extend(band_list)
+                SPACE_SHIFT_VALUES.extend(shift_values)
+                SPACE_DIV_VALUES.extend(div_values)
+
+                function = globals()[f"get_single_{modality}_image"]
+                SPACE_IMAGE_FUNCTIONS.append(function)                
+
+        except KeyError:
+            print(f"Warning: Check modality '{modality}'.")
+
+# TODO: remove this hacky assert and add a better test
+assert TIME_IMAGE_FUNCTIONS == [
     get_single_s1_image,
     get_single_s2_image,
     get_single_landsat_image,
     get_single_s3_image,
     get_single_modis_image,
-    get_single_viirs_image,
+    get_single_viirs_fine_image,
+    get_single_viirs_coarse_image,
     get_single_era5_image,
 ]
+assert SPACE_IMAGE_FUNCTIONS == [get_single_srtm_image]
+assert SPACE_TIME_HIGH_RES_BANDS == S1_BANDS + S2_BANDS + LANDSAT_BANDS
+assert SPACE_TIME_HIGH_RES_SHIFT_VALUES == S1_SHIFT_VALUES + S2_SHIFT_VALUES + LANDSAT_SHIFT_VALUES
+assert SPACE_TIME_HIGH_RES_DIV_VALUES == S1_DIV_VALUES + S2_DIV_VALUES + LANDSAT_DIV_VALUES
+assert SPACE_TIME_MED_RES_BANDS == []
+assert SPACE_TIME_MED_RES_SHIFT_VALUES == []
+assert SPACE_TIME_MED_RES_DIV_VALUES == []
+assert SPACE_TIME_LOW_RES_BANDS == []
+assert SPACE_TIME_LOW_RES_SHIFT_VALUES == []
+assert SPACE_TIME_LOW_RES_DIV_VALUES == []
+assert TIME_BANDS == S3_BANDS + MODIS_BANDS + VIIRS_FINE_BANDS + VIIRS_COARSE_BANDS + ERA5_BANDS
+assert (
+    TIME_SHIFT_VALUES
+    == S3_SHIFT_VALUES
+    + MODIS_SHIFT_VALUES
+    + VIIRS_FINE_SHIFT_VALUES
+    + VIIRS_COARSE_SHIFT_VALUES
+    + ERA5_SHIFT_VALUES
+)
+assert (
+    TIME_DIV_VALUES
+    == S3_DIV_VALUES
+    + MODIS_DIV_VALUES
+    + VIIRS_FINE_DIV_VALUES
+    + VIIRS_COARSE_DIV_VALUES
+    + ERA5_DIV_VALUES
+)
+assert SPACE_BANDS == SRTM_BANDS
+assert SPACE_SHIFT_VALUES == SRTM_SHIFT_VALUES
+assert SPACE_DIV_VALUES == SRTM_DIV_VALUES
 
-TIME_IMAGE_FUNCTIONS_REDUCED = [
-    get_single_s1_image,
-    get_single_s2_image,
-    get_single_landsat_image,
-    get_single_s3_image,
-    get_single_modis_image,
-]
-
-SPACE_TIME_HIGH_RES_BANDS = S1_BANDS + S2_BANDS + LANDSAT_BANDS
-SPACE_TIME_HIGH_RES_SHIFT_VALUES = S1_SHIFT_VALUES + S2_SHIFT_VALUES + LANDSAT_SHIFT_VALUES
-SPACE_TIME_HIGH_RES_DIV_VALUES = S1_DIV_VALUES + S2_DIV_VALUES + LANDSAT_DIV_VALUES
-
-SPACE_TIME_MED_RES_BANDS = S3_BANDS
-SPACE_TIME_MED_RES_SHIFT_VALUES = S3_SHIFT_VALUES
-SPACE_TIME_MED_RES_DIV_VALUES = S3_DIV_VALUES
-
-SPACE_TIME_LOW_RES_BANDS = MODIS_BANDS + VIIRS_BANDS_500m
-SPACE_TIME_LOW_RES_SHIFT_VALUES = MODIS_SHIFT_VALUES + VIIRS_SHIFT_VALUES_500m
-SPACE_TIME_LOW_RES_DIV_VALUES = MODIS_DIV_VALUES + VIIRS_DIV_VALUES_500m
+ALL_DYNAMIC_IN_TIME_BANDS = (
+    SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS + TIME_BANDS
+)
 
 SPACE_TIME_BANDS = SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS
 SPACE_TIME_SHIFT_VALUES = np.array(
@@ -93,20 +199,14 @@ SPACE_TIME_DIV_VALUES = np.array(
     SPACE_TIME_HIGH_RES_DIV_VALUES + SPACE_TIME_MED_RES_DIV_VALUES + SPACE_TIME_LOW_RES_DIV_VALUES
 )
 
-TIME_BANDS = ERA5_BANDS + VIIRS_BANDS_1000m
-TIME_SHIFT_VALUES = np.array(ERA5_SHIFT_VALUES + VIIRS_SHIFT_VALUES_1000m)
-TIME_DIV_VALUES = np.array(ERA5_DIV_VALUES + VIIRS_DIV_VALUES_1000m)
-
-ALL_DYNAMIC_IN_TIME_BANDS = (
-    SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS + TIME_BANDS
-)
-
-ALL_DYNAMIC_IN_TIME_BANDS_REDUCED = (
-    SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + MODIS_BANDS
-)
-
-SPACE_BANDS = SRTM_BANDS
-SPACE_IMAGE_FUNCTIONS = [get_single_srtm_image]
+SPACE_TIME_HIGH_RES_SHIFT_VALUES = np.array(SPACE_TIME_HIGH_RES_SHIFT_VALUES)
+SPACE_TIME_HIGH_RES_DIV_VALUES = np.array(SPACE_TIME_HIGH_RES_DIV_VALUES)
+SPACE_TIME_MED_RES_SHIFT_VALUES = np.array(SPACE_TIME_MED_RES_SHIFT_VALUES)
+SPACE_TIME_MED_RES_DIV_VALUES = np.array(SPACE_TIME_MED_RES_DIV_VALUES)
+SPACE_TIME_LOW_RES_SHIFT_VALUES = np.array(SPACE_TIME_LOW_RES_SHIFT_VALUES)
+SPACE_TIME_LOW_RES_DIV_VALUES = np.array(SPACE_TIME_LOW_RES_DIV_VALUES)
+TIME_SHIFT_VALUES = np.array(TIME_SHIFT_VALUES)
+TIME_DIV_VALUES = np.array(TIME_DIV_VALUES)
 SPACE_SHIFT_VALUES = np.array(SRTM_SHIFT_VALUES)
 SPACE_DIV_VALUES = np.array(SRTM_DIV_VALUES)
 
@@ -115,6 +215,77 @@ LOCATION_BANDS = ["x", "y", "z"]
 STATIC_BANDS = LOCATION_BANDS
 STATIC_SHIFT_VALUES = np.array([0, 0, 0])
 STATIC_DIV_VALUES = np.array([1, 1, 1])
+
+EO_DYNAMIC_IN_TIME_BANDS_NP = np.array(
+    SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS + TIME_BANDS
+)
+
+if MODALITIES["ndsi"].get("active"):
+    EO_TIME_BANDS = TIME_BANDS
+
+    TIME_BANDS = EO_TIME_BANDS + ["NDSI"]
+    TIME_SHIFT_VALUES = np.append(TIME_SHIFT_VALUES, [0])
+    TIME_DIV_VALUES = np.append(TIME_DIV_VALUES, [1])
+
+# spatial resolution per pixel: 10m or 20m
+SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
+    {
+        "S1": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in S1_BANDS],
+        "S2_RGB": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B2", "B3", "B4"]],
+        "S2_NIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B8"]],
+        "S2_SWIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B11", "B12"]],
+        "L8_RGB": [
+            SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B2_landsat", "B3_landsat", "B4_landsat"]
+        ],
+        "L8_NIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B5_landsat"]],
+        "L8_SWIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B6_landsat", "B7_landsat"]],
+    }
+)
+
+if MODALITIES["ndsi"].get("active"):
+    TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
+        {
+            "S3_NIR": [TIME_BANDS.index(b) for b in ["Oa17_radiance", "Oa21_radiance"]],
+            "MODIS_RGB": [TIME_BANDS.index(b) for b in ["sur_refl_b03", "sur_refl_b04"]],
+            "MODIS_SWIR": [
+                TIME_BANDS.index(b)
+                for b in ["sur_refl_b05", "sur_refl_b06", "sur_refl_b07"]
+            ],
+            "ERA5": [TIME_BANDS.index(b) for b in ERA5_BANDS],
+            "VIIRS_RGB": [TIME_BANDS.index(b) for b in ["M5", "M7", "I1"]],
+            "VIIRS_VNIR": [TIME_BANDS.index(b) for b in ["M10", "I3"]],
+            "VIIRS_SWIR": [TIME_BANDS.index(b) for b in ["M11"]],
+            "NDSI": [TIME_BANDS.index("NDSI")]
+        }
+    )
+else:
+    TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
+        {
+            "S3_NIR": [TIME_BANDS.index(b) for b in ["Oa17_radiance", "Oa21_radiance"]],
+            "MODIS_RGB": [TIME_BANDS.index(b) for b in ["sur_refl_b03", "sur_refl_b04"]],
+            "MODIS_SWIR": [
+                TIME_BANDS.index(b)
+                for b in ["sur_refl_b05", "sur_refl_b06", "sur_refl_b07"]
+            ],
+            "ERA5": [TIME_BANDS.index(b) for b in ERA5_BANDS],
+            "VIIRS_RGB": [TIME_BANDS.index(b) for b in ["M5", "M7"]],
+            "VIIRS_VNIR": [TIME_BANDS.index(b) for b in ["M10"]],
+            "VIIRS_SWIR": [TIME_BANDS.index(b) for b in ["M11"]]
+        }
+    )
+
+# spatial resolution per pixel: 30m
+SPACE_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
+    {
+        "SRTM": [SPACE_BANDS.index(b) for b in SRTM_BANDS],
+    }
+)
+
+STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
+    {
+        "location": [STATIC_BANDS.index(b) for b in LOCATION_BANDS],
+    }
+)
 
 
 def get_ee_task_list(key: str = "description") -> List[str]:
@@ -195,10 +366,8 @@ def create_ee_image(
     interval_start_date: date,
     interval_end_date: date,
     days_per_timestep: int = DAYS_PER_TIMESTEP,
-    all_bands: bool = True,
 ) -> ee.Image:
     # TODO: change function header
-
     """
     Returns an ee.Image which we can then export.
     This image will contain S1, S2, ERA5 and Dynamic World data
@@ -211,20 +380,13 @@ def create_ee_image(
     cur_date = interval_start_date
     cur_end_date = cur_date + timedelta(days=days_per_timestep)
 
-    if all_bands:
-        time_image_functions = TIME_IMAGE_FUNCTIONS
-        all_dynamic_in_time_bands = ALL_DYNAMIC_IN_TIME_BANDS
-    else:
-        time_image_functions = TIME_IMAGE_FUNCTIONS_REDUCED
-        all_dynamic_in_time_bands = ALL_DYNAMIC_IN_TIME_BANDS_REDUCED
-
     # Note: we add a day to the end date to make sure we get the last day inclusive
     # (the ee.filterDate function is exclusive)
     # TODO: check if this makes sense if days_per_timestep is greater than 1
     while cur_end_date <= interval_end_date + timedelta(days=days_per_timestep):
         image_list: List[ee.Image] = []
 
-        for image_function in time_image_functions:
+        for image_function in TIME_IMAGE_FUNCTIONS:
             image_list.append(
                 image_function(region=polygon, start_date=cur_date, end_date=cur_end_date)
             )
@@ -235,19 +397,13 @@ def create_ee_image(
 
     # now, we want to take our image collection and append the bands into a single image
     imcoll = ee.ImageCollection(image_collection_list)
-    combine_bands_function = make_combine_bands_function(all_dynamic_in_time_bands)
+    combine_bands_function = make_combine_bands_function(ALL_DYNAMIC_IN_TIME_BANDS)
     img = ee.Image(imcoll.iterate(combine_bands_function))
 
     # finally, we add the static in time images
     total_image_list: List[ee.Image] = [img]
     for space_image_function in SPACE_IMAGE_FUNCTIONS:
-        total_image_list.append(
-            space_image_function(
-                region=polygon,
-                start_date=interval_start_date - timedelta(days=31),
-                end_date=interval_end_date + timedelta(days=31),
-            )
-        )
+        total_image_list.append(space_image_function(region=polygon))
 
     return ee.Image.cat(total_image_list)
 
@@ -274,10 +430,10 @@ class EarthEngineExporter:
         dest_drive_folder: str = EE_DRIVE_FOLDER_NAME,
         check_ee: bool = False,
         check_gcp: bool = False,
-        credentials = None,
+        credentials=None,
         mode: str = "drive",
         no_data_val: int = NO_DATA_VALUE,
-        tifs_folder = None,
+        tifs_folder=None,
     ) -> None:
         assert mode in ["cloud", "drive", "url"]
         self.mode = mode
@@ -286,7 +442,9 @@ class EarthEngineExporter:
         else:
             self.tifs_folder = DATA_FOLDER / tifs_folder
         if mode == "url":
-            print(f"Mode: url. Files will be saved to {self.tifs_folder} and rsynced to google cloud")
+            print(
+                f"Mode: url. Files will be saved to {self.tifs_folder} and rsynced to google cloud"
+            )
         self.surrounding_metres = EXPORTED_HEIGHT_WIDTH_METRES / 2
         self.dest_bucket = dest_bucket
         self.dest_drive_folder = dest_drive_folder
@@ -303,12 +461,18 @@ class EarthEngineExporter:
         self.check_gcp = check_gcp
         self.cloud_tif_list = get_cloud_tif_list(dest_bucket) if self.check_gcp else []
         self.local_tif_list = [x.name for x in self.tifs_folder.glob("*.tif*")]
-        self.cloud_location_season_tif_list = [get_location_season_identifier(x) for x in self.cloud_tif_list]
-        self.local_location_season_tif_list = [get_location_season_identifier(x) for x in self.local_tif_list]
+        self.cloud_location_season_tif_list = [
+            get_location_season_identifier(x) for x in self.cloud_tif_list
+        ]
+        self.local_location_season_tif_list = [
+            get_location_season_identifier(x) for x in self.local_tif_list
+        ]
         self.no_data_val = no_data_val
 
     def sync_local_and_gcloud(self):
-        os.system(f"gcloud storage rsync -r {self.tifs_folder} gs://{EE_BUCKET_TIFS}/{EE_FOLDER_TIFS}")
+        os.system(
+            f"gcloud storage rsync -r {self.tifs_folder} gs://{EE_BUCKET_TIFS}/{EE_FOLDER_TIFS}"
+        )
 
     def _export_for_polygon(
         self,
@@ -317,7 +481,6 @@ class EarthEngineExporter:
         interval_start_date: date,
         interval_end_date: date,
         file_dimensions: Optional[int] = None,
-        all_bands: bool = True,
     ) -> bool:
         cloud_filename = f"{str(polygon_identifier)}"
         local_filename = f"{str(polygon_identifier).replace('/', '_')}.tif"
@@ -335,7 +498,7 @@ class EarthEngineExporter:
             # checks that we haven't already exported this file
             print(f"{local_filename} already in local_tif_files, but not in the cloud", flush=True)
             return False
-        
+
         if location_season_identifier in self.local_location_season_tif_list:
             # checks that we haven't already exported this file
             print(f"{location_season_identifier} already in local_tif_files", flush=True)
@@ -351,9 +514,8 @@ class EarthEngineExporter:
             print("3000 exports started", flush=True)
             return False
 
-        img = create_ee_image(polygon, interval_start_date, interval_end_date, all_bands=all_bands)
+        img = create_ee_image(polygon, interval_start_date, interval_end_date)
 
-        # TODO: check if we can use the scale parameter of should use crs and crs_transform instead
         if self.mode == "cloud":
             try:
                 ee.batch.Export.image.toCloudStorage(
@@ -361,7 +523,7 @@ class EarthEngineExporter:
                     fileNamePrefix=cloud_filename,
                     image=img.clip(polygon),
                     description=description,
-                    crs='EPSG:4326',
+                    crs="EPSG:4326",
                     scale=10,
                     region=polygon,
                     maxPixels=1e13,
@@ -379,7 +541,7 @@ class EarthEngineExporter:
                     fileNamePrefix=cloud_filename,
                     image=img.clip(polygon),
                     description=description,
-                    crs='EPSG:4326',
+                    crs="EPSG:4326",
                     scale=10,
                     region=polygon,
                     maxPixels=1e13,
@@ -395,8 +557,8 @@ class EarthEngineExporter:
                 url = img.getDownloadURL(
                     {
                         "region": polygon,
+                        "crs": "EPSG:4326",
                         "scale": 10,
-                        "crs": 'EPSG:4326',
                         "filePerBand": False,
                         "format": "GEO_TIFF",
                     }
@@ -419,7 +581,6 @@ class EarthEngineExporter:
         self,
         latlons: pd.DataFrame,
         num_exports_to_start: int = 3000,
-        all_bands: bool = True,
     ) -> None:
         """
         Export boxes with length and width EXPORTED_HEIGHT_WIDTH_METRES
@@ -444,7 +605,6 @@ class EarthEngineExporter:
 
             # Sample each point for each season
             for season in SEASONS.items():
-
                 season_key = season[0]
                 # randomly choose year to sample from
                 season = sample_season_year(season, START_YEAR, END_YEAR, seed=seed)
@@ -458,10 +618,11 @@ class EarthEngineExporter:
 
                 export_started = self._export_for_polygon(
                     polygon=ee_bbox.to_ee_polygon(),
-                    polygon_identifier=ee_bbox.get_identifier(season_key, WINDOW_START_DATE, WINDOW_END_DATE),
+                    polygon_identifier=ee_bbox.get_identifier(
+                        season_key, WINDOW_START_DATE, WINDOW_END_DATE
+                    ),
                     interval_start_date=WINDOW_START_DATE,
                     interval_end_date=WINDOW_END_DATE,
-                    all_bands=all_bands,
                 )
                 if export_started:
                     exports_started += 1

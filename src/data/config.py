@@ -4,10 +4,6 @@ DAYS_PER_TIMESTEP = 1
 
 NUM_TIMESTEPS = 16
 
-# this is the maximum patch_size * num_patches.
-# we will need to change this if that assumption changes
-DATASET_OUTPUT_HW = 96
-
 # time range to sample a random time window from. End year is inclusive (START_YEAR <= N <= END_YEAR)
 # if the season spans two years, the end year will be the following year
 # (i.e., if the end year is 2019, it is possible to get data from early 2020)
@@ -16,7 +12,89 @@ DATASET_OUTPUT_HW = 96
 START_YEAR = 2017
 END_YEAR = 2020
 
-EXPORTED_HEIGHT_WIDTH_METRES = 1000
+EXPORTED_HEIGHT_WIDTH_METRES = 500
+# this is the maximum patch_size * num_patches.
+# we will need to change this if that assumption changes
+# Note: 96 for 1km x 1km
+DATASET_OUTPUT_HW = 48
+
+# the idea is that for exporting different data, we will only have to change this dictionary in the end
+# i.e., sort the modalities into different shape_types, add / remove satellite modalities
+# for using / not using modalities, the "active" flag should get used
+MODALITIES = {
+    "s1": {
+        "original_resolution": 10,
+        "shape_type": "s_t_h_x",
+        "active": True,
+        "export": True,
+    },
+    "s2": {
+        "original_resolution": 10,
+        "shape_type": "s_t_h_x",
+        "active": True,
+        "export": True,
+    },
+    "landsat": {
+        "original_resolution": 30,
+        "shape_type": "s_t_h_x",
+        "active": True,
+        "export": True,
+    },
+    "s3": {
+        "original_resolution": 300,
+        "shape_type": "t_x",
+        "active": True,
+        "export": True,
+    },
+    "modis": {
+        "original_resolution": 500,
+        "shape_type": "t_x",
+        "active": True,
+        "export": True,
+    },
+    "viirs_fine": {
+        "original_resolution": 500,
+        "shape_type": "t_x",
+        "active": True,
+        "export": True,
+    },
+    "viirs_coarse": {
+        "original_resolution": 1000,
+        "shape_type": "t_x",
+        "active": True,
+        "export": True,
+    },
+    "era5": {
+        "original_resolution": 11132,
+        "shape_type": "t_x",
+        "active": True,
+        "export": True,
+    },
+    "srtm": {
+        "original_resolution": 30,
+        "shape_type": "sp_x",
+        "active": True,
+        "export": True,
+    },
+    "location": {
+        "original_resolution": None,
+        "shape_type": "st_x",
+        "active": True,
+        "export": False,
+    },
+    "ndsi": {
+        "original_resolution": 500,
+        "shape_type": "t_x",
+        "active": True,
+        "export": False,
+    },
+    "ndvi": {
+        "original_resolution": 500,
+        "shape_type": "t_x",
+        "active": False,
+        "export": False,
+    },
+}
 
 # inclusive (i.e., the end date of a season is included in the season)
 SEASONS = {
@@ -37,8 +115,8 @@ EE_FOLDER_TIFS = "tifs4"
 EE_FOLDER_H5PYS = "h5pys"
 
 DATA_FOLDER = Path(__file__).parents[2] / "data"
-TIFS_FOLDER = DATA_FOLDER / "tifs"
-NORMALIZATION_DICT_FILENAME = "normalization.json"
+TIFS_FOLDER = DATA_FOLDER / "tifs_all_bands_500m"
+NORMALIZATION_DICT_FILENAME = "normalizing_dict.json"
 OUTPUT_FOLDER = DATA_FOLDER / "outputs"
 ENCODER_FILENAME = "encoder.pt"
 OPTIMIZER_FILENAME = "optimizer.pt"
