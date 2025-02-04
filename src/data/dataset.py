@@ -648,6 +648,8 @@ class Dataset(PyTorchDataset):
 
         months = cls.month_array_from_file(tif_path, int(num_timesteps))
 
+        space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, space_x, time_x, static_x = self.subset_image(space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, space_x, time_x, static_x, months, size=self.output_hw, num_timesteps=self.output_timesteps)
+        
         try:
             assert not np.isnan(space_time_high_res_x).any(), f"NaNs in s_t_h_x for {tif_path}"
             assert not np.isnan(space_time_med_res_x).any(), f"NaNs in s_t_m_x for {tif_path}"
