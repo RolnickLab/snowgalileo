@@ -268,9 +268,9 @@ else:
                 for b in ["sur_refl_b05", "sur_refl_b06", "sur_refl_b07"]
             ],
             "ERA5": [TIME_BANDS.index(b) for b in ERA5_BANDS],
-            "VIIRS_RGB": [TIME_BANDS.index(b) for b in ["M5", "M7"]],
-            "VIIRS_VNIR": [TIME_BANDS.index(b) for b in ["M10"]],
-            "VIIRS_SWIR": [TIME_BANDS.index(b) for b in ["M11"]]
+            "VIIRS_RGB": [TIME_BANDS.index(b) for b in ["M5", "M7", "I1"]],
+            "VIIRS_VNIR": [TIME_BANDS.index(b) for b in ["M10", "I3"]],
+            "VIIRS_SWIR": [TIME_BANDS.index(b) for b in ["M11"]],
         }
     )
 
