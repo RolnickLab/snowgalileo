@@ -62,7 +62,7 @@ tracker = codecarbon.EmissionsTracker(
 torch.backends.cuda.matmul.allow_tf32 = True
 autocast_device = torch.bfloat16 if is_bf16_available() else torch.float32
 
-tracker.start()
+#tracker.start()
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--config_file", type=str, default="ai4snow.json")
@@ -377,6 +377,18 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                     ),
                     patch_size=patch_size,
                 )
+
+                # handle nans introduced after processing
+                if (
+                    will_cause_nans(p_s_t)
+                    or will_cause_nans(p_sp)
+                    or will_cause_nans(p_t)
+                    or will_cause_nans(p_st)
+                ):
+                    skipped_batches += 1
+                    warnings.warn(f"Skipping batch with NaNs after processing, {skipped_batches}")
+                    continue
+
                 if training_config["loss_type"] != "MAE":
                     with torch.no_grad():
                         t_s_t, t_sp, t_t, t_st, _, _, _, _, _ = target_encoder(
@@ -559,4 +571,4 @@ for task in eval_tasks:
     print(json.dumps(results, indent=2), flush=True)
     if wandb_enabled:
         wandb.log(results, step=training_config["num_epochs"])
-tracker.stop()
+#tracker.stop()

@@ -38,8 +38,6 @@ Presto Model:
         - Applies attention
         - bring back into pixel space
 
-![alt text](IMG_0826.JPG)
-
 ### 1. Training the model from scratch
 
 The main entrypoint to training a model from scratch is `train_flexipresto_mae.py`.

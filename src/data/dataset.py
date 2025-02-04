@@ -506,9 +506,8 @@ class Dataset(PyTorchDataset):
         # assumes all files are exported with filenames including:
         # *dates=<start_date>*, where the start_date is in a YYYY-MM-dd format
         start_month = cls.start_month_from_file(tif_path)
-        # >>> np.fmod(np.array([9., 10, 11, 12, 13, 14]), 12)
-        # array([ 9., 10., 11.,  0.,  1.,  2.])
         # - 1 because we want to index from 0
+        # TODO: account for the possibility that different timesteps can be in different months
         return np.full(num_timesteps, start_month - 1)
 
     @classmethod

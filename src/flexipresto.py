@@ -23,9 +23,9 @@ from .conditioner import (
 from .config import BASE_GSD
 from .data import (
     SPACE_BAND_GROUPS_IDX,
-    SPACE_TIME_BANDS_GROUPS_IDX,
+    SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
-    TIME_BAND_GROUPS_IDX,
+    TIME_BANDS_GROUPS_IDX,
 )
 from .data.config import CONFIG_FILENAME, ENCODER_FILENAME
 from .embeddings import (
@@ -215,6 +215,7 @@ class Attention(nn.Module):
         qk_norm=False,
         attn_drop=0.0,
         proj_drop=0.0,
+        use_fast_attn=True,
         norm_layer=nn.LayerNorm,
         cross_attn: bool = False,
     ):
@@ -223,7 +224,7 @@ class Attention(nn.Module):
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
         self.scale = self.head_dim**-0.5
-        self.fast_attn = hasattr(torch.nn.functional, "scaled_dot_product_attention")  # FIXME
+        self.fast_attn = use_fast_attn and hasattr(torch.nn.functional, "scaled_dot_product_attention")  # FIXME
 
         self.cross_attn = cross_attn
 
@@ -256,7 +257,9 @@ class Attention(nn.Module):
         v = rearrange(v, "b n (h d) -> b h n d", h=self.num_heads)
 
         q, k = self.q_norm(q), self.k_norm(k)
+
         if self.fast_attn:
+            print("Using fast attention")
             if attn_mask is not None:
                 attn_mask = attn_mask[:, None, None].repeat((1, self.num_heads, N, 1))
             x = F.scaled_dot_product_attention(
@@ -268,6 +271,7 @@ class Attention(nn.Module):
                 dropout_p=self.attn_drop.p,
             )
         else:
+            print("Not using fast attention")
             if attn_mask is not None:
                 raise NotImplementedError
             q = q * self.scale
@@ -277,6 +281,8 @@ class Attention(nn.Module):
             x = attn @ v
 
         x = x.transpose(1, 2).reshape(B, N, C)
+        #if torch.isnan(x).any():
+        #    import pdb;pdb.set_trace()
         x = self.proj(x)
         x = self.proj_drop(x)
         return x
@@ -358,11 +364,12 @@ class Block(nn.Module):
         drop_path=0.0,
         init_values=None,
         act_layer=nn.GELU,
+        use_fast_attn=True,
         norm_layer=nn.LayerNorm,
         cross_attn: bool = False,
     ):
         super().__init__()
-        self.norm1 = norm_layer(dim)
+        self.norm1 = norm_layer(dim, eps=1e-5)
         self.attn = Attention(
             dim,
             num_heads=num_heads,
@@ -370,13 +377,14 @@ class Block(nn.Module):
             qk_norm=qk_norm,
             attn_drop=attn_drop,
             proj_drop=drop,
+            use_fast_attn=use_fast_attn,
             norm_layer=norm_layer,
             cross_attn=cross_attn,
         )
         self.ls1 = LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
         self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
 
-        self.norm2 = norm_layer(dim)
+        self.norm2 = norm_layer(dim, eps=1e-5)
         self.mlp = Mlp(
             in_features=dim,
             hidden_features=int(dim * mlp_ratio),
@@ -386,7 +394,15 @@ class Block(nn.Module):
         self.ls2 = LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
 
     def forward(self, x, y, attn_mask):
-        x = x + self.drop_path(self.ls1(self.attn(self.norm1(x), y, attn_mask)))
+        #x = x + self.drop_path(self.ls1(self.attn(self.norm1(x), y, attn_mask)))
+        r = x
+        x = self.norm1(x)
+        x = self.attn(x, y, attn_mask)
+        x = self.ls1(x)
+        x = self.drop_path(x)
+        x = r + x
+        if torch.isnan(x).any():
+            print("NaNs detected in attention output")
         x = x + self.drop_path(self.ls2(self.mlp(self.norm2(x))))
         return x
 
@@ -413,15 +429,17 @@ class FlexiPrestoBase(nn.Module):
         base_patch_size: int = 4,
         use_channel_embs: bool = True,
         drop_path: float = 0.0,
+        use_fast_attn = True,
     ):
         super().__init__()
 
-        self.space_time_groups = SPACE_TIME_BANDS_GROUPS_IDX
+        self.space_time_groups = SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX
         self.space_groups = SPACE_BAND_GROUPS_IDX
-        self.time_groups = TIME_BAND_GROUPS_IDX
+        self.time_groups = TIME_BANDS_GROUPS_IDX
         self.static_groups = STATIC_BAND_GROUPS_IDX
         self.embedding_size = embedding_size
         self.base_patch_size = base_patch_size
+        self.use_fast_attn = use_fast_attn
 
         self.blocks = ModuleListWithInit(
             [
@@ -430,6 +448,7 @@ class FlexiPrestoBase(nn.Module):
                     num_heads,
                     mlp_ratio,
                     qkv_bias=True,
+                    use_fast_attn=self.use_fast_attn,
                     norm_layer=nn.LayerNorm,
                     cross_attn=self.cross_attn,
                     drop_path=drop_path,
@@ -454,13 +473,13 @@ class FlexiPrestoBase(nn.Module):
         else:
             args = {"requires_grad": False}
         self.s_t_channel_embed = nn.Parameter(
-            torch.zeros(len(SPACE_TIME_BANDS_GROUPS_IDX), int(embedding_size * 0.25)), **args
+            torch.zeros(len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX), int(embedding_size * 0.25)), **args
         )
         self.sp_channel_embed = nn.Parameter(
             torch.zeros(len(SPACE_BAND_GROUPS_IDX), int(embedding_size * 0.25)), **args
         )
         self.t_channel_embed = nn.Parameter(
-            torch.zeros(len(TIME_BAND_GROUPS_IDX), int(embedding_size * 0.25)), **args
+            torch.zeros(len(TIME_BANDS_GROUPS_IDX), int(embedding_size * 0.25)), **args
         )
         self.st_channel_embed = nn.Parameter(
             torch.zeros(len(STATIC_BAND_GROUPS_IDX), int(embedding_size * 0.25)), **args
@@ -833,18 +852,16 @@ class Encoder(FlexiPrestoBase):
             exited_tokens = None
 
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
-        sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
+        sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]       
         s_t_x, sp_x, t_x, st_x = self.apply_encodings(
             s_t_x, sp_x, t_x, st_x, months, patch_size, input_res
         )
         x, m = self.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
-
         # we only care about the values <= 1 for this mask, since 2 just tells the decoder
         # to decode those tokens. From the perspective of the encoder, 1 and 2 are equivalent
         # since they both represent masked values
         new_m = m >= 1
         x, indices, new_m = self.remove_masked_tokens(x, new_m)  # new_m is shape (bsz, seq_len)
-
         if exit_ids_seq is not None:
             exit_ids_seq, _, _ = self.remove_masked_tokens(exit_ids_seq, m >= 1)
             # still linear projections
@@ -982,7 +999,6 @@ class Encoder(FlexiPrestoBase):
             c_i_token = self.apply_condition(c_i)
         else:
             c_i_token = None
-
         (
             s_t_x,
             sp_x,
@@ -1158,6 +1174,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         max_patch_size: int = 8,
         learnable_channel_embeddings: bool = False,
         output_embedding_size: Optional[int] = None,
+        use_fast_attn: bool = True
     ):
         super().__init__(
             decoder_embedding_size,
@@ -1168,6 +1185,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             max_patch_size,
             use_channel_embs=learnable_channel_embeddings,
             drop_path=0.0,
+            use_fast_attn=use_fast_attn
         )
         self.learnable_channel_embeddings = learnable_channel_embeddings
         self.encoder_embedding_size = encoder_embedding_size
@@ -1190,6 +1208,8 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             # returns a mask where 1 indicates the value should be decoded
             # (i.e. was 2) and 0 elsewhere
             return (m == 2).to(dtype=m.dtype)
+        
+        print("Mask token:", self.mask_token)
 
         s_t_x = s_t_x * (1 - to_kept_boolean(s_t_m)).unsqueeze(-1)
         B, H, W, T, S_T_C, _ = s_t_x.shape
@@ -1220,6 +1240,8 @@ class PrestoPixelDecoder(FlexiPrestoBase):
 
     @staticmethod
     def split_x_y(tokens, mask):
+        #import pdb
+        #pdb;pdb.set_trace()
         org_mask_dtype = mask.dtype
         # https://stackoverflow.com/a/68621610/2332296
         # move all non-masked values to the front of their rows
@@ -1242,6 +1264,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         # the y mask is going to be used to determine which of the y values take. True values
         # take part in the attention (we don't take the inverse here, unlike in the decoder)
         y_mask = (sorted_mask == 0)[:, -max_length_of_unmasked_tokens:].to(dtype=org_mask_dtype)
+        #pdb;pdb.set_trace()
         return x, y, x_mask, y_mask, indices
 
     @staticmethod
@@ -1260,11 +1283,14 @@ class PrestoPixelDecoder(FlexiPrestoBase):
     ):
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
         sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
-        s_t_x, sp_x, t_x, st_x = self.apply_encodings(
-            s_t_x, sp_x, t_x, st_x, months, patch_size, input_res
-        )
+
+        s_t_x, sp_x, t_x, st_x = self.apply_encodings(s_t_x, sp_x, t_x, st_x, months, patch_size, input_res)
+
         x, m = self.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
         x, y, x_mask, y_mask, indices = self.split_x_y(x, m)
+        assert torch.any(x_mask), "x_mask is entirely zero! May cause NaN"
+        assert torch.any(y_mask), "x_mask is entirely zero! May cause NaN"
+
         for blk in self.blocks:
             # note that we are not taking the inverse of the mask, since split_x_y gives us
             # true values for values we want to take part in attention
@@ -1297,10 +1323,23 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         t_x = self.encoder_to_decoder_embed(self.input_norm(t_x))
         st_x = self.encoder_to_decoder_embed(self.input_norm(st_x))
 
+        s_t_x_norm = self.input_norm(s_t_x)
+        sp_x_norm = self.input_norm(sp_x)
+        t_x_norm = self.input_norm(t_x)
+        st_x_norm = self.input_norm(st_x)
+
+        print("s_t_x before masking:", torch.min(s_t_x), torch.max(s_t_x))
         s_t_x, sp_x, t_x, st_x = self.add_masks(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
+        print("s_t_x after masking:", torch.min(s_t_x), torch.max(s_t_x))
         s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m = self.apply_attn(
             s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_resolution_m
         )
+
+        ### here is the problem!!
+
+        print("Before LayerNorm:", torch.min(s_t_x), torch.max(s_t_x))
+        s_t_x_test = self.norm(s_t_x)
+        print("After LayerNorm:", torch.min(s_t_x_test), torch.max(s_t_x_test))
 
         b, h, w, t, _, _ = s_t_x.shape
         output_s_t, output_sp, output_t, output_st = [], [], [], []
@@ -1350,6 +1389,8 @@ class PrestoPixelDecoder(FlexiPrestoBase):
                         b, self.output_embedding_size, dtype=st_x.dtype, device=st_x.device
                     )
                 )
+
+        print("Length of the outputs: " + str(len(output_s_t)), str(len(output_sp)), str(len(output_t)), str(len(output_st)))
 
         return (
             torch.stack(output_s_t, dim=-2),  # shape = b h w t c_g, d

@@ -48,7 +48,8 @@
             "max_sequence_length": 24,
             "learnable_channel_embeddings": true,
             "max_patch_size": 8,
-            "embedding_size": 192
+            "embedding_size": 192,
+            "use_fast_attn": true
             }
         }
 }
