@@ -12,11 +12,11 @@ NUM_TIMESTEPS = 16
 START_YEAR = 2017
 END_YEAR = 2020
 
-EXPORTED_HEIGHT_WIDTH_METRES = 500
+EXPORTED_HEIGHT_WIDTH_METRES = 1000
 # this is the maximum patch_size * num_patches.
 # we will need to change this if that assumption changes
-# Note: 96 for 1km x 1km
-DATASET_OUTPUT_HW = 48
+# Note: 96 for 1km x 1km and 48 for 500m x 500m
+DATASET_OUTPUT_HW = 96
 
 # the idea is that for exporting different data, we will only have to change this dictionary in the end
 # i.e., sort the modalities into different shape_types, add / remove satellite modalities
@@ -42,19 +42,19 @@ MODALITIES = {
     },
     "s3": {
         "original_resolution": 300,
-        "shape_type": "t_x",
+        "shape_type": "s_t_m_x",
         "active": True,
         "export": True,
     },
     "modis": {
         "original_resolution": 500,
-        "shape_type": "t_x",
+        "shape_type": "s_t_l_x",
         "active": True,
         "export": True,
     },
     "viirs_fine": {
         "original_resolution": 500,
-        "shape_type": "t_x",
+        "shape_type": "s_t_l_x",
         "active": True,
         "export": True,
     },
@@ -84,13 +84,13 @@ MODALITIES = {
     },
     "ndsi": {
         "original_resolution": 500,
-        "shape_type": "t_x",
+        "shape_type": "s_t_l_x",
         "active": True,
         "export": False,
     },
     "ndvi": {
         "original_resolution": 500,
-        "shape_type": "t_x",
+        "shape_type": "s_t_l_x",
         "active": False,
         "export": False,
     },

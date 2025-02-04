@@ -158,27 +158,21 @@ assert SPACE_IMAGE_FUNCTIONS == [get_single_srtm_image]
 assert SPACE_TIME_HIGH_RES_BANDS == S1_BANDS + S2_BANDS + LANDSAT_BANDS
 assert SPACE_TIME_HIGH_RES_SHIFT_VALUES == S1_SHIFT_VALUES + S2_SHIFT_VALUES + LANDSAT_SHIFT_VALUES
 assert SPACE_TIME_HIGH_RES_DIV_VALUES == S1_DIV_VALUES + S2_DIV_VALUES + LANDSAT_DIV_VALUES
-assert SPACE_TIME_MED_RES_BANDS == []
-assert SPACE_TIME_MED_RES_SHIFT_VALUES == []
-assert SPACE_TIME_MED_RES_DIV_VALUES == []
-assert SPACE_TIME_LOW_RES_BANDS == []
-assert SPACE_TIME_LOW_RES_SHIFT_VALUES == []
-assert SPACE_TIME_LOW_RES_DIV_VALUES == []
-assert TIME_BANDS == S3_BANDS + MODIS_BANDS + VIIRS_FINE_BANDS + VIIRS_COARSE_BANDS + ERA5_BANDS
+assert SPACE_TIME_MED_RES_BANDS == S3_BANDS
+assert SPACE_TIME_MED_RES_SHIFT_VALUES == S3_SHIFT_VALUES
+assert SPACE_TIME_MED_RES_DIV_VALUES == S3_DIV_VALUES
+assert SPACE_TIME_LOW_RES_BANDS == MODIS_BANDS + VIIRS_FINE_BANDS
+assert SPACE_TIME_LOW_RES_SHIFT_VALUES == MODIS_SHIFT_VALUES + VIIRS_FINE_SHIFT_VALUES
+assert SPACE_TIME_LOW_RES_DIV_VALUES == MODIS_DIV_VALUES + VIIRS_FINE_DIV_VALUES
+assert TIME_BANDS == VIIRS_COARSE_BANDS + ERA5_BANDS
 assert (
     TIME_SHIFT_VALUES
-    == S3_SHIFT_VALUES
-    + MODIS_SHIFT_VALUES
-    + VIIRS_FINE_SHIFT_VALUES
-    + VIIRS_COARSE_SHIFT_VALUES
+    == VIIRS_COARSE_SHIFT_VALUES
     + ERA5_SHIFT_VALUES
 )
 assert (
     TIME_DIV_VALUES
-    == S3_DIV_VALUES
-    + MODIS_DIV_VALUES
-    + VIIRS_FINE_DIV_VALUES
-    + VIIRS_COARSE_DIV_VALUES
+    == VIIRS_COARSE_DIV_VALUES
     + ERA5_DIV_VALUES
 )
 assert SPACE_BANDS == SRTM_BANDS
@@ -227,7 +221,7 @@ if MODALITIES["ndsi"].get("active"):
     TIME_SHIFT_VALUES = np.append(TIME_SHIFT_VALUES, [0])
     TIME_DIV_VALUES = np.append(TIME_DIV_VALUES, [1])
 
-# spatial resolution per pixel: 10m or 20m
+# spatial resolution per pixel: 10m, 20m, or 30m
 SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
         "S1": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in S1_BANDS],
@@ -242,37 +236,41 @@ SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedD
     }
 )
 
+SPACE_TIME_MED_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
+    {
+        "S3_NIR": [TIME_BANDS.index(b) for b in ["Oa17_radiance", "Oa21_radiance"]],
+    }
+)
+
 if MODALITIES["ndsi"].get("active"):
-    TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
+    SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
         {
-            "S3_NIR": [TIME_BANDS.index(b) for b in ["Oa17_radiance", "Oa21_radiance"]],
             "MODIS_RGB": [TIME_BANDS.index(b) for b in ["sur_refl_b03", "sur_refl_b04"]],
-            "MODIS_SWIR": [
-                TIME_BANDS.index(b)
-                for b in ["sur_refl_b05", "sur_refl_b06", "sur_refl_b07"]
-            ],
-            "ERA5": [TIME_BANDS.index(b) for b in ERA5_BANDS],
-            "VIIRS_RGB": [TIME_BANDS.index(b) for b in ["M5", "M7", "I1"]],
-            "VIIRS_VNIR": [TIME_BANDS.index(b) for b in ["M10", "I3"]],
-            "VIIRS_SWIR": [TIME_BANDS.index(b) for b in ["M11"]],
+            "MODIS_SWIR": [TIME_BANDS.index(b) for b in ["sur_refl_b05", "sur_refl_b06", "sur_refl_b07"]],
+            "VIIRS_RGB_FINE": [TIME_BANDS.index(b) for b in ["I1"]],
+            "VIIRS_VNIR_FINE": [TIME_BANDS.index(b) for b in ["I3"]],
             "NDSI": [TIME_BANDS.index("NDSI")]
         }
     )
+
 else:
-    TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
+    SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
         {
-            "S3_NIR": [TIME_BANDS.index(b) for b in ["Oa17_radiance", "Oa21_radiance"]],
             "MODIS_RGB": [TIME_BANDS.index(b) for b in ["sur_refl_b03", "sur_refl_b04"]],
-            "MODIS_SWIR": [
-                TIME_BANDS.index(b)
-                for b in ["sur_refl_b05", "sur_refl_b06", "sur_refl_b07"]
-            ],
-            "ERA5": [TIME_BANDS.index(b) for b in ERA5_BANDS],
-            "VIIRS_RGB": [TIME_BANDS.index(b) for b in ["M5", "M7"]],
-            "VIIRS_VNIR": [TIME_BANDS.index(b) for b in ["M10"]],
-            "VIIRS_SWIR": [TIME_BANDS.index(b) for b in ["M11"]]
+            "MODIS_SWIR": [TIME_BANDS.index(b) for b in ["sur_refl_b05", "sur_refl_b06", "sur_refl_b07"]],
+            "VIIRS_RGB_FINE": [TIME_BANDS.index(b) for b in ["I1"]],
+            "VIIRS_VNIR_FINE": [TIME_BANDS.index(b) for b in ["I3"]],
         }
     )
+
+TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
+    {
+        "ERA5": [TIME_BANDS.index(b) for b in ERA5_BANDS],
+        "VIIRS_RGB_COARSE": [TIME_BANDS.index(b) for b in ["M5", "M7"]],
+        "VIIRS_VNIR_COARSE": [TIME_BANDS.index(b) for b in ["M10"]],
+        "VIIRS_SWIR_COARSE": [TIME_BANDS.index(b) for b in ["M11"]]
+    }
+)
 
 # spatial resolution per pixel: 30m
 SPACE_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
