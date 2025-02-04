@@ -115,7 +115,7 @@ EE_FOLDER_TIFS = "tifs4"
 EE_FOLDER_H5PYS = "h5pys"
 
 DATA_FOLDER = Path(__file__).parents[2] / "data"
-TIFS_FOLDER = DATA_FOLDER / "tifs_all_bands_500m"
+TIFS_FOLDER = DATA_FOLDER / "tifs3000"
 NORMALIZATION_DICT_FILENAME = "normalizing_dict.json"
 OUTPUT_FOLDER = DATA_FOLDER / "outputs"
 ENCODER_FILENAME = "encoder.pt"
