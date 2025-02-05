@@ -793,8 +793,8 @@ class Dataset(PyTorchDataset):
                 "std": np.nanstd(d_o.space_x, axis=(0, 1, 2)).tolist(),
             },
             "time": {
-                "mean": np.ones(d_o.time_x.shape[-1]).tolist(),
-                "std": np.ones(d_o.time_x.shape[-1]).tolist(),
+                "mean": np.nanmean(d_o.time_x, axis=(0, 1)).tolist(),
+                "std": np.nanstd(d_o.time_x, axis=(0, 1)).tolist(),
             },
             "static": {
                 "mean": np.nanmean(d_o.static_x, axis=0).tolist(),
