@@ -2,15 +2,20 @@ from pathlib import Path
 
 DAYS_PER_TIMESTEP = 1
 
-NUM_TIMESTEPS = 16
+# we use the max repeat cycle of the modalities used, which is 8-day in the case of combined Landsat 8 + 9
+NUM_TIMESTEPS = 8
 
 # time range to sample a random time window from. End year is inclusive (START_YEAR <= N <= END_YEAR)
 # if the season spans two years, the end year will be the following year
 # (i.e., if the end year is 2019, it is possible to get data from early 2020)
 # for the start year, we are limited by Sentinel-3 data availability (starting 2016-10-18)
 # This means effectively, we can sample from (START_YEAR - 1)-12-16 to (END_YEAR + 1)-02-28
-START_YEAR = 2017
-END_YEAR = 2020
+#START_YEAR = 2017
+#END_YEAR = 2020
+
+# Landsat 9 restricts to 2022 - 2023
+START_YEAR = 2022
+END_YEAR = 2023
 
 EXPORTED_HEIGHT_WIDTH_METRES = 1000
 # this is the maximum patch_size * num_patches.
@@ -34,7 +39,13 @@ MODALITIES = {
         "active": True,
         "export": True,
     },
-    "landsat": {
+    "landsat08": {
+        "original_resolution": 30,
+        "shape_type": "s_t_h_x",
+        "active": True,
+        "export": True,
+    },
+    "landsat09": {
         "original_resolution": 30,
         "shape_type": "s_t_h_x",
         "active": True,

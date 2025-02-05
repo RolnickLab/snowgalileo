@@ -582,8 +582,7 @@ class Dataset(PyTorchDataset):
         # TODO: account for the possibility that different timesteps can be in different months
         return np.full(num_timesteps, start_month - 1)
 
-    @classmethod
-    def _tif_to_array(cls, tif_path: Path) -> DatasetOutput:
+    def _tif_to_array(self, tif_path: Path) -> DatasetOutput:
         with cast(xr.Dataset, rioxarray.open_rasterio(tif_path)) as data:
             # [all_combined_bands, H, W]
             # all_combined_bands includes all dynamic-in-time bands
@@ -608,7 +607,7 @@ class Dataset(PyTorchDataset):
             c=len(ALL_DYNAMIC_IN_TIME_BANDS),
             t=int(num_timesteps),
         )
-        dynamic_in_time_x = cls._check_and_fillna(dynamic_in_time_x, EO_DYNAMIC_IN_TIME_BANDS_NP)
+        dynamic_in_time_x = self._check_and_fillna(dynamic_in_time_x, EO_DYNAMIC_IN_TIME_BANDS_NP)
         space_time_high_res_x = dynamic_in_time_x[
             :,
             :,
@@ -628,11 +627,8 @@ class Dataset(PyTorchDataset):
         ]
 
         if MODALITIES["ndsi"].get("active"):
-            ndsi = cls.calculate_ndi(space_time_low_res_x, band_1="sur_refl_b04", band_2="sur_refl_b06")
+            ndsi = self.calculate_ndi(space_time_low_res_x, band_1="sur_refl_b04", band_2="sur_refl_b06")
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndsi), axis=-1)
-
-        space_time_med_res_x = cls.downsample_dynamic_in_time_with_mean(space_time_med_res_x, target_shape=(3, 3))
-        space_time_low_res_x = cls.downsample_dynamic_in_time_with_mean(space_time_low_res_x, target_shape=(2, 2))
 
         time_x = dynamic_in_time_x[:, :, :, -len(TIME_BANDS) :]
         time_x = np.nanmean(time_x, axis=(0, 1))
@@ -641,15 +637,19 @@ class Dataset(PyTorchDataset):
             values[-len(SPACE_BANDS) :],
             "c h w -> h w c",
         )
-        space_x = cls._check_and_fillna(space_x, np.array(SPACE_BANDS))
+        space_x = self._check_and_fillna(space_x, np.array(SPACE_BANDS))
 
         static_x = to_cartesian(lat, lon)
-        static_x = cls._check_and_fillna(static_x, np.array(STATIC_BANDS))
+        static_x = self._check_and_fillna(static_x, np.array(STATIC_BANDS))
 
-        months = cls.month_array_from_file(tif_path, int(num_timesteps))
+        months = self.month_array_from_file(tif_path, int(num_timesteps))
 
         space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, space_x, time_x, static_x = self.subset_image(space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, space_x, time_x, static_x, months, size=self.output_hw, num_timesteps=self.output_timesteps)
         
+        # for downsampling, the arrays need to be in divisible shape so we do it after cropping
+        space_time_med_res_x = self.downsample_dynamic_in_time_with_mean(space_time_med_res_x, target_shape=(3, 3))
+        space_time_low_res_x = self.downsample_dynamic_in_time_with_mean(space_time_low_res_x, target_shape=(2, 2))
+
         try:
             assert not np.isnan(space_time_high_res_x).any(), f"NaNs in s_t_h_x for {tif_path}"
             assert not np.isnan(space_time_med_res_x).any(), f"NaNs in s_t_m_x for {tif_path}"
@@ -695,17 +695,13 @@ class Dataset(PyTorchDataset):
         if self.h5py_folder is None:
             s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
             return DatasetOutput(
-                *self.subset_image(
-                    s_t_h_x,
-                    s_t_m_x,
-                    s_t_l_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    months,
-                    size=self.output_hw,
-                    num_timesteps=self.output_timesteps,
-                )
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                months,
             )
         else:
             h5py_path = self.tif_to_h5py_path(self.tifs[idx])
@@ -718,23 +714,6 @@ class Dataset(PyTorchDataset):
                     s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
                     self.save_h5py(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, self.tifs[idx].stem)
                     return DatasetOutput(
-                        *self.subset_image(
-                            s_t_h_x,
-                            s_t_m_x,
-                            s_t_l_x,
-                            sp_x,
-                            t_x,
-                            st_x,
-                            months,
-                            self.output_hw,
-                            self.output_timesteps,
-                        )
-                    )
-            else:
-                s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
-                self.save_h5py(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, self.tifs[idx].stem)
-                return DatasetOutput(
-                    *self.subset_image(
                         s_t_h_x,
                         s_t_m_x,
                         s_t_l_x,
@@ -742,9 +721,20 @@ class Dataset(PyTorchDataset):
                         t_x,
                         st_x,
                         months,
-                        self.output_hw,
-                        self.output_timesteps,
                     )
+            else:
+                s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
+                self.save_h5py(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, self.tifs[idx].stem)
+                return DatasetOutput(
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    months,
+                    self.output_hw,
+                    self.output_timesteps,
                 )
 
     def save_h5py(self, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, tif_stem):
@@ -923,8 +913,8 @@ class Dataset(PyTorchDataset):
                 "std": np.nanstd(d_o.space_x, axis=(0, 1, 2)).tolist(),
             },
             "time": {
-                "mean": np.ones(d_o.time_x.shape[-1]).tolist(),
-                "std": np.ones(d_o.time_x.shape[-1]).tolist(),
+                "mean": np.nanmean(d_o.time_x, axis=(0, 1)).tolist(),
+                "std": np.nanstd(d_o.time_x, axis=(0, 1)).tolist(),
             },
             "static": {
                 "mean": np.nanmean(d_o.static_x, axis=0).tolist(),
