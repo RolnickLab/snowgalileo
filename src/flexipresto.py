@@ -394,13 +394,7 @@ class Block(nn.Module):
         self.ls2 = LayerScale(dim, init_values=init_values) if init_values else nn.Identity()
 
     def forward(self, x, y, attn_mask):
-        #x = x + self.drop_path(self.ls1(self.attn(self.norm1(x), y, attn_mask)))
-        r = x
-        x = self.norm1(x)
-        x = self.attn(x, y, attn_mask)
-        x = self.ls1(x)
-        x = self.drop_path(x)
-        x = r + x
+        x = x + self.drop_path(self.ls1(self.attn(self.norm1(x), y, attn_mask)))
         if torch.isnan(x).any():
             print("NaNs detected in attention output")
         x = x + self.drop_path(self.ls2(self.mlp(self.norm2(x))))
