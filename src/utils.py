@@ -16,6 +16,8 @@ from .data.earthengine.eo import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_HIGH_RES_BANDS,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
+    SPACE_TIME_MED_RES_BANDS_GROUPS_IDX,
+    SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
     TIME_BANDS_GROUPS_IDX,
 )
@@ -48,15 +50,19 @@ def seed_everything(seed: int = DEFAULT_SEED):
 
 
 def masked_output_np_to_tensor(
-    s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, month
+    s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, month
 ) -> MaskedOutput:
     """converts eval task"""
     return MaskedOutput(
-        torch.as_tensor(s_t_x, dtype=torch.float32),
+        torch.as_tensor(s_t_h_x, dtype=torch.float32),
+        torch.as_tensor(s_t_m_x, dtype=torch.float32),
+        torch.as_tensor(s_t_l_x, dtype=torch.float32),
         torch.as_tensor(sp_x, dtype=torch.float32),
         torch.as_tensor(t_x, dtype=torch.float32),
         torch.as_tensor(st_x, dtype=torch.float32),
-        torch.as_tensor(s_t_m, dtype=torch.float32),
+        torch.as_tensor(s_t_h_m, dtype=torch.float32),
+        torch.as_tensor(s_t_m_m, dtype=torch.float32),
+        torch.as_tensor(s_t_l_m, dtype=torch.float32),
         torch.as_tensor(sp_m, dtype=torch.float32),
         torch.as_tensor(t_m, dtype=torch.float32),
         torch.as_tensor(st_m, dtype=torch.float32),
@@ -192,6 +198,8 @@ def check_config(config):
         max_group_length = max(
             [
                 max([len(v) for _, v in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.items()]),
+                max([len(v) for _, v in SPACE_TIME_MED_RES_BANDS_GROUPS_IDX.items()]),
+                max([len(v) for _, v in SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX.items()]),
                 max([len(v) for _, v in TIME_BANDS_GROUPS_IDX.items()]),
                 max([len(v) for _, v in SPACE_BAND_GROUPS_IDX.items()]),
                 max([len(v) for _, v in STATIC_BAND_GROUPS_IDX.items()]),
