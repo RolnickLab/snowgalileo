@@ -51,25 +51,39 @@ class FlipAndRotateSpace(object):
 
     def apply(
         self,
-        space_time_x: torch.Tensor,
+        space_time_h_x: torch.Tensor,
+        space_time_m_x: torch.Tensor,
+        space_time_l_x: torch.Tensor,
         space_x: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         if not self.enabled:
-            return space_time_x, space_x
+            return space_time_h_x, space_time_m_x, space_time_l_x, space_x
 
-        space_time_x = rearrange(
-            space_time_x.float(), "b h w t c -> b t c h w"
+        space_time_h_x = rearrange(
+            space_time_h_x.float(), "b h w t c -> b t c h w"
+        )  # rearrange for transforms
+        space_time_m_x = rearrange(
+            space_time_m_x.float(), "b h w t c -> b t c h w"
+        )  # rearrange for transforms
+        space_time_l_x = rearrange(
+            space_time_l_x.float(), "b h w t c -> b t c h w"
         )  # rearrange for transforms
         space_x = rearrange(space_x.float(), "b h w c -> b c h w")  # rearrange for transforms
 
         transformation = random.choice(self.transformations)
 
-        space_time_x = rearrange(
-            transformation(space_time_x), "b t c h w -> b h w t c"
+        space_time_h_x = rearrange(
+            transformation(space_time_h_x), "b t c h w -> b h w t c"
+        )  # rearrange back
+        space_time_m_x = rearrange(
+            transformation(space_time_m_x), "b t c h w -> b h w t c"
+        )  # rearrange back
+        space_time_l_x = rearrange(
+            transformation(space_time_l_x), "b t c h w -> b h w t c"
         )  # rearrange back
         space_x = rearrange(transformation(space_x), "b c h w -> b h w c")  # rearrange back
 
-        return space_time_x.half(), space_x.half()
+        return space_time_h_x.half(), space_time_m_x.half(), space_time_l_x.half(), space_x.half()
 
 
 class Augmentation(object):
@@ -78,12 +92,14 @@ class Augmentation(object):
 
     def apply(
         self,
-        space_time_x: torch.Tensor,
+        space_time_h_x: torch.Tensor,
+        space_time_m_x: torch.Tensor,
+        space_time_l_x: torch.Tensor,
         space_x: torch.Tensor,
         time_x: torch.Tensor,
         static_x: torch.Tensor,
         months: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        space_time_x, space_x = self.flip_and_rotate.apply(space_time_x, space_x)
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        space_time_h_x, space_time_m_x, space_time_l_x, space_x = self.flip_and_rotate.apply(space_time_h_x, space_time_m_x, space_time_l_x, space_x)
 
-        return space_time_x, space_x, time_x, static_x, months
+        return space_time_h_x, space_time_m_x, space_time_l_x, space_x, time_x, static_x, months

@@ -13,10 +13,14 @@ from src.masking import (
 
 class CollateFnOutput(NamedTuple):
     s_t_h_x: torch.Tensor
+    s_t_m_x: torch.Tensor
+    s_t_l_x: torch.Tensor
     sp_x: torch.Tensor
     t_x: torch.Tensor
     st_x: torch.Tensor
     s_t_h_m: torch.Tensor
+    s_t_m_m: torch.Tensor
+    s_t_l_m: torch.Tensor
     sp_m: torch.Tensor
     t_m: torch.Tensor
     st_m: torch.Tensor
@@ -27,6 +31,8 @@ class CollateFnOutput(NamedTuple):
 
 def collated_batch_to_output(
     s_t_h_x: torch.Tensor,
+    s_t_m_x: torch.Tensor,
+    s_t_l_x: torch.Tensor,
     sp_x: torch.Tensor,
     t_x: torch.Tensor,
     st_x: torch.Tensor,
@@ -67,10 +73,14 @@ def collated_batch_to_output(
     (
         (
             s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
             sp_x,
             t_x,
             st_x,
             s_t_h_m,
+            s_t_m_m,
+            s_t_l_m,
             sp_m,
             t_m,
             st_m,
@@ -79,6 +89,8 @@ def collated_batch_to_output(
         c_i,
     ) = batch_subset_mask_presto(
         s_t_h_x,
+        s_t_m_x,
+        s_t_l_x,
         sp_x,
         t_x,
         st_x,
@@ -97,10 +109,14 @@ def collated_batch_to_output(
 
     return CollateFnOutput(
         s_t_h_x,
+        s_t_m_x,
+        s_t_l_x,
         sp_x,
         t_x,
         st_x,
         s_t_h_m,
+        s_t_m_m,
+        s_t_l_m,
         sp_m,
         t_m,
         st_m,
@@ -125,10 +141,12 @@ def mae_collate_fn(
     random_masking: str = "None",
     unmasking_channels_combo: str = "shapes",
 ) -> Tuple[CollateFnOutput, CollateFnOutput, CollateFnOutput, CollateFnOutput]:
-    s_t_h_x, sp_x, t_x, st_x, months = default_collate(batch)
+    s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = default_collate(batch)
 
     input_args = {
         "s_t_h_x": s_t_h_x,
+        "s_t_m_x": s_t_m_x,
+        "s_t_l_x": s_t_l_x,
         "sp_x": sp_x,
         "t_x": t_x,
         "st_x": st_x,
