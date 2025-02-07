@@ -111,6 +111,10 @@ class Normalizer:
 
     @staticmethod
     def _normalize(x: np.ndarray, shift_values: np.ndarray, div_values: np.ndarray) -> np.ndarray:
+
+        pre_norm_no_data_count = np.count_nonzero(x == NO_DATA_VALUE)
+        print("Number of no data counts before normalization: " + str(pre_norm_no_data_count))
+
         # we don't want to normalize the no data values to be able to identify them later
         valid_data_mask = x != np.array(NO_DATA_VALUE, dtype=x.dtype)
         assert np.all(x[valid_data_mask] != NO_DATA_VALUE)
@@ -119,6 +123,10 @@ class Normalizer:
             (x - shift_values) / div_values,
             NO_DATA_VALUE
         )
+        post_norm_no_data_count = np.count_nonzero(x_normalized == NO_DATA_VALUE)
+        print("Number of no data counts after normalization: " + str(post_norm_no_data_count))
+        #assert pre_norm_no_data_count == post_norm_no_data_count
+
         return x_normalized
 
     def __call__(self, x: np.ndarray, array_type: str):
@@ -518,6 +526,7 @@ class Dataset(PyTorchDataset):
             # interleaved for all timesteps
             # followed by the static-in-time bands
             values = cast(np.ndarray, data.values)
+            print(f"No data count in original tif{tif_path}: {np.count_nonzero(values == NO_DATA_VALUE)}")
 
             # extract lat, lon in EPSG:4326 from tif_path
             lat_pattern = r"lat=(.*?)_"
@@ -543,7 +552,6 @@ class Dataset(PyTorchDataset):
             :,
             : -len(EO_TIME_BANDS),
         ]
-
         time_x = dynamic_in_time_x[:, :, :, -len(EO_TIME_BANDS) :]
         time_x = np.nanmean(time_x, axis=(0, 1))
 
@@ -561,6 +569,12 @@ class Dataset(PyTorchDataset):
         static_x = cls._check_and_fillna(static_x, np.array(STATIC_BANDS))
 
         months = cls.month_array_from_file(tif_path, int(num_timesteps))
+
+        count = np.count_nonzero(dynamic_in_time_x == NO_DATA_VALUE) + np.count_nonzero(space_x == NO_DATA_VALUE)
+        print(f"No data count after splitting: {count}")
+        print(f"No data count in time x: {np.count_nonzero(time_x == NO_DATA_VALUE)}")
+        print(f"No data count in static x: {np.count_nonzero(static_x == NO_DATA_VALUE)}")
+        print(f"Months: {np.unique(months)}")
 
         try:
             assert not np.isnan(space_time_high_res_x).any(), f"NaNs in s_t_h_x for {tif_path}"
