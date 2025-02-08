@@ -31,7 +31,6 @@ from src.data.config import (
     OPTIMIZER_FILENAME,
     OUTPUT_FOLDER,
     TARGET_ENCODER_FILENAME,
-    TIFS_FOLDER,
 )
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
 from src.loss import construct_target_encoder_masks, do_loss
@@ -76,6 +75,7 @@ argparser.add_argument("--num_workers", dest="num_workers", default=0)
 argparser.add_argument("--batch_size", dest="batch_size", default="")
 argparser.add_argument("--sync_models_from_service_account", action="store_true")
 argparser.add_argument("--checkpoint_every_epoch", type=int, default=0)
+argparser.add_argument("--tifs_folder", type=str, default="tifs_all_bands_500m")
 
 argparser.set_defaults(download=False)
 argparser.set_defaults(cache_in_ram=False)
@@ -169,7 +169,7 @@ seed_everything(DEFAULT_SEED)
 print("Loading dataset and dataloader")
 
 dataset = Dataset(
-    TIFS_FOLDER,
+    data_folder = DATA_FOLDER / args["tifs_folder"],
     download=args["download"],
     h5py_folder=cache_folder,
     h5pys_only=args["h5pys_only"],
@@ -329,11 +329,15 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
             i += 1
             b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
             (
-                s_t_x,
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
                 sp_x,
                 t_x,
                 st_x,
-                s_t_m,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
                 sp_m,
                 t_m,
                 st_m,
@@ -345,7 +349,9 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
             print("t shape: " + str(t_x.shape))
 
             if (
-                will_cause_nans(s_t_x)
+                will_cause_nans(s_t_h_x)
+                or will_cause_nans(s_t_m_x)
+                or will_cause_nans(s_t_l_x)
                 or will_cause_nans(sp_x)
                 or will_cause_nans(t_x)
                 or will_cause_nans(st_x)
@@ -361,13 +367,17 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                 }
 
             with torch.autocast(device_type=device.type, dtype=autocast_device):
-                (p_s_t, p_sp, p_t, p_st) = predictor(
+                (p_s_t_h, p_s_t_m, p_s_t_l, p_sp, p_t, p_st) = predictor(
                     *encoder(
-                        s_t_x,
+                        s_t_h_x,
+                        s_t_m_x,
+                        s_t_l_x,
                         sp_x,
                         t_x,
                         st_x,
-                        s_t_m,
+                        s_t_h_m,
+                        s_t_m_m,
+                        s_t_l_m,
                         sp_m,
                         t_m,
                         st_m,
@@ -380,7 +390,9 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
 
                 # handle nans introduced after processing
                 if (
-                    will_cause_nans(p_s_t)
+                    will_cause_nans(p_s_t_h)
+                    or will_cause_nans(p_s_t_m)
+                    or will_cause_nans(p_s_t_l)
                     or will_cause_nans(p_sp)
                     or will_cause_nans(p_t)
                     or will_cause_nans(p_st)
@@ -391,13 +403,15 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
 
                 if training_config["loss_type"] != "MAE":
                     with torch.no_grad():
-                        t_s_t, t_sp, t_t, t_st, _, _, _, _, _ = target_encoder(
-                            s_t_x,
+                        t_s_t_h, t_s_t_m, t_s_t_l, t_sp, t_t, t_st, _, _, _, _, _ = target_encoder(
+                            s_t_h_x,
+                            s_t_m_x,
+                            s_t_l_x,
                             sp_x,
                             t_x,
                             st_x,
                             *construct_target_encoder_masks(
-                                s_t_m, sp_m, t_m, st_m, config["training"]["target_masking"]
+                                s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, config["training"]["target_masking"]
                             ),
                             months.long(),
                             patch_size=patch_size,
@@ -409,15 +423,19 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                     loss = do_loss(
                         training_config,
                         (
-                            t_s_t,
+                            t_s_t_h,
+                            t_s_t_m,
+                            t_s_t_l,
                             t_sp,
                             t_t,
                             t_st,
-                            p_s_t,
+                            p_s_t_h,
+                            p_s_t_m,
+                            p_s_t_l,
                             p_sp,
                             p_t,
                             p_st,
-                            s_t_m[:, 0::patch_size, 0::patch_size],
+                            s_t_h_m[:, 0::patch_size, 0::patch_size],
                             sp_m[:, 0::patch_size, 0::patch_size],
                             t_m,
                             st_m,
@@ -427,15 +445,21 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                     loss = do_loss(
                         training_config,
                         (
-                            p_s_t,
+                            p_s_t_h,
+                            p_s_t_m,
+                            p_s_t_l,
                             p_sp,
                             p_t,
                             p_st,
-                            s_t_x,
+                            s_t_h_x,
+                            s_t_m_x,
+                            s_t_l_x,
                             sp_x,
                             t_x,
                             st_x,
-                            s_t_m,
+                            s_t_h_m,
+                            s_t_m_m,
+                            s_t_l_m,
                             sp_m,
                             t_m,
                             st_m,
@@ -477,6 +501,19 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                         m = training_config["ema"][1]
                     for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
                         param_k.data.mul_(m).add_((1.0 - m) * param_q.detach().data)
+                
+                if wandb_enabled:
+                    to_log = {
+                        "train_loss": train_loss.average,
+                        "random_masking_train_loss": random_masking_train_loss.average,
+                        "task_masking_train_loss": task_masking_train_loss.average,
+                        "epoch": e,
+                        "momentum": m,
+                        "lr": current_lr,
+                    }
+                    wandb.log(to_log, step=e)
+
+    """              
     if wandb_enabled:
         to_log = {
             "train_loss": train_loss.average,
@@ -486,7 +523,6 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
             "momentum": m,
             "lr": current_lr,
         }
-        """
         if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
             e % training_config["eval_eurosat_every_n_epochs"] == 0
         ):
@@ -500,8 +536,8 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                     encoder, model_modes=["KNNat5 Classifier", "Logistic Regression"]
                 )
             )
-        """
-        wandb.log(to_log, step=e)
+    """
+        #wandb.log(to_log, step=e)
     if args["checkpoint_every_epoch"] > 0:
         if e % args["checkpoint_every_epoch"] == 0:
             if model_path is None:
