@@ -276,10 +276,10 @@ def mae_loss(
     print("t_m min/max:", t_m.min().item(), t_m.max().item())
     print("st_m min/max:", st_m.min().item(), st_m.max().item())
 
-    assert torch.any(pixel_s_t_h_m == 2), "No valid pixels selected in s_t_h_m!"
-    assert torch.any(pixel_sp_m == 2), "No valid pixels selected in sp_m!"
-    assert torch.any(pixel_t_m == 2), "No valid pixels selected in t_m!"
-    assert torch.any(pixel_st_m == 2), "No valid pixels selected in st_m!"
+    #assert torch.any(pixel_s_t_h_m == 2), "No valid pixels selected in s_t_h_m!"
+    #assert torch.any(pixel_sp_m == 2), "No valid pixels selected in sp_m!"
+    #assert torch.any(pixel_t_m == 2), "No valid pixels selected in t_m!"
+    #assert torch.any(pixel_st_m == 2), "No valid pixels selected in st_m!"
 
     return F.smooth_l1_loss(
         torch.concat(

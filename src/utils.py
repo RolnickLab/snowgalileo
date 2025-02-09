@@ -141,7 +141,7 @@ def check_config(config):
     assert isinstance(training_dict["warmup_epochs"], int)
     assert training_dict["num_epochs"] > training_dict["warmup_epochs"]
     assert training_dict["normalization"] in ["std", "scaling"]
-    assert training_dict["random_masking"] in ["half", "full", "none"]
+    assert training_dict["random_masking"] in ["half", "full", "none", "time_only"]
 
     assert len(training_dict["masking_probabilities"]) == len(
         MASKING_MODES

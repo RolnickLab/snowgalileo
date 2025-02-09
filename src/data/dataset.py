@@ -538,6 +538,7 @@ class Dataset(PyTorchDataset):
             print("Resolution: " + str(data.rio.resolution()))
 
         num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(ALL_DYNAMIC_IN_TIME_BANDS)
+        print(num_timesteps)
         assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
         dynamic_in_time_x = rearrange(
             values[: -(len(SPACE_BANDS))],

@@ -370,6 +370,8 @@ def _random_mask_for_b(
     mask[mask <= decode_ratio] = 2
     # all the rest is ignored by both the encoder and decoder
     mask[(mask != 0) | (mask != 2)] = 1
+    print("CAREFUL! No space is currently unmasked - change this back!")
+    mask.fill_(0)
     return mask
 
 
@@ -724,19 +726,36 @@ def batch_mask_random(
     h_p = int(h / patch_size)
     w_p = int(w / patch_size)
 
-    num_space_time_high_res_tokens = h_p * w_p * t * c_s_t_h
-    num_space_tokens = h_p * w_p * c_sp
-    num_time_tokens = t * c_t
+    # Create a patch-level valid mask (1 if the entire patch is valid, 0 if any part has NO_DATA_VALUE)
+    valid_patch_mask_s_t_h = torch.all(
+        space_time_high_x.unfold(1, patch_size, patch_size)
+                        .unfold(2, patch_size, patch_size)
+                        != NO_DATA_VALUE,
+        dim=(-1, -2)
+    )
+    # Create a patch-level valid mask (1 if the entire patch is valid, 0 if any part has NO_DATA_VALUE)
+    valid_patch_mask_sp = torch.all(
+        space_x.unfold(1, patch_size, patch_size)
+                        .unfold(2, patch_size, patch_size)
+                        != NO_DATA_VALUE,
+        dim=(-1, -2)
+    )
+    # Create a patch-level valid mask (1 if the entire patch is valid, 0 if any part has NO_DATA_VALUE)
+    valid_patch_mask_t = (time_x != NO_DATA_VALUE)
+
+    num_valid_space_time_high_res_tokens = valid_patch_mask_s_t_h.sum().item() * t * c_s_t_h
+    num_valid_space_tokens = valid_patch_mask_sp.sum().item() * c_sp
+    num_valid_time_tokens = valid_patch_mask_t.sum().item() * t * c_t
     num_static_tokens = c_st
 
-    total_tokens = (
-        num_space_time_high_res_tokens
-        + num_space_tokens
-        + num_time_tokens
+    total_valid_tokens = (
+        num_valid_space_time_high_res_tokens
+        + num_valid_space_tokens
+        + num_valid_time_tokens
         + num_static_tokens
     )
-    tokens_the_decoder_will_unmask = int(total_tokens * decode_ratio)
-    tokens_the_encoder_will_encode = int(total_tokens * encode_ratio)
+    tokens_the_decoder_will_unmask = int(total_valid_tokens * decode_ratio)
+    tokens_the_encoder_will_encode = int(total_valid_tokens * encode_ratio)
     # we do this as a numpy array to take advantage of
     # numpy's permuted function
     flat_tokens = np.concatenate(
@@ -782,21 +801,6 @@ def batch_mask_random(
 
     static_tokens = b_flat_tokens[:, -num_static_tokens:]
     static_mask = torch.from_numpy(static_tokens).to(static_x.device)
-
-    first_band_indices_space_time = [indices[0] for indices in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.values()]
-    first_band_indices_space = [indices[0] for indices in SPACE_BAND_GROUPS_IDX.values()]
-    first_band_indices_time = [indices[0] for indices in TIME_BANDS_GROUPS_IDX.values()]
-    first_band_indices_static = [indices[0] for indices in STATIC_BAND_GROUPS_IDX.values()]
-    print("WE ARE HERE!")
-    import pdb;pdb.set_trace()
-
-    # handle no data values
-    space_time_high_res_mask[space_time_high_x[..., first_band_indices_space_time] == NO_DATA_VALUE] = 1
-    space_mask[space_x[..., first_band_indices_space] == NO_DATA_VALUE] = 1
-    time_mask[time_x[..., first_band_indices_time] == NO_DATA_VALUE] = 1
-    static_mask[static_x[..., first_band_indices_static] == NO_DATA_VALUE] = 1
-
-    pdb.set_trace()
 
     return MaskedOutput(
         space_time_high_x.clone(),

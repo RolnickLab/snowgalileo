@@ -182,6 +182,26 @@ def mae_collate_fn(
                 masking_function=MaskingFunctions.RANDOM,
             ),
         )
+    elif random_masking == "time_only":
+        print("only masks over time")
+        return (
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.TIME,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.TIME,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.TIME,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.TIME,
+            ),
+        )
     elif random_masking == "full":
         return (
             collated_batch_to_output(
