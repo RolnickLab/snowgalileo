@@ -549,12 +549,12 @@ class Dataset(PyTorchDataset):
     @staticmethod
     def downsample_dynamic_in_time_with_mean(arr, target_shape=(2, 2)):
 
+        H, W, T, C = arr.shape
+        new_H, new_W = target_shape
+
         # make sure that we are processing dynamic-in-time array
         assert arr.ndim == 4
         assert H % new_H == 0 and W % new_W == 0, "H and W must be divisible by target dimensions"
-
-        H, W, T, C = arr.shape
-        new_H, new_W = target_shape
 
         # Compute block sizes
         h_block = H // new_H
@@ -644,7 +644,7 @@ class Dataset(PyTorchDataset):
 
         months = self.month_array_from_file(tif_path, int(num_timesteps))
 
-        space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, space_x, time_x, static_x = self.subset_image(space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, space_x, time_x, static_x, months, size=self.output_hw, num_timesteps=self.output_timesteps)
+        space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, space_x, time_x, static_x, months = self.subset_image(space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, space_x, time_x, static_x, months, size=self.output_hw, num_timesteps=self.output_timesteps)
         
         # for downsampling, the arrays need to be in divisible shape so we do it after cropping
         space_time_med_res_x = self.downsample_dynamic_in_time_with_mean(space_time_med_res_x, target_shape=(3, 3))
@@ -733,8 +733,6 @@ class Dataset(PyTorchDataset):
                     t_x,
                     st_x,
                     months,
-                    self.output_hw,
-                    self.output_timesteps,
                 )
 
     def save_h5py(self, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, tif_stem):

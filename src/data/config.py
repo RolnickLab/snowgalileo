@@ -123,7 +123,7 @@ EE_BUCKET_TIFS = None
 EE_DRIVE_FOLDER_NAME = "snow_ee_exports_20241226"
 EE_DRIVE_FOLDER_ID = "1cL7tEHhC92UHmuwdEgH0ero6aXQqhBcb"
 EE_FOLDER_TIFS = "tifs4"
-EE_FOLDER_H5PYS = "h5pys"
+EE_FOLDER_H5PYS = "h5pys_full"
 
 DATA_FOLDER = Path(__file__).parents[2] / "data"
 TIFS_FOLDER = DATA_FOLDER / "tifs_all_bands_1km"
