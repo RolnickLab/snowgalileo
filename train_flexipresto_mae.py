@@ -76,6 +76,7 @@ argparser.add_argument("--num_workers", dest="num_workers", default=0)
 argparser.add_argument("--batch_size", dest="batch_size", default="")
 argparser.add_argument("--sync_models_from_service_account", action="store_true")
 argparser.add_argument("--checkpoint_every_epoch", type=int, default=0)
+argparser.add_argument("--tifs_folder", type=str, default="tifs_all_bands_500m")
 
 argparser.set_defaults(download=False)
 argparser.set_defaults(cache_in_ram=False)
@@ -169,7 +170,7 @@ seed_everything(DEFAULT_SEED)
 print("Loading dataset and dataloader")
 
 dataset = Dataset(
-    TIFS_FOLDER,
+    DATA_FOLDER / args["tifs_folder"],
     download=args["download"],
     h5py_folder=cache_folder,
     h5pys_only=args["h5pys_only"],
@@ -477,15 +478,16 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                         m = training_config["ema"][1]
                     for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
                         param_k.data.mul_(m).add_((1.0 - m) * param_q.detach().data)
-    if wandb_enabled:
-        to_log = {
-            "train_loss": train_loss.average,
-            "random_masking_train_loss": random_masking_train_loss.average,
-            "task_masking_train_loss": task_masking_train_loss.average,
-            "epoch": e,
-            "momentum": m,
-            "lr": current_lr,
-        }
+                if wandb_enabled:
+                    to_log = {
+                        "train_loss": train_loss.average,
+                        "random_masking_train_loss": random_masking_train_loss.average,
+                        "task_masking_train_loss": task_masking_train_loss.average,
+                        "epoch": e,
+                        "momentum": m,
+                        "lr": current_lr,
+                    }
+                    wandb.log(to_log, step=e)
         """
         if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
             e % training_config["eval_eurosat_every_n_epochs"] == 0
@@ -501,7 +503,7 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                 )
             )
         """
-        wandb.log(to_log, step=e)
+        #wandb.log(to_log, step=e)
     if args["checkpoint_every_epoch"] > 0:
         if e % args["checkpoint_every_epoch"] == 0:
             if model_path is None:
