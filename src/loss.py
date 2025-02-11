@@ -12,6 +12,10 @@ from src.data.earthengine.eo import (
     TIME_BANDS_GROUPS_IDX,
 )
 
+from src.data.config import (
+    NO_DATA_VALUE
+)
+
 
 def construct_target_encoder_masks(
     s_t_h_m: torch.Tensor, sp_m: torch.Tensor, t_m: torch.Tensor, st_m: torch.Tensor, method: str
@@ -276,10 +280,15 @@ def mae_loss(
     print("t_m min/max:", t_m.min().item(), t_m.max().item())
     print("st_m min/max:", st_m.min().item(), st_m.max().item())
 
-    #assert torch.any(pixel_s_t_h_m == 2), "No valid pixels selected in s_t_h_m!"
-    #assert torch.any(pixel_sp_m == 2), "No valid pixels selected in sp_m!"
-    #assert torch.any(pixel_t_m == 2), "No valid pixels selected in t_m!"
-    #assert torch.any(pixel_st_m == 2), "No valid pixels selected in st_m!"
+    assert not (p_s_t_h[pixel_s_t_h_m == 2] == NO_DATA_VALUE).any()
+    assert not (p_sp[pixel_sp_m == 2] == NO_DATA_VALUE).any()
+    assert not (p_t[pixel_t_m == 2] == NO_DATA_VALUE).any()
+    assert not (p_st[pixel_st_m == 2] == NO_DATA_VALUE).any()
+
+    assert not (s_t_h_x[pixel_s_t_h_m == 2] == NO_DATA_VALUE).any()
+    assert not (sp_x[pixel_sp_m == 2] == NO_DATA_VALUE).any()
+    assert not (t_x[pixel_t_m == 2] == NO_DATA_VALUE).any()
+    assert not (st_x[pixel_st_m == 2] == NO_DATA_VALUE).any()
 
     return F.smooth_l1_loss(
         torch.concat(

@@ -32,6 +32,7 @@ from src.data.config import (
     OUTPUT_FOLDER,
     TARGET_ENCODER_FILENAME,
     TIFS_FOLDER,
+    NO_DATA_VALUE
 )
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
 from src.loss import construct_target_encoder_masks, do_loss

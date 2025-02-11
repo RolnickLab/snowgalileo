@@ -787,16 +787,12 @@ def batch_mask_random(
     first_band_indices_space = [indices[0] for indices in SPACE_BAND_GROUPS_IDX.values()]
     first_band_indices_time = [indices[0] for indices in TIME_BANDS_GROUPS_IDX.values()]
     first_band_indices_static = [indices[0] for indices in STATIC_BAND_GROUPS_IDX.values()]
-    print("WE ARE HERE!")
-    import pdb;pdb.set_trace()
 
     # handle no data values
     space_time_high_res_mask[space_time_high_x[..., first_band_indices_space_time] == NO_DATA_VALUE] = 1
     space_mask[space_x[..., first_band_indices_space] == NO_DATA_VALUE] = 1
     time_mask[time_x[..., first_band_indices_time] == NO_DATA_VALUE] = 1
     static_mask[static_x[..., first_band_indices_static] == NO_DATA_VALUE] = 1
-
-    pdb.set_trace()
 
     return MaskedOutput(
         space_time_high_x.clone(),
