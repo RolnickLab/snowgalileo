@@ -105,6 +105,58 @@ SEASONS = {
 
 NO_DATA_VALUE = -9999
 
+# TODO: this is a bit hard-coded; empirically identified lower bound thresholds (inclusive) to avoid outliers in the input data
+CHANNEL_WISE_INVALID_DATA_THRESHOLDS = {
+    "s_t_h_x": {
+        0: -50,  # S1 VV
+        1: -50,  # S1 VH
+        2: 0,  # S1 angle
+        3: -2000,  # S2 B2
+        4: -2000,  # S2 B3
+        5: -2000,  # S2 B4
+        6: -2000,  # S2 B8
+        7: -2000,  # S2 B11
+        8: -2000,  # S2 B12
+        9: -2000,  # Landsat B2
+        10: -2000,  # Landsat B3
+        11: -2000,  # Landsat B4
+        12: -2000,  # Landsat B5
+        13: -2000,  # Landsat B6
+        14: -2000,  # Landsat B7
+    },
+    "sp_x": {
+        0: -10,  # SRTM elevation
+        1: -10,  # SRTM slope
+    },
+    "t_x": {
+        0: -1000,  # S3
+        1: -1000,  # S3
+        2: -100,  # MODIS
+        3: -100,  # MODIS
+        4: -100,  # MODIS
+        5: -100,  # MODIS
+        6: -100,  # MODIS
+        7: -0.01,  # VIIRS
+        8: -0.01,  # VIIRS
+        9: -0.01,  # VIIRS
+        10: -0.01,  # VIIRS
+        11: -0.01,  # VIIRS
+        12: -0.01,  # VIIRS
+        13: -10,  # ERA5
+        14: -10,  # ERA5
+        15: -10,  # ERA5
+        16: -10,  # ERA5
+        17: -10,  # ERA5
+        18: -5,  # NDSI
+    },
+    "st_x": {
+        0: -1,  # x
+        1: -1,  # y
+        2: -1,  # z
+    }
+
+}
+
 USE_INDECES = False
 
 EE_PROJECT = "ee-marlena"

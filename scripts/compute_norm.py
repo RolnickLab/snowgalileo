@@ -22,14 +22,10 @@ argparser.add_argument("--tifs_folder", type=str, default="tifs")
 argparser.add_argument("--download", dest="download", action="store_true")
 argparser.add_argument("--h5pys_only", dest="h5pys_only", action="store_true")
 argparser.add_argument("--estimate_from", type=int, default=1000)
+argparser.add_argument("--plot_distributions", action="store_true")
 argparser.set_defaults(download=False)
 argparser.set_defaults(cache_in_ram=False)
 args = argparser.parse_args().__dict__
-
-if args["h5py_folder"] == "":
-    cache_folder = DATA_FOLDER / "h5pys"
-else:
-    cache_folder = Path(args["h5py_folder"])
 
 if args["tifs_folder"] == "":
     tifs_folder = TIFS_FOLDER
@@ -41,9 +37,9 @@ print("Loading dataset and dataloader")
 dataset = Dataset(
     data_folder=tifs_folder,
     download=args["download"],
-    h5py_folder=cache_folder,
+    h5py_folder=None,
     h5pys_only=args["h5pys_only"],
 )
 
-normalizing_dict = dataset.compute_normalization_values(estimate_from=args["estimate_from"])
+normalizing_dict = dataset.compute_normalization_values(estimate_from=args["estimate_from"], plot_distribution=args["plot_distributions"])
 print(normalizing_dict, flush=True)
