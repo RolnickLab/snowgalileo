@@ -367,25 +367,16 @@ def subset_and_augment_batch_of_images(
     torch.Tensor,
     torch.Tensor,
 ]:
+    import pdb; pdb.set_trace()
     assert (
         space_time_high_x.shape[1]
-        == space_time_med_x.shape[1]
-        == space_time_low_x.shape[1]
         == valid_data_mask_s_t_h.shape[1]
-        == valid_data_mask_s_t_m.shape[1]
-        == valid_data_mask_s_t_l.shape[1]
         == space_x.shape[1]
-        == size
     ) & (
         space_time_high_x.shape[2]
-        == space_time_med_x.shape[2]
-        == space_time_low_x.shape[2]
         == valid_data_mask_s_t_h.shape[2]
-        == valid_data_mask_s_t_m.shape[2]
-        == valid_data_mask_s_t_l.shape[2]
         == valid_data_mask_sp.shape[2]
         == space_x.shape[2]
-        == size
     )
     assert (
         time_x.shape[1]
@@ -398,6 +389,16 @@ def subset_and_augment_batch_of_images(
         == valid_data_mask_s_t_h.shape[3]
         == valid_data_mask_s_t_m.shape[3]
         == valid_data_mask_s_t_l.shape[3]
+    )
+    assert (
+        space_time_med_x.shape[1] 
+        == space_time_med_x.shape[2]
+        == 3
+    )
+    assert (
+        space_time_low_x.shape[1]
+        == space_time_low_x.shape[2]
+        == 2
     )
     if augmentation_strategies is not None:
         return Augmentation(augmentation_strategies).apply(
