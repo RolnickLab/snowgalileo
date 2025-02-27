@@ -21,7 +21,9 @@ EXPORTED_HEIGHT_WIDTH_METRES = 1000
 # this is the maximum patch_size * num_patches.
 # we will need to change this if that assumption changes
 # Note: 96 for 1km x 1km and 48 for 500m x 500m
-DATASET_OUTPUT_HW = 96
+DATASET_OUTPUT_HW_HIGH_RES = 96
+DATASET_OUTPUT_HW_MED_RES = 96
+DATASET_OUTPUT_HW_LOW_RES = 96
 
 # the idea is that for exporting different data, we will only have to change this dictionary in the end
 # i.e., sort the modalities into different shape_types, add / remove satellite modalities
@@ -116,6 +118,66 @@ SEASONS = {
 
 NO_DATA_VALUE = -9999
 
+# TODO: this is a bit hard-coded; empirically identified lower bound thresholds (inclusive) to avoid outliers in the input data
+CHANNEL_WISE_INVALID_DATA_THRESHOLDS = {
+    "s_t_h_x": {
+        0: -50,  # S1 VV
+        1: -50,  # S1 VH
+        2: 0,  # S1 angle
+        3: -2000,  # S2 B2
+        4: -2000,  # S2 B3
+        5: -2000,  # S2 B4
+        6: -2000,  # S2 B8
+        7: -2000,  # S2 B11
+        8: -2000,  # S2 B12
+        9: -2000,  # Landsat 8 B2
+        10: -2000,  # Landsat 8 B3
+        11: -2000,  # Landsat 8 B4
+        12: -2000,  # Landsat 8 B5
+        13: -2000,  # Landsat 8 B6
+        14: -2000,  # Landsat 8 B7
+        15: -2000,  # Landsat 9 B2
+        16: -2000,  # Landsat 9 B3
+        17: -2000,  # Landsat 9 B4
+        18: -2000,  # Landsat 9 B5
+        19: -2000,  # Landsat 9 B6
+        20: -2000,  # Landsat 9 B7
+    },
+    "s_t_m_x": {
+        0: -1000,  # S3
+        1: -1000,  # S3
+    },
+    "s_t_l_x": {
+        0: -100,  # MODIS
+        1: -100,  # MODIS
+        2: -100,  # MODIS
+        3: -100,  # MODIS
+        4: -100,  # MODIS
+        5: -0.01,  # VIIRS
+        6: -0.01,  # VIIRS
+        7: -5,  # NDSI
+    },
+    "sp_x": {
+        0: -10,  # SRTM elevation
+        1: -10,  # SRTM slope
+    },
+    "t_x": {
+        0: -0.01,  # VIIRS
+        1: -0.01,  # VIIRS
+        2: -0.01,  # VIIRS
+        3: -0.01,  # VIIRS
+        4: -10,  # ERA5
+        5: -10,  # ERA5
+        6: -10,  # ERA5
+        7: -10,  # ERA5
+        8: -10,  # ERA5
+    },
+    "st_x": {
+        0: -1,  # x
+        1: -1,  # y
+        2: -1,  # z
+    }
+}
 USE_INDECES = False
 
 EE_PROJECT = "ee-marlena"
@@ -127,7 +189,7 @@ EE_FOLDER_H5PYS = "h5pys_full"
 
 DATA_FOLDER = Path(__file__).parents[2] / "data"
 TIFS_FOLDER = DATA_FOLDER / "tifs_all_bands_1km"
-NORMALIZATION_DICT_FILENAME = "normalizing_dict_resampled.json"
+NORMALIZATION_DICT_FILENAME = "normalizing_dict_1km.json"
 OUTPUT_FOLDER = DATA_FOLDER / "outputs"
 ENCODER_FILENAME = "encoder.pt"
 OPTIMIZER_FILENAME = "optimizer.pt"

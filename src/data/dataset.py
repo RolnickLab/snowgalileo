@@ -23,7 +23,9 @@ from torch.utils.data import Dataset as PyTorchDataset
 from tqdm import tqdm
 
 from .config import (
-    DATASET_OUTPUT_HW,
+    DATASET_OUTPUT_HW_HIGH_RES,
+    DATASET_OUTPUT_HW_MED_RES,
+    DATASET_OUTPUT_HW_LOW_RES,
     EE_BUCKET_TIFS,
     EE_DRIVE_FOLDER_ID,
     EE_FOLDER_H5PYS,
@@ -32,6 +34,7 @@ from .config import (
     NO_DATA_VALUE,
     NUM_TIMESTEPS,
     TIFS_FOLDER,
+    CHANNEL_WISE_INVALID_DATA_THRESHOLDS
 )
 from .earthengine.eo import (
     ALL_DYNAMIC_IN_TIME_BANDS,
@@ -128,9 +131,8 @@ class Normalizer:
                     self.shift_div_dict[key]["div"][band_idx] = div
 
     @staticmethod
-    def _normalize(x: np.ndarray, shift_values: np.ndarray, div_values: np.ndarray) -> np.ndarray:
+    def _normalize(x: np.ndarray, valid_data_mask: np.ndarray, shift_values: np.ndarray, div_values: np.ndarray) -> np.ndarray:
         # we don't want to normalize the no data values to be able to identify them later
-        valid_data_mask = x != np.array(NO_DATA_VALUE, dtype=x.dtype)
         assert np.all(x[valid_data_mask] != NO_DATA_VALUE)
         x_normalized = np.where(
             valid_data_mask,
@@ -139,13 +141,21 @@ class Normalizer:
         )
         return x_normalized
 
-    def __call__(self, x: np.ndarray, array_type: str):
+    def __call__(self, x: np.ndarray, array_type: str, valid_data_mask: np.ndarray):
         if array_type not in self.shift_div_dict:
             raise ValueError(f"Unknown array type: {array_type}")
         return self._normalize(
-            x, self.shift_div_dict[array_type]["shift"], self.shift_div_dict[array_type]["div"]
+            x, valid_data_mask, self.shift_div_dict[array_type]["shift"], self.shift_div_dict[array_type]["div"]
         )
 
+class StackedDatasetOutput(NamedTuple):
+    space_time_high_res_x: np.ndarray
+    space_time_med_res_x: np.ndarray
+    space_time_low_res_x: np.ndarray
+    space_x: np.ndarray
+    time_x: np.ndarray
+    static_x: np.ndarray
+    months: np.ndarray
 
 class DatasetOutput(NamedTuple):
     space_time_high_res_x: np.ndarray
@@ -155,6 +165,12 @@ class DatasetOutput(NamedTuple):
     time_x: np.ndarray
     static_x: np.ndarray
     months: np.ndarray
+    valid_data_mask_space_time_high_res: np.ndarray
+    valid_data_mask_space_time_med_res: np.ndarray
+    valid_data_mask_space_time_low_res: np.ndarray
+    valid_data_mask_space: np.ndarray
+    valid_data_mask_time: np.ndarray
+    valid_data_mask_static: np.ndarray
 
     @classmethod
     def concatenate(cls, datasetoutputs: Sequence["DatasetOutput"]) -> "DatasetOutput":
@@ -171,13 +187,19 @@ class DatasetOutput(NamedTuple):
         if normalizer is None:
             return self
         return DatasetOutput(
-            normalizer(self.space_time_high_res_x, "space_time_high_res").astype(np.half),
-            normalizer(self.space_time_med_res_x, "space_time_med_res").astype(np.half),
-            normalizer(self.space_time_low_res_x, "space_time_low_res").astype(np.half),
-            normalizer(self.space_x, "space").astype(np.half),
-            normalizer(self.time_x, "time").astype(np.half),
-            normalizer(self.static_x, "static").astype(np.half),
+            normalizer(self.space_time_high_res_x, "space_time_high_res", self.valid_data_mask_space_time_high_res).astype(np.half),
+            normalizer(self.space_time_med_res_x, "space_time_med_res", self.valid_data_mask_space_time_med_res).astype(np.half),
+            normalizer(self.space_time_low_res_x, "space_time_low_res", self.valid_data_mask_space_time_low_res).astype(np.half),
+            normalizer(self.space_x, "space", self.valid_data_mask_space).astype(np.half),
+            normalizer(self.time_x, "time", self.valid_data_mask_time).astype(np.half),
+            normalizer(self.static_x, "static", self.valid_data_mask_static).astype(np.half),
             self.months,
+            self.valid_data_mask_space_time_high_res,
+            self.valid_data_mask_space_time_med_res,
+            self.valid_data_mask_space_time_low_res,
+            self.valid_data_mask_space,
+            self.valid_data_mask_time,
+            self.valid_data_mask_static
         )
 
 
@@ -190,8 +212,8 @@ class ListOfDatasetOutputs(NamedTuple):
     static_x: List[np.ndarray]
     months: List[np.ndarray]
 
-    def to_datasetoutput(self) -> DatasetOutput:
-        return DatasetOutput(
+    def to_datasetoutput(self) -> StackedDatasetOutput:
+        return StackedDatasetOutput(
             np.stack(self.space_time_high_res_x, axis=0),
             np.stack(self.space_time_med_res_x, axis=0),
             np.stack(self.space_time_low_res_x, axis=0),
@@ -253,7 +275,9 @@ class Dataset(PyTorchDataset):
         download: bool = True,
         h5py_folder: Optional[Path] = None,
         h5pys_only: bool = False,
-        output_hw: int = DATASET_OUTPUT_HW,
+        output_hw_high_res: int = DATASET_OUTPUT_HW_HIGH_RES,
+        output_hw_med_res: int = DATASET_OUTPUT_HW_MED_RES,
+        output_hw_low_res: int = DATASET_OUTPUT_HW_LOW_RES,
         output_timesteps: int = NUM_TIMESTEPS,
         normalizer: Optional[Normalizer] = None,
     ):
@@ -284,7 +308,9 @@ class Dataset(PyTorchDataset):
                     warnings.warn(f"IndexError for {tif}")
             self.h5pys = []
 
-        self.output_hw = output_hw
+        self.output_hw_high_res = output_hw_high_res
+        self.output_hw_med_res = output_hw_med_res
+        self.output_hw_low_res = output_hw_low_res
         self.output_timesteps = output_timesteps
 
     def __len__(self) -> int:
@@ -443,7 +469,6 @@ class Dataset(PyTorchDataset):
             == space_time_low_res_x.shape[2]
             == time_x.shape[0]
         )
-        print(space_time_high_res_x.shape)
         possible_h = space_time_high_res_x.shape[0] - size
         possible_w = space_time_high_res_x.shape[1] - size
         assert (possible_h >= 0) & (possible_w >= 0)
@@ -547,21 +572,22 @@ class Dataset(PyTorchDataset):
         return self.h5py_folder / f"{tif_name}.h5"
 
     @staticmethod
-    def downsample_dynamic_in_time_with_mean(arr, target_shape=(2, 2)):
+    def downsample_dynamic_in_time_with_mean(data, mask, target_shape=(2, 2)):
 
-        H, W, T, C = arr.shape
+        H, W, T, C = data.shape
         new_H, new_W = target_shape
 
         # make sure that we are processing dynamic-in-time array
-        assert arr.ndim == 4
+        assert data.ndim == 4
         assert H % new_H == 0 and W % new_W == 0, "H and W must be divisible by target dimensions"
 
         # Compute block sizes
         h_block = H // new_H
         w_block = W // new_W
 
-        # Reshape and take mean over blocks
-        return arr.reshape(new_H, h_block, new_W, w_block, T, C).mean(axis=(1, 3))
+        # reshape
+        # for data, take the mean over blocks, for the mask take the min (we want the block mask to be invalid where at least one value is invalid)
+        return data.reshape(new_H, h_block, new_W, w_block, T, C).mean(axis=(1, 3)), mask.reshape(new_H, h_block, new_W, w_block, T, C).min(axis=(1, 3))
 
     @classmethod
     def start_month_from_file(cls, tif_path: Path) -> int:
@@ -582,7 +608,63 @@ class Dataset(PyTorchDataset):
         # TODO: account for the possibility that different timesteps can be in different months
         return np.full(num_timesteps, start_month - 1)
 
+    @staticmethod
+    def create_valid_mask(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Create masks that identify valid data to be used during normalization and modeling.
+
+        0: invalid data
+        1: valid data
+        """
+        print(s_t_h_x.shape[-1])
+        print(s_t_m_x.shape[-1])
+        print(s_t_l_x.shape[-1])
+        assert s_t_h_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_h_x"])
+        assert s_t_m_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_m_x"])
+        assert s_t_l_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_l_x"])
+        assert sp_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["sp_x"])
+        assert t_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["t_x"])
+        assert st_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["st_x"])
+
+        # start by unmasking invalid data that is characterized by universal no data value
+        valid_mask_s_t_h = (s_t_h_x != NO_DATA_VALUE)
+        valid_mask_s_t_m = (s_t_m_x != NO_DATA_VALUE)
+        valid_mask_s_t_l = (s_t_l_x != NO_DATA_VALUE)
+        valid_mask_sp = (sp_x != NO_DATA_VALUE)
+        valid_mask_t = (t_x != NO_DATA_VALUE)
+        valid_mask_st = (st_x != NO_DATA_VALUE)
+
+        # apply the channel-specific no-data bounds
+        for ch, lower_bound in CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_h_x"].items():
+            valid_mask_s_t_h[..., ch] &= s_t_h_x[..., ch] >= lower_bound
+        for ch, lower_bound in CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_m_x"].items():
+            valid_mask_s_t_m[..., ch] &= s_t_m_x[..., ch] >= lower_bound
+        for ch, lower_bound in CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_l_x"].items():
+            valid_mask_s_t_l[..., ch] &= s_t_l_x[..., ch] >= lower_bound
+        for ch, lower_bound in CHANNEL_WISE_INVALID_DATA_THRESHOLDS["sp_x"].items():
+            valid_mask_sp[..., ch] &= sp_x[..., ch] >= lower_bound
+        for ch, lower_bound in CHANNEL_WISE_INVALID_DATA_THRESHOLDS["t_x"].items():
+            valid_mask_t[..., ch] &= t_x[..., ch] >= lower_bound
+        for ch, lower_bound in CHANNEL_WISE_INVALID_DATA_THRESHOLDS["st_x"].items():
+            valid_mask_st[..., ch] &= st_x[..., ch] >= lower_bound
+
+        return valid_mask_s_t_h, valid_mask_s_t_m, valid_mask_s_t_l, valid_mask_sp, valid_mask_t, valid_mask_st
+
     def _tif_to_array(self, tif_path: Path) -> DatasetOutput:
+        """
+        Loads a spatiotemporal tif file, divides it into different array groups, and creates valid data masks.
+
+        The different array types are:
+        space_time_high_res_x: (H, W, T, C_STH)
+        space_time_med_res_x: (3, 3, T, C_STM)
+        space_time_low_res_x: (2, 2, T, C_STL)
+        space_x: (H, W, C_SP)
+        time_x: (T, C_T)
+        static_x: (C_ST)
+
+        space_time_med_res_x and space_time_low_res_x are created by taking the block mean of their high res version.
+        valid data masks are created by masking out values below a channel-specific threshold (0: invalid, 1: valid).
+        """
         with cast(xr.Dataset, rioxarray.open_rasterio(tif_path)) as data:
             # [all_combined_bands, H, W]
             # all_combined_bands includes all dynamic-in-time bands
@@ -595,9 +677,6 @@ class Dataset(PyTorchDataset):
             lon_pattern = r"lon=(.*?)_"
             lat = np.mean([float(value) for value in re.findall(lat_pattern, str(tif_path))])
             lon = np.mean([float(value) for value in re.findall(lon_pattern, str(tif_path))])
-
-            print("Crs: " + str(data.rio.crs))
-            print("Resolution: " + str(data.rio.resolution()))
 
         num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(ALL_DYNAMIC_IN_TIME_BANDS)
         assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
@@ -612,22 +691,23 @@ class Dataset(PyTorchDataset):
             :,
             :,
             :,
-            : -(len(SPACE_TIME_MED_RES_BANDS) + len(EO_SPACE_TIME_LOW_RES_BANDS)),
+            : -(len(SPACE_TIME_MED_RES_BANDS) + len(EO_SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)),
         ]
         space_time_med_res_x = dynamic_in_time_x[
             :,
             :,
             :,
-            -(len(SPACE_TIME_MED_RES_BANDS) + len(EO_SPACE_TIME_LOW_RES_BANDS)) : -(
-                len(EO_SPACE_TIME_LOW_RES_BANDS)
+            -(len(SPACE_TIME_MED_RES_BANDS) + len(EO_SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)) : -(
+                len(EO_SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)
             ),
         ]
         space_time_low_res_x = dynamic_in_time_x[
-            :, :, :, -len(EO_SPACE_TIME_LOW_RES_BANDS) :
+            :, :, :, -(len(EO_SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)) : -len(TIME_BANDS)
         ]
 
         if MODALITIES["ndsi"].get("active"):
             ndsi = self.calculate_ndi(space_time_low_res_x, band_1="sur_refl_b04", band_2="sur_refl_b06")
+            assert ndsi.all() >= 0 and ndsi.all() <=1
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndsi), axis=-1)
 
         time_x = dynamic_in_time_x[:, :, :, -len(TIME_BANDS) :]
@@ -643,12 +723,12 @@ class Dataset(PyTorchDataset):
         static_x = self._check_and_fillna(static_x, np.array(STATIC_BANDS))
 
         months = self.month_array_from_file(tif_path, int(num_timesteps))
-
-        space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, space_x, time_x, static_x, months = self.subset_image(space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, space_x, time_x, static_x, months, size=self.output_hw, num_timesteps=self.output_timesteps)
+        space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, space_x, time_x, static_x, months = self.subset_image(space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, space_x, time_x, static_x, months, size=self.output_hw_high_res, num_timesteps=self.output_timesteps)
+        valid_data_mask_s_t_h, valid_data_mask_s_t_m, valid_data_mask_s_t_l, valid_data_mask_sp, valid_data_mask_t, valid_data_mask_st = self.create_valid_mask(space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, space_x, time_x, static_x)
         
         # for downsampling, the arrays need to be in divisible shape so we do it after cropping
-        space_time_med_res_x = self.downsample_dynamic_in_time_with_mean(space_time_med_res_x, target_shape=(3, 3))
-        space_time_low_res_x = self.downsample_dynamic_in_time_with_mean(space_time_low_res_x, target_shape=(2, 2))
+        space_time_med_res_x, valid_data_mask_s_t_m = self.downsample_dynamic_in_time_with_mean(space_time_med_res_x, valid_data_mask_s_t_m, target_shape=(3, 3))
+        space_time_low_res_x, valid_data_mask_s_t_l = self.downsample_dynamic_in_time_with_mean(space_time_low_res_x, valid_data_mask_s_t_l, target_shape=(2, 2))
 
         try:
             assert not np.isnan(space_time_high_res_x).any(), f"NaNs in s_t_h_x for {tif_path}"
@@ -664,13 +744,19 @@ class Dataset(PyTorchDataset):
             assert not np.isinf(time_x).any(), f"Infs in t_x for {tif_path}"
             assert not np.isinf(static_x).any(), f"Infs in st_x for {tif_path}"
             return DatasetOutput(
-                space_time_high_res_x.astype(np.half),
-                space_time_med_res_x.astype(np.half),
-                space_time_low_res_x.astype(np.half),
-                space_x.astype(np.half),
-                time_x.astype(np.half),
-                static_x.astype(np.half),
+                space_time_high_res_x,
+                space_time_med_res_x,
+                space_time_low_res_x,
+                space_x,
+                time_x,
+                static_x,
                 months,
+                valid_data_mask_s_t_h, 
+                valid_data_mask_s_t_m,
+                valid_data_mask_s_t_l,                  
+                valid_data_mask_sp, 
+                valid_data_mask_t, 
+                valid_data_mask_st
             )
         except AssertionError as e:
             raise e
@@ -693,7 +779,7 @@ class Dataset(PyTorchDataset):
 
     def load_tif(self, idx: int) -> DatasetOutput:
         if self.h5py_folder is None:
-            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
+            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months, valid_data_mask_s_t_h, valid_data_mask_s_t_m, valid_data_mask_s_t_l, valid_data_mask_sp, valid_data_mask_t, valid_data_mask_st = self._tif_to_array_with_checks(idx)
             return DatasetOutput(
                 s_t_h_x,
                 s_t_m_x,
@@ -702,6 +788,12 @@ class Dataset(PyTorchDataset):
                 t_x,
                 st_x,
                 months,
+                valid_data_mask_s_t_h,
+                valid_data_mask_s_t_m,
+                valid_data_mask_s_t_l,
+                valid_data_mask_sp,
+                valid_data_mask_t,
+                valid_data_mask_st,
             )
         else:
             h5py_path = self.tif_to_h5py_path(self.tifs[idx])
@@ -711,8 +803,8 @@ class Dataset(PyTorchDataset):
                 except Exception as e:
                     logger.warn(f"Exception {e} for {self.tifs[idx]}")
                     h5py_path.unlink()
-                    s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
-                    self.save_h5py(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, self.tifs[idx].stem)
+                    s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months, valid_data_mask_s_t_h, valid_data_mask_s_t_m, valid_data_mask_s_t_l, valid_data_mask_sp, valid_data_mask_t, valid_data_mask_st = self._tif_to_array_with_checks(idx)
+                    self.save_h5py(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, valid_data_mask_s_t_h, valid_data_mask_s_t_m, valid_data_mask_s_t_l, valid_data_mask_sp, valid_data_mask_t, valid_data_mask_st, self.tifs[idx].stem)
                     return DatasetOutput(
                         s_t_h_x,
                         s_t_m_x,
@@ -721,10 +813,16 @@ class Dataset(PyTorchDataset):
                         t_x,
                         st_x,
                         months,
+                        valid_data_mask_s_t_h,
+                        valid_data_mask_s_t_m,
+                        valid_data_mask_s_t_l,
+                        valid_data_mask_sp,
+                        valid_data_mask_t,
+                        valid_data_mask_st,
                     )
             else:
-                s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = self._tif_to_array_with_checks(idx)
-                self.save_h5py(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, self.tifs[idx].stem)
+                s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months, valid_data_mask_s_t_h, valid_data_mask_s_t_m, valid_data_mask_s_t_l, valid_data_mask_sp, valid_data_mask_t, valid_data_mask_st = self._tif_to_array_with_checks(idx)
+                self.save_h5py(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, valid_data_mask_s_t_h, valid_data_mask_s_t_m, valid_data_mask_s_t_l, valid_data_mask_sp, valid_data_mask_t, valid_data_mask_st, self.tifs[idx].stem)
                 return DatasetOutput(
                     s_t_h_x,
                     s_t_m_x,
@@ -733,9 +831,15 @@ class Dataset(PyTorchDataset):
                     t_x,
                     st_x,
                     months,
+                    valid_data_mask_s_t_h,
+                    valid_data_mask_s_t_m,
+                    valid_data_mask_s_t_l,
+                    valid_data_mask_sp,
+                    valid_data_mask_t,
+                    valid_data_mask_st,
                 )
 
-    def save_h5py(self, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, tif_stem):
+    def save_h5py(self, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, valid_data_mask_s_t_h, valid_data_mask_s_t_m, valid_data_mask_s_t_l, valid_data_mask_sp, valid_data_mask_t, valid_data_mask_st, tif_stem):
         assert self.h5py_folder is not None
         with h5py.File(self.h5py_folder / f"{tif_stem}.h5", "w") as hf:
             hf.create_dataset("s_t_h_x", data=s_t_h_x)
@@ -744,6 +848,12 @@ class Dataset(PyTorchDataset):
             hf.create_dataset("sp_x", data=sp_x)
             hf.create_dataset("t_x", data=t_x)
             hf.create_dataset("st_x", data=st_x)
+            hf.create_dataset("valid_data_mask_s_t_h", data=valid_data_mask_s_t_h)
+            hf.create_dataset("valid_data_mask_s_t_m", data=valid_data_mask_s_t_m)
+            hf.create_dataset("valid_data_mask_s_t_l", data=valid_data_mask_s_t_l)
+            hf.create_dataset("valid_data_mask_sp", data=valid_data_mask_sp)
+            hf.create_dataset("valid_data_mask_t", data=valid_data_mask_t)
+            hf.create_dataset("valid_data_mask_st", data=valid_data_mask_st)
 
     @staticmethod
     def calculate_ndi(input_array: np.ndarray, band_1: str, band_2: str) -> np.ndarray:
@@ -754,7 +864,7 @@ class Dataset(PyTorchDataset):
         (band_1 - band_2) / (band_1 + band_2)
         """
 
-        # TODO: make this dynamic instead (if MODIS is later in space time bands)
+        # TODO: make this dynamic instead
         assert band_1 in SPACE_TIME_LOW_RES_BANDS
         assert band_2 in SPACE_TIME_LOW_RES_BANDS
 
@@ -778,34 +888,34 @@ class Dataset(PyTorchDataset):
 
     def read_and_slice_h5py_file(self, h5py_path: Path):
         with h5py.File(h5py_path, "r") as hf:
-            h, w, t, _ = hf["s_t_h_x"].shape
-            start_h, start_w, start_t = self.return_subset_indices(
-                h, w, t, self.output_hw, self.output_timesteps
-            )
+            assert hf["s_t_h_x"].shape == (self.output_hw_high_res, self.output_hw_high_res, self.output_timesteps, len(SPACE_TIME_HIGH_RES_BANDS))
+            assert hf["s_t_m_x"].shape == (self.output_hw_med_res, self.output_hw_med_res, self.output_timesteps, len(SPACE_TIME_MED_RES_BANDS))
+            assert hf["s_t_l_x"].shape == (self.output_hw_low_res, self.output_hw_low_res, self.output_timesteps, len(SPACE_TIME_LOW_RES_BANDS))
+            assert hf["sp_x"].shape == (self.output_hw_high_res, self.output_hw_high_res, len(SPACE_BANDS))
+            assert hf["t_x"].shape == (self.output_timesteps, len(TIME_BANDS))
+            assert hf["st_x"].shape == (len(STATIC_BANDS))
+            assert hf["valid_data_mask_s_t_h"].shape == (self.output_hw_high_res, self.output_hw_high_res, self.output_timesteps, len(SPACE_TIME_HIGH_RES_BANDS))
+            assert hf["valid_data_mask_s_t_m"].shape == (self.output_hw_med_res, self.output_hw_med_res, self.output_timesteps, len(SPACE_TIME_MED_RES_BANDS))
+            assert hf["valid_data_mask_s_t_l"].shape == (self.output_hw_low_res, self.output_hw_low_res, self.output_timesteps, len(SPACE_TIME_LOW_RES_BANDS))
+            assert hf["valid_data_mask_sp"].shape == (self.output_hw_high_res, self.output_hw_high_res, len(SPACE_BANDS))
+            assert hf["valid_data_mask_t"].shape == (self.output_timesteps, len(TIME_BANDS))
+            assert hf["valid_data_mask_st"].shape == (len(STATIC_BANDS))
+
             months = self.month_array_from_file(h5py_path, t)
             output = DatasetOutput(
-                hf["s_t_h_x"][
-                    start_h : start_h + self.output_hw,
-                    start_w : start_w + self.output_hw,
-                    start_t : start_t + self.output_timesteps,
-                ],
-                hf["s_t_m_x"][
-                    start_h : start_h + self.output_hw,
-                    start_w : start_w + self.output_hw,
-                    start_t : start_t + self.output_timesteps,
-                ],
-                hf["s_t_l_x"][
-                    start_h : start_h + self.output_hw,
-                    start_w : start_w + self.output_hw,
-                    start_t : start_t + self.output_timesteps,
-                ],
-                hf["sp_x"][
-                    start_h : start_h + self.output_hw,
-                    start_w : start_w + self.output_hw,
-                ],
-                hf["t_x"][start_t : start_t + self.output_timesteps],
-                hf["st_x"][:],
-                months[start_t : start_t + self.output_timesteps],
+                hf["s_t_h_x"],
+                hf["s_t_m_x"],
+                hf["s_t_l_x"],
+                hf["sp_x"],
+                hf["t_x"],
+                hf["st_x"],
+                months,
+                hf["valid_data_mask_s_t_h"],
+                hf["valid_data_mask_s_t_m"],
+                hf["valid_data_mask_s_t_l"],
+                hf["valid_data_mask_sp"],
+                hf["valid_data_mask_t"],
+                hf["valid_data_mask_st"],
             )
         return output
 
@@ -837,19 +947,21 @@ class Dataset(PyTorchDataset):
         for key, val in norm_dict.items():
             output_dict[key] = val
         return output_dict
+    
+    @staticmethod
+    def plot_distribution(dataset, idx, channel_idx):
+        import matplotlib.pyplot as plt
+
+        plt.figure()
+        plt.hist(dataset.flatten(), bins=20)
+        plt.savefig(f'assets/{idx}_{channel_idx}.png')
+        plt.close()
 
     def compute_normalization_values(
         self,
-        output_hw: int = DATASET_OUTPUT_HW,
-        output_timesteps: int = NUM_TIMESTEPS,
         estimate_from: Optional[int] = 10000,
+        plot_distribution: bool = False
     ):
-        org_hw = self.output_hw
-        self.output_hw = output_hw
-
-        org_t = self.output_timesteps
-        self.output_timesteps = output_timesteps
-
         if estimate_from is not None:
             indices_to_sample = sample(list(range(len(self))), k=estimate_from)
         else:
@@ -857,39 +969,20 @@ class Dataset(PyTorchDataset):
 
         output = ListOfDatasetOutputs([], [], [], [], [], [], [])
         for i in tqdm(indices_to_sample):
-            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = self[i]
-            output.space_time_high_res_x.append(
-                np.where(
-                    s_t_h_x != np.array(NO_DATA_VALUE, dtype=s_t_h_x.dtype), s_t_h_x, np.nan
-                ).astype(np.float64)
-            )
-            output.space_time_med_res_x.append(
-                np.where(
-                    s_t_m_x != np.array(NO_DATA_VALUE, dtype=s_t_m_x.dtype), s_t_m_x, np.nan
-                ).astype(np.float64)
-            )
-            output.space_time_low_res_x.append(
-                np.where(
-                    s_t_l_x != np.array(NO_DATA_VALUE, dtype=s_t_l_x.dtype), s_t_l_x, np.nan
-                ).astype(np.float64)
-            )
-            output.space_x.append(
-                np.where(sp_x != np.array(NO_DATA_VALUE, dtype=sp_x.dtype), sp_x, np.nan).astype(
-                    np.float64
-                )
-            )
-            output.time_x.append(
-                np.where(t_x != np.array(NO_DATA_VALUE, dtype=t_x.dtype), t_x, np.nan).astype(
-                    np.float64
-                )
-            )
-            output.static_x.append(
-                np.where(st_x != np.array(NO_DATA_VALUE, dtype=st_x.dtype), st_x, np.nan).astype(
-                    np.float64
-                )
-            )
+            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months, valid_data_mask_s_t_h, valid_data_mask_s_t_m, valid_data_mask_s_t_l, valid_data_mask_sp, valid_data_mask_t, valid_data_mask_st = self[i]
+            output.space_time_high_res_x.append(np.where(valid_data_mask_s_t_h, s_t_h_x, np.nan))
+            output.space_time_med_res_x.append(np.where(valid_data_mask_s_t_m, s_t_m_x, np.nan))
+            output.space_time_low_res_x.append(np.where(valid_data_mask_s_t_l, s_t_l_x, np.nan))
+            output.space_x.append(np.where(valid_data_mask_sp, sp_x, np.nan))
+            output.time_x.append(np.where(valid_data_mask_t, t_x, np.nan))
+            output.static_x.append(np.where(valid_data_mask_st, st_x, np.nan))
             output.months.append(months)
         d_o = output.to_datasetoutput()
+
+        if plot_distribution:
+            for idx, ds in enumerate(d_o):
+                for channel_idx in range(ds.shape[-1]):
+                    self.plot_distribution(ds[...,channel_idx], idx, channel_idx)
 
         norm_dict = {
             "total_n": len(self),
@@ -922,8 +1015,5 @@ class Dataset(PyTorchDataset):
 
         with open(self.data_folder.parents[1] / "normalizing_dict.json", "w") as f:
             json.dump(norm_dict, f)
-
-        self.output_hw = org_hw
-        self.output_timesteps = org_t
 
         return norm_dict

@@ -397,8 +397,6 @@ class Block(nn.Module):
 
     def forward(self, x, y, attn_mask):
         x = x + self.drop_path(self.ls1(self.attn(self.norm1(x), y, attn_mask)))
-        if torch.isnan(x).any():
-            print("NaNs detected in attention output")
         x = x + self.drop_path(self.ls2(self.mlp(self.norm2(x))))
         return x
 

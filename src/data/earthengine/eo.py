@@ -275,10 +275,10 @@ else:
 
 TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
-        "ERA5": [TIME_BANDS.index(b) for b in ERA5_BANDS],
         "VIIRS_RGB_COARSE": [TIME_BANDS.index(b) for b in ["M5", "M7"]],
         "VIIRS_VNIR_COARSE": [TIME_BANDS.index(b) for b in ["M10"]],
-        "VIIRS_SWIR_COARSE": [TIME_BANDS.index(b) for b in ["M11"]]
+        "VIIRS_SWIR_COARSE": [TIME_BANDS.index(b) for b in ["M11"]],
+        "ERA5": [TIME_BANDS.index(b) for b in ERA5_BANDS],
     }
 )
 

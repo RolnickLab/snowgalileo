@@ -69,10 +69,10 @@ MASKING_MODES: List[Tuple[str, str]] = [
     ("space_time_low_res", "VIIRS_RGB_FINE"),
     ("space_time_low_res", "VIIRS_VNIR_FINE"),
     ("space_time_low_res", "NDSI"),
-    ("time", "ERA5"),
     ("time", "VIIRS_RGB_COARSE"),
     ("time", "VIIRS_NIR_COARSE"),
     ("time", "VIIRS_SWIR_COARSE"),
+    ("time", "ERA5"),
     ("static", "location"),
 ]
 
@@ -217,6 +217,12 @@ def batch_subset_mask_presto(
     t_x: torch.Tensor,
     st_x: torch.Tensor,
     months: torch.Tensor,
+    valid_data_mask_s_t_h: torch.Tensor,
+    valid_data_mask_s_t_m: torch.Tensor,
+    valid_data_mask_s_t_l: torch.Tensor,
+    valid_data_mask_sp: torch.Tensor,
+    valid_data_mask_t: torch.Tensor,
+    valid_data_mask_st: torch.Tensor,
     encode_ratio: float,
     decode_ratio: float,
     patch_size: int,
@@ -276,6 +282,12 @@ def batch_subset_mask_presto(
                 t_x,
                 st_x,
                 months,
+                valid_data_mask_s_t_h,
+                valid_data_mask_s_t_m,
+                valid_data_mask_s_t_l,
+                valid_data_mask_sp,
+                valid_data_mask_t,
+                valid_data_mask_st,
                 size=image_size,
                 num_timesteps=num_timesteps,
                 augmentation_strategies=augmentation_strategies,
@@ -301,6 +313,12 @@ def batch_subset_mask_presto(
                 t_x,
                 st_x,
                 months,
+                valid_data_mask_s_t_h,
+                valid_data_mask_s_t_m,
+                valid_data_mask_s_t_l,
+                valid_data_mask_sp,
+                valid_data_mask_t,
+                valid_data_mask_st, 
                 size=image_size,
                 num_timesteps=num_timesteps,
                 augmentation_strategies=augmentation_strategies,
@@ -325,6 +343,12 @@ def subset_and_augment_batch_of_images(
     time_x: torch.Tensor,
     static_x: torch.Tensor,
     months: torch.Tensor,
+    valid_data_mask_s_t_h: torch.Tensor,
+    valid_data_mask_s_t_m: torch.Tensor,
+    valid_data_mask_s_t_l: torch.Tensor,
+    valid_data_mask_sp: torch.Tensor,
+    valid_data_mask_t: torch.Tensor,
+    valid_data_mask_st: torch.Tensor,
     size: int,
     num_timesteps: int,
     augmentation_strategies: Optional[Dict],
@@ -336,13 +360,32 @@ def subset_and_augment_batch_of_images(
     torch.Tensor,
     torch.Tensor,
     torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
 ]:
     assert (
         space_time_high_x.shape[1]
+        == space_time_med_x.shape[1]
+        == space_time_low_x.shape[1]
+        == valid_data_mask_s_t_h.shape[1]
+        == valid_data_mask_s_t_m.shape[1]
+        == valid_data_mask_s_t_l.shape[1]
         == space_x.shape[1]
+        == size
     ) & (
         space_time_high_x.shape[2]
+        == space_time_med_x.shape[2]
+        == space_time_low_x.shape[2]
+        == valid_data_mask_s_t_h.shape[2]
+        == valid_data_mask_s_t_m.shape[2]
+        == valid_data_mask_s_t_l.shape[2]
+        == valid_data_mask_sp.shape[2]
         == space_x.shape[2]
+        == size
     )
     assert (
         time_x.shape[1]
@@ -350,50 +393,12 @@ def subset_and_augment_batch_of_images(
         == months.shape[1]
         == space_time_med_x.shape[3]
         == space_time_low_x.shape[3]
+        == num_timesteps
+        == valid_data_mask_t.shape[1]
+        == valid_data_mask_s_t_h.shape[3]
+        == valid_data_mask_s_t_m.shape[3]
+        == valid_data_mask_s_t_l.shape[3]
     )
-    possible_h = space_time_high_x.shape[1] - size
-    possible_w = space_time_high_x.shape[2] - size
-    possible_t = space_time_high_x.shape[3] - num_timesteps
-    assert (possible_h >= 0) & (possible_w >= 0) & (possible_t >= 0)
-
-    if possible_h > 0:
-        start_h = np.random.choice(possible_h)
-    else:
-        start_h = possible_h
-
-    if possible_w > 0:
-        start_w = np.random.choice(possible_w)
-    else:
-        start_w = possible_w
-
-    if possible_t > 0:
-        start_t = np.random.choice(possible_t)
-    else:
-        start_t = possible_t
-
-    # do augmentations, if enabled
-    space_time_high_x = space_time_high_x[
-        :,
-        start_h : start_h + size,
-        start_w : start_w + size,
-        start_t : start_t + num_timesteps,
-    ]
-    space_time_med_x = space_time_med_x[
-        :,
-        :,
-        :,
-        start_t : start_t + num_timesteps,
-    ]
-    space_time_low_x = space_time_low_x[
-        :,
-        :,
-        :,
-        start_t : start_t + num_timesteps,
-    ]
-    space_x = space_x[:, start_h : start_h + size, start_w : start_w + size]
-    time_x = time_x[:, start_t : start_t + num_timesteps]
-    months = months[:, start_t : start_t + num_timesteps]
-
     if augmentation_strategies is not None:
         return Augmentation(augmentation_strategies).apply(
             space_time_high_x,
@@ -403,8 +408,12 @@ def subset_and_augment_batch_of_images(
             time_x,
             static_x,
             months,
+            valid_data_mask_s_t_h,
+            valid_data_mask_sp,
+            valid_data_mask_t,
+            valid_data_mask_st
         )
-    return space_time_high_x, space_time_med_x, space_time_low_x, space_x, time_x, static_x, months
+    return space_time_high_x, space_time_med_x, space_time_low_x, space_x, time_x, static_x, months, valid_data_mask_s_t_h, valid_data_mask_s_t_m, valid_data_mask_s_t_l, valid_data_mask_sp, valid_data_mask_t, valid_data_mask_st
 
 
 def _random_mask_for_b(
@@ -417,6 +426,49 @@ def _random_mask_for_b(
     mask[(mask != 0) | (mask != 2)] = 1
     return mask
 
+def _aggregate_mask_per_channel_group(
+    invalid_data_mask_s_t_h,
+    invalid_data_mask_s_t_m,
+    invalid_data_mask_s_t_l,
+    invalid_data_mask_sp,
+    invalid_data_mask_t,
+    invalid_data_mask_st
+    ):
+
+    SPACE_TIME_HIGH_RES_BAND_EXPANSION = [len(i) for i in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.values()]
+    SPACE_TIME_MED_RES_BAND_EXPANSION = [len(i) for i in SPACE_TIME_MED_RES_BANDS_GROUPS_IDX.values()]
+    SPACE_TIME_LOW_RES_BAND_EXPANSION = [len(i) for i in SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX.values()]
+    SPACE_BAND_EXPANSION = [len(i) for i in SPACE_BAND_GROUPS_IDX.values()]
+    TIME_BAND_EXPANSION = [len(i) for i in TIME_BANDS_GROUPS_IDX.values()]
+    STATIC_BAND_EXPANSION = [len(i) for i in STATIC_BAND_GROUPS_IDX.values()]
+
+    # Split tensor into groups and perform logical AND across each group to make sure all invalid data is masked out
+    aggregated_invalid_data_mask_s_t_h = torch.stack(
+        [invalid_data_mask_s_t_h[..., sum(SPACE_TIME_HIGH_RES_BAND_EXPANSION[:i]):sum(SPACE_TIME_HIGH_RES_BAND_EXPANSION[:i]) + size].any(dim=-1) for i, size in enumerate(SPACE_TIME_HIGH_RES_BAND_EXPANSION)], 
+        dim=-1
+    )
+    aggregated_invalid_data_mask_s_t_m = torch.stack(
+        [invalid_data_mask_s_t_m[..., sum(SPACE_TIME_MED_RES_BAND_EXPANSION[:i]):sum(SPACE_TIME_MED_RES_BAND_EXPANSION[:i]) + size].any(dim=-1) for i, size in enumerate(SPACE_TIME_MED_RES_BAND_EXPANSION)], 
+        dim=-1
+    )
+    aggregated_invalid_data_mask_s_t_l = torch.stack(
+        [invalid_data_mask_s_t_l[..., sum(SPACE_TIME_LOW_RES_BAND_EXPANSION[:i]):sum(SPACE_TIME_LOW_RES_BAND_EXPANSION[:i]) + size].any(dim=-1) for i, size in enumerate(SPACE_TIME_LOW_RES_BAND_EXPANSION)], 
+        dim=-1
+    )
+    aggregated_invalid_data_mask_sp = torch.stack(
+        [invalid_data_mask_sp[..., sum(SPACE_BAND_EXPANSION[:i]):sum(SPACE_BAND_EXPANSION[:i]) + size].any(dim=-1) for i, size in enumerate(SPACE_BAND_EXPANSION)], 
+        dim=-1
+    )
+    aggregated_invalid_data_mask_t = torch.stack(
+        [invalid_data_mask_t[..., sum(TIME_BAND_EXPANSION[:i]):sum(TIME_BAND_EXPANSION[:i]) + size].any(dim=-1) for i, size in enumerate(TIME_BAND_EXPANSION)], 
+        dim=-1
+    )
+    aggregated_invalid_data_mask_st = torch.stack(
+        [invalid_data_mask_st[..., sum(STATIC_BAND_EXPANSION[:i]):sum(STATIC_BAND_EXPANSION[:i]) + size].any(dim=-1) for i, size in enumerate(STATIC_BAND_EXPANSION)], 
+        dim=-1
+    )
+    
+    return aggregated_invalid_data_mask_s_t_h, aggregated_invalid_data_mask_s_t_m, aggregated_invalid_data_mask_s_t_l, aggregated_invalid_data_mask_sp, aggregated_invalid_data_mask_t, aggregated_invalid_data_mask_st
 
 def batch_mask_time(
     space_time_high_x: torch.Tensor,
@@ -426,6 +478,12 @@ def batch_mask_time(
     time_x: torch.Tensor,
     static_x: torch.Tensor,
     months: torch.Tensor,
+    valid_data_mask_s_t_h: torch.Tensor,
+    valid_data_mask_s_t_m: torch.Tensor,
+    valid_data_mask_s_t_l: torch.Tensor,
+    valid_data_mask_sp: torch.Tensor,
+    valid_data_mask_t: torch.Tensor,
+    valid_data_mask_st: torch.Tensor,
     encode_ratio: float,
     decode_ratio: float,
     patch_size_high_res: int,
@@ -441,6 +499,7 @@ def batch_mask_time(
 
     Operates over batches where each item in the batch has independently masked timesteps
     """
+    # TODO: This function is not tested yet
     b, h_h, w_h, t, _ = space_time_high_x.shape
     b, h_m, w_m, _, _ = space_time_med_x.shape
     b, h_l, w_l, _, _ = space_time_low_x.shape
@@ -599,20 +658,22 @@ def batch_mask_time(
             st_bands_to_decode = st_d[0]
             static_mask[:, st_bands_to_decode] = 2
 
-    first_band_indices_space_time_high_res = [indices[0] for indices in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.values()]
-    first_band_indices_space_time_med_res = [indices[0] for indices in SPACE_TIME_MED_RES_BANDS_GROUPS_IDX.values()]
-    first_band_indices_space_time_low_res = [indices[0] for indices in SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX.values()]
-    first_band_indices_space = [indices[0] for indices in SPACE_BAND_GROUPS_IDX.values()]
-    first_band_indices_time = [indices[0] for indices in TIME_BANDS_GROUPS_IDX.values()]
-    first_band_indices_static = [indices[0] for indices in STATIC_BAND_GROUPS_IDX.values()]
+    invalid_data_mask_s_t_h = np.logical_not(valid_data_mask_s_t_h)
+    invalid_data_mask_s_t_m = np.logical_not(valid_data_mask_s_t_m)
+    invalid_data_mask_s_t_l = np.logical_not(valid_data_mask_s_t_l)
+    invalid_data_mask_sp = np.logical_not(valid_data_mask_sp)
+    invalid_data_mask_t = np.logical_not(valid_data_mask_t)
+    invalid_data_mask_st = np.logical_not(valid_data_mask_st)
 
-    # handle no data values
-    space_time_high_res_mask[space_time_high_x[..., first_band_indices_space_time_high_res] == NO_DATA_VALUE] = 1
-    space_time_med_res_mask[space_time_med_x[..., first_band_indices_space_time_med_res] == NO_DATA_VALUE] = 1
-    space_time_low_res_mask[space_time_low_x[..., first_band_indices_space_time_low_res] == NO_DATA_VALUE] = 1
-    space_mask[space_x[..., first_band_indices_space] == NO_DATA_VALUE] = 1
-    time_mask[time_x[..., first_band_indices_time] == NO_DATA_VALUE] = 1
-    static_mask[static_x[..., first_band_indices_static] == NO_DATA_VALUE] = 1
+    cg_mask_s_t_h, cg_mask_s_t_m, cg_mask_s_t_l, cg_mask_sp, cg_mask_t, cg_mask_st = _aggregate_mask_per_channel_group(invalid_data_mask_s_t_h, invalid_data_mask_s_t_m, invalid_data_mask_s_t_l, invalid_data_mask_sp, invalid_data_mask_t, invalid_data_mask_st)
+
+    # since we mask out the same values within each channel we can assume that the mask is the same for each channel group
+    space_time_high_res_mask[cg_mask_s_t_h.bool()] = 1
+    space_time_med_res_mask[cg_mask_s_t_m.bool()] = 1
+    space_time_low_res_mask[cg_mask_s_t_l.bool()] = 1
+    space_mask[cg_mask_sp.bool()] = 1
+    time_mask[cg_mask_t.bool()] = 1
+    static_mask[cg_mask_st.bool()] = 1
 
     return MaskedOutput(
         space_time_high_x.clone(),
@@ -639,6 +700,7 @@ def create_two_d_space_mask(
         encode_ratio,
         decode_ratio
 ):
+    # TODO: this function is not adjusted yet
     assert (height % patch_size == 0) and (width % patch_size == 0)
     h_p = int(height / patch_size)
     w_p = int(width / patch_size)
@@ -676,6 +738,12 @@ def batch_mask_space(
     time_x: torch.Tensor,
     static_x: torch.Tensor,
     months: torch.Tensor,
+    valid_data_mask_s_t_h: torch.Tensor,
+    valid_data_mask_s_t_m: torch.Tensor,
+    valid_data_mask_s_t_l: torch.Tensor,
+    valid_data_mask_sp: torch.Tensor,
+    valid_data_mask_t: torch.Tensor,
+    valid_data_mask_st: torch.Tensor,
     patch_size_high_res: int,
     encode_ratio: float,
     decode_ratio: float,
@@ -701,6 +769,7 @@ def batch_mask_space(
     repeated over all dynamic timesteps + channel groups and static channel groups
     Operates over batches where each item in the batch is independently masked
     """
+    # TODO: this function is not adjusted yet
     bands_to_encode = check_mode_and_return_channels(mode)
     bands_to_decode = check_mode_and_return_channels(decoder_mode)
 
@@ -863,20 +932,22 @@ def batch_mask_space(
             st_bands_to_decode = st_d[0]
             static_mask[:, st_bands_to_decode] = 2
 
-    first_band_indices_space_time_high_res = [indices[0] for indices in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.values()]
-    first_band_indices_space_time_med_res = [indices[0] for indices in SPACE_TIME_MED_RES_BANDS_GROUPS_IDX.values()]
-    first_band_indices_space_time_low_res = [indices[0] for indices in SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX.values()]
-    first_band_indices_space = [indices[0] for indices in SPACE_BAND_GROUPS_IDX.values()]
-    first_band_indices_time = [indices[0] for indices in TIME_BANDS_GROUPS_IDX.values()]
-    first_band_indices_static = [indices[0] for indices in STATIC_BAND_GROUPS_IDX.values()]
+    invalid_data_mask_s_t_h = np.logical_not(valid_data_mask_s_t_h)
+    invalid_data_mask_s_t_m = np.logical_not(valid_data_mask_s_t_m)
+    invalid_data_mask_s_t_l = np.logical_not(valid_data_mask_s_t_l)
+    invalid_data_mask_sp = np.logical_not(valid_data_mask_sp)
+    invalid_data_mask_t = np.logical_not(valid_data_mask_t)
+    invalid_data_mask_st = np.logical_not(valid_data_mask_st)
 
-    # handle no data values
-    space_time_high_res_mask[space_time_high_x[..., first_band_indices_space_time_high_res] == NO_DATA_VALUE] = 1
-    space_time_med_res_mask[space_time_med_x[..., first_band_indices_space_time_med_res] == NO_DATA_VALUE] = 1
-    space_time_low_res_mask[space_time_low_x[..., first_band_indices_space_time_low_res] == NO_DATA_VALUE] = 1
-    space_mask[space_x[..., first_band_indices_space] == NO_DATA_VALUE] = 1
-    time_mask[time_x[..., first_band_indices_time] == NO_DATA_VALUE] = 1
-    static_mask[static_x[..., first_band_indices_static] == NO_DATA_VALUE] = 1
+    cg_mask_s_t_h, cg_mask_s_t_m, cg_mask_s_t_l, cg_mask_sp, cg_mask_t, cg_mask_st = _aggregate_mask_per_channel_group(invalid_data_mask_s_t_h, invalid_data_mask_s_t_m, invalid_data_mask_s_t_l, invalid_data_mask_sp, invalid_data_mask_t, invalid_data_mask_st)
+
+    # since we mask out the same values within each channel we can assume that the mask is the same for each channel group
+    space_time_high_res_mask[cg_mask_s_t_h.bool()] = 1
+    space_time_med_res_mask[cg_mask_s_t_m.bool()] = 1
+    space_time_low_res_mask[cg_mask_s_t_l.bool()] = 1
+    space_mask[cg_mask_sp.bool()] = 1
+    time_mask[cg_mask_t.bool()] = 1
+    static_mask[cg_mask_st.bool()] = 1
 
     return MaskedOutput(
         space_time_high_x.clone(),
@@ -904,6 +975,12 @@ def batch_mask_random(
     time_x: torch.Tensor,
     static_x: torch.Tensor,
     months: torch.Tensor,
+    valid_data_mask_s_t_h: torch.Tensor,
+    valid_data_mask_s_t_m: torch.Tensor,
+    valid_data_mask_s_t_l: torch.Tensor,
+    valid_data_mask_sp: torch.Tensor,
+    valid_data_mask_t: torch.Tensor,
+    valid_data_mask_st: torch.Tensor,
     encode_ratio: float,
     decode_ratio: float,
     patch_size_high_res: int,
@@ -1025,20 +1102,69 @@ def batch_mask_random(
     static_tokens = b_flat_tokens[:, -num_static_tokens:]
     static_mask = torch.from_numpy(static_tokens).to(static_x.device)
 
-    first_band_indices_space_time_high_res = [indices[0] for indices in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.values()]
-    first_band_indices_space_time_med_res = [indices[0] for indices in SPACE_TIME_MED_RES_BANDS_GROUPS_IDX.values()]
-    first_band_indices_space_time_low_res = [indices[0] for indices in SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX.values()]
-    first_band_indices_space = [indices[0] for indices in SPACE_BAND_GROUPS_IDX.values()]
-    first_band_indices_time = [indices[0] for indices in TIME_BANDS_GROUPS_IDX.values()]
-    first_band_indices_static = [indices[0] for indices in STATIC_BAND_GROUPS_IDX.values()]
+    invalid_data_mask_s_t_h = np.logical_not(valid_data_mask_s_t_h)
+    invalid_data_mask_s_t_m = np.logical_not(valid_data_mask_s_t_m)
+    invalid_data_mask_s_t_l = np.logical_not(valid_data_mask_s_t_l)
+    invalid_data_mask_sp = np.logical_not(valid_data_mask_sp)
+    invalid_data_mask_t = np.logical_not(valid_data_mask_t)
+    invalid_data_mask_st = np.logical_not(valid_data_mask_st)
 
-    # handle no data values
-    space_time_high_res_mask[space_time_high_x[..., first_band_indices_space_time_high_res] == NO_DATA_VALUE] = 1
-    space_time_med_res_mask[space_time_med_x[..., first_band_indices_space_time_med_res] == NO_DATA_VALUE] = 1
-    space_time_low_res_mask[space_time_low_x[..., first_band_indices_space_time_low_res] == NO_DATA_VALUE] = 1
-    space_mask[space_x[..., first_band_indices_space] == NO_DATA_VALUE] = 1
-    time_mask[time_x[..., first_band_indices_time] == NO_DATA_VALUE] = 1
-    static_mask[static_x[..., first_band_indices_static] == NO_DATA_VALUE] = 1
+    cg_mask_s_t_h, cg_mask_s_t_m, cg_mask_s_t_l, cg_mask_sp, cg_mask_t, cg_mask_st = _aggregate_mask_per_channel_group(invalid_data_mask_s_t_h, invalid_data_mask_s_t_m, invalid_data_mask_s_t_l, invalid_data_mask_sp, invalid_data_mask_t, invalid_data_mask_st)
+
+    # since we mask out the same values within each channel we can assume that the mask is the same for each channel group
+    space_time_high_res_mask[cg_mask_s_t_h.bool()] = 1
+    space_time_med_res_mask[cg_mask_s_t_m.bool()] = 1
+    space_time_low_res_mask[cg_mask_s_t_l.bool()] = 1
+    space_mask[cg_mask_sp.bool()] = 1
+    time_mask[cg_mask_t.bool()] = 1
+    static_mask[cg_mask_st.bool()] = 1
+
+    SPACE_TIME_HIGH_RES_BAND_EXPANSION = torch.tensor(
+        [len(x) for x in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.values()], device=space_time_high_res_mask.device
+    ).long()
+    SPACE_TIME_MED_RES_BAND_EXPANSION = torch.tensor(
+        [len(x) for x in SPACE_TIME_MED_RES_BANDS_GROUPS_IDX.values()], device=space_time_med_res_mask.device
+    ).long()
+    SPACE_TIME_LOW_RES_BAND_EXPANSION = torch.tensor(
+        [len(x) for x in SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX.values()], device=space_time_low_res_mask.device
+    ).long()
+    SPACE_BAND_EXPANSION = torch.tensor(
+        [len(x) for x in SPACE_BAND_GROUPS_IDX.values()], device=space_mask.device
+    ).long()
+    TIME_BAND_EXPANSION = torch.tensor(
+        [len(x) for x in TIME_BANDS_GROUPS_IDX.values()], device=time_mask.device
+    ).long()
+    STATIC_BAND_EXPANSION = torch.tensor(
+        [len(x) for x in STATIC_BAND_GROUPS_IDX.values()], device=static_mask.device
+    ).long()
+
+    pixel_s_t_h_m = torch.repeat_interleave(space_time_high_res_mask, repeats=SPACE_TIME_HIGH_RES_BAND_EXPANSION, dim=-1)
+    pixel_s_t_m_m = torch.repeat_interleave(space_time_med_res_mask, repeats=SPACE_TIME_MED_RES_BAND_EXPANSION, dim=-1)
+    pixel_s_t_l_m = torch.repeat_interleave(space_time_low_res_mask, repeats=SPACE_TIME_LOW_RES_BAND_EXPANSION, dim=-1)
+    pixel_sp_m = torch.repeat_interleave(space_mask, repeats=SPACE_BAND_EXPANSION, dim=-1)
+    pixel_t_m = torch.repeat_interleave(time_mask, repeats=TIME_BAND_EXPANSION, dim=-1)
+    pixel_st_m = torch.repeat_interleave(static_mask, repeats=STATIC_BAND_EXPANSION, dim=-1)
+
+    assert not (space_time_high_x[valid_data_mask_s_t_h.bool()] == NO_DATA_VALUE).any()
+    assert not (space_time_med_x[valid_data_mask_s_t_m.bool()] == NO_DATA_VALUE).any()
+    assert not (space_time_low_x[valid_data_mask_s_t_l.bool()] == NO_DATA_VALUE).any()
+    assert not (space_x[valid_data_mask_sp.bool()] == NO_DATA_VALUE).any()
+    assert not (time_x[valid_data_mask_t.bool()] == NO_DATA_VALUE).any()
+    assert not (static_x[valid_data_mask_st.bool()] == NO_DATA_VALUE).any()
+
+    assert not (space_time_high_x[valid_data_mask_s_t_h.bool()] < (-2000)).any()
+    assert not (space_time_med_x[valid_data_mask_s_t_m.bool()] < (-1000)).any()
+    assert not (space_time_low_x[valid_data_mask_s_t_l.bool()] < (-0.01)).any()
+    assert not (space_x[valid_data_mask_sp.bool()] < (-10)).any()
+    assert not (time_x[valid_data_mask_t.bool()] < (-1000)).any()
+    assert not (static_x[valid_data_mask_st.bool()] < (-1)).any()
+
+    assert not (space_time_high_x[pixel_s_t_h_m==2] == NO_DATA_VALUE).any()
+    assert not (space_time_med_x[pixel_s_t_m_m==2] == NO_DATA_VALUE).any()
+    assert not (space_time_low_x[pixel_s_t_l_m==2] == NO_DATA_VALUE).any()
+    assert not (space_x[pixel_sp_m==2] == NO_DATA_VALUE).any()
+    assert not (time_x[pixel_t_m==2] == NO_DATA_VALUE).any()
+    assert not (static_x[pixel_st_m==2] == NO_DATA_VALUE).any()
 
     return MaskedOutput(
         space_time_high_x.clone(),

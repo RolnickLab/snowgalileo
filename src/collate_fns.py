@@ -37,6 +37,12 @@ def collated_batch_to_output(
     t_x: torch.Tensor,
     st_x: torch.Tensor,
     months: torch.Tensor,
+    valid_data_mask_s_t_h: torch.Tensor,
+    valid_data_mask_s_t_m: torch.Tensor,
+    valid_data_mask_s_t_l: torch.Tensor,
+    valid_data_mask_sp: torch.Tensor,
+    valid_data_mask_t: torch.Tensor,
+    valid_data_mask_st: torch.Tensor,
     patch_sizes,
     shape_time_combinations,
     encode_ratio,
@@ -95,6 +101,12 @@ def collated_batch_to_output(
         t_x,
         st_x,
         months,
+        valid_data_mask_s_t_h,
+        valid_data_mask_s_t_m,
+        valid_data_mask_s_t_l,
+        valid_data_mask_sp,
+        valid_data_mask_t,
+        valid_data_mask_st,
         encode_ratio=encode_ratio,
         patch_size=patch_size,
         image_size=image_size,
@@ -141,7 +153,7 @@ def mae_collate_fn(
     random_masking: str = "None",
     unmasking_channels_combo: str = "shapes",
 ) -> Tuple[CollateFnOutput, CollateFnOutput, CollateFnOutput, CollateFnOutput]:
-    s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = default_collate(batch)
+    s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months, valid_data_mask_s_t_h, valid_data_mask_s_t_m, valid_data_mask_s_t_l, valid_data_mask_sp, valid_data_mask_t, valid_data_mask_st = default_collate(batch)
 
     input_args = {
         "s_t_h_x": s_t_h_x,
@@ -151,6 +163,12 @@ def mae_collate_fn(
         "t_x": t_x,
         "st_x": st_x,
         "months": months,
+        "valid_data_mask_s_t_h": valid_data_mask_s_t_h,
+        "valid_data_mask_s_t_m": valid_data_mask_s_t_h,
+        "valid_data_mask_s_t_l": valid_data_mask_s_t_h,
+        "valid_data_mask_sp": valid_data_mask_sp,
+        "valid_data_mask_t": valid_data_mask_t,
+        "valid_data_mask_st": valid_data_mask_st,
         "patch_sizes": patch_sizes,
         "encode_ratio": encode_ratio,
         "decode_ratio": decode_ratio,
