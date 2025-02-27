@@ -130,6 +130,6 @@ class Augmentation(object):
         valid_data_mask_t: torch.Tensor,
         valid_data_mask_st: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        space_time_h_x, space_time_m_x, space_time_l_x, space_x = self.flip_and_rotate.apply(space_time_h_x, space_time_m_x, space_time_l_x, space_x, valid_data_mask_s_t_h, valid_data_mask_s_t_m, valid_data_mask_s_t_l, valid_data_mask_sp)
+        space_time_h_x, space_time_m_x, space_time_l_x, space_x, valid_data_mask_s_t_h, valid_data_mask_s_t_m, valid_data_mask_s_t_l, valid_data_mask_sp = self.flip_and_rotate.apply(space_time_h_x, space_time_m_x, space_time_l_x, space_x, valid_data_mask_s_t_h, valid_data_mask_s_t_m, valid_data_mask_s_t_l, valid_data_mask_sp)
 
         return space_time_h_x, space_time_m_x, space_time_l_x, space_x, time_x, static_x, months, valid_data_mask_s_t_h, valid_data_mask_s_t_m, valid_data_mask_s_t_l, valid_data_mask_sp, valid_data_mask_t, valid_data_mask_st

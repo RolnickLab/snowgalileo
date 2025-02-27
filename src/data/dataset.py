@@ -730,6 +730,8 @@ class Dataset(PyTorchDataset):
         space_time_med_res_x, valid_data_mask_s_t_m = self.downsample_dynamic_in_time_with_mean(space_time_med_res_x, valid_data_mask_s_t_m, target_shape=(3, 3))
         space_time_low_res_x, valid_data_mask_s_t_l = self.downsample_dynamic_in_time_with_mean(space_time_low_res_x, valid_data_mask_s_t_l, target_shape=(2, 2))
 
+        import pdb;pdb.set_trace()
+
         try:
             assert not np.isnan(space_time_high_res_x).any(), f"NaNs in s_t_h_x for {tif_path}"
             assert not np.isnan(space_time_med_res_x).any(), f"NaNs in s_t_m_x for {tif_path}"

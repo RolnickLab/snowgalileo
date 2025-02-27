@@ -1,7 +1,9 @@
 import random
 from typing import Dict, List, Optional, Union
 
-BASE_GSD = 10
+BASE_GSD_HIGH_RES = 10
+BASE_GSD_MED_RES = 300
+BASE_GSD_LOW_RES = 500
 DEFAULT_SEED = 42
 
 

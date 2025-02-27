@@ -367,7 +367,6 @@ def subset_and_augment_batch_of_images(
     torch.Tensor,
     torch.Tensor,
 ]:
-    import pdb; pdb.set_trace()
     assert (
         space_time_high_x.shape[1]
         == valid_data_mask_s_t_h.shape[1]
@@ -410,6 +409,8 @@ def subset_and_augment_batch_of_images(
             static_x,
             months,
             valid_data_mask_s_t_h,
+            valid_data_mask_s_t_m,
+            valid_data_mask_s_t_l,
             valid_data_mask_sp,
             valid_data_mask_t,
             valid_data_mask_st
