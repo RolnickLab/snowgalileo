@@ -833,7 +833,7 @@ class Dataset(PyTorchDataset):
         import matplotlib.pyplot as plt
         import os
 
-        os.makedirs(os.path.dirname(assets_folder_name), exist_ok=True)
+        os.makedirs(assets_folder_name, exist_ok=True)
 
         plt.figure()
         plt.hist(dataset.flatten(), bins=20)
