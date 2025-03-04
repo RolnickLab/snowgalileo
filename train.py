@@ -11,7 +11,7 @@ import codecarbon
 import psutil
 import torch
 import wandb
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, BatchSampler
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
@@ -45,6 +45,7 @@ from src.utils import (
     seed_everything,
     timestamp_dirname,
     will_cause_nans,
+    plot_space_time_predictions
 )
 
 process = psutil.Process()
@@ -213,6 +214,39 @@ dataloader = DataLoader(
     ),
     pin_memory=True,
 )
+
+# prepare random images to plot during training
+if training_config["wandb_plot_every_n_epochs"] > 0:
+    assert training_config["num_images_to_wandb_plot"] > 0
+    assert len(training_config["timesteps_to_wandb_plot"]) > 0
+
+    plot_dataloader = DataLoader(
+        dataset,
+        shuffle=False,
+        batch_sampler=BatchSampler([1, 2, 3], batch_size=1, drop_last=False),
+        collate_fn=partial(
+            mae_collate_fn,
+            patch_sizes_high_res=training_config["patch_sizes_high_res"],
+            patch_sizes_med_res=training_config["patch_sizes_med_res"],
+            patch_sizes_low_res=training_config["patch_sizes_low_res"],
+            shape_time_combinations=training_config["shape_time_combinations"],
+            encode_ratio=training_config["encode_ratio"],
+            decode_ratio=training_config["decode_ratio"],
+            augmentation_strategies=training_config["augmentation"],
+            masking_probabilities=training_config["masking_probabilities"],
+            max_unmasking_channels=training_config["max_unmasking_channels"],
+            random_masking=training_config["random_masking"],
+            unmasking_channels_combo=training_config["unmasking_channels_combo"],
+        ),
+    )
+    prepared_image_to_plot = {}
+    for image_id, b in enumerate(plot_dataloader):
+        b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
+        prepared_image_to_plot[image_id] = b
+        if len(prepared_image_to_plot) >= training_config["num_images_to_wandb_plot"]:
+            break
+    print(f"Prepared {len(prepared_image_to_plot)} images")
+
 
 print("Loading models")
 predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
@@ -526,6 +560,25 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                         "lr": current_lr,
                     }
                     wandb.log(to_log, step=e)
+                    if (training_config["wandb_plot_every_n_epochs"] != 0) and (e % training_config["wandb_plot_every_n_epochs"] == 0):
+                        plot_list_nested = []
+                        for image_id, prepared_image in prepared_image_to_plot.items():
+                            plot_list_nested.append(
+                                plot_space_time_predictions(
+                                    epoch=e,
+                                    encoder=encoder,
+                                    predictor=predictor,
+                                    training_config=training_config,
+                                    prepared_image=prepared_image,
+                                    image_id=image_id,
+                                )
+                            )
+
+                        for plot in [
+                            plot_list
+                            for plot_list in plot_list_nested
+                        ]:
+                            wandb.log({f"plot": plot})
 
     """              
     if wandb_enabled:

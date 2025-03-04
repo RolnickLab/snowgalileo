@@ -259,34 +259,37 @@ def plot_space_time_predictions(
     Number of timesteps to plot are defined in the training config.
     """
     (
-        s_t_x,
+        s_t_h_x,
+        s_t_m_x,
+        s_t_l_x,
         sp_x,
         t_x,
         st_x,
-        s_t_m,
+        s_t_h_m,
+        s_t_m_m,
+        s_t_l_m,
         sp_m,
         t_m,
         st_m,
         months,
-        expanded_s_t_x,
-        _,
-        expanded_s_t,
-        _,
-        _,
-        _,
         patch_size_high_res,
         patch_size_med_res,
         patch_size_low_res,
+        _
     ) = prepared_image
 
     # get predictions with current model
-    (p_s_t, _, _, _) = predictor(
+    (p_s_t_h, _, _, _, _, _) = predictor(
         *encoder(
-            s_t_x.float(),
+            s_t_h_x.float(),
+            s_t_m_x.float(),
+            s_t_l_x.float(),
             sp_x.float(),
             t_x.float(),
             st_x.float(),
-            s_t_m.float(),
+            s_t_h_m.float(),
+            s_t_m_m.float(),
+            s_t_l_m.float(),
             sp_m.float(),
             t_m.float(),
             st_m.float(),
@@ -306,7 +309,7 @@ def plot_space_time_predictions(
         for band in band_list:
             subplot_titles.append(SPACE_TIME_HIGH_RES_BANDS[band])
 
-    plot_dict = {}
+    plot_list = []
 
     for t in training_config["timesteps_to_wandb_plot"]:
         # figure columns: input, mask, prediction, error
@@ -315,18 +318,18 @@ def plot_space_time_predictions(
 
         # get min and max values for the error colorbar independent of the channel
         error_min = (
-            (abs(expanded_s_t_x[:, :, :, t, :] - p_s_t[:, :, :, t, :]))
-            * expanded_s_t[:, :, :, t, :]
+            (abs(s_t_h_x[:, :, :, t, :] - p_s_t_h[:, :, :, t, :]))
+            * s_t_h_m[:, :, :, t, :]
         ).min()
         error_max = (
-            (abs(expanded_s_t_x[:, :, :, t, :] - p_s_t[:, :, :, t, :]))
-            * expanded_s_t[:, :, :, t, :]
+            (abs(s_t_h_x[:, :, :, t, :] - p_s_t_h[:, :, :, t, :]))
+            * s_t_h_m[:, :, :, t, :]
         ).max()
 
         for i, band in enumerate(subplot_titles):
-            x_to_plot = expanded_s_t_x[0, :, :, t, i].squeeze(0).cpu()
-            pred_to_plot = p_s_t[0, :, :, t, i].squeeze(0).cpu()
-            mask_to_plot = expanded_s_t[0, :, :, t, i].squeeze(0).cpu()
+            x_to_plot = s_t_h_x[0, :, :, t, i].squeeze(0).cpu()
+            pred_to_plot = p_s_t_h[0, :, :, t, i].squeeze(0).cpu()
+            mask_to_plot = s_t_h_m[0, :, :, t, i].squeeze(0).cpu()
 
             x_plot = axs[i, 0].imshow(
                 x_to_plot.numpy(), cmap="gray", vmin=x_to_plot.min(), vmax=x_to_plot.max()
@@ -354,17 +357,17 @@ def plot_space_time_predictions(
             fig.colorbar(error, ax=axs[i, 3])
 
         fig.suptitle(
-            f"Plot image: {image_id}, epoch: {epoch}, patch size high res: {patch_size_high_res}, timestep: {t}",
+            f"Plot image: {image_id}, epoch: {epoch}, timestep: {t}",
             fontsize=20,
             y=1.0001,
         )
         fig.tight_layout()
 
         plot = wandb.Image(
-            fig, caption=f"plot_image{image_id}_epoch{epoch}_patch_size_hr{patch_size_high_res}_timestep{t}"
+            fig, caption=f"plot_image{image_id}_epoch{epoch}_timestep{t}"
         )
-        plot_dict[patch_size_high_res] = plot
-    return plot_dict
+        plot_list.append(plot)
+    return plot_list
 
 
 def timestamp_dirname(suffix: Optional[str] = None) -> str:
