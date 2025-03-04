@@ -225,7 +225,9 @@ def batch_subset_mask_presto(
     valid_data_mask_st: torch.Tensor,
     encode_ratio: float,
     decode_ratio: float,
-    patch_size: int,
+    patch_size_high_res: int,
+    patch_size_med_res: int,
+    patch_size_low_res: int,
     image_size: int,
     num_timesteps: int,
     augmentation_strategies: Optional[Dict],
@@ -237,8 +239,10 @@ def batch_subset_mask_presto(
     assert len(masking_probabilities) == len(MASKING_MODES)
 
     conditioner_inputs: Optional[Dict] = {
-        "hw": image_size // patch_size,
-        "patch_size": patch_size,
+        "hw": image_size // patch_size_high_res,
+        "patch_size_high_res": patch_size_high_res,
+        "patch_size_med_res": patch_size_med_res,
+        "patch_size_low_res": patch_size_low_res,
         "timesteps": num_timesteps,
         "input_channels": torch.zeros(len(MASKING_MODES)).to(s_t_h_x.device),
         "output_channels": torch.zeros(len(MASKING_MODES)).to(s_t_h_x.device),
@@ -294,9 +298,11 @@ def batch_subset_mask_presto(
             ),
             encode_ratio=encode_ratio,
             decode_ratio=decode_ratio,
-            patch_size_high_res=patch_size,
             mode=masking_modes,
             decoder_mode=unmasking_modes,
+            patch_size_high_res=patch_size_high_res,
+            patch_size_med_res=patch_size_med_res,
+            patch_size_low_res=patch_size_low_res,
         )
         assert conditioner_inputs is not None
         for mode in unmasking_modes:
@@ -325,7 +331,9 @@ def batch_subset_mask_presto(
             ),
             encode_ratio=encode_ratio,
             decode_ratio=decode_ratio,
-            patch_size_high_res=patch_size,
+            patch_size_high_res=patch_size_high_res,
+            patch_size_med_res=patch_size_med_res,
+            patch_size_low_res=patch_size_low_res,
         )
         conditioner_inputs = None
 
@@ -383,7 +391,6 @@ def subset_and_augment_batch_of_images(
         == months.shape[1]
         == space_time_med_x.shape[3]
         == space_time_low_x.shape[3]
-        == num_timesteps
         == valid_data_mask_t.shape[1]
         == valid_data_mask_s_t_h.shape[3]
         == valid_data_mask_s_t_m.shape[3]
@@ -489,10 +496,10 @@ def batch_mask_time(
     encode_ratio: float,
     decode_ratio: float,
     patch_size_high_res: int,
-    decoder_mode: List[Tuple[str, str]],
-    mode: List[Tuple[str, str]],
     patch_size_med_res: int,
     patch_size_low_res: int,
+    decoder_mode: List[Tuple[str, str]],
+    mode: List[Tuple[str, str]],
 ):
     """
     Masks out blocks of hxwx1xBAND_GROUPs.
@@ -746,11 +753,11 @@ def batch_mask_space(
     valid_data_mask_sp: torch.Tensor,
     valid_data_mask_t: torch.Tensor,
     valid_data_mask_st: torch.Tensor,
-    patch_size_high_res: int,
     encode_ratio: float,
     decode_ratio: float,
     mode: List[Tuple[str, str]],
     decoder_mode: List[Tuple[str, str]],
+    patch_size_high_res: int,
     patch_size_med_res: int = 1,
     patch_size_low_res: int = 1,
 ):
@@ -1156,7 +1163,7 @@ def batch_mask_random(
 
     assert not (space_time_high_x[valid_data_mask_s_t_h.bool()] < (-2000)).any()
     assert not (space_time_med_x[valid_data_mask_s_t_m.bool()] < (-1000)).any()
-    assert not (space_time_low_x[valid_data_mask_s_t_l.bool()] < (-0.01)).any()
+    assert not (space_time_low_x[valid_data_mask_s_t_l.bool()] < (-100)).any()
     assert not (space_x[valid_data_mask_sp.bool()] < (-10)).any()
     assert not (time_x[valid_data_mask_t.bool()] < (-1000)).any()
     assert not (static_x[valid_data_mask_st.bool()] < (-1)).any()

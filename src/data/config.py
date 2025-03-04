@@ -166,10 +166,10 @@ CHANNEL_WISE_INVALID_DATA_THRESHOLDS = {
         1: -0.01,  # VIIRS
         2: -0.01,  # VIIRS
         3: -0.01,  # VIIRS
-        4: -10,  # ERA5
-        5: -10,  # ERA5
+        4: 200,  # ERA5 temperature in Kelvin
+        5: 200,  # ERA5 temperature in Kelvin
         6: -10,  # ERA5
-        7: -10,  # ERA5
+        7: -10,  # ERA5  
         8: -10,  # ERA5
     },
     "st_x": {

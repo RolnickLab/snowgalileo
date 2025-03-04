@@ -200,8 +200,10 @@ def mae_loss(
     sp_m,
     t_m,
     st_m,
-    patch_size,
-    max_patch_size,
+    patch_size_high_res,
+    patch_size_med_res,
+    patch_size_low_res,
+    max_patch_size_high_res,
 ):
     assert not torch.isnan(p_s_t_h).any(), "p_s_t_h contains NaN!"
     assert not torch.isnan(s_t_h_x).any(), "s_t_h_x contains NaN!"
@@ -250,15 +252,15 @@ def mae_loss(
 
     output_p_s_t_h = []
     for idx, (_, c_g) in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.items()):
-        channel_group_p_s_t_h = p_s_t_h[:, :, :, :, idx, : ((max_patch_size**2) * len(c_g))]
+        channel_group_p_s_t_h = p_s_t_h[:, :, :, :, idx, : ((max_patch_size_high_res**2) * len(c_g))]
         channel_group_p_s_t_h = rearrange(
             channel_group_p_s_t_h,
             "b t_h t_w t (c_g p_h p_w) -> b (t_h p_h) (t_w p_w) t c_g",
             c_g=len(c_g),
-            p_w=max_patch_size,
-            p_h=max_patch_size,
+            p_w=max_patch_size_high_res,
+            p_h=max_patch_size_high_res,
         )
-        if patch_size < max_patch_size:
+        if patch_size_high_res < max_patch_size_high_res:
             assert s_t_h_x.shape[1] > 0 and s_t_h_x.shape[2] > 0, "s_t_h_x h and w are not > 0!"
             channel_group_p_s_t_h = rearrange(
                 resize(
@@ -272,65 +274,29 @@ def mae_loss(
 
         output_p_s_t_h.append(channel_group_p_s_t_h)
 
+    # TODO: change here if patch size changes
     output_p_s_t_m = []
     for idx, (_, c_g) in enumerate(SPACE_TIME_MED_RES_BANDS_GROUPS_IDX.items()):
-        channel_group_p_s_t_m = p_s_t_m[:, :, :, :, idx, : ((max_patch_size**2) * len(c_g))]
-        channel_group_p_s_t_m = rearrange(
-            channel_group_p_s_t_m,
-            "b t_h t_w t (c_g p_h p_w) -> b (t_h p_h) (t_w p_w) t c_g",
-            c_g=len(c_g),
-            p_w=max_patch_size,
-            p_h=max_patch_size,
-        )
-        if patch_size < max_patch_size:
-            assert s_t_m_x.shape[1] > 0 and s_t_m_x.shape[2] > 0, "s_t_m_x h and w are not > 0!"
-            channel_group_p_s_t_m = rearrange(
-                resize(
-                    rearrange(channel_group_p_s_t_m, "b h w t d -> b (t d) h w"),
-                    size=(s_t_m_x.shape[1], s_t_m_x.shape[2]),
-                ),
-                "b (t d) h w -> b h w t d",
-                t=s_t_m_x.shape[3],
-                d=len(c_g),
-            )
-
+        channel_group_p_s_t_m = p_s_t_m[:, :, :, :, idx, : len(c_g)]
         output_p_s_t_m.append(channel_group_p_s_t_m)
 
+    # TODO: change here if patch size changes
     output_p_s_t_l = []
     for idx, (_, c_g) in enumerate(SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX.items()):
-        channel_group_p_s_t_l = p_s_t_l[:, :, :, :, idx, : ((max_patch_size**2) * len(c_g))]
-        channel_group_p_s_t_l = rearrange(
-            channel_group_p_s_t_l,
-            "b t_h t_w t (c_g p_h p_w) -> b (t_h p_h) (t_w p_w) t c_g",
-            c_g=len(c_g),
-            p_w=max_patch_size,
-            p_h=max_patch_size,
-        )
-        if patch_size < max_patch_size:
-            assert s_t_l_x.shape[1] > 0 and s_t_l_x.shape[2] > 0, "s_t_l_x h and w are not > 0!"
-            channel_group_p_s_t_l = rearrange(
-                resize(
-                    rearrange(channel_group_p_s_t_l, "b h w t d -> b (t d) h w"),
-                    size=(s_t_l_x.shape[1], s_t_l_x.shape[2]),
-                ),
-                "b (t d) h w -> b h w t d",
-                t=s_t_l_x.shape[3],
-                d=len(c_g),
-            )
-
+        channel_group_p_s_t_l = p_s_t_l[:, :, :, :, idx, : len(c_g)]
         output_p_s_t_l.append(channel_group_p_s_t_l)
 
     output_p_sp = []
     for idx, (_, c_g) in enumerate(SPACE_BAND_GROUPS_IDX.items()):
-        channel_group_p_sp = p_sp[:, :, :, idx, : ((max_patch_size**2) * len(c_g))]
+        channel_group_p_sp = p_sp[:, :, :, idx, : ((max_patch_size_high_res**2) * len(c_g))]
         channel_group_p_sp = rearrange(
             channel_group_p_sp,
             "b t_h t_w (c_g p_h p_w) -> b (t_h p_h) (t_w p_w) c_g",
             c_g=len(c_g),
-            p_w=max_patch_size,
-            p_h=max_patch_size,
+            p_w=max_patch_size_high_res,
+            p_h=max_patch_size_high_res,
         )
-        if patch_size < max_patch_size:
+        if patch_size_high_res < max_patch_size_high_res:
             channel_group_p_sp = rearrange(
                 resize(
                     rearrange(channel_group_p_sp, "b h w d -> b d h w"),
@@ -398,7 +364,6 @@ def mae_loss(
     assert not (sp_x[pixel_sp_m == 2] == NO_DATA_VALUE).any()
     assert not (t_x[pixel_t_m == 2] == NO_DATA_VALUE).any()
     assert not (st_x[pixel_st_m == 2] == NO_DATA_VALUE).any()
-
 
     return F.smooth_l1_loss(
         torch.concat(

@@ -199,7 +199,9 @@ dataloader = DataLoader(
     num_workers=int(args["num_workers"]),
     collate_fn=partial(
         mae_collate_fn,
-        patch_sizes=training_config["patch_sizes"],
+        patch_sizes_high_res=training_config["patch_sizes_high_res"],
+        patch_sizes_med_res=training_config["patch_sizes_med_res"],
+        patch_sizes_low_res=training_config["patch_sizes_low_res"],
         shape_time_combinations=training_config["shape_time_combinations"],
         encode_ratio=training_config["encode_ratio"],
         decode_ratio=training_config["decode_ratio"],
@@ -342,7 +344,9 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                 t_m,
                 st_m,
                 months,
-                patch_size,
+                patch_size_high_res,
+                patch_size_med_res,
+                patch_size_low_res,
                 c_i,
             ) = b
 
@@ -383,9 +387,13 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                         st_m,
                         months.long(),
                         c_i=c_i,
-                        patch_size=patch_size,
+                        patch_size_high_res = patch_size_high_res,
+                        patch_size_med_res = patch_size_med_res,
+                        patch_size_low_res = patch_size_low_res,
                     ),
-                    patch_size=patch_size,
+                    patch_size_high_res = patch_size_high_res,
+                    patch_size_med_res = patch_size_med_res,
+                    patch_size_low_res = patch_size_low_res,
                 )
 
                 # handle nans introduced after processing
@@ -414,7 +422,9 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                                 s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, config["training"]["target_masking"]
                             ),
                             months.long(),
-                            patch_size=patch_size,
+                            patch_size_high_res=patch_size_high_res,
+                            patch_size_med_res=patch_size_med_res,
+                            patch_size_low_res=patch_size_low_res,
                             c_i=c_i if training_config["target_condition"] else None,
                             exit_after=config["training"]["target_exit_after"],
                             token_exit_cfg=config["training"]["token_exit_cfg"],
@@ -435,8 +445,10 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                             p_sp,
                             p_t,
                             p_st,
-                            s_t_h_m[:, 0::patch_size, 0::patch_size],
-                            sp_m[:, 0::patch_size, 0::patch_size],
+                            s_t_h_m[:, 0::patch_size_high_res, 0::patch_size_high_res],
+                            s_t_m_m[:, 0::patch_size_med_res, 0::patch_size_med_res],
+                            s_t_l_m[:, 0::patch_size_low_res, 0::patch_size_low_res],
+                            sp_m[:, 0::patch_size_high_res, 0::patch_size_high_res],
                             t_m,
                             st_m,
                         ),
@@ -463,17 +475,19 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                             sp_m,
                             t_m,
                             st_m,
-                            patch_size,
-                            max(training_config["patch_sizes"]),
+                            patch_size_high_res,
+                            patch_size_med_res,
+                            patch_size_low_res,
+                            max(training_config["patch_sizes_high_res"]),
                         ),
                     )
                 assert not torch.isnan(loss).any(), "NaNs in loss"
                 print("Got through one loss calc w/o assertion error - yay!")
-            train_loss.update(loss.item(), n=s_t_x.shape[0])
+            train_loss.update(loss.item(), n=s_t_h_x.shape[0])
             if c_i is not None:
-                task_masking_train_loss.update(loss.item(), n=s_t_x.shape[0])
+                task_masking_train_loss.update(loss.item(), n=s_t_h_x.shape[0])
             else:
-                random_masking_train_loss.update(loss.item(), n=s_t_x.shape[0])
+                random_masking_train_loss.update(loss.item(), n=s_t_h_x.shape[0])
 
             loss = loss / iters_to_accumulate
             loss.backward()

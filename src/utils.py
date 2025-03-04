@@ -95,7 +95,9 @@ def check_config(config):
         "effective_batch_size": int,
         "encode_ratio": float,
         "decode_ratio": float,
-        "patch_sizes": list,
+        "patch_sizes_high_res": list,
+        "patch_sizes_med_res": list,
+        "patch_sizes_low_res": list,
         "max_lr": float,
         "final_lr": float,
         "conditioner_multiplier": float,
@@ -184,8 +186,7 @@ def check_config(config):
                 assert key in model_dict[model], f"Expected {key} in {model} dict"
                 assert isinstance(model_dict[model][key], val)
 
-    config["model"]["encoder"]["max_patch_size"] = max(config["training"]["patch_sizes"])
-    config["model"]["decoder"]["max_patch_size"] = max(config["training"]["patch_sizes"])
+    config["model"]["encoder"]["max_patch_size_high_res"] = max(config["training"]["patch_sizes_high_res"])
     config["model"]["decoder"]["encoder_embedding_size"] = config["model"]["encoder"][
         "embedding_size"
     ]
@@ -194,7 +195,7 @@ def check_config(config):
     )
 
     if config["training"]["loss_type"] == "MAE":
-        max_patch_size = max(config["training"]["patch_sizes"])
+        max_patch_size_high_res = max(config["training"]["patch_sizes_high_res"])
         max_group_length = max(
             [
                 max([len(v) for _, v in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.items()]),
@@ -206,7 +207,7 @@ def check_config(config):
             ]
         )
         config["model"]["decoder"]["output_embedding_size"] = (
-            max_patch_size**2
+            max_patch_size_high_res**2
         ) * max_group_length
 
     assert config["training"]["conditioner_mode"] in [
@@ -273,7 +274,9 @@ def plot_space_time_predictions(
         _,
         _,
         _,
-        patch_size,
+        patch_size_high_res,
+        patch_size_med_res,
+        patch_size_low_res,
     ) = prepared_image
 
     # get predictions with current model
@@ -288,9 +291,13 @@ def plot_space_time_predictions(
             t_m.float(),
             st_m.float(),
             months.long(),
-            patch_size=patch_size,
+            patch_size_high_res=patch_size_high_res,
+            patch_size_med_res=patch_size_med_res,
+            patch_size_low_res=patch_size_low_res,
         ),
-        patch_size=patch_size,
+        patch_size_high_res=patch_size_high_res,
+        patch_size_med_res=patch_size_med_res,
+        patch_size_low_res=patch_size_low_res,
     )
 
     subplot_titles = []
@@ -347,16 +354,16 @@ def plot_space_time_predictions(
             fig.colorbar(error, ax=axs[i, 3])
 
         fig.suptitle(
-            f"Plot image: {image_id}, epoch: {epoch}, patch size: {patch_size}, timestep: {t}",
+            f"Plot image: {image_id}, epoch: {epoch}, patch size high res: {patch_size_high_res}, timestep: {t}",
             fontsize=20,
             y=1.0001,
         )
         fig.tight_layout()
 
         plot = wandb.Image(
-            fig, caption=f"plot_image{image_id}_epoch{epoch}_patch_size{patch_size}_timestep{t}"
+            fig, caption=f"plot_image{image_id}_epoch{epoch}_patch_size_hr{patch_size_high_res}_timestep{t}"
         )
-        plot_dict[patch_size] = plot
+        plot_dict[patch_size_high_res] = plot
     return plot_dict
 
 

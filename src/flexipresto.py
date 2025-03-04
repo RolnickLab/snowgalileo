@@ -561,10 +561,10 @@ class FlexiPrestoBase(nn.Module):
         t_c_g: int,
         st_c_g: int,
     ):
-        n_s_t_h_t = h_s_t_h * w_s_t_m * t * s_t_h_c_g
+        n_s_t_h_t = h_s_t_h * w_s_t_h * t * s_t_h_c_g
         n_s_t_m_t = h_s_t_m * w_s_t_m * t * s_t_m_c_g
         n_s_t_l_t = h_s_t_l * w_s_t_l * t * s_t_l_c_g
-        n_sp_t = h_s_t_h * w_s_t_m * sp_c_g
+        n_sp_t = h_s_t_h * w_s_t_h * sp_c_g
         n_t_t = t * t_c_g
 
         s_t_h_x = rearrange(x[:, :n_s_t_h_t], "b (h w t c) d -> b h w t c d", h=h_s_t_h, w=w_s_t_h, t=t, c=s_t_h_c_g)
@@ -695,7 +695,7 @@ class Encoder(FlexiPrestoBase):
 
     def __init__(
         self,
-        max_patch_size: int = 8,
+        max_patch_size_high_res: int = 8,
         embedding_size: int = 128,
         depth=2,
         mlp_ratio=2,
@@ -706,12 +706,12 @@ class Encoder(FlexiPrestoBase):
         drop_path: float = 0.0,
     ):
         super().__init__(
-            embedding_size,
-            depth,
-            mlp_ratio,
-            num_heads,
-            max_sequence_length,
-            max_patch_size,
+            embedding_size=embedding_size,
+            depth=depth,
+            mlp_ratio=mlp_ratio,
+            num_heads=num_heads,
+            max_sequence_length=max_sequence_length,
+            base_patch_size_high_res=max_patch_size_high_res,
             use_channel_embs=True,
             drop_path=drop_path,
         )
@@ -719,7 +719,7 @@ class Encoder(FlexiPrestoBase):
         self.space_time_high_res_embed = nn.ModuleDict(
             {
                 group_name: FlexiPatchEmbed(
-                    in_chans=len(group), embed_dim=embedding_size, patch_size=max_patch_size
+                    in_chans=len(group), embed_dim=embedding_size, patch_size=max_patch_size_high_res
                 )
                 for group_name, group in self.space_time_high_res_groups.items()
             }
@@ -743,7 +743,7 @@ class Encoder(FlexiPrestoBase):
         self.space_embed = nn.ModuleDict(
             {
                 group_name: FlexiPatchEmbed(
-                    in_chans=len(group), embed_dim=embedding_size, patch_size=max_patch_size
+                    in_chans=len(group), embed_dim=embedding_size, patch_size=max_patch_size_high_res
                 )
                 for group_name, group in self.space_groups.items()
             }
@@ -864,7 +864,7 @@ class Encoder(FlexiPrestoBase):
             s_t_l_m_l.append(s_t_l_m[:, 0::patch_size_low_res, 0::patch_size_low_res, :, idx])
             if s_t_l_m_l[-1].min() == 0:
                 s_t_l_l.append(
-                    self.space_time_embed[channel_group](
+                    self.space_time_low_res_embed[channel_group](
                         s_t_l_x[:, :, :, :, channel_idxs], patch_size=patch_size_low_res
                     )
                 )
@@ -1378,7 +1378,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         mlp_ratio=2,
         num_heads=8,
         max_sequence_length=24,
-        max_patch_size: int = 8,
+        max_patch_size_high_res: int = 8,
         learnable_channel_embeddings: bool = False,
         output_embedding_size: Optional[int] = None,
         use_fast_attn: bool = True
@@ -1389,7 +1389,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             mlp_ratio,
             num_heads,
             max_sequence_length,
-            max_patch_size,
+            max_patch_size_high_res,
             use_channel_embs=learnable_channel_embeddings,
             drop_path=0.0,
             use_fast_attn=use_fast_attn
@@ -1405,7 +1405,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         self.to_output_embed = nn.Linear(decoder_embedding_size, output_embedding_size, bias=True)
         self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
 
-        self.max_patch_size = max_patch_size
+        self.max_patch_size_high_res = max_patch_size_high_res
         self.input_norm = nn.LayerNorm(encoder_embedding_size)
         self.norm = nn.LayerNorm(decoder_embedding_size)
         self.apply(self._init_weights)

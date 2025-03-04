@@ -25,7 +25,9 @@ class CollateFnOutput(NamedTuple):
     t_m: torch.Tensor
     st_m: torch.Tensor
     months: torch.Tensor
-    patch_size: float
+    patch_size_high_res: float
+    patch_size_med_res: float
+    patch_size_low_res: float
     c_i: Optional[Dict]
 
 
@@ -43,35 +45,51 @@ def collated_batch_to_output(
     valid_data_mask_sp: torch.Tensor,
     valid_data_mask_t: torch.Tensor,
     valid_data_mask_st: torch.Tensor,
-    patch_sizes,
+    patch_sizes_high_res,
+    patch_sizes_med_res,
+    patch_sizes_low_res,
     shape_time_combinations,
     encode_ratio,
     decode_ratio,
     masking_function: MaskingFunctions,
     augmentation_strategies=None,
-    fixed_patch_size=None,
+    fixed_patch_size_high_res=None,
+    fixed_patch_size_med_res=1,
+    fixed_patch_size_low_res=1,
     fixed_space_time_combination=None,
     masking_probabilities=None,
     max_unmasking_channels=4,
     unmasking_channels_combo: str = "shapes",
 ) -> CollateFnOutput:
-    if fixed_patch_size is not None:
-        patch_size = fixed_patch_size
+    if fixed_patch_size_high_res is not None:
+        patch_size_high_res = fixed_patch_size_high_res
     else:
         # randomly sample a patch size, and a corresponding image size
-        patch_size = np.random.choice(patch_sizes)
+        patch_size_high_res = np.random.choice(patch_sizes_high_res)
+
+    if fixed_patch_size_med_res is not None:
+        patch_size_med_res = fixed_patch_size_med_res
+    else:
+        # randomly sample a patch size
+        patch_size_med_res = np.random.choice(patch_sizes_med_res)
+
+    if fixed_patch_size_low_res is not None:
+        patch_size_low_res = fixed_patch_size_low_res
+    else:
+        # randomly sample a patch size
+        patch_size_low_res = np.random.choice(patch_sizes_low_res)
 
     if fixed_space_time_combination is not None:
         space_time_combination = fixed_space_time_combination
     else:
         space_time_combination = np.random.choice(shape_time_combinations)
-        spatial_patches_per_dim = space_time_combination["size"]
-        if int(spatial_patches_per_dim * patch_size) > s_t_h_x.shape[1]:
-            spatial_patches_per_dim = int(s_t_h_x.shape[1] / patch_size)
+        spatial_patches_per_dim_high_res = space_time_combination["size"]
+        if int(spatial_patches_per_dim_high_res * patch_size_high_res) > s_t_h_x.shape[1]:
+            spatial_patches_per_dim_high_res = int(s_t_h_x.shape[1] / patch_size_high_res)
 
     timesteps = space_time_combination["timesteps"]
 
-    image_size = patch_size * spatial_patches_per_dim
+    image_size = patch_size_high_res * spatial_patches_per_dim_high_res
     if masking_probabilities is None:
         masking_probabilities = [1] * len(MASKING_MODES)
 
@@ -108,7 +126,9 @@ def collated_batch_to_output(
         valid_data_mask_t,
         valid_data_mask_st,
         encode_ratio=encode_ratio,
-        patch_size=patch_size,
+        patch_size_high_res=patch_size_high_res,
+        patch_size_med_res=patch_size_med_res,
+        patch_size_low_res=patch_size_low_res,
         image_size=image_size,
         num_timesteps=timesteps,
         decode_ratio=decode_ratio,
@@ -133,7 +153,9 @@ def collated_batch_to_output(
         t_m,
         st_m,
         months,
-        patch_size,
+        patch_size_high_res,
+        patch_size_med_res,
+        patch_size_low_res,
         c_i,
     )
 
@@ -141,12 +163,16 @@ def collated_batch_to_output(
 @torch.no_grad()
 def mae_collate_fn(
     batch,
-    patch_sizes,
+    patch_sizes_high_res,
+    patch_sizes_med_res,
+    patch_sizes_low_res,
     shape_time_combinations,
     encode_ratio,
     decode_ratio,
     augmentation_strategies=None,
-    fixed_patch_size=None,
+    fixed_patch_size_high_res=None,
+    fixed_patch_size_med_res=1,
+    fixed_patch_size_low_res=1,
     fixed_space_time_combination=None,
     masking_probabilities=None,
     max_unmasking_channels=4,
@@ -164,16 +190,20 @@ def mae_collate_fn(
         "st_x": st_x,
         "months": months,
         "valid_data_mask_s_t_h": valid_data_mask_s_t_h,
-        "valid_data_mask_s_t_m": valid_data_mask_s_t_h,
-        "valid_data_mask_s_t_l": valid_data_mask_s_t_h,
+        "valid_data_mask_s_t_m": valid_data_mask_s_t_m,
+        "valid_data_mask_s_t_l": valid_data_mask_s_t_l,
         "valid_data_mask_sp": valid_data_mask_sp,
         "valid_data_mask_t": valid_data_mask_t,
         "valid_data_mask_st": valid_data_mask_st,
-        "patch_sizes": patch_sizes,
+        "patch_sizes_high_res": patch_sizes_high_res,
+        "patch_sizes_med_res": patch_sizes_med_res,
+        "patch_sizes_low_res": patch_sizes_low_res,
         "encode_ratio": encode_ratio,
         "decode_ratio": decode_ratio,
         "augmentation_strategies": augmentation_strategies,
-        "fixed_patch_size": fixed_patch_size,
+        "fixed_patch_size_high_res": fixed_patch_size_high_res,
+        "fixed_patch_size_med_res": fixed_patch_size_med_res,
+        "fixed_patch_size_low_res": fixed_patch_size_low_res,
         "fixed_space_time_combination": fixed_space_time_combination,
         "masking_probabilities": masking_probabilities,
         "shape_time_combinations": shape_time_combinations,

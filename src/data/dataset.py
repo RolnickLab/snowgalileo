@@ -616,9 +616,6 @@ class Dataset(PyTorchDataset):
         0: invalid data
         1: valid data
         """
-        print(s_t_h_x.shape[-1])
-        print(s_t_m_x.shape[-1])
-        print(s_t_l_x.shape[-1])
         assert s_t_h_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_h_x"])
         assert s_t_m_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_m_x"])
         assert s_t_l_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_l_x"])
@@ -729,8 +726,6 @@ class Dataset(PyTorchDataset):
         # for downsampling, the arrays need to be in divisible shape so we do it after cropping
         space_time_med_res_x, valid_data_mask_s_t_m = self.downsample_dynamic_in_time_with_mean(space_time_med_res_x, valid_data_mask_s_t_m, target_shape=(3, 3))
         space_time_low_res_x, valid_data_mask_s_t_l = self.downsample_dynamic_in_time_with_mean(space_time_low_res_x, valid_data_mask_s_t_l, target_shape=(2, 2))
-
-        import pdb;pdb.set_trace()
 
         try:
             assert not np.isnan(space_time_high_res_x).any(), f"NaNs in s_t_h_x for {tif_path}"

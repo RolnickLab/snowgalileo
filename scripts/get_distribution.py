@@ -13,7 +13,7 @@ training_config = config["training"]
 dataset = Dataset(
     TIFS_FOLDER,
     download=False,
-    h5py_folder=DATA_FOLDER / "h5pys",
+    h5py_folder=None,
     h5pys_only=False,
 )
 
@@ -31,7 +31,7 @@ else:
 
 dataloader = DataLoader(
     dataset,
-    batch_size=1000,
+    batch_size=500,
     shuffle=True,
     num_workers=0,
     collate_fn=partial(
@@ -135,22 +135,13 @@ for i, batch in enumerate(dataloader):
             ])
 
             st_x_mean = torch.tensor([
-                torch.mean(st_x[i][valid_mask_st[i]]) if valid_mask_st[i].any() else float('nan')
+                torch.mean(st_x[...,i][valid_mask_st[...,i]]) if valid_mask_st[...,i].any() else float('nan')
                 for i in range(st_x.shape[-1])
             ])
             st_x_std = torch.tensor([
-                torch.std(st_x[i][valid_mask_st[i]]) if valid_mask_st[i].any() else float('nan')
+                torch.std(st_x[...,i][valid_mask_st[...,i]]) if valid_mask_st[...,i].any() else float('nan')
                 for i in range(st_x.shape[-1])
             ])
-
-            #s_t_x_mean = torch.nanmean(s_t_x[s_t_x != -9999], dim=(0,1,2,3))
-            #s_t_x_std = torch.nanstd(s_t_x[s_t_x != -9999], dim=(0,1,2,3))
-            #sp_x_mean = torch.nanmean(sp_x[sp_x != -9999], dim=(0,1,2))
-            #sp_x_std = torch.nanstd(sp_x[sp_x != -9999], dim=(0,1,2))
-            #t_x_mean = torch.nanmean(t_x[t_x != -9999], dim=(0,1))
-            #t_x_std = torch.nanstd(t_x[t_x != -9999], dim=(0,1))
-            #st_x_mean = torch.nanmean(st_x[st_x != -9999], dim=(0,1))
-            #st_x_std = torch.nanstd(st_x[st_x != -9999], dim=(0,1))
 
             for i, (mean, std) in enumerate(zip(s_t_h_x_mean, s_t_h_x_std)):
                 print(f"s_t_x channel {i}: Mean = {mean.item():.4f}, Std = {std.item():.4f}")
