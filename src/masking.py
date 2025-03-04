@@ -574,21 +574,18 @@ def batch_mask_time(
             st_bands_to_decode = st_d[0]
             static_mask[:, st_bands_to_decode] = 2
 
-    first_band_indices_space_time = [indices[0] for indices in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.values()]
-    first_band_indices_space = [indices[0] for indices in SPACE_BAND_GROUPS_IDX.values()]
-    first_band_indices_time = [indices[0] for indices in TIME_BANDS_GROUPS_IDX.values()]
-    first_band_indices_static = [indices[0] for indices in STATIC_BAND_GROUPS_IDX.values()]
+    invalid_data_mask_s_t_h = np.logical_not(valid_data_mask_s_t_h)
+    invalid_data_mask_sp = np.logical_not(valid_data_mask_sp)
+    invalid_data_mask_t = np.logical_not(valid_data_mask_t)
+    invalid_data_mask_st = np.logical_not(valid_data_mask_st)
 
-    space_time_high_res_mask_b = space_time_high_res_mask
-    space_time_high_res_mask_b[valid_data_mask_s_t_h] = 1
+    cg_mask_s_t_h, cg_mask_sp, cg_mask_t, cg_mask_st = _aggregate_mask_per_channel_group(invalid_data_mask_s_t_h, invalid_data_mask_sp, invalid_data_mask_t, invalid_data_mask_st)
 
-    # handle no data values
-    space_time_high_res_mask[space_time_high_x[..., first_band_indices_space_time] == NO_DATA_VALUE] = 1
-    space_mask[space_x[..., first_band_indices_space] == NO_DATA_VALUE] = 1
-    time_mask[time_x[..., first_band_indices_time] == NO_DATA_VALUE] = 1
-    static_mask[static_x[..., first_band_indices_static] == NO_DATA_VALUE] = 1
-
-    assert space_time_high_res_mask == space_time_high_res_mask_b
+    # since we mask out the same values within each channel we can assume that the mask is the same for each channel group
+    space_time_high_res_mask[cg_mask_s_t_h.bool()] = 1
+    space_mask[cg_mask_sp.bool()] = 1
+    time_mask[cg_mask_t.bool()] = 1
+    static_mask[cg_mask_st.bool()] = 1
 
     return MaskedOutput(
         space_time_high_x.clone(),
@@ -755,16 +752,18 @@ def batch_mask_space(
             st_bands_to_decode = st_d[0]
             static_mask[:, st_bands_to_decode] = 2
 
-    first_band_indices_space_time = [indices[0] for indices in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.values()]
-    first_band_indices_space = [indices[0] for indices in SPACE_BAND_GROUPS_IDX.values()]
-    first_band_indices_time = [indices[0] for indices in TIME_BANDS_GROUPS_IDX.values()]
-    first_band_indices_static = [indices[0] for indices in STATIC_BAND_GROUPS_IDX.values()]
+    invalid_data_mask_s_t_h = np.logical_not(valid_data_mask_s_t_h)
+    invalid_data_mask_sp = np.logical_not(valid_data_mask_sp)
+    invalid_data_mask_t = np.logical_not(valid_data_mask_t)
+    invalid_data_mask_st = np.logical_not(valid_data_mask_st)
 
-    # handle no data values
-    space_time_high_res_mask[space_time_high_x[..., first_band_indices_space_time] == NO_DATA_VALUE] = 1
-    space_mask[space_x[..., first_band_indices_space] == NO_DATA_VALUE] = 1
-    time_mask[time_x[..., first_band_indices_time] == NO_DATA_VALUE] = 1
-    static_mask[static_x[..., first_band_indices_static] == NO_DATA_VALUE] = 1
+    cg_mask_s_t_h, cg_mask_sp, cg_mask_t, cg_mask_st = _aggregate_mask_per_channel_group(invalid_data_mask_s_t_h, invalid_data_mask_sp, invalid_data_mask_t, invalid_data_mask_st)
+
+    # since we mask out the same values within each channel we can assume that the mask is the same for each channel group
+    space_time_high_res_mask[cg_mask_s_t_h.bool()] = 1
+    space_mask[cg_mask_sp.bool()] = 1
+    time_mask[cg_mask_t.bool()] = 1
+    static_mask[cg_mask_st.bool()] = 1
 
     return MaskedOutput(
         space_time_high_x.clone(),
@@ -872,20 +871,6 @@ def batch_mask_random(
     static_tokens = b_flat_tokens[:, -num_static_tokens:]
     static_mask = torch.from_numpy(static_tokens).to(static_x.device)
 
-    #first_band_indices_space_time = [indices[0] for indices in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.values()]
-    #first_band_indices_space = [indices[0] for indices in SPACE_BAND_GROUPS_IDX.values()]
-    #first_band_indices_time = [indices[0] for indices in TIME_BANDS_GROUPS_IDX.values()]
-    #first_band_indices_static = [indices[0] for indices in STATIC_BAND_GROUPS_IDX.values()]
-
-    #space_time_high_res_mask_b = space_time_high_res_mask
-    #space_time_high_res_mask_b[~valid_data_mask_s_t_h] = 1
-
-    # handle no data values
-    #space_time_high_res_mask[space_time_high_x[..., first_band_indices_space_time] == NO_DATA_VALUE] = 1
-    #space_mask[space_x[..., first_band_indices_space] == NO_DATA_VALUE] = 1
-    #time_mask[time_x[..., first_band_indices_time] == NO_DATA_VALUE] = 1
-    #static_mask[static_x[..., first_band_indices_static] == NO_DATA_VALUE] = 1
-
     invalid_data_mask_s_t_h = np.logical_not(valid_data_mask_s_t_h)
     invalid_data_mask_sp = np.logical_not(valid_data_mask_sp)
     invalid_data_mask_t = np.logical_not(valid_data_mask_t)
@@ -893,50 +878,11 @@ def batch_mask_random(
 
     cg_mask_s_t_h, cg_mask_sp, cg_mask_t, cg_mask_st = _aggregate_mask_per_channel_group(invalid_data_mask_s_t_h, invalid_data_mask_sp, invalid_data_mask_t, invalid_data_mask_st)
 
-    #import pdb; pdb.set_trace()
-
     # since we mask out the same values within each channel we can assume that the mask is the same for each channel group
     space_time_high_res_mask[cg_mask_s_t_h.bool()] = 1
     space_mask[cg_mask_sp.bool()] = 1
     time_mask[cg_mask_t.bool()] = 1
     static_mask[cg_mask_st.bool()] = 1
-
-    #import pdb; pdb.set_trace()
-
-    SPACE_TIME_HIGH_RES_BAND_EXPANSION = torch.tensor(
-        [len(x) for x in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.values()], device=space_time_high_res_mask.device
-    ).long()
-    SPACE_BAND_EXPANSION = torch.tensor(
-        [len(x) for x in SPACE_BAND_GROUPS_IDX.values()], device=space_mask.device
-    ).long()
-    TIME_BAND_EXPANSION = torch.tensor(
-        [len(x) for x in TIME_BANDS_GROUPS_IDX.values()], device=time_mask.device
-    ).long()
-    STATIC_BAND_EXPANSION = torch.tensor(
-        [len(x) for x in STATIC_BAND_GROUPS_IDX.values()], device=static_mask.device
-    ).long()
-
-    pixel_s_t_h_m = torch.repeat_interleave(space_time_high_res_mask, repeats=SPACE_TIME_HIGH_RES_BAND_EXPANSION, dim=-1)
-    pixel_sp_m = torch.repeat_interleave(space_mask, repeats=SPACE_BAND_EXPANSION, dim=-1)
-    pixel_t_m = torch.repeat_interleave(time_mask, repeats=TIME_BAND_EXPANSION, dim=-1)
-    pixel_st_m = torch.repeat_interleave(static_mask, repeats=STATIC_BAND_EXPANSION, dim=-1)
-
-    #import pdb; pdb.set_trace()
-
-    assert not (space_time_high_x[valid_data_mask_s_t_h.bool()] == NO_DATA_VALUE).any()
-    assert not (space_x[valid_data_mask_sp.bool()] == NO_DATA_VALUE).any()
-    assert not (time_x[valid_data_mask_t.bool()] == NO_DATA_VALUE).any()
-    assert not (static_x[valid_data_mask_st.bool()] == NO_DATA_VALUE).any()
-
-    assert not (space_time_high_x[valid_data_mask_s_t_h.bool()] < (-2000)).any()
-    assert not (space_x[valid_data_mask_sp.bool()] < (-10)).any()
-    assert not (time_x[valid_data_mask_t.bool()] < (-1000)).any()
-    assert not (static_x[valid_data_mask_st.bool()] < (-1)).any()
-
-    assert not (space_time_high_x[pixel_s_t_h_m==2] == NO_DATA_VALUE).any()
-    assert not (space_x[pixel_sp_m==2] == NO_DATA_VALUE).any()
-    assert not (time_x[pixel_t_m==2] == NO_DATA_VALUE).any()
-    assert not (static_x[pixel_st_m==2] == NO_DATA_VALUE).any()
 
     return MaskedOutput(
         space_time_high_x.clone(),

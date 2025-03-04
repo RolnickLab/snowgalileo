@@ -620,25 +620,6 @@ class Dataset(PyTorchDataset):
 
         valid_data_mask_s_t_h, valid_data_mask_sp, valid_data_mask_t, valid_data_mask_st = cls.create_valid_mask(space_time_high_res_x, space_x, time_x, static_x)
 
-        #mask = (space_time_high_res_x > -9999) & (space_time_high_res_x < -2000)
-
-        #if mask.any():
-        #    np.save("landsat_outlier2.npy", space_time_high_res_x)
-        #    assert 1 == 0           
-
-        #if (space_time_high_res_x[...,9]<=-2000).any():
-        #    np.save("landsat_outlier.npy", space_time_high_res_x)
-        #    assert 1 == 0
-            #import pdb; pdb.set_trace()
-
-        #if (space_time_high_res_x[...,9]<=-2000).any():
-        #    np.save("time_outlier.npy", space_time_high_res_x)
-        #    assert 1 == 0
-            #import pdb; pdb.set_trace()
-
-        #if valid_mask_s_t_h[:, :, 9].any() and not (space_time_high_res_x[..., 9] <= -2000).any():
-        #    np.save("landsat_outlier_2.npy", space_time_high_res_x)
-
         try:
             assert not np.isnan(space_time_high_res_x).any(), f"NaNs in s_t_h_x for {tif_path}"
             assert not np.isnan(space_x).any(), f"NaNs in sp_x for {tif_path}"
@@ -815,7 +796,6 @@ class Dataset(PyTorchDataset):
                 hf["valid_data_mask_t"][start_t : start_t + self.output_timesteps],
                 hf["valid_data_mask_st"][:],
             )
-            #import pdb; pdb.set_trace()
         return dataset
 
     def __getitem__(self, idx):
@@ -849,12 +829,15 @@ class Dataset(PyTorchDataset):
         return output_dict
     
     @staticmethod
-    def plot_distribution(dataset, idx, channel_idx):
+    def plot_distribution(dataset, idx, channel_idx, assets_folder_name):
         import matplotlib.pyplot as plt
+        import os
+
+        os.makedirs(os.path.dirname(assets_folder_name), exist_ok=True)
 
         plt.figure()
         plt.hist(dataset.flatten(), bins=20)
-        plt.savefig(f'assets/{idx}_{channel_idx}.png')
+        plt.savefig(f'{assets_folder_name}/{idx}_{channel_idx}.png')
         plt.close()
 
 
@@ -863,7 +846,8 @@ class Dataset(PyTorchDataset):
         output_hw: int = DATASET_OUTPUT_HW,
         output_timesteps: int = NUM_TIMESTEPS,
         estimate_from: Optional[int] = 10000,
-        plot_distribution: bool = False
+        plot_distribution: bool = False,
+        assets_folder_name: str = ""
     ):
         org_hw = self.output_hw
         self.output_hw = output_hw
@@ -880,15 +864,6 @@ class Dataset(PyTorchDataset):
         for i in tqdm(indices_to_sample):
             s_t_h_x, sp_x, t_x, st_x, months, valid_data_mask_s_t_h, valid_data_mask_sp, valid_data_mask_t, valid_data_mask_st = self[i]
 
-            #if (s_t_h_x[valid_data_mask_s_t_h][...,14]<=-6000).any():
-            #    np.save("mal0.npy", s_t_h_x)
-                #import pdb; pdb.set_trace()
-            #    break
-
-            #np.save("mal0.npy", s_t_h_x)
-            #import pdb; pdb.set_trace()
-            #break
-
             output.space_time_high_res_x.append(np.where(valid_data_mask_s_t_h, s_t_h_x, np.nan))
             output.space_x.append(np.where(valid_data_mask_sp, sp_x, np.nan))
             output.time_x.append(np.where(valid_data_mask_t, t_x, np.nan))
@@ -896,12 +871,10 @@ class Dataset(PyTorchDataset):
             output.months.append(months)
         d_o = output.to_datasetoutput()
 
-        #import pdb; pdb.set_trace()
-
         if plot_distribution:
             for idx, ds in enumerate(d_o):
                 for channel_idx in range(ds.shape[-1]):
-                    self.plot_distribution(ds[...,channel_idx], idx, channel_idx)
+                    self.plot_distribution(ds[...,channel_idx], idx, channel_idx, assets_folder_name)
 
         norm_dict = {
             "total_n": len(self),

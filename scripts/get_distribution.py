@@ -117,15 +117,6 @@ for i, batch in enumerate(dataloader):
                 for i in range(st_x.shape[-1])
             ])
 
-            #s_t_x_mean = torch.nanmean(s_t_x[s_t_x != -9999], dim=(0,1,2,3))
-            #s_t_x_std = torch.nanstd(s_t_x[s_t_x != -9999], dim=(0,1,2,3))
-            #sp_x_mean = torch.nanmean(sp_x[sp_x != -9999], dim=(0,1,2))
-            #sp_x_std = torch.nanstd(sp_x[sp_x != -9999], dim=(0,1,2))
-            #t_x_mean = torch.nanmean(t_x[t_x != -9999], dim=(0,1))
-            #t_x_std = torch.nanstd(t_x[t_x != -9999], dim=(0,1))
-            #st_x_mean = torch.nanmean(st_x[st_x != -9999], dim=(0,1))
-            #st_x_std = torch.nanstd(st_x[st_x != -9999], dim=(0,1))
-
             for i, (mean, std) in enumerate(zip(s_t_x_mean, s_t_x_std)):
                 print(f"s_t_x channel {i}: Mean = {mean.item():.4f}, Std = {std.item():.4f}")
 

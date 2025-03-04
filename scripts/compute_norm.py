@@ -23,6 +23,7 @@ argparser.add_argument("--download", dest="download", action="store_true")
 argparser.add_argument("--h5pys_only", dest="h5pys_only", action="store_true")
 argparser.add_argument("--estimate_from", type=int, default=1000)
 argparser.add_argument("--plot_distributions", action="store_true")
+argparser.add_argument("--assets_folder_name", type=str, default="")
 argparser.set_defaults(download=False)
 argparser.set_defaults(cache_in_ram=False)
 args = argparser.parse_args().__dict__
@@ -41,5 +42,5 @@ dataset = Dataset(
     h5pys_only=args["h5pys_only"],
 )
 
-normalizing_dict = dataset.compute_normalization_values(estimate_from=args["estimate_from"], plot_distribution=args["plot_distributions"])
+normalizing_dict = dataset.compute_normalization_values(estimate_from=args["estimate_from"], plot_distribution=args["plot_distributions"], assets_folder_name=args["assets_folder_name"])
 print(normalizing_dict, flush=True)
