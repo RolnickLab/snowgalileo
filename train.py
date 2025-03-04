@@ -15,7 +15,6 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
-from src.beaker import is_beaker_job, maybe_get_beaker_config
 from src.collate_fns import mae_collate_fn
 from src.conditioner import LearnedMixture, LoRAGenerator, LoRATemplates, TokenConditioner
 from src.config import DEFAULT_SEED, get_random_config
@@ -102,23 +101,6 @@ wandb_enabled = True
 wandb_org = "sea-ice"
 wandb_output_dir = Path(__file__).parent
 
-if is_beaker_job():
-    # see if the output folder exists. If so, there
-    # was an existing job
-    # "when a job is preempted, it gets a new result dataset,
-    # which starts as a copy of the previous job's results."
-    output_dirs = [o for o in output_folder.glob("*") if o.is_dir()]
-    if len(output_dirs) > 0:
-        assert len(output_dirs) == 1, f"Got more than one output dir: {output_dirs}"
-        restart = True
-        model_path = output_dirs[0]
-        print(f"Restarting run using {model_path}")
-        with (model_path / CONFIG_FILENAME).open("r") as f:
-            config = json.load(f)
-        run_name = config["run_name"]
-        start_epoch = config["cur_epoch"]
-        run_id = config["wandb_run_id"]
-
 if not restart:
     if len(args["conditioner_mode"]) == 0:
         conditioner_mode: Optional[str] = None
@@ -151,9 +133,6 @@ run = wandb.init(
 )
 run_id = cast(Run, run).id
 config["wandb_run_id"] = run_id
-if is_beaker_job():
-    beaker_config = maybe_get_beaker_config()
-    config.update(vars(beaker_config))
 
 training_config = config["training"]
 
