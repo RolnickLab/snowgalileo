@@ -13,12 +13,10 @@ from ..data import Normalizer
 from ..data.dataset import (
     SPACE_BANDS,
     SPACE_TIME_HIGH_RES_BANDS,
-    SPACE_TIME_MED_RES_BANDS,
-    SPACE_TIME_LOW_RES_BANDS,
     STATIC_BANDS,
     TIME_BANDS,
 )
-from ..data.earthengine.eo import SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX, SPACE_TIME_MED_RES_BANDS_GROUPS_IDX, SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX, SPACE_BAND_GROUPS_IDX, TIME_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
+from ..data.earthengine.eo import SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX, SPACE_BAND_GROUPS_IDX, TIME_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
 from ..data.earthengine.s1 import S1_BANDS
 from ..data.earthengine.s2 import S2_BANDS
 from ..masking import MaskedOutput
@@ -75,7 +73,7 @@ class GeobenchBaseDataset(PyTorchDataset):
         self.num_subtiles_per_image = num_subtiles_per_image
         assert sqrt(cast(float, self.num_subtiles_per_image)).is_integer()
 
-    def create_masks(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def create_masks(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         if self.config["include_s1"]:
             s_t_h_channels = [
                 idx for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX) if key.startswith("S")
@@ -101,10 +99,6 @@ class GeobenchBaseDataset(PyTorchDataset):
             t=self.config["num_timesteps"],
         )
 
-        # no med res or low res channels are available
-        s_t_m_m = np.ones([3, 3, self.config["num_timesteps"], len(SPACE_TIME_MED_RES_BANDS_GROUPS_IDX)])
-        s_t_l_m = np.ones([2, 2, self.config["num_timesteps"], len(SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX)])
-
         # no static channels are available
         sp_m = np.ones(
             [
@@ -117,13 +111,11 @@ class GeobenchBaseDataset(PyTorchDataset):
         st_m = np.ones([len(STATIC_BAND_GROUPS_IDX)])
 
         assert ((s_t_h_m == 0) | (s_t_h_m == 1)).all()
-        assert (s_t_m_m == 1).all()
-        assert (s_t_l_m == 1).all()
         assert (sp_m == 1).all()
         assert (t_m == 1).all()
         assert (st_m == 1).all()
 
-        return (s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m)
+        return (s_t_h_m, sp_m, t_m, st_m)
 
     def image_to_space_time_array(self, image) -> np.ndarray:
         if self.config["include_s1"]:
@@ -166,14 +158,12 @@ class GeobenchBaseDataset(PyTorchDataset):
 
         s_t_h_x = self.image_to_space_time_array(x)
 
-        # med res / low res / space only / time only / static bands are not provided
-        s_t_m_x = np.zeros((3, 3, s_t_h_x.shape[2], len(SPACE_TIME_MED_RES_BANDS)))
-        s_t_l_x = np.zeros((2, 2, s_t_h_x.shape[2], len(SPACE_TIME_LOW_RES_BANDS)))
+        # space only / time only / static bands are not provided
         sp_x = np.zeros((s_t_h_x.shape[0], s_t_h_x.shape[1], len(SPACE_BANDS)))
         t_x = np.zeros((s_t_h_x.shape[2], len(TIME_BANDS)))
         st_x = np.zeros((len(STATIC_BANDS)))
 
-        s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m = self.masks
+        s_t_h_m, sp_m, t_m, st_m = self.masks
         month = np.zeros((self.config["num_timesteps"],))
 
         # check if label is an object or a number
@@ -208,8 +198,6 @@ class GeobenchBaseDataset(PyTorchDataset):
                     :,
                     :,
                 ],
-                s_t_m_x,
-                s_t_l_x,
                 sp_x[
                     row_idx * pixels_per_dim : (row_idx + 1) * pixels_per_dim,
                     col_idx * pixels_per_dim : (col_idx + 1) * pixels_per_dim,
@@ -223,8 +211,6 @@ class GeobenchBaseDataset(PyTorchDataset):
                     :,
                     :,
                 ],
-                s_t_m_m,
-                s_t_l_m,
                 sp_m[
                     row_idx * pixels_per_dim : (row_idx + 1) * pixels_per_dim,
                     col_idx * pixels_per_dim : (col_idx + 1) * pixels_per_dim,

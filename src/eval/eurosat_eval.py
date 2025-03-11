@@ -19,13 +19,11 @@ from ..data import Normalizer
 from ..data.dataset import (
     SPACE_BANDS,
     SPACE_TIME_HIGH_RES_BANDS,
-    SPACE_TIME_MED_RES_BANDS,
-    SPACE_TIME_LOW_RES_BANDS,
     STATIC_BANDS,
     TIME_BANDS,
     to_cartesian,
 )
-from ..data.earthengine.eo import SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX, SPACE_TIME_MED_RES_BANDS_GROUPS_IDX, SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX, SPACE_BAND_GROUPS_IDX, TIME_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
+from ..data.earthengine.eo import SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX, SPACE_BAND_GROUPS_IDX, TIME_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
 from ..data.earthengine.s2 import ALL_S2_BANDS, REMOVED_BANDS
 from ..flexipresto import Encoder
 from ..masking import UNMASKING_CHANNEL_GROUPS, MaskedOutput
@@ -151,7 +149,7 @@ class EuroSatDataset(PyTorchDataset):
             json.dump(train_test_split, split_path.open("w"))
         return train_test_split
 
-    def create_eurosat_masks(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def create_eurosat_masks(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         if self.rgb:
             space_time_high_res_channels = [
                 idx for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX) if "S2_RGB" in key
@@ -174,10 +172,6 @@ class EuroSatDataset(PyTorchDataset):
             t=self.num_timesteps,
         )
 
-        # no med res / low res channels are available
-        space_time_med_res_mask = np.ones([3, 3, self.num_timesteps, len(SPACE_TIME_MED_RES_BANDS_GROUPS_IDX)])
-        space_time_low_res_mask = np.ones([2, 2, self.num_timesteps, len(SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX)])
-
         # no space only / time only channels are available
         space_mask = np.ones(
             [self.input_height_width, self.input_height_width, len(SPACE_BAND_GROUPS_IDX)]
@@ -193,11 +187,11 @@ class EuroSatDataset(PyTorchDataset):
         else:
             assert (static_mask == 1).all()
 
-        assert ((space_time_mask == 0) | (space_time_mask == 1)).all()
+        assert ((space_time_high_res_mask == 0) | (space_time_high_res_mask == 1)).all()
         assert (space_mask == 1).all()
         assert (time_mask == 1).all()
 
-        return (space_time_high_res_mask, space_time_med_res_mask, space_time_low_res_mask, space_mask, time_mask, static_mask)
+        return (space_time_high_res_mask, space_mask, time_mask, static_mask)
 
     def image_to_space_time_array(
         self, tif_filename: str
@@ -238,19 +232,17 @@ class EuroSatDataset(PyTorchDataset):
         image = self.images[idx]
         s_t_h_x, st_x, label = self.image_to_space_time_array(image.strip())
 
-        # med res, low res, space and time bands are not provided by eurosat
-        s_t_m_x = np.zeros((3, 3, s_t_h_x.shape[2], len(SPACE_TIME_MED_RES_BANDS)))
-        s_t_l_x = np.zeros((2, 2, s_t_h_x.shape[2], len(SPACE_TIME_LOW_RES_BANDS)))
+        # space and time bands are not provided by eurosat
         sp_x = np.zeros((s_t_h_x.shape[0], s_t_h_x.shape[1], len(SPACE_BANDS)))
         t_x = np.zeros((s_t_h_x.shape[2], len(TIME_BANDS)))
 
-        s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m = self.masks
+        s_t_h_m, sp_m, t_m, st_m = self.masks
         month = np.zeros((self.num_timesteps,))
 
         label_torch = torch.tensor(label, dtype=torch.long)
 
         return (
-            masked_output_np_to_tensor(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, month),
+            masked_output_np_to_tensor(s_t_h_x, sp_x, t_x, st_x, s_t_h_m, sp_m, t_m, st_m, month),
             label_torch,
         )
 
@@ -374,7 +366,7 @@ class EuroSatEval(EvalTask):
         labels_list = []
 
         for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
-            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, months = [
+            s_t_h_x, sp_x, t_x, st_x, s_t_h_m, sp_m, t_m, st_m, months = [
                 t.to(device) for t in masked_output
             ]
 
@@ -383,39 +375,29 @@ class EuroSatEval(EvalTask):
             with torch.no_grad():
                 (
                     s_t_h_x,
-                    s_t_m_x,
-                    s_t_l_x,
                     sp_x,
                     t_x,
                     st_x,
                     s_t_h_m,
-                    s_t_m_m,
-                    s_t_l_m,
                     sp_m,
                     t_m,
                     st_m,
                     _,
                 ) = pretrained_model(
                     s_t_h_x=s_t_h_x,
-                    s_t_m_x=s_t_m_x,
-                    s_t_l_x=s_t_l_x,
                     sp_x=sp_x,
                     t_x=t_x,
                     st_x=st_x,
                     s_t_h_m=s_t_h_m,
-                    s_t_m_m=s_t_m_m,
-                    s_t_l_m=s_t_l_m,
                     sp_m=sp_m,
                     t_m=t_m,
                     st_m=st_m,
                     months=months,
                     c_i=c_i,
                     patch_size_high_res=self.patch_size_high_res,
-                    patch_size_med_res=1,
-                    patch_size_low_res=1
                 )
                 encodings = (
-                    pretrained_model.average_tokens(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m)
+                    pretrained_model.average_tokens(s_t_h_x, sp_x, t_x, st_x, s_t_h_m, sp_m, t_m, st_m)
                     .cpu()
                     .numpy()
                 )
