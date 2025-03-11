@@ -1,5 +1,5 @@
 # TODO: delete this file later
-from src.data.config import TIFS_FOLDER, DATA_FOLDER
+from src.data.config import DATA_FOLDER, TIFS_FOLDER
 from src.data.dataset import Dataset
 
 dataset = Dataset(

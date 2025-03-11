@@ -7,6 +7,8 @@ from functools import partial
 from pathlib import Path
 from typing import List, Optional, Union, cast
 
+from src.eval import EuroSatEval
+
 import codecarbon
 import psutil
 import torch
@@ -83,7 +85,7 @@ argparser.set_defaults(cache_in_ram=False)
 args = argparser.parse_args().__dict__
 
 if args["h5py_folder"] == "":
-    cache_folder = DATA_FOLDER / "h5pys"
+    cache_folder = None
 else:
     cache_folder = Path(args["h5py_folder"])
 
@@ -301,20 +303,17 @@ if restart:
     encoder.load_state_dict(torch.load(model_path / ENCODER_FILENAME, map_location=device))
     predictor.load_state_dict(torch.load(model_path / DECODER_FILENAME, map_location=device))
 
-
-"""
 print("Loading validation task")
 val_task_no_latlons = EuroSatEval(
     normalization=dataset.normalizer,
     geobench=True,
-    rgb=False,
+    rgb=True,
     include_latlons=False,
     do_condition=eval_w_condition,
 )
-val_task_ts = BinaryCropHarvestEval(
-    normalizer=dataset.normalizer, country="Togo", do_condition=True, eval_mode="val"
-)
-"""
+#val_task_ts = BinaryCropHarvestEval(
+#    normalizer=dataset.normalizer, country="Togo", do_condition=True, eval_mode="val"
+#)
 
 optimizer = torch.optim.AdamW(
     param_groups,
@@ -549,7 +548,7 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                         m = training_config["ema"][1]
                     for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
                         param_k.data.mul_(m).add_((1.0 - m) * param_q.detach().data)
-                
+
                 if wandb_enabled:
                     to_log = {
                         "train_loss": train_loss.average,
@@ -559,7 +558,8 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                         "momentum": m,
                         "lr": current_lr,
                     }
-                    wandb.log(to_log, step=e)
+                    #wandb.log(to_log, step=e)
+                    """  
                     if (training_config["wandb_plot_every_n_epochs"] != 0) and (e % training_config["wandb_plot_every_n_epochs"] == 0):
                         plot_list_nested = []
                         for image_id, prepared_image in prepared_image_to_plot.items():
@@ -579,8 +579,9 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                             for plot_list in plot_list_nested
                         ]:
                             wandb.log({f"plot": plot})
+                    """
 
-    """              
+    """
     if wandb_enabled:
         to_log = {
             "train_loss": train_loss.average,
@@ -590,21 +591,23 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
             "momentum": m,
             "lr": current_lr,
         }
-        if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
-            e % training_config["eval_eurosat_every_n_epochs"] == 0
-        ):
-            to_log.update(
-                val_task_no_latlons.evaluate_model_on_task(
-                    encoder, model_modes=["KNNat5 Classifier", "KNNat20 Classifier"]
-                )
-            )
-            to_log.update(
-                val_task_ts.evaluate_model_on_task(
-                    encoder, model_modes=["KNNat5 Classifier", "Logistic Regression"]
-                )
-            )
     """
-        #wandb.log(to_log, step=e)
+
+    if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
+        e % training_config["eval_eurosat_every_n_epochs"] == 0
+    ):
+        to_log.update(
+            val_task_no_latlons.evaluate_model_on_task(
+                encoder, model_modes=["KNNat5 Classifier", "KNNat20 Classifier"]
+            )
+        )
+        #to_log.update(
+        #    val_task_ts.evaluate_model_on_task(
+        #        encoder, model_modes=["KNNat5 Classifier", "Logistic Regression"]
+        #    )
+        #)
+    wandb.log(to_log, step=e)
+
     if args["checkpoint_every_epoch"] > 0:
         if e % args["checkpoint_every_epoch"] == 0:
             if model_path is None:

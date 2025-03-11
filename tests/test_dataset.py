@@ -8,7 +8,7 @@ import torch
 
 from src.data.dataset import (
     SPACE_BANDS,
-    SPACE_TIME_BANDS,
+    SPACE_TIME_HIGH_RES_BANDS,
     STATIC_BANDS,
     TIME_BANDS,
     Dataset,
@@ -16,10 +16,10 @@ from src.data.dataset import (
     to_cartesian,
 )
 
-BROKEN_FILE = "min_lat=24.7979_min_lon=-105.1508_max_lat=24.8069_max_lon=-105.141_dates=2022-01-01_2023-12-31.tif"
+BROKEN_FILE = "min_lat=42.0017_min_lon=42.8257_max_lat=42.0108_max_lon=42.8378_season=late_dates=2019-04-05_2019-04-20.tif"
 TEST_FILENAMES = [
-    "min_lat=5.4427_min_lon=101.4016_max_lat=5.4518_max_lon=101.4107_dates=2022-01-01_2023-12-31.tif",
-    "min_lat=-27.6721_min_lon=25.6796_max_lat=-27.663_max_lon=25.6897_dates=2022-01-01_2023-12-31.tif",
+    "min_lat=43.5142_min_lon=6.685_max_lat=43.5233_max_lon=6.6973_season=early_dates=2017-11-30_2017-12-15.tif",
+    "min_lat=42.0017_min_lon=42.8257_max_lat=42.0108_max_lon=42.8378_season=mid_dates=2019-01-02_2019-01-17.tif",
 ]
 TIFS_FOLDER = Path(__file__).parents[1] / "data/tifs"
 TEST_FILES = [TIFS_FOLDER / x for x in TEST_FILENAMES]
@@ -28,19 +28,23 @@ TEST_FILES = [TIFS_FOLDER / x for x in TEST_FILENAMES]
 class TestDataset(unittest.TestCase):
     def test_tif_to_array(self):
         for test_file in TEST_FILES:
-            s_t_x, sp_x, t_x, st_x, months = Dataset._tif_to_array(test_file)
-            self.assertFalse(np.isnan(s_t_x).any())
+            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = Dataset._tif_to_array(test_file)
+            self.assertFalse(np.isnan(s_t_h_x).any())
+            self.assertFalse(np.isnan(s_t_m_x).any())
+            self.assertFalse(np.isnan(s_t_l_x).any())
             self.assertFalse(np.isnan(sp_x).any())
             self.assertFalse(np.isnan(t_x).any())
             self.assertFalse(np.isnan(st_x).any())
-            self.assertFalse(np.isinf(s_t_x).any())
+            self.assertFalse(np.isinf(s_t_h_x).any())
+            self.assertFalse(np.isinf(s_t_m_x).any())
+            self.assertFalse(np.isinf(s_t_l_x).any())
             self.assertFalse(np.isinf(sp_x).any())
             self.assertFalse(np.isinf(t_x).any())
             self.assertFalse(np.isinf(st_x).any())
-            self.assertEqual(sp_x.shape[0], s_t_x.shape[0])
-            self.assertEqual(sp_x.shape[1], s_t_x.shape[1])
-            self.assertEqual(t_x.shape[0], s_t_x.shape[2])
-            self.assertEqual(len(SPACE_TIME_BANDS), s_t_x.shape[-1])
+            self.assertEqual(sp_x.shape[0], s_t_h_x.shape[0], s_t_m_x.shape[0], s_t_l_x.shape[0])
+            self.assertEqual(sp_x.shape[1], s_t_h_x.shape[1], s_t_m_x.shape[1], s_t_l_x.shape[1])
+            self.assertEqual(t_x.shape[0], s_t_h_x.shape[2], s_t_m_x.shape[2], s_t_l_x.shape[2])
+            self.assertEqual(len(SPACE_TIME_HIGH_RES_BANDS), s_t_h_x.shape[-1])
             self.assertEqual(len(SPACE_BANDS), sp_x.shape[-1])
             self.assertEqual(len(TIME_BANDS), t_x.shape[-1])
             self.assertEqual(len(STATIC_BANDS), st_x.shape[-1])
@@ -56,8 +60,15 @@ class TestDataset(unittest.TestCase):
 
     def test_normalization(self):
         ds = Dataset(TIFS_FOLDER, download=False)
-        o = ds.load_normalization_values(path=Path("config/normalization.json"))
-        for t in [len(SPACE_TIME_BANDS), len(SPACE_BANDS), len(STATIC_BANDS), len(TIME_BANDS)]:
+        o = ds.load_normalization_values(path=Path("config/normalizing_dict.json"))
+        for t in [
+            len(SPACE_TIME_HIGH_RES_BANDS),
+            len(SPACE_TIME_MED_RES_BANDS),
+            len(SPACE_TIME_LOW_RES_BANDS),
+            len(SPACE_BANDS),
+            len(STATIC_BANDS),
+            len(TIME_BANDS),
+        ]:
             subdict = o[t]
             self.assertTrue("mean" in subdict)
             self.assertTrue("std" in subdict)
@@ -75,6 +86,7 @@ class TestDataset(unittest.TestCase):
         self.assertTrue(np.equal(input, output[0]).all())
         self.assertTrue(np.equal(input, output[1]).all())
         self.assertTrue(np.equal(months, output[2]).all())
+        print("Test ok :-)")
 
     def test_subset_with_too_small_image(self):
         input = np.ones((2, 2, 1))
@@ -129,3 +141,7 @@ class TestDataset(unittest.TestCase):
                 with h5py.File(h5_file, "r") as f:
                     # mostly checking it can be read
                     self.assertEqual(f["t_x"].shape[0], 24)
+
+
+if __name__ == "__main__":
+    unittest.main()
