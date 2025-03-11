@@ -230,19 +230,19 @@ class EuroSatDataset(PyTorchDataset):
 
     def __getitem__(self, idx) -> Tuple[MaskedOutput, torch.Tensor]:
         image = self.images[idx]
-        s_t_h_x, st_x, label = self.image_to_space_time_array(image.strip())
+        s_t_x, st_x, label = self.image_to_space_time_array(image.strip())
 
         # space and time bands are not provided by eurosat
-        sp_x = np.zeros((s_t_h_x.shape[0], s_t_h_x.shape[1], len(SPACE_BANDS)))
-        t_x = np.zeros((s_t_h_x.shape[2], len(TIME_BANDS)))
+        sp_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
+        t_x = np.zeros((s_t_x.shape[2], len(TIME_BANDS)))
 
-        s_t_h_m, sp_m, t_m, st_m = self.masks
+        s_t_m, sp_m, t_m, st_m = self.masks
         month = np.zeros((self.num_timesteps,))
 
         label_torch = torch.tensor(label, dtype=torch.long)
 
         return (
-            masked_output_np_to_tensor(s_t_h_x, sp_x, t_x, st_x, s_t_h_m, sp_m, t_m, st_m, month),
+            masked_output_np_to_tensor(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, month),
             label_torch,
         )
 
@@ -263,7 +263,7 @@ class EuroSatEval(EvalTask):
         normalization: Union[str, Normalizer] = "std",  # or "scaling"
         rgb: bool = True,
         include_latlons: bool = True,
-        patch_size_high_res: int = 8,
+        patch_size: int = 8,
         seed=DEFAULT_SEED,
         geobench: bool = False,
         do_condition: bool = False,
@@ -286,7 +286,7 @@ class EuroSatEval(EvalTask):
 
         assert not self.geobench or not self.include_latlons, "Geobench does not support latlons"
 
-        super().__init__(patch_size_high_res, seed)
+        super().__init__(patch_size, seed)
         self.name = f"{self.name}_{'RGB' if self.rgb else 'MS'}{'_latlons' if include_latlons else ''}_{'_geobench' if geobench else ''}"
 
         output_channels = [0] * len(UNMASKING_CHANNEL_GROUPS)
@@ -300,8 +300,8 @@ class EuroSatEval(EvalTask):
                 input_channels[i] = 1
 
         self.condition = {
-            "hw": 64 // patch_size_high_res,
-            "patch_size_high_res": patch_size_high_res,
+            "hw": 64 // patch_size,
+            "patch_size": patch_size,
             "timesteps": 1,  # WE CURRENTLY ARE NOT TRAINING WITH THIS, PROBABLY HURTS PERF
             "input_channels": torch.Tensor(input_channels).to(device),
             "output_channels": torch.Tensor(output_channels).to(device),
@@ -366,7 +366,7 @@ class EuroSatEval(EvalTask):
         labels_list = []
 
         for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
-            s_t_h_x, sp_x, t_x, st_x, s_t_h_m, sp_m, t_m, st_m, months = [
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months = [
                 t.to(device) for t in masked_output
             ]
 
@@ -374,30 +374,30 @@ class EuroSatEval(EvalTask):
 
             with torch.no_grad():
                 (
-                    s_t_h_x,
+                    s_t_x,
                     sp_x,
                     t_x,
                     st_x,
-                    s_t_h_m,
+                    s_t_m,
                     sp_m,
                     t_m,
                     st_m,
                     _,
                 ) = pretrained_model(
-                    s_t_h_x=s_t_h_x,
+                    s_t_x=s_t_x,
                     sp_x=sp_x,
                     t_x=t_x,
                     st_x=st_x,
-                    s_t_h_m=s_t_h_m,
+                    s_t_m=s_t_m,
                     sp_m=sp_m,
                     t_m=t_m,
                     st_m=st_m,
                     months=months,
                     c_i=c_i,
-                    patch_size_high_res=self.patch_size_high_res,
+                    patch_size=self.patch_size,
                 )
                 encodings = (
-                    pretrained_model.average_tokens(s_t_h_x, sp_x, t_x, st_x, s_t_h_m, sp_m, t_m, st_m)
+                    pretrained_model.average_tokens(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
                     .cpu()
                     .numpy()
                 )

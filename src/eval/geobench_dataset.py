@@ -75,24 +75,24 @@ class GeobenchBaseDataset(PyTorchDataset):
 
     def create_masks(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         if self.config["include_s1"]:
-            s_t_h_channels = [
+            s_t_channels = [
                 idx for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX) if key.startswith("S")
             ]
         elif self.rgb:
-            s_t_h_channels = [
+            s_t_channels = [
                 idx for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX) if "S2_RGB" in key
             ]
         else:
-            s_t_h_channels = [
+            s_t_channels = [
                 idx for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX) if "S2" in key
             ]
 
         # everything is masked by default
-        s_t_h_m = np.ones([len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX)])
+        s_t_m = np.ones([len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX)])
         # unmask available s1 and s2 bands
-        s_t_h_m[s_t_h_channels] = 0
-        s_t_h_m = repeat(
-            s_t_h_m,
+        s_t_m[s_t_channels] = 0
+        s_t_m = repeat(
+            s_t_m,
             "d -> h w t d",
             h=self.config["input_height_width"],
             w=self.config["input_height_width"],
@@ -110,12 +110,12 @@ class GeobenchBaseDataset(PyTorchDataset):
         t_m = np.ones([self.config["num_timesteps"], len(TIME_BANDS_GROUPS_IDX)])
         st_m = np.ones([len(STATIC_BAND_GROUPS_IDX)])
 
-        assert ((s_t_h_m == 0) | (s_t_h_m == 1)).all()
+        assert ((s_t_m == 0) | (s_t_m == 1)).all()
         assert (sp_m == 1).all()
         assert (t_m == 1).all()
         assert (st_m == 1).all()
 
-        return (s_t_h_m, sp_m, t_m, st_m)
+        return (s_t_m, sp_m, t_m, st_m)
 
     def image_to_space_time_array(self, image) -> np.ndarray:
         if self.config["include_s1"]:
@@ -156,14 +156,14 @@ class GeobenchBaseDataset(PyTorchDataset):
 
         x = np.stack(x, axis=0)
 
-        s_t_h_x = self.image_to_space_time_array(x)
+        s_t_x = self.image_to_space_time_array(x)
 
         # space only / time only / static bands are not provided
-        sp_x = np.zeros((s_t_h_x.shape[0], s_t_h_x.shape[1], len(SPACE_BANDS)))
-        t_x = np.zeros((s_t_h_x.shape[2], len(TIME_BANDS)))
+        sp_x = np.zeros((s_t_x.shape[0], s_t_x.shape[1], len(SPACE_BANDS)))
+        t_x = np.zeros((s_t_x.shape[2], len(TIME_BANDS)))
         st_x = np.zeros((len(STATIC_BANDS)))
 
-        s_t_h_m, sp_m, t_m, st_m = self.masks
+        s_t_m, sp_m, t_m, st_m = self.masks
         month = np.zeros((self.config["num_timesteps"],))
 
         # check if label is an object or a number
@@ -175,7 +175,7 @@ class GeobenchBaseDataset(PyTorchDataset):
         targets = torch.tensor(label, dtype=torch.long)
 
         subtiles_per_dim = int(sqrt(cast(float, self.num_subtiles_per_image)))
-        h, w = s_t_h_x.shape[:2]
+        h, w = s_t_x.shape[:2]
         assert h == w  # this is the case for Geobench datasets
         assert h % subtiles_per_dim == 0
         pixels_per_dim = h // subtiles_per_dim
@@ -192,7 +192,7 @@ class GeobenchBaseDataset(PyTorchDataset):
 
         return (
             masked_output_np_to_tensor(
-                s_t_h_x[
+                s_t_x[
                     row_idx * pixels_per_dim : (row_idx + 1) * pixels_per_dim,
                     col_idx * pixels_per_dim : (col_idx + 1) * pixels_per_dim,
                     :,
@@ -205,7 +205,7 @@ class GeobenchBaseDataset(PyTorchDataset):
                 ],
                 t_x,
                 st_x,
-                s_t_h_m[
+                s_t_m[
                     row_idx * pixels_per_dim : (row_idx + 1) * pixels_per_dim,
                     col_idx * pixels_per_dim : (col_idx + 1) * pixels_per_dim,
                     :,
