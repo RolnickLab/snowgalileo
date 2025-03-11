@@ -26,7 +26,7 @@
     "pred2unit": false,
     "loss_mask_other_samples": false,
     "normalization": "std",
-    "eval_eurosat_every_n_epochs": 10,
+    "eval_eurosat_every_n_epochs": 1,
     "random_masking": "full",
     "unmasking_channels_combo": "all"
     },
