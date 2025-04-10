@@ -43,7 +43,7 @@ from .modis import MODIS_BANDS, MODIS_DIV_VALUES, MODIS_SHIFT_VALUES, get_single
 from .s1 import S1_BANDS, S1_DIV_VALUES, S1_SHIFT_VALUES, get_single_s1_image
 from .s2 import S2_BANDS, S2_DIV_VALUES, S2_SHIFT_VALUES, get_single_s2_image
 from .s3 import S3_BANDS, S3_DIV_VALUES, S3_SHIFT_VALUES, get_single_s3_image
-from .srtm import SRTM_BANDS, SRTM_DIV_VALUES, SRTM_SHIFT_VALUES, get_single_srtm_image
+from .copernicus_dem import DEM_BANDS, DEM_DIV_VALUES, DEM_SHIFT_VALUES, get_single_dem_image
 from .utils import (
     get_ee_credentials,
     get_location_season_identifier,
@@ -59,6 +59,12 @@ from .viirs import (
     VIIRS_FINE_SHIFT_VALUES,
     get_single_viirs_fine_image,
     get_single_viirs_coarse_image
+)
+from .dynamic_world import (
+    DW_BANDS,
+    DW_DIV_VALUES,
+    DW_SHIFT_VALUES,
+    get_single_dw_image,
 )
 
 # dataframe constants when exporting the labels
@@ -154,7 +160,7 @@ assert TIME_IMAGE_FUNCTIONS == [
     get_single_viirs_coarse_image,
     get_single_era5_image,
 ]
-assert SPACE_IMAGE_FUNCTIONS == [get_single_srtm_image]
+assert SPACE_IMAGE_FUNCTIONS == [get_single_dem_image, get_single_dw_image]
 assert SPACE_TIME_HIGH_RES_BANDS == S1_BANDS + S2_BANDS + LANDSAT_BANDS
 assert SPACE_TIME_HIGH_RES_SHIFT_VALUES == S1_SHIFT_VALUES + S2_SHIFT_VALUES + LANDSAT_SHIFT_VALUES
 assert SPACE_TIME_HIGH_RES_DIV_VALUES == S1_DIV_VALUES + S2_DIV_VALUES + LANDSAT_DIV_VALUES
@@ -181,9 +187,9 @@ assert (
     + VIIRS_COARSE_DIV_VALUES
     + ERA5_DIV_VALUES
 )
-assert SPACE_BANDS == SRTM_BANDS
-assert SPACE_SHIFT_VALUES == SRTM_SHIFT_VALUES
-assert SPACE_DIV_VALUES == SRTM_DIV_VALUES
+assert SPACE_BANDS == DEM_BANDS + DW_BANDS
+assert SPACE_SHIFT_VALUES == DEM_SHIFT_VALUES + DW_SHIFT_VALUES
+assert SPACE_DIV_VALUES == DEM_DIV_VALUES + DW_DIV_VALUES
 
 ALL_DYNAMIC_IN_TIME_BANDS = (
     SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS + TIME_BANDS
@@ -207,8 +213,8 @@ SPACE_TIME_LOW_RES_SHIFT_VALUES = np.array(SPACE_TIME_LOW_RES_SHIFT_VALUES)
 SPACE_TIME_LOW_RES_DIV_VALUES = np.array(SPACE_TIME_LOW_RES_DIV_VALUES)
 TIME_SHIFT_VALUES = np.array(TIME_SHIFT_VALUES)
 TIME_DIV_VALUES = np.array(TIME_DIV_VALUES)
-SPACE_SHIFT_VALUES = np.array(SRTM_SHIFT_VALUES)
-SPACE_DIV_VALUES = np.array(SRTM_DIV_VALUES)
+SPACE_SHIFT_VALUES = np.array(DEM_SHIFT_VALUES + DW_SHIFT_VALUES)
+SPACE_DIV_VALUES = np.array(DEM_DIV_VALUES + DW_DIV_VALUES)
 
 # we will add latlons in dataset.py function
 LOCATION_BANDS = ["x", "y", "z"]
@@ -277,7 +283,8 @@ else:
 # spatial resolution per pixel: 30m
 SPACE_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
-        "SRTM": [SPACE_BANDS.index(b) for b in SRTM_BANDS],
+        "DEM": [SPACE_BANDS.index(b) for b in DEM_BANDS],
+        "DW": [SPACE_BANDS.index(b) for b in DW_BANDS],
     }
 )
 

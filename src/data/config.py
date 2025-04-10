@@ -70,8 +70,14 @@ MODALITIES = {
         "active": True,
         "export": True,
     },
-    "srtm": {
+    "dem": {
         "original_resolution": 30,
+        "shape_type": "sp_x",
+        "active": True,
+        "export": True,
+    },
+    "dw": {
+        "original_resolution": 10,
         "shape_type": "sp_x",
         "active": True,
         "export": True,
