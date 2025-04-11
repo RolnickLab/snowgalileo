@@ -27,7 +27,8 @@ from ..config import (
     MODALITIES,
     NO_DATA_VALUE,
     NUM_TIMESTEPS,
-    SEASONS,
+    NORTH_HEM_SEASONS,
+    SOUTH_HEM_SEASONS,
     START_YEAR,
     TIFS_FOLDER,
 )
@@ -609,6 +610,12 @@ class EarthEngineExporter:
             )
 
             seed = DEFAULT_SEED + i
+
+            # sample seasons based on the hemisphere
+            if row[LAT] < 0:
+                SEASONS = SOUTH_HEM_SEASONS
+            else:
+                SEASONS = NORTH_HEM_SEASONS
 
             # Sample each point for each season
             for season in SEASONS.items():
