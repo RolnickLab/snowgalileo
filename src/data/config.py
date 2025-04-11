@@ -103,10 +103,16 @@ MODALITIES = {
 }
 
 # inclusive (i.e., the end date of a season is included in the season)
-SEASONS = {
+NORTH_HEM_SEASONS = {
     "early": ("10-01", "12-15"),
     "mid": ("12-16", "02-28"),
     "late": ("03-01", "06-30"),
+}
+
+SOUTH_HEM_SEASONS = {
+    "early": ("04-01", "06-15"),
+    "mid": ("06-16", "08-28"),
+    "late": ("09-01", "12-30"),
 }
 
 NO_DATA_VALUE = -9999
