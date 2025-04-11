@@ -249,35 +249,35 @@ SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedD
     }
 )
 
+TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
+    {
+        "S3_NIR": [TIME_BANDS.index(b) for b in ["Oa17_radiance", "Oa21_radiance"]],
+        "MODIS_RGB": [TIME_BANDS.index(b) for b in ["sur_refl_b01", "sur_refl_b03", "sur_refl_b04"]],
+        "MODIS_NIR": [TIME_BANDS.index(b) for b in ["sur_refl_b02"]],
+        "MODIS_SWIR": [
+            TIME_BANDS.index(b)
+            for b in ["sur_refl_b05", "sur_refl_b06", "sur_refl_b07"]
+        ],
+        "ERA5": [TIME_BANDS.index(b) for b in ERA5_BANDS],
+        "VIIRS_RGB_FINE": [TIME_BANDS.index(b) for b in ["I1"]],
+        "VIIRS_VNIR_FINE": [TIME_BANDS.index(b) for b in ["I3"]],
+        "VIIRS_RGB_COARSE": [TIME_BANDS.index(b) for b in ["M5", "M7"]],
+        "VIIRS_VNIR_COARSE": [TIME_BANDS.index(b) for b in ["M10"]],
+        "VIIRS_SWIR_COARSE": [TIME_BANDS.index(b) for b in ["M11"]],
+    }
+)
+
 if MODALITIES["ndsi"].get("active"):
-    TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
+    TIME_BANDS_GROUPS_IDX.update(
         {
-            "S3_NIR": [TIME_BANDS.index(b) for b in ["Oa17_radiance", "Oa21_radiance"]],
-            "MODIS_RGB": [TIME_BANDS.index(b) for b in ["sur_refl_b03", "sur_refl_b04"]],
-            "MODIS_SWIR": [
-                TIME_BANDS.index(b)
-                for b in ["sur_refl_b05", "sur_refl_b06", "sur_refl_b07"]
-            ],
-            "ERA5": [TIME_BANDS.index(b) for b in ERA5_BANDS],
-            "VIIRS_RGB": [TIME_BANDS.index(b) for b in ["M5", "M7", "I1"]],
-            "VIIRS_VNIR": [TIME_BANDS.index(b) for b in ["M10", "I3"]],
-            "VIIRS_SWIR": [TIME_BANDS.index(b) for b in ["M11"]],
             "NDSI": [TIME_BANDS.index("NDSI")]
         }
     )
-else:
-    TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
+
+if MODALITIES["ndvi"].get("active"):
+    TIME_BANDS_GROUPS_IDX.update(
         {
-            "S3_NIR": [TIME_BANDS.index(b) for b in ["Oa17_radiance", "Oa21_radiance"]],
-            "MODIS_RGB": [TIME_BANDS.index(b) for b in ["sur_refl_b03", "sur_refl_b04"]],
-            "MODIS_SWIR": [
-                TIME_BANDS.index(b)
-                for b in ["sur_refl_b05", "sur_refl_b06", "sur_refl_b07"]
-            ],
-            "ERA5": [TIME_BANDS.index(b) for b in ERA5_BANDS],
-            "VIIRS_RGB": [TIME_BANDS.index(b) for b in ["M5", "M7", "I1"]],
-            "VIIRS_VNIR": [TIME_BANDS.index(b) for b in ["M10", "I3"]],
-            "VIIRS_SWIR": [TIME_BANDS.index(b) for b in ["M11"]],
+            "NDVI": [TIME_BANDS.index("NDVI")]
         }
     )
 

@@ -6,9 +6,9 @@ from .utils import create_placeholder, date_to_string
 
 image_collection_terra = "MODIS/061/MOD09GA"
 
-MODIS_BANDS = ["sur_refl_b03", "sur_refl_b04", "sur_refl_b05", "sur_refl_b06", "sur_refl_b07"]
-MODIS_SHIFT_VALUES = [-7950.0, -7950.0, -7950.0, -7950.0, -7950.0]
-MODIS_DIV_VALUES = [8050, 8050, 8050, 8050, 8050]
+MODIS_BANDS = ["sur_refl_b01", "sur_refl_b02", "sur_refl_b03", "sur_refl_b04", "sur_refl_b05", "sur_refl_b06", "sur_refl_b07"]
+MODIS_SHIFT_VALUES = [-7950.0, -7950.0, -7950.0, -7950.0, -7950.0, -7950.0, -7950.0]
+MODIS_DIV_VALUES = [8050, 8050, 8050, 8050, 8050, 8050, 8050]
 
 
 def get_single_modis_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
