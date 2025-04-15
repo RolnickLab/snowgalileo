@@ -41,13 +41,7 @@ MODALITIES = {
         "active": True,
         "export": True,
     },
-    "landsat08": {
-        "original_resolution": 30,
-        "shape_type": "s_t_h_x",
-        "active": True,
-        "export": True,
-    },
-    "landsat09": {
+    "landsat": {
         "original_resolution": 30,
         "shape_type": "s_t_h_x",
         "active": True,

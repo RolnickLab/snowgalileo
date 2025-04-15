@@ -34,14 +34,10 @@ from ..config import (
 from .ee_bbox import EEBoundingBox
 from .era5 import ERA5_BANDS, ERA5_DIV_VALUES, ERA5_SHIFT_VALUES, get_single_era5_image
 from .landsat import (
-    LANDSAT08_BANDS,
-    LANDSAT08_DIV_VALUES,
-    LANDSAT08_SHIFT_VALUES,
-    get_single_landsat08_image,
-    LANDSAT09_BANDS,
-    LANDSAT09_DIV_VALUES,
-    LANDSAT09_SHIFT_VALUES,
-    get_single_landsat09_image,
+    LANDSAT_BANDS,
+    LANDSAT_DIV_VALUES,
+    LANDSAT_SHIFT_VALUES,
+    get_single_landsat_image,
 )
 from .modis import MODIS_BANDS, MODIS_DIV_VALUES, MODIS_SHIFT_VALUES, get_single_modis_image
 from .s1 import S1_BANDS, S1_DIV_VALUES, S1_SHIFT_VALUES, get_single_s1_image
@@ -151,8 +147,7 @@ for modality in MODALITIES:
 assert TIME_IMAGE_FUNCTIONS == [
     get_single_s1_image,
     get_single_s2_image,
-    get_single_landsat08_image,
-    get_single_landsat09_image,
+    get_single_landsat_image,
     get_single_s3_image,
     get_single_modis_image,
     get_single_viirs_fine_image,
@@ -160,9 +155,9 @@ assert TIME_IMAGE_FUNCTIONS == [
     get_single_era5_image,
 ]
 assert SPACE_IMAGE_FUNCTIONS == [get_single_srtm_image]
-assert SPACE_TIME_HIGH_RES_BANDS == S1_BANDS + S2_BANDS + LANDSAT08_BANDS + LANDSAT09_BANDS
-assert SPACE_TIME_HIGH_RES_SHIFT_VALUES == S1_SHIFT_VALUES + S2_SHIFT_VALUES + LANDSAT08_SHIFT_VALUES + LANDSAT09_SHIFT_VALUES
-assert SPACE_TIME_HIGH_RES_DIV_VALUES == S1_DIV_VALUES + S2_DIV_VALUES + LANDSAT08_DIV_VALUES + LANDSAT09_DIV_VALUES
+assert SPACE_TIME_HIGH_RES_BANDS == S1_BANDS + S2_BANDS + LANDSAT_BANDS
+assert SPACE_TIME_HIGH_RES_SHIFT_VALUES == S1_SHIFT_VALUES + S2_SHIFT_VALUES + LANDSAT_SHIFT_VALUES
+assert SPACE_TIME_HIGH_RES_DIV_VALUES == S1_DIV_VALUES + S2_DIV_VALUES + LANDSAT_DIV_VALUES
 assert SPACE_TIME_MED_RES_BANDS == S3_BANDS
 assert SPACE_TIME_MED_RES_SHIFT_VALUES == S3_SHIFT_VALUES
 assert SPACE_TIME_MED_RES_DIV_VALUES == S3_DIV_VALUES
@@ -233,16 +228,11 @@ SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedD
         "S2_RGB": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B2", "B3", "B4"]],
         "S2_NIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B8"]],
         "S2_SWIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B11", "B12"]],
-        "L8_RGB": [
-            SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B2_landsat08", "B3_landsat08", "B4_landsat08"]
+        "L_RGB": [
+            SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B2_landsat", "B3_landsat", "B4_landsat"]
         ],
-        "L8_NIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B5_landsat08"]],
-        "L8_SWIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B6_landsat08", "B7_landsat08"]],
-        "L9_RGB": [
-            SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B2_landsat09", "B3_landsat09", "B4_landsat09"]
-        ],
-        "L9_NIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B5_landsat09"]],
-        "L9_SWIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B6_landsat09", "B7_landsat09"]],
+        "L_NIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B5_landsat"]],
+        "L_SWIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B6_landsat", "B7_landsat"]],
     }
 )
 
