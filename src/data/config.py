@@ -137,8 +137,16 @@ CHANNEL_WISE_INVALID_DATA_THRESHOLDS = {
         14: -2000,  # Landsat B7
     },
     "sp_x": {
-        0: -10,  # SRTM elevation
-        1: -10,  # SRTM slope
+        0: -10,  # DEM
+        1: -10,  # DW water
+        2: -10,  # DW tree
+        3: -10,  # DW grass
+        4: -10,  # DW flooded vegetation
+        5: -10,  # crops
+        6: -10,  # shrub_and_scrub
+        7: -10,  # built
+        8: -10,  # bare
+        9: -10,  # snow_and_ice
     },
     "t_x": {
         0: -1000,  # S3
@@ -148,18 +156,21 @@ CHANNEL_WISE_INVALID_DATA_THRESHOLDS = {
         4: -100,  # MODIS
         5: -100,  # MODIS
         6: -100,  # MODIS
-        7: -0.01,  # VIIRS
-        8: -0.01,  # VIIRS
+        7: -100,  # MODIS
+        8: -100,  # MODIS
         9: -0.01,  # VIIRS
         10: -0.01,  # VIIRS
         11: -0.01,  # VIIRS
         12: -0.01,  # VIIRS
-        13: 200,  # ERA5 temperature in Kelvin
-        14: 200,  # ERA5 temperature in Kelvin
-        15: -10,  # ERA5
-        16: -10,  # ERA5
+        13: -0.01,  # VIIRS
+        14: -0.01,  # VIIRS
+        15: 200,  # ERA5 temperature in Kelvin
+        16: 200,  # ERA5 temperature in Kelvin
         17: -10,  # ERA5
-        18: -5,  # NDSI
+        18: -10,  # ERA5
+        19: -10,  # ERA5
+        20: -5,  # NDSI
+        21: -5,  # NDVI
     },
     "st_x": {
         0: -1,  # x

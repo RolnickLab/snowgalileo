@@ -1,0 +1,73 @@
+from src.data.config import CHANNEL_WISE_INVALID_DATA_THRESHOLDS, MODALITIES
+from src.data.earthengine.eo import SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX, TIME_BANDS_GROUPS_IDX, SPACE_BAND_GROUPS_IDX, SPACE_TIME_HIGH_RES_SHIFT_VALUES, SPACE_TIME_HIGH_RES_DIV_VALUES, STATIC_SHIFT_VALUES, STATIC_DIV_VALUES, TIME_SHIFT_VALUES, TIME_DIV_VALUES, SPACE_SHIFT_VALUES, SPACE_DIV_VALUES, SPACE_TIME_HIGH_RES_BANDS, SPACE_BANDS, TIME_BANDS, STATIC_BANDS, ALL_DYNAMIC_IN_TIME_BANDS, TIME_IMAGE_FUNCTIONS, SPACE_IMAGE_FUNCITONS
+import unittest
+
+array_types = {
+    "s_t_h_x": SPACE_TIME_HIGH_RES_BANDS,
+    "sp_x": SPACE_BANDS,
+    "t_x": TIME_BANDS,
+    "st_x": STATIC_BANDS,
+}
+
+class TestConfig(unittest.TestCase):
+    def test_config():
+        # Flatten all index lists and collect unique indices
+        s_t_h_bands_from_idx = set()
+        for indices in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.values():
+            s_t_h_bands_from_idx.update(indices)
+
+        s_t_h_bands_from_idx = len(s_t_h_bands_from_idx)
+
+        space_bands_from_idx = set()
+        for indices in SPACE_BAND_GROUPS_IDX.values():
+            space_bands_from_idx.update(indices)
+
+        space_bands_from_idx = len(space_bands_from_idx)
+
+        time_bands_from_idx = set()
+        for indices in TIME_BANDS_GROUPS_IDX.values():
+            if key != "NDVI" and key != "NDSI":
+                time_bands_from_idx.update(indices)
+        
+        time_bands_from_idx = len(time_bands_from_idx)
+
+        static_bands_from_idx = set()
+        for indices in STATIC_BAND_GROUPS_IDX.values():
+            static_bands_from_idx.update(indices)
+
+        static_bands_from_idx = len(static_bands_from_idx)
+
+        assert len(SPACE_TIME_HIGH_RES_BANDS) == len(SPACE_TIME_HIGH_RES_SHIFT_VALUES) == len(SPACE_TIME_HIGH_RES_DIV_VALUES) == s_t_h_bands_from_idx
+        assert len(SPACE_BANDS) == len(SPACE_SHIFT_VALUES) == len(SPACE_DIV_VALUES) == space_bands_from_idx
+        assert len(TIME_BANDS) == len(TIME_SHIFT_VALUES) == len(TIME_DIV_VALUES) == time_bands_from_idx
+        assert len(STATIC_BANDS) == len(STATIC_SHIFT_VALUES) == len(STATIC_DIV_VALUES) == static_bands_from_idx
+
+        assert len(ALL_DYNAMIC_IN_TIME_BANDS) == len(SPACE_TIME_HIGH_RES_BANDS) + len(TIME_BANDS)
+
+        for array_type, bands in array_types.items():
+            # Check length of the thresholds
+            assert len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS[array_type]) == len(bands)
+
+        num_sp_mod = 0
+        num_t_mod = 0
+        num_st_mod = 0
+        num_s_t_h_mod = 0
+
+        for key, modality in MODALITIES.items():
+            assert modality["shape_type"] in array_types.keys(), f"Unknown shape type: {modality['shape_type']}"
+            assert modality["original_resolution"] is not None, f"Original resolution is None for {key}"
+            assert modality["active"] is not None, f"Active is None for {key}"
+            assert modality["export"] is not None, f"Export is None for {key}"
+
+            if key != "ndvi" and key != "ndsi":
+                if modality["shape_type"] == "sp_x":
+                    num_sp_mod += 1
+                elif modality["shape_type"] == "t_x":
+                    num_t_mod += 1
+                elif modality["shape_type"] == "st_x":
+                    num_st_mod += 1
+                elif modality["shape_type"] == "s_t_h_x":
+                    num_s_t_h_mod += 1
+            
+        assert num_sp_mod == len(SPACE_IMAGE_FUNCITONS)
+        assert num_t_mod + num_s_t_h_mod == len(TIME_IMAGE_FUNCTIONS)

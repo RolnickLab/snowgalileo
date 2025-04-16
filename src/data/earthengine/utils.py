@@ -91,8 +91,8 @@ def sample_season_year(season, start_year, end_year, seed=None):
     season, (start_date, end_date) = season
 
     if end_date.startswith("02"):
-        # We can sample from October 2016, so we can sample from the previous year if we have the mid season
-        # TODO: This is hacky and not generalizable
+        # We can sample from the previous year if we have the mid season
+        # TODO: This is hacky, we should handle this better
         assert start_date.startswith("12")
         start_year = start_year - 1
         sampled_year = random.randint(start_year, end_year)
