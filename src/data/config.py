@@ -176,8 +176,7 @@ CHANNEL_WISE_INVALID_DATA_THRESHOLDS = {
         0: -1,  # x
         1: -1,  # y
         2: -1,  # z
-    }
-
+    },
 }
 
 USE_INDECES = False

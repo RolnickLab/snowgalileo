@@ -8,7 +8,6 @@ import numpy as np
 import torch
 from einops import rearrange, repeat
 
-from .data.config import NO_DATA_VALUE
 from .data.earthengine.eo import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
@@ -287,7 +286,7 @@ def batch_subset_mask_presto(
                 valid_data_mask_s_t_h,
                 valid_data_mask_sp,
                 valid_data_mask_t,
-                valid_data_mask_st,                
+                valid_data_mask_st,
                 size=image_size,
                 num_timesteps=num_timesteps,
                 augmentation_strategies=augmentation_strategies,
@@ -396,9 +395,19 @@ def subset_and_augment_batch_of_images(
             valid_data_mask_s_t_h,
             valid_data_mask_sp,
             valid_data_mask_t,
-            valid_data_mask_st
+            valid_data_mask_st,
         )
-    return space_time_high_x, space_x, time_x, static_x, months, valid_data_mask_s_t_h, valid_data_mask_sp, valid_data_mask_t, valid_data_mask_st
+    return (
+        space_time_high_x,
+        space_x,
+        time_x,
+        static_x,
+        months,
+        valid_data_mask_s_t_h,
+        valid_data_mask_sp,
+        valid_data_mask_t,
+        valid_data_mask_st,
+    )
 
 
 def _random_mask_for_b(
@@ -413,36 +422,63 @@ def _random_mask_for_b(
 
 
 def _aggregate_mask_per_channel_group(
-    invalid_data_mask_s_t_h,
-    invalid_data_mask_sp,
-    invalid_data_mask_t,
-    invalid_data_mask_st
-    ):
-
-    SPACE_TIME_HIGH_RES_BAND_EXPANSION = [len(i) for i in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.values()]
+    invalid_data_mask_s_t_h, invalid_data_mask_sp, invalid_data_mask_t, invalid_data_mask_st
+):
+    SPACE_TIME_HIGH_RES_BAND_EXPANSION = [
+        len(i) for i in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.values()
+    ]
     SPACE_BAND_EXPANSION = [len(i) for i in SPACE_BAND_GROUPS_IDX.values()]
     TIME_BAND_EXPANSION = [len(i) for i in TIME_BANDS_GROUPS_IDX.values()]
     STATIC_BAND_EXPANSION = [len(i) for i in STATIC_BAND_GROUPS_IDX.values()]
 
     # Split tensor into groups and perform logical AND across each group to make sure all invalid data is masked out
     aggregated_invalid_data_mask_s_t_h = torch.stack(
-        [invalid_data_mask_s_t_h[..., sum(SPACE_TIME_HIGH_RES_BAND_EXPANSION[:i]):sum(SPACE_TIME_HIGH_RES_BAND_EXPANSION[:i]) + size].any(dim=-1) for i, size in enumerate(SPACE_TIME_HIGH_RES_BAND_EXPANSION)], 
-        dim=-1
+        [
+            invalid_data_mask_s_t_h[
+                ...,
+                sum(SPACE_TIME_HIGH_RES_BAND_EXPANSION[:i]) : sum(
+                    SPACE_TIME_HIGH_RES_BAND_EXPANSION[:i]
+                )
+                + size,
+            ].any(dim=-1)
+            for i, size in enumerate(SPACE_TIME_HIGH_RES_BAND_EXPANSION)
+        ],
+        dim=-1,
     )
     aggregated_invalid_data_mask_sp = torch.stack(
-        [invalid_data_mask_sp[..., sum(SPACE_BAND_EXPANSION[:i]):sum(SPACE_BAND_EXPANSION[:i]) + size].any(dim=-1) for i, size in enumerate(SPACE_BAND_EXPANSION)], 
-        dim=-1
+        [
+            invalid_data_mask_sp[
+                ..., sum(SPACE_BAND_EXPANSION[:i]) : sum(SPACE_BAND_EXPANSION[:i]) + size
+            ].any(dim=-1)
+            for i, size in enumerate(SPACE_BAND_EXPANSION)
+        ],
+        dim=-1,
     )
     aggregated_invalid_data_mask_t = torch.stack(
-        [invalid_data_mask_t[..., sum(TIME_BAND_EXPANSION[:i]):sum(TIME_BAND_EXPANSION[:i]) + size].any(dim=-1) for i, size in enumerate(TIME_BAND_EXPANSION)], 
-        dim=-1
+        [
+            invalid_data_mask_t[
+                ..., sum(TIME_BAND_EXPANSION[:i]) : sum(TIME_BAND_EXPANSION[:i]) + size
+            ].any(dim=-1)
+            for i, size in enumerate(TIME_BAND_EXPANSION)
+        ],
+        dim=-1,
     )
     aggregated_invalid_data_mask_st = torch.stack(
-        [invalid_data_mask_st[..., sum(STATIC_BAND_EXPANSION[:i]):sum(STATIC_BAND_EXPANSION[:i]) + size].any(dim=-1) for i, size in enumerate(STATIC_BAND_EXPANSION)], 
-        dim=-1
+        [
+            invalid_data_mask_st[
+                ..., sum(STATIC_BAND_EXPANSION[:i]) : sum(STATIC_BAND_EXPANSION[:i]) + size
+            ].any(dim=-1)
+            for i, size in enumerate(STATIC_BAND_EXPANSION)
+        ],
+        dim=-1,
     )
-    
-    return aggregated_invalid_data_mask_s_t_h, aggregated_invalid_data_mask_sp, aggregated_invalid_data_mask_t, aggregated_invalid_data_mask_st
+
+    return (
+        aggregated_invalid_data_mask_s_t_h,
+        aggregated_invalid_data_mask_sp,
+        aggregated_invalid_data_mask_t,
+        aggregated_invalid_data_mask_st,
+    )
 
 
 def batch_mask_time(
@@ -579,7 +615,9 @@ def batch_mask_time(
     invalid_data_mask_t = np.logical_not(valid_data_mask_t)
     invalid_data_mask_st = np.logical_not(valid_data_mask_st)
 
-    cg_mask_s_t_h, cg_mask_sp, cg_mask_t, cg_mask_st = _aggregate_mask_per_channel_group(invalid_data_mask_s_t_h, invalid_data_mask_sp, invalid_data_mask_t, invalid_data_mask_st)
+    cg_mask_s_t_h, cg_mask_sp, cg_mask_t, cg_mask_st = _aggregate_mask_per_channel_group(
+        invalid_data_mask_s_t_h, invalid_data_mask_sp, invalid_data_mask_t, invalid_data_mask_st
+    )
 
     # since we mask out the same values within each channel we can assume that the mask is the same for each channel group
     space_time_high_res_mask[cg_mask_s_t_h.bool()] = 1
@@ -757,7 +795,9 @@ def batch_mask_space(
     invalid_data_mask_t = np.logical_not(valid_data_mask_t)
     invalid_data_mask_st = np.logical_not(valid_data_mask_st)
 
-    cg_mask_s_t_h, cg_mask_sp, cg_mask_t, cg_mask_st = _aggregate_mask_per_channel_group(invalid_data_mask_s_t_h, invalid_data_mask_sp, invalid_data_mask_t, invalid_data_mask_st)
+    cg_mask_s_t_h, cg_mask_sp, cg_mask_t, cg_mask_st = _aggregate_mask_per_channel_group(
+        invalid_data_mask_s_t_h, invalid_data_mask_sp, invalid_data_mask_t, invalid_data_mask_st
+    )
 
     # since we mask out the same values within each channel we can assume that the mask is the same for each channel group
     space_time_high_res_mask[cg_mask_s_t_h.bool()] = 1
@@ -818,10 +858,7 @@ def batch_mask_random(
     num_static_tokens = c_st
 
     total_tokens = (
-        num_space_time_high_res_tokens
-        + num_space_tokens
-        + num_time_tokens
-        + num_static_tokens
+        num_space_time_high_res_tokens + num_space_tokens + num_time_tokens + num_static_tokens
     )
     tokens_the_decoder_will_unmask = int(total_tokens * decode_ratio)
     tokens_the_encoder_will_encode = int(total_tokens * encode_ratio)
@@ -876,7 +913,9 @@ def batch_mask_random(
     invalid_data_mask_t = np.logical_not(valid_data_mask_t)
     invalid_data_mask_st = np.logical_not(valid_data_mask_st)
 
-    cg_mask_s_t_h, cg_mask_sp, cg_mask_t, cg_mask_st = _aggregate_mask_per_channel_group(invalid_data_mask_s_t_h, invalid_data_mask_sp, invalid_data_mask_t, invalid_data_mask_st)
+    cg_mask_s_t_h, cg_mask_sp, cg_mask_t, cg_mask_st = _aggregate_mask_per_channel_group(
+        invalid_data_mask_s_t_h, invalid_data_mask_sp, invalid_data_mask_t, invalid_data_mask_st
+    )
 
     # since we mask out the same values within each channel we can assume that the mask is the same for each channel group
     space_time_high_res_mask[cg_mask_s_t_h.bool()] = 1

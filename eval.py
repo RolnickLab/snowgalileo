@@ -12,7 +12,7 @@ from src.eval import (
 )
 from src.eval.eval import EvalTask
 from src.flexipresto import Encoder
-from src.utils import device, seed_everything, load_check_config
+from src.utils import device, load_check_config, seed_everything
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()

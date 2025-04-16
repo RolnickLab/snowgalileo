@@ -42,5 +42,9 @@ dataset = Dataset(
     h5pys_only=args["h5pys_only"],
 )
 
-normalizing_dict = dataset.compute_normalization_values(estimate_from=args["estimate_from"], plot_distribution=args["plot_distributions"], assets_folder_name=args["assets_folder_name"])
+normalizing_dict = dataset.compute_normalization_values(
+    estimate_from=args["estimate_from"],
+    plot_distribution=args["plot_distributions"],
+    assets_folder_name=args["assets_folder_name"],
+)
 print(normalizing_dict, flush=True)

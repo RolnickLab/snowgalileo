@@ -1,4 +1,3 @@
-
 import ee
 
 image_collection = "COPERNICUS/DEM/GLO30"

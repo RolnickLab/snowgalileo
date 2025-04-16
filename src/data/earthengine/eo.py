@@ -26,11 +26,18 @@ from ..config import (
     EXPORTED_HEIGHT_WIDTH_METRES,
     MODALITIES,
     NO_DATA_VALUE,
-    NUM_TIMESTEPS,
     NORTH_HEM_SEASONS,
+    NUM_TIMESTEPS,
     SOUTH_HEM_SEASONS,
     START_YEAR,
     TIFS_FOLDER,
+)
+from .copernicus_dem import DEM_BANDS, DEM_DIV_VALUES, DEM_SHIFT_VALUES, get_single_dem_image
+from .dynamic_world import (
+    DW_BANDS,
+    DW_DIV_VALUES,
+    DW_SHIFT_VALUES,
+    get_single_dw_image,
 )
 from .ee_bbox import EEBoundingBox
 from .era5 import ERA5_BANDS, ERA5_DIV_VALUES, ERA5_SHIFT_VALUES, get_single_era5_image
@@ -44,7 +51,6 @@ from .modis import MODIS_BANDS, MODIS_DIV_VALUES, MODIS_SHIFT_VALUES, get_single
 from .s1 import S1_BANDS, S1_DIV_VALUES, S1_SHIFT_VALUES, get_single_s1_image
 from .s2 import S2_BANDS, S2_DIV_VALUES, S2_SHIFT_VALUES, get_single_s2_image
 from .s3 import S3_BANDS, S3_DIV_VALUES, S3_SHIFT_VALUES, get_single_s3_image
-from .copernicus_dem import DEM_BANDS, DEM_DIV_VALUES, DEM_SHIFT_VALUES, get_single_dem_image
 from .utils import (
     get_ee_credentials,
     get_location_season_identifier,
@@ -58,14 +64,8 @@ from .viirs import (
     VIIRS_FINE_BANDS,
     VIIRS_FINE_DIV_VALUES,
     VIIRS_FINE_SHIFT_VALUES,
+    get_single_viirs_coarse_image,
     get_single_viirs_fine_image,
-    get_single_viirs_coarse_image
-)
-from .dynamic_world import (
-    DW_BANDS,
-    DW_DIV_VALUES,
-    DW_SHIFT_VALUES,
-    get_single_dw_image,
 )
 
 # dataframe constants when exporting the labels
@@ -99,7 +99,6 @@ SPACE_SHIFT_VALUES = []
 SPACE_DIV_VALUES = []
 
 for modality in MODALITIES:
-
     if MODALITIES[modality].get("active") and MODALITIES[modality].get("export"):
         print(MODALITIES[modality])
         try:
@@ -145,7 +144,7 @@ for modality in MODALITIES:
                 SPACE_DIV_VALUES.extend(div_values)
 
                 function = globals()[f"get_single_{modality}_image"]
-                SPACE_IMAGE_FUNCTIONS.append(function)                
+                SPACE_IMAGE_FUNCTIONS.append(function)
 
         except KeyError:
             print(f"Warning: Check modality '{modality}'.")
@@ -252,11 +251,12 @@ SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedD
 TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
         "S3_NIR": [TIME_BANDS.index(b) for b in ["Oa17_radiance", "Oa21_radiance"]],
-        "MODIS_RGB": [TIME_BANDS.index(b) for b in ["sur_refl_b01", "sur_refl_b03", "sur_refl_b04"]],
+        "MODIS_RGB": [
+            TIME_BANDS.index(b) for b in ["sur_refl_b01", "sur_refl_b03", "sur_refl_b04"]
+        ],
         "MODIS_NIR": [TIME_BANDS.index(b) for b in ["sur_refl_b02"]],
         "MODIS_SWIR": [
-            TIME_BANDS.index(b)
-            for b in ["sur_refl_b05", "sur_refl_b06", "sur_refl_b07"]
+            TIME_BANDS.index(b) for b in ["sur_refl_b05", "sur_refl_b06", "sur_refl_b07"]
         ],
         "ERA5": [TIME_BANDS.index(b) for b in ERA5_BANDS],
         "VIIRS_RGB_FINE": [TIME_BANDS.index(b) for b in ["I1"]],
@@ -268,18 +268,10 @@ TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
 )
 
 if MODALITIES["ndsi"].get("active"):
-    TIME_BANDS_GROUPS_IDX.update(
-        {
-            "NDSI": [TIME_BANDS.index("NDSI")]
-        }
-    )
+    TIME_BANDS_GROUPS_IDX.update({"NDSI": [TIME_BANDS.index("NDSI")]})
 
 if MODALITIES["ndvi"].get("active"):
-    TIME_BANDS_GROUPS_IDX.update(
-        {
-            "NDVI": [TIME_BANDS.index("NDVI")]
-        }
-    )
+    TIME_BANDS_GROUPS_IDX.update({"NDVI": [TIME_BANDS.index("NDVI")]})
 
 # spatial resolution per pixel: 30m
 SPACE_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(

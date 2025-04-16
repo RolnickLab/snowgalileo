@@ -1,9 +1,10 @@
 import unittest
+
+from src.data.config import END_YEAR, NORTH_HEM_SEASONS, NUM_TIMESTEPS, START_YEAR
 from src.data.earthengine.utils import (
     sample_season_year,
     sample_time_window,
 )
-from src.data.config import START_YEAR, END_YEAR, NUM_TIMESTEPS, NORTH_HEM_SEASONS
 
 
 class TestPretrainTemporalSampling(unittest.TestCase):
@@ -55,7 +56,10 @@ class TestPretrainTemporalSampling(unittest.TestCase):
 
             # test if year change is handled correctly
             # if the start date is in the end of december, the end date will be in the next year
-            if WINDOW_START_DATE.split("-")[1] == 12 and WINDOW_START_DATE.split("-")[2] >= 31 - NUM_TIMESTEPS:
+            if (
+                WINDOW_START_DATE.split("-")[1] == 12
+                and WINDOW_START_DATE.split("-")[2] >= 31 - NUM_TIMESTEPS
+            ):
                 self.assertTrue(
                     WINDOW_END_DATE[:4] == SEASON_END_DATE.year + 1,
                     f"End year {WINDOW_END_DATE.year} is not equal to {SEASON_END_DATE.year + 1}",

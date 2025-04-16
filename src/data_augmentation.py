@@ -66,7 +66,9 @@ class FlipAndRotateSpace(object):
         valid_data_mask_s_t_h = rearrange(
             valid_data_mask_s_t_h.float(), "b h w t c -> b t c h w"
         )  # rearrange for transforms
-        valid_data_mask_sp = rearrange(valid_data_mask_sp.float(), "b h w c -> b c h w")  # rearrange for transforms
+        valid_data_mask_sp = rearrange(
+            valid_data_mask_sp.float(), "b h w c -> b c h w"
+        )  # rearrange for transforms
 
         transformation = random.choice(self.transformations)
 
@@ -77,9 +79,16 @@ class FlipAndRotateSpace(object):
         valid_data_mask_s_t_h = rearrange(
             transformation(valid_data_mask_s_t_h), "b t c h w -> b h w t c"
         )  # rearrange back
-        valid_data_mask_sp = rearrange(transformation(valid_data_mask_sp), "b c h w -> b h w c")  # rearrange back
+        valid_data_mask_sp = rearrange(
+            transformation(valid_data_mask_sp), "b c h w -> b h w c"
+        )  # rearrange back
 
-        return space_time_x.half(), space_x.half(), valid_data_mask_s_t_h.half(), valid_data_mask_sp.half()
+        return (
+            space_time_x.half(),
+            space_x.half(),
+            valid_data_mask_s_t_h.half(),
+            valid_data_mask_sp.half(),
+        )
 
 
 class Augmentation(object):
@@ -96,8 +105,32 @@ class Augmentation(object):
         valid_data_mask_s_t_h: torch.Tensor,
         valid_data_mask_sp: torch.Tensor,
         valid_data_mask_t: torch.Tensor,
-        valid_data_mask_st: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        space_time_x, space_x, valid_data_mask_s_t_h, valid_data_mask_sp = self.flip_and_rotate.apply(space_time_x, space_x, valid_data_mask_s_t_h, valid_data_mask_sp)
+        valid_data_mask_st: torch.Tensor,
+    ) -> Tuple[
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+    ]:
+        space_time_x, space_x, valid_data_mask_s_t_h, valid_data_mask_sp = (
+            self.flip_and_rotate.apply(
+                space_time_x, space_x, valid_data_mask_s_t_h, valid_data_mask_sp
+            )
+        )
 
-        return space_time_x, space_x, time_x, static_x, months, valid_data_mask_s_t_h, valid_data_mask_sp, valid_data_mask_t, valid_data_mask_st 
+        return (
+            space_time_x,
+            space_x,
+            time_x,
+            static_x,
+            months,
+            valid_data_mask_s_t_h,
+            valid_data_mask_sp,
+            valid_data_mask_t,
+            valid_data_mask_st,
+        )

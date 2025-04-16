@@ -23,7 +23,12 @@ from ..data.dataset import (
     TIME_BANDS,
     to_cartesian,
 )
-from ..data.earthengine.eo import SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX, SPACE_BAND_GROUPS_IDX, TIME_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
+from ..data.earthengine.eo import (
+    SPACE_BAND_GROUPS_IDX,
+    SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
+    STATIC_BAND_GROUPS_IDX,
+    TIME_BANDS_GROUPS_IDX,
+)
 from ..data.earthengine.s2 import ALL_S2_BANDS, REMOVED_BANDS
 from ..flexipresto import Encoder
 from ..masking import UNMASKING_CHANNEL_GROUPS, MaskedOutput
@@ -152,7 +157,9 @@ class EuroSatDataset(PyTorchDataset):
     def create_eurosat_masks(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         if self.rgb:
             space_time_high_res_channels = [
-                idx for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX) if "S2_RGB" in key
+                idx
+                for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX)
+                if "S2_RGB" in key
             ]
 
         else:

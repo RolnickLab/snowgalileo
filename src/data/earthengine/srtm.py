@@ -1,4 +1,3 @@
-
 import ee
 
 image_collection = "USGS/SRTMGL1_003"

@@ -5,15 +5,12 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 from torchvision.transforms.functional import resize
 
+from src.data.config import NO_DATA_VALUE
 from src.data.earthengine.eo import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
     TIME_BANDS_GROUPS_IDX,
-)
-
-from src.data.config import (
-    NO_DATA_VALUE
 )
 
 
@@ -196,7 +193,9 @@ def mae_loss(
         [len(x) for x in STATIC_BAND_GROUPS_IDX.values()], device=sp_m.device
     ).long()
 
-    pixel_s_t_h_m = torch.repeat_interleave(s_t_h_m, repeats=SPACE_TIME_HIGH_RES_BAND_EXPANSION, dim=-1)
+    pixel_s_t_h_m = torch.repeat_interleave(
+        s_t_h_m, repeats=SPACE_TIME_HIGH_RES_BAND_EXPANSION, dim=-1
+    )
     pixel_sp_m = torch.repeat_interleave(sp_m, repeats=SPACE_BAND_EXPANSION, dim=-1)
     pixel_st_m = torch.repeat_interleave(st_m, repeats=STATIC_BAND_EXPANSION, dim=-1)
     pixel_t_m = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION, dim=-1)

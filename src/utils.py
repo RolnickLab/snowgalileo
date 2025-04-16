@@ -115,9 +115,9 @@ def check_config(config):
         ), f"Expected {key} to be {val}, got {type(training_dict[key])}"
     for key, val in optional_training_keys_type_default.items():
         if key in training_dict:
-            assert isinstance(
-                training_dict[key], val[0]
-            ), f"Expected {key} to be {val}, got {type(training_dict[key])}"
+            assert isinstance(training_dict[key], val[0]), (
+                f"Expected {key} to be {val}, got {type(training_dict[key])}"
+            )
         else:
             print(f"{key} missing from training dict. Filling with default value {val[1]}")
             config["training"][key] = val[1]
@@ -143,9 +143,9 @@ def check_config(config):
     assert training_dict["normalization"] in ["std", "scaling"]
     assert training_dict["random_masking"] in ["half", "full", "none", "time_only"]
 
-    assert len(training_dict["masking_probabilities"]) == len(
-        MASKING_MODES
-    ), f"Expected {len(MASKING_MODES)}, got {len(training_dict['masking_probabilities'])}"
+    assert len(training_dict["masking_probabilities"]) == len(MASKING_MODES), (
+        f"Expected {len(MASKING_MODES)}, got {len(training_dict['masking_probabilities'])}"
+    )
 
     for combination in training_dict["shape_time_combinations"]:
         assert "timesteps" in combination.keys()

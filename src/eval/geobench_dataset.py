@@ -16,7 +16,12 @@ from ..data.dataset import (
     STATIC_BANDS,
     TIME_BANDS,
 )
-from ..data.earthengine.eo import SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX, SPACE_BAND_GROUPS_IDX, TIME_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
+from ..data.earthengine.eo import (
+    SPACE_BAND_GROUPS_IDX,
+    SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
+    STATIC_BAND_GROUPS_IDX,
+    TIME_BANDS_GROUPS_IDX,
+)
 from ..data.earthengine.s1 import S1_BANDS
 from ..data.earthengine.s2 import S2_BANDS
 from ..masking import MaskedOutput
@@ -76,11 +81,15 @@ class GeobenchBaseDataset(PyTorchDataset):
     def create_masks(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         if self.config["include_s1"]:
             s_t_channels = [
-                idx for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX) if key.startswith("S")
+                idx
+                for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX)
+                if key.startswith("S")
             ]
         elif self.rgb:
             s_t_channels = [
-                idx for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX) if "S2_RGB" in key
+                idx
+                for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX)
+                if "S2_RGB" in key
             ]
         else:
             s_t_channels = [
@@ -120,10 +129,14 @@ class GeobenchBaseDataset(PyTorchDataset):
     def image_to_space_time_array(self, image) -> np.ndarray:
         if self.config["include_s1"]:
             kept_dynamic_bands = [
-                idx for idx, x in enumerate(SPACE_TIME_HIGH_RES_BANDS) if (x in S2_BANDS or x in S1_BANDS)
+                idx
+                for idx, x in enumerate(SPACE_TIME_HIGH_RES_BANDS)
+                if (x in S2_BANDS or x in S1_BANDS)
             ]
         else:
-            kept_dynamic_bands = [idx for idx, x in enumerate(SPACE_TIME_HIGH_RES_BANDS) if x in S2_BANDS]
+            kept_dynamic_bands = [
+                idx for idx, x in enumerate(SPACE_TIME_HIGH_RES_BANDS) if x in S2_BANDS
+            ]
 
         eo_style_array = np.zeros(
             [

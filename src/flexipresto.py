@@ -224,7 +224,9 @@ class Attention(nn.Module):
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
         self.scale = self.head_dim**-0.5
-        self.fast_attn = use_fast_attn and hasattr(torch.nn.functional, "scaled_dot_product_attention")  # FIXME
+        self.fast_attn = use_fast_attn and hasattr(
+            torch.nn.functional, "scaled_dot_product_attention"
+        )  # FIXME
 
         self.cross_attn = cross_attn
 
@@ -281,7 +283,7 @@ class Attention(nn.Module):
             x = attn @ v
 
         x = x.transpose(1, 2).reshape(B, N, C)
-        #if torch.isnan(x).any():
+        # if torch.isnan(x).any():
         #    import pdb;pdb.set_trace()
         x = self.proj(x)
         x = self.proj_drop(x)
@@ -421,7 +423,7 @@ class FlexiPrestoBase(nn.Module):
         base_patch_size: int = 4,
         use_channel_embs: bool = True,
         drop_path: float = 0.0,
-        use_fast_attn = True,
+        use_fast_attn=True,
     ):
         super().__init__()
 
@@ -465,7 +467,8 @@ class FlexiPrestoBase(nn.Module):
         else:
             args = {"requires_grad": False}
         self.s_t_channel_embed = nn.Parameter(
-            torch.zeros(len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX), int(embedding_size * 0.25)), **args
+            torch.zeros(len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX), int(embedding_size * 0.25)),
+            **args,
         )
         self.sp_channel_embed = nn.Parameter(
             torch.zeros(len(SPACE_BAND_GROUPS_IDX), int(embedding_size * 0.25)), **args
@@ -844,7 +847,7 @@ class Encoder(FlexiPrestoBase):
             exited_tokens = None
 
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
-        sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]       
+        sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
         s_t_x, sp_x, t_x, st_x = self.apply_encodings(
             s_t_x, sp_x, t_x, st_x, months, patch_size, input_res
         )
@@ -1166,7 +1169,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         max_patch_size: int = 8,
         learnable_channel_embeddings: bool = False,
         output_embedding_size: Optional[int] = None,
-        use_fast_attn: bool = True
+        use_fast_attn: bool = True,
     ):
         super().__init__(
             decoder_embedding_size,
@@ -1177,7 +1180,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             max_patch_size,
             use_channel_embs=learnable_channel_embeddings,
             drop_path=0.0,
-            use_fast_attn=use_fast_attn
+            use_fast_attn=use_fast_attn,
         )
         self.learnable_channel_embeddings = learnable_channel_embeddings
         self.encoder_embedding_size = encoder_embedding_size
@@ -1200,7 +1203,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
             # returns a mask where 1 indicates the value should be decoded
             # (i.e. was 2) and 0 elsewhere
             return (m == 2).to(dtype=m.dtype)
-        
+
         print("Mask token:", self.mask_token)
 
         s_t_x = s_t_x * (1 - to_kept_boolean(s_t_m)).unsqueeze(-1)
@@ -1232,8 +1235,8 @@ class PrestoPixelDecoder(FlexiPrestoBase):
 
     @staticmethod
     def split_x_y(tokens, mask):
-        #import pdb
-        #pdb;pdb.set_trace()
+        # import pdb
+        # pdb;pdb.set_trace()
         org_mask_dtype = mask.dtype
         # https://stackoverflow.com/a/68621610/2332296
         # move all non-masked values to the front of their rows
@@ -1256,7 +1259,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         # the y mask is going to be used to determine which of the y values take. True values
         # take part in the attention (we don't take the inverse here, unlike in the decoder)
         y_mask = (sorted_mask == 0)[:, -max_length_of_unmasked_tokens:].to(dtype=org_mask_dtype)
-        #pdb;pdb.set_trace()
+        # pdb;pdb.set_trace()
         return x, y, x_mask, y_mask, indices
 
     @staticmethod
@@ -1276,7 +1279,9 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         _, h, w, t, s_t_c_g, _ = s_t_x.shape
         sp_c_g, t_c_g, st_c_g = sp_x.shape[3], t_x.shape[-2], st_x.shape[-2]
 
-        s_t_x, sp_x, t_x, st_x = self.apply_encodings(s_t_x, sp_x, t_x, st_x, months, patch_size, input_res)
+        s_t_x, sp_x, t_x, st_x = self.apply_encodings(
+            s_t_x, sp_x, t_x, st_x, months, patch_size, input_res
+        )
 
         x, m = self.collapse_and_combine_hwtc(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
         x, y, x_mask, y_mask, indices = self.split_x_y(x, m)
@@ -1315,19 +1320,12 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         t_x = self.encoder_to_decoder_embed(self.input_norm(t_x))
         st_x = self.encoder_to_decoder_embed(self.input_norm(st_x))
 
-        s_t_x_norm = self.input_norm(s_t_x)
-        sp_x_norm = self.input_norm(sp_x)
-        t_x_norm = self.input_norm(t_x)
-        st_x_norm = self.input_norm(st_x)
-
         print("s_t_x before masking:", torch.min(s_t_x), torch.max(s_t_x))
         s_t_x, sp_x, t_x, st_x = self.add_masks(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
         print("s_t_x after masking:", torch.min(s_t_x), torch.max(s_t_x))
         s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m = self.apply_attn(
             s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size, input_resolution_m
         )
-
-        ### here is the problem!!
 
         print("Before LayerNorm:", torch.min(s_t_x), torch.max(s_t_x))
         s_t_x_test = self.norm(s_t_x)
@@ -1382,7 +1380,12 @@ class PrestoPixelDecoder(FlexiPrestoBase):
                     )
                 )
 
-        print("Length of the outputs: " + str(len(output_s_t)), str(len(output_sp)), str(len(output_t)), str(len(output_st)))
+        print(
+            "Length of the outputs: " + str(len(output_s_t)),
+            str(len(output_sp)),
+            str(len(output_t)),
+            str(len(output_st)),
+        )
 
         return (
             torch.stack(output_s_t, dim=-2),  # shape = b h w t c_g, d
