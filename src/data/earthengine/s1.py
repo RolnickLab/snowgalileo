@@ -16,7 +16,6 @@ def get_single_s1_image(
     start_date: date,
     end_date: date,
 ) -> ee.Image:
-
     startDate = ee.Date(date_to_string(start_date))
     endDate = ee.Date(date_to_string(end_date))
 

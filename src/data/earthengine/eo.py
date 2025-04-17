@@ -4,13 +4,12 @@ import shutil
 from collections import OrderedDict
 from datetime import date, timedelta
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 from typing import OrderedDict as OrderedDictType
-import numpy.typing as npt
-from typing import Any
 
 import ee
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import requests
 from pandas.compat._optional import import_optional_dependency
@@ -428,7 +427,7 @@ class EarthEngineExporter:
 
     def __init__(
         self,
-        dest_bucket = EE_BUCKET_TIFS,
+        dest_bucket=EE_BUCKET_TIFS,
         dest_drive_folder: str = EE_DRIVE_FOLDER_NAME,
         check_ee: bool = False,
         check_gcp: bool = False,
