@@ -54,10 +54,10 @@ def sample_time_window(start_date: str, end_date: str, window_size: int, seed=No
     if seed is not None:
         random.seed(seed)
 
-    start_date = datetime.strptime(start_date, "%Y-%m-%d")
-    end_date = datetime.strptime(end_date, "%Y-%m-%d")
+    start_date_tp = datetime.strptime(start_date, "%Y-%m-%d")
+    end_date_tp = datetime.strptime(end_date, "%Y-%m-%d")
 
-    total_days = (end_date - start_date).days + 1
+    total_days = (end_date_tp - start_date_tp).days + 1
 
     # ensure the window fits in the range
     max_start_day = total_days - window_size
@@ -66,7 +66,7 @@ def sample_time_window(start_date: str, end_date: str, window_size: int, seed=No
 
     random_start = random.randint(0, max_start_day + 1)
 
-    window_start = start_date + timedelta(days=random_start)
+    window_start = start_date_tp + timedelta(days=random_start)
     window_end = window_start + timedelta(days=window_size - 1)
     time_window = (window_start.date(), window_end.date())
 
