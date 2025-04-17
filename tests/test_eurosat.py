@@ -5,13 +5,13 @@ import torch
 
 from src.data.earthengine.eo import (
     SPACE_BAND_GROUPS_IDX,
-    SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
-    STATIC_BAND_GROUPS_IDX,
-    TIME_BANDS_GROUPS_IDX,
     SPACE_BANDS,
     SPACE_TIME_HIGH_RES_BANDS,
+    SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
+    STATIC_BAND_GROUPS_IDX,
     STATIC_BANDS,
     TIME_BANDS,
+    TIME_BANDS_GROUPS_IDX,
 )
 from src.eval.eurosat_eval import EuroSatDataset, EuroSatEval
 from src.masking import UNMASKING_CHANNEL_GROUPS
@@ -125,7 +125,9 @@ class TestEuroSat(unittest.TestCase):
             idx for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX) if "S2_RGB" in key
         ]
         unpresent_bands = [
-            idx for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX) if "S2_RGB" not in key
+            idx
+            for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX)
+            if "S2_RGB" not in key
         ]
 
         self.assertTrue(torch.all(s_t_m[:, :, :, present_bands] == 0))
@@ -156,7 +158,9 @@ class TestEuroSat(unittest.TestCase):
         unpresent_band_groups = [
             idx for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX) if "S2" not in key
         ]
-        present_bands = [idx for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS) if key.startswith("B")]
+        present_bands = [
+            idx for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS) if key.startswith("B")
+        ]
 
         self.assertTrue(torch.all(s_t_x[:, :, :, present_bands] != 0))
         self.assertTrue(torch.all(s_t_m[:, :, :, present_band_groups] == 0))

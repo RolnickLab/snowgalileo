@@ -44,7 +44,11 @@ class TestLoss(unittest.TestCase):
             (b, len(STATIC_BAND_GROUPS_IDX), max_group_length * (max_patch_size**2))
         )
         s_t_x = torch.randn(
-            b, pixel_h, pixel_w, t, sum([len(x) for _, x in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.items()])
+            b,
+            pixel_h,
+            pixel_w,
+            t,
+            sum([len(x) for _, x in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.items()]),
         )
         sp_x = torch.randn(
             b, pixel_h, pixel_w, sum([len(x) for _, x in SPACE_BAND_GROUPS_IDX.items()])
