@@ -13,13 +13,8 @@ S3_DIV_VALUES = [float(1.0)] * len(S3_BANDS)
 
 
 def get_single_s3_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
-    dates = ee.DateRange(
-        date_to_string(start_date),
-        date_to_string(end_date),
-    )
-
-    startDate = ee.DateRange(dates).start()
-    endDate = ee.DateRange(dates).end()
+    startDate = ee.Date(date_to_string(start_date))
+    endDate = ee.Date(date_to_string(end_date))
 
     image = (
         ee.ImageCollection(image_collection)

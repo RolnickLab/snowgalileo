@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Dict, Any
 
 DAYS_PER_TIMESTEP = 1
 
@@ -21,7 +22,7 @@ DATASET_OUTPUT_HW = 48
 # the idea is that for exporting different data, we will only have to change this dictionary in the end
 # i.e., sort the modalities into different shape_types, add / remove satellite modalities
 # for using / not using modalities, the "active" flag should get used
-MODALITIES = {
+MODALITIES: Dict[str, Dict[str, Any]] = {
     "s1": {
         "original_resolution": 10,
         "shape_type": "s_t_h_x",

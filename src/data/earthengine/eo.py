@@ -6,6 +6,8 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import List, Optional, Union
 from typing import OrderedDict as OrderedDictType
+import numpy.typing as npt
+from typing import Any
 
 import ee
 import numpy as np
@@ -191,6 +193,13 @@ assert SPACE_BANDS == DEM_BANDS + DW_BANDS
 assert SPACE_SHIFT_VALUES == DEM_SHIFT_VALUES + DW_SHIFT_VALUES
 assert SPACE_DIV_VALUES == DEM_DIV_VALUES + DW_DIV_VALUES
 
+if MODALITIES["ndsi"].get("active"):
+    EO_TIME_BANDS = TIME_BANDS
+
+    TIME_BANDS = EO_TIME_BANDS + ["NDSI"]
+    TIME_SHIFT_VALUES = np.append(TIME_SHIFT_VALUES, [0])
+    TIME_DIV_VALUES = np.append(TIME_DIV_VALUES, [1])
+
 ALL_DYNAMIC_IN_TIME_BANDS = (
     SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS + TIME_BANDS
 )
@@ -205,16 +214,16 @@ SPACE_TIME_DIV_VALUES = np.array(
     SPACE_TIME_HIGH_RES_DIV_VALUES + SPACE_TIME_MED_RES_DIV_VALUES + SPACE_TIME_LOW_RES_DIV_VALUES
 )
 
-SPACE_TIME_HIGH_RES_SHIFT_VALUES = np.array(SPACE_TIME_HIGH_RES_SHIFT_VALUES)
-SPACE_TIME_HIGH_RES_DIV_VALUES = np.array(SPACE_TIME_HIGH_RES_DIV_VALUES)
-SPACE_TIME_MED_RES_SHIFT_VALUES = np.array(SPACE_TIME_MED_RES_SHIFT_VALUES)
-SPACE_TIME_MED_RES_DIV_VALUES = np.array(SPACE_TIME_MED_RES_DIV_VALUES)
-SPACE_TIME_LOW_RES_SHIFT_VALUES = np.array(SPACE_TIME_LOW_RES_SHIFT_VALUES)
-SPACE_TIME_LOW_RES_DIV_VALUES = np.array(SPACE_TIME_LOW_RES_DIV_VALUES)
-TIME_SHIFT_VALUES = np.array(TIME_SHIFT_VALUES)
-TIME_DIV_VALUES = np.array(TIME_DIV_VALUES)
-SPACE_SHIFT_VALUES = np.array(DEM_SHIFT_VALUES + DW_SHIFT_VALUES)
-SPACE_DIV_VALUES = np.array(DEM_DIV_VALUES + DW_DIV_VALUES)
+SPACE_TIME_HIGH_RES_SHIFT_VALUES: npt.NDArray[Any] = np.array(SPACE_TIME_HIGH_RES_SHIFT_VALUES)
+SPACE_TIME_HIGH_RES_DIV_VALUES: npt.NDArray[Any] = np.array(SPACE_TIME_HIGH_RES_DIV_VALUES)
+SPACE_TIME_MED_RES_SHIFT_VALUES: npt.NDArray[Any] = np.array(SPACE_TIME_MED_RES_SHIFT_VALUES)
+SPACE_TIME_MED_RES_DIV_VALUES: npt.NDArray[Any] = np.array(SPACE_TIME_MED_RES_DIV_VALUES)
+SPACE_TIME_LOW_RES_SHIFT_VALUES: npt.NDArray[Any] = np.array(SPACE_TIME_LOW_RES_SHIFT_VALUES)
+SPACE_TIME_LOW_RES_DIV_VALUES: npt.NDArray[Any] = np.array(SPACE_TIME_LOW_RES_DIV_VALUES)
+TIME_SHIFT_VALUES: npt.NDArray[Any] = np.array(TIME_SHIFT_VALUES)
+TIME_DIV_VALUES: npt.NDArray[Any] = np.array(TIME_DIV_VALUES)
+SPACE_SHIFT_VALUES: npt.NDArray[Any] = np.array(DEM_SHIFT_VALUES + DW_SHIFT_VALUES)
+SPACE_DIV_VALUES: npt.NDArray[Any] = np.array(DEM_DIV_VALUES + DW_DIV_VALUES)
 
 # we will add latlons in dataset.py function
 LOCATION_BANDS = ["x", "y", "z"]
@@ -225,13 +234,6 @@ STATIC_DIV_VALUES = np.array([1, 1, 1])
 EO_DYNAMIC_IN_TIME_BANDS_NP = np.array(
     SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS + TIME_BANDS
 )
-
-if MODALITIES["ndsi"].get("active"):
-    EO_TIME_BANDS = TIME_BANDS
-
-    TIME_BANDS = EO_TIME_BANDS + ["NDSI"]
-    TIME_SHIFT_VALUES = np.append(TIME_SHIFT_VALUES, [0])
-    TIME_DIV_VALUES = np.append(TIME_DIV_VALUES, [1])
 
 # spatial resolution per pixel: 10m or 20m
 SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
@@ -426,7 +428,7 @@ class EarthEngineExporter:
 
     def __init__(
         self,
-        dest_bucket: str = EE_BUCKET_TIFS,
+        dest_bucket = EE_BUCKET_TIFS,
         dest_drive_folder: str = EE_DRIVE_FOLDER_NAME,
         check_ee: bool = False,
         check_gcp: bool = False,
@@ -502,7 +504,7 @@ class EarthEngineExporter:
         if location_season_identifier in self.local_location_season_tif_list:
             # checks that we haven't already exported this file
             print(f"{location_season_identifier} already in local_tif_files", flush=True)
-            return
+            return False
 
         # Check if task is already started in EarthEngine
         if description in self.ee_task_list:
