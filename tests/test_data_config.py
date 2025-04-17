@@ -6,7 +6,7 @@ from src.data.earthengine.eo import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_BANDS,
     SPACE_DIV_VALUES,
-    SPACE_IMAGE_FUNCITONS,
+    SPACE_IMAGE_FUNCTIONS,
     SPACE_SHIFT_VALUES,
     SPACE_TIME_HIGH_RES_BANDS,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
@@ -115,5 +115,5 @@ class TestConfig(unittest.TestCase):
                 elif modality["shape_type"] == "s_t_h_x":
                     num_s_t_h_mod += 1
 
-        assert num_sp_mod == len(SPACE_IMAGE_FUNCITONS)
+        assert num_sp_mod == len(SPACE_IMAGE_FUNCTIONS)
         assert num_t_mod + num_s_t_h_mod == len(TIME_IMAGE_FUNCTIONS)

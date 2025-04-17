@@ -8,9 +8,9 @@ from src.masking import (
     MASKING_MODES,
     MAX_MASKING_STRATEGIES,
     SPACE_BAND_GROUPS_IDX,
-    SPACE_TIME_BANDS_GROUPS_IDX,
+    SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
-    TIME_BAND_GROUPS_IDX,
+    TIME_BANDS_GROUPS_IDX,
     batch_mask_random,
     batch_mask_space,
     batch_mask_time,
@@ -147,11 +147,11 @@ class TestMasking(unittest.TestCase):
                 unmasking_modes,
             )
             self.assertEqual(
-                (b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX)),
+                (b, h, w, t, len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX)),
                 output.space_time_mask.shape,
             )
             self.assertEqual((b, h, w, len(SPACE_BAND_GROUPS_IDX)), output.space_mask.shape)
-            self.assertEqual((b, t, len(TIME_BAND_GROUPS_IDX)), output.time_mask.shape)
+            self.assertEqual((b, t, len(TIME_BANDS_GROUPS_IDX)), output.time_mask.shape)
             self.assertEqual((b, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
 
     def test_mask_by_random(self):
@@ -183,10 +183,10 @@ class TestMasking(unittest.TestCase):
             "random",
         )
         self.assertEqual(
-            (b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX)), output.space_time_mask.shape
+            (b, h, w, t, len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX)), output.space_time_mask.shape
         )
         self.assertEqual((b, h, w, len(SPACE_BAND_GROUPS_IDX)), output.space_mask.shape)
-        self.assertEqual((b, t, len(TIME_BAND_GROUPS_IDX)), output.time_mask.shape)
+        self.assertEqual((b, t, len(TIME_BANDS_GROUPS_IDX)), output.time_mask.shape)
         self.assertEqual((b, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
 
         for i in range(1, p):
@@ -215,9 +215,9 @@ class TestMasking(unittest.TestCase):
         static_masked_per_instance = static_per_token[static_per_token == 1].sum()
         static_decode_per_instance = static_per_token[static_per_token == 2].sum()
         total_tokens = (
-            (h_tokens * w_tokens * t * len(SPACE_TIME_BANDS_GROUPS_IDX))
+            (h_tokens * w_tokens * t * len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX))
             + (h_tokens * w_tokens * len(SPACE_BAND_GROUPS_IDX))
-            + (t * len(TIME_BAND_GROUPS_IDX))
+            + (t * len(TIME_BANDS_GROUPS_IDX))
             + len(STATIC_BAND_GROUPS_IDX)
         ) * b
         self.assertTrue(

@@ -4,7 +4,7 @@ import torch
 from einops import repeat
 
 from src.conditioner import LearnedMixture, LoRATemplates, TokenConditioner
-from src.data.dataset import SPACE_BANDS, SPACE_TIME_BANDS, STATIC_BANDS, TIME_BANDS
+from src.data.dataset import SPACE_BANDS, SPACE_TIME_HIGH_RES_BANDS, STATIC_BANDS, TIME_BANDS
 from src.flexipresto import Encoder, PrestoPixelDecoder
 from src.masking import UNMASKING_CHANNEL_GROUPS, batch_mask_random
 
@@ -73,7 +73,7 @@ class TestConditioner(unittest.TestCase):
             self.assertTrue(p.grad is None)
 
     def construct_inputs(self, b=2, t=8, h=16, w=16, p=4):
-        space_time_input = torch.ones((b, h, w, t, len(SPACE_TIME_BANDS)))
+        space_time_input = torch.ones((b, h, w, t, len(SPACE_TIME_HIGH_RES_BANDS)))
         space_input = torch.ones((b, h, w, len(SPACE_BANDS)))
         time_input = torch.ones((b, t, len(TIME_BANDS)))
         static_input = torch.ones((b, len(STATIC_BANDS)))

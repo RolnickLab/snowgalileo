@@ -3,14 +3,14 @@ from pathlib import Path
 
 import torch
 
-from src.data.dataset import (
+from src.data.earthengine.eo import (
     SPACE_BAND_GROUPS_IDX,
-    SPACE_BANDS,
-    SPACE_TIME_BANDS,
-    SPACE_TIME_BANDS_GROUPS_IDX,
+    SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
+    TIME_BANDS_GROUPS_IDX,
+    SPACE_BANDS,
+    SPACE_TIME_HIGH_RES_BANDS,
     STATIC_BANDS,
-    TIME_BAND_GROUPS_IDX,
     TIME_BANDS,
 )
 from src.eval.eurosat_eval import EuroSatDataset, EuroSatEval
@@ -27,7 +27,7 @@ class TestEuroSat(unittest.TestCase):
                 EuroSatDataset.input_height_width,
                 EuroSatDataset.input_height_width,
                 EuroSatDataset.num_timesteps,
-                len(SPACE_TIME_BANDS),
+                len(SPACE_TIME_HIGH_RES_BANDS),
             ),
         )
         self.assertEqual(
@@ -36,7 +36,7 @@ class TestEuroSat(unittest.TestCase):
                 EuroSatDataset.input_height_width,
                 EuroSatDataset.input_height_width,
                 EuroSatDataset.num_timesteps,
-                len(SPACE_TIME_BANDS_GROUPS_IDX),
+                len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX),
             ),
         )
         self.assertFalse(torch.any(torch.isnan(s_t_x)))
@@ -75,7 +75,7 @@ class TestEuroSat(unittest.TestCase):
             t_m.shape,
             (
                 EuroSatDataset.num_timesteps,
-                len(TIME_BAND_GROUPS_IDX),
+                len(TIME_BANDS_GROUPS_IDX),
             ),
         )
 
@@ -122,10 +122,10 @@ class TestEuroSat(unittest.TestCase):
 
         # will test if the right channels are masked out
         present_bands = [
-            idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S2_RGB" in key
+            idx for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX) if "S2_RGB" in key
         ]
         unpresent_bands = [
-            idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S2_RGB" not in key
+            idx for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX) if "S2_RGB" not in key
         ]
 
         self.assertTrue(torch.all(s_t_m[:, :, :, present_bands] == 0))
@@ -151,12 +151,12 @@ class TestEuroSat(unittest.TestCase):
 
         # will test if the right channels are masked out
         present_band_groups = [
-            idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S2" in key
+            idx for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX) if "S2" in key
         ]
         unpresent_band_groups = [
-            idx for idx, key in enumerate(SPACE_TIME_BANDS_GROUPS_IDX) if "S2" not in key
+            idx for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX) if "S2" not in key
         ]
-        present_bands = [idx for idx, key in enumerate(SPACE_TIME_BANDS) if key.startswith("B")]
+        present_bands = [idx for idx, key in enumerate(SPACE_TIME_HIGH_RES_BANDS) if key.startswith("B")]
 
         self.assertTrue(torch.all(s_t_x[:, :, :, present_bands] != 0))
         self.assertTrue(torch.all(s_t_m[:, :, :, present_band_groups] == 0))

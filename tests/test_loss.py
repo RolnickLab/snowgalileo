@@ -2,11 +2,11 @@ import unittest
 
 import torch
 
-from src.data.dataset import (
+from src.data.earthengine.eo import (
     SPACE_BAND_GROUPS_IDX,
-    SPACE_TIME_BANDS_GROUPS_IDX,
+    SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
-    TIME_BAND_GROUPS_IDX,
+    TIME_BANDS_GROUPS_IDX,
 )
 from src.loss import mae_loss
 
@@ -18,8 +18,8 @@ class TestLoss(unittest.TestCase):
         max_patch_size = 8
         max_group_length = max(
             [
-                max([len(v) for _, v in SPACE_TIME_BANDS_GROUPS_IDX.items()]),
-                max([len(v) for _, v in TIME_BAND_GROUPS_IDX.items()]),
+                max([len(v) for _, v in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.items()]),
+                max([len(v) for _, v in TIME_BANDS_GROUPS_IDX.items()]),
                 max([len(v) for _, v in SPACE_BAND_GROUPS_IDX.items()]),
                 max([len(v) for _, v in STATIC_BAND_GROUPS_IDX.items()]),
             ]
@@ -30,7 +30,7 @@ class TestLoss(unittest.TestCase):
                 t_h,
                 t_w,
                 t,
-                len(SPACE_TIME_BANDS_GROUPS_IDX),
+                len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX),
                 max_group_length * (max_patch_size**2),
             )
         )
@@ -38,22 +38,22 @@ class TestLoss(unittest.TestCase):
             (b, t_h, t_w, len(SPACE_BAND_GROUPS_IDX), max_group_length * (max_patch_size**2))
         )
         p_t = torch.randn(
-            (b, t, len(TIME_BAND_GROUPS_IDX), max_group_length * (max_patch_size**2))
+            (b, t, len(TIME_BANDS_GROUPS_IDX), max_group_length * (max_patch_size**2))
         )
         p_st = torch.randn(
             (b, len(STATIC_BAND_GROUPS_IDX), max_group_length * (max_patch_size**2))
         )
         s_t_x = torch.randn(
-            b, pixel_h, pixel_w, t, sum([len(x) for _, x in SPACE_TIME_BANDS_GROUPS_IDX.items()])
+            b, pixel_h, pixel_w, t, sum([len(x) for _, x in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.items()])
         )
         sp_x = torch.randn(
             b, pixel_h, pixel_w, sum([len(x) for _, x in SPACE_BAND_GROUPS_IDX.items()])
         )
-        t_x = torch.randn(b, t, sum([len(x) for _, x in TIME_BAND_GROUPS_IDX.items()]))
+        t_x = torch.randn(b, t, sum([len(x) for _, x in TIME_BANDS_GROUPS_IDX.items()]))
         st_x = torch.randn(b, sum([len(x) for _, x in STATIC_BAND_GROUPS_IDX.items()]))
-        s_t_m = torch.ones((b, pixel_h, pixel_w, t, len(SPACE_TIME_BANDS_GROUPS_IDX))) * 2
+        s_t_m = torch.ones((b, pixel_h, pixel_w, t, len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX))) * 2
         sp_m = torch.ones((b, pixel_h, pixel_w, len(SPACE_BAND_GROUPS_IDX))) * 2
-        t_m = torch.ones((b, t, len(TIME_BAND_GROUPS_IDX))) * 2
+        t_m = torch.ones((b, t, len(TIME_BANDS_GROUPS_IDX))) * 2
         st_m = torch.ones((b, len(STATIC_BAND_GROUPS_IDX))) * 2
         max_patch_size = 8
 

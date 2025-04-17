@@ -9,9 +9,9 @@ from einops import repeat
 from src.conditioner import LearnedMixture
 from src.data import (
     SPACE_BAND_GROUPS_IDX,
-    SPACE_TIME_BANDS_GROUPS_IDX,
+    SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
-    TIME_BAND_GROUPS_IDX,
+    TIME_BANDS_GROUPS_IDX,
     Dataset,
 )
 from src.data.config import CONFIG_FILENAME, ENCODER_FILENAME
@@ -127,7 +127,7 @@ class TestPresto(unittest.TestCase):
                     image_size / patch_size,
                     image_size / patch_size,
                     num_timesteps,
-                    len(SPACE_TIME_BANDS_GROUPS_IDX),
+                    len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX),
                     embedding_size,
                 ]
             )
@@ -146,7 +146,7 @@ class TestPresto(unittest.TestCase):
                 == [
                     1,
                     num_timesteps,
-                    len(TIME_BAND_GROUPS_IDX),
+                    len(TIME_BANDS_GROUPS_IDX),
                     embedding_size,
                 ]
             )
@@ -182,7 +182,7 @@ class TestPresto(unittest.TestCase):
                     image_size / patch_size,
                     image_size / patch_size,
                     num_timesteps,
-                    len(SPACE_TIME_BANDS_GROUPS_IDX),
+                    len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX),
                     embedding_size,
                 ]
             )
@@ -198,7 +198,7 @@ class TestPresto(unittest.TestCase):
             )
             self.assertTrue(
                 list(output[2].shape)
-                == [1, num_timesteps, len(TIME_BAND_GROUPS_IDX), embedding_size]
+                == [1, num_timesteps, len(TIME_BANDS_GROUPS_IDX), embedding_size]
             )
             self.assertTrue(
                 list(output[3].shape) == [1, len(STATIC_BAND_GROUPS_IDX), embedding_size]
@@ -229,8 +229,8 @@ class TestPresto(unittest.TestCase):
             num_heads=1,
         )
         b, h, w, t = 5, 6, 7, 8
-        s_t_x = torch.ones(b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX), embedding_size)
-        s_t_m = torch.zeros(b, h, w, t, len(SPACE_TIME_BANDS_GROUPS_IDX))
+        s_t_x = torch.ones(b, h, w, t, len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX), embedding_size)
+        s_t_m = torch.zeros(b, h, w, t, len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX))
         s_t_m[:, :, :, 0] = 2  # the first timestep will get processed by the decoder
         s_t_m[:, :, :, 1] = 1  # the second timestep gets masked but not processed
 
@@ -239,8 +239,8 @@ class TestPresto(unittest.TestCase):
         sp_m[:, 0] = 2
         sp_m[:, 1] = 1
 
-        t_x = torch.ones(b, t, len(TIME_BAND_GROUPS_IDX), embedding_size)
-        t_m = torch.zeros(b, t, len(TIME_BAND_GROUPS_IDX))
+        t_x = torch.ones(b, t, len(TIME_BANDS_GROUPS_IDX), embedding_size)
+        t_m = torch.zeros(b, t, len(TIME_BANDS_GROUPS_IDX))
         t_m[:, 0] = 2
         t_m[:, 1] = 1
 

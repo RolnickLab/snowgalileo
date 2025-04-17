@@ -8,7 +8,7 @@ import torch
 
 from src.data.dataset import (
     SPACE_BANDS,
-    SPACE_TIME_BANDS,
+    SPACE_TIME_HIGH_RES_BANDS,
     STATIC_BANDS,
     TIME_BANDS,
     Dataset,
@@ -40,7 +40,7 @@ class TestDataset(unittest.TestCase):
             self.assertEqual(sp_x.shape[0], s_t_x.shape[0])
             self.assertEqual(sp_x.shape[1], s_t_x.shape[1])
             self.assertEqual(t_x.shape[0], s_t_x.shape[2])
-            self.assertEqual(len(SPACE_TIME_BANDS), s_t_x.shape[-1])
+            self.assertEqual(len(SPACE_TIME_HIGH_RES_BANDS), s_t_x.shape[-1])
             self.assertEqual(len(SPACE_BANDS), sp_x.shape[-1])
             self.assertEqual(len(TIME_BANDS), t_x.shape[-1])
             self.assertEqual(len(STATIC_BANDS), st_x.shape[-1])
@@ -57,7 +57,7 @@ class TestDataset(unittest.TestCase):
     def test_normalization(self):
         ds = Dataset(TIFS_FOLDER, download=False)
         o = ds.load_normalization_values(path=Path("config/normalization.json"))
-        for t in [len(SPACE_TIME_BANDS), len(SPACE_BANDS), len(STATIC_BANDS), len(TIME_BANDS)]:
+        for t in [len(SPACE_TIME_HIGH_RES_BANDS), len(SPACE_BANDS), len(STATIC_BANDS), len(TIME_BANDS)]:
             subdict = o[t]
             self.assertTrue("mean" in subdict)
             self.assertTrue("std" in subdict)
