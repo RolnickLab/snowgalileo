@@ -119,7 +119,7 @@ SOUTH_HEM_SEASONS = {
 NO_DATA_VALUE = -9999
 
 # TODO: this is a bit hard-coded; empirically identified lower bound thresholds (inclusive) to avoid outliers in the input data
-CHANNEL_WISE_INVALID_DATA_THRESHOLDS = {
+CHANNEL_WISE_INVALID_DATA_THRESHOLDS: Dict[str, Dict] = {
     "s_t_h_x": {
         0: -50,  # S1 VV
         1: -50,  # S1 VH

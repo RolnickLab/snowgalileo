@@ -6,7 +6,6 @@ from pathlib import Path
 import torch
 from einops import repeat
 
-from src.conditioner import LearnedMixture
 from src.data import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
@@ -33,7 +32,7 @@ class TestPresto(unittest.TestCase):
     @staticmethod
     def to_tensor_with_batch_d(input: DatasetOutput):
         return (
-            torch.from_numpy(input.space_time_x).float().unsqueeze(0),
+            torch.from_numpy(input.space_time_high_res_x).float().unsqueeze(0),
             torch.from_numpy(input.space_x).float().unsqueeze(0),
             torch.from_numpy(input.time_x).float().unsqueeze(0),
             torch.from_numpy(input.static_x).float().unsqueeze(0),
@@ -361,11 +360,7 @@ class TestPresto(unittest.TestCase):
 
     def test_load_from_device(self):
         config = load_check_config("0.json")
-        if "conditioner" in config["model"].keys():
-            conditioner = LearnedMixture(**config["model"]["conditioner"])
-        else:
-            conditioner = None
-        original_encoder = Encoder(**config["model"]["encoder"], conditioner=conditioner)
+        original_encoder = Encoder(**config["model"]["encoder"])
 
         with tempfile.TemporaryDirectory() as tempdir:
             torch.save(original_encoder.state_dict(), Path(tempdir) / ENCODER_FILENAME)

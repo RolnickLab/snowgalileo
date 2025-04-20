@@ -212,14 +212,6 @@ def batch_subset_mask_presto(
 ) -> Tuple[MaskedOutput, Optional[Dict]]:
     assert len(masking_probabilities) == len(MASKING_MODES)
 
-    conditioner_inputs: Optional[Dict] = {
-        "hw": image_size // patch_size,
-        "patch_size": patch_size,
-        "timesteps": num_timesteps,
-        "input_channels": torch.zeros(len(MASKING_MODES)).to(s_t_h_x.device),
-        "output_channels": torch.zeros(len(MASKING_MODES)).to(s_t_h_x.device),
-    }
-
     if masking_function.value < 2:
         f: Callable = batch_mask_space if masking_function.value == 1 else batch_mask_time
         num_masking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
@@ -270,9 +262,6 @@ def batch_subset_mask_presto(
             mode=masking_modes,
             decoder_mode=unmasking_modes,
         )
-        assert conditioner_inputs is not None
-        for mode in unmasking_modes:
-            conditioner_inputs["output_channels"][UNMASKING_CHANNEL_GROUPS.index(mode)] = 1  # type: ignore
 
     elif masking_function.value == 2:
         # 2 is random
@@ -295,12 +284,11 @@ def batch_subset_mask_presto(
             decode_ratio=decode_ratio,
             patch_size=patch_size,
         )
-        conditioner_inputs = None
 
     else:
         raise AssertionError(f"Unexpected strategy {masking_function}")
 
-    return masked_output, conditioner_inputs
+    return masked_output
 
 
 def subset_and_augment_batch_of_images(

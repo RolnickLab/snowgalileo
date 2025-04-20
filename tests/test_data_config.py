@@ -14,8 +14,8 @@ from src.data.earthengine.eo import (
     SPACE_TIME_HIGH_RES_SHIFT_VALUES,
     STATIC_BAND_GROUPS_IDX,
     STATIC_BANDS,
-    STATIC_DIV_VALUES,
-    STATIC_SHIFT_VALUES,
+    STATIC_DIV_VALUES_NP,
+    STATIC_SHIFT_VALUES_NP,
     TIME_BANDS,
     TIME_BANDS_GROUPS_IDX,
     TIME_DIV_VALUES,
@@ -32,7 +32,7 @@ array_types = {
 
 
 class TestConfig(unittest.TestCase):
-    def test_config():
+    def test_config(self):
         # Flatten all index lists and collect unique indices
         s_t_h_bands_from_idx = set()
         for key, indices in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.items():
@@ -79,8 +79,8 @@ class TestConfig(unittest.TestCase):
         )
         assert (
             len(STATIC_BANDS)
-            == len(STATIC_SHIFT_VALUES)
-            == len(STATIC_DIV_VALUES)
+            == len(STATIC_SHIFT_VALUES_NP)
+            == len(STATIC_DIV_VALUES_NP)
             == static_bands_from_idx
         )
 

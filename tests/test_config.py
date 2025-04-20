@@ -1,34 +1,13 @@
 import json
 import unittest
 
-from src.conditioner import LearnedMixture, LoRAGenerator, LoRATemplates, TokenConditioner
 from src.config import get_random_config
 from src.data.config import NORMALIZATION_DICT_FILENAME
 from src.data.dataset import Normalizer
-from src.flexipresto import Encoder
 from src.utils import check_config, config_dir, load_check_config
 
 
 class TestConfigs(unittest.TestCase):
-    @staticmethod
-    def check_models_can_be_loaded(config):
-        # check we can load the models
-        if config["training"]["conditioner_mode"] == "lora-g":
-            encoder_conditioner = LoRAGenerator(**config["model"]["conditioner"])
-            _ = Encoder(**config["model"]["encoder"], conditioner=encoder_conditioner)
-        elif config["training"]["conditioner_mode"] == "moe":
-            encoder_conditioner = LearnedMixture(**config["model"]["conditioner"])
-            _ = Encoder(**config["model"]["encoder"], conditioner=encoder_conditioner)
-        elif config["training"]["conditioner_mode"] == "lora-t":
-            encoder_conditioner = LoRATemplates(**config["model"]["conditioner"])
-            _ = Encoder(**config["model"]["encoder"], conditioner=encoder_conditioner)
-        elif config["training"]["conditioner_mode"] == "token":
-            encoder_conditioner = TokenConditioner(**config["model"]["conditioner"])
-            _ = Encoder(**config["model"]["encoder"], conditioner=encoder_conditioner)
-        else:
-            assert "conditioner" not in config["model"].keys()
-            _ = Encoder(**config["model"]["encoder"])
-
     def test_configs_mae(self):
         configs = list((config_dir / "mae").glob("*.json"))
 

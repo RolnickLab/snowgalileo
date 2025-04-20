@@ -5,7 +5,7 @@ import os
 import warnings
 from functools import partial
 from pathlib import Path
-from typing import Optional, Union, cast
+from typing import List, Optional, cast
 
 import codecarbon
 import psutil
@@ -16,7 +16,6 @@ from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
 from src.collate_fns import mae_collate_fn
-from src.conditioner import LearnedMixture, LoRAGenerator, LoRATemplates, TokenConditioner
 from src.config import DEFAULT_SEED, get_random_config
 from src.data import Dataset, Normalizer
 from src.data.config import (
@@ -32,6 +31,7 @@ from src.data.config import (
     TARGET_ENCODER_FILENAME,
 )
 from src.eval import EuroSatEval
+from src.eval.eval import EvalTask
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
 from src.loss import construct_target_encoder_masks, do_loss
 from src.utils import (
@@ -66,7 +66,6 @@ autocast_device = torch.bfloat16 if is_bf16_available() else torch.float32
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--config_file", type=str, default="ai4snow.json")
 argparser.add_argument("--run_name_prefix", type=str, default="")
-argparser.add_argument("--conditioner_mode", type=str, default="")
 argparser.add_argument("--h5py_folder", type=str, default="")
 argparser.add_argument("--output_folder", type=str, default="")
 argparser.add_argument("--download", dest="download", action="store_true")
@@ -101,18 +100,14 @@ wandb_org = "sea-ice"
 wandb_output_dir = Path(__file__).parent
 
 if not restart:
-    if len(args["conditioner_mode"]) == 0:
-        conditioner_mode: Optional[str] = None
-    else:
-        conditioner_mode = args["conditioner_mode"]
     if args["config_file"] == "random_tiny":
-        config, run_name = get_random_config("tiny", conditioner_mode)
+        config, run_name = get_random_config("tiny")
         config = check_config(config)
     elif args["config_file"] == "random_vitb-tiny":
-        config, run_name = get_random_config("vitb-tiny", conditioner_mode)
+        config, run_name = get_random_config("vitb-tiny")
         config = check_config(config)
     elif args["config_file"] == "random_base":
-        config, run_name = get_random_config("base", conditioner_mode)
+        config, run_name = get_random_config("base")
         config = check_config(config)
     else:
         config = load_check_config(args["config_file"])
@@ -201,44 +196,14 @@ param_groups = [
         "weight_decay": training_config["weight_decay"],
     }
 ]
-eval_w_condition = False
-if "conditioner" in config["model"]:
-    eval_w_condition = True
-    if training_config["conditioner_mode"] == "moe":
-        encoder_conditioner: Union[
-            LearnedMixture, LoRAGenerator, LoRATemplates, TokenConditioner
-        ] = LearnedMixture(**config["model"]["conditioner"]).to(device)
-    elif training_config["conditioner_mode"] == "lora-g":
-        encoder_conditioner = LoRAGenerator(**config["model"]["conditioner"]).to(device)
-    elif training_config["conditioner_mode"] == "lora-t":
-        encoder_conditioner = LoRATemplates(**config["model"]["conditioner"]).to(device)
-    elif training_config["conditioner_mode"] == "token":
-        encoder_conditioner = TokenConditioner(**config["model"]["conditioner"]).to(device)
-
-    encoder = Encoder(**config["model"]["encoder"], conditioner=encoder_conditioner).to(device)
-    param_groups.extend(
-        [
-            {
-                "params": [p for n, p in encoder.named_parameters() if "conditioner" not in n],
-                "name": "encoder",
-                "weight_decay": training_config["weight_decay"],
-            },
-            {
-                "params": encoder.conditioner.parameters(),
-                "name": "conditioner",
-                "weight_decay": training_config["conditioner_weight_decay"],
-            },
-        ]
-    )
-else:
-    encoder = Encoder(**config["model"]["encoder"]).to(device)
-    param_groups.append(
-        {
-            "params": encoder.parameters(),
-            "name": "encoder",
-            "weight_decay": training_config["weight_decay"],
-        }
-    )
+encoder = Encoder(**config["model"]["encoder"]).to(device)
+param_groups.append(
+    {
+        "params": encoder.parameters(),
+        "name": "encoder",
+        "weight_decay": training_config["weight_decay"],
+    }
+)
 
 if restart:
     assert model_path is not None
@@ -252,7 +217,6 @@ val_task_no_latlons = EuroSatEval(
     geobench=True,
     rgb=True,
     include_latlons=False,
-    do_condition=eval_w_condition,
 )
 # val_task_ts = BinaryCropHarvestEval(
 #    normalizer=dataset.normalizer, country="Togo", do_condition=True, eval_mode="val"
@@ -317,7 +281,6 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                 st_m,
                 months,
                 patch_size,
-                c_i,
             ) = b
 
             print("t shape: " + str(t_x.shape))
@@ -332,12 +295,6 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                 warnings.warn(f"Skipping batch with NaNs, {skipped_batches}")
                 continue
 
-            if c_i is not None:
-                # there is probably a better way to do this
-                c_i = {
-                    k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in c_i.items()
-                }
-
             with torch.autocast(device_type=device.type, dtype=autocast_device):
                 (p_s_t, p_sp, p_t, p_st) = predictor(
                     *encoder(
@@ -350,7 +307,6 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                         t_m,
                         st_m,
                         months.long(),
-                        c_i=c_i,
                         patch_size=patch_size,
                     ),
                     patch_size=patch_size,
@@ -379,7 +335,6 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                             ),
                             months.long(),
                             patch_size=patch_size,
-                            c_i=c_i if training_config["target_condition"] else None,
                             exit_after=config["training"]["target_exit_after"],
                             token_exit_cfg=config["training"]["token_exit_cfg"],
                         )
@@ -424,10 +379,7 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                 assert not torch.isnan(loss).any(), "NaNs in loss"
                 print("Got through one loss calc w/o assertion error - yay!")
             train_loss.update(loss.item(), n=s_t_x.shape[0])
-            if c_i is not None:
-                task_masking_train_loss.update(loss.item(), n=s_t_x.shape[0])
-            else:
-                random_masking_train_loss.update(loss.item(), n=s_t_x.shape[0])
+            random_masking_train_loss.update(loss.item(), n=s_t_x.shape[0])
 
             loss = loss / iters_to_accumulate
             loss.backward()
@@ -445,7 +397,6 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                     total_epochs=training_config["num_epochs"],
                     max_lr=training_config["max_lr"],
                     min_lr=training_config["final_lr"],
-                    conditioner_multiplier=training_config["conditioner_multiplier"],
                 )
 
                 with torch.no_grad():
@@ -560,7 +511,7 @@ eval_tasks: List[EvalTask] = [
 ]
 """
 
-eval_tasks = []
+eval_tasks: List[EvalTask] = []
 for task in eval_tasks:
     results = task.evaluate_model_on_task(encoder)
     print(json.dumps(results, indent=2), flush=True)

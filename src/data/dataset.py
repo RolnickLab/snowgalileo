@@ -7,7 +7,7 @@ import warnings
 from copy import deepcopy
 from pathlib import Path
 from random import sample
-from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple, Union, cast
+from typing import Dict, List, NamedTuple, Optional, Tuple, Union, cast
 
 import h5py
 import numpy as np
@@ -39,17 +39,17 @@ from .earthengine.eo import (
     EO_DYNAMIC_IN_TIME_BANDS_NP,
     EO_TIME_BANDS,
     SPACE_BANDS,
-    SPACE_DIV_VALUES,
-    SPACE_SHIFT_VALUES,
+    SPACE_DIV_VALUES_NP,
+    SPACE_SHIFT_VALUES_NP,
     SPACE_TIME_HIGH_RES_BANDS,
-    SPACE_TIME_HIGH_RES_DIV_VALUES,
-    SPACE_TIME_HIGH_RES_SHIFT_VALUES,
+    SPACE_TIME_HIGH_RES_DIV_VALUES_NP,
+    SPACE_TIME_HIGH_RES_SHIFT_VALUES_NP,
     STATIC_BANDS,
-    STATIC_DIV_VALUES,
-    STATIC_SHIFT_VALUES,
+    STATIC_DIV_VALUES_NP,
+    STATIC_SHIFT_VALUES_NP,
     TIME_BANDS,
-    TIME_DIV_VALUES,
-    TIME_SHIFT_VALUES,
+    TIME_DIV_VALUES_NP,
+    TIME_SHIFT_VALUES_NP,
 )
 
 logger = logging.getLogger("__main__")
@@ -66,22 +66,22 @@ class Normalizer:
     }
 
     def __init__(self, std: bool = True, normalizing_dicts: Optional[Dict] = None):
-        self.shift_div_dict = {
+        self.shift_div_dict: Dict[str, Dict[str, np.ndarray]] = {
             "space_time_high_res": {
-                "shift": deepcopy(SPACE_TIME_HIGH_RES_SHIFT_VALUES),
-                "div": deepcopy(SPACE_TIME_HIGH_RES_DIV_VALUES),
+                "shift": deepcopy(SPACE_TIME_HIGH_RES_SHIFT_VALUES_NP),
+                "div": deepcopy(SPACE_TIME_HIGH_RES_DIV_VALUES_NP),
             },
             "space": {
-                "shift": deepcopy(SPACE_SHIFT_VALUES),
-                "div": deepcopy(SPACE_DIV_VALUES),
+                "shift": deepcopy(SPACE_SHIFT_VALUES_NP),
+                "div": deepcopy(SPACE_DIV_VALUES_NP),
             },
             "time": {
-                "shift": deepcopy(TIME_SHIFT_VALUES),
-                "div": deepcopy(TIME_DIV_VALUES),
+                "shift": deepcopy(TIME_SHIFT_VALUES_NP),
+                "div": deepcopy(TIME_DIV_VALUES_NP),
             },
             "static": {
-                "shift": deepcopy(STATIC_SHIFT_VALUES),
-                "div": deepcopy(STATIC_DIV_VALUES),
+                "shift": deepcopy(STATIC_SHIFT_VALUES_NP),
+                "div": deepcopy(STATIC_DIV_VALUES_NP),
             },
         }
 
@@ -151,15 +151,6 @@ class DatasetOutput(NamedTuple):
     valid_data_mask_space: np.ndarray
     valid_data_mask_time: np.ndarray
     valid_data_mask_static: np.ndarray
-
-    @classmethod
-    def concatenate(cls, datasetoutputs: Sequence["DatasetOutput"]) -> "DatasetOutput":
-        s_t_h_x = np.stack([o.space_time_high_res_x for o in datasetoutputs], axis=0)
-        sp_x = np.stack([o.space_x for o in datasetoutputs], axis=0)
-        t_x = np.stack([o.time_x for o in datasetoutputs], axis=0)
-        st_x = np.stack([o.static_x for o in datasetoutputs], axis=0)
-        months = np.stack([o.months for o in datasetoutputs], axis=0)
-        return cls(s_t_h_x, sp_x, t_x, st_x, months)
 
     def normalize(self, normalizer: Optional[Normalizer]) -> "DatasetOutput":
         if normalizer is None:
@@ -616,8 +607,12 @@ class Dataset(PyTorchDataset):
             # extract lat, lon in EPSG:4326 from tif_path
             lat_pattern = r"lat=(.*?)_"
             lon_pattern = r"lon=(.*?)_"
-            lat = np.mean([float(value) for value in re.findall(lat_pattern, str(tif_path))])
-            lon = np.mean([float(value) for value in re.findall(lon_pattern, str(tif_path))])
+            lat = float(
+                np.mean([float(value) for value in re.findall(lat_pattern, str(tif_path))])
+            )
+            lon = float(
+                np.mean([float(value) for value in re.findall(lon_pattern, str(tif_path))])
+            )
 
         num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(ALL_DYNAMIC_IN_TIME_BANDS)
         assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
@@ -655,6 +650,8 @@ class Dataset(PyTorchDataset):
         space_x = cls._check_and_fillna(space_x, np.array(SPACE_BANDS))
 
         static_x = to_cartesian(lat, lon)
+        if isinstance(static_x, torch.Tensor):
+            static_x = static_x.numpy()
         static_x = cls._check_and_fillna(static_x, np.array(STATIC_BANDS))
 
         months = cls.month_array_from_file(tif_path, int(num_timesteps))

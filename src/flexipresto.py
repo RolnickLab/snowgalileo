@@ -13,13 +13,6 @@ from einops import rearrange, repeat
 from torch import Tensor, vmap
 from torch.jit import Final
 
-from .conditioner import (
-    ConditionalLinear,
-    LearnedMixture,
-    LoRAGenerator,
-    LoRATemplates,
-    TokenConditioner,
-)
 from .config import BASE_GSD
 from .data import (
     SPACE_BAND_GROUPS_IDX,
@@ -43,7 +36,6 @@ def adjust_learning_rate(
     total_epochs,
     max_lr,
     min_lr,
-    conditioner_multiplier=None,
 ):
     """Decay the learning rate with half-cycle cosine after warmup"""
     if epoch < warmup_epochs:
@@ -53,11 +45,7 @@ def adjust_learning_rate(
             1.0 + math.cos(math.pi * (epoch - warmup_epochs) / (total_epochs - warmup_epochs))
         )
     for group in optimizer.param_groups:
-        if "conditioner" in group["name"]:
-            assert conditioner_multiplier is not None
-            group["lr"] = lr * conditioner_multiplier
-        else:
-            group["lr"] = lr
+        group["lr"] = lr
     return lr
 
 
@@ -230,14 +218,14 @@ class Attention(nn.Module):
 
         self.cross_attn = cross_attn
 
-        self.q = ConditionalLinear(dim, dim, bias=qkv_bias)
-        self.k = ConditionalLinear(dim, dim, bias=qkv_bias)
-        self.v = ConditionalLinear(dim, dim, bias=qkv_bias)
+        self.q = nn.Linear(dim, dim, bias=qkv_bias)
+        self.k = nn.Linear(dim, dim, bias=qkv_bias)
+        self.v = nn.Linear(dim, dim, bias=qkv_bias)
 
         self.q_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
         self.k_norm = norm_layer(self.head_dim) if qk_norm else nn.Identity()
         self.attn_drop = nn.Dropout(attn_drop)
-        self.proj = ConditionalLinear(dim, dim)
+        self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
     def forward(self, x, y=None, attn_mask=None):
@@ -306,10 +294,10 @@ class Mlp(nn.Module):
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
 
-        self.fc1 = ConditionalLinear(in_features, hidden_features, bias=bias)
+        self.fc1 = nn.Linear(in_features, hidden_features, bias=bias)
         self.act = act_layer()
         self.drop1 = nn.Dropout(drop)
-        self.fc2 = ConditionalLinear(hidden_features, out_features, bias=bias)
+        self.fc2 = nn.Linear(hidden_features, out_features, bias=bias)
         self.drop2 = nn.Dropout(drop)
 
     def forward(self, x):
@@ -616,7 +604,6 @@ class Encoder(FlexiPrestoBase):
         num_heads=8,
         max_sequence_length=24,
         freeze_projections: bool = False,
-        conditioner=None,
         drop_path: float = 0.0,
     ):
         super().__init__(
@@ -666,10 +653,6 @@ class Encoder(FlexiPrestoBase):
         self.norm = nn.LayerNorm(embedding_size)
 
         self.apply(self._init_weights)
-        self.conditioner = conditioner
-        if conditioner is not None:
-            if conditioner.mode == "moe":
-                self.conditioner.add_templates(self.blocks)
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -983,17 +966,10 @@ class Encoder(FlexiPrestoBase):
         st_m: torch.Tensor,
         months: torch.Tensor,
         patch_size: int,
-        c_i=None,
         input_resolution_m: Optional[int] = BASE_GSD,
         exit_after: Optional[int] = None,
         token_exit_cfg: Optional[Dict] = None,
     ):
-        if self.conditioner is not None:
-            # c_i_token will be None unless
-            # we are using token conditioning
-            c_i_token = self.apply_condition(c_i)
-        else:
-            c_i_token = None
         (
             s_t_x,
             sp_x,
@@ -1022,7 +998,6 @@ class Encoder(FlexiPrestoBase):
                 input_resolution_m,
                 exit_after=exit_after,
                 token_exit_cfg=token_exit_cfg,
-                c_i_token=c_i_token,
             )
 
         return (
@@ -1042,117 +1017,14 @@ class Encoder(FlexiPrestoBase):
         assert (folder / CONFIG_FILENAME).exists(), f"Missing {CONFIG_FILENAME}"
         assert (folder / ENCODER_FILENAME).exists(), f"Missing {ENCODER_FILENAME}"
 
-        conditioner_config = None
-        conditioner: Optional[
-            Union[LoRAGenerator, LearnedMixture, LoRATemplates, TokenConditioner]
-        ] = None
-        str2conditioner = {
-            "lora-t": LoRATemplates,
-            "lora-g": LoRAGenerator,
-            "moe": LearnedMixture,
-            "token": TokenConditioner,
-        }
         with (folder / CONFIG_FILENAME).open("r") as f:
             config = json.load(f)
             model_config = config["model"]
             encoder_config = model_config["encoder"]
-            if "conditioner" in model_config.keys():
-                conditioner_config = model_config["conditioner"]
 
-        if conditioner_config is not None:
-            assert config["training"]["conditioner_mode"] in str2conditioner.keys()
-            conditioner = str2conditioner[config["training"]["conditioner_mode"]](
-                **conditioner_config
-            )
-        encoder = cls(**encoder_config, conditioner=conditioner)
+        encoder = cls(**encoder_config)
         encoder.load_state_dict(torch.load(folder / ENCODER_FILENAME, map_location=device))
         return encoder
-
-    def apply_condition(self, c_i) -> Optional[torch.Tensor]:
-        if self.conditioner.mode == "moe":
-            if c_i is not None:
-                conditional_weights = self.conditioner(c_i)
-                for i, block in enumerate(self.blocks):
-                    block.attn.proj.apply_condition(
-                        conditional_weights[f"{i}.weight"],
-                        conditional_weights[f"{i}.bias"],
-                        "moe",
-                    )
-            else:
-                for block in self.blocks:
-                    block.attn.proj.apply_condition(None, None, "moe")
-
-        elif "lora" in self.conditioner.mode:
-            if c_i is not None:
-                conditional_weights = self.conditioner(c_i)
-                for block_idx, block in enumerate(self.blocks):
-                    if self.conditioner.mode == "lora-t":
-                        if f"{block_idx}_q" in conditional_weights:
-                            block.attn.q.apply_condition(
-                                conditional_weights[f"{block_idx}_q"], None, "lora"
-                            )
-                        if f"{block_idx}_k" in conditional_weights:
-                            block.attn.k.apply_condition(
-                                conditional_weights[f"{block_idx}_k"], None, "lora"
-                            )
-                        if f"{block_idx}_v" in conditional_weights:
-                            block.attn.v.apply_condition(
-                                conditional_weights[f"{block_idx}_v"], None, "lora"
-                            )
-                        if f"{block_idx}_proj" in conditional_weights:
-                            block.attn.proj.apply_condition(
-                                conditional_weights[f"{block_idx}_proj"], None, "lora"
-                            )
-                        if f"{block_idx}_fc1" in conditional_weights:
-                            block.mlp.fc1.apply_condition(
-                                conditional_weights[f"{block_idx}_fc1"], None, "lora"
-                            )
-                        if f"{block_idx}_fc2" in conditional_weights:
-                            block.mlp.fc2.apply_condition(
-                                conditional_weights[f"{block_idx}_fc2"], None, "lora"
-                            )
-                    elif self.conditioner.mode == "lora-g":
-                        block_conditional_weights = conditional_weights[block_idx]
-                        if "q" in block_conditional_weights:
-                            block.attn.q.apply_condition(
-                                block_conditional_weights["q"], None, "lora"
-                            )
-                        if "k" in block_conditional_weights:
-                            block.attn.k.apply_condition(
-                                block_conditional_weights["k"], None, "lora"
-                            )
-                        if "v" in block_conditional_weights:
-                            block.attn.v.apply_condition(
-                                block_conditional_weights["v"], None, "lora"
-                            )
-                        if "proj" in block_conditional_weights:
-                            block.attn.proj.apply_condition(
-                                block_conditional_weights["proj"], None, "lora"
-                            )
-                        if "fc1" in block_conditional_weights:
-                            block.mlp.fc1.apply_condition(
-                                block_conditional_weights["fc1"], None, "lora"
-                            )
-                        if "fc2" in block_conditional_weights:
-                            block.mlp.fc2.apply_condition(
-                                block_conditional_weights["fc2"], None, "lora"
-                            )
-            else:
-                for block in self.blocks:
-                    block.attn.q.apply_condition(None, None, "lora")
-                    block.attn.k.apply_condition(None, None, "lora")
-                    block.attn.v.apply_condition(None, None, "lora")
-                    block.attn.proj.apply_condition(None, None, "lora")
-                    block.mlp.fc1.apply_condition(None, None, "lora")
-                    block.mlp.fc2.apply_condition(None, None, "lora")
-        elif "token" in self.conditioner.mode:
-            if c_i is not None:
-                return self.conditioner(c_i)
-        else:
-            raise ValueError(
-                f"Called apply_condition but self.conditioner.mode is {self.conditioner.mode}"
-            )
-        return None
 
 
 class PrestoPixelDecoder(FlexiPrestoBase):

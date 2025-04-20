@@ -19,7 +19,7 @@ from .data.earthengine.eo import (
     STATIC_BAND_GROUPS_IDX,
     TIME_BANDS_GROUPS_IDX,
 )
-from .masking import MASKING_MODES, UNMASKING_CHANNEL_GROUPS, MaskedOutput
+from .masking import MASKING_MODES, MaskedOutput
 
 data_dir = Path(__file__).parent.parent / "data"
 logging_dir = Path(__file__).parent.parent / "logs"
@@ -92,15 +92,12 @@ def check_config(config):
         "patch_sizes": list,
         "max_lr": float,
         "final_lr": float,
-        "conditioner_multiplier": float,
         "warmup_epochs": (int, float),
         "eval_eurosat_every_n_epochs": int,
         "shape_time_combinations": list,
         "augmentation": dict,
         "masking_probabilities": list,
         "grad_clip": bool,
-        "target_condition": bool,
-        "conditioner_mode": str,
         "normalization": str,
         "random_masking": str,
     }
@@ -200,30 +197,6 @@ def check_config(config):
         config["model"]["decoder"]["output_embedding_size"] = (
             max_patch_size**2
         ) * max_group_length
-
-    assert config["training"]["conditioner_mode"] in [
-        "moe",
-        "lora-t",
-        "lora-g",
-        "no_cond",
-        "token",
-    ]
-
-    if config["training"]["conditioner_mode"] == "moe":
-        config["model"]["conditioner"] = {"num_output_channels": len(UNMASKING_CHANNEL_GROUPS)}
-
-    elif "lora" in config["training"]["conditioner_mode"]:
-        config["model"]["conditioner"]["num_output_channels"] = len(UNMASKING_CHANNEL_GROUPS)
-        config["model"]["conditioner"]["backbone_dim"] = config["model"]["encoder"][
-            "embedding_size"
-        ]
-        config["model"]["conditioner"]["backbone_depth"] = config["model"]["encoder"]["depth"]
-        config["model"]["conditioner"]["mlp_ratio"] = config["model"]["encoder"]["mlp_ratio"]
-    elif config["training"]["conditioner_mode"] == "token":
-        config["model"]["conditioner"] = {
-            "num_output_channels": len(UNMASKING_CHANNEL_GROUPS),
-            "backbone_dim": config["model"]["encoder"]["embedding_size"],
-        }
 
     return config
 
