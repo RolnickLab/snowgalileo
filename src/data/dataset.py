@@ -482,7 +482,7 @@ class Dataset(PyTorchDataset):
         )
 
     @staticmethod
-    def _check_and_fillna(data: np.ndarray, bands_np: np.ndarray):
+    def _check_and_fillna(data: np.ndarray, bands_np: np.ndarray) -> np.ndarray:
         """Fill in the missing values in the data array"""
         if data.shape[-1] != len(bands_np):
             raise ValueError(f"Expected data to have {len(bands_np)} bands - got {data.shape[-1]}")

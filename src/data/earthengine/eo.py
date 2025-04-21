@@ -614,10 +614,10 @@ class EarthEngineExporter:
             for season in SEASONS.items():
                 season_key = season[0]
                 # randomly choose year to sample from
-                season = sample_season_year(season, START_YEAR, END_YEAR, seed=seed)
+                sampled_season = sample_season_year(season, START_YEAR, END_YEAR, seed=seed)
 
-                SEASON_START_DATE = season[0]
-                SEASON_END_DATE = season[1]
+                SEASON_START_DATE = sampled_season[0]
+                SEASON_END_DATE = sampled_season[1]
 
                 WINDOW_START_DATE, WINDOW_END_DATE = sample_time_window(
                     SEASON_START_DATE, SEASON_END_DATE, NUM_TIMESTEPS, seed=seed
