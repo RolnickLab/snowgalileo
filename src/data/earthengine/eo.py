@@ -34,11 +34,11 @@ from ..config import (
     TIFS_FOLDER,
 )
 from .copernicus_dem import DEM_BANDS, DEM_DIV_VALUES, DEM_SHIFT_VALUES, get_single_dem_image
-from .dynamic_world import (
-    DW_BANDS,
-    DW_DIV_VALUES,
-    DW_SHIFT_VALUES,
-    get_single_dw_image,
+from .esa_worldcover import (
+    WC_BANDS,
+    WC_DIV_VALUES,
+    WC_SHIFT_VALUES,
+    get_single_wc_image,
 )
 from .ee_bbox import EEBoundingBox
 from .era5 import ERA5_BANDS, ERA5_DIV_VALUES, ERA5_SHIFT_VALUES, get_single_era5_image
@@ -161,7 +161,7 @@ assert TIME_IMAGE_FUNCTIONS == [
     get_single_viirs_coarse_image,
     get_single_era5_image,
 ]
-assert SPACE_IMAGE_FUNCTIONS == [get_single_dem_image, get_single_dw_image]
+assert SPACE_IMAGE_FUNCTIONS == [get_single_dem_image, get_single_wc_image]
 assert SPACE_TIME_HIGH_RES_BANDS == S1_BANDS + S2_BANDS + LANDSAT_BANDS
 assert SPACE_TIME_HIGH_RES_SHIFT_VALUES == S1_SHIFT_VALUES + S2_SHIFT_VALUES + LANDSAT_SHIFT_VALUES
 assert SPACE_TIME_HIGH_RES_DIV_VALUES == S1_DIV_VALUES + S2_DIV_VALUES + LANDSAT_DIV_VALUES
@@ -188,9 +188,9 @@ assert (
     + VIIRS_COARSE_DIV_VALUES
     + ERA5_DIV_VALUES
 )
-assert SPACE_BANDS == DEM_BANDS + DW_BANDS
-assert SPACE_SHIFT_VALUES == DEM_SHIFT_VALUES + DW_SHIFT_VALUES
-assert SPACE_DIV_VALUES == DEM_DIV_VALUES + DW_DIV_VALUES
+assert SPACE_BANDS == DEM_BANDS + WC_BANDS
+assert SPACE_SHIFT_VALUES == DEM_SHIFT_VALUES + WC_SHIFT_VALUES
+assert SPACE_DIV_VALUES == DEM_DIV_VALUES + WC_DIV_VALUES
 
 SPACE_TIME_HIGH_RES_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(SPACE_TIME_HIGH_RES_SHIFT_VALUES)
 SPACE_TIME_HIGH_RES_DIV_VALUES_NP: npt.NDArray[Any] = np.array(SPACE_TIME_HIGH_RES_DIV_VALUES)
@@ -200,8 +200,8 @@ SPACE_TIME_LOW_RES_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(SPACE_TIME_LOW_R
 SPACE_TIME_LOW_RES_DIV_VALUES_NP: npt.NDArray[Any] = np.array(SPACE_TIME_LOW_RES_DIV_VALUES)
 TIME_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(TIME_SHIFT_VALUES)
 TIME_DIV_VALUES_NP: npt.NDArray[Any] = np.array(TIME_DIV_VALUES)
-SPACE_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(DEM_SHIFT_VALUES + DW_SHIFT_VALUES)
-SPACE_DIV_VALUES_NP: npt.NDArray[Any] = np.array(DEM_DIV_VALUES + DW_DIV_VALUES)
+SPACE_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(DEM_SHIFT_VALUES + WC_SHIFT_VALUES)
+SPACE_DIV_VALUES_NP: npt.NDArray[Any] = np.array(DEM_DIV_VALUES + WC_DIV_VALUES)
 
 # we will add latlons in dataset.py function
 LOCATION_BANDS = ["x", "y", "z"]
@@ -278,7 +278,7 @@ if MODALITIES["ndvi"].get("active"):
 SPACE_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
         "DEM": [SPACE_BANDS.index(b) for b in DEM_BANDS],
-        "DW": [SPACE_BANDS.index(b) for b in DW_BANDS],
+        "WC": [SPACE_BANDS.index(b) for b in WC_BANDS],
     }
 )
 
