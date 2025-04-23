@@ -33,7 +33,7 @@ def create_placeholder(region: ee.Geometry, selected_bands, fill_value=NO_DATA_V
     """
     Creates a placeholder image for a region with constant values for each band in selected_bands.
     """
-    constant_bands = [ee.Image(ee.constant(fill_value)).rename(band) for band in selected_bands]
+    constant_bands = [ee.Image(ee.Number(fill_value)).rename(band) for band in selected_bands]
 
     placeholder_image = ee.Image.cat(constant_bands).clip(region)
     return placeholder_image

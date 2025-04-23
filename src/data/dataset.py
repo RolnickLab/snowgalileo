@@ -652,6 +652,8 @@ class Dataset(PyTorchDataset):
         static_x = to_cartesian(lat, lon)
         if isinstance(static_x, torch.Tensor):
             static_x = static_x.numpy()
+        # mypy workaround
+        static_x: np.ndarray = static_x
         static_x = cls._check_and_fillna(static_x, np.array(STATIC_BANDS))
 
         months = cls.month_array_from_file(tif_path, int(num_timesteps))
