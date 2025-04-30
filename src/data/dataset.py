@@ -190,8 +190,8 @@ class ListOfDatasetOutputs(NamedTuple):
 
 
 def to_cartesian(
-    lat: Union[float, np.ndarray, torch.Tensor], lon: Union[float, np.ndarray, torch.Tensor]
-) -> Union[np.ndarray, torch.Tensor]:
+    lat: Union[float, np.ndarray], lon: Union[float, np.ndarray]
+) -> Union[np.ndarray]:
     if isinstance(lat, float):
         assert -90 <= lat <= 90, f"lat out of range ({lat}). Make sure you are in EPSG:4326"
         assert -180 <= lon <= 180, f"lon out of range ({lon}). Make sure you are in EPSG:4326"
@@ -216,19 +216,6 @@ def to_cartesian(
         y_np = np.cos(lat) * np.sin(lon)
         z_np = np.sin(lat)
         return np.stack([x_np, y_np, z_np], axis=-1)
-    elif isinstance(lon, torch.Tensor):
-        assert -90 <= lat.min(), f"lat out of range ({lat.min()}). Make sure you are in EPSG:4326"
-        assert 90 >= lat.max(), f"lat out of range ({lat.max()}). Make sure you are in EPSG:4326"
-        assert -180 <= lon.min(), f"lon out of range ({lon.min()}). Make sure you are in EPSG:4326"
-        assert 180 >= lon.max(), f"lon out of range ({lon.max()}). Make sure you are in EPSG:4326"
-        assert isinstance(lat, torch.Tensor), f"Expected torch.Tensor got {type(lat)}"
-        # transform to radians
-        lat = lat * math.pi / 180
-        lon = lon * math.pi / 180
-        x_t = torch.cos(lat) * torch.cos(lon)
-        y_t = torch.cos(lat) * torch.sin(lon)
-        z_t = torch.sin(lat)
-        return torch.stack([x_t, y_t, z_t], dim=-1)
     else:
         raise AssertionError(f"Unexpected input type {type(lon)}")
 
