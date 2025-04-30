@@ -21,7 +21,7 @@ from googleapiclient.http import MediaIoBaseDownload
 from torch.utils.data import Dataset as PyTorchDataset
 from tqdm import tqdm
 
-from src.config import (
+from src.data.config import (
     CHANNEL_WISE_INVALID_DATA_THRESHOLDS,
     DATASET_OUTPUT_HW,
     EE_BUCKET_TIFS,
