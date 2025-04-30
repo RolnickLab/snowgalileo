@@ -12,7 +12,6 @@ from typing import Dict, List, NamedTuple, Optional, Tuple, Union, cast
 import h5py
 import numpy as np
 import rioxarray
-import torch
 import xarray as xr
 from einops import rearrange, repeat
 from google.oauth2.service_account import Credentials
@@ -637,10 +636,6 @@ class Dataset(PyTorchDataset):
         space_x = cls._check_and_fillna(space_x, np.array(SPACE_BANDS))
 
         static_x = to_cartesian(lat, lon)
-        if isinstance(static_x, torch.Tensor):
-            static_x = static_x.numpy()
-        # mypy workaround
-        static_x: np.ndarray = static_x
         static_x = cls._check_and_fillna(static_x, np.array(STATIC_BANDS))
 
         months = cls.month_array_from_file(tif_path, int(num_timesteps))
