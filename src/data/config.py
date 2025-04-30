@@ -77,7 +77,7 @@ MODALITIES: Dict[str, Dict[str, Any]] = {
         "active": True,
         "export": True,
     },
-    "dw": {
+    "wc": {
         "original_resolution": 10,
         "shape_type": "sp_x",
         "active": True,
@@ -138,16 +138,7 @@ CHANNEL_WISE_INVALID_DATA_THRESHOLDS: Dict[str, Dict] = {
         14: -2000,  # Landsat B7
     },
     "sp_x": {
-        0: -10,  # DEM
-        1: -10,  # DW water
-        2: -10,  # DW tree
-        3: -10,  # DW grass
-        4: -10,  # DW flooded vegetation
-        5: -10,  # crops
-        6: -10,  # shrub_and_scrub
-        7: -10,  # built
-        8: -10,  # bare
-        9: -10,  # snow_and_ice
+        0: 0,  # Map
     },
     "t_x": {
         0: -1000,  # S3

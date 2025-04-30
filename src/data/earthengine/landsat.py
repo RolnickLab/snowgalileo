@@ -2,7 +2,7 @@ from datetime import date
 
 import ee
 
-from .utils import create_placeholder, date_to_string
+from src.data.earthengine.utils import create_placeholder, date_to_string
 
 image_collection = "LANDSAT/LC08/C02/T1_TOA"
 
@@ -23,6 +23,7 @@ LANDSAT_BANDS = [
     "B6_landsat",
     "B7_landsat",
 ]
+
 LANDSAT_SHIFT_VALUES = [float(0.0)] * len(LANDSAT_BANDS)
 LANDSAT_DIV_VALUES = [float(1e4)] * len(LANDSAT_BANDS)
 

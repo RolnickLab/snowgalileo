@@ -2,7 +2,7 @@ from datetime import date
 
 import ee
 
-from .utils import create_placeholder, date_to_string
+from src.data.earthengine.utils import create_placeholder, date_to_string
 
 image_collection = "NASA/VIIRS/002/VNP09GA"
 VIIRS_FINE_BANDS = ["I1", "I3"]

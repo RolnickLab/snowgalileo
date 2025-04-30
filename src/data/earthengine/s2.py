@@ -2,7 +2,7 @@ from datetime import date
 
 import ee
 
-from .utils import create_placeholder, date_to_string
+from src.data.earthengine.utils import create_placeholder, date_to_string
 
 # TODO: check if we have to convert no data values to double
 
@@ -36,6 +36,7 @@ S2_BANDS = [
     "B11",
     "B12",
 ]
+
 REMOVED_BANDS = [item for item in ALL_S2_BANDS if item not in S2_BANDS]
 S2_SHIFT_VALUES = [float(0.0)] * len(S2_BANDS)
 S2_DIV_VALUES = [float(1e4)] * len(S2_BANDS)
@@ -56,3 +57,49 @@ def get_single_s2_image(region: ee.Geometry, start_date: date, end_date: date) -
         return create_placeholder(region, S2_BANDS).toDouble()
 
     return image
+
+
+def rescale(img, exp, thresholds):
+    return (
+        img.expression(exp, {"img": img})
+        .subtract(thresholds[0])
+        .divide(thresholds[1] - thresholds[0])
+    )
+
+
+def computeS2CloudScore(img):
+    toa = img.select(ALL_S2_BANDS).divide(10000)
+
+    toa = toa.addBands(img.select(["QA60"]))
+
+    # ['QA60', 'B1','B2',    'B3',    'B4',   'B5','B6','B7', 'B8','  B8A',
+    #  'B9',          'B10', 'B11','B12']
+    # ['QA60','cb', 'blue', 'green', 'red', 're1','re2','re3','nir', 'nir2',
+    #  'waterVapor', 'cirrus','swir1', 'swir2']);
+
+    # Compute several indicators of cloudyness and take the minimum of them.
+    score = ee.Image(1)
+
+    # Clouds are reasonably bright in the blue and cirrus bands.
+    score = score.min(rescale(toa, "img.B2", [0.1, 0.5]))
+    score = score.min(rescale(toa, "img.B1", [0.1, 0.3]))
+    score = score.min(rescale(toa, "img.B1 + img.B10", [0.15, 0.2]))
+
+    # Clouds are reasonably bright in all visible bands.
+    score = score.min(rescale(toa, "img.B4 + img.B3 + img.B2", [0.2, 0.8]))
+
+    # Clouds are moist
+    ndmi = img.normalizedDifference(["B8", "B11"])
+    score = score.min(rescale(ndmi, "img", [-0.1, 0.1]))
+
+    # However, clouds are not snow.
+    ndsi = img.normalizedDifference(["B3", "B11"])
+    score = score.min(rescale(ndsi, "img", [0.8, 0.6]))
+
+    # Clip the lower end of the score
+    score = score.max(ee.Image(0.001))
+
+    # score = score.multiply(dilated)
+    score = score.reduceNeighborhood(reducer=ee.Reducer.mean(), kernel=ee.Kernel.square(5))
+
+    return img.addBands(score.rename("cloudScore"))

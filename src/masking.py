@@ -8,13 +8,13 @@ import numpy as np
 import torch
 from einops import rearrange, repeat
 
-from .data.earthengine.eo import (
+from src.data.earthengine.eo import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
     TIME_BANDS_GROUPS_IDX,
 )
-from .data_augmentation import Augmentation
+from src.data_augmentation import Augmentation
 
 # This is to allow a quick expansion of the mask from
 # group-channel space into real-channel space

@@ -7,7 +7,7 @@ from typing import Union
 
 import ee
 
-from ..config import NO_DATA_VALUE
+from src.data.config import NO_DATA_VALUE
 
 
 def get_ee_credentials():

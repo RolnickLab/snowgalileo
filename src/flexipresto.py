@@ -13,20 +13,20 @@ from einops import rearrange, repeat
 from torch import Tensor, vmap
 from torch.jit import Final
 
-from .config import BASE_GSD
-from .data import (
+from src.config import BASE_GSD
+from src.data import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
     TIME_BANDS_GROUPS_IDX,
 )
-from .data.config import CONFIG_FILENAME, ENCODER_FILENAME
-from .embeddings import (
+from src.data.config import CONFIG_FILENAME, ENCODER_FILENAME
+from src.embeddings import (
     get_1d_sincos_pos_embed_from_grid_torch,
     get_2d_sincos_pos_embed_with_resolution,
     get_month_encoding_table,
 )
-from .utils import device
+from src.utils import device
 
 
 def adjust_learning_rate(

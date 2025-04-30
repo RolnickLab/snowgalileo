@@ -1,4 +1,5 @@
 import unittest
+from datetime import datetime
 
 from src.data.config import END_YEAR, NORTH_HEM_SEASONS, NUM_TIMESTEPS, START_YEAR
 from src.data.earthengine.utils import (
@@ -19,6 +20,28 @@ class TestPretrainTemporalSampling(unittest.TestCase):
 
             WINDOW_START_DATE, WINDOW_END_DATE = sample_time_window(
                 SEASON_START_DATE, SEASON_END_DATE, NUM_TIMESTEPS
+            )
+
+            # Example: assuming your date strings are in ISO format 'YYYY-MM-DD'
+            SEASON_START_DATE = (
+                datetime.strptime(SEASON_START_DATE, "%Y-%m-%d").date()
+                if isinstance(SEASON_START_DATE, str)
+                else SEASON_START_DATE
+            )
+            WINDOW_START_DATE = (
+                datetime.strptime(WINDOW_START_DATE, "%Y-%m-%d").date()
+                if isinstance(WINDOW_START_DATE, str)
+                else WINDOW_START_DATE
+            )
+            WINDOW_END_DATE = (
+                datetime.strptime(WINDOW_END_DATE, "%Y-%m-%d").date()
+                if isinstance(WINDOW_END_DATE, str)
+                else WINDOW_END_DATE
+            )
+            SEASON_END_DATE = (
+                datetime.strptime(SEASON_END_DATE, "%Y-%m-%d").date()
+                if isinstance(SEASON_END_DATE, str)
+                else SEASON_END_DATE
             )
 
             # Check if the sampled time window is within the range

@@ -15,8 +15,8 @@ import requests
 from pandas.compat._optional import import_optional_dependency
 from tqdm import tqdm
 
-from ...config import DEFAULT_SEED
-from ..config import (
+from src.config import DEFAULT_SEED
+from src.data.config import (
     DATA_FOLDER,
     DAYS_PER_TIMESTEP,
     EE_BUCKET_TIFS,
@@ -33,32 +33,47 @@ from ..config import (
     START_YEAR,
     TIFS_FOLDER,
 )
-from .copernicus_dem import DEM_BANDS, DEM_DIV_VALUES, DEM_SHIFT_VALUES, get_single_dem_image
-from .ee_bbox import EEBoundingBox
-from .era5 import ERA5_BANDS, ERA5_DIV_VALUES, ERA5_SHIFT_VALUES, get_single_era5_image
-from .esa_worldcover import (
+from src.data.earthengine.copernicus_dem import (
+    DEM_BANDS,
+    DEM_DIV_VALUES,
+    DEM_SHIFT_VALUES,
+    get_single_dem_image,
+)
+from src.data.earthengine.ee_bbox import EEBoundingBox
+from src.data.earthengine.era5 import (
+    ERA5_BANDS,
+    ERA5_DIV_VALUES,
+    ERA5_SHIFT_VALUES,
+    get_single_era5_image,
+)
+from src.data.earthengine.esa_worldcover import (
     WC_BANDS,
     WC_DIV_VALUES,
     WC_SHIFT_VALUES,
     get_single_wc_image,
 )
-from .landsat import (
+from src.data.earthengine.landsat import (
     LANDSAT_BANDS,
     LANDSAT_DIV_VALUES,
     LANDSAT_SHIFT_VALUES,
     get_single_landsat_image,
 )
-from .modis import MODIS_BANDS, MODIS_DIV_VALUES, MODIS_SHIFT_VALUES, get_single_modis_image
-from .s1 import S1_BANDS, S1_DIV_VALUES, S1_SHIFT_VALUES, get_single_s1_image
-from .s2 import S2_BANDS, S2_DIV_VALUES, S2_SHIFT_VALUES, get_single_s2_image
-from .s3 import S3_BANDS, S3_DIV_VALUES, S3_SHIFT_VALUES, get_single_s3_image
-from .utils import (
+from src.data.earthengine.modis import (
+    MODIS_BANDS,
+    MODIS_DIV_VALUES,
+    MODIS_SHIFT_VALUES,
+    get_single_modis_image,
+)
+from src.data.earthengine.s1 import S1_BANDS, S1_DIV_VALUES, S1_SHIFT_VALUES, get_single_s1_image
+from src.data.earthengine.s2 import S2_BANDS, S2_DIV_VALUES, S2_SHIFT_VALUES, get_single_s2_image
+from src.data.earthengine.s3 import S3_BANDS, S3_DIV_VALUES, S3_SHIFT_VALUES, get_single_s3_image
+from src.data.earthengine.utils import (
     get_ee_credentials,
     get_location_season_identifier,
     sample_season_year,
     sample_time_window,
 )
-from .viirs import (
+from src.data.earthengine.viirs import (
     VIIRS_COARSE_BANDS,
     VIIRS_COARSE_DIV_VALUES,
     VIIRS_COARSE_SHIFT_VALUES,

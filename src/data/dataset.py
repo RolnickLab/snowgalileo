@@ -21,7 +21,7 @@ from googleapiclient.http import MediaIoBaseDownload
 from torch.utils.data import Dataset as PyTorchDataset
 from tqdm import tqdm
 
-from .config import (
+from src.config import (
     CHANNEL_WISE_INVALID_DATA_THRESHOLDS,
     DATASET_OUTPUT_HW,
     EE_BUCKET_TIFS,
@@ -33,7 +33,7 @@ from .config import (
     NUM_TIMESTEPS,
     TIFS_FOLDER,
 )
-from .earthengine.eo import (
+from src.data.earthengine.eo import (
     ALL_DYNAMIC_IN_TIME_BANDS,
     EO_DYNAMIC_IN_TIME_BANDS_NP,
     EO_TIME_BANDS,

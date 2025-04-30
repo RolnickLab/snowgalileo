@@ -1,5 +1,5 @@
-from .dataset import Dataset, Normalizer
-from .earthengine.eo import (
+from src.data.dataset import Dataset, Normalizer
+from src.data.earthengine.eo import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,

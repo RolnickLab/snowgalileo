@@ -2,7 +2,7 @@ from datetime import date
 
 import ee
 
-from .utils import create_placeholder, date_to_string
+from src.data.earthengine.utils import create_placeholder, date_to_string
 
 image_collection = "COPERNICUS/S1_GRD"
 S1_BANDS = ["VV", "VH", "angle"]

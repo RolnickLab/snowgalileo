@@ -9,15 +9,15 @@ from sklearn.metrics import accuracy_score
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from ..data import Normalizer
-from ..data.dataset import (
+from src.data import Normalizer
+from src.data.dataset import (
     SPACE_TIME_HIGH_RES_BANDS,
 )
-from ..flexipresto import Encoder
-from ..masking import UNMASKING_CHANNEL_GROUPS
-from ..utils import DEFAULT_SEED, device
-from .eval import EvalTask, Hyperparams, model_class_name
-from .geobench_dataset import GeobenchBaseDataset
+from src.eval.eval import EvalTask, Hyperparams, model_class_name
+from src.eval.geobench_dataset import GeobenchBaseDataset
+from src.flexipresto import Encoder
+from src.masking import UNMASKING_CHANNEL_GROUPS
+from src.utils import DEFAULT_SEED, device
 
 ### SETUP
 torch.multiprocessing.set_sharing_strategy("file_system")

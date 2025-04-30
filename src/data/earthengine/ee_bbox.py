@@ -4,7 +4,7 @@ from typing import List, Tuple, Union
 
 import ee
 
-from ..bbox import BBox
+from src.data.bbox import BBox
 
 
 @dataclass
