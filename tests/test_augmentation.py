@@ -33,7 +33,10 @@ class TestAugmentation(unittest.TestCase):
         valid_data_mask_s_t_h = torch.ones_like(space_time_x)
         valid_data_mask_sp = torch.ones_like(space_x)
         new_space_time_x, new_space_x, valid_data_mask_s_t_h, valid_data_mask_sp = aug.apply(
-            space_time_x, space_x
+            space_time_x,
+            space_x,
+            valid_data_mask_s_t_h=valid_data_mask_s_t_h,
+            valid_data_mask_sp=valid_data_mask_sp,
         )
 
         # check that tensors were not changed when flip+rotate=False
