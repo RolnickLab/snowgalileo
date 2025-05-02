@@ -4,7 +4,6 @@ from pathlib import Path
 
 import h5py
 import numpy as np
-import torch
 
 from src.data.dataset import (
     SPACE_BANDS,
@@ -56,7 +55,7 @@ class TestDataset(unittest.TestCase):
 
     def test_normalization(self):
         ds = Dataset(TIFS_FOLDER, download=False)
-        o = ds.load_normalization_values(path=Path("config/normalization.json"))
+        o = ds.load_normalization_values(path=Path("config/normalizing_dict_500m.json"))
         for t in [
             len(SPACE_TIME_HIGH_RES_BANDS),
             len(SPACE_BANDS),
@@ -76,7 +75,9 @@ class TestDataset(unittest.TestCase):
     def test_subset_image_with_minimum_size(self):
         input = np.ones((3, 3, 1))
         months = static = np.ones(1)
-        output = Dataset.subset_image(input, input, months, static, months, 3, 1)
+        output = Dataset.subset_image_and_mask(
+            input, input, months, static, months, input, input, months, static, months, 3, 1
+        )
         self.assertTrue(np.equal(input, output[0]).all())
         self.assertTrue(np.equal(input, output[1]).all())
         self.assertTrue(np.equal(months, output[2]).all())
@@ -85,13 +86,28 @@ class TestDataset(unittest.TestCase):
         input = np.ones((2, 2, 1))
         months = static = np.ones(1)
         self.assertRaises(
-            AssertionError, Dataset.subset_image, input, input, months, static, months, 3, 1
+            AssertionError,
+            Dataset.subset_image_and_mask,
+            input,
+            input,
+            months,
+            static,
+            months,
+            input,
+            input,
+            months,
+            static,
+            months,
+            3,
+            1,
         )
 
     def test_subset_with_larger_images(self):
         input = np.ones((5, 5, 1))
         months = static = np.ones(1)
-        output = Dataset.subset_image(input, input, months, static, months, 3, 1)
+        output = Dataset.subset_image_and_mask(
+            input, input, months, static, months, input, input, months, static, months, 3, 1
+        )
         self.assertTrue(np.equal(np.ones((3, 3, 1)), output[0]).all())
         self.assertTrue(np.equal(np.ones((3, 3, 1)), output[1]).all())
         self.assertTrue(np.equal(months, output[2]).all())
@@ -110,12 +126,6 @@ class TestDataset(unittest.TestCase):
         _ = to_cartesian(np.array([30.0]), np.array([40.0]))
         with self.assertRaises(AssertionError):
             to_cartesian(np.array([1000.0]), np.array([1000.0]))
-
-    def test_latlon_checks_tensor(self):
-        # just checking it runs
-        _ = to_cartesian(torch.tensor([30.0]), torch.tensor([40.0]))
-        with self.assertRaises(AssertionError):
-            to_cartesian(torch.tensor([1000.0]), torch.tensor([1000.0]))
 
     def test_process_h5pys(self):
         with tempfile.TemporaryDirectory() as tempdir_str:

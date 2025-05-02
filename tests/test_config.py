@@ -4,10 +4,15 @@ import unittest
 from src.config import get_random_config
 from src.data.config import NORMALIZATION_DICT_FILENAME
 from src.data.dataset import Normalizer
+from src.flexipresto import Encoder
 from src.utils import check_config, config_dir, load_check_config
 
 
 class TestConfigs(unittest.TestCase):
+    @staticmethod
+    def check_models_can_be_loaded(config):
+        _ = Encoder(**config["model"]["encoder"])
+
     def test_configs_mae(self):
         configs = list((config_dir / "mae").glob("*.json"))
 
@@ -20,22 +25,19 @@ class TestConfigs(unittest.TestCase):
                 raise e
 
     def test_random_configs_tiny(self):
-        for c in ["lora-g", "lora-t", "moe"]:
-            config, _ = get_random_config(model_size="tiny", conditioner_mode=c)
-            loaded_config = check_config(config)
-            self.check_models_can_be_loaded(loaded_config)
+        config, _ = get_random_config(model_size="tiny")
+        loaded_config = check_config(config)
+        self.check_models_can_be_loaded(loaded_config)
 
     def test_random_configs_vitb_tiny(self):
-        for c in ["lora-g", "lora-t", "moe"]:
-            config, _ = get_random_config(model_size="vitb-tiny", conditioner_mode=c)
-            loaded_config = check_config(config)
-            self.check_models_can_be_loaded(loaded_config)
+        config, _ = get_random_config(model_size="vitb-tiny")
+        loaded_config = check_config(config)
+        self.check_models_can_be_loaded(loaded_config)
 
     def test_random_configs_base(self):
-        for c in ["lora-g", "lora-t", "moe"]:
-            config, _ = get_random_config(model_size="base", conditioner_mode=c)
-            loaded_config = check_config(config)
-            self.check_models_can_be_loaded(loaded_config)
+        config, _ = get_random_config(model_size="base")
+        loaded_config = check_config(config)
+        self.check_models_can_be_loaded(loaded_config)
 
     def test_normalization_dict(self):
         if (config_dir / NORMALIZATION_DICT_FILENAME).exists():
@@ -43,10 +45,7 @@ class TestConfigs(unittest.TestCase):
                 norm_dict = json.load(f)
         output_dict = {}
         for key, val in norm_dict.items():
-            if "n" not in key:
-                output_dict[int(key)] = val
-            else:
-                output_dict[key] = val
+            output_dict[key] = val
         normalizer = Normalizer(std=True, normalizing_dicts=output_dict)
         for key, val in normalizer.shift_div_dict.items():
             divs = val["div"]

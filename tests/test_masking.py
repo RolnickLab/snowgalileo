@@ -125,6 +125,10 @@ class TestMasking(unittest.TestCase):
             time_input = torch.ones((b, t, 8))
             static_input = torch.ones((b, 8))
             months = repeat(torch.arange(0, t), "t -> b t", b=b)
+            valid_data_mask_s_t_h = torch.ones_like(space_time_input)
+            valid_data_mask_sp = torch.ones_like(space_input)
+            valid_data_mask_t = torch.ones_like(time_input)
+            valid_data_mask_st = torch.ones_like(static_input)
             ratio = 0.25
             output = f(
                 space_time_input,
@@ -132,6 +136,10 @@ class TestMasking(unittest.TestCase):
                 time_input,
                 static_input,
                 months,
+                valid_data_mask_s_t_h,
+                valid_data_mask_sp,
+                valid_data_mask_t,
+                valid_data_mask_st,
                 encode_ratio=ratio,
                 decode_ratio=ratio,
                 mode=masking_modes,
@@ -161,6 +169,10 @@ class TestMasking(unittest.TestCase):
         space_input = torch.ones((b, h, w, 8))
         time_input = torch.ones((b, t, 8))
         static_input = torch.ones((b, 8))
+        valid_data_mask_s_t_h = torch.ones_like(space_time_input)  # (b, h, w, t, c)
+        valid_data_mask_sp = torch.ones_like(space_input)  # (b, h, w, c)
+        valid_data_mask_t = torch.ones_like(time_input)  # (b, t, c)
+        valid_data_mask_st = torch.ones_like(static_input)  # (b, c)
         months = repeat(torch.arange(0, t), "t -> b t", b=b)
         ratio = 0.25
 
@@ -170,6 +182,10 @@ class TestMasking(unittest.TestCase):
             time_input,
             static_input,
             months,
+            valid_data_mask_s_t_h,
+            valid_data_mask_sp,
+            valid_data_mask_t,
+            valid_data_mask_st,
             ratio,
             ratio,
             p,

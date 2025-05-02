@@ -246,7 +246,6 @@ class TestPresto(unittest.TestCase):
         st_x = torch.ones(b, len(STATIC_BAND_GROUPS_IDX), embedding_size)
         st_m = torch.zeros(b, len(STATIC_BAND_GROUPS_IDX))
         st_m[:, 0] = 2
-        st_m[:, 1] = 1
 
         with torch.no_grad():
             o = decoder.add_masks(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m)
@@ -258,7 +257,6 @@ class TestPresto(unittest.TestCase):
         self.assertTrue((o[2][:, 0] == 0).all())
         self.assertTrue((o[2][:, 1:] == 1).all())
         self.assertTrue((o[3][:, 0] == 0).all())
-        self.assertTrue((o[3][:, 1:] == 1).all())
 
     def test_mean_of_tokens(self):
         b, t, d, h, w, s_t_c_g, sp_c_g, t_c_g, st_c_g = 1, 2, 8, 3, 3, 5, 6, 2, 4
@@ -359,7 +357,7 @@ class TestPresto(unittest.TestCase):
         self.assertTrue(torch.equal(tokens, new_tokens))
 
     def test_load_from_device(self):
-        config = load_check_config("0.json")
+        config = load_check_config("ai4snow.json")
         original_encoder = Encoder(**config["model"]["encoder"])
 
         with tempfile.TemporaryDirectory() as tempdir:

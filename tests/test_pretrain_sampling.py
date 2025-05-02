@@ -55,7 +55,7 @@ class TestPretrainTemporalSampling(unittest.TestCase):
             )
             # Check if the sampled season is within the range
             # except mid season, which can be sampled from the previous year
-            if SEASON_START_DATE.startswith("12"):
+            if SEASON_START_DATE.month == 12:
                 self.assertTrue(
                     START_YEAR - 1 <= int(SEASON_START_DATE[:4]) <= END_YEAR + 1,
                     f"Start year {SEASON_START_DATE[:4]} is out of range {START_YEAR} to {END_YEAR + 1}",
