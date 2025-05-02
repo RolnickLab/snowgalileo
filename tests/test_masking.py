@@ -21,24 +21,30 @@ from src.masking import (
 
 class TestMasking(unittest.TestCase):
     def check_all_values_in_masks(
-        self, space_time_mask, space_mask, time_mask, static_mask, masking_modes, unmasking_modes
+        self,
+        space_time_high_mask,
+        space_mask,
+        time_mask,
+        static_mask,
+        masking_modes,
+        unmasking_modes,
     ):
         self.assertTrue(
-            (space_time_mask == 2).any()
+            (space_time_high_mask == 2).any()
             | (space_mask == 2).any()
             | (time_mask == 2).any()
             | (static_mask == 2).any(),
             f"2 check failed for {masking_modes}, {unmasking_modes}",
         )
         self.assertTrue(
-            (space_time_mask == 0).any()
+            (space_time_high_mask == 0).any()
             | (space_mask == 0).any()
             | (time_mask == 0).any()
             | (static_mask == 0).any(),
             f"0 check failed for {masking_modes}, {unmasking_modes}",
         )
         self.assertTrue(
-            (space_time_mask == 1).any()
+            (space_time_high_mask == 1).any()
             | (space_mask == 1).any()
             | (time_mask == 1).any()
             | (static_mask == 1).any(),
@@ -147,7 +153,7 @@ class TestMasking(unittest.TestCase):
                 patch_size=4,
             )
             self.check_all_values_in_masks(
-                output.space_time_mask,
+                output.space_time_high_mask,
                 output.space_mask,
                 output.time_mask,
                 output.static_mask,
@@ -156,7 +162,7 @@ class TestMasking(unittest.TestCase):
             )
             self.assertEqual(
                 (b, h, w, t, len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX)),
-                output.space_time_mask.shape,
+                output.space_time_high_mask.shape,
             )
             self.assertEqual((b, h, w, len(SPACE_BAND_GROUPS_IDX)), output.space_mask.shape)
             self.assertEqual((b, t, len(TIME_BANDS_GROUPS_IDX)), output.time_mask.shape)
@@ -191,7 +197,7 @@ class TestMasking(unittest.TestCase):
             p,
         )
         self.check_all_values_in_masks(
-            output.space_time_mask,
+            output.space_time_high_mask,
             output.space_mask,
             output.time_mask,
             output.static_mask,
@@ -199,7 +205,8 @@ class TestMasking(unittest.TestCase):
             "random",
         )
         self.assertEqual(
-            (b, h, w, t, len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX)), output.space_time_mask.shape
+            (b, h, w, t, len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX)),
+            output.space_time_high_mask.shape,
         )
         self.assertEqual((b, h, w, len(SPACE_BAND_GROUPS_IDX)), output.space_mask.shape)
         self.assertEqual((b, t, len(TIME_BANDS_GROUPS_IDX)), output.time_mask.shape)
@@ -208,8 +215,8 @@ class TestMasking(unittest.TestCase):
         for i in range(1, p):
             self.assertTrue(
                 torch.equal(
-                    output.space_time_mask[:, i::p, i::p],
-                    output.space_time_mask[:, i - 1 :: p, i - 1 :: p],
+                    output.space_time_high_mask[:, i::p, i::p],
+                    output.space_time_high_mask[:, i - 1 :: p, i - 1 :: p],
                 )
             )
             self.assertTrue(
@@ -218,7 +225,7 @@ class TestMasking(unittest.TestCase):
                     output.space_mask[:, i - 1 :: p, i - 1 :: p],
                 )
             )
-        space_time_per_token = output.space_time_mask[:, i::p, i::p]
+        space_time_per_token = output.space_time_high_mask[:, i::p, i::p]
         space_time_masked_per_instance = space_time_per_token[space_time_per_token == 1].sum()
         space_time_decode_per_instance = space_time_per_token[space_time_per_token == 2].sum()
         space_per_token = output.space_mask[:, i::p, i::p]

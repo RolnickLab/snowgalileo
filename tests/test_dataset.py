@@ -57,10 +57,10 @@ class TestDataset(unittest.TestCase):
         ds = Dataset(TIFS_FOLDER, download=False)
         o = ds.load_normalization_values(path=Path("config/normalizing_dict_500m.json"))
         for t in [
-            len(SPACE_TIME_HIGH_RES_BANDS),
-            len(SPACE_BANDS),
-            len(STATIC_BANDS),
-            len(TIME_BANDS),
+            "space_time_high_res",
+            "space",
+            "time",
+            "static",
         ]:
             subdict = o[t]
             self.assertTrue("mean" in subdict)
@@ -76,7 +76,7 @@ class TestDataset(unittest.TestCase):
         input = np.ones((3, 3, 1))
         months = static = np.ones(1)
         output = Dataset.subset_image_and_mask(
-            input, input, months, static, months, input, input, months, static, months, 3, 1
+            input, input, months, static, months, input, input, months, static, 3, 1
         )
         self.assertTrue(np.equal(input, output[0]).all())
         self.assertTrue(np.equal(input, output[1]).all())
@@ -97,7 +97,6 @@ class TestDataset(unittest.TestCase):
             input,
             months,
             static,
-            months,
             3,
             1,
         )
@@ -106,7 +105,7 @@ class TestDataset(unittest.TestCase):
         input = np.ones((5, 5, 1))
         months = static = np.ones(1)
         output = Dataset.subset_image_and_mask(
-            input, input, months, static, months, input, input, months, static, months, 3, 1
+            input, input, months, static, months, input, input, months, static, 3, 1
         )
         self.assertTrue(np.equal(np.ones((3, 3, 1)), output[0]).all())
         self.assertTrue(np.equal(np.ones((3, 3, 1)), output[1]).all())

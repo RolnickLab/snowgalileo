@@ -57,17 +57,17 @@ class TestPretrainTemporalSampling(unittest.TestCase):
             # except mid season, which can be sampled from the previous year
             if SEASON_START_DATE.month == 12:
                 self.assertTrue(
-                    START_YEAR - 1 <= int(SEASON_START_DATE[:4]) <= END_YEAR + 1,
-                    f"Start year {SEASON_START_DATE[:4]} is out of range {START_YEAR} to {END_YEAR + 1}",
+                    START_YEAR - 1 <= SEASON_START_DATE.year <= END_YEAR + 1,
+                    f"Start year {SEASON_START_DATE.year} is out of range {START_YEAR} to {END_YEAR + 1}",
                 )
             else:
                 self.assertTrue(
-                    START_YEAR <= int(WINDOW_START_DATE[:4]) <= END_YEAR,
-                    f"Start year {WINDOW_START_DATE[:4]} is out of range {START_YEAR} to {END_YEAR}",
+                    START_YEAR <= WINDOW_START_DATE.year <= END_YEAR,
+                    f"Start year {WINDOW_START_DATE.year} is out of range {START_YEAR} to {END_YEAR}",
                 )
                 self.assertTrue(
-                    START_YEAR <= int(WINDOW_END_DATE[:4]) <= END_YEAR,
-                    f"End year {WINDOW_END_DATE[:4]} is out of range {START_YEAR} to {END_YEAR}",
+                    START_YEAR <= WINDOW_END_DATE.year <= END_YEAR,
+                    f"End year {WINDOW_END_DATE.year} is out of range {START_YEAR} to {END_YEAR}",
                 )
 
             # test if window size is == NUM_TIMESTEPS
@@ -79,11 +79,8 @@ class TestPretrainTemporalSampling(unittest.TestCase):
 
             # test if year change is handled correctly
             # if the start date is in the end of december, the end date will be in the next year
-            if (
-                WINDOW_START_DATE.split("-")[1] == 12
-                and WINDOW_START_DATE.split("-")[2] >= 31 - NUM_TIMESTEPS
-            ):
+            if WINDOW_START_DATE.month == 12 and WINDOW_START_DATE.day >= 31 - NUM_TIMESTEPS:
                 self.assertTrue(
-                    WINDOW_END_DATE[:4] == SEASON_END_DATE.year + 1,
+                    WINDOW_END_DATE.year == SEASON_END_DATE.year + 1,
                     f"End year {WINDOW_END_DATE.year} is not equal to {SEASON_END_DATE.year + 1}",
                 )
