@@ -1,3 +1,5 @@
+from datetime import date
+
 import ee
 
 image_collection = "COPERNICUS/DEM/GLO30"
@@ -6,7 +8,7 @@ DEM_SHIFT_VALUES = [float(0.0), float(0.0), float(0.0)]
 DEM_DIV_VALUES = [float(1.0), float(1.0), float(1.0)]
 
 
-def get_single_dem_image(region: ee.Geometry) -> ee.Image:
+def get_single_dem_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
     elevation = ee.Image(image_collection).clip(region).select(DEM_BANDS[0])
     # Calculate slope. Units are degrees, range is [0,90]
     slope = ee.Terrain.slope(elevation)

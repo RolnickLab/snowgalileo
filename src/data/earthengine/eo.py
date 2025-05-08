@@ -420,7 +420,9 @@ def create_ee_image(
     # finally, we add the static in time images
     total_image_list: List[ee.Image] = [img]
     for space_image_function in SPACE_IMAGE_FUNCTIONS:
-        total_image_list.append(space_image_function(region=polygon))
+        total_image_list.append(
+            space_image_function(region=polygon, start_date=cur_date, end_date=cur_end_date)
+        )
 
     return ee.Image.cat(total_image_list)
 
