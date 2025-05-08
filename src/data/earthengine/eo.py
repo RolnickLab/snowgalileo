@@ -625,7 +625,7 @@ class EarthEngineExporter:
             seed = DEFAULT_SEED + i
 
             # sample seasons based on the hemisphere
-            if row[LAT] < 0:
+            if float(row[LAT]) < 0:
                 SEASONS = SOUTH_HEM_SEASONS
             else:
                 SEASONS = NORTH_HEM_SEASONS
