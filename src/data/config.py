@@ -138,7 +138,10 @@ CHANNEL_WISE_INVALID_DATA_THRESHOLDS: Dict[str, Dict] = {
         14: -2000,  # Landsat B7
     },
     "sp_x": {
-        0: 0,  # Map
+        0: -500,  # elevation
+        1: 0,  # slope
+        2: 0,  # aspect
+        3: 0,  # WC Map
     },
     "t_x": {
         0: -1000,  # S3
