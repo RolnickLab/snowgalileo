@@ -626,8 +626,8 @@ class Dataset(PyTorchDataset):
 
         # NDVI = (NIR - Red) / (NIR + Red)
         if MODALITIES["ndvi"].get("active"):
-            ndsi = cls.calculate_ndi(time_x, band_1="sur_refl_b02", band_2="sur_refl_b01")
-            time_x = np.concatenate((time_x, ndsi), axis=-1)
+            ndvi = cls.calculate_ndi(time_x, band_1="sur_refl_b02", band_2="sur_refl_b01")
+            time_x = np.concatenate((time_x, ndvi), axis=-1)
 
         space_x = rearrange(
             values[-len(SPACE_BANDS) :],

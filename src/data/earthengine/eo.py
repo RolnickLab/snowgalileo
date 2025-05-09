@@ -257,11 +257,11 @@ SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedD
         "S2_RGB": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B2", "B3", "B4"]],
         "S2_NIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B8"]],
         "S2_SWIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B11", "B12"]],
-        "L8_RGB": [
+        "L_RGB": [
             SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B2_landsat", "B3_landsat", "B4_landsat"]
         ],
-        "L8_NIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B5_landsat"]],
-        "L8_SWIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B6_landsat", "B7_landsat"]],
+        "L_NIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B5_landsat"]],
+        "L_SWIR": [SPACE_TIME_HIGH_RES_BANDS.index(b) for b in ["B6_landsat", "B7_landsat"]],
     }
 )
 
