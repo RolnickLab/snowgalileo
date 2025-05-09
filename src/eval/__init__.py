@@ -1,4 +1,4 @@
-from .eurosat_eval import EuroSatEval
+from src.eval.eurosat_eval import EuroSatEval
 
 __all__ = [
     "EuroSatEval",

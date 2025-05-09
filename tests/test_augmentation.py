@@ -11,7 +11,14 @@ class TestAugmentation(unittest.TestCase):
         aug = FlipAndRotateSpace(enabled=True)
         space_x = torch.randn(100, 10, 10, 3)  # (b, h, w, c)
         space_time_x = repeat(space_x.clone(), "b h w c -> b h w t c", t=8)
-        new_space_time_x, new_space_x = aug.apply(space_time_x, space_x)
+        valid_data_mask_s_t_h = torch.ones_like(space_time_x)  # (b, h, w, t, c)
+        valid_data_mask_sp = torch.ones_like(space_x)  # (b, h, w, c)
+        new_space_time_x, new_space_x, valid_data_mask_s_t_h, valid_data_mask_sp = aug.apply(
+            space_time_x,
+            space_x,
+            valid_data_mask_s_t_h=valid_data_mask_s_t_h,
+            valid_data_mask_sp=valid_data_mask_sp,
+        )
 
         # check that space_x and space_time_x are transformed the *same* way
         self.assertTrue(torch.equal(new_space_time_x.mean(dim=-2), new_space_x))
@@ -23,7 +30,14 @@ class TestAugmentation(unittest.TestCase):
         aug = FlipAndRotateSpace(enabled=False)
         space_x = torch.randn(100, 10, 10, 3)  # (b, h, w, c)
         space_time_x = repeat(space_x.clone(), "b h w c -> b h w t c", t=8)
-        new_space_time_x, new_space_x = aug.apply(space_time_x, space_x)
+        valid_data_mask_s_t_h = torch.ones_like(space_time_x)
+        valid_data_mask_sp = torch.ones_like(space_x)
+        new_space_time_x, new_space_x, valid_data_mask_s_t_h, valid_data_mask_sp = aug.apply(
+            space_time_x,
+            space_x,
+            valid_data_mask_s_t_h=valid_data_mask_s_t_h,
+            valid_data_mask_sp=valid_data_mask_sp,
+        )
 
         # check that tensors were not changed when flip+rotate=False
         self.assertTrue(torch.equal(new_space_time_x, space_time_x))

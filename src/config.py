@@ -1,5 +1,5 @@
 import random
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Union
 
 BASE_GSD_HIGH_RES = 10
 BASE_GSD_MED_RES = 300
@@ -9,7 +9,6 @@ DEFAULT_SEED = 42
 
 def get_random_config(
     model_size: str = "tiny",
-    conditioner_mode: Optional[str] = None,
 ):
     config: Dict[str, Dict] = {"training": {}, "model": {}}
 
@@ -58,27 +57,7 @@ def get_random_config(
     config["model"]["decoder"]["max_sequence_length"] = 24
     config["model"]["decoder"]["learnable_channel_embeddings"] = random.choice([True, False])
 
-    if conditioner_mode is not None:
-        assert conditioner_mode in [
-            "moe",
-            "lora-t",
-            "lora-g",
-            "token",
-        ], f"Expected moe or lora-[t,g], got {conditioner_mode}"
-        config["training"]["conditioner_mode"] = conditioner_mode
-    else:
-        config["training"]["conditioner_mode"] = random.choice(
-            ["moe", "lora-t", "lora-g", "token"]
-        )
-    if "lora" in config["training"]["conditioner_mode"]:
-        config["model"]["conditioner"] = {}
-        config["model"]["conditioner"]["rank"] = random.choice([12, 32])
-        config["training"]["max_lr"] = random.choice([8e-4, 1e-3])
-        if config["training"]["conditioner_mode"] == "lora-g":
-            config["model"]["conditioner"]["do_input_condition"] = False
-            config["model"]["conditioner"]["dim"] = random.choice([128, 256])
-    else:
-        config["training"]["max_lr"] = random.choice([1e-3, 2e-3, 3e-3])
+    config["training"]["max_lr"] = random.choice([1e-3, 2e-3, 3e-3])
 
     ### OPTIMIZATION ###
     config["training"]["num_epochs"] = 300
@@ -86,12 +65,10 @@ def get_random_config(
     config["training"]["effective_batch_size"] = 512
     config["training"]["warmup_epochs"] = 0.1
     config["training"]["final_lr"] = 1e-6
-    config["training"]["conditioner_multiplier"] = 0.1
     config["training"]["random_masking"] = random.choice(["full", "half", "none"])
     config["training"]["unmasking_channels_combo"] = random.choice(["shapes", "all"])
     weight_decay = random.choice([0.01, 0.02])
     config["training"]["weight_decay"] = weight_decay
-    config["training"]["conditioner_weight_decay"] = weight_decay
     config["training"]["grad_clip"] = True
     config["training"]["betas"] = [0.9, 0.999]
     config["training"]["ema"] = [0.996, 1.0]
@@ -131,7 +108,6 @@ def get_random_config(
     encoder_depth = config["model"]["encoder"]["depth"]
     possible_exit_depths: List[Union[str, int]] = [0, encoder_depth // 2, encoder_depth]
     config["training"]["target_exit_after"] = random.choice(possible_exit_depths)
-    config["training"]["target_condition"] = False
 
     ### LOSS ###
     config["training"]["loss_type"] = "patch_disc"
@@ -146,5 +122,5 @@ def get_random_config(
     ### LOGGING ###
     config["training"]["eval_eurosat_every_n_epochs"] = 10
 
-    run_name = f"{model_size}_{config['training']['conditioner_mode']}_DecEmb:{config['model']['decoder']['learnable_channel_embeddings']}_Loss:{loss_name}_LRs:{config['training']['max_lr']}:{config['training']['conditioner_multiplier']}_WDs:{config['training']['weight_decay']}:{config['training']['conditioner_weight_decay']}"
+    run_name = f"{model_size}_{config['training']}_DecEmb:{config['model']['decoder']['learnable_channel_embeddings']}_Loss:{loss_name}_LRs:{config['training']['max_lr']}:{config['training']['weight_decay']}"
     return config, run_name

@@ -11,8 +11,8 @@ import numpy as np
 import torch
 import wandb
 
-from .config import DEFAULT_SEED
-from .data.earthengine.eo import (
+from src.config import DEFAULT_SEED
+from src.data.earthengine.eo import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_HIGH_RES_BANDS,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
@@ -21,7 +21,7 @@ from .data.earthengine.eo import (
     STATIC_BAND_GROUPS_IDX,
     TIME_BANDS_GROUPS_IDX,
 )
-from .masking import MASKING_MODES, UNMASKING_CHANNEL_GROUPS, MaskedOutput
+from src.masking import MASKING_MODES, MaskedOutput
 
 data_dir = Path(__file__).parent.parent / "data"
 logging_dir = Path(__file__).parent.parent / "logs"
@@ -100,15 +100,12 @@ def check_config(config):
         "patch_sizes_low_res": list,
         "max_lr": float,
         "final_lr": float,
-        "conditioner_multiplier": float,
         "warmup_epochs": (int, float),
         "eval_eurosat_every_n_epochs": int,
         "shape_time_combinations": list,
         "augmentation": dict,
         "masking_probabilities": list,
         "grad_clip": bool,
-        "target_condition": bool,
-        "conditioner_mode": str,
         "normalization": str,
         "random_masking": str,
     }
@@ -123,9 +120,9 @@ def check_config(config):
         ), f"Expected {key} to be {val}, got {type(training_dict[key])}"
     for key, val in optional_training_keys_type_default.items():
         if key in training_dict:
-            assert isinstance(
-                training_dict[key], val[0]
-            ), f"Expected {key} to be {val}, got {type(training_dict[key])}"
+            assert isinstance(training_dict[key], val[0]), (
+                f"Expected {key} to be {val}, got {type(training_dict[key])}"
+            )
         else:
             print(f"{key} missing from training dict. Filling with default value {val[1]}")
             config["training"][key] = val[1]
@@ -149,11 +146,11 @@ def check_config(config):
     assert isinstance(training_dict["warmup_epochs"], int)
     assert training_dict["num_epochs"] > training_dict["warmup_epochs"]
     assert training_dict["normalization"] in ["std", "scaling"]
-    assert training_dict["random_masking"] in ["half", "full", "none"]
+    assert training_dict["random_masking"] in ["half", "full", "none", "time_only"]
 
-    assert len(training_dict["masking_probabilities"]) == len(
-        MASKING_MODES
-    ), f"Expected {len(MASKING_MODES)}, got {len(training_dict['masking_probabilities'])}"
+    assert len(training_dict["masking_probabilities"]) == len(MASKING_MODES), (
+        f"Expected {len(MASKING_MODES)}, got {len(training_dict['masking_probabilities'])}"
+    )
 
     for combination in training_dict["shape_time_combinations"]:
         assert "timesteps" in combination.keys()
@@ -209,30 +206,6 @@ def check_config(config):
         config["model"]["decoder"]["output_embedding_size"] = (
             max_patch_size_high_res**2
         ) * max_group_length
-
-    assert config["training"]["conditioner_mode"] in [
-        "moe",
-        "lora-t",
-        "lora-g",
-        "no_cond",
-        "token",
-    ]
-
-    if config["training"]["conditioner_mode"] == "moe":
-        config["model"]["conditioner"] = {"num_output_channels": len(UNMASKING_CHANNEL_GROUPS)}
-
-    elif "lora" in config["training"]["conditioner_mode"]:
-        config["model"]["conditioner"]["num_output_channels"] = len(UNMASKING_CHANNEL_GROUPS)
-        config["model"]["conditioner"]["backbone_dim"] = config["model"]["encoder"][
-            "embedding_size"
-        ]
-        config["model"]["conditioner"]["backbone_depth"] = config["model"]["encoder"]["depth"]
-        config["model"]["conditioner"]["mlp_ratio"] = config["model"]["encoder"]["mlp_ratio"]
-    elif config["training"]["conditioner_mode"] == "token":
-        config["model"]["conditioner"] = {
-            "num_output_channels": len(UNMASKING_CHANNEL_GROUPS),
-            "backbone_dim": config["model"]["encoder"]["embedding_size"],
-        }
 
     return config
 

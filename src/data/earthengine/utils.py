@@ -7,7 +7,7 @@ from typing import Union
 
 import ee
 
-from ..config import NO_DATA_VALUE
+from src.data.config import NO_DATA_VALUE
 
 
 def get_ee_credentials():
@@ -33,7 +33,7 @@ def create_placeholder(region: ee.Geometry, selected_bands, fill_value=NO_DATA_V
     """
     Creates a placeholder image for a region with constant values for each band in selected_bands.
     """
-    constant_bands = [ee.Image.constant(fill_value).rename(band) for band in selected_bands]
+    constant_bands = [ee.Image(ee.Number(fill_value)).rename(band) for band in selected_bands]
 
     placeholder_image = ee.Image.cat(constant_bands).clip(region)
     return placeholder_image
@@ -54,10 +54,10 @@ def sample_time_window(start_date: str, end_date: str, window_size: int, seed=No
     if seed is not None:
         random.seed(seed)
 
-    start_date = datetime.strptime(start_date, "%Y-%m-%d")
-    end_date = datetime.strptime(end_date, "%Y-%m-%d")
+    start_date_tp = datetime.strptime(start_date, "%Y-%m-%d")
+    end_date_tp = datetime.strptime(end_date, "%Y-%m-%d")
 
-    total_days = (end_date - start_date).days + 1
+    total_days = (end_date_tp - start_date_tp).days + 1
 
     # ensure the window fits in the range
     max_start_day = total_days - window_size
@@ -66,7 +66,7 @@ def sample_time_window(start_date: str, end_date: str, window_size: int, seed=No
 
     random_start = random.randint(0, max_start_day + 1)
 
-    window_start = start_date + timedelta(days=random_start)
+    window_start = start_date_tp + timedelta(days=random_start)
     window_end = window_start + timedelta(days=window_size - 1)
     time_window = (window_start.date(), window_end.date())
 
@@ -91,8 +91,8 @@ def sample_season_year(season, start_year, end_year, seed=None):
     season, (start_date, end_date) = season
 
     if end_date.startswith("02"):
-        # We can sample from October 2016, so we can sample from the previous year if we have the mid season
-        # TODO: This is hacky and not generalizable
+        # We can sample from the previous year if we have the mid season
+        # TODO: This is hacky, we should handle this better
         assert start_date.startswith("12")
         start_year = start_year - 1
         sampled_year = random.randint(start_year, end_year)

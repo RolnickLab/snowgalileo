@@ -2,7 +2,7 @@ from datetime import date
 
 import ee
 
-from .utils import create_placeholder, date_to_string
+from src.data.earthengine.utils import create_placeholder, date_to_string
 
 # TODO: check if we have to convert no data values to double
 
@@ -36,19 +36,15 @@ S2_BANDS = [
     "B11",
     "B12",
 ]
+
 REMOVED_BANDS = [item for item in ALL_S2_BANDS if item not in S2_BANDS]
 S2_SHIFT_VALUES = [float(0.0)] * len(S2_BANDS)
 S2_DIV_VALUES = [float(1e4)] * len(S2_BANDS)
 
 
 def get_single_s2_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
-    dates = ee.DateRange(
-        date_to_string(start_date),
-        date_to_string(end_date),
-    )
-
-    startDate = ee.DateRange(dates).start()
-    endDate = ee.DateRange(dates).end()
+    startDate = ee.Date(date_to_string(start_date))
+    endDate = ee.Date(date_to_string(end_date))
 
     image = (
         ee.ImageCollection(image_collection)

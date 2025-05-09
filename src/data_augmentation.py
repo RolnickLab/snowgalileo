@@ -59,7 +59,7 @@ class FlipAndRotateSpace(object):
         valid_data_mask_s_t_m: torch.Tensor,
         valid_data_mask_s_t_l: torch.Tensor,
         valid_data_mask_sp: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         if not self.enabled:
             return space_time_h_x, space_time_m_x, space_time_l_x, space_x, valid_data_mask_s_t_h, valid_data_mask_s_t_m, valid_data_mask_s_t_l, valid_data_mask_sp
 

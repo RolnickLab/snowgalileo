@@ -2,7 +2,7 @@ from datetime import date
 
 import ee
 
-from .utils import create_placeholder, date_to_string
+from src.data.earthengine.utils import create_placeholder, date_to_string
 
 image_collection = "COPERNICUS/S1_GRD"
 S1_BANDS = ["VV", "VH", "angle"]
@@ -16,13 +16,8 @@ def get_single_s1_image(
     start_date: date,
     end_date: date,
 ) -> ee.Image:
-    dates = ee.DateRange(
-        date_to_string(start_date),
-        date_to_string(end_date),
-    )
-
-    startDate = ee.DateRange(dates).start()
-    endDate = ee.DateRange(dates).end()
+    startDate = ee.Date(date_to_string(start_date))
+    endDate = ee.Date(date_to_string(end_date))
 
     s1 = (
         ee.ImageCollection(image_collection)

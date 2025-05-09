@@ -13,14 +13,10 @@ from src.masking import (
 
 class CollateFnOutput(NamedTuple):
     s_t_h_x: torch.Tensor
-    s_t_m_x: torch.Tensor
-    s_t_l_x: torch.Tensor
     sp_x: torch.Tensor
     t_x: torch.Tensor
     st_x: torch.Tensor
     s_t_h_m: torch.Tensor
-    s_t_m_m: torch.Tensor
-    s_t_l_m: torch.Tensor
     sp_m: torch.Tensor
     t_m: torch.Tensor
     st_m: torch.Tensor
@@ -33,8 +29,6 @@ class CollateFnOutput(NamedTuple):
 
 def collated_batch_to_output(
     s_t_h_x: torch.Tensor,
-    s_t_m_x: torch.Tensor,
-    s_t_l_x: torch.Tensor,
     sp_x: torch.Tensor,
     t_x: torch.Tensor,
     st_x: torch.Tensor,
@@ -141,14 +135,10 @@ def collated_batch_to_output(
 
     return CollateFnOutput(
         s_t_h_x,
-        s_t_m_x,
-        s_t_l_x,
         sp_x,
         t_x,
         st_x,
         s_t_h_m,
-        s_t_m_m,
-        s_t_l_m,
         sp_m,
         t_m,
         st_m,
@@ -183,8 +173,6 @@ def mae_collate_fn(
 
     input_args = {
         "s_t_h_x": s_t_h_x,
-        "s_t_m_x": s_t_m_x,
-        "s_t_l_x": s_t_l_x,
         "sp_x": sp_x,
         "t_x": t_x,
         "st_x": st_x,
@@ -246,6 +234,26 @@ def mae_collate_fn(
             collated_batch_to_output(
                 **input_args,
                 masking_function=MaskingFunctions.RANDOM,
+            ),
+        )
+    elif random_masking == "time_only":
+        print("only masks over time")
+        return (
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.TIME,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.TIME,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.TIME,
+            ),
+            collated_batch_to_output(
+                **input_args,
+                masking_function=MaskingFunctions.TIME,
             ),
         )
     elif random_masking == "full":

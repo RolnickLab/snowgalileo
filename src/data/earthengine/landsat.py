@@ -2,7 +2,7 @@ from datetime import date
 
 import ee
 
-from .utils import create_placeholder, date_to_string
+from src.data.earthengine.utils import create_placeholder, date_to_string
 
 image_collection_l08 = "LANDSAT/LC08/C02/T1_TOA"
 image_collection_l09 = "LANDSAT/LC09/C02/T1_TOA"
@@ -24,18 +24,14 @@ LANDSAT_BANDS = [
     "B6_landsat",
     "B7_landsat",
 ]
+
 LANDSAT_SHIFT_VALUES = [float(0.0)] * len(LANDSAT_BANDS)
 LANDSAT_DIV_VALUES = [float(1e4)] * len(LANDSAT_BANDS)
 
 # first checks if Landsat 9 is available, if not, it uses Landsat 8
 def get_single_landsat_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
-    dates = ee.DateRange(
-        date_to_string(start_date),
-        date_to_string(end_date),
-    )
-
-    startDate = ee.DateRange(dates).start()
-    endDate = ee.DateRange(dates).end()
+    startDate = ee.Date(date_to_string(start_date))
+    endDate = ee.Date(date_to_string(end_date))
 
     image = (
         ee.ImageCollection(image_collection_l09)

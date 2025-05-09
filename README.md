@@ -2,11 +2,6 @@
 
 Project Stage:
 - Data export all_bands_500m, EPSG:4326, scale 10m
-- Running second 500 of each index subgroup
-
-TODO:
-- Visually test exports
-- transfer normalization values
 
 ### 0. Structure
 
