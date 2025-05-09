@@ -52,7 +52,7 @@ for key, values in STR2DICT.items():
 SHAPES = list(STR2DICT.keys())
 MASKING_MODES: List[Tuple[str, str]] = [
     ("space", "DEM"),
-    ("space", "WC")
+    ("space", "WC"),
     ("space_time_high_res", "S1"),
     ("space_time_high_res", "S2_RGB"),
     ("space_time_high_res", "S2_NIR"),

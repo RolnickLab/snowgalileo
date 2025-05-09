@@ -78,8 +78,14 @@ MODALITIES = {
         "active": True,
         "export": True,
     },
-    "srtm": {
+    "dem": {
         "original_resolution": 30,
+        "shape_type": "sp_x",
+        "active": True,
+        "export": True,
+    },
+    "wc": {
+        "original_resolution": 10,
         "shape_type": "sp_x",
         "active": True,
         "export": True,
@@ -131,18 +137,12 @@ CHANNEL_WISE_INVALID_DATA_THRESHOLDS: Dict[str, Dict] = {
         6: -2000,  # S2 B8
         7: -2000,  # S2 B11
         8: -2000,  # S2 B12
-        9: -2000,  # Landsat 8 B2
-        10: -2000,  # Landsat 8 B3
-        11: -2000,  # Landsat 8 B4
-        12: -2000,  # Landsat 8 B5
-        13: -2000,  # Landsat 8 B6
-        14: -2000,  # Landsat 8 B7
-        15: -2000,  # Landsat 9 B2
-        16: -2000,  # Landsat 9 B3
-        17: -2000,  # Landsat 9 B4
-        18: -2000,  # Landsat 9 B5
-        19: -2000,  # Landsat 9 B6
-        20: -2000,  # Landsat 9 B7
+        9: -2000,  # Landsat B2
+        10: -2000,  # Landsat B3
+        11: -2000,  # Landsat B4
+        12: -2000,  # Landsat B5
+        13: -2000,  # Landsat B6
+        14: -2000,  # Landsat B7
     },
     "s_t_m_x": {
         0: -1000,  # S3
