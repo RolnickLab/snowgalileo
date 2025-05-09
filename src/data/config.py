@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any, Dict
 
 DAYS_PER_TIMESTEP = 1
 
@@ -104,16 +105,22 @@ MODALITIES = {
 }
 
 # inclusive (i.e., the end date of a season is included in the season)
-SEASONS = {
+NORTH_HEM_SEASONS = {
     "early": ("10-01", "12-15"),
     "mid": ("12-16", "02-28"),
     "late": ("03-01", "06-30"),
 }
 
+SOUTH_HEM_SEASONS = {
+    "early": ("04-01", "06-15"),
+    "mid": ("06-16", "08-28"),
+    "late": ("09-01", "12-30"),
+}
+
 NO_DATA_VALUE = -9999
 
 # TODO: this is a bit hard-coded; empirically identified lower bound thresholds (inclusive) to avoid outliers in the input data
-CHANNEL_WISE_INVALID_DATA_THRESHOLDS = {
+CHANNEL_WISE_INVALID_DATA_THRESHOLDS: Dict[str, Dict] = {
     "s_t_h_x": {
         0: -50,  # S1 VV
         1: -50,  # S1 VH
@@ -147,13 +154,18 @@ CHANNEL_WISE_INVALID_DATA_THRESHOLDS = {
         2: -100,  # MODIS
         3: -100,  # MODIS
         4: -100,  # MODIS
-        5: -0.01,  # VIIRS
-        6: -0.01,  # VIIRS
-        7: -5,  # NDSI
+        5: -100,  # MODIS
+        6: -100,  # MODIS
+        7: -0.01,  # VIIRS
+        8: -0.01,  # VIIRS
+        9: -5,  # NDSI
+        10: -5,  # NDVI
     },
     "sp_x": {
-        0: -10,  # SRTM elevation
-        1: -10,  # SRTM slope
+        0: -500,  # elevation
+        1: 0,  # slope
+        2: 0,  # aspect
+        3: 0,  # WC Map
     },
     "t_x": {
         0: -0.01,  # VIIRS
