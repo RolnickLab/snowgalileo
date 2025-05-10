@@ -401,7 +401,7 @@ def create_ee_image(
 
         for image_function in TIME_IMAGE_FUNCTIONS:
             image_list.append(
-                image_function(region=polygon, start_date=cur_date, end_date=cur_end_date)
+                image_function(region=polygon, start_date=cur_date.strftime("%Y-%m-%d"), end_date=cur_end_date.strftime("%Y-%m-%d"))
             )
 
         image_collection_list.append(ee.Image.cat(image_list))
@@ -417,7 +417,7 @@ def create_ee_image(
     total_image_list: List[ee.Image] = [img]
     for space_image_function in SPACE_IMAGE_FUNCTIONS:
         total_image_list.append(
-            space_image_function(region=polygon, start_date=cur_date, end_date=cur_end_date)
+            space_image_function(region=polygon, start_date=cur_date.strftime("%Y-%m-%d"), end_date=cur_end_date.strftime("%Y-%m-%d"))
         )
 
     return ee.Image.cat(total_image_list)
