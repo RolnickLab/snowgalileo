@@ -258,14 +258,16 @@ SPACE_TIME_MED_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDi
 SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
         "MODIS_RGB": [
-            TIME_BANDS.index(b) for b in ["sur_refl_b01", "sur_refl_b03", "sur_refl_b04"]
+            SPACE_TIME_LOW_RES_BANDS.index(b)
+            for b in ["sur_refl_b01", "sur_refl_b03", "sur_refl_b04"]
         ],
-        "MODIS_NIR": [TIME_BANDS.index(b) for b in ["sur_refl_b02"]],
+        "MODIS_NIR": [SPACE_TIME_LOW_RES_BANDS.index(b) for b in ["sur_refl_b02"]],
         "MODIS_SWIR": [
-            TIME_BANDS.index(b) for b in ["sur_refl_b05", "sur_refl_b06", "sur_refl_b07"]
+            SPACE_TIME_LOW_RES_BANDS.index(b)
+            for b in ["sur_refl_b05", "sur_refl_b06", "sur_refl_b07"]
         ],
-        "VIIRS_RGB_FINE": [TIME_BANDS.index(b) for b in ["I1"]],
-        "VIIRS_VNIR_FINE": [TIME_BANDS.index(b) for b in ["I3"]],
+        "VIIRS_RGB_FINE": [SPACE_TIME_LOW_RES_BANDS.index(b) for b in ["I1"]],
+        "VIIRS_VNIR_FINE": [SPACE_TIME_LOW_RES_BANDS.index(b) for b in ["I3"]],
     }
 )
 
