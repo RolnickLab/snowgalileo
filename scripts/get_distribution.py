@@ -1,11 +1,12 @@
-from src.data.dataset import Dataset, Normalizer
-from src.data.config import DATA_FOLDER, TIFS_FOLDER, NO_DATA_VALUE, NORMALIZATION_DICT_FILENAME
-from torch.utils.data import DataLoader
-from src.collate_fns import mae_collate_fn
-import json
 from functools import partial
-from src.utils import load_check_config, config_dir
+
 import torch
+from torch.utils.data import DataLoader
+
+from src.collate_fns import mae_collate_fn
+from src.data.config import NO_DATA_VALUE, NORMALIZATION_DICT_FILENAME, TIFS_FOLDER
+from src.data.dataset import Dataset, Normalizer
+from src.utils import config_dir, load_check_config
 
 config = load_check_config("ai4snow.json")
 training_config = config["training"]
@@ -36,7 +37,9 @@ dataloader = DataLoader(
     num_workers=0,
     collate_fn=partial(
         mae_collate_fn,
-        patch_sizes=training_config["patch_sizes"],
+        patch_sizes_high_res=training_config["patch_sizes_high_res"],
+        patch_sizes_med_res=training_config["patch_sizes_med_res"],
+        patch_sizes_low_res=training_config["patch_sizes_low_res"],
         shape_time_combinations=training_config["shape_time_combinations"],
         encode_ratio=training_config["encode_ratio"],
         decode_ratio=training_config["decode_ratio"],
@@ -86,62 +89,110 @@ for i, batch in enumerate(dataloader):
             assert t_x.shape == valid_mask_t.shape
             assert st_x.shape == valid_mask_st.shape
 
-            #import pdb; pdb.set_trace()
+            # import pdb; pdb.set_trace()
 
             # Compute mean and std per channel, excluding NO_DATA_VALUE
-            s_t_h_x_mean = torch.tensor([
-                torch.mean(s_t_h_x[..., i][valid_mask_s_t_h[..., i]]) if valid_mask_s_t_h[..., i].any() else float('nan')
-                for i in range(s_t_h_x.shape[-1])
-            ])
-            s_t_h_x_std = torch.tensor([
-                torch.std(s_t_h_x[..., i][valid_mask_s_t_h[..., i]]) if valid_mask_s_t_h[..., i].any() else float('nan')
-                for i in range(s_t_h_x.shape[-1])
-            ])
+            s_t_h_x_mean = torch.tensor(
+                [
+                    torch.mean(s_t_h_x[..., i][valid_mask_s_t_h[..., i]])
+                    if valid_mask_s_t_h[..., i].any()
+                    else float("nan")
+                    for i in range(s_t_h_x.shape[-1])
+                ]
+            )
+            s_t_h_x_std = torch.tensor(
+                [
+                    torch.std(s_t_h_x[..., i][valid_mask_s_t_h[..., i]])
+                    if valid_mask_s_t_h[..., i].any()
+                    else float("nan")
+                    for i in range(s_t_h_x.shape[-1])
+                ]
+            )
 
-            s_t_m_x_mean = torch.tensor([
-                torch.mean(s_t_m_x[..., i][valid_mask_s_t_m[..., i]]) if valid_mask_s_t_m[..., i].any() else float('nan')
-                for i in range(s_t_m_x.shape[-1])
-            ])
-            s_t_m_x_std = torch.tensor([
-                torch.std(s_t_m_x[..., i][valid_mask_s_t_m[..., i]]) if valid_mask_s_t_m[..., i].any() else float('nan')
-                for i in range(s_t_m_x.shape[-1])
-            ])
+            s_t_m_x_mean = torch.tensor(
+                [
+                    torch.mean(s_t_m_x[..., i][valid_mask_s_t_m[..., i]])
+                    if valid_mask_s_t_m[..., i].any()
+                    else float("nan")
+                    for i in range(s_t_m_x.shape[-1])
+                ]
+            )
+            s_t_m_x_std = torch.tensor(
+                [
+                    torch.std(s_t_m_x[..., i][valid_mask_s_t_m[..., i]])
+                    if valid_mask_s_t_m[..., i].any()
+                    else float("nan")
+                    for i in range(s_t_m_x.shape[-1])
+                ]
+            )
 
-            s_t_l_x_mean = torch.tensor([
-                torch.mean(s_t_l_x[..., i][valid_mask_s_t_l[..., i]]) if valid_mask_s_t_l[..., i].any() else float('nan')
-                for i in range(s_t_l_x.shape[-1])
-            ])
-            s_t_l_x_std = torch.tensor([
-                torch.std(s_t_l_x[..., i][valid_mask_s_t_l[..., i]]) if valid_mask_s_t_l[..., i].any() else float('nan')
-                for i in range(s_t_l_x.shape[-1])
-            ])
+            s_t_l_x_mean = torch.tensor(
+                [
+                    torch.mean(s_t_l_x[..., i][valid_mask_s_t_l[..., i]])
+                    if valid_mask_s_t_l[..., i].any()
+                    else float("nan")
+                    for i in range(s_t_l_x.shape[-1])
+                ]
+            )
+            s_t_l_x_std = torch.tensor(
+                [
+                    torch.std(s_t_l_x[..., i][valid_mask_s_t_l[..., i]])
+                    if valid_mask_s_t_l[..., i].any()
+                    else float("nan")
+                    for i in range(s_t_l_x.shape[-1])
+                ]
+            )
 
-            sp_x_mean = torch.tensor([
-                torch.mean(sp_x[..., i][valid_mask_sp[..., i]]) if valid_mask_sp[..., i].any() else float('nan')
-                for i in range(sp_x.shape[-1])
-            ])
-            sp_x_std = torch.tensor([
-                torch.std(sp_x[..., i][valid_mask_sp[..., i]]) if valid_mask_sp[..., i].any() else float('nan')
-                for i in range(sp_x.shape[-1])
-            ])
+            sp_x_mean = torch.tensor(
+                [
+                    torch.mean(sp_x[..., i][valid_mask_sp[..., i]])
+                    if valid_mask_sp[..., i].any()
+                    else float("nan")
+                    for i in range(sp_x.shape[-1])
+                ]
+            )
+            sp_x_std = torch.tensor(
+                [
+                    torch.std(sp_x[..., i][valid_mask_sp[..., i]])
+                    if valid_mask_sp[..., i].any()
+                    else float("nan")
+                    for i in range(sp_x.shape[-1])
+                ]
+            )
 
-            t_x_mean = torch.tensor([
-                torch.mean(t_x[..., i][valid_mask_t[..., i]]) if valid_mask_t[..., i].any() else float('nan')
-                for i in range(t_x.shape[-1])
-            ])
-            t_x_std = torch.tensor([
-                torch.std(t_x[..., i][valid_mask_t[..., i]]) if valid_mask_t[..., i].any() else float('nan')
-                for i in range(t_x.shape[-1])
-            ])
+            t_x_mean = torch.tensor(
+                [
+                    torch.mean(t_x[..., i][valid_mask_t[..., i]])
+                    if valid_mask_t[..., i].any()
+                    else float("nan")
+                    for i in range(t_x.shape[-1])
+                ]
+            )
+            t_x_std = torch.tensor(
+                [
+                    torch.std(t_x[..., i][valid_mask_t[..., i]])
+                    if valid_mask_t[..., i].any()
+                    else float("nan")
+                    for i in range(t_x.shape[-1])
+                ]
+            )
 
-            st_x_mean = torch.tensor([
-                torch.mean(st_x[...,i][valid_mask_st[...,i]]) if valid_mask_st[...,i].any() else float('nan')
-                for i in range(st_x.shape[-1])
-            ])
-            st_x_std = torch.tensor([
-                torch.std(st_x[...,i][valid_mask_st[...,i]]) if valid_mask_st[...,i].any() else float('nan')
-                for i in range(st_x.shape[-1])
-            ])
+            st_x_mean = torch.tensor(
+                [
+                    torch.mean(st_x[..., i][valid_mask_st[..., i]])
+                    if valid_mask_st[..., i].any()
+                    else float("nan")
+                    for i in range(st_x.shape[-1])
+                ]
+            )
+            st_x_std = torch.tensor(
+                [
+                    torch.std(st_x[..., i][valid_mask_st[..., i]])
+                    if valid_mask_st[..., i].any()
+                    else float("nan")
+                    for i in range(st_x.shape[-1])
+                ]
+            )
 
             for i, (mean, std) in enumerate(zip(s_t_h_x_mean, s_t_h_x_std)):
                 print(f"s_t_x channel {i}: Mean = {mean.item():.4f}, Std = {std.item():.4f}")
@@ -154,7 +205,7 @@ for i, batch in enumerate(dataloader):
 
             for i, (mean, std) in enumerate(zip(sp_x_mean, sp_x_std)):
                 print(f"sp_x channel {i}: Mean = {mean.item():.4f}, Std = {std.item():.4f}")
-            
+
             for i, (mean, std) in enumerate(zip(t_x_mean, t_x_std)):
                 print(f"t_x channel {i}: Mean = {mean.item():.4f}, Std = {std.item():.4f}")
 

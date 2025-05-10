@@ -16,8 +16,8 @@ from src.data.earthengine.eo import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_HIGH_RES_BANDS,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
-    SPACE_TIME_MED_RES_BANDS_GROUPS_IDX,
     SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX,
+    SPACE_TIME_MED_RES_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
     TIME_BANDS_GROUPS_IDX,
 )
@@ -183,7 +183,9 @@ def check_config(config):
                 assert key in model_dict[model], f"Expected {key} in {model} dict"
                 assert isinstance(model_dict[model][key], val)
 
-    config["model"]["encoder"]["max_patch_size_high_res"] = max(config["training"]["patch_sizes_high_res"])
+    config["model"]["encoder"]["max_patch_size_high_res"] = max(
+        config["training"]["patch_sizes_high_res"]
+    )
     config["model"]["decoder"]["encoder_embedding_size"] = config["model"]["encoder"][
         "embedding_size"
     ]
@@ -248,7 +250,7 @@ def plot_space_time_predictions(
         patch_size_high_res,
         patch_size_med_res,
         patch_size_low_res,
-        _
+        _,
     ) = prepared_image
 
     # get predictions with current model
@@ -291,12 +293,10 @@ def plot_space_time_predictions(
 
         # get min and max values for the error colorbar independent of the channel
         error_min = (
-            (abs(s_t_h_x[:, :, :, t, :] - p_s_t_h[:, :, :, t, :]))
-            * s_t_h_m[:, :, :, t, :]
+            (abs(s_t_h_x[:, :, :, t, :] - p_s_t_h[:, :, :, t, :])) * s_t_h_m[:, :, :, t, :]
         ).min()
         error_max = (
-            (abs(s_t_h_x[:, :, :, t, :] - p_s_t_h[:, :, :, t, :]))
-            * s_t_h_m[:, :, :, t, :]
+            (abs(s_t_h_x[:, :, :, t, :] - p_s_t_h[:, :, :, t, :])) * s_t_h_m[:, :, :, t, :]
         ).max()
 
         for i, band in enumerate(subplot_titles):
@@ -336,9 +336,7 @@ def plot_space_time_predictions(
         )
         fig.tight_layout()
 
-        plot = wandb.Image(
-            fig, caption=f"plot_image{image_id}_epoch{epoch}_timestep{t}"
-        )
+        plot = wandb.Image(fig, caption=f"plot_image{image_id}_epoch{epoch}_timestep{t}")
         plot_list.append(plot)
     return plot_list
 

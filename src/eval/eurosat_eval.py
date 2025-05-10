@@ -135,9 +135,21 @@ class EuroSatEval(EvalTask):
         labels_list = []
 
         for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
-            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, months = [
-                t.to(device) for t in masked_output
-            ]
+            (
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+                months,
+            ) = [t.to(device) for t in masked_output]
 
             pretrained_model.eval()
 
@@ -173,10 +185,23 @@ class EuroSatEval(EvalTask):
                     c_i=c_i,
                     patch_size_high_res=self.patch_size_high_res,
                     patch_size_med_res=1,
-                    patch_size_low_res=1
+                    patch_size_low_res=1,
                 )
                 encodings = (
-                    pretrained_model.average_tokens(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m)
+                    pretrained_model.average_tokens(
+                        s_t_h_x,
+                        s_t_m_x,
+                        s_t_l_x,
+                        sp_x,
+                        t_x,
+                        st_x,
+                        s_t_h_m,
+                        s_t_m_m,
+                        s_t_l_m,
+                        sp_m,
+                        t_m,
+                        st_m,
+                    )
                     .cpu()
                     .numpy()
                 )

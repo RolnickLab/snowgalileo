@@ -28,6 +28,7 @@ LANDSAT_BANDS = [
 LANDSAT_SHIFT_VALUES = [float(0.0)] * len(LANDSAT_BANDS)
 LANDSAT_DIV_VALUES = [float(1e4)] * len(LANDSAT_BANDS)
 
+
 # first checks if Landsat 9 is available, if not, it uses Landsat 8
 def get_single_landsat_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
     startDate = ee.Date(date_to_string(start_date))

@@ -11,8 +11,8 @@ NUM_TIMESTEPS = 8
 # (i.e., if the end year is 2019, it is possible to get data from early 2020)
 # for the start year, we are limited by Sentinel-3 data availability (starting 2016-10-18)
 # This means effectively, we can sample from (START_YEAR - 1)-12-16 to (END_YEAR + 1)-02-28
-#START_YEAR = 2017
-#END_YEAR = 2020
+# START_YEAR = 2017
+# END_YEAR = 2020
 
 # Landsat 9 restricts to 2022 - 2023
 START_YEAR = 2022
@@ -29,7 +29,7 @@ DATASET_OUTPUT_HW_LOW_RES = 96
 # the idea is that for exporting different data, we will only have to change this dictionary in the end
 # i.e., sort the modalities into different shape_types, add / remove satellite modalities
 # for using / not using modalities, the "active" flag should get used
-MODALITIES = {
+MODALITIES: Dict[str, Dict[str, Any]] = {
     "s1": {
         "original_resolution": 10,
         "shape_type": "s_t_h_x",
@@ -175,14 +175,14 @@ CHANNEL_WISE_INVALID_DATA_THRESHOLDS: Dict[str, Dict] = {
         4: 200,  # ERA5 temperature in Kelvin
         5: 200,  # ERA5 temperature in Kelvin
         6: -10,  # ERA5
-        7: -10,  # ERA5  
+        7: -10,  # ERA5
         8: -10,  # ERA5
     },
     "st_x": {
         0: -1,  # x
         1: -1,  # y
         2: -1,  # z
-    }
+    },
 }
 USE_INDECES = False
 

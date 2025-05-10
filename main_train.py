@@ -7,13 +7,11 @@ from functools import partial
 from pathlib import Path
 from typing import List, Optional, cast
 
-from src.eval import EuroSatEval
-
 import codecarbon
 import psutil
 import torch
 import wandb
-from torch.utils.data import DataLoader, BatchSampler
+from torch.utils.data import BatchSampler, DataLoader
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
@@ -47,7 +45,6 @@ from src.utils import (
     seed_everything,
     timestamp_dirname,
     will_cause_nans,
-    plot_space_time_predictions
 )
 
 process = psutil.Process()
@@ -147,7 +144,7 @@ seed_everything(DEFAULT_SEED)
 print("Loading dataset and dataloader")
 
 dataset = Dataset(
-    data_folder = DATA_FOLDER / args["tifs_folder"],
+    data_folder=DATA_FOLDER / args["tifs_folder"],
     download=args["download"],
     h5py_folder=cache_folder,
     h5pys_only=args["h5pys_only"],
@@ -353,13 +350,13 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                         t_m,
                         st_m,
                         months.long(),
-                        patch_size_high_res = patch_size_high_res,
-                        patch_size_med_res = patch_size_med_res,
-                        patch_size_low_res = patch_size_low_res,
+                        patch_size_high_res=patch_size_high_res,
+                        patch_size_med_res=patch_size_med_res,
+                        patch_size_low_res=patch_size_low_res,
                     ),
-                    patch_size_high_res = patch_size_high_res,
-                    patch_size_med_res = patch_size_med_res,
-                    patch_size_low_res = patch_size_low_res,
+                    patch_size_high_res=patch_size_high_res,
+                    patch_size_med_res=patch_size_med_res,
+                    patch_size_low_res=patch_size_low_res,
                 )
 
                 # handle nans introduced after processing
@@ -385,7 +382,13 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                             t_x,
                             st_x,
                             *construct_target_encoder_masks(
-                                s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, config["training"]["target_masking"]
+                                s_t_h_m,
+                                s_t_m_m,
+                                s_t_l_m,
+                                sp_m,
+                                t_m,
+                                st_m,
+                                config["training"]["target_masking"],
                             ),
                             months.long(),
                             patch_size_high_res=patch_size_high_res,
@@ -485,7 +488,7 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                         "momentum": m,
                         "lr": current_lr,
                     }
-                    #wandb.log(to_log, step=e)
+                    # wandb.log(to_log, step=e)
                     """  
                     if (training_config["wandb_plot_every_n_epochs"] != 0) and (e % training_config["wandb_plot_every_n_epochs"] == 0):
                         plot_list_nested = []
@@ -528,11 +531,11 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                 encoder, model_modes=["KNNat5 Classifier", "KNNat20 Classifier"]
             )
         )
-        #to_log.update(
+        # to_log.update(
         #    val_task_ts.evaluate_model_on_task(
         #        encoder, model_modes=["KNNat5 Classifier", "Logistic Regression"]
         #    )
-        #)
+        # )
     wandb.log(to_log, step=e)
 
     if args["checkpoint_every_epoch"] > 0:
@@ -573,4 +576,4 @@ for task in eval_tasks:
     print(json.dumps(results, indent=2), flush=True)
     if wandb_enabled:
         wandb.log(results, step=training_config["num_epochs"])
-#tracker.stop()
+# tracker.stop()

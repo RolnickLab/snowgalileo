@@ -86,16 +86,43 @@ class EvalTask(ABC):
     def group_targets_per_token(self, target: torch.Tensor) -> torch.Tensor:
         # group labels per token for segmentation
         return rearrange(
-            target, "b (h p1) (w p2) -> (b h w) (p1 p2)", p1=self.patch_size_high_res, p2=self.patch_size_high_res
+            target,
+            "b (h p1) (w p2) -> (b h w) (p1 p2)",
+            p1=self.patch_size_high_res,
+            p2=self.patch_size_high_res,
         )
 
     @torch.no_grad()
     def group_encodings_per_token(
-        self, model, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
+        self,
+        model,
+        s_t_h_x,
+        s_t_m_x,
+        s_t_l_x,
+        sp_x,
+        t_x,
+        st_x,
+        s_t_h_m,
+        s_t_m_m,
+        s_t_l_m,
+        sp_m,
+        t_m,
+        st_m,
     ) -> torch.Tensor:
         encodings = rearrange(
             model.apply_mask_and_average_tokens_per_patch(
-                s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
             ),
             "b n_t n_f -> (b n_t) n_f",
         )
@@ -143,9 +170,21 @@ class EvalTask(ABC):
         encodings_list, targets_list = [], []
 
         for masked_output, label in tqdm(train_dl, desc="Computing encodings for sklearn"):
-            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, months = [
-                t.to(device) for t in masked_output
-            ]
+            (
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+                months,
+            ) = [t.to(device) for t in masked_output]
 
             if self.spatial_token_prediction:
                 targets = self.group_targets_per_token(label).cpu().numpy()
@@ -155,7 +194,21 @@ class EvalTask(ABC):
                 targets_list.append(label.cpu().numpy())
 
             with torch.no_grad():
-                s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, _ = pretrained_model(
+                (
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    _,
+                ) = pretrained_model(
                     s_t_h_x=s_t_h_x,
                     s_t_m_x=s_t_m_x,
                     s_t_l_x=s_t_l_x,
@@ -172,12 +225,24 @@ class EvalTask(ABC):
                     c_i=c_i,
                     patch_size_high_res=self.patch_size_high_res,
                     patch_size_med_res=1,
-                    patch_size_low_res=1
+                    patch_size_low_res=1,
                 )
                 if self.spatial_token_prediction:
                     encodings = (
                         self.group_encodings_per_token(
-                            pretrained_model, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
+                            pretrained_model,
+                            s_t_h_x,
+                            s_t_m_x,
+                            s_t_l_x,
+                            sp_x,
+                            t_x,
+                            st_x,
+                            s_t_h_m,
+                            s_t_m_m,
+                            s_t_l_m,
+                            sp_m,
+                            t_m,
+                            st_m,
                         )
                         .cpu()
                         .numpy()
@@ -187,7 +252,18 @@ class EvalTask(ABC):
                 else:
                     encodings_list.append(
                         pretrained_model.average_tokens(
-                            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
+                            s_t_h_x,
+                            s_t_m_x,
+                            s_t_l_x,
+                            sp_x,
+                            t_x,
+                            st_x,
+                            s_t_h_m,
+                            s_t_m_m,
+                            s_t_l_m,
+                            sp_m,
+                            t_m,
+                            st_m,
                         )
                         .cpu()
                         .numpy()

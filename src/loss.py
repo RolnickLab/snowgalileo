@@ -5,26 +5,36 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 from torchvision.transforms.functional import resize
 
+from src.data.config import NO_DATA_VALUE
 from src.data.earthengine.eo import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
-    SPACE_TIME_MED_RES_BANDS_GROUPS_IDX,
     SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX,
+    SPACE_TIME_MED_RES_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
     TIME_BANDS_GROUPS_IDX,
 )
 
-from src.data.config import (
-    NO_DATA_VALUE
-)
-
 
 def construct_target_encoder_masks(
-    s_t_h_m: torch.Tensor, s_t_m_m: torch.Tensor, s_t_l_m: torch.Tensor, sp_m: torch.Tensor, t_m: torch.Tensor, st_m: torch.Tensor, method: str
+    s_t_h_m: torch.Tensor,
+    s_t_m_m: torch.Tensor,
+    s_t_l_m: torch.Tensor,
+    sp_m: torch.Tensor,
+    t_m: torch.Tensor,
+    st_m: torch.Tensor,
+    method: str,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     if method == "decoder_only":
         # we want 0s where the mask == 2
-        return ~(s_t_h_m == 2), ~(s_t_m_m == 2), ~(s_t_l_m == 2), ~(sp_m == 2), ~(t_m == 2), ~(st_m == 2)
+        return (
+            ~(s_t_h_m == 2),
+            ~(s_t_m_m == 2),
+            ~(s_t_l_m == 2),
+            ~(sp_m == 2),
+            ~(t_m == 2),
+            ~(st_m == 2),
+        )
     elif method == "all":
         # we want all zeros
         return (
@@ -243,16 +253,24 @@ def mae_loss(
         [len(x) for x in STATIC_BAND_GROUPS_IDX.values()], device=sp_m.device
     ).long()
 
-    pixel_s_t_h_m = torch.repeat_interleave(s_t_h_m, repeats=SPACE_TIME_HIGH_RES_BAND_EXPANSION, dim=-1)
-    pixel_s_t_m_m = torch.repeat_interleave(s_t_m_m, repeats=SPACE_TIME_MED_RES_BAND_EXPANSION, dim=-1)
-    pixel_s_t_l_m = torch.repeat_interleave(s_t_l_m, repeats=SPACE_TIME_LOW_RES_BAND_EXPANSION, dim=-1)
+    pixel_s_t_h_m = torch.repeat_interleave(
+        s_t_h_m, repeats=SPACE_TIME_HIGH_RES_BAND_EXPANSION, dim=-1
+    )
+    pixel_s_t_m_m = torch.repeat_interleave(
+        s_t_m_m, repeats=SPACE_TIME_MED_RES_BAND_EXPANSION, dim=-1
+    )
+    pixel_s_t_l_m = torch.repeat_interleave(
+        s_t_l_m, repeats=SPACE_TIME_LOW_RES_BAND_EXPANSION, dim=-1
+    )
     pixel_sp_m = torch.repeat_interleave(sp_m, repeats=SPACE_BAND_EXPANSION, dim=-1)
     pixel_st_m = torch.repeat_interleave(st_m, repeats=STATIC_BAND_EXPANSION, dim=-1)
     pixel_t_m = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION, dim=-1)
 
     output_p_s_t_h = []
     for idx, (_, c_g) in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.items()):
-        channel_group_p_s_t_h = p_s_t_h[:, :, :, :, idx, : ((max_patch_size_high_res**2) * len(c_g))]
+        channel_group_p_s_t_h = p_s_t_h[
+            :, :, :, :, idx, : ((max_patch_size_high_res**2) * len(c_g))
+        ]
         channel_group_p_s_t_h = rearrange(
             channel_group_p_s_t_h,
             "b t_h t_w t (c_g p_h p_w) -> b (t_h p_h) (t_w p_w) t c_g",

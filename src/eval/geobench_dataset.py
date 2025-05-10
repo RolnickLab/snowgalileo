@@ -13,12 +13,19 @@ from src.data import Normalizer
 from src.data.dataset import (
     SPACE_BANDS,
     SPACE_TIME_HIGH_RES_BANDS,
-    SPACE_TIME_MED_RES_BANDS,
     SPACE_TIME_LOW_RES_BANDS,
+    SPACE_TIME_MED_RES_BANDS,
     STATIC_BANDS,
     TIME_BANDS,
 )
-from src.data.earthengine.eo import SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX, SPACE_TIME_MED_RES_BANDS_GROUPS_IDX, SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX, SPACE_BAND_GROUPS_IDX, TIME_BANDS_GROUPS_IDX, STATIC_BAND_GROUPS_IDX
+from src.data.earthengine.eo import (
+    SPACE_BAND_GROUPS_IDX,
+    SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
+    SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX,
+    SPACE_TIME_MED_RES_BANDS_GROUPS_IDX,
+    STATIC_BAND_GROUPS_IDX,
+    TIME_BANDS_GROUPS_IDX,
+)
 from src.data.earthengine.s1 import S1_BANDS
 from src.data.earthengine.s2 import S2_BANDS
 from src.masking import MaskedOutput
@@ -75,7 +82,9 @@ class GeobenchBaseDataset(PyTorchDataset):
         self.num_subtiles_per_image = num_subtiles_per_image
         assert sqrt(cast(float, self.num_subtiles_per_image)).is_integer()
 
-    def create_masks(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def create_masks(
+        self,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         if self.config["include_s1"]:
             s_t_h_channels = [
                 idx
@@ -106,8 +115,12 @@ class GeobenchBaseDataset(PyTorchDataset):
         )
 
         # no med res or low res channels are available
-        s_t_m_m = np.ones([3, 3, self.config["num_timesteps"], len(SPACE_TIME_MED_RES_BANDS_GROUPS_IDX)])
-        s_t_l_m = np.ones([2, 2, self.config["num_timesteps"], len(SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX)])
+        s_t_m_m = np.ones(
+            [3, 3, self.config["num_timesteps"], len(SPACE_TIME_MED_RES_BANDS_GROUPS_IDX)]
+        )
+        s_t_l_m = np.ones(
+            [2, 2, self.config["num_timesteps"], len(SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX)]
+        )
 
         # no static channels are available
         sp_m = np.ones(

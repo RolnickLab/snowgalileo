@@ -179,7 +179,21 @@ def mae_collate_fn(
     random_masking: str = "None",
     unmasking_channels_combo: str = "shapes",
 ) -> Tuple[CollateFnOutput, CollateFnOutput, CollateFnOutput, CollateFnOutput]:
-    s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months, valid_data_mask_s_t_h, valid_data_mask_s_t_m, valid_data_mask_s_t_l, valid_data_mask_sp, valid_data_mask_t, valid_data_mask_st = default_collate(batch)
+    (
+        s_t_h_x,
+        s_t_m_x,
+        s_t_l_x,
+        sp_x,
+        t_x,
+        st_x,
+        months,
+        valid_data_mask_s_t_h,
+        valid_data_mask_s_t_m,
+        valid_data_mask_s_t_l,
+        valid_data_mask_sp,
+        valid_data_mask_t,
+        valid_data_mask_st,
+    ) = default_collate(batch)
 
     input_args = {
         "s_t_h_x": s_t_h_x,
