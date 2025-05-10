@@ -16,6 +16,7 @@ def get_single_dem_image(region: ee.Geometry, start_date: date, end_date: date) 
         .select(DEM_BANDS[0])
         .first()
     )
+    elevation = ee.Image(elevation).clip(region)
     # Calculate slope. Units are degrees, range is [0,90]
     slope = ee.Terrain.slope(elevation)
     # Calculate aspect. Units are degrees where 0=N, 90=E, 180=S, 270=W.
