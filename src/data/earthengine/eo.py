@@ -178,6 +178,7 @@ for modality in MODALITIES:
         except KeyError:
             # TODO: make this more pretty
             if MODALITIES[modality].get("shape_type") == "clouds":
+                band_list = globals()[f"{modality.upper()}_BANDS"]
                 CLOUD_BANDS.extend(band_list)
 
                 function = globals()[f"get_{modality}"]
