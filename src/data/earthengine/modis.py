@@ -18,7 +18,7 @@ MODIS_BANDS = [
 MODIS_SHIFT_VALUES = [-7950.0, -7950.0, -7950.0, -7950.0, -7950.0, -7950.0, -7950.0]
 MODIS_DIV_VALUES = [8050, 8050, 8050, 8050, 8050, 8050, 8050]
 
-MODIS_CLOUD_BANDS = ["state_1km"]
+MODIS_CLOUD_FLAG_BANDS = ["state_1km"]
 
 
 def get_single_modis_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:

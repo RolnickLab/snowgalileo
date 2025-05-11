@@ -54,7 +54,7 @@ from src.data.earthengine.esa_worldcover import (
 )
 from src.data.earthengine.landsat import (
     LANDSAT_BANDS,
-    LANDSAT_CLOUD_BANDS,
+    LANDSAT_CLOUD_FLAG_BANDS,
     LANDSAT_DIV_VALUES,
     LANDSAT_SHIFT_VALUES,
     get_landsat_cloud_flag,
@@ -62,7 +62,7 @@ from src.data.earthengine.landsat import (
 )
 from src.data.earthengine.modis import (
     MODIS_BANDS,
-    MODIS_CLOUD_BANDS,
+    MODIS_CLOUD_FLAG_BANDS,
     MODIS_DIV_VALUES,
     MODIS_SHIFT_VALUES,
     get_modis_cloud_flag,
@@ -71,7 +71,7 @@ from src.data.earthengine.modis import (
 from src.data.earthengine.s1 import S1_BANDS, S1_DIV_VALUES, S1_SHIFT_VALUES, get_single_s1_image
 from src.data.earthengine.s2 import (
     S2_BANDS,
-    S2_CLOUD_BANDS,
+    S2_CLOUD_FLAG_BANDS,
     S2_DIV_VALUES,
     S2_SHIFT_VALUES,
     get_s2_cloud_flag,
@@ -216,7 +216,7 @@ assert TIME_DIV_VALUES == VIIRS_COARSE_DIV_VALUES + ERA5_DIV_VALUES
 assert SPACE_BANDS == DEM_BANDS + WC_BANDS
 assert SPACE_SHIFT_VALUES == DEM_SHIFT_VALUES + WC_SHIFT_VALUES
 assert SPACE_DIV_VALUES == DEM_DIV_VALUES + WC_DIV_VALUES
-assert CLOUD_BANDS == [MODIS_CLOUD_BANDS, S2_CLOUD_BANDS, LANDSAT_CLOUD_BANDS]
+assert CLOUD_BANDS == [MODIS_CLOUD_FLAG_BANDS, S2_CLOUD_FLAG_BANDS, LANDSAT_CLOUD_FLAG_BANDS]
 
 SPACE_TIME_HIGH_RES_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(SPACE_TIME_HIGH_RES_SHIFT_VALUES)
 SPACE_TIME_HIGH_RES_DIV_VALUES_NP: npt.NDArray[Any] = np.array(SPACE_TIME_HIGH_RES_DIV_VALUES)

@@ -41,7 +41,7 @@ REMOVED_BANDS = [item for item in ALL_S2_BANDS if item not in S2_BANDS]
 S2_SHIFT_VALUES = [float(0.0)] * len(S2_BANDS)
 S2_DIV_VALUES = [float(1e4)] * len(S2_BANDS)
 
-S2_CLOUD_BANDS = ["QA60"]
+S2_CLOUD_FLAG_BANDS = ["QA60"]
 
 
 def get_single_s2_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:

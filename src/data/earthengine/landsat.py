@@ -28,7 +28,7 @@ LANDSAT_BANDS = [
 LANDSAT_SHIFT_VALUES = [float(0.0)] * len(LANDSAT_BANDS)
 LANDSAT_DIV_VALUES = [float(1e4)] * len(LANDSAT_BANDS)
 
-LANDSAT_CLOUD_BANDS = ["QA_PIXEL"]
+LANDSAT_CLOUD_FLAG_BANDS = ["QA_PIXEL"]
 
 
 # first checks if Landsat 9 is available, if not, it uses Landsat 8
