@@ -54,18 +54,29 @@ from src.data.earthengine.esa_worldcover import (
 )
 from src.data.earthengine.landsat import (
     LANDSAT_BANDS,
+    LANDSAT_CLOUD_BAND,
     LANDSAT_DIV_VALUES,
     LANDSAT_SHIFT_VALUES,
+    get_landsat_cloud_flag,
     get_single_landsat_image,
 )
 from src.data.earthengine.modis import (
     MODIS_BANDS,
+    MODIS_CLOUD_BAND,
     MODIS_DIV_VALUES,
     MODIS_SHIFT_VALUES,
+    get_modis_cloud_flag,
     get_single_modis_image,
 )
 from src.data.earthengine.s1 import S1_BANDS, S1_DIV_VALUES, S1_SHIFT_VALUES, get_single_s1_image
-from src.data.earthengine.s2 import S2_BANDS, S2_DIV_VALUES, S2_SHIFT_VALUES, get_single_s2_image
+from src.data.earthengine.s2 import (
+    S2_BANDS,
+    S2_CLOUD_BAND,
+    S2_DIV_VALUES,
+    S2_SHIFT_VALUES,
+    get_s2_cloud_flag,
+    get_single_s2_image,
+)
 from src.data.earthengine.s3 import S3_BANDS, S3_DIV_VALUES, S3_SHIFT_VALUES, get_single_s3_image
 from src.data.earthengine.utils import (
     get_ee_credentials,
@@ -113,6 +124,8 @@ TIME_DIV_VALUES = []
 SPACE_BANDS = []
 SPACE_SHIFT_VALUES = []
 SPACE_DIV_VALUES = []
+
+CLOUD_BANDS = []
 
 for modality in MODALITIES:
     if MODALITIES[modality].get("active") and MODALITIES[modality].get("export"):
@@ -162,6 +175,12 @@ for modality in MODALITIES:
                 function = globals()[f"get_single_{modality}_image"]
                 SPACE_IMAGE_FUNCTIONS.append(function)
 
+            elif MODALITIES[modality].get("shape_type") == "clouds":
+                CLOUD_BANDS.extend(band_list)
+
+                function = globals()[f"get_{modality}"]
+                TIME_IMAGE_FUNCTIONS.append(function)
+
         except KeyError:
             print(f"Warning: Check modality '{modality}'.")
 
@@ -175,6 +194,9 @@ assert TIME_IMAGE_FUNCTIONS == [
     get_single_viirs_fine_image,
     get_single_viirs_coarse_image,
     get_single_era5_image,
+    get_s2_cloud_flag,
+    get_landsat_cloud_flag,
+    get_modis_cloud_flag,
 ]
 assert SPACE_IMAGE_FUNCTIONS == [get_single_dem_image, get_single_wc_image]
 assert SPACE_TIME_HIGH_RES_BANDS == S1_BANDS + S2_BANDS + LANDSAT_BANDS
@@ -192,6 +214,7 @@ assert TIME_DIV_VALUES == VIIRS_COARSE_DIV_VALUES + ERA5_DIV_VALUES
 assert SPACE_BANDS == DEM_BANDS + WC_BANDS
 assert SPACE_SHIFT_VALUES == DEM_SHIFT_VALUES + WC_SHIFT_VALUES
 assert SPACE_DIV_VALUES == DEM_DIV_VALUES + WC_DIV_VALUES
+assert CLOUD_BANDS == [S2_CLOUD_BAND, LANDSAT_CLOUD_BAND, MODIS_CLOUD_BAND]
 
 SPACE_TIME_HIGH_RES_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(SPACE_TIME_HIGH_RES_SHIFT_VALUES)
 SPACE_TIME_HIGH_RES_DIV_VALUES_NP: npt.NDArray[Any] = np.array(SPACE_TIME_HIGH_RES_DIV_VALUES)
@@ -223,13 +246,14 @@ if MODALITIES["ndvi"].get("active"):
     SPACE_TIME_LOW_RES_DIV_VALUES_NP = np.append(SPACE_TIME_LOW_RES_DIV_VALUES_NP, [1])
 
 EO_ALL_DYNAMIC_IN_TIME_BANDS = (
-    SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + EO_SPACE_TIME_LOW_RES_BANDS + TIME_BANDS
+    SPACE_TIME_HIGH_RES_BANDS
+    + SPACE_TIME_MED_RES_BANDS
+    + EO_SPACE_TIME_LOW_RES_BANDS
+    + TIME_BANDS
+    + CLOUD_BANDS
 )
 
-SPACE_TIME_BANDS = SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS
-EO_DYNAMIC_IN_TIME_BANDS_NP = np.array(
-    SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS + TIME_BANDS
-)
+EO_ALL_DYNAMIC_IN_TIME_BANDS_NP = np.array(EO_ALL_DYNAMIC_IN_TIME_BANDS)
 
 # spatial resolution per pixel: 10m, 20m, or 30m
 SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
@@ -414,7 +438,7 @@ def create_ee_image(
     combine_bands_function = make_combine_bands_function(EO_ALL_DYNAMIC_IN_TIME_BANDS)
     img = ee.Image(imcoll.iterate(combine_bands_function))
 
-    # finally, we add the static in time images
+    # we add the static in time images
     total_image_list: List[ee.Image] = [img]
     for space_image_function in SPACE_IMAGE_FUNCTIONS:
         total_image_list.append(

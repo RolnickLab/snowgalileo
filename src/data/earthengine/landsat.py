@@ -28,6 +28,8 @@ LANDSAT_BANDS = [
 LANDSAT_SHIFT_VALUES = [float(0.0)] * len(LANDSAT_BANDS)
 LANDSAT_DIV_VALUES = [float(1e4)] * len(LANDSAT_BANDS)
 
+LANDSAT_CLOUD_BAND = "QA_PIXEL"
+
 
 # first checks if Landsat 9 is available, if not, it uses Landsat 8
 def get_single_landsat_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
@@ -58,3 +60,30 @@ def get_single_landsat_image(region: ee.Geometry, start_date: date, end_date: da
     renamed_image = image.select(ORIG_LANDSAT_BANDS, LANDSAT_BANDS)
 
     return renamed_image
+
+
+def get_landsat_cloud_flag(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
+    startDate = ee.Date(date_to_string(start_date))
+    endDate = ee.Date(date_to_string(end_date))
+
+    cloud_bitflag = (
+        ee.ImageCollection(image_collection_l09)
+        .filterBounds(region)
+        .filterDate(startDate, endDate)
+        .select(CLOUD_BAND)
+    ).first()
+
+    if cloud_bitflag.getInfo() is None:
+        cloud_bitflag = (
+            ee.ImageCollection(image_collection_l08)
+            .filterBounds(region)
+            .filterDate(startDate, endDate)
+            .select(CLOUD_BAND)
+        ).first()
+
+        if cloud_bitflag.getInfo() is None:
+            # If no image is found, create a placeholder image with the same bands
+            # and the specified region
+            return create_placeholder(region, CLOUD_BAND).toDouble()
+
+    return cloud_bitflag

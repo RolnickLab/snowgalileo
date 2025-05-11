@@ -18,7 +18,7 @@ MODIS_BANDS = [
 MODIS_SHIFT_VALUES = [-7950.0, -7950.0, -7950.0, -7950.0, -7950.0, -7950.0, -7950.0]
 MODIS_DIV_VALUES = [8050, 8050, 8050, 8050, 8050, 8050, 8050]
 
-CLOUD_BAND = "state_1km"
+MODIS_CLOUD_BAND = "state_1km"
 
 
 def get_single_modis_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
@@ -38,7 +38,7 @@ def get_single_modis_image(region: ee.Geometry, start_date: date, end_date: date
     return image
 
 
-def get_cloud_flag(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
+def get_modis_cloud_flag(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
     startDate = ee.Date(date_to_string(start_date))
     endDate = ee.Date(date_to_string(end_date))
 
@@ -49,6 +49,12 @@ def get_cloud_flag(region: ee.Geometry, start_date: date, end_date: date) -> ee.
         .select(CLOUD_BAND)
     ).first()
 
+    if cloud_bitflag.getInfo() is None:
+        return create_placeholder(region, CLOUD_BAND).toDouble()
+
+    return cloud_bitflag
+
+    """
     cloud_bitflag = ee.Number(cloud_bitflag)
     cloud_state = bitwiseExtract(cloud_bitflag, 0, 1)
 
@@ -65,6 +71,7 @@ def get_cloud_flag(region: ee.Geometry, start_date: date, end_date: date) -> ee.
         raise ValueError("Invalid cloud state value")
 
     return state
+    """
 
 
 def bitwiseExtract(value, fromBit, toBit):

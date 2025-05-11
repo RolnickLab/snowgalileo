@@ -78,6 +78,24 @@ MODALITIES: Dict[str, Dict[str, Any]] = {
         "active": True,
         "export": True,
     },
+    "modis_cloud_flag": {
+        "original_resolution": 1000,
+        "shape_type": "clouds",
+        "active": True,
+        "export": True,
+    },
+    "s2_cloud_flag": {
+        "original_resolution": 60,
+        "shape_type": "clouds",
+        "active": True,
+        "export": True,
+    },
+    "landsat_cloud_flag": {
+        "original_resolution": 30,
+        "shape_type": "clouds",
+        "active": True,
+        "export": True,
+    },
     "dem": {
         "original_resolution": 30,
         "shape_type": "sp_x",

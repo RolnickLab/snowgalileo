@@ -36,8 +36,9 @@ from src.data.config import (
     TIFS_FOLDER,
 )
 from src.data.earthengine.eo import (
+    CLOUD_BANDS,
     EO_ALL_DYNAMIC_IN_TIME_BANDS,
-    EO_DYNAMIC_IN_TIME_BANDS_NP,
+    EO_ALL_DYNAMIC_IN_TIME_BANDS_NP,
     EO_SPACE_TIME_LOW_RES_BANDS,
     SPACE_BANDS,
     SPACE_DIV_VALUES_NP,
@@ -689,13 +690,18 @@ class Dataset(PyTorchDataset):
             c=len(EO_ALL_DYNAMIC_IN_TIME_BANDS),
             t=int(num_timesteps),
         )
-        dynamic_in_time_x = cls._check_and_fillna(dynamic_in_time_x, EO_DYNAMIC_IN_TIME_BANDS_NP)
+        dynamic_in_time_x = cls._check_and_fillna(
+            dynamic_in_time_x, EO_ALL_DYNAMIC_IN_TIME_BANDS_NP
+        )
         space_time_high_res_x = dynamic_in_time_x[
             :,
             :,
             :,
             : -(
-                len(SPACE_TIME_MED_RES_BANDS) + len(EO_SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)
+                len(SPACE_TIME_MED_RES_BANDS)
+                + len(EO_SPACE_TIME_LOW_RES_BANDS)
+                + len(TIME_BANDS)
+                + len(CLOUD_BANDS)
             ),
         ]
         space_time_med_res_x = dynamic_in_time_x[
@@ -703,13 +709,23 @@ class Dataset(PyTorchDataset):
             :,
             :,
             -(
-                len(SPACE_TIME_MED_RES_BANDS) + len(EO_SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)
-            ) : -(len(EO_SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)),
+                len(SPACE_TIME_MED_RES_BANDS)
+                + len(EO_SPACE_TIME_LOW_RES_BANDS)
+                + len(TIME_BANDS)
+                + len(CLOUD_BANDS)
+            ) : -(len(EO_SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS) + len(CLOUD_BANDS)),
         ]
         space_time_low_res_x = dynamic_in_time_x[
-            :, :, :, -(len(EO_SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS)) : -len(TIME_BANDS)
+            :,
+            :,
+            :,
+            -(len(EO_SPACE_TIME_LOW_RES_BANDS) + len(TIME_BANDS) + len(CLOUD_BANDS)) : -(
+                len(TIME_BANDS) + len(CLOUD_BANDS)
+            ),
         ]
-        time_x = dynamic_in_time_x[:, :, :, -len(TIME_BANDS) :]
+        time_x = dynamic_in_time_x[
+            :, :, :, -(len(TIME_BANDS) + len(CLOUD_BANDS)) : -len(CLOUD_BANDS)
+        ]
         time_x = np.nanmean(time_x, axis=(0, 1))
 
         # NDSI = (Green - SWIR) / (Green + SWIR)
