@@ -539,7 +539,7 @@ class EarthEngineExporter:
 
         cloud_state = get_cloud_flag(polygon, interval_start_date, interval_end_date)
         cloud_filename = f"{cloud_filename}_cloud_state_{cloud_state}"
-        local_filename = f"{local_filename.split('.')[0]}_cloud_state_{cloud_state}.tif"
+        local_filename = f"{local_filename.split('.')[:-1]}_cloud_state_{cloud_state}.tif"
 
         if self.mode == "cloud":
             try:
