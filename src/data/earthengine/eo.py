@@ -175,14 +175,14 @@ for modality in MODALITIES:
                 function = globals()[f"get_single_{modality}_image"]
                 SPACE_IMAGE_FUNCTIONS.append(function)
 
-            elif MODALITIES[modality].get("shape_type") == "clouds":
+        except KeyError:
+            if MODALITIES[modality].get("shape_type") == "clouds":
                 CLOUD_BANDS.extend(band_list)
 
                 function = globals()[f"get_{modality}"]
                 TIME_IMAGE_FUNCTIONS.append(function)
-
-        except KeyError:
-            print(f"Warning: Check modality '{modality}'.")
+            else:
+                print(f"Warning: Check modality '{modality}'.")
 
 # TODO: remove this hacky assert and add a better test
 assert TIME_IMAGE_FUNCTIONS == [
