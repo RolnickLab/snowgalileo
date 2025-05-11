@@ -62,7 +62,6 @@ from src.data.earthengine.modis import (
     MODIS_BANDS,
     MODIS_DIV_VALUES,
     MODIS_SHIFT_VALUES,
-    get_cloud_flag,
     get_single_modis_image,
 )
 from src.data.earthengine.s1 import S1_BANDS, S1_DIV_VALUES, S1_SHIFT_VALUES, get_single_s1_image
@@ -536,10 +535,6 @@ class EarthEngineExporter:
             return False
 
         img = create_ee_image(polygon, interval_start_date, interval_end_date)
-
-        cloud_state = get_cloud_flag(polygon, interval_start_date, interval_end_date)
-        cloud_filename = f"{cloud_filename}_cloud_state_{cloud_state}"
-        local_filename = f"{local_filename.split('.')[:-1]}_cloud_state_{cloud_state}.tif"
 
         if self.mode == "cloud":
             try:
