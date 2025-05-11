@@ -176,6 +176,7 @@ for modality in MODALITIES:
                 SPACE_IMAGE_FUNCTIONS.append(function)
 
         except KeyError:
+            # TODO: make this more pretty
             if MODALITIES[modality].get("shape_type") == "clouds":
                 CLOUD_BANDS.extend(band_list)
 
@@ -214,7 +215,7 @@ assert TIME_DIV_VALUES == VIIRS_COARSE_DIV_VALUES + ERA5_DIV_VALUES
 assert SPACE_BANDS == DEM_BANDS + WC_BANDS
 assert SPACE_SHIFT_VALUES == DEM_SHIFT_VALUES + WC_SHIFT_VALUES
 assert SPACE_DIV_VALUES == DEM_DIV_VALUES + WC_DIV_VALUES
-assert CLOUD_BANDS == [S2_CLOUD_BAND, LANDSAT_CLOUD_BAND, MODIS_CLOUD_BAND]
+assert CLOUD_BANDS == [MODIS_CLOUD_BAND, S2_CLOUD_BAND, LANDSAT_CLOUD_BAND]
 
 SPACE_TIME_HIGH_RES_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(SPACE_TIME_HIGH_RES_SHIFT_VALUES)
 SPACE_TIME_HIGH_RES_DIV_VALUES_NP: npt.NDArray[Any] = np.array(SPACE_TIME_HIGH_RES_DIV_VALUES)
