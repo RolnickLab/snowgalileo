@@ -9,12 +9,7 @@ DEM_DIV_VALUES = [float(1.0), float(1.0), float(1.0)]
 
 
 def get_single_dem_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
-    elevation = (
-        ee.ImageCollection(image_collection)
-        .filterBounds(region)
-        .select('DEM')
-        .first()
-    )
+    elevation = ee.ImageCollection(image_collection).filterBounds(region).select("DEM").first()
     # Calculate slope. Units are degrees, range is [0,90]
     slope = ee.Terrain.slope(elevation)
     # Calculate aspect. Units are degrees where 0=N, 90=E, 180=S, 270=W.

@@ -225,7 +225,7 @@ if MODALITIES["ndvi"].get("active"):
     SPACE_TIME_LOW_RES_SHIFT_VALUES_NP = np.append(SPACE_TIME_LOW_RES_SHIFT_VALUES_NP, [0])
     SPACE_TIME_LOW_RES_DIV_VALUES_NP = np.append(SPACE_TIME_LOW_RES_DIV_VALUES_NP, [1])
 
-ALL_DYNAMIC_IN_TIME_BANDS = (
+EO_ALL_DYNAMIC_IN_TIME_BANDS = (
     SPACE_TIME_HIGH_RES_BANDS + SPACE_TIME_MED_RES_BANDS + SPACE_TIME_LOW_RES_BANDS + TIME_BANDS
 )
 
@@ -401,7 +401,11 @@ def create_ee_image(
 
         for image_function in TIME_IMAGE_FUNCTIONS:
             image_list.append(
-                image_function(region=polygon, start_date=cur_date.strftime("%Y-%m-%d"), end_date=cur_end_date.strftime("%Y-%m-%d"))
+                image_function(
+                    region=polygon,
+                    start_date=cur_date.strftime("%Y-%m-%d"),
+                    end_date=cur_end_date.strftime("%Y-%m-%d"),
+                )
             )
 
         image_collection_list.append(ee.Image.cat(image_list))
@@ -410,14 +414,18 @@ def create_ee_image(
 
     # now, we want to take our image collection and append the bands into a single image
     imcoll = ee.ImageCollection(image_collection_list)
-    combine_bands_function = make_combine_bands_function(ALL_DYNAMIC_IN_TIME_BANDS)
+    combine_bands_function = make_combine_bands_function(EO_ALL_DYNAMIC_IN_TIME_BANDS)
     img = ee.Image(imcoll.iterate(combine_bands_function))
 
     # finally, we add the static in time images
     total_image_list: List[ee.Image] = [img]
     for space_image_function in SPACE_IMAGE_FUNCTIONS:
         total_image_list.append(
-            space_image_function(region=polygon, start_date=cur_date.strftime("%Y-%m-%d"), end_date=cur_end_date.strftime("%Y-%m-%d"))
+            space_image_function(
+                region=polygon,
+                start_date=cur_date.strftime("%Y-%m-%d"),
+                end_date=cur_end_date.strftime("%Y-%m-%d"),
+            )
         )
 
     return ee.Image.cat(total_image_list)

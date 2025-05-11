@@ -36,7 +36,7 @@ from src.data.config import (
     TIFS_FOLDER,
 )
 from src.data.earthengine.eo import (
-    ALL_DYNAMIC_IN_TIME_BANDS,
+    EO_ALL_DYNAMIC_IN_TIME_BANDS,
     EO_DYNAMIC_IN_TIME_BANDS_NP,
     EO_SPACE_TIME_LOW_RES_BANDS,
     SPACE_BANDS,
@@ -680,12 +680,13 @@ class Dataset(PyTorchDataset):
                 np.mean([float(value) for value in re.findall(lon_pattern, str(tif_path))])
             )
 
-        num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(ALL_DYNAMIC_IN_TIME_BANDS)
+        num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(EO_ALL_DYNAMIC_IN_TIME_BANDS)
         assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
+        assert num_timesteps == NUM_TIMESTEPS, f"{tif_path} has incorrect number of timesteps"
         dynamic_in_time_x = rearrange(
             values[: -(len(SPACE_BANDS))],
             "(t c) h w -> h w t c",
-            c=len(ALL_DYNAMIC_IN_TIME_BANDS),
+            c=len(EO_ALL_DYNAMIC_IN_TIME_BANDS),
             t=int(num_timesteps),
         )
         dynamic_in_time_x = cls._check_and_fillna(dynamic_in_time_x, EO_DYNAMIC_IN_TIME_BANDS_NP)
