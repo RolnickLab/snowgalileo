@@ -41,7 +41,7 @@ REMOVED_BANDS = [item for item in ALL_S2_BANDS if item not in S2_BANDS]
 S2_SHIFT_VALUES = [float(0.0)] * len(S2_BANDS)
 S2_DIV_VALUES = [float(1e4)] * len(S2_BANDS)
 
-S2_CLOUD_BAND = "QA60"
+S2_CLOUD_BAND = ["QA60"]
 
 
 def get_single_s2_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
@@ -69,10 +69,10 @@ def get_s2_cloud_flag(region: ee.Geometry, start_date: date, end_date: date) -> 
         ee.ImageCollection(image_collection)
         .filterBounds(region)
         .filterDate(startDate, endDate)
-        .select(CLOUD_BAND)
+        .select(S2_CLOUD_BAND)
     ).first()
 
     if cloud_bitflag.getInfo() is None:
-        return create_placeholder(region, CLOUD_BAND).toDouble()
+        return create_placeholder(region, S2_CLOUD_BAND).toDouble()
 
     return cloud_bitflag

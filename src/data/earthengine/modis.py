@@ -18,7 +18,7 @@ MODIS_BANDS = [
 MODIS_SHIFT_VALUES = [-7950.0, -7950.0, -7950.0, -7950.0, -7950.0, -7950.0, -7950.0]
 MODIS_DIV_VALUES = [8050, 8050, 8050, 8050, 8050, 8050, 8050]
 
-MODIS_CLOUD_BAND = "state_1km"
+MODIS_CLOUD_BAND = ["state_1km"]
 
 
 def get_single_modis_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
@@ -46,11 +46,11 @@ def get_modis_cloud_flag(region: ee.Geometry, start_date: date, end_date: date) 
         ee.ImageCollection(image_collection_terra)
         .filterBounds(region)
         .filterDate(startDate, endDate)
-        .select(CLOUD_BAND)
+        .select(MODIS_CLOUD_BAND)
     ).first()
 
     if cloud_bitflag.getInfo() is None:
-        return create_placeholder(region, CLOUD_BAND).toDouble()
+        return create_placeholder(region, MODIS_CLOUD_BAND).toDouble()
 
     return cloud_bitflag
 
