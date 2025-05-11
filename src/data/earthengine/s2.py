@@ -69,10 +69,10 @@ def get_s2_cloud_flag(region: ee.Geometry, start_date: date, end_date: date) -> 
         ee.ImageCollection(image_collection)
         .filterBounds(region)
         .filterDate(startDate, endDate)
-        .select(S2_CLOUD_BAND)
+        .select(S2_CLOUD_FLAG_BANDS)
     ).first()
 
     if cloud_bitflag.getInfo() is None:
-        return create_placeholder(region, S2_CLOUD_BAND).toDouble()
+        return create_placeholder(region, S2_CLOUD_FLAG_BANDS).toDouble()
 
     return cloud_bitflag

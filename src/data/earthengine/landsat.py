@@ -70,7 +70,7 @@ def get_landsat_cloud_flag(region: ee.Geometry, start_date: date, end_date: date
         ee.ImageCollection(image_collection_l09)
         .filterBounds(region)
         .filterDate(startDate, endDate)
-        .select(LANDSAT_CLOUD_BAND)
+        .select(LANDSAT_CLOUD_FLAG_BANDS)
     ).first()
 
     if cloud_bitflag.getInfo() is None:
@@ -78,12 +78,12 @@ def get_landsat_cloud_flag(region: ee.Geometry, start_date: date, end_date: date
             ee.ImageCollection(image_collection_l08)
             .filterBounds(region)
             .filterDate(startDate, endDate)
-            .select(LANDSAT_CLOUD_BAND)
+            .select(LANDSAT_CLOUD_FLAG_BANDS)
         ).first()
 
         if cloud_bitflag.getInfo() is None:
             # If no image is found, create a placeholder image with the same bands
             # and the specified region
-            return create_placeholder(region, LANDSAT_CLOUD_BAND).toDouble()
+            return create_placeholder(region, LANDSAT_CLOUD_FLAG_BANDS).toDouble()
 
     return cloud_bitflag

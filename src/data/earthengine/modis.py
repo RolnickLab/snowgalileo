@@ -46,11 +46,11 @@ def get_modis_cloud_flag(region: ee.Geometry, start_date: date, end_date: date) 
         ee.ImageCollection(image_collection_terra)
         .filterBounds(region)
         .filterDate(startDate, endDate)
-        .select(MODIS_CLOUD_BAND)
+        .select(MODIS_CLOUD_FLAG_BANDS)
     ).first()
 
     if cloud_bitflag.getInfo() is None:
-        return create_placeholder(region, MODIS_CLOUD_BAND).toDouble()
+        return create_placeholder(region, MODIS_CLOUD_FLAG_BANDS).toDouble()
 
     return cloud_bitflag
 
