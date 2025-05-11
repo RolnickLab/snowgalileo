@@ -194,9 +194,9 @@ assert TIME_IMAGE_FUNCTIONS == [
     get_single_viirs_fine_image,
     get_single_viirs_coarse_image,
     get_single_era5_image,
+    get_modis_cloud_flag,
     get_s2_cloud_flag,
     get_landsat_cloud_flag,
-    get_modis_cloud_flag,
 ]
 assert SPACE_IMAGE_FUNCTIONS == [get_single_dem_image, get_single_wc_image]
 assert SPACE_TIME_HIGH_RES_BANDS == S1_BANDS + S2_BANDS + LANDSAT_BANDS
