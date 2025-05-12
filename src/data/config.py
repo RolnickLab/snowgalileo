@@ -26,6 +26,10 @@ DATASET_OUTPUT_HW_HIGH_RES = 96
 DATASET_OUTPUT_HW_MED_RES = 96
 DATASET_OUTPUT_HW_LOW_RES = 96
 
+NUM_HIGH_RES_PIXELS_PER_DIM = 1000 // EXPORTED_HEIGHT_WIDTH_METRES
+NUM_MED_RES_PIXELS_PER_DIM = 3
+NUM_LOW_RES_PIXELS_PER_DIM = 2
+
 # the idea is that for exporting different data, we will only have to change this dictionary in the end
 # i.e., sort the modalities into different shape_types, add / remove satellite modalities
 # for using / not using modalities, the "active" flag should get used
@@ -212,9 +216,18 @@ EE_FOLDER_TIFS = "tifs4"
 EE_FOLDER_H5PYS = "h5pys_full"
 
 # when in this repo, uncomment the following line
-#DATA_FOLDER = Path(__file__).parents[2] / "data"
-# for storing files on archive, 
-DATA_FOLDER = Path(__file__).parents[9] / "network" / "data" / "archive" / "m" / "marlena.reil" / "snowgalileo" / "data"
+DATA_FOLDER = Path(__file__).parents[2] / "data"
+# for storing files on archive,
+# DATA_FOLDER = (
+#    Path(__file__).parents[9]
+#    / "network"
+#    / "data"
+#    / "archive"
+#    / "m"
+#    / "marlena.reil"
+#    / "snowgalileo"
+#    / "data"
+#)
 TIFS_FOLDER = DATA_FOLDER / "tifs_all_bands_1km"
 NORMALIZATION_DICT_FILENAME = "normalizing_dict_1km.json"
 OUTPUT_FOLDER = DATA_FOLDER / "outputs"

@@ -32,6 +32,8 @@ from src.data.config import (
     EE_FOLDER_TIFS,
     MODALITIES,
     NO_DATA_VALUE,
+    NUM_LOW_RES_PIXELS_PER_DIM,
+    NUM_MED_RES_PIXELS_PER_DIM,
     NUM_TIMESTEPS,
     TIFS_FOLDER,
 )
@@ -790,10 +792,14 @@ class Dataset(PyTorchDataset):
 
         # for downsampling, the arrays need to be in divisible shape so we do it after cropping
         space_time_med_res_x, valid_data_mask_s_t_m = cls.downsample_dynamic_in_time_with_mean(
-            space_time_med_res_x, valid_data_mask_s_t_m, target_shape=(3, 3)
+            space_time_med_res_x,
+            valid_data_mask_s_t_m,
+            target_shape=(NUM_MED_RES_PIXELS_PER_DIM, NUM_MED_RES_PIXELS_PER_DIM),
         )
         space_time_low_res_x, valid_data_mask_s_t_l = cls.downsample_dynamic_in_time_with_mean(
-            space_time_low_res_x, valid_data_mask_s_t_l, target_shape=(2, 2)
+            space_time_low_res_x,
+            valid_data_mask_s_t_l,
+            target_shape=(NUM_LOW_RES_PIXELS_PER_DIM, NUM_LOW_RES_PIXELS_PER_DIM),
         )
 
         try:
