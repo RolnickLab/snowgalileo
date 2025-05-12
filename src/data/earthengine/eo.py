@@ -487,6 +487,9 @@ class EarthEngineExporter:
             self.tifs_folder = Path(TIFS_FOLDER)
         else:
             self.tifs_folder = DATA_FOLDER / tifs_folder
+        # create the folder if it does not exist
+        if not self.tifs_folder.exists():
+            os.makedirs(self.tifs_folder, exist_ok=True)
         if mode == "url":
             print(
                 f"Mode: url. Files will be saved to {self.tifs_folder} and rsynced to google cloud"
