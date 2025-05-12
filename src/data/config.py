@@ -211,7 +211,10 @@ EE_DRIVE_FOLDER_ID = "1cL7tEHhC92UHmuwdEgH0ero6aXQqhBcb"
 EE_FOLDER_TIFS = "tifs4"
 EE_FOLDER_H5PYS = "h5pys_full"
 
-DATA_FOLDER = Path(__file__).parents[2] / "data"
+# when in this repo, uncomment the following line
+#DATA_FOLDER = Path(__file__).parents[2] / "data"
+# for storing files on archive, 
+DATA_FOLDER = Path(__file__).parents[8] / "network" / "data" / "archive" / "m" / "marlena.reil" / "snowgalileo" / "data"
 TIFS_FOLDER = DATA_FOLDER / "tifs_all_bands_1km"
 NORMALIZATION_DICT_FILENAME = "normalizing_dict_1km.json"
 OUTPUT_FOLDER = DATA_FOLDER / "outputs"
