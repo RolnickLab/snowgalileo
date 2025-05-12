@@ -73,7 +73,7 @@ argparser.add_argument("--h5pys_only", dest="h5pys_only", action="store_true")
 argparser.add_argument("--num_workers", dest="num_workers", default=0)
 argparser.add_argument("--batch_size", dest="batch_size", default="")
 argparser.add_argument("--sync_models_from_service_account", action="store_true")
-argparser.add_argument("--checkpoint_every_epoch", type=int, default=0)
+argparser.add_argument("--checkpoint_every_epoch", type=int, default=50)
 argparser.add_argument("--tifs_folder", type=str, default="tifs_all_bands_500m")
 
 argparser.set_defaults(download=False)
