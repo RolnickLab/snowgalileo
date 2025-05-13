@@ -2,7 +2,6 @@ import unittest
 
 from src.data.config import CHANNEL_WISE_INVALID_DATA_THRESHOLDS, MODALITIES
 from src.data.earthengine.eo import (
-    ALL_DYNAMIC_IN_TIME_BANDS,
     SPACE_BAND_GROUPS_IDX,
     SPACE_BANDS,
     SPACE_DIV_VALUES,
@@ -12,6 +11,14 @@ from src.data.earthengine.eo import (
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
     SPACE_TIME_HIGH_RES_DIV_VALUES,
     SPACE_TIME_HIGH_RES_SHIFT_VALUES,
+    SPACE_TIME_LOW_RES_BANDS,
+    SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX,
+    SPACE_TIME_LOW_RES_DIV_VALUES,
+    SPACE_TIME_LOW_RES_SHIFT_VALUES,
+    SPACE_TIME_MED_RES_BANDS,
+    SPACE_TIME_MED_RES_BANDS_GROUPS_IDX,
+    SPACE_TIME_MED_RES_DIV_VALUES,
+    SPACE_TIME_MED_RES_SHIFT_VALUES,
     STATIC_BAND_GROUPS_IDX,
     STATIC_BANDS,
     STATIC_DIV_VALUES_NP,
@@ -25,6 +32,8 @@ from src.data.earthengine.eo import (
 
 array_types = {
     "s_t_h_x": SPACE_TIME_HIGH_RES_BANDS,
+    "s_t_m_x": SPACE_TIME_MED_RES_BANDS,
+    "s_t_l_x": SPACE_TIME_LOW_RES_BANDS,
     "sp_x": SPACE_BANDS,
     "t_x": TIME_BANDS,
     "st_x": STATIC_BANDS,
@@ -39,6 +48,18 @@ class TestConfig(unittest.TestCase):
             s_t_h_bands_from_idx.update(indices)
 
         s_t_h_bands_from_idx = len(s_t_h_bands_from_idx)
+
+        s_t_m_bands_from_idx = set()
+        for key, indices in SPACE_TIME_MED_RES_BANDS_GROUPS_IDX.items():
+            s_t_m_bands_from_idx.update(indices)
+
+        s_t_m_bands_from_idx = len(s_t_m_bands_from_idx)
+
+        s_t_l_bands_from_idx = set()
+        for key, indices in SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX.items():
+            s_t_l_bands_from_idx.update(indices)
+
+        s_t_l_bands_from_idx = len(s_t_l_bands_from_idx)
 
         space_bands_from_idx = set()
         for key, indices in SPACE_BAND_GROUPS_IDX.items():
@@ -66,6 +87,18 @@ class TestConfig(unittest.TestCase):
             == s_t_h_bands_from_idx
         )
         assert (
+            len(SPACE_TIME_MED_RES_BANDS)
+            == len(SPACE_TIME_MED_RES_SHIFT_VALUES)
+            == len(SPACE_TIME_MED_RES_DIV_VALUES)
+            == s_t_m_bands_from_idx
+        )
+        assert (
+            len(SPACE_TIME_LOW_RES_BANDS)
+            == len(SPACE_TIME_LOW_RES_SHIFT_VALUES)
+            == len(SPACE_TIME_LOW_RES_DIV_VALUES)
+            == s_t_l_bands_from_idx
+        )
+        assert (
             len(SPACE_BANDS)
             == len(SPACE_SHIFT_VALUES)
             == len(SPACE_DIV_VALUES)
@@ -84,8 +117,6 @@ class TestConfig(unittest.TestCase):
             == static_bands_from_idx
         )
 
-        assert len(ALL_DYNAMIC_IN_TIME_BANDS) == len(SPACE_TIME_HIGH_RES_BANDS) + len(TIME_BANDS)
-
         for array_type, bands in array_types.items():
             # Check length of the thresholds
             assert len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS[array_type]) == len(bands)
@@ -94,6 +125,9 @@ class TestConfig(unittest.TestCase):
         num_t_mod = 0
         num_st_mod = 0
         num_s_t_h_mod = 0
+        num_s_t_m_mod = 0
+        num_s_t_l_mod = 0
+        num_cloud_mod = 0
 
         for key, modality in MODALITIES.items():
             assert modality["shape_type"] in array_types.keys(), (
@@ -116,4 +150,6 @@ class TestConfig(unittest.TestCase):
                     num_s_t_h_mod += 1
 
         assert num_sp_mod == len(SPACE_IMAGE_FUNCTIONS)
-        assert num_t_mod + num_s_t_h_mod == len(TIME_IMAGE_FUNCTIONS)
+        assert num_t_mod + num_s_t_h_mod + num_s_t_m_mod + num_s_t_l_mod + num_cloud_mod == len(
+            TIME_IMAGE_FUNCTIONS
+        )

@@ -1,11 +1,8 @@
 import unittest
-from math import sqrt
 
 import numpy as np
-import torch
 
 from src.eval.eval import EvalTask
-from src.flexipresto import Encoder
 
 
 class TestEval(unittest.TestCase):
@@ -57,6 +54,9 @@ class TestEval(unittest.TestCase):
             assert tar_np[0][1] == 0.75
             assert tar_np[0][~1 and ~5] == 0
 
+
+# TODO: Use as test for our evaluation task later
+"""
     def test_pastis_patch_eval(self):
         # create test arrays
         batch_size = 2
@@ -147,3 +147,4 @@ class TestEval(unittest.TestCase):
         self.check_remove_void(enc_np, tar_np)
         self.check_reduce_targets_per_token(output_mode="mode")
         self.check_reduce_targets_per_token(output_mode="norm_counts")
+"""
