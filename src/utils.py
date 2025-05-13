@@ -213,7 +213,7 @@ def check_config(config):
 
 
 def load_check_config(name: str) -> Dict:
-    with (config_dir / "mae" / name).open("r") as f:
+    with (config_dir / name).open("r") as f:
         config = json.load(f)
     config = check_config(config)
 
