@@ -2,7 +2,7 @@ import random
 from collections import OrderedDict
 from enum import Enum
 from itertools import chain, combinations, product
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
 
 import numpy as np
 import torch
@@ -238,7 +238,7 @@ def batch_subset_mask_presto(
     assert len(masking_probabilities) == len(MASKING_MODES)
 
     if masking_function.value < 2:
-        f = batch_mask_space if masking_function.value == 1 else batch_mask_time
+        f: Callable = batch_mask_space if masking_function.value == 1 else batch_mask_time
         num_masking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
         masking_modes = weighted_sample_without_replacement(
             MASKING_MODES, weights=masking_probabilities, k=num_masking_modes
