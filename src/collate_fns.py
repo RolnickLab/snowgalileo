@@ -1,4 +1,4 @@
-from typing import Dict, NamedTuple, Optional, Tuple
+from typing import NamedTuple, Tuple
 
 import numpy as np
 import torch
@@ -28,7 +28,6 @@ class CollateFnOutput(NamedTuple):
     patch_size_high_res: float
     patch_size_med_res: float
     patch_size_low_res: float
-    c_i: Optional[Dict]
 
 
 def collated_batch_to_output(
@@ -109,8 +108,7 @@ def collated_batch_to_output(
             t_m,
             st_m,
             months,
-        ),
-        c_i,
+        )
     ) = batch_subset_mask_presto(
         s_t_h_x,
         s_t_m_x,
@@ -156,7 +154,6 @@ def collated_batch_to_output(
         patch_size_high_res,
         patch_size_med_res,
         patch_size_low_res,
-        c_i,
     )
 
 
