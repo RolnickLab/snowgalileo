@@ -88,6 +88,12 @@ MODALITIES: Dict[str, Dict[str, Any]] = {
         "active": True,
         "export": True,
     },
+    # "viirs_cloud_flag": {
+    #    "original_resolution": 1000,
+    #    "shape_type": "clouds",
+    #    "active": True,
+    #    "export": True,
+    # },
     "s2_cloud_flag": {
         "original_resolution": 60,
         "shape_type": "clouds",
@@ -127,7 +133,7 @@ MODALITIES: Dict[str, Dict[str, Any]] = {
     "ndvi": {
         "original_resolution": 500,
         "shape_type": "s_t_l_x",
-        "active": False,
+        "active": True,
         "export": False,
     },
 }
@@ -227,7 +233,7 @@ DATA_FOLDER = Path(__file__).parents[2] / "data"
 #    / "marlena.reil"
 #    / "snowgalileo"
 #    / "data"
-#)
+# )
 TIFS_FOLDER = DATA_FOLDER / "tifs_all_bands_1km"
 NORMALIZATION_DICT_FILENAME = "normalizing_dict_1km.json"
 OUTPUT_FOLDER = DATA_FOLDER / "outputs"
