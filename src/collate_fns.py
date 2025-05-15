@@ -93,7 +93,7 @@ def collated_batch_to_output(
         masking_probabilities = [1] * len(MASKING_MODES)
 
     # randomly select a masking strategy
-    masked_output = batch_subset_mask_presto(
+    masked_output, _ = batch_subset_mask_presto(
         s_t_h_x,
         s_t_m_x,
         s_t_l_x,
