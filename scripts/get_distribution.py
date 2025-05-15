@@ -71,8 +71,9 @@ for i, batch in enumerate(dataloader):
                 t_m,
                 st_m,
                 months,
-                patch_size,
-                c_i,
+                patch_size_high_res,
+                patch_size_med_res,
+                patch_size_low_res,
             ) = b
 
             valid_mask_s_t_h = s_t_h_x != NO_DATA_VALUE
