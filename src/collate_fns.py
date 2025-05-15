@@ -93,21 +93,7 @@ def collated_batch_to_output(
         masking_probabilities = [1] * len(MASKING_MODES)
 
     # randomly select a masking strategy
-    (
-        s_t_h_x,
-        s_t_m_x,
-        s_t_l_x,
-        sp_x,
-        t_x,
-        st_x,
-        s_t_h_m,
-        s_t_m_m,
-        s_t_l_m,
-        sp_m,
-        t_m,
-        st_m,
-        months,
-    ) = batch_subset_mask_presto(
+    masked_output = batch_subset_mask_presto(
         s_t_h_x,
         s_t_m_x,
         s_t_l_x,
@@ -134,6 +120,20 @@ def collated_batch_to_output(
         max_unmasking_channels=max_unmasking_channels,
         unmasking_channels_combo=unmasking_channels_combo,
     )
+
+    s_t_h_x = masked_output.space_time_high_x
+    s_t_m_x = masked_output.space_time_med_x
+    s_t_l_x = masked_output.space_time_low_x
+    sp_x = masked_output.space_x
+    t_x = masked_output.time_x
+    st_x = masked_output.static_x
+    s_t_h_m = masked_output.space_time_high_mask
+    s_t_m_m = masked_output.space_time_med_mask
+    s_t_l_m = masked_output.space_time_low_mask
+    sp_m = masked_output.space_mask
+    t_m = masked_output.time_mask
+    st_m = masked_output.static_mask
+    months = masked_output.months
 
     return CollateFnOutput(
         s_t_h_x,
