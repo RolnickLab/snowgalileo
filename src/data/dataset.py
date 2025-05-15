@@ -1162,8 +1162,8 @@ class Dataset(PyTorchDataset):
         output_hw: int = DATASET_OUTPUT_HW_HIGH_RES,
         output_timesteps: int = NUM_TIMESTEPS,
         estimate_from: Optional[int] = 10000,
-        plot_distribution: bool = False,
-        assets_folder_name: str = "",
+        plot_distribution: bool = True,
+        assets_folder_name: str = "assets",
     ):
         if estimate_from is not None:
             indices_to_sample = sample(list(range(len(self))), k=estimate_from)
