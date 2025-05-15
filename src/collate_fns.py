@@ -94,21 +94,19 @@ def collated_batch_to_output(
 
     # randomly select a masking strategy
     (
-        (
-            s_t_h_x,
-            s_t_m_x,
-            s_t_l_x,
-            sp_x,
-            t_x,
-            st_x,
-            s_t_h_m,
-            s_t_m_m,
-            s_t_l_m,
-            sp_m,
-            t_m,
-            st_m,
-            months,
-        )
+        s_t_h_x,
+        s_t_m_x,
+        s_t_l_x,
+        sp_x,
+        t_x,
+        st_x,
+        s_t_h_m,
+        s_t_m_m,
+        s_t_l_m,
+        sp_m,
+        t_m,
+        st_m,
+        months,
     ) = batch_subset_mask_presto(
         s_t_h_x,
         s_t_m_x,
