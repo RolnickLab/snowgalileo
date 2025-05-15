@@ -234,7 +234,7 @@ def batch_subset_mask_presto(
     masking_function: MaskingFunctions,
     max_unmasking_channels: int,
     unmasking_channels_combo: str = "shapes",
-) -> Tuple[MaskedOutput, Optional[Dict]]:
+) -> MaskedOutput:
     assert len(masking_probabilities) == len(MASKING_MODES)
 
     if masking_function.value < 2:

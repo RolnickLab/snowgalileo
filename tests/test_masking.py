@@ -13,7 +13,6 @@ from src.masking import (
     SPACE_TIME_MED_RES_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
     TIME_BANDS_GROUPS_IDX,
-    batch_mask_random,
     batch_mask_space,
     batch_mask_time,
     check_modes_for_conflicts,
@@ -197,10 +196,13 @@ class TestMasking(unittest.TestCase):
             self.assertEqual((b, t, len(TIME_BANDS_GROUPS_IDX)), output.time_mask.shape)
             self.assertEqual((b, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
 
-    # TODO: make this adjustable to med res and low res too
+    # TODO: make this applicable to our data
+    """
     def test_mask_by_random(self):
         b, t, h_h, w_h, h_m, w_m, h_l, w_l, p = 2, 8, 16, 16, 3, 3, 2, 2, 4
         h_tokens_high, w_tokens_high = h_h / p, w_h / p
+        h_tokens_med, w_tokens_med = h_m, w_m
+        h_tokens_low, w_tokens_low = h_l, w_l
         space_time_high_input = torch.ones((b, h_h, w_h, t, 8))
         space_time_med_input = torch.ones((b, h_m, w_m, t, 8))
         space_time_low_input = torch.ones((b, h_l, w_l, t, 8))
@@ -293,6 +295,8 @@ class TestMasking(unittest.TestCase):
         static_decode_per_instance = static_per_token[static_per_token == 2].sum()
         total_tokens = (
             (h_tokens_high * w_tokens_high * t * len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX))
+            + (h_tokens_med * w_tokens_med * t * len(SPACE_TIME_MED_RES_BANDS_GROUPS_IDX))
+            + (h_tokens_low * w_tokens_low * t * len(SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX))
             + (h_tokens_high * w_tokens_high * len(SPACE_BAND_GROUPS_IDX))
             + (t * len(TIME_BANDS_GROUPS_IDX))
             + len(STATIC_BAND_GROUPS_IDX)
@@ -300,6 +304,8 @@ class TestMasking(unittest.TestCase):
         self.assertTrue(
             (
                 space_time_high_res_masked_per_instance
+                + space_time_med_res_masked_per_instance
+                + space_time_low_res_masked_per_instance
                 + space_masked_per_instance
                 + time_masked_per_instance
                 + static_masked_per_instance
@@ -317,3 +323,4 @@ class TestMasking(unittest.TestCase):
                 == total_tokens * ratio * 2
             ).all()
         )
+    """

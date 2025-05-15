@@ -46,6 +46,12 @@ class TestPresto(unittest.TestCase):
             torch.from_numpy(input.time_x).float().unsqueeze(0),
             torch.from_numpy(input.static_x).float().unsqueeze(0),
             torch.from_numpy(input.months).long().unsqueeze(0),
+            torch.from_numpy(input.valid_data_mask_space_time_high_res).float().unsqueeze(0),
+            torch.from_numpy(input.valid_data_mask_space_time_med_res).float().unsqueeze(0),
+            torch.from_numpy(input.valid_data_mask_space_time_low_res).float().unsqueeze(0),
+            torch.from_numpy(input.valid_data_mask_space).float().unsqueeze(0),
+            torch.from_numpy(input.valid_data_mask_time).float().unsqueeze(0),
+            torch.from_numpy(input.valid_data_mask_static).float().unsqueeze(0),
         )
 
     def test_end_to_end(self):

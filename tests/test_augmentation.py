@@ -55,7 +55,16 @@ class TestAugmentation(unittest.TestCase):
         valid_data_mask_s_t_m = torch.ones_like(space_time_med_x)
         valid_data_mask_s_t_l = torch.ones_like(space_time_low_x)
         valid_data_mask_sp = torch.ones_like(space_x)
-        new_space_time_x, new_space_x, valid_data_mask_s_t_h, valid_data_mask_sp = aug.apply(
+        (
+            new_space_time_x,
+            new_space_time_med_x,
+            new_space_time_low_x,
+            new_space_x,
+            valid_data_mask_s_t_h,
+            valid_data_mask_s_t_m,
+            valid_data_mask_s_t_l,
+            valid_data_mask_sp,
+        ) = aug.apply(
             space_time_high_x,
             space_time_med_x,
             space_time_low_x,

@@ -13,8 +13,8 @@ from src.data.earthengine.eo import (
     SPACE_TIME_HIGH_RES_SHIFT_VALUES,
     SPACE_TIME_LOW_RES_BANDS,
     SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX,
-    SPACE_TIME_LOW_RES_DIV_VALUES,
-    SPACE_TIME_LOW_RES_SHIFT_VALUES,
+    SPACE_TIME_LOW_RES_DIV_VALUES_NP,
+    SPACE_TIME_LOW_RES_SHIFT_VALUES_NP,
     SPACE_TIME_MED_RES_BANDS,
     SPACE_TIME_MED_RES_BANDS_GROUPS_IDX,
     SPACE_TIME_MED_RES_DIV_VALUES,
@@ -94,8 +94,8 @@ class TestConfig(unittest.TestCase):
         )
         assert (
             len(SPACE_TIME_LOW_RES_BANDS)
-            == len(SPACE_TIME_LOW_RES_SHIFT_VALUES)
-            == len(SPACE_TIME_LOW_RES_DIV_VALUES)
+            == len(SPACE_TIME_LOW_RES_SHIFT_VALUES_NP)
+            == len(SPACE_TIME_LOW_RES_DIV_VALUES_NP)
             == s_t_l_bands_from_idx
         )
         assert (

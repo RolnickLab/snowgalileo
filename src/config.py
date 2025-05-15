@@ -40,13 +40,19 @@ def get_random_config(
     config["model"]["decoder"]["depth"] = random.choice([3, 4, 5])
     if config["model"]["encoder"]["embedding_size"] == 128:
         config["model"]["decoder"]["embedding_size"] = 128
-        config["training"]["patch_sizes"] = [1, 2, 3, 4, 5, 6, 7, 8]
+        config["training"]["patch_sizes_high_res"] = ([8],)
+        config["training"]["patch_sizes_med_res"] = ([1],)
+        config["training"]["patch_sizes_low_res"] = ([1],)
     elif config["model"]["encoder"]["embedding_size"] == 192:
         config["model"]["decoder"]["embedding_size"] = 192
-        config["training"]["patch_sizes"] = [1, 2, 3, 4, 5, 6, 7, 8]
+        config["training"]["patch_sizes_high_res"] = ([8],)
+        config["training"]["patch_sizes_med_res"] = ([1],)
+        config["training"]["patch_sizes_low_res"] = ([1],)
     elif config["model"]["encoder"]["embedding_size"] == 768:
         config["model"]["decoder"]["embedding_size"] = random.choice([128, 256, 512])
-        config["training"]["patch_sizes"] = [6, 8, 10, 12, 14, 16]
+        config["training"]["patch_sizes_high_res"] = ([8],)
+        config["training"]["patch_sizes_med_res"] = ([1],)
+        config["training"]["patch_sizes_low_res"] = ([1],)
     else:
         raise ValueError(
             f"encoder embedding size didn't match options: {config['model']['encoder']['embedding_size']}"

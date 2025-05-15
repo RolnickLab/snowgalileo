@@ -64,9 +64,15 @@ class TestDataset(unittest.TestCase):
                 s_t_h_x.shape[0],
                 sp_x.shape[1],
                 s_t_h_x.shape[1],
+            )
+            self.assertEqual(
+                sp_x.shape[0],
                 valid_data_mask_s_t_h.shape[0],
                 valid_data_mask_s_t_h.shape[1],
                 valid_data_mask_sp.shape[0],
+            )
+            self.assertEqual(
+                sp_x.shape[0],
                 valid_data_mask_sp.shape[1],
                 NUM_HIGH_RES_PIXELS_PER_DIM,
             )
@@ -74,6 +80,8 @@ class TestDataset(unittest.TestCase):
                 s_t_m_x.shape[0],
                 s_t_m_x.shape[1],
                 valid_data_mask_s_t_m.shape[0],
+            )
+            self.assertEqual(
                 valid_data_mask_s_t_m.shape[1],
                 NUM_MED_RES_PIXELS_PER_DIM,
             )
@@ -84,14 +92,15 @@ class TestDataset(unittest.TestCase):
                 valid_data_mask_s_t_l.shape[1],
                 NUM_LOW_RES_PIXELS_PER_DIM,
             )
+            self.assertEqual(t_x.shape[0], s_t_h_x.shape[2], s_t_m_x.shape[2], s_t_l_x.shape[2])
             self.assertEqual(
                 t_x.shape[0],
-                s_t_h_x.shape[2],
-                s_t_m_x.shape[2],
-                s_t_l_x.shape[2],
                 valid_data_mask_s_t_h.shape[2],
                 valid_data_mask_s_t_l.shape[2],
                 valid_data_mask_s_t_m.shape[2],
+            )
+            self.assertEqual(
+                t_x.shape[0],
                 valid_data_mask_t.shape[0],
                 NUM_TIMESTEPS,
             )
@@ -114,7 +123,7 @@ class TestDataset(unittest.TestCase):
 
         for b in ds:
             assert len(b) == 13
-        assert BROKEN_TIFS_FOLDER / BROKEN_TEST_FILE not in ds.tifs
+        assert all((BROKEN_TIFS_FOLDER / file) not in ds.tifs for file in BROKEN_TEST_FILE)
 
     def test_normalization(self):
         ds = Dataset(TIFS_FOLDER, download=False)
@@ -140,9 +149,7 @@ class TestDataset(unittest.TestCase):
     def test_subset_image_with_minimum_size(self):
         input = np.ones((3, 3, 1))
         months = static = np.ones(1)
-        output = Dataset.subset_image_and_mask(
-            input, input, input, input, months, static, months, 3, 1
-        )
+        output = Dataset.subset_image(input, input, input, input, months, static, months, 3, 1)
         self.assertTrue(np.equal(input, output[0]).all())
         self.assertTrue(np.equal(input, output[1]).all())
         self.assertTrue(np.equal(months, output[2]).all())
@@ -153,7 +160,7 @@ class TestDataset(unittest.TestCase):
         months = static = np.ones(1)
         self.assertRaises(
             AssertionError,
-            Dataset.subset_image_and_mask,
+            Dataset.subset_image,
             input,
             input,
             input,
@@ -168,9 +175,7 @@ class TestDataset(unittest.TestCase):
     def test_subset_with_larger_images(self):
         input = np.ones((5, 5, 1))
         months = static = np.ones(1)
-        output = Dataset.subset_image_and_mask(
-            input, input, input, input, months, static, months, 3, 1
-        )
+        output = Dataset.subset_image(input, input, input, input, months, static, months, 3, 1)
         self.assertTrue(np.equal(np.ones((3, 3, 1)), output[0]).all())
         self.assertTrue(np.equal(np.ones((3, 3, 1)), output[1]).all())
         self.assertTrue(np.equal(months, output[2]).all())
