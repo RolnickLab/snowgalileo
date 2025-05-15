@@ -1555,8 +1555,6 @@ class PrestoPixelDecoder(FlexiPrestoBase):
 
     @staticmethod
     def split_x_y(tokens, mask):
-        # import pdb
-        # pdb;pdb.set_trace()
         org_mask_dtype = mask.dtype
         # https://stackoverflow.com/a/68621610/2332296
         # move all non-masked values to the front of their rows

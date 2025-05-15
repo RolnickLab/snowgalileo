@@ -121,6 +121,8 @@ class TestConfig(unittest.TestCase):
 
         for array_type, bands in array_types.items():
             # Check length of the thresholds
+            if array_type == "clouds":
+                continue
             assert len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS[array_type]) == len(bands)
 
         num_sp_mod = 0

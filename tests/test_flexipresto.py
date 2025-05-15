@@ -73,9 +73,21 @@ class TestPresto(unittest.TestCase):
         )
         ds = Dataset(DATA_FOLDER, False)
         for i in range(len(ds)):
-            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months, _, _, _, _, _, _ = (
-                self.to_tensor_with_batch_d(ds[i])
-            )
+            (
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                months,
+                valid_data_mask_s_t_h,
+                valid_data_mask_s_t_m,
+                valid_data_mask_s_t_l,
+                valid_data_mask_sp,
+                valid_data_mask_t,
+                valid_data_mask_st,
+            ) = self.to_tensor_with_batch_d(ds[i])
             masked_output, _ = batch_subset_mask_presto(
                 s_t_h_x,
                 s_t_m_x,
@@ -84,6 +96,12 @@ class TestPresto(unittest.TestCase):
                 t_x,
                 st_x,
                 months,
+                valid_data_mask_s_t_h,
+                valid_data_mask_s_t_m,
+                valid_data_mask_s_t_l,
+                valid_data_mask_sp,
+                valid_data_mask_t,
+                valid_data_mask_st,
                 encode_ratio=0.25,
                 decode_ratio=0.25,
                 patch_size_high_res=patch_size_high_res,
@@ -689,9 +707,21 @@ class TestPresto(unittest.TestCase):
         encoder.eval()
         ds = Dataset(DATA_FOLDER, False)
         for i in range(len(ds)):
-            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months, _, _, _, _, _, _ = (
-                self.to_tensor_with_batch_d(ds[i])
-            )
+            (
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                months,
+                valid_data_mask_s_t_h,
+                valid_data_mask_s_t_m,
+                valid_data_mask_s_t_l,
+                valid_data_mask_sp,
+                valid_data_mask_t,
+                valid_data_mask_st,
+            ) = self.to_tensor_with_batch_d(ds[i])
             masked_output, _ = batch_subset_mask_presto(
                 s_t_h_x,
                 s_t_m_x,
@@ -700,6 +730,12 @@ class TestPresto(unittest.TestCase):
                 t_x,
                 st_x,
                 months,
+                valid_data_mask_s_t_h,
+                valid_data_mask_s_t_m,
+                valid_data_mask_s_t_l,
+                valid_data_mask_sp,
+                valid_data_mask_t,
+                valid_data_mask_st,
                 encode_ratio=0.25,
                 decode_ratio=0.25,
                 patch_size_high_res=patch_size_high_res,

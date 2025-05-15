@@ -106,6 +106,11 @@ def get_random_config(
         0.5,
         0.2,
         0.2,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
+        0.3,
     ]
     config["training"]["augmentation"] = {"flip+rotate": True}
     config["training"]["encode_ratio"] = 0.1
