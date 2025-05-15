@@ -1,5 +1,6 @@
 import json
 import unittest
+from pathlib import Path
 
 from src.config import get_random_config
 from src.data.config import NORMALIZATION_DICT_FILENAME
@@ -40,8 +41,8 @@ class TestConfigs(unittest.TestCase):
         self.check_models_can_be_loaded(loaded_config)
 
     def test_normalization_dict(self):
-        if NORMALIZATION_DICT_FILENAME.exists():
-            with NORMALIZATION_DICT_FILENAME.open("r") as f:
+        if Path(NORMALIZATION_DICT_FILENAME).exists():
+            with Path(NORMALIZATION_DICT_FILENAME).open("r") as f:
                 norm_dict = json.load(f)
         output_dict = {}
         for key, val in norm_dict.items():

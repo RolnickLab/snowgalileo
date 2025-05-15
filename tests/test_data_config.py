@@ -2,6 +2,7 @@ import unittest
 
 from src.data.config import CHANNEL_WISE_INVALID_DATA_THRESHOLDS, MODALITIES
 from src.data.earthengine.eo import (
+    CLOUD_BANDS,
     SPACE_BAND_GROUPS_IDX,
     SPACE_BANDS,
     SPACE_DIV_VALUES,
@@ -37,6 +38,7 @@ array_types = {
     "sp_x": SPACE_BANDS,
     "t_x": TIME_BANDS,
     "st_x": STATIC_BANDS,
+    "clouds": CLOUD_BANDS,
 }
 
 

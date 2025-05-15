@@ -103,7 +103,7 @@ class TestEndtoEnd(unittest.TestCase):
             )
 
             with torch.no_grad():
-                t_s_t_h, t_s_t_m, t_s_t_l, t_sp, t_t, t_st, _, _, _, _ = (
+                t_s_t_h, t_s_t_m, t_s_t_l, t_sp, t_t, t_st, _, _, _, _, _, _ = (
                     encoder.apply_linear_projection(
                         s_t_h_x.float(),
                         s_t_m_x.float(),

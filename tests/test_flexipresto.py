@@ -73,7 +73,9 @@ class TestPresto(unittest.TestCase):
         )
         ds = Dataset(DATA_FOLDER, False)
         for i in range(len(ds)):
-            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = self.to_tensor_with_batch_d(ds[i])
+            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months, _, _, _, _, _, _ = (
+                self.to_tensor_with_batch_d(ds[i])
+            )
             masked_output, _ = batch_subset_mask_presto(
                 s_t_h_x,
                 s_t_m_x,
@@ -104,9 +106,9 @@ class TestPresto(unittest.TestCase):
                     masked_output.space_x,
                     masked_output.time_x,
                     masked_output.static_x,
-                    masked_output.space_time_high_res_mask,
-                    masked_output.space_time_med_res_mask,
-                    masked_output.space_time_low_res_mask,
+                    masked_output.space_time_high_mask,
+                    masked_output.space_time_med_mask,
+                    masked_output.space_time_low_mask,
                     masked_output.space_mask,
                     masked_output.time_mask,
                     masked_output.static_mask,
@@ -127,10 +129,10 @@ class TestPresto(unittest.TestCase):
                             masked_output.time_x,
                             masked_output.static_x,
                             ~(
-                                masked_output.space_time_high_res_mask == 2
+                                masked_output.space_time_high_mask == 2
                             ),  # we want 0s where the mask == 2
-                            ~(masked_output.space_time_med_res_mask == 2),
-                            ~(masked_output.space_time_low_res_mask == 2),
+                            ~(masked_output.space_time_med_mask == 2),
+                            ~(masked_output.space_time_low_mask == 2),
                             ~(masked_output.space_mask == 2),
                             ~(masked_output.time_mask == 2),
                             ~(masked_output.static_mask == 2),
@@ -149,7 +151,7 @@ class TestPresto(unittest.TestCase):
             self.assertFalse(
                 torch.isnan(
                     t_s_t_h[
-                        masked_output.space_time_high_res_mask[
+                        masked_output.space_time_high_mask[
                             :, 0::patch_size_high_res, 0::patch_size_high_res
                         ]
                         == 2
@@ -159,7 +161,7 @@ class TestPresto(unittest.TestCase):
             self.assertFalse(
                 torch.isnan(
                     t_s_t_m[
-                        masked_output.space_time_med_res_mask[
+                        masked_output.space_time_med_mask[
                             :, 0::patch_size_med_res, 0::patch_size_med_res
                         ]
                         == 2
@@ -249,7 +251,7 @@ class TestPresto(unittest.TestCase):
             self.assertFalse(
                 torch.isnan(
                     encoder_output[0][
-                        masked_output.space_time_high_res_mask[
+                        masked_output.space_time_high_mask[
                             :, 0::patch_size_high_res, 0::patch_size_high_res
                         ]
                         == 0
@@ -259,7 +261,7 @@ class TestPresto(unittest.TestCase):
             self.assertFalse(
                 torch.isnan(
                     encoder_output[1][
-                        masked_output.space_time_med_res_mask[
+                        masked_output.space_time_med_mask[
                             :, 0::patch_size_med_res, 0::patch_size_med_res
                         ]
                         == 0
@@ -341,7 +343,7 @@ class TestPresto(unittest.TestCase):
             self.assertFalse(
                 torch.isnan(
                     output[0][
-                        masked_output.space_time_high_res_mask[
+                        masked_output.space_time_high_mask[
                             :, 0::patch_size_high_res, 0::patch_size_high_res
                         ]
                         == 2
@@ -351,7 +353,7 @@ class TestPresto(unittest.TestCase):
             self.assertFalse(
                 torch.isnan(
                     output[1][
-                        masked_output.space_time_med_res_mask[
+                        masked_output.space_time_med_mask[
                             :, 0::patch_size_med_res, 0::patch_size_med_res
                         ]
                         == 2
@@ -361,7 +363,7 @@ class TestPresto(unittest.TestCase):
             self.assertFalse(
                 torch.isnan(
                     output[2][
-                        masked_output.space_time_low_res_mask[
+                        masked_output.space_time_low_mask[
                             :, 0::patch_size_low_res, 0::patch_size_low_res
                         ]
                         == 2
@@ -630,9 +632,9 @@ class TestPresto(unittest.TestCase):
                 masked_output.space_x,
                 masked_output.time_x,
                 masked_output.static_x,
-                masked_output.space_time_high_res_mask,
-                masked_output.space_time_med_res_mask,
-                masked_output.space_time_low_res_mask,
+                masked_output.space_time_high_mask,
+                masked_output.space_time_med_mask,
+                masked_output.space_time_low_mask,
                 masked_output.space_mask,
                 masked_output.time_mask,
                 masked_output.static_mask,
@@ -687,7 +689,9 @@ class TestPresto(unittest.TestCase):
         encoder.eval()
         ds = Dataset(DATA_FOLDER, False)
         for i in range(len(ds)):
-            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months = self.to_tensor_with_batch_d(ds[i])
+            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, months, _, _, _, _, _, _ = (
+                self.to_tensor_with_batch_d(ds[i])
+            )
             masked_output, _ = batch_subset_mask_presto(
                 s_t_h_x,
                 s_t_m_x,
@@ -742,9 +746,9 @@ class TestPresto(unittest.TestCase):
                 masked_output.space_x,
                 masked_output.time_x,
                 masked_output.static_x,
-                torch.zeros_like(masked_output.space_time_high_res_mask),
-                torch.zeros_like(masked_output.space_time_med_res_mask),
-                torch.zeros_like(masked_output.space_time_low_res_mask),
+                torch.zeros_like(masked_output.space_time_high_mask),
+                torch.zeros_like(masked_output.space_time_med_mask),
+                torch.zeros_like(masked_output.space_time_low_mask),
                 torch.zeros_like(masked_output.space_mask),
                 torch.zeros_like(masked_output.time_mask),
                 torch.zeros_like(masked_output.static_mask),
@@ -762,9 +766,9 @@ class TestPresto(unittest.TestCase):
                 masked_output.space_x,
                 masked_output.time_x,
                 masked_output.static_x,
-                torch.zeros_like(masked_output.space_time_high_res_mask),
-                torch.zeros_like(masked_output.space_time_med_res_mask),
-                torch.zeros_like(masked_output.space_time_low_res_mask),
+                torch.zeros_like(masked_output.space_time_high_mask),
+                torch.zeros_like(masked_output.space_time_med_mask),
+                torch.zeros_like(masked_output.space_time_low_mask),
                 torch.zeros_like(masked_output.space_mask),
                 torch.zeros_like(masked_output.time_mask),
                 torch.zeros_like(masked_output.static_mask),
