@@ -30,7 +30,6 @@ from src.data.config import (
     OUTPUT_FOLDER,
     TARGET_ENCODER_FILENAME,
 )
-from src.eval import EuroSatEval
 from src.eval.eval import EvalTask
 from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
 from src.loss import construct_target_encoder_masks, do_loss
@@ -245,13 +244,13 @@ if restart:
     encoder.load_state_dict(torch.load(model_path / ENCODER_FILENAME, map_location=device))
     predictor.load_state_dict(torch.load(model_path / DECODER_FILENAME, map_location=device))
 
-print("Loading validation task")
-val_task_no_latlons = EuroSatEval(
-    normalization=dataset.normalizer,
-    geobench=True,
-    rgb=True,
-    include_latlons=False,
-)
+# print("Loading validation task")
+# val_task_no_latlons = EuroSatEval(
+#    normalization=dataset.normalizer,
+#    geobench=True,
+#    rgb=True,
+#    include_latlons=False,
+# )
 
 optimizer = torch.optim.AdamW(
     param_groups,
@@ -523,19 +522,19 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
         }
     """
 
-    if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
-        e % training_config["eval_eurosat_every_n_epochs"] == 0
-    ):
-        to_log.update(
-            val_task_no_latlons.evaluate_model_on_task(
-                encoder, model_modes=["KNNat5 Classifier", "KNNat20 Classifier"]
-            )
-        )
-        # to_log.update(
-        #    val_task_ts.evaluate_model_on_task(
-        #        encoder, model_modes=["KNNat5 Classifier", "Logistic Regression"]
-        #    )
-        # )
+    # if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
+    #    e % training_config["eval_eurosat_every_n_epochs"] == 0
+    # ):
+    # to_log.update(
+    #    val_task_no_latlons.evaluate_model_on_task(
+    #        encoder, model_modes=["KNNat5 Classifier", "KNNat20 Classifier"]
+    #    )
+    # )
+    # to_log.update(
+    #    val_task_ts.evaluate_model_on_task(
+    #        encoder, model_modes=["KNNat5 Classifier", "Logistic Regression"]
+    #    )
+    # )
     wandb.log(to_log, step=e)
 
     if args["checkpoint_every_epoch"] > 0:
