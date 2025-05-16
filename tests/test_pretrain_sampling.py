@@ -57,7 +57,7 @@ class TestPretrainTemporalSampling(unittest.TestCase):
             # except mid season, which can be sampled from the previous year
             if SEASON_START_DATE.month == 12:
                 self.assertTrue(
-                    START_YEAR - 1 <= SEASON_START_DATE.year <= END_YEAR + timedelta(days=1),
+                    START_YEAR - 1 <= SEASON_START_DATE.year <= END_YEAR + 1,
                     f"Start year {SEASON_START_DATE.year} is out of range {START_YEAR} to {END_YEAR + 1}",
                 )
             else:

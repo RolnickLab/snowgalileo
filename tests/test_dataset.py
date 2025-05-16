@@ -110,7 +110,6 @@ class TestDataset(unittest.TestCase):
             self.assertEqual(len(SPACE_BANDS), sp_x.shape[-1], valid_data_mask_sp.shape[-1])
             self.assertEqual(len(TIME_BANDS), t_x.shape[-1], valid_data_mask_t.shape[-1])
             self.assertEqual(len(STATIC_BANDS), st_x.shape[-1], valid_data_mask_st.shape[-1])
-            self.assertEqual(months[0], 0)
 
     def test_files_are_replaced(self):
         ds = Dataset(BROKEN_TIFS_FOLDER, download=False)

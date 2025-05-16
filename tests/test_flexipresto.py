@@ -137,7 +137,7 @@ class TestPresto(unittest.TestCase):
                 output = decoder(*encoder_output)
 
                 with torch.no_grad():
-                    t_s_t_h, t_s_t_m, t_s_t_l, t_sp, t_t, t_st, _, _, _, _ = (
+                    t_s_t_h, t_s_t_m, t_s_t_l, t_sp, t_t, t_st, _, _, _, _, _, _, _, _, _ = (
                         encoder.apply_linear_projection(
                             masked_output.space_time_high_x,
                             masked_output.space_time_med_x,
@@ -188,7 +188,7 @@ class TestPresto(unittest.TestCase):
             self.assertFalse(
                 torch.isnan(
                     t_s_t_m[
-                        masked_output.space_time_low_res_mask[
+                        masked_output.space_time_low_mask[
                             :, 0::patch_size_low_res, 0::patch_size_low_res
                         ]
                         == 2
@@ -288,7 +288,7 @@ class TestPresto(unittest.TestCase):
             self.assertFalse(
                 torch.isnan(
                     encoder_output[2][
-                        masked_output.space_time_low_res_mask[
+                        masked_output.space_time_low_mask[
                             :, 0::patch_size_low_res, 0::patch_size_low_res
                         ]
                         == 0
@@ -769,6 +769,8 @@ class TestPresto(unittest.TestCase):
                 "VIIRS_VNIR_COARSE": depth,
                 "VIIRS_SWIR_COARSE": depth,
                 "ERA5": depth,
+                "NDSI": depth,
+                "NDVI": depth,
                 "DEM": depth,
                 "WC": depth,
                 "location": depth,

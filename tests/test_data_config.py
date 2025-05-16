@@ -155,6 +155,10 @@ class TestConfig(unittest.TestCase):
                     num_s_t_h_mod += 1
                 elif modality["shape_type"] == "clouds":
                     num_cloud_mod += 1
+                elif modality["shape_type"] == "s_t_m_x":
+                    num_s_t_m_mod += 1
+                elif modality["shape_type"] == "s_t_l_x":
+                    num_s_t_l_mod += 1
 
         assert num_sp_mod == len(SPACE_IMAGE_FUNCTIONS)
         assert num_t_mod + num_s_t_h_mod + num_s_t_m_mod + num_s_t_l_mod + num_cloud_mod == len(
