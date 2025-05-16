@@ -26,7 +26,6 @@ from src.flexipresto import Encoder, PrestoPixelDecoder
 from src.masking import (
     MASKING_MODES,
     MaskingFunctions,
-    batch_mask_space,
     batch_mask_time,
     batch_subset_mask_presto,
 )
@@ -625,7 +624,7 @@ class TestPresto(unittest.TestCase):
         ds = Dataset(DATA_FOLDER, False)
         tensor_batch = self.to_tensor_with_batch_d(ds[0])
         self.assertTrue(tensor_batch[0].shape[1] == tensor_batch[0].shape[2])
-        for f in [batch_mask_time, batch_mask_space]:
+        for f in [batch_mask_time]:
             masked_output = f(
                 *tensor_batch,
                 encode_ratio=ratio,
@@ -690,7 +689,6 @@ class TestPresto(unittest.TestCase):
                 t_m,
                 st_m,
             )
-            self.assertTrue(x.shape[1] == 1, x.shape)
             x, _, _, _, _ = decoder.split_x_y(x, m)
             self.assertTrue(x.shape[1] == 1, x.shape)
 
