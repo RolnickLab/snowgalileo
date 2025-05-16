@@ -137,9 +137,10 @@ class TestConfig(unittest.TestCase):
             assert modality["shape_type"] in array_types.keys(), (
                 f"Unknown shape type: {modality['shape_type']}"
             )
-            assert modality["original_resolution"] is not None, (
-                f"Original resolution is None for {key}"
-            )
+            if key != "location":
+                assert modality["original_resolution"] is not None, (
+                    f"Original resolution is None for {key}"
+                )
             assert modality["active"] is not None, f"Active is None for {key}"
             assert modality["export"] is not None, f"Export is None for {key}"
 

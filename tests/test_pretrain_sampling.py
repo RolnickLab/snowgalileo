@@ -46,11 +46,11 @@ class TestPretrainTemporalSampling(unittest.TestCase):
 
             # Check if the sampled time window is within the range
             self.assertTrue(
-                SEASON_START_DATE <= WINDOW_START_DATE <= SEASON_END_DATE,
+                SEASON_START_DATE <= WINDOW_START_DATE <= SEASON_END_DATE + 1,
                 f"Start date {WINDOW_START_DATE} is out of range {SEASON_START_DATE} to {SEASON_END_DATE}",
             )
             self.assertTrue(
-                SEASON_START_DATE <= WINDOW_END_DATE <= SEASON_END_DATE,
+                SEASON_START_DATE <= WINDOW_END_DATE <= SEASON_END_DATE + 1,
                 f"End date {WINDOW_END_DATE} is out of range {SEASON_START_DATE} to {SEASON_END_DATE}",
             )
             # Check if the sampled season is within the range

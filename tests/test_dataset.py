@@ -62,8 +62,6 @@ class TestDataset(unittest.TestCase):
             self.assertEqual(
                 sp_x.shape[0],
                 s_t_h_x.shape[0],
-                sp_x.shape[1],
-                s_t_h_x.shape[1],
             )
             self.assertEqual(
                 sp_x.shape[0],

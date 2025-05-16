@@ -88,7 +88,7 @@ class TestPresto(unittest.TestCase):
                 valid_data_mask_t,
                 valid_data_mask_st,
             ) = self.to_tensor_with_batch_d(ds[i])
-            masked_output, _ = batch_subset_mask_presto(
+            masked_output = batch_subset_mask_presto(
                 s_t_h_x,
                 s_t_m_x,
                 s_t_l_x,
@@ -690,6 +690,7 @@ class TestPresto(unittest.TestCase):
                 t_m,
                 st_m,
             )
+            self.assertTrue(x.shape[1] == 1, x.shape)
             x, _, _, _, _ = decoder.split_x_y(x, m)
             self.assertTrue(x.shape[1] == 1, x.shape)
 
@@ -722,7 +723,7 @@ class TestPresto(unittest.TestCase):
                 valid_data_mask_t,
                 valid_data_mask_st,
             ) = self.to_tensor_with_batch_d(ds[i])
-            masked_output, _ = batch_subset_mask_presto(
+            masked_output = batch_subset_mask_presto(
                 s_t_h_x,
                 s_t_m_x,
                 s_t_l_x,

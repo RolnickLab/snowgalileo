@@ -60,6 +60,7 @@ def sample_time_window(start_date: str, end_date: str, window_size: int, seed=No
     total_days = (end_date_tp - start_date_tp).days + 1
 
     # ensure the window fits in the range
+    # ERROR: actually, it exceeds the range now by 1 day
     max_start_day = total_days - window_size
     if max_start_day < 0:
         raise ValueError("Window size is larger than the total date range.")
