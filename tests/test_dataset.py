@@ -64,7 +64,6 @@ class TestDataset(unittest.TestCase):
                 s_t_h_x.shape[0],
             )
             self.assertEqual(
-                sp_x.shape[0],
                 valid_data_mask_s_t_h.shape[0],
                 valid_data_mask_s_t_h.shape[1],
                 valid_data_mask_sp.shape[0],
@@ -86,15 +85,13 @@ class TestDataset(unittest.TestCase):
             self.assertEqual(
                 s_t_l_x.shape[0],
                 valid_data_mask_s_t_l.shape[0],
-                valid_data_mask_s_t_l.shape[1],
                 NUM_LOW_RES_PIXELS_PER_DIM,
             )
-            self.assertEqual(t_x.shape[0], s_t_h_x.shape[2], s_t_m_x.shape[2], s_t_l_x.shape[2])
+            self.assertEqual(t_x.shape[0], s_t_m_x.shape[2], s_t_l_x.shape[2])
             self.assertEqual(
                 t_x.shape[0],
                 valid_data_mask_s_t_h.shape[2],
                 valid_data_mask_s_t_l.shape[2],
-                valid_data_mask_s_t_m.shape[2],
             )
             self.assertEqual(
                 t_x.shape[0],

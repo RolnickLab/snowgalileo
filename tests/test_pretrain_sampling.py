@@ -1,5 +1,5 @@
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from src.data.config import END_YEAR, NORTH_HEM_SEASONS, NUM_TIMESTEPS, START_YEAR
 from src.data.earthengine.utils import (
@@ -46,18 +46,18 @@ class TestPretrainTemporalSampling(unittest.TestCase):
 
             # Check if the sampled time window is within the range
             self.assertTrue(
-                SEASON_START_DATE <= WINDOW_START_DATE <= SEASON_END_DATE + 1,
+                SEASON_START_DATE <= WINDOW_START_DATE <= SEASON_END_DATE + timedelta(days=1),
                 f"Start date {WINDOW_START_DATE} is out of range {SEASON_START_DATE} to {SEASON_END_DATE}",
             )
             self.assertTrue(
-                SEASON_START_DATE <= WINDOW_END_DATE <= SEASON_END_DATE + 1,
+                SEASON_START_DATE <= WINDOW_END_DATE <= SEASON_END_DATE + timedelta(days=1),
                 f"End date {WINDOW_END_DATE} is out of range {SEASON_START_DATE} to {SEASON_END_DATE}",
             )
             # Check if the sampled season is within the range
             # except mid season, which can be sampled from the previous year
             if SEASON_START_DATE.month == 12:
                 self.assertTrue(
-                    START_YEAR - 1 <= SEASON_START_DATE.year <= END_YEAR + 1,
+                    START_YEAR - 1 <= SEASON_START_DATE.year <= END_YEAR + timedelta(days=1),
                     f"Start year {SEASON_START_DATE.year} is out of range {START_YEAR} to {END_YEAR + 1}",
                 )
             else:

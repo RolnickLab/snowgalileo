@@ -810,7 +810,7 @@ class TestPresto(unittest.TestCase):
                 torch.zeros_like(masked_output.time_mask),
                 torch.zeros_like(masked_output.static_mask),
                 masked_output.months.long(),
-                patch_size=patch_size_high_res,
+                patch_size_high_res=patch_size_high_res,
                 patch_size_med_res=1,
                 patch_size_low_res=1,
                 token_exit_cfg=token_exit_cfgs,
