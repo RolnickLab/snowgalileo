@@ -699,7 +699,7 @@ class TestPresto(unittest.TestCase):
 
     @torch.no_grad()
     def _token_exit_cfgs_single_exit_equivalency(self, depth):
-        embedding_size, patch_size_high_res = 8, 1
+        embedding_size, patch_size_high_res = 16, 1
         image_size = patch_size_high_res * 4
         num_timesteps = 3
         encoder = Encoder(embedding_size=embedding_size, num_heads=1, depth=12)

@@ -122,12 +122,12 @@ class TestEndtoEnd(unittest.TestCase):
                         patch_size_low_res,
                     )
                 )
-                t_s_t_h = encoder.blocks[0].norm1(t_s_t_h)
-                t_s_t_m = encoder.blocks[0].norm1(t_s_t_m)
-                t_s_t_l = encoder.blocks[0].norm1(t_s_t_l)
-                t_sp = encoder.blocks[0].norm1(t_sp)
-                t_sp = encoder.blocks[0].norm1(t_sp)
-                t_st = encoder.blocks[0].norm1(t_st)
+                t_s_t_h = encoder.blocks[0].norm1(t_s_t_h.float())
+                t_s_t_m = encoder.blocks[0].norm1(t_s_t_m.float())
+                t_s_t_l = encoder.blocks[0].norm1(t_s_t_l.float())
+                t_sp = encoder.blocks[0].norm1(t_sp.float())
+                t_sp = encoder.blocks[0].norm1(t_sp.float())
+                t_st = encoder.blocks[0].norm1(t_st.flaot())
 
             # commenting out because this fails on the github runner. It doesn't fail locally
             # or cause problems when running experiments.
