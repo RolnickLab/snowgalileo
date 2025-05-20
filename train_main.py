@@ -154,12 +154,6 @@ dataset = Dataset(
 )
 config["training"]["training_samples"] = len(dataset)
 
-# use a subset of the dataset for training
-if args["dataset_subset_size"] > 0:
-    subset_size = args["dataset_subset_size"]
-    indices = random.sample(range(len(dataset)), subset_size)
-    dataset = Subset(dataset, indices)
-
 if not restart:
     # we can't reset these values without wandb
     # complaining
@@ -175,6 +169,12 @@ if training_config["normalization"] == "std":
 else:
     normalizer = Normalizer(std=False)
     dataset.normalizer = normalizer
+
+# use a subset of the dataset for training
+if args["dataset_subset_size"] > 0:
+    subset_size = args["dataset_subset_size"]
+    indices = random.sample(range(len(dataset)), subset_size)
+    dataset = Subset(dataset, indices)
 
 dataloader = DataLoader(
     dataset,
