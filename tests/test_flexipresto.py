@@ -209,8 +209,8 @@ class TestPresto(unittest.TestCase):
                 list(encoder_output[0].shape)
                 == [
                     1,
-                    image_size / patch_size_high_res,
-                    image_size / patch_size_high_res,
+                    masked_output.space_time_high_mask.shape[1] / patch_size_high_res,
+                    masked_output.space_time_high_mask.shape[1] / patch_size_high_res,
                     num_timesteps,
                     len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX),
                     embedding_size,
@@ -242,8 +242,8 @@ class TestPresto(unittest.TestCase):
                 list(encoder_output[3].shape)
                 == [
                     1,
-                    image_size / patch_size_high_res,
-                    image_size / patch_size_high_res,
+                    masked_output.space_mask.shape[1] / patch_size_high_res,
+                    masked_output.space_mask.shape[1] / patch_size_high_res,
                     len(SPACE_BAND_GROUPS_IDX),
                     embedding_size,
                 ]
@@ -310,8 +310,8 @@ class TestPresto(unittest.TestCase):
                 list(output[0].shape)
                 == [
                     1,
-                    image_size / patch_size_high_res,
-                    image_size / patch_size_high_res,
+                    masked_output.space_time_high_mask.shape[1] / patch_size_high_res,
+                    masked_output.space_time_high_mask.shape[1] / patch_size_high_res,
                     num_timesteps,
                     len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX),
                     embedding_size,
@@ -343,8 +343,8 @@ class TestPresto(unittest.TestCase):
                 list(output[3].shape)
                 == [
                     1,
-                    image_size / patch_size_high_res,
-                    image_size / patch_size_high_res,
+                    masked_output.space_mask.shape[1] / patch_size_high_res,
+                    masked_output.space_mask.shape[1] / patch_size_high_res,
                     len(SPACE_BAND_GROUPS_IDX),
                     embedding_size,
                 ]
