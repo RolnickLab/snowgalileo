@@ -2,6 +2,7 @@ import argparse
 import copy
 import json
 import os
+import random
 import warnings
 from functools import partial
 from pathlib import Path
@@ -11,7 +12,7 @@ import codecarbon
 import psutil
 import torch
 import wandb
-from torch.utils.data import BatchSampler, DataLoader
+from torch.utils.data import BatchSampler, DataLoader, Subset
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
@@ -74,6 +75,9 @@ argparser.add_argument("--batch_size", dest="batch_size", default="")
 argparser.add_argument("--sync_models_from_service_account", action="store_true")
 argparser.add_argument("--checkpoint_every_epoch", type=int, default=50)
 argparser.add_argument("--tifs_folder", type=str, default="tifs_all_bands_500m")
+argparser.add_argument(
+    "--dataset_subset_size", type=int, default=0, help="0 for using the entire dataset"
+)
 
 argparser.set_defaults(download=False)
 argparser.set_defaults(cache_in_ram=False)
@@ -149,6 +153,12 @@ dataset = Dataset(
     h5pys_only=args["h5pys_only"],
 )
 config["training"]["training_samples"] = len(dataset)
+
+# use a subset of the dataset for training
+if args["dataset_subset_size"] > 0:
+    subset_size = args["dataset_subset_size"]
+    indices = random.sample(range(len(dataset)), subset_size)
+    dataset = Subset(dataset, indices)
 
 if not restart:
     # we can't reset these values without wandb
