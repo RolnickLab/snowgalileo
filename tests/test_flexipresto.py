@@ -187,7 +187,7 @@ class TestPresto(unittest.TestCase):
             )
             self.assertFalse(
                 torch.isnan(
-                    t_s_t_m[
+                    t_s_t_l[
                         masked_output.space_time_low_mask[
                             :, 0::patch_size_low_res, 0::patch_size_low_res
                         ]
@@ -797,18 +797,18 @@ class TestPresto(unittest.TestCase):
             )
 
             encoder_output_depth_varied = encoder(
-                masked_output.space_time_high_x,
-                masked_output.space_time_med_x,
-                masked_output.space_time_low_x,
-                masked_output.space_x,
-                masked_output.time_x,
-                masked_output.static_x,
-                torch.zeros_like(masked_output.space_time_high_mask),
-                torch.zeros_like(masked_output.space_time_med_mask),
-                torch.zeros_like(masked_output.space_time_low_mask),
-                torch.zeros_like(masked_output.space_mask),
-                torch.zeros_like(masked_output.time_mask),
-                torch.zeros_like(masked_output.static_mask),
+                masked_output.space_time_high_x.float(),
+                masked_output.space_time_med_x.float(),
+                masked_output.space_time_low_x.float(),
+                masked_output.space_x.float(),
+                masked_output.time_x.float(),
+                masked_output.static_x.float(),
+                torch.zeros_like(masked_output.space_time_high_mask).float(),
+                torch.zeros_like(masked_output.space_time_med_mask).float(),
+                torch.zeros_like(masked_output.space_time_low_mask).float(),
+                torch.zeros_like(masked_output.space_mask).float(),
+                torch.zeros_like(masked_output.time_mask).float(),
+                torch.zeros_like(masked_output.static_mask).float(),
                 masked_output.months.long(),
                 patch_size_high_res=patch_size_high_res,
                 patch_size_med_res=1,
