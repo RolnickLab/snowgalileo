@@ -126,8 +126,8 @@ class TestEndtoEnd(unittest.TestCase):
                 t_s_t_m = encoder.blocks[0].norm1(t_s_t_m.float())
                 t_s_t_l = encoder.blocks[0].norm1(t_s_t_l.float())
                 t_sp = encoder.blocks[0].norm1(t_sp.float())
-                t_sp = encoder.blocks[0].norm1(t_sp.float())
-                t_st = encoder.blocks[0].norm1(t_st.flaot())
+                t_t = encoder.blocks[0].norm1(t_t.float())
+                t_st = encoder.blocks[0].norm1(t_st.float())
 
             # commenting out because this fails on the github runner. It doesn't fail locally
             # or cause problems when running experiments.

@@ -158,12 +158,12 @@ class TestPresto(unittest.TestCase):
                             1,
                         )
                     )
-                    t_s_t_h = encoder.blocks[0].norm1(t_s_t_h)
-                    t_s_t_m = encoder.blocks[0].norm1(t_s_t_m)
-                    t_s_t_l = encoder.blocks[0].norm1(t_s_t_l)
-                    t_sp = encoder.blocks[0].norm1(t_sp)
-                    t_sp = encoder.blocks[0].norm1(t_sp)
-                    t_st = encoder.blocks[0].norm1(t_st)
+                    t_s_t_h = encoder.blocks[0].norm1(t_s_t_h.float())
+                    t_s_t_m = encoder.blocks[0].norm1(t_s_t_m.float())
+                    t_s_t_l = encoder.blocks[0].norm1(t_s_t_l.float())
+                    t_sp = encoder.blocks[0].norm1(t_sp.float())
+                    t_t = encoder.blocks[0].norm1(t_t.float())
+                    t_st = encoder.blocks[0].norm1(t_st.float())
 
             self.assertFalse(
                 torch.isnan(
