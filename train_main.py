@@ -550,6 +550,8 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
             config["cur_epoch"] = e + 1
             with (model_path / CONFIG_FILENAME).open("w") as f:
                 json.dump(config, f)
+    print("Epoch: ", e)
+
 
 if model_path is None:
     model_path = output_folder / timestamp_dirname(run_id)
