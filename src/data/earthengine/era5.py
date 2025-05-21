@@ -1,30 +1,28 @@
 from datetime import date
-import numpy as np
 
 import ee
 
-from .utils import date_to_string
+from src.data.earthengine.utils import create_placeholder, date_to_string
 
 image_collection = "ECMWF/ERA5_LAND/DAILY_AGGR"
-ERA5_BANDS = ["skin_temperature", "total_precipitation_sum"]
+ERA5_BANDS = [
+    "skin_temperature",
+    "temperature_2m",
+    "total_precipitation_sum",
+    "u_component_of_wind_10m",
+    "v_component_of_wind_10m",
+]
 # for temperature, shift to celcius and then divide by 35 based on notebook (ranges from)
 # 37 to -22 degrees celcius
 # For rainfall, based on
 # https://github.com/nasaharvest/lem/blob/main/notebooks/exploratory_data_analysis.ipynb
-ERA5_SHIFT_VALUES = [-272.15, 0.0]
-ERA5_DIV_VALUES = [35.0, 0.03]
+ERA5_SHIFT_VALUES = [-272.15, -272.15, 0.0, 0.0, 0.0]
+ERA5_DIV_VALUES = [35.0, 35.0, 0.03, float(1e4), float(1e4)]
 
-# TODO: add more compatible era5 bands
 
 def get_single_era5_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
-    
-    dates = ee.DateRange(
-        date_to_string(start_date),
-        date_to_string(end_date),
-    )
-
-    startDate = ee.DateRange(dates).start()
-    endDate = ee.DateRange(dates).end()
+    startDate = ee.Date(date_to_string(start_date))
+    endDate = ee.Date(date_to_string(end_date))
 
     image = (
         ee.ImageCollection(image_collection)
@@ -34,9 +32,6 @@ def get_single_era5_image(region: ee.Geometry, start_date: date, end_date: date)
     ).first()
 
     if image.getInfo() is None:
-        print("No ERA5 Image on date: {}".format(start_date))
-        return np.nan
+        return create_placeholder(region, ERA5_BANDS).toDouble()
 
-    # has to be double to be compatible with the sentinel 1 imagery, which is in
-    # float64
-    return image.toDouble()
+    return image

@@ -1,6 +1,7 @@
 __pycache__
 # data needs to be explicitly added
 data/*
+!data/pretraining_points/sampling_points_mountains.csv
 .ipynb_checkpoints
 baseline_weights
 models
@@ -18,3 +19,7 @@ gha-creds-*.json
 .idea
 scrap
 imgs
+local
+old_slurms/
+*.sh
+error*

@@ -1,7 +1,24 @@
-from datetime import date, timedelta
-from typing import List, Union
+import json
+import os
+import random
+import shutil
+from datetime import date, datetime, timedelta
+from typing import Union
 
 import ee
+
+from src.data.config import NO_DATA_VALUE
+
+
+def get_ee_credentials():
+    gcp_sa_key = os.environ.get("GCP_SA_KEY")
+    if gcp_sa_key is not None:
+        gcp_sa_email = json.loads(gcp_sa_key)["client_email"]
+        print(f"Logging into EarthEngine with {gcp_sa_email}")
+        return ee.ServiceAccountCredentials(gcp_sa_email, key_data=gcp_sa_key)
+    else:
+        print("Logging into EarthEngine with default credentials")
+        return "persistent"
 
 
 def date_to_string(input_date: Union[date, str]) -> str:
@@ -12,94 +29,106 @@ def date_to_string(input_date: Union[date, str]) -> str:
         return input_date.strftime("%Y-%m-%d")
 
 
-def get_closest_dates(mid_date: date, imcol: ee.ImageCollection) -> ee.ImageCollection:
-    fifteen_days_in_ms = 1296000000
+def create_placeholder(region: ee.Geometry, selected_bands, fill_value=NO_DATA_VALUE):
+    """
+    Creates a placeholder image for a region with constant values for each band in selected_bands.
+    """
+    constant_bands = [ee.Image(ee.Number(fill_value)).rename(band) for band in selected_bands]
 
-    mid_date_ee = ee.Date(date_to_string(mid_date))
-    # first, order by distance from mid_date
-    from_mid_date = imcol.map(
-        lambda image: image.set(
-            "dateDist",
-            ee.Number(image.get("system:time_start"))
-            .subtract(mid_date_ee.millis())  # type: ignore
-            .abs(),
+    placeholder_image = ee.Image.cat(constant_bands).clip(region)
+    return placeholder_image
+
+
+def sample_time_window(start_date: str, end_date: str, window_size: int, seed=None):
+    """
+    Sample random time window within a specified date range.
+
+    Args:
+        start_date: Start of the timeframe in 'YYYY-MM-DD' format.
+        end_date: End of the timeframe in 'YYYY-MM-DD' format.
+        window_size: Length of each time window in days.
+
+    Returns:
+        list of tuples: Each tuple contains the start and end dates of a sampled time window.
+    """
+    if seed is not None:
+        random.seed(seed)
+
+    start_date_tp = datetime.strptime(start_date, "%Y-%m-%d")
+    end_date_tp = datetime.strptime(end_date, "%Y-%m-%d")
+
+    total_days = (end_date_tp - start_date_tp).days + 1
+
+    # ensure the window fits in the range
+    # ERROR: actually, it exceeds the range now by 1 day
+    max_start_day = total_days - window_size
+    if max_start_day < 0:
+        raise ValueError("Window size is larger than the total date range.")
+
+    random_start = random.randint(0, max_start_day + 1)
+
+    window_start = start_date_tp + timedelta(days=random_start)
+    window_end = window_start + timedelta(days=window_size - 1)
+    time_window = (window_start.date(), window_end.date())
+
+    return time_window
+
+
+def sample_season_year(season, start_year, end_year, seed=None):
+    """
+    Randomly samples a year between start_year and end_year and assigns it to the season.
+
+    Args:
+        season: Tuple with season name as first and date ranges as second item.
+        start_year (int): Start year for random sampling.
+        end_year (int): End year for random sampling.
+
+    Returns:
+        dict: A dictionary with seasons as keys and randomly sampled year-specific date ranges.
+    """
+    if seed is not None:
+        random.seed(seed)
+
+    season, (start_date, end_date) = season
+
+    if end_date.startswith("02"):
+        # We can sample from the previous year if we have the mid season
+        # TODO: This is hacky, we should handle this better
+        assert start_date.startswith("12")
+        start_year = start_year - 1
+        sampled_year = random.randint(start_year, end_year)
+        # If the season spans two years (e.g., mid: "12-15" to "02-28"), handle it
+        season_with_year = (
+            f"{sampled_year}-{start_date}",  # Start year remains the sampled year
+            f"{sampled_year + 1}-{end_date}",  # End year goes into the next year
         )
-    )
-    from_mid_date = from_mid_date.sort("dateDist", opt_ascending=True)
-
-    # no matter what, we take the first element in the image collection
-    # and we add 1 to ensure the less_than condition triggers
-    max_diff = ee.Number(from_mid_date.first().get("dateDist")).max(  # type: ignore
-        ee.Number(fifteen_days_in_ms)
-    )
-
-    kept_images = from_mid_date.filterMetadata("dateDist", "not_greater_than", max_diff)
-    return kept_images
-
-
-def get_monthly_data(
-    collection: str, bands: List[str], region: ee.Geometry, start_date: date, unmask: bool = False
-) -> ee.Image:
-    # This only really works with the values currently in config.
-    # What happens is that the images are associated with the first day of the month,
-    # so if we just use the given start_date and end_date, then we will often get
-    # the image from the following month (e.g. the start and end dates of
-    # 2016-02-07, 2016-03-08 respectively return data from March 2016, even though
-    # February 2016 has a much higher overlap). It also means that the final month
-    # timestep, with range 2017-01-02 to 2017-02-01 was returning no data (but we'd)
-    # like it to return data for January
-    # TODO: in the future, this could be updated to an overlapping_month function, similar
-    # to what happens with the Plant Village labels
-    month, year = start_date.month, start_date.year
-    start = date(year, month, 1)
-    # first day of next month
-    end = (date(year, month, 1) + timedelta(days=32)).replace(day=1)
-
-    if (date.today().replace(day=1) - end) < timedelta(days=32):
-        raise ValueError(
-            f"Cannot get data for range {start} - {end}, please set an earlier end date"
+    else:
+        sampled_year = random.randint(start_year, end_year)
+        season_with_year = (
+            f"{sampled_year}-{start_date}",
+            f"{sampled_year}-{end_date}",
         )
-    dates = ee.DateRange(date_to_string(start), date_to_string(end))
-    startDate = ee.DateRange(dates).start()  # type: ignore
-    endDate = ee.DateRange(dates).end()  # type: ignore
 
-    imcol = (
-        ee.ImageCollection(collection)
-        .filterDate(startDate, endDate)
-        .filterBounds(region)
-        .select(bands)
-    )
-    if unmask:
-        imcol = imcol.map(lambda x: x.unmask(0))
+    return season_with_year
 
-    # there should only be one timestep per daterange, so a mean shouldn't change the values
-    return imcol.mean().toDouble()
 
-    def get_daily_data_or_nan(
-    collection: str, bands: List[str], region: ee.Geometry, start_date: date, unmask: bool = False
-) -> ee.Image:
-    # should return the data for a day if available, else return NaN
-    month, year = start_date.month, start_date.year
-    start = date(year, month, 1)
-    # first day of next month
-    end = (date(year, month, 1) + timedelta(days=32)).replace(day=1)
+def get_location_season_identifier(filename) -> str:
+    return filename.split("_dates=")[0] + ".tif"
 
-    if (date.today().replace(day=1) - end) < timedelta(days=32):
-        raise ValueError(
-            f"Cannot get data for range {start} - {end}, please set an earlier end date"
-        )
-    dates = ee.DateRange(date_to_string(start), date_to_string(end))
-    startDate = ee.DateRange(dates).start()  # type: ignore
-    endDate = ee.DateRange(dates).end()  # type: ignore
 
-    imcol = (
-        ee.ImageCollection(collection)
-        .filterDate(startDate, endDate)
-        .filterBounds(region)
-        .select(bands)
-    )
-    if unmask:
-        imcol = imcol.map(lambda x: x.unmask(0))
+def copy_files_with_partial_check(src_folder, dest_folder):
+    os.makedirs(dest_folder, exist_ok=True)
 
-    # there should only be one timestep per daterange, so a mean shouldn't change the values
-    return imcol.mean().toDouble()
+    dest_files = os.listdir(dest_folder)
+    dest_location_season = {get_location_season_identifier(f) for f in dest_files}
+
+    for file_name in os.listdir(src_folder):
+        src_file = os.path.join(src_folder, file_name)
+        if os.path.isfile(src_file):
+            src_location_season = get_location_season_identifier(file_name)
+            if src_location_season in dest_location_season:
+                print(f"Duplicate found, skipping: {src_location_season}")
+            else:
+                dest_file = os.path.join(dest_folder, file_name)
+                shutil.copy2(src_file, dest_file)  # Copy the file
+                print(f"Copied: {src_file} to {dest_file}")

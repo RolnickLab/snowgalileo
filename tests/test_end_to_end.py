@@ -29,18 +29,15 @@ class TestEndtoEnd(unittest.TestCase):
             num_workers=0,
             collate_fn=partial(
                 mae_collate_fn,
-                patch_sizes=[1, 2, 3, 4, 5, 6, 7, 8],
+                patch_sizes_high_res=[8],
+                patch_sizes_med_res=[1],
+                patch_sizes_low_res=[1],
                 shape_time_combinations=[
-                    {"size": 4, "timesteps": 12},
-                    {"size": 5, "timesteps": 6},
-                    {"size": 6, "timesteps": 4},
-                    {"size": 7, "timesteps": 3},
-                    {"size": 9, "timesteps": 3},
-                    {"size": 12, "timesteps": 3},
+                    {"size": 12, "timesteps": 8},
                 ],
                 encode_ratio=0.25,
                 decode_ratio=0.25,
-                random_masking="half",
+                random_masking="full",
             ),
             pin_memory=True,
         )
@@ -63,51 +60,74 @@ class TestEndtoEnd(unittest.TestCase):
                     self.assertFalse(torch.isnan(x).any())
             b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
             (
-                s_t_x,
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
                 sp_x,
                 t_x,
                 st_x,
-                s_t_m,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
                 sp_m,
                 t_m,
                 st_m,
                 months,
-                patch_size,
-                _,
+                patch_size_high_res,
+                patch_size_med_res,
+                patch_size_low_res,
             ) = b
             # no autocast since its poorly supported on CPU
-            (p_s_t, p_sp, p_t, p_st) = predictor(
+            (p_s_t_h, p_s_t_m, p_s_t_l, p_sp, p_t, p_st) = predictor(
                 *encoder(
-                    s_t_x=s_t_x.float(),
+                    s_t_h_x=s_t_h_x.float(),
+                    s_t_m_x=s_t_m_x.float(),
+                    s_t_l_x=s_t_l_x.float(),
                     sp_x=sp_x.float(),
                     t_x=t_x.float(),
                     st_x=st_x.float(),
-                    s_t_m=s_t_m.int(),
+                    s_t_h_m=s_t_h_m.int(),
+                    s_t_m_m=s_t_m_m.int(),
+                    s_t_l_m=s_t_l_m.int(),
                     sp_m=sp_m.int(),
                     t_m=t_m.int(),
                     st_m=st_m.int(),
                     months=months.long(),
-                    patch_size=patch_size,
+                    patch_size_high_res=patch_size_high_res,
+                    patch_size_med_res=patch_size_med_res,
+                    patch_size_low_res=patch_size_low_res,
                 ),
-                patch_size=patch_size,
+                patch_size_high_res=patch_size_high_res,
+                patch_size_med_res=patch_size_med_res,
+                patch_size_low_res=patch_size_low_res,
             )
 
             with torch.no_grad():
-                t_s_t, t_sp, t_t, t_st, _, _, _, _ = encoder.apply_linear_projection(
-                    s_t_x.float(),
-                    sp_x.float(),
-                    t_x.float(),
-                    st_x.float(),
-                    ~(s_t_m == 2).int(),  # we want 0s where the mask == 2
-                    ~(sp_m == 2).int(),
-                    ~(t_m == 2).int(),
-                    ~(st_m == 2).int(),
-                    patch_size,
+                t_s_t_h, t_s_t_m, t_s_t_l, t_sp, t_t, t_st, _, _, _, _, _, _ = (
+                    encoder.apply_linear_projection(
+                        s_t_h_x.float(),
+                        s_t_m_x.float(),
+                        s_t_l_x.float(),
+                        sp_x.float(),
+                        t_x.float(),
+                        st_x.float(),
+                        ~(s_t_h_m == 2).int(),  # we want 0s where the mask == 2
+                        ~(s_t_m_m == 2).int(),
+                        ~(s_t_l_m == 2).int(),
+                        ~(sp_m == 2).int(),
+                        ~(t_m == 2).int(),
+                        ~(st_m == 2).int(),
+                        patch_size_high_res,
+                        patch_size_med_res,
+                        patch_size_low_res,
+                    )
                 )
-                t_s_t = encoder.blocks[0].norm1(t_s_t)
-                t_sp = encoder.blocks[0].norm1(t_sp)
-                t_sp = encoder.blocks[0].norm1(t_sp)
-                t_st = encoder.blocks[0].norm1(t_st)
+                t_s_t_h = encoder.blocks[0].norm1(t_s_t_h.float())
+                t_s_t_m = encoder.blocks[0].norm1(t_s_t_m.float())
+                t_s_t_l = encoder.blocks[0].norm1(t_s_t_l.float())
+                t_sp = encoder.blocks[0].norm1(t_sp.float())
+                t_t = encoder.blocks[0].norm1(t_t.float())
+                t_st = encoder.blocks[0].norm1(t_st.float())
 
             # commenting out because this fails on the github runner. It doesn't fail locally
             # or cause problems when running experiments.
@@ -126,8 +146,12 @@ class TestEndtoEnd(unittest.TestCase):
                 len(
                     torch.concat(
                         [
-                            p_s_t[s_t_m[:, 0::patch_size, 0::patch_size] == 2],
-                            p_sp[sp_m[:, 0::patch_size, 0::patch_size] == 2],
+                            p_s_t_h[
+                                s_t_h_m[:, 0::patch_size_high_res, 0::patch_size_high_res] == 2
+                            ],
+                            p_s_t_m[s_t_m_m[:, 0::patch_size_med_res, 0::patch_size_med_res] == 2],
+                            p_s_t_l[s_t_l_m[:, 0::patch_size_low_res, 0::patch_size_low_res] == 2],
+                            p_sp[sp_m[:, 0::patch_size_high_res, 0::patch_size_high_res] == 2],
                             p_t[t_m == 2],
                             p_st[st_m == 2],
                         ]
@@ -137,16 +161,22 @@ class TestEndtoEnd(unittest.TestCase):
             )
 
             loss = mse_loss(
-                t_s_t,
+                t_s_t_h,
+                t_s_t_m,
+                t_s_t_l,
                 t_sp,
                 t_t,
                 t_st,
-                p_s_t,
+                p_s_t_h,
+                p_s_t_m,
+                p_s_t_l,
                 p_sp,
                 p_t,
                 p_st,
-                s_t_m[:, 0::patch_size, 0::patch_size],
-                sp_m[:, 0::patch_size, 0::patch_size],
+                s_t_h_m[:, 0::patch_size_high_res, 0::patch_size_high_res],
+                s_t_m_m[:, 0::patch_size_med_res, 0::patch_size_med_res],
+                s_t_l_m[:, 0::patch_size_low_res, 0::patch_size_low_res],
+                sp_m[:, 0::patch_size_high_res, 0::patch_size_high_res],
                 t_m,
                 st_m,
             )
@@ -158,7 +188,17 @@ class TestEndtoEnd(unittest.TestCase):
             # check the channel embeddings in the decoder didn't change
             self.assertTrue(
                 torch.equal(
-                    predictor.s_t_channel_embed, torch.zeros_like(predictor.s_t_channel_embed)
+                    predictor.s_t_h_channel_embed, torch.zeros_like(predictor.s_t_h_channel_embed)
+                )
+            )
+            self.assertTrue(
+                torch.equal(
+                    predictor.s_t_m_channel_embed, torch.zeros_like(predictor.s_t_m_channel_embed)
+                )
+            )
+            self.assertTrue(
+                torch.equal(
+                    predictor.s_t_l_channel_embed, torch.zeros_like(predictor.s_t_l_channel_embed)
                 )
             )
             self.assertTrue(

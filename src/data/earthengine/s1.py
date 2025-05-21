@@ -1,20 +1,14 @@
 from datetime import date
-from typing import Tuple
-import numpy as np
 
 import ee
 
-from .utils import date_to_string
+from src.data.earthengine.utils import create_placeholder, date_to_string
 
 image_collection = "COPERNICUS/S1_GRD"
-S1_BANDS = ["VV", "VH"]
+S1_BANDS = ["VV", "VH", "angle"]
 # EarthEngine estimates Sentinel-1 values range from -50 to 1
-S1_SHIFT_VALUES = [25.0, 25.0]
-S1_DIV_VALUES = [25.0, 25.0]
-
-
-# TODO: check if we are OK in using both orbit passes or should constrain on one
-# (would leave us with less frequent images)
+S1_SHIFT_VALUES = [25.0, 25.0, 0.0]
+S1_DIV_VALUES = [25.0, 25.0, 90.0]
 
 
 def get_single_s1_image(
@@ -22,41 +16,19 @@ def get_single_s1_image(
     start_date: date,
     end_date: date,
 ) -> ee.Image:
+    startDate = ee.Date(date_to_string(start_date))
+    endDate = ee.Date(date_to_string(end_date))
 
-    dates = ee.DateRange(
-        date_to_string(start_date),
-        date_to_string(end_date),
+    s1 = (
+        ee.ImageCollection(image_collection)
+        .filterDate(startDate, endDate)
+        .filterBounds(region)
+        .filter(ee.Filter.eq("instrumentMode", "IW"))
     )
 
-    startDate = ee.DateRange(dates).start()
-    endDate = ee.DateRange(dates).end()
+    if s1.size().getInfo() == 0:
+        return create_placeholder(region, S1_BANDS).toDouble()
 
-    s1 = ee.ImageCollection(image_collection).filterDate(startDate, endDate).filterBounds(region)
-
-    if (s1.size().getInfo()== 0):
-        print("No S1 Image on date: {}".format(start_date))
-        return np.nan
-
-    # different areas have either ascending, descending coverage or both.
-    # https://sentinel.esa.int/web/sentinel/missions/sentinel-1/observation-scenario
-    # we want the coverage to be consistent (so don't want to take both) but also want to
-    # take whatever is available
-    orbit = s1.filter(
-        ee.Filter.eq("orbitProperties_pass", s1.first().get("orbitProperties_pass"))
-    ).filter(ee.Filter.eq("instrumentMode", "IW"))
-
-    vv = orbit.filter(ee.Filter.listContains("transmitterReceiverPolarisation", "VV"))
-    vh = orbit.filter(ee.Filter.listContains("transmitterReceiverPolarisation", "VH"))
-
-    composite = ee.Image.cat(
-        [
-            (vv.select("VV")).first(),
-            (vh.select("VH")).first(),
-        ]
-    ).clip(region)
-
-    # rename to the bands
-    image = composite.select(S1_BANDS)
+    image = s1.select(S1_BANDS).first()
 
     return image
-

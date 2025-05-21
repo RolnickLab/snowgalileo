@@ -11,15 +11,17 @@ import numpy as np
 import torch
 import wandb
 
-from .config import DEFAULT_SEED
-from .data.dataset import (
+from src.config import DEFAULT_SEED
+from src.data.earthengine.eo import (
     SPACE_BAND_GROUPS_IDX,
-    SPACE_TIME_BANDS,
-    SPACE_TIME_BANDS_GROUPS_IDX,
+    SPACE_TIME_HIGH_RES_BANDS,
+    SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
+    SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX,
+    SPACE_TIME_MED_RES_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
-    TIME_BAND_GROUPS_IDX,
+    TIME_BANDS_GROUPS_IDX,
 )
-from .masking import MASKING_MODES, UNMASKING_CHANNEL_GROUPS, MaskedOutput
+from src.masking import MASKING_MODES, MaskedOutput
 
 data_dir = Path(__file__).parent.parent / "data"
 logging_dir = Path(__file__).parent.parent / "logs"
@@ -48,15 +50,19 @@ def seed_everything(seed: int = DEFAULT_SEED):
 
 
 def masked_output_np_to_tensor(
-    s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, month
+    s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, month
 ) -> MaskedOutput:
     """converts eval task"""
     return MaskedOutput(
-        torch.as_tensor(s_t_x, dtype=torch.float32),
+        torch.as_tensor(s_t_h_x, dtype=torch.float32),
+        torch.as_tensor(s_t_m_x, dtype=torch.float32),
+        torch.as_tensor(s_t_l_x, dtype=torch.float32),
         torch.as_tensor(sp_x, dtype=torch.float32),
         torch.as_tensor(t_x, dtype=torch.float32),
         torch.as_tensor(st_x, dtype=torch.float32),
-        torch.as_tensor(s_t_m, dtype=torch.float32),
+        torch.as_tensor(s_t_h_m, dtype=torch.float32),
+        torch.as_tensor(s_t_m_m, dtype=torch.float32),
+        torch.as_tensor(s_t_l_m, dtype=torch.float32),
         torch.as_tensor(sp_m, dtype=torch.float32),
         torch.as_tensor(t_m, dtype=torch.float32),
         torch.as_tensor(st_m, dtype=torch.float32),
@@ -89,18 +95,17 @@ def check_config(config):
         "effective_batch_size": int,
         "encode_ratio": float,
         "decode_ratio": float,
-        "patch_sizes": list,
+        "patch_sizes_high_res": list,
+        "patch_sizes_med_res": list,
+        "patch_sizes_low_res": list,
         "max_lr": float,
         "final_lr": float,
-        "conditioner_multiplier": float,
         "warmup_epochs": (int, float),
         "eval_eurosat_every_n_epochs": int,
         "shape_time_combinations": list,
         "augmentation": dict,
         "masking_probabilities": list,
         "grad_clip": bool,
-        "target_condition": bool,
-        "conditioner_mode": str,
         "normalization": str,
         "random_masking": str,
     }
@@ -115,9 +120,9 @@ def check_config(config):
         ), f"Expected {key} to be {val}, got {type(training_dict[key])}"
     for key, val in optional_training_keys_type_default.items():
         if key in training_dict:
-            assert isinstance(
-                training_dict[key], val[0]
-            ), f"Expected {key} to be {val}, got {type(training_dict[key])}"
+            assert isinstance(training_dict[key], val[0]), (
+                f"Expected {key} to be {val}, got {type(training_dict[key])}"
+            )
         else:
             print(f"{key} missing from training dict. Filling with default value {val[1]}")
             config["training"][key] = val[1]
@@ -141,11 +146,11 @@ def check_config(config):
     assert isinstance(training_dict["warmup_epochs"], int)
     assert training_dict["num_epochs"] > training_dict["warmup_epochs"]
     assert training_dict["normalization"] in ["std", "scaling"]
-    assert training_dict["random_masking"] in ["half", "full", "none"]
+    assert training_dict["random_masking"] in ["half", "full", "none", "time_only"]
 
-    assert len(training_dict["masking_probabilities"]) == len(
-        MASKING_MODES
-    ), f"Expected {len(MASKING_MODES)}, got {len(training_dict['masking_probabilities'])}"
+    assert len(training_dict["masking_probabilities"]) == len(MASKING_MODES), (
+        f"Expected {len(MASKING_MODES)}, got {len(training_dict['masking_probabilities'])}"
+    )
 
     for combination in training_dict["shape_time_combinations"]:
         assert "timesteps" in combination.keys()
@@ -178,8 +183,9 @@ def check_config(config):
                 assert key in model_dict[model], f"Expected {key} in {model} dict"
                 assert isinstance(model_dict[model][key], val)
 
-    config["model"]["encoder"]["max_patch_size"] = max(config["training"]["patch_sizes"])
-    config["model"]["decoder"]["max_patch_size"] = max(config["training"]["patch_sizes"])
+    config["model"]["encoder"]["max_patch_size_high_res"] = max(
+        config["training"]["patch_sizes_high_res"]
+    )
     config["model"]["decoder"]["encoder_embedding_size"] = config["model"]["encoder"][
         "embedding_size"
     ]
@@ -188,48 +194,26 @@ def check_config(config):
     )
 
     if config["training"]["loss_type"] == "MAE":
-        max_patch_size = max(config["training"]["patch_sizes"])
+        max_patch_size_high_res = max(config["training"]["patch_sizes_high_res"])
         max_group_length = max(
             [
-                max([len(v) for _, v in SPACE_TIME_BANDS_GROUPS_IDX.items()]),
-                max([len(v) for _, v in TIME_BAND_GROUPS_IDX.items()]),
+                max([len(v) for _, v in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.items()]),
+                max([len(v) for _, v in SPACE_TIME_MED_RES_BANDS_GROUPS_IDX.items()]),
+                max([len(v) for _, v in SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX.items()]),
+                max([len(v) for _, v in TIME_BANDS_GROUPS_IDX.items()]),
                 max([len(v) for _, v in SPACE_BAND_GROUPS_IDX.items()]),
                 max([len(v) for _, v in STATIC_BAND_GROUPS_IDX.items()]),
             ]
         )
         config["model"]["decoder"]["output_embedding_size"] = (
-            max_patch_size**2
+            max_patch_size_high_res**2
         ) * max_group_length
-
-    assert config["training"]["conditioner_mode"] in [
-        "moe",
-        "lora-t",
-        "lora-g",
-        "no_cond",
-        "token",
-    ]
-
-    if config["training"]["conditioner_mode"] == "moe":
-        config["model"]["conditioner"] = {"num_output_channels": len(UNMASKING_CHANNEL_GROUPS)}
-
-    elif "lora" in config["training"]["conditioner_mode"]:
-        config["model"]["conditioner"]["num_output_channels"] = len(UNMASKING_CHANNEL_GROUPS)
-        config["model"]["conditioner"]["backbone_dim"] = config["model"]["encoder"][
-            "embedding_size"
-        ]
-        config["model"]["conditioner"]["backbone_depth"] = config["model"]["encoder"]["depth"]
-        config["model"]["conditioner"]["mlp_ratio"] = config["model"]["encoder"]["mlp_ratio"]
-    elif config["training"]["conditioner_mode"] == "token":
-        config["model"]["conditioner"] = {
-            "num_output_channels": len(UNMASKING_CHANNEL_GROUPS),
-            "backbone_dim": config["model"]["encoder"]["embedding_size"],
-        }
 
     return config
 
 
 def load_check_config(name: str) -> Dict:
-    with (config_dir / "mae" / name).open("r") as f:
+    with (config_dir / name).open("r") as f:
         config = json.load(f)
     config = check_config(config)
 
@@ -250,48 +234,57 @@ def plot_space_time_predictions(
     Number of timesteps to plot are defined in the training config.
     """
     (
-        s_t_x,
+        s_t_h_x,
+        s_t_m_x,
+        s_t_l_x,
         sp_x,
         t_x,
         st_x,
-        s_t_m,
+        s_t_h_m,
+        s_t_m_m,
+        s_t_l_m,
         sp_m,
         t_m,
         st_m,
         months,
-        expanded_s_t_x,
+        patch_size_high_res,
+        patch_size_med_res,
+        patch_size_low_res,
         _,
-        expanded_s_t,
-        _,
-        _,
-        _,
-        patch_size,
     ) = prepared_image
 
     # get predictions with current model
-    (p_s_t, _, _, _) = predictor(
+    (p_s_t_h, _, _, _, _, _) = predictor(
         *encoder(
-            s_t_x.float(),
+            s_t_h_x.float(),
+            s_t_m_x.float(),
+            s_t_l_x.float(),
             sp_x.float(),
             t_x.float(),
             st_x.float(),
-            s_t_m.float(),
+            s_t_h_m.float(),
+            s_t_m_m.float(),
+            s_t_l_m.float(),
             sp_m.float(),
             t_m.float(),
             st_m.float(),
             months.long(),
-            patch_size=patch_size,
+            patch_size_high_res=patch_size_high_res,
+            patch_size_med_res=patch_size_med_res,
+            patch_size_low_res=patch_size_low_res,
         ),
-        patch_size=patch_size,
+        patch_size_high_res=patch_size_high_res,
+        patch_size_med_res=patch_size_med_res,
+        patch_size_low_res=patch_size_low_res,
     )
 
     subplot_titles = []
 
-    for band_list in SPACE_TIME_BANDS_GROUPS_IDX.values():
+    for band_list in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.values():
         for band in band_list:
-            subplot_titles.append(SPACE_TIME_BANDS[band])
+            subplot_titles.append(SPACE_TIME_HIGH_RES_BANDS[band])
 
-    plot_dict = {}
+    plot_list = []
 
     for t in training_config["timesteps_to_wandb_plot"]:
         # figure columns: input, mask, prediction, error
@@ -300,18 +293,16 @@ def plot_space_time_predictions(
 
         # get min and max values for the error colorbar independent of the channel
         error_min = (
-            (abs(expanded_s_t_x[:, :, :, t, :] - p_s_t[:, :, :, t, :]))
-            * expanded_s_t[:, :, :, t, :]
+            (abs(s_t_h_x[:, :, :, t, :] - p_s_t_h[:, :, :, t, :])) * s_t_h_m[:, :, :, t, :]
         ).min()
         error_max = (
-            (abs(expanded_s_t_x[:, :, :, t, :] - p_s_t[:, :, :, t, :]))
-            * expanded_s_t[:, :, :, t, :]
+            (abs(s_t_h_x[:, :, :, t, :] - p_s_t_h[:, :, :, t, :])) * s_t_h_m[:, :, :, t, :]
         ).max()
 
         for i, band in enumerate(subplot_titles):
-            x_to_plot = expanded_s_t_x[0, :, :, t, i].squeeze(0).cpu()
-            pred_to_plot = p_s_t[0, :, :, t, i].squeeze(0).cpu()
-            mask_to_plot = expanded_s_t[0, :, :, t, i].squeeze(0).cpu()
+            x_to_plot = s_t_h_x[0, :, :, t, i].squeeze(0).cpu()
+            pred_to_plot = p_s_t_h[0, :, :, t, i].squeeze(0).cpu()
+            mask_to_plot = s_t_h_m[0, :, :, t, i].squeeze(0).cpu()
 
             x_plot = axs[i, 0].imshow(
                 x_to_plot.numpy(), cmap="gray", vmin=x_to_plot.min(), vmax=x_to_plot.max()
@@ -339,17 +330,15 @@ def plot_space_time_predictions(
             fig.colorbar(error, ax=axs[i, 3])
 
         fig.suptitle(
-            f"Plot image: {image_id}, epoch: {epoch}, patch size: {patch_size}, timestep: {t}",
+            f"Plot image: {image_id}, epoch: {epoch}, timestep: {t}",
             fontsize=20,
             y=1.0001,
         )
         fig.tight_layout()
 
-        plot = wandb.Image(
-            fig, caption=f"plot_image{image_id}_epoch{epoch}_patch_size{patch_size}_timestep{t}"
-        )
-        plot_dict[patch_size] = plot
-    return plot_dict
+        plot = wandb.Image(fig, caption=f"plot_image{image_id}_epoch{epoch}_timestep{t}")
+        plot_list.append(plot)
+    return plot_list
 
 
 def timestamp_dirname(suffix: Optional[str] = None) -> str:
