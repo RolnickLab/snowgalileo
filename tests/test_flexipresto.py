@@ -63,7 +63,7 @@ class TestPresto(unittest.TestCase):
         self, embedding_size, patch_size_high_res, patch_size_med_res, patch_size_low_res
     ):
         image_size = patch_size_high_res * 4
-        num_timesteps = 3
+        num_timesteps = 8
         encoder = Encoder(embedding_size=embedding_size, num_heads=1)
         decoder = PrestoPixelDecoder(
             encoder_embedding_size=embedding_size,
