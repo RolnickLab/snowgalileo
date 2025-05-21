@@ -214,7 +214,17 @@ class TestPresto(unittest.TestCase):
                     num_timesteps,
                     len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX),
                     embedding_size,
-                ]
+                ],
+                f"{list(encoder_output[0].shape)} and {
+                    [
+                        1,
+                        int(masked_output.space_time_high_mask.shape[1] / patch_size_high_res),
+                        int(masked_output.space_time_high_mask.shape[1] / patch_size_high_res),
+                        num_timesteps,
+                        len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX),
+                        embedding_size,
+                    ]
+                } do not match",
             )
             self.assertTrue(
                 list(encoder_output[1].shape)
