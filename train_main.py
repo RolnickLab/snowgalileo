@@ -174,7 +174,7 @@ else:
 if args["dataset_subset_size"] > 0:
     subset_size = args["dataset_subset_size"]
     indices = random.sample(range(len(dataset)), subset_size)
-    dataset = Subset(dataset, indices)
+    dataset = Subset(dataset, indices)  # type: ignore
 
 dataloader = DataLoader(
     dataset,
