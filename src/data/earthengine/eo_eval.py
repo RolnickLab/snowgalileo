@@ -644,6 +644,7 @@ class EarthEngineExporterEval:
         # e.g. L9_20220101_50.1234_8.1234_SC0
         # also, create a pandas dataframe with all filenames in the format of a string
         filenames = []
+        folder = Path(DATA_FOLDER / folder)
 
         for filename in os.listdir(folder):
             if not filename.startswith("L9_") or not filename.endswith(".tif"):
