@@ -88,6 +88,105 @@ MODALITIES: Dict[str, Dict[str, Any]] = {
         "active": True,
         "export": True,
     },
+    "s2_cloud_flag": {
+        "original_resolution": 60,
+        "shape_type": "clouds",
+        "active": True,
+        "export": True,
+    },
+    "landsat_cloud_flag": {
+        "original_resolution": 30,
+        "shape_type": "clouds",
+        "active": True,
+        "export": True,
+    },
+    "dem": {
+        "original_resolution": 30,
+        "shape_type": "sp_x",
+        "active": True,
+        "export": True,
+    },
+    "wc": {
+        "original_resolution": 10,
+        "shape_type": "sp_x",
+        "active": True,
+        "export": True,
+    },
+    "location": {
+        "original_resolution": None,
+        "shape_type": "st_x",
+        "active": True,
+        "export": False,
+    },
+    "ndsi": {
+        "original_resolution": 500,
+        "shape_type": "s_t_l_x",
+        "active": True,
+        "export": False,
+    },
+    "ndvi": {
+        "original_resolution": 500,
+        "shape_type": "s_t_l_x",
+        "active": True,
+        "export": False,
+    },
+}
+
+EVAL_MODALITIES: Dict[str, Dict[str, Any]] = {
+    "s1": {
+        "original_resolution": 10,
+        "shape_type": "s_t_h_x",
+        "active": True,
+        "export": True,
+    },
+    "s2": {
+        "original_resolution": 10,
+        "shape_type": "s_t_h_x",
+        "active": True,
+        "export": True,
+    },
+    "landsat": {
+        "original_resolution": 30,
+        "shape_type": "s_t_h_x",
+        "active": True,
+        "export": True,
+    },
+    "s3": {
+        "original_resolution": 300,
+        "shape_type": "s_t_m_x",
+        "active": True,
+        "export": True,
+    },
+    "modis": {
+        "original_resolution": 500,
+        "shape_type": "s_t_l_x",
+        "active": True,
+        "export": True,
+    },
+    "viirs_fine": {
+        "original_resolution": 500,
+        "shape_type": "s_t_l_x",
+        "active": True,
+        "export": True,
+    },
+    "viirs_coarse": {
+        "original_resolution": 1000,
+        "shape_type": "t_x",
+        "active": True,
+        "export": True,
+    },
+    "era5": {
+        "original_resolution": 11132,
+        "shape_type": "t_x",
+        "active": True,
+        "export": True,
+    },
+    "modis_cloud_flag": {
+        "original_resolution": 1000,
+        "shape_type": "clouds",
+        "active": True,
+        "export": True,
+    },
     "viirs_cloud_flag": {
         "original_resolution": 1000,
         "shape_type": "clouds",

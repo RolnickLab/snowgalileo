@@ -25,6 +25,7 @@ from src.data.config import (
     EXPORTED_HEIGHT_WIDTH_METRES,
     MASK_FOLDER,
     MODALITIES,
+    EVAL_MODALITIES,
     NO_DATA_VALUE,
     NUM_TIMESTEPS,
     START_YEAR,
@@ -124,15 +125,15 @@ SPACE_DIV_VALUES = []
 
 CLOUD_BANDS = []
 
-for modality in MODALITIES:
-    if MODALITIES[modality].get("active") and MODALITIES[modality].get("export"):
-        print(MODALITIES[modality])
+for modality in EVAL_MODALITIES:
+    if EVAL_MODALITIES[modality].get("active") and EVAL_MODALITIES[modality].get("export"):
+        print(EVAL_MODALITIES[modality])
         try:
             band_list = globals()[f"{modality.upper()}_BANDS"]
             shift_values = globals()[f"{modality.upper()}_SHIFT_VALUES"]
             div_values = globals()[f"{modality.upper()}_DIV_VALUES"]
 
-            if MODALITIES[modality].get("shape_type") == "s_t_h_x":
+            if EVAL_MODALITIES[modality].get("shape_type") == "s_t_h_x":
                 SPACE_TIME_HIGH_RES_BANDS.extend(band_list)
                 SPACE_TIME_HIGH_RES_SHIFT_VALUES.extend(shift_values)
                 SPACE_TIME_HIGH_RES_DIV_VALUES.extend(div_values)
@@ -140,7 +141,7 @@ for modality in MODALITIES:
                 function = globals()[f"get_single_{modality}_image"]
                 TIME_IMAGE_FUNCTIONS.append(function)
 
-            elif MODALITIES[modality].get("shape_type") == "s_t_m_x":
+            elif EVAL_MODALITIES[modality].get("shape_type") == "s_t_m_x":
                 SPACE_TIME_MED_RES_BANDS.extend(band_list)
                 SPACE_TIME_MED_RES_SHIFT_VALUES.extend(shift_values)
                 SPACE_TIME_MED_RES_DIV_VALUES.extend(div_values)
@@ -148,7 +149,7 @@ for modality in MODALITIES:
                 function = globals()[f"get_single_{modality}_image"]
                 TIME_IMAGE_FUNCTIONS.append(function)
 
-            elif MODALITIES[modality].get("shape_type") == "s_t_l_x":
+            elif EVAL_MODALITIES[modality].get("shape_type") == "s_t_l_x":
                 SPACE_TIME_LOW_RES_BANDS.extend(band_list)
                 SPACE_TIME_LOW_RES_SHIFT_VALUES.extend(shift_values)
                 SPACE_TIME_LOW_RES_DIV_VALUES.extend(div_values)
@@ -156,7 +157,7 @@ for modality in MODALITIES:
                 function = globals()[f"get_single_{modality}_image"]
                 TIME_IMAGE_FUNCTIONS.append(function)
 
-            elif MODALITIES[modality].get("shape_type") == "t_x":
+            elif EVAL_MODALITIES[modality].get("shape_type") == "t_x":
                 TIME_BANDS.extend(band_list)
                 TIME_SHIFT_VALUES.extend(shift_values)
                 TIME_DIV_VALUES.extend(div_values)
@@ -164,7 +165,7 @@ for modality in MODALITIES:
                 function = globals()[f"get_single_{modality}_image"]
                 TIME_IMAGE_FUNCTIONS.append(function)
 
-            elif MODALITIES[modality].get("shape_type") == "sp_x":
+            elif EVAL_MODALITIES[modality].get("shape_type") == "sp_x":
                 SPACE_BANDS.extend(band_list)
                 SPACE_SHIFT_VALUES.extend(shift_values)
                 SPACE_DIV_VALUES.extend(div_values)
@@ -174,7 +175,7 @@ for modality in MODALITIES:
 
         except KeyError:
             # TODO: make this more pretty
-            if MODALITIES[modality].get("shape_type") == "clouds":
+            if EVAL_MODALITIES[modality].get("shape_type") == "clouds":
                 band_list = globals()[f"{modality.upper()}_BANDS"]
                 CLOUD_BANDS.extend(band_list)
 
@@ -241,12 +242,12 @@ STATIC_DIV_VALUES_NP: npt.NDArray[Any] = np.array([1, 1, 1])
 
 EO_SPACE_TIME_LOW_RES_BANDS = SPACE_TIME_LOW_RES_BANDS
 
-if MODALITIES["ndsi"].get("active"):
+if EVAL_MODALITIES["ndsi"].get("active"):
     SPACE_TIME_LOW_RES_BANDS = SPACE_TIME_LOW_RES_BANDS + ["NDSI"]
     SPACE_TIME_LOW_RES_SHIFT_VALUES_NP = np.append(SPACE_TIME_LOW_RES_SHIFT_VALUES_NP, [0])
     SPACE_TIME_LOW_RES_DIV_VALUES_NP = np.append(SPACE_TIME_LOW_RES_DIV_VALUES_NP, [1])
 
-if MODALITIES["ndvi"].get("active"):
+if EVAL_MODALITIES["ndvi"].get("active"):
     SPACE_TIME_LOW_RES_BANDS = SPACE_TIME_LOW_RES_BANDS + ["NDVI"]
     SPACE_TIME_LOW_RES_SHIFT_VALUES_NP = np.append(SPACE_TIME_LOW_RES_SHIFT_VALUES_NP, [0])
     SPACE_TIME_LOW_RES_DIV_VALUES_NP = np.append(SPACE_TIME_LOW_RES_DIV_VALUES_NP, [1])
@@ -298,10 +299,10 @@ SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDi
     }
 )
 
-if MODALITIES["ndsi"].get("active"):
+if EVAL_MODALITIES["ndsi"].get("active"):
     SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX.update({"NDSI": [SPACE_TIME_LOW_RES_BANDS.index("NDSI")]})
 
-if MODALITIES["ndvi"].get("active"):
+if EVAL_MODALITIES["ndvi"].get("active"):
     SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX.update({"NDVI": [SPACE_TIME_LOW_RES_BANDS.index("NDVI")]})
 
 TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
