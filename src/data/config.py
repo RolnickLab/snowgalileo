@@ -88,12 +88,12 @@ MODALITIES: Dict[str, Dict[str, Any]] = {
         "active": True,
         "export": True,
     },
-    # "viirs_cloud_flag": {
-    #    "original_resolution": 1000,
-    #    "shape_type": "clouds",
-    #    "active": True,
-    #    "export": True,
-    # },
+    "viirs_cloud_flag": {
+        "original_resolution": 1000,
+        "shape_type": "clouds",
+        "active": True,
+        "export": True,
+    },
     "s2_cloud_flag": {
         "original_resolution": 60,
         "shape_type": "clouds",
@@ -237,6 +237,7 @@ DATA_FOLDER = Path(__file__).parents[2] / "data"
 TIFS_FOLDER = DATA_FOLDER / "tifs2500"
 NORMALIZATION_DICT_FILENAME = "normalizing_dict.json"
 OUTPUT_FOLDER = DATA_FOLDER / "outputs"
+MASK_FOLDER = DATA_FOLDER / "landsat_eval_masks"
 ENCODER_FILENAME = "encoder.pt"
 OPTIMIZER_FILENAME = "optimizer.pt"
 TARGET_ENCODER_FILENAME = "target_encoder.pt"
