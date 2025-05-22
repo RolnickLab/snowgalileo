@@ -676,8 +676,8 @@ class EarthEngineExporterEval:
                 surrounding_metres=int(self.surrounding_metres),
             )
 
-            WINDOW_END_DATE = datetime.strptime(parts[1], "%Y%m%d")
-            WINDOW_START_DATE = WINDOW_END_DATE - timedelta(days=NUM_TIMESTEPS - 1)
+            WINDOW_END_DATE = datetime.strptime(parts[1], "%Y%m%d").date()
+            WINDOW_START_DATE = (WINDOW_END_DATE - timedelta(days=NUM_TIMESTEPS - 1)).date()
 
             export_started = self._export_for_polygon(
                 polygon=ee_bbox.to_ee_polygon(),
@@ -689,9 +689,6 @@ class EarthEngineExporterEval:
             )
             if export_started:
                 exports_started += 1
-                if exports_started >= filenames:
-                    print(f"Started {exports_started} exports. Ending export")
-                    return None
 
         if self.mode == "url":
             print("Export finished. Syncing to google cloud")
