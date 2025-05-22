@@ -677,7 +677,7 @@ class EarthEngineExporterEval:
             )
 
             WINDOW_END_DATE = datetime.strptime(parts[1], "%Y%m%d").date()
-            WINDOW_START_DATE = (WINDOW_END_DATE - timedelta(days=NUM_TIMESTEPS - 1)).date()
+            WINDOW_START_DATE = WINDOW_END_DATE - timedelta(days=NUM_TIMESTEPS - 1)
 
             export_started = self._export_for_polygon(
                 polygon=ee_bbox.to_ee_polygon(),
