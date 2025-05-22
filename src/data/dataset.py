@@ -1077,14 +1077,14 @@ class Dataset(PyTorchDataset):
                 len(SPACE_TIME_HIGH_RES_BANDS),
             )
             assert hf["valid_data_mask_s_t_m"].shape == (
-                self.output_hw_med_res,
-                self.output_hw_med_res,
+                NUM_MED_RES_PIXELS_PER_DIM,
+                NUM_MED_RES_PIXELS_PER_DIM,
                 self.output_timesteps,
                 len(SPACE_TIME_MED_RES_BANDS),
             )
             assert hf["valid_data_mask_s_t_l"].shape == (
-                self.output_hw_low_res,
-                self.output_hw_low_res,
+                NUM_LOW_RES_PIXELS_PER_DIM,
+                NUM_LOW_RES_PIXELS_PER_DIM,
                 self.output_timesteps,
                 len(SPACE_TIME_LOW_RES_BANDS),
             )
