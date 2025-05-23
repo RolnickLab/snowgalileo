@@ -21,7 +21,7 @@ dataset = Dataset(
 
 if training_config["normalization"] == "std":
     normalizing_dict = dataset.load_normalization_values(
-        path=NORMALIZATION_DICT_FILENAME
+        path=config_dir / NORMALIZATION_DICT_FILENAME
     )
     print(NORMALIZATION_DICT_FILENAME)
     print(normalizing_dict, flush=True)

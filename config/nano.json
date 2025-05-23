@@ -44,7 +44,7 @@
             "max_sequence_length": 24,
             "freeze_projections": false,
             "drop_path": 0.1,
-            "max_patch_size": 8
+            "max_patch_size_high_res": 8
         },
         "decoder": {
             "depth": 2,
@@ -52,7 +52,7 @@
             "mlp_ratio": 4,
             "max_sequence_length": 24,
             "learnable_channel_embeddings": true,
-            "max_patch_size": 8,
+            "max_patch_size_high_res": 8,
             "embedding_size": 128
         }
     }
