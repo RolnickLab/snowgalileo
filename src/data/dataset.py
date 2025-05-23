@@ -1052,14 +1052,14 @@ class Dataset(PyTorchDataset):
                 len(SPACE_TIME_HIGH_RES_BANDS),
             )
             assert hf["s_t_m_x"].shape == (
-                self.output_hw_med_res,
-                self.output_hw_med_res,
+                NUM_MED_RES_PIXELS_PER_DIM,
+                NUM_MED_RES_PIXELS_PER_DIM,
                 self.output_timesteps,
                 len(SPACE_TIME_MED_RES_BANDS),
             )
             assert hf["s_t_l_x"].shape == (
-                self.output_hw_low_res,
-                self.output_hw_low_res,
+                NUM_LOW_RES_PIXELS_PER_DIM,
+                NUM_LOW_RES_PIXELS_PER_DIM,
                 self.output_timesteps,
                 len(SPACE_TIME_LOW_RES_BANDS),
             )
@@ -1069,7 +1069,7 @@ class Dataset(PyTorchDataset):
                 len(SPACE_BANDS),
             )
             assert hf["t_x"].shape == (self.output_timesteps, len(TIME_BANDS))
-            assert hf["st_x"].shape == (len(STATIC_BANDS))
+            assert hf["st_x"].shape == (len(STATIC_BANDS),)
             assert hf["valid_data_mask_s_t_h"].shape == (
                 self.output_hw_high_res,
                 self.output_hw_high_res,
@@ -1077,14 +1077,14 @@ class Dataset(PyTorchDataset):
                 len(SPACE_TIME_HIGH_RES_BANDS),
             )
             assert hf["valid_data_mask_s_t_m"].shape == (
-                self.output_hw_med_res,
-                self.output_hw_med_res,
+                NUM_MED_RES_PIXELS_PER_DIM,
+                NUM_MED_RES_PIXELS_PER_DIM,
                 self.output_timesteps,
                 len(SPACE_TIME_MED_RES_BANDS),
             )
             assert hf["valid_data_mask_s_t_l"].shape == (
-                self.output_hw_low_res,
-                self.output_hw_low_res,
+                NUM_LOW_RES_PIXELS_PER_DIM,
+                NUM_LOW_RES_PIXELS_PER_DIM,
                 self.output_timesteps,
                 len(SPACE_TIME_LOW_RES_BANDS),
             )
@@ -1094,23 +1094,23 @@ class Dataset(PyTorchDataset):
                 len(SPACE_BANDS),
             )
             assert hf["valid_data_mask_t"].shape == (self.output_timesteps, len(TIME_BANDS))
-            assert hf["valid_data_mask_st"].shape == (len(STATIC_BANDS))
+            assert hf["valid_data_mask_st"].shape == (len(STATIC_BANDS),)
 
             months = self.month_array_from_file(h5py_path, self.output_timesteps)
             output = DatasetOutput(
-                hf["s_t_h_x"],
-                hf["s_t_m_x"],
-                hf["s_t_l_x"],
-                hf["sp_x"],
-                hf["t_x"],
-                hf["st_x"],
+                hf["s_t_h_x"][:],
+                hf["s_t_m_x"][:],
+                hf["s_t_l_x"][:],
+                hf["sp_x"][:],
+                hf["t_x"][:],
+                hf["st_x"][:],
                 months,
-                hf["valid_data_mask_s_t_h"],
-                hf["valid_data_mask_s_t_m"],
-                hf["valid_data_mask_s_t_l"],
-                hf["valid_data_mask_sp"],
-                hf["valid_data_mask_t"],
-                hf["valid_data_mask_st"],
+                hf["valid_data_mask_s_t_h"][:],
+                hf["valid_data_mask_s_t_m"][:],
+                hf["valid_data_mask_s_t_l"][:],
+                hf["valid_data_mask_sp"][:],
+                hf["valid_data_mask_t"][:],
+                hf["valid_data_mask_st"][:],
             )
         return output
 

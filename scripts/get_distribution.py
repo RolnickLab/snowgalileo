@@ -4,15 +4,16 @@ import torch
 from torch.utils.data import DataLoader
 
 from src.collate_fns import mae_collate_fn
-from src.data.config import NO_DATA_VALUE, NORMALIZATION_DICT_FILENAME, TIFS_FOLDER
+from src.data.config import NO_DATA_VALUE, NORMALIZATION_DICT_FILENAME, TIFS_FOLDER, DATA_FOLDER
 from src.data.dataset import Dataset, Normalizer
 from src.utils import config_dir, load_check_config
+from pathlib import Path
 
 config = load_check_config("ai4snow.json")
 training_config = config["training"]
 
 dataset = Dataset(
-    TIFS_FOLDER,
+    Path(DATA_FOLDER / "tifs_all_bands_1km"),
     download=False,
     h5py_folder=None,
     h5pys_only=False,
@@ -20,7 +21,7 @@ dataset = Dataset(
 
 if training_config["normalization"] == "std":
     normalizing_dict = dataset.load_normalization_values(
-        path=config_dir / NORMALIZATION_DICT_FILENAME
+        path=NORMALIZATION_DICT_FILENAME
     )
     print(NORMALIZATION_DICT_FILENAME)
     print(normalizing_dict, flush=True)
