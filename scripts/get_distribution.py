@@ -1,10 +1,11 @@
 from functools import partial
+from pathlib import Path
 
 import torch
 from torch.utils.data import DataLoader
 
 from src.collate_fns import mae_collate_fn
-from src.data.config import NO_DATA_VALUE, NORMALIZATION_DICT_FILENAME, TIFS_FOLDER
+from src.data.config import DATA_FOLDER, NO_DATA_VALUE, NORMALIZATION_DICT_FILENAME
 from src.data.dataset import Dataset, Normalizer
 from src.utils import config_dir, load_check_config
 
@@ -12,7 +13,7 @@ config = load_check_config("ai4snow.json")
 training_config = config["training"]
 
 dataset = Dataset(
-    TIFS_FOLDER,
+    Path(DATA_FOLDER / "tifs_all_bands_1km"),
     download=False,
     h5py_folder=None,
     h5pys_only=False,
