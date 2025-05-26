@@ -6,7 +6,7 @@ import random
 import warnings
 from functools import partial
 from pathlib import Path
-from typing import List, Optional, cast
+from typing import List, cast
 
 import codecarbon
 import psutil
@@ -78,10 +78,20 @@ argparser.add_argument("--tifs_folder", type=str, default="tifs_all_bands_500m")
 argparser.add_argument(
     "--dataset_subset_size", type=int, default=0, help="0 for using the entire dataset"
 )
+argparser.add_argument(
+    "--wandb_run_id", type=str, default="", help="If set, will resume the run with this ID"
+)
+argparser.add_argument("--restart", action="store_true", help="If set, will restart the run")
+argparser.add_argument("--path_to_model_checkpoint", type=str, default="")
 
 argparser.set_defaults(download=False)
 argparser.set_defaults(cache_in_ram=False)
 args = argparser.parse_args().__dict__
+
+if args["restart"]:
+    assert args["path_to_model_checkpoint"] != "", "Please provide a path to the model checkpoint"
+    model_path = Path(args["path_to_model_checkpoint"])
+    assert model_path.exists(), f"Model path {model_path} does not exist"
 
 if args["h5py_folder"] == "":
     cache_folder = None
@@ -94,15 +104,18 @@ if args["output_folder"] == "":
 else:
     output_folder = Path(args["output_folder"])
 
-restart = False
-model_path: Optional[Path] = None
+if args["wandb_run_id"] != "":
+    run_id = args["wandb_run_id"]
+else:
+    # if not set, we will create a new run
+    run_id = None
+
 start_epoch = 0
-run_id = None
 wandb_enabled = True
 wandb_org = "sea-ice"
 wandb_output_dir = Path(__file__).parent
 
-if not restart:
+if not args["restart"]:
     if args["config_file"] == "random_tiny":
         config, run_name = get_random_config("tiny")
         config = check_config(config)
@@ -154,7 +167,7 @@ dataset = Dataset(
 )
 config["training"]["training_samples"] = len(dataset)
 
-if not restart:
+if not args["restart"]:
     # we can't reset these values without wandb
     # complaining
     wandb.config.update(config)
@@ -249,7 +262,7 @@ param_groups.append(
     }
 )
 
-if restart:
+if args["restart"]:
     assert model_path is not None
     encoder.load_state_dict(torch.load(model_path / ENCODER_FILENAME, map_location=device))
     predictor.load_state_dict(torch.load(model_path / DECODER_FILENAME, map_location=device))
@@ -268,7 +281,7 @@ optimizer = torch.optim.AdamW(
     weight_decay=training_config["weight_decay"],
     betas=(training_config["betas"][0], training_config["betas"][1]),
 )  # type: ignore
-if restart:
+if args["restart"]:
     assert model_path is not None
     optimizer.load_state_dict(torch.load(model_path / OPTIMIZER_FILENAME, map_location=device))
 
@@ -287,7 +300,7 @@ momentum_scheduler = (
 )
 target_encoder = copy.deepcopy(encoder)
 target_encoder.eval()
-if restart:
+if args["restart"]:
     assert model_path is not None
     target_encoder.load_state_dict(
         torch.load(model_path / TARGET_ENCODER_FILENAME, map_location=device)
