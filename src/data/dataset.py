@@ -1268,7 +1268,7 @@ class Dataset(PyTorchDataset):
             _,
             _,
             _,
-        ) = self[i]
+        ) = self[0]
 
         stats_high_res = RunningStats(shape=(s_t_h_x.shape[-1],))
         stats_med_res = RunningStats(shape=(s_t_m_x.shape[-1],))
