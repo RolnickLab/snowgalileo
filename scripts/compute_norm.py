@@ -18,7 +18,7 @@ seed_everything(DEFAULT_SEED)
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--h5py_folder", type=str, default="")
-argparser.add_argument("--tifs_folder", type=str, default="tifs")
+argparser.add_argument("--tifs_folder", type=str, default="")
 argparser.add_argument("--download", dest="download", action="store_true")
 argparser.add_argument("--h5pys_only", dest="h5pys_only", action="store_true")
 argparser.add_argument("--estimate_from", type=int, default=1000)
@@ -42,9 +42,5 @@ dataset = Dataset(
     h5pys_only=args["h5pys_only"],
 )
 
-normalizing_dict = dataset.compute_normalization_values(
-    estimate_from=args["estimate_from"],
-    plot_distribution=args["plot_distributions"],
-    assets_folder_name=args["assets_folder_name"],
-)
+normalizing_dict = dataset.compute_running_stats()
 print(normalizing_dict, flush=True)

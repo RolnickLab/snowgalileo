@@ -61,6 +61,7 @@ from src.data.earthengine.eo import (
     TIME_DIV_VALUES_NP,
     TIME_SHIFT_VALUES_NP,
 )
+from src.data.utils import RunningStats
 
 logger = logging.getLogger("__main__")
 
@@ -1241,6 +1242,105 @@ class Dataset(PyTorchDataset):
             "static": {
                 "mean": np.nanmean(d_o.static_x, axis=0, dtype=np.float64).tolist(),
                 "std": np.nanstd(d_o.static_x, axis=0, dtype=np.float64).tolist(),
+            },
+        }
+
+        with open(self.data_folder.parents[1] / "normalizing_dict.json", "w") as f:
+            json.dump(norm_dict, f)
+
+        return norm_dict
+
+    def compute_running_stats(self):
+        """
+        Compute running statistics for the entire dataset.
+        """
+        (
+            s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
+            sp_x,
+            t_x,
+            st_x,
+            _,
+            _,
+            _,
+            _,
+            _,
+            _,
+            _,
+        ) = self[i]
+
+        stats_high_res = RunningStats(shape=(s_t_h_x.shape[-1],))
+        stats_med_res = RunningStats(shape=(s_t_m_x.shape[-1],))
+        stats_low_res = RunningStats(shape=(s_t_l_x.shape[-1],))
+        stats_space = RunningStats(shape=(sp_x.shape[-1],))
+        stats_time = RunningStats(shape=(t_x.shape[-1],))
+        stats_static = RunningStats(shape=(st_x.shape[-1],))
+
+        for i in tqdm(range(len(self))):
+            (
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                _,
+                valid_data_mask_s_t_h,
+                valid_data_mask_s_t_m,
+                valid_data_mask_s_t_l,
+                valid_data_mask_sp,
+                valid_data_mask_t,
+                valid_data_mask_st,
+            ) = self[i]
+            s_t_h_x = np.where(valid_data_mask_s_t_h, s_t_h_x, np.nan)
+            s_t_m_x = np.where(valid_data_mask_s_t_m, s_t_m_x, np.nan)
+            s_t_l_x = np.where(valid_data_mask_s_t_l, s_t_l_x, np.nan)
+            sp_x = np.where(valid_data_mask_sp, sp_x, np.nan)
+            t_x = np.where(valid_data_mask_t, t_x, np.nan)
+            st_x = np.where(valid_data_mask_st, st_x, np.nan)
+
+            # Collapse dimensions if needed, e.g., s_t_h_x.shape = (T, H, W, C) --> reshape to (-1, C)
+            stats_high_res.update(s_t_h_x.reshape(-1, s_t_h_x.shape[-1]))
+            stats_med_res.update(s_t_m_x.reshape(-1, s_t_m_x.shape[-1]))
+            stats_low_res.update(s_t_l_x.reshape(-1, s_t_l_x.shape[-1]))
+            stats_space.update(sp_x.reshape(-1, sp_x.shape[-1]))
+            stats_time.update(t_x.reshape(-1, t_x.shape[-1]))
+            stats_static.update(st_x.reshape(-1, st_x.shape[-1]))
+
+        s_t_h_x_mean, s_t_h_x_std = stats_high_res.finalize()
+        s_t_m_x_mean, s_t_m_x_std = stats_med_res.finalize()
+        s_t_l_x_mean, s_t_l_x_std = stats_low_res.finalize()
+        sp_x_mean, sp_x_std = stats_space.finalize()
+        t_x_mean, t_x_std = stats_time.finalize()
+        st_x_mean, st_x_std = stats_static.finalize()
+
+        norm_dict = {
+            "total_n": len(self),
+            "sampled_n": len(self),
+            "space_time_high_res": {
+                "mean": s_t_h_x_mean.tolist(),
+                "std": s_t_h_x_std.tolist(),
+            },
+            "space_time_med_res": {
+                "mean": s_t_m_x_mean.tolist(),
+                "std": s_t_m_x_std.tolist(),
+            },
+            "space_time_low_res": {
+                "mean": s_t_l_x_mean.tolist(),
+                "std": s_t_l_x_std.tolist(),
+            },
+            "space": {
+                "mean": sp_x_mean.tolist(),
+                "std": sp_x_std.tolist(),
+            },
+            "time": {
+                "mean": t_x_mean.tolist(),
+                "std": t_x_std.tolist(),
+            },
+            "static": {
+                "mean": st_x_mean.tolist(),
+                "std": st_x_std.tolist(),
             },
         }
 
