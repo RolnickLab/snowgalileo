@@ -92,6 +92,8 @@ if args["restart"]:
     assert args["path_to_model_checkpoint"] != "", "Please provide a path to the model checkpoint"
     model_path = Path(args["path_to_model_checkpoint"])
     assert model_path.exists(), f"Model path {model_path} does not exist"
+else:
+    model_path = None
 
 if args["h5py_folder"] == "":
     cache_folder = None
