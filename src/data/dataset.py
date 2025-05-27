@@ -1278,6 +1278,9 @@ class Dataset(PyTorchDataset):
         stats_static = RunningStats(shape=(st_x.shape[-1],))
 
         for i in tqdm(range(len(self))):
+            # quit after 50k samples for time efficiency
+            if i >= 50000:
+                break
             (
                 s_t_h_x,
                 s_t_m_x,
