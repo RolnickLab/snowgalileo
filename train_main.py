@@ -135,14 +135,23 @@ if not args["restart"]:
         run_name = f"{prefix}_{run_name}"
     config["run_name"] = run_name
 
-run = wandb.init(
-    name=run_name,
-    entity=wandb_org,
-    project="ai4snow",
-    dir=wandb_output_dir,
-    id=run_id,
-    resume="allow",
-)
+    run = wandb.init(
+        name=run_name,
+        entity=wandb_org,
+        project="ai4snow",
+        dir=wandb_output_dir,
+        id=run_id,
+        resume="allow",
+    )
+else:
+    run = wandb.init(
+        entity=wandb_org,
+        project="ai4snow",
+        dir=wandb_output_dir,
+        id=run_id,
+        resume="must",
+    )
+
 run_id = cast(Run, run).id
 config["wandb_run_id"] = run_id
 
