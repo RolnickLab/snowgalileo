@@ -281,8 +281,8 @@ param_groups.append(
 
 if args["restart"]:
     assert model_path is not None
-    encoder.load_state_dict(torch.load(model_path / ENCODER_FILENAME, map_location=device))
-    predictor.load_state_dict(torch.load(model_path / DECODER_FILENAME, map_location=device))
+    encoder.load_state_dict(torch.load(id_dir / ENCODER_FILENAME, map_location=device))
+    predictor.load_state_dict(torch.load(id_dir / DECODER_FILENAME, map_location=device))
 
 # print("Loading validation task")
 # val_task_no_latlons = EuroSatEval(
@@ -300,7 +300,7 @@ optimizer = torch.optim.AdamW(
 )  # type: ignore
 if args["restart"]:
     assert model_path is not None
-    optimizer.load_state_dict(torch.load(model_path / OPTIMIZER_FILENAME, map_location=device))
+    optimizer.load_state_dict(torch.load(id_dir / OPTIMIZER_FILENAME, map_location=device))
 
 assert training_config["effective_batch_size"] % training_config["batch_size"] == 0
 iters_to_accumulate = training_config["effective_batch_size"] / training_config["batch_size"]
@@ -320,7 +320,7 @@ target_encoder.eval()
 if args["restart"]:
     assert model_path is not None
     target_encoder.load_state_dict(
-        torch.load(model_path / TARGET_ENCODER_FILENAME, map_location=device)
+        torch.load(id_dir / TARGET_ENCODER_FILENAME, map_location=device)
     )
     # we also want to step through the momentum scheduler since we are going to fast forward training
     for momentum_epoch in range(start_epoch):
