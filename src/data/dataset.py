@@ -817,12 +817,12 @@ class Dataset(PyTorchDataset):
             assert not np.isinf(time_x).any(), f"Infs in t_x for {tif_path}"
             assert not np.isinf(static_x).any(), f"Infs in st_x for {tif_path}"
             return DatasetOutput(
-                space_time_high_res_x,
-                space_time_med_res_x,
-                space_time_low_res_x,
-                space_x,
-                time_x,
-                static_x,
+                space_time_high_res_x.astype(np.half),
+                space_time_med_res_x.astype(np.half),
+                space_time_low_res_x.astype(np.half),
+                space_x.astype(np.half),
+                time_x.astype(np.half),
+                static_x.astype(np.half),
                 months,
                 valid_data_mask_s_t_h,
                 valid_data_mask_s_t_m,
