@@ -44,10 +44,10 @@ def resample_resolution(tif_path):
 class RunningStats:
     """Inspired by: https://stackoverflow.com/questions/1174984/how-to-efficiently-calculate-a-running-standard-deviation"""
 
-    def __init__(self, num_channels):
-        self.count = np.zeros(num_channels)
-        self.mean = np.zeros(num_channels)
-        self.M2 = np.zeros(num_channels)
+    def __init__(self, shape):
+        self.count = np.zeros(shape)
+        self.mean = np.zeros(shape)
+        self.M2 = np.zeros(shape)
 
     # For a new value new_value, compute the new count, new mean, the new M2.
     # mean accumulates the mean of the entire dataset
