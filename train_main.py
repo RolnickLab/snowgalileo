@@ -137,7 +137,15 @@ if not args["restart"]:
 else:
     # if we are restarting, we load the config from the model path
     assert model_path is not None, "Please provide a path to the model checkpoint"
-    with (model_path / CONFIG_FILENAME).open("r") as f:
+    # Find the subdirectory ending with run id
+    matching_dirs = list((model_path).glob(f"*{run_id}"))
+
+    if not matching_dirs:
+        raise FileNotFoundError("No subdirectory ending with run id found in model_path")
+
+    id_dir = matching_dirs[0]
+
+    with (id_dir / CONFIG_FILENAME).open("r") as f:
         config = json.load(f)
     run_name = config["run_name"]
     start_epoch = config.get("cur_epoch", 0)
