@@ -134,24 +134,22 @@ if not args["restart"]:
         prefix = args["run_name_prefix"]
         run_name = f"{prefix}_{run_name}"
     config["run_name"] = run_name
-
-    run = wandb.init(
-        name=run_name,
-        entity=wandb_org,
-        project="ai4snow",
-        dir=wandb_output_dir,
-        id=run_id,
-        resume="allow",
-    )
 else:
-    run = wandb.init(
-        entity=wandb_org,
-        project="ai4snow",
-        dir=wandb_output_dir,
-        id=run_id,
-        resume="must",
-    )
+    # if we are restarting, we load the config from the model path
+    assert model_path is not None, "Please provide a path to the model checkpoint"
+    with (model_path / CONFIG_FILENAME).open("r") as f:
+        config = json.load(f)
+    run_name = config["run_name"]
+    start_epoch = config.get("cur_epoch", 0)
 
+run = wandb.init(
+    name=run_name,
+    entity=wandb_org,
+    project="ai4snow",
+    dir=wandb_output_dir,
+    id=run_id,
+    resume="allow",
+)
 run_id = cast(Run, run).id
 config["wandb_run_id"] = run_id
 
