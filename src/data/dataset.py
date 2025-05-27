@@ -1250,7 +1250,7 @@ class Dataset(PyTorchDataset):
 
         return norm_dict
 
-    def compute_running_stats(self):
+    def compute_running_stats(self, sampled_n=50000):
         """
         Compute running statistics for the entire dataset.
         """
@@ -1279,7 +1279,8 @@ class Dataset(PyTorchDataset):
 
         for i in tqdm(range(len(self))):
             # quit after 50k samples for time efficiency
-            if i >= 50000:
+            if i >= sampled_n:
+                logger.info(f"Reached {sampled_n} samples, stopping computation.")
                 break
             (
                 s_t_h_x,
@@ -1320,7 +1321,7 @@ class Dataset(PyTorchDataset):
 
         norm_dict = {
             "total_n": len(self),
-            "sampled_n": len(self),
+            "sampled_n": sampled_n,
             "space_time_high_res": {
                 "mean": s_t_h_x_mean.tolist(),
                 "std": s_t_h_x_std.tolist(),
