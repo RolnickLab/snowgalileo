@@ -535,6 +535,7 @@ class EarthEngineExporterEval:
         interval_start_date: date,
         interval_end_date: date,
         file_dimensions: Optional[int] = None,
+        crs: Optional[str] = "EPSG:4326",
     ) -> bool:
         cloud_filename = f"{str(polygon_identifier)}"
         local_filename = f"{str(polygon_identifier).replace('/', '_')}.tif"
@@ -576,7 +577,7 @@ class EarthEngineExporterEval:
                     fileNamePrefix=cloud_filename,
                     image=img.clip(polygon),
                     description=description,
-                    crs="EPSG:4326",
+                    crs=crs,
                     scale=10,
                     region=polygon,
                     maxPixels=1e13,
@@ -594,7 +595,7 @@ class EarthEngineExporterEval:
                     fileNamePrefix=cloud_filename,
                     image=img.clip(polygon),
                     description=description,
-                    crs="EPSG:4326",
+                    crs=crs,
                     scale=10,
                     region=polygon,
                     maxPixels=1e13,
@@ -610,7 +611,7 @@ class EarthEngineExporterEval:
                 url = img.getDownloadURL(
                     {
                         "region": polygon,
-                        "crs": "EPSG:4326",
+                        "crs": crs,
                         "scale": 10,
                         "filePerBand": False,
                         "format": "GEO_TIFF",
@@ -641,21 +642,21 @@ class EarthEngineExporterEval:
 
         # check that each file in the folder has a filename with the format L9_YYYYMMDD_LAT_LON_SC[a number between 0 and 100]
         # and that the lat and lon are in the format of a string
-        # e.g. L9_20220101_50.1234_8.1234_SC0
+        # e.g. LC09_20220101_FSC0_50.1234_8.1234.tif
         # also, create a pandas dataframe with all filenames in the format of a string
         filenames = []
         folder = Path(DATA_FOLDER / folder)
 
         for filename in os.listdir(folder):
-            if not filename.startswith("L9_") or not filename.endswith(".tif"):
+            if not filename.startswith("LC0") or not filename.endswith(".tif"):
                 print(f"Filename {filename} does not start with L9_ or end with .tif")
                 continue
             parts = filename.split("_")
             if len(parts) != 5:
                 print(f"Filename {filename} does not have 5 parts")
                 continue
-            lat = parts[2]
-            lon = parts[3]
+            lat = parts[3]
+            lon = parts[4]
             if (
                 not lat.replace(".", "").replace("-", "").isdigit()
                 or not lon.replace(".", "").replace("-", "").isdigit()
@@ -669,11 +670,19 @@ class EarthEngineExporterEval:
 
         for filename in filenames:
             parts = filename.split("_")
-            ee_bbox = EEBoundingBox.from_centre(
-                # worldstrat points are strings
-                mid_lat=float(parts[2]),
-                mid_lon=float(parts[3]),
-                surrounding_metres=int(self.surrounding_metres),
+
+            # TODO: make this more efficient
+            # TODO: change the lat and lon names
+            with rasterio.open(folder / filename) as src:
+                min_lat, max_lat = src.bounds.bottom, src.bounds.top
+                min_lon, max_lon = src.bounds.left, src.bounds.right
+                crs = src.crs.to_string()
+
+            ee_bbox = EEBoundingBox.from_coord_bounds(
+                min_lat=min_lat,
+                max_lat=max_lat,
+                min_lon=min_lon,
+                max_lon=max_lon,
             )
 
             WINDOW_END_DATE = datetime.strptime(parts[1], "%Y%m%d").date()
@@ -686,6 +695,7 @@ class EarthEngineExporterEval:
                 ),
                 interval_start_date=WINDOW_START_DATE,
                 interval_end_date=WINDOW_END_DATE,
+                crs=crs,
             )
             if export_started:
                 exports_started += 1

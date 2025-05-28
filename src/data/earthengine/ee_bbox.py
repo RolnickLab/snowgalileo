@@ -140,3 +140,9 @@ class EEBoundingBox(BBox):
         max_lat = bounding_box.max_lat + extra_degrees_lat
 
         return EEBoundingBox(max_lat=max_lat, min_lat=min_lat, max_lon=max_lon, min_lon=min_lon)
+
+    @staticmethod
+    def from_coord_bounds(
+        min_lat: float, min_lon: float, max_lat: float, max_lon: float
+    ) -> "EEBoundingBox":
+        return EEBoundingBox(min_lat=min_lat, min_lon=min_lon, max_lat=max_lat, max_lon=max_lon)
