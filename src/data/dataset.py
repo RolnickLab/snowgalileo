@@ -146,6 +146,13 @@ class Normalizer:
         return x_normalized
 
     def __call__(self, x: np.ndarray, array_type: str, valid_data_mask: np.ndarray):
+        if self.normalizing_dicts is not None:
+            if array_type not in self.normalizing_dicts:
+                raise ValueError(f"Unknown array type: {array_type}")
+            shift_values = self.normalizing_dicts[array_type]["mean"]
+            div_values = self.normalizing_dicts[array_type]["std"]
+            return self._normalize(x, valid_data_mask, shift_values, div_values)
+
         if array_type not in self.shift_div_dict:
             raise ValueError(f"Unknown array type: {array_type}")
         return self._normalize(
