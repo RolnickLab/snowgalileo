@@ -12,8 +12,8 @@ from src.data import EarthEngineExporterEval
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--mode", type=str, default="url")
 argparser.add_argument("--check_gcp", type=bool, default=False)
-argparser.add_argument("--tifs_folder", type=str, default="landsat_eval_tifs")
-argparser.add_argument("--mask_folder", type=str, default="landsat_eval_masks")
+argparser.add_argument("--tifs_folder", type=str, default="landsat_eval_tifs/test")
+argparser.add_argument("--mask_folder", type=str, default="landsat_eval_masks/test")
 args = argparser.parse_args().__dict__
 
 exporter = EarthEngineExporterEval(
