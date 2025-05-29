@@ -7,17 +7,11 @@ import ee
 
 from src.data.bbox import BBox
 
-
 @dataclass
-class EEGeometry:
-    r"""
-    A base class for Earth Engine geometries.
-    This is used to provide a common interface for different geometry types.
-    """
-
+class Geometry:
     min_lat: float
-    max_lat: float
     min_lon: float
+    max_lat: float
     max_lon: float
     proj: str
 
@@ -37,11 +31,12 @@ class EEGeometry:
 
     ee.Geometry(json.loads(json.dumps(geojson)))
 
-    def to_ee_geometry(self) -> ee.Geometry:
-        raise NotImplementedError("Subclasses must implement this method.")
-
-    def get_centre(self, in_radians: bool = True) -> Tuple[float, float]:
-        raise NotImplementedError("Subclasses must implement this method.")
+@dataclass
+class EEGeometry(Geometry):
+    r"""
+    A base class for Earth Engine geometries.
+    This is used to provide a common interface for different geometry types.
+    """
 
     @staticmethod
     def from_coord_bounds(
