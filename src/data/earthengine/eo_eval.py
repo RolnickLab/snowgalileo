@@ -657,12 +657,6 @@ class EarthEngineExporterEval:
                 continue
             lat = parts[3]
             lon = parts[4]
-            if (
-                not lat.replace(".", "").replace("-", "").isdigit()
-                or not lon.replace(".", "").replace("-", "").isdigit()
-            ):
-                print(f"Filename {filename} does not have valid lat and lon")
-                continue
             filenames.append(filename)
 
         exports_started = 0
