@@ -536,6 +536,7 @@ class EarthEngineExporterEval:
         interval_end_date: date,
         file_dimensions: Optional[int] = None,
         crs: Optional[str] = "EPSG:4326",
+        transform: Optional[npt.NDArray[Any]] = None,
     ) -> bool:
         cloud_filename = f"{str(polygon_identifier)}"
         local_filename = f"{str(polygon_identifier).replace('/', '_')}.tif"
