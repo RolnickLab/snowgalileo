@@ -684,11 +684,11 @@ class EarthEngineExporterEval:
             WINDOW_END_DATE = datetime.strptime(parts[1], "%Y%m%d").date()
             WINDOW_START_DATE = WINDOW_END_DATE - timedelta(days=NUM_TIMESTEPS - 1)
 
+            identifier = f"{parts[0]}_{WINDOW_START_DATE}_{WINDOW_END_DATE}_{min_lat}_{min_lon}_{max_lat}_{max_lon}"
+
             export_started = self._export_for_polygon(
-                polygon=ee_bbox.to_ee_polygon(),
-                polygon_identifier=ee_bbox.get_identifier(
-                    None, WINDOW_START_DATE, WINDOW_END_DATE, filename, for_eval=True
-                ),
+                polygon=ee_bbox,
+                polygon_identifier=identifier,
                 interval_start_date=WINDOW_START_DATE,
                 interval_end_date=WINDOW_END_DATE,
                 crs=crs,

@@ -19,22 +19,17 @@ class EEGeometry():
     def from_coord_bounds(
         min_lat: float, min_lon: float, max_lat: float, max_lon: float, proj: str
     ) -> ee.Geometry:
-        geojson = {
-            "type": "Polygon",
-            "coordinates": [
+        return ee.Geometry.Polygon(
+            [
                 [
                     [min_lon, min_lat],
                     [min_lon, max_lat],
                     [max_lon, max_lat],
                     [max_lon, min_lat],
-                    [min_lon, min_lat],
                 ]
             ],
-            "proj": proj,
-        }
-
-        return ee.Geometry(json.loads(json.dumps(geojson)))
-
+            proj=proj,
+        )
 
 @dataclass
 class EEBoundingBox(BBox):
