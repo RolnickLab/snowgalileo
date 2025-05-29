@@ -37,7 +37,7 @@ from src.data.earthengine.copernicus_dem import (
     DEM_SHIFT_VALUES,
     get_single_dem_image,
 )
-from src.data.earthengine.ee_bbox import EEBoundingBox
+from src.data.earthengine.ee_bbox import EEGeometry
 from src.data.earthengine.era5 import (
     ERA5_BANDS,
     ERA5_DIV_VALUES,
@@ -677,8 +677,9 @@ class EarthEngineExporterEval:
                 min_lat, max_lat = src.bounds.bottom, src.bounds.top
                 min_lon, max_lon = src.bounds.left, src.bounds.right
                 crs = src.crs.to_string()
+                transform = src.transform
 
-            ee_bbox = EEBoundingBox.from_coord_bounds(
+            ee_bbox = EEGeometry.from_coord_bounds(
                 min_lat=min_lat,
                 max_lat=max_lat,
                 min_lon=min_lon,
@@ -696,6 +697,7 @@ class EarthEngineExporterEval:
                 interval_start_date=WINDOW_START_DATE,
                 interval_end_date=WINDOW_END_DATE,
                 crs=crs,
+                transform=transform,
             )
             if export_started:
                 exports_started += 1

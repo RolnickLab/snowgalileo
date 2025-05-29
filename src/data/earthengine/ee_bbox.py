@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 from math import cos, radians
 from typing import List, Tuple, Union
@@ -5,6 +6,50 @@ from typing import List, Tuple, Union
 import ee
 
 from src.data.bbox import BBox
+
+
+@dataclass
+class EEGeometry:
+    r"""
+    A base class for Earth Engine geometries.
+    This is used to provide a common interface for different geometry types.
+    """
+
+    min_lat: float
+    max_lat: float
+    min_lon: float
+    max_lon: float
+    proj: str
+
+    geojson = {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [min_lon, min_lat],
+                [min_lon, max_lat],
+                [max_lon, max_lat],
+                [max_lon, min_lat],
+                [min_lon, min_lat],
+            ]
+        ],
+        "proj": proj,
+    }
+
+    ee.Geometry(json.loads(json.dumps(geojson)))
+
+    def to_ee_geometry(self) -> ee.Geometry:
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def get_centre(self, in_radians: bool = True) -> Tuple[float, float]:
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    @staticmethod
+    def from_coord_bounds(
+        min_lat: float, min_lon: float, max_lat: float, max_lon: float, proj: str
+    ) -> "EEGeometry":
+        return EEGeometry(
+            min_lat=min_lat, min_lon=min_lon, max_lat=max_lat, max_lon=max_lon, proj=proj
+        )
 
 
 @dataclass
@@ -140,9 +185,3 @@ class EEBoundingBox(BBox):
         max_lat = bounding_box.max_lat + extra_degrees_lat
 
         return EEBoundingBox(max_lat=max_lat, min_lat=min_lat, max_lon=max_lon, min_lon=min_lon)
-
-    @staticmethod
-    def from_coord_bounds(
-        min_lat: float, min_lon: float, max_lat: float, max_lon: float
-    ) -> "EEBoundingBox":
-        return EEBoundingBox(min_lat=min_lat, min_lon=min_lon, max_lat=max_lat, max_lon=max_lon)
