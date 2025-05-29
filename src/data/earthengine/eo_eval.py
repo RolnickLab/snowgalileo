@@ -10,6 +10,7 @@ from typing import OrderedDict as OrderedDictType
 import ee
 import numpy as np
 import numpy.typing as npt
+import rasterio
 import requests
 from pandas.compat._optional import import_optional_dependency
 from tqdm import tqdm
@@ -22,10 +23,9 @@ from src.data.config import (
     EE_FOLDER_TIFS,
     EE_PROJECT,
     END_YEAR,
+    EVAL_MODALITIES,
     EXPORTED_HEIGHT_WIDTH_METRES,
     MASK_FOLDER,
-    MODALITIES,
-    EVAL_MODALITIES,
     NO_DATA_VALUE,
     NUM_TIMESTEPS,
     START_YEAR,
