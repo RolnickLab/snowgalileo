@@ -149,6 +149,7 @@ else:
         config = json.load(f)
     run_name = config["run_name"]
     start_epoch = config.get("cur_epoch", 0)
+    print("Restarting from epoch:", start_epoch)
 
 run = wandb.init(
     name=run_name,
@@ -281,6 +282,7 @@ param_groups.append(
 
 if args["restart"]:
     assert model_path is not None
+    print(f"Loading checkpoint for epoch {start_epoch} from {model_path}", flush=True)
     encoder.load_state_dict(torch.load(id_dir / ENCODER_FILENAME, map_location=device))
     predictor.load_state_dict(torch.load(id_dir / DECODER_FILENAME, map_location=device))
 
@@ -300,6 +302,7 @@ optimizer = torch.optim.AdamW(
 )  # type: ignore
 if args["restart"]:
     assert model_path is not None
+    print(f"Loading optimizer state from {model_path}", flush=True)
     optimizer.load_state_dict(torch.load(id_dir / OPTIMIZER_FILENAME, map_location=device))
 
 assert training_config["effective_batch_size"] % training_config["batch_size"] == 0
@@ -332,6 +335,7 @@ for p in target_encoder.parameters():
 
 skipped_batches = 0
 for e in tqdm(range(start_epoch, training_config["num_epochs"])):
+    print(f"Epoch {e + 1}")
     i = 0
     train_loss = AverageMeter()
     random_masking_train_loss = AverageMeter()
