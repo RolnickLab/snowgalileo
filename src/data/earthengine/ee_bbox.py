@@ -9,7 +9,7 @@ from src.data.bbox import BBox
 
 
 @dataclass
-class EEGeometry(Geometry):
+class EEGeometry():
     r"""
     A base class for Earth Engine geometries.
     This is used to provide a common interface for different geometry types.
