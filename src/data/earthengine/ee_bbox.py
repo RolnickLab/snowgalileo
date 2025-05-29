@@ -7,29 +7,6 @@ import ee
 
 from src.data.bbox import BBox
 
-@dataclass
-class Geometry:
-    min_lat: float
-    min_lon: float
-    max_lat: float
-    max_lon: float
-    proj: str
-
-    geojson = {
-        "type": "Polygon",
-        "coordinates": [
-            [
-                [min_lon, min_lat],
-                [min_lon, max_lat],
-                [max_lon, max_lat],
-                [max_lon, min_lat],
-                [min_lon, min_lat],
-            ]
-        ],
-        "proj": proj,
-    }
-
-    ee.Geometry(json.loads(json.dumps(geojson)))
 
 @dataclass
 class EEGeometry(Geometry):
@@ -41,10 +18,22 @@ class EEGeometry(Geometry):
     @staticmethod
     def from_coord_bounds(
         min_lat: float, min_lon: float, max_lat: float, max_lon: float, proj: str
-    ) -> "EEGeometry":
-        return EEGeometry(
-            min_lat=min_lat, min_lon=min_lon, max_lat=max_lat, max_lon=max_lon, proj=proj
-        )
+    ) -> ee.Geometry:
+        geojson = {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [min_lon, min_lat],
+                    [min_lon, max_lat],
+                    [max_lon, max_lat],
+                    [max_lon, min_lat],
+                    [min_lon, min_lat],
+                ]
+            ],
+            "proj": proj,
+        }
+
+        return ee.Geometry(json.loads(json.dumps(geojson)))
 
 
 @dataclass
