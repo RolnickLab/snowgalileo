@@ -669,17 +669,25 @@ class EarthEngineExporterEval:
             # TODO: make this more efficient
             # TODO: change the lat and lon names
             with rasterio.open(folder / filename) as src:
-                min_lat, max_lat = src.bounds.bottom, src.bounds.top
-                min_lon, max_lon = src.bounds.left, src.bounds.right
+                min_yy, max_yy = src.bounds.bottom, src.bounds.top
+                min_xx, max_xx = src.bounds.left, src.bounds.right
                 crs = src.crs.to_string()
                 transform = src.transform
+
+            # reproject to EPSG:4326
+            print(f"Converting {crs} to EPSG:4326")
+            from pyproj import Transformer
+
+            transformer = Transformer.from_crs(crs, "EPSG:4326")
+            min_lon, min_lat = transformer.transform(min_xx, min_yy)
+            max_lon, max_lat = transformer.transform(max_xx, max_yy)
 
             ee_bbox = EEGeometry.from_coord_bounds(
                 min_lat=min_lat,
                 max_lat=max_lat,
                 min_lon=min_lon,
                 max_lon=max_lon,
-                proj=crs,
+                proj="EPSG:4326",
             )
 
             WINDOW_END_DATE = datetime.strptime(parts[1], "%Y%m%d").date()
