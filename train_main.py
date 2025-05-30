@@ -7,6 +7,7 @@ import warnings
 from functools import partial
 from pathlib import Path
 from typing import List, cast
+import torch.nn as nn
 
 import codecarbon
 import psutil
@@ -263,7 +264,11 @@ if training_config["wandb_plot_every_n_epochs"] > 0:
 
 
 print("Loading models")
-predictor = PrestoPixelDecoder(**config["model"]["decoder"]).to(device)
+predictor = PrestoPixelDecoder(**config["model"]["decoder"])
+if torch.cuda.device_count() > 1:
+    print("Transforming predictor to use multiple GPUs")
+    predictor = nn.DataParallel(predictor)
+predictor.to(device)
 param_groups = [
     {
         "params": predictor.parameters(),
@@ -271,7 +276,11 @@ param_groups = [
         "weight_decay": training_config["weight_decay"],
     }
 ]
-encoder = Encoder(**config["model"]["encoder"]).to(device)
+encoder = Encoder(**config["model"]["encoder"])
+if torch.cuda.device_count() > 1:
+    print("Transforming encoder to use multiple GPUs")
+    encoder = nn.DataParallel(encoder)
+encoder.to(device)
 param_groups.append(
     {
         "params": encoder.parameters(),
