@@ -678,7 +678,8 @@ class EarthEngineExporterEval:
             print(f"Converting {crs} to EPSG:4326")
             from pyproj import Transformer
 
-            transformer = Transformer.from_crs(crs, "EPSG:4326")
+            # NOTE: always_xy=True ensures that the first coordinate is always in northerly direction
+            transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
             min_lon, min_lat = transformer.transform(min_xx, min_yy)
             max_lon, max_lat = transformer.transform(max_xx, max_yy)
 
