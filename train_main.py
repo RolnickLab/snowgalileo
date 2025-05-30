@@ -584,26 +584,34 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
     if args["checkpoint_every_epoch"] > 0:
         if e % args["checkpoint_every_epoch"] == 0:
             if model_path is None:
-                model_path = output_folder / timestamp_dirname(run_id)
+                model_path = output_folder
                 model_path.mkdir()
+            if id_dir is None:
+                id_dir = timestamp_dirname(run_id)
+                id_dir = Path(model_path / id_dir)
+                id_dir.mkdir(parents=True, exist_ok=True)
             print(f"Checkpointing to {model_path}")
-            torch.save(encoder.state_dict(), model_path / ENCODER_FILENAME)
-            torch.save(predictor.state_dict(), model_path / DECODER_FILENAME)
-            torch.save(target_encoder.state_dict(), model_path / TARGET_ENCODER_FILENAME)
-            torch.save(optimizer.state_dict(), model_path / OPTIMIZER_FILENAME)
+            torch.save(encoder.state_dict(), id_dir / ENCODER_FILENAME)
+            torch.save(predictor.state_dict(), id_dir / DECODER_FILENAME)
+            torch.save(target_encoder.state_dict(), id_dir / TARGET_ENCODER_FILENAME)
+            torch.save(optimizer.state_dict(), id_dir / OPTIMIZER_FILENAME)
             config["cur_epoch"] = e + 1
             with (model_path / CONFIG_FILENAME).open("w") as f:
                 json.dump(config, f)
-    print("Epoch: ", e)
 
 
 if model_path is None:
-    model_path = output_folder / timestamp_dirname(run_id)
-    model_path.mkdir()
-torch.save(encoder.state_dict(), model_path / ENCODER_FILENAME)
-torch.save(predictor.state_dict(), model_path / DECODER_FILENAME)
-torch.save(target_encoder.state_dict(), model_path / TARGET_ENCODER_FILENAME)
-torch.save(optimizer.state_dict(), model_path / OPTIMIZER_FILENAME)
+    if model_path is None:
+        model_path = output_folder
+        model_path.mkdir()
+    if id_dir is None:
+        id_dir = timestamp_dirname(run_id)
+        id_dir = Path(model_path / id_dir)
+        id_dir.mkdir(parents=True, exist_ok=True)
+torch.save(encoder.state_dict(), id_dir / ENCODER_FILENAME)
+torch.save(predictor.state_dict(), id_dir / DECODER_FILENAME)
+torch.save(target_encoder.state_dict(), id_dir / TARGET_ENCODER_FILENAME)
+torch.save(optimizer.state_dict(), id_dir / OPTIMIZER_FILENAME)
 with (model_path / CONFIG_FILENAME).open("w") as f:
     json.dump(config, f)
 
