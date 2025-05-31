@@ -594,6 +594,7 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
         if e % args["checkpoint_every_epoch"] == 0:
             if model_path is None:
                 model_path = output_folder
+            if not model_path.exists():
                 model_path.mkdir()
             if id_dir is None:
                 id_dir = timestamp_dirname(run_id)
@@ -612,7 +613,8 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
 if model_path is None:
     if model_path is None:
         model_path = output_folder
-        model_path.mkdir()
+        if not model_path.exists():
+            model_path.mkdir()
     if id_dir is None:
         id_dir = timestamp_dirname(run_id)
         id_dir = Path(model_path / id_dir)
