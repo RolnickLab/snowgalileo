@@ -135,6 +135,7 @@ if not args["restart"]:
         prefix = args["run_name_prefix"]
         run_name = f"{prefix}_{run_name}"
     config["run_name"] = run_name
+    id_dir = None
 else:
     # if we are restarting, we load the config from the model path
     assert model_path is not None, "Please provide a path to the model checkpoint"
