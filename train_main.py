@@ -607,7 +607,7 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
             torch.save(target_encoder.state_dict(), id_dir / TARGET_ENCODER_FILENAME)
             torch.save(optimizer.state_dict(), id_dir / OPTIMIZER_FILENAME)
             config["cur_epoch"] = e + 1
-            with (model_path / id_dir / CONFIG_FILENAME).open("w") as f:
+            with (id_dir / CONFIG_FILENAME).open("w") as f:
                 json.dump(config, f)
 
 
