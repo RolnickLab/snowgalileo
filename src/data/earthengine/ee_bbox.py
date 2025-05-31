@@ -19,13 +19,14 @@ class EEGeometry:
     def from_coord_bounds(
         min_lat: float, min_lon: float, max_lat: float, max_lon: float, proj: str
     ) -> ee.Geometry:
-        # use ee.Geometry.Rectangle because ee.Geometry.Polygon only accepts geodetic coordinates
-        return ee.Geometry.Rectangle(
+        return ee.Geometry.Polygon(
             [
-                min_lon,
-                min_lat,
-                max_lon,
-                max_lat,
+                [
+                    [min_lon, min_lat],
+                    [min_lon, max_lat],
+                    [max_lon, max_lat],
+                    [max_lon, min_lat],
+                ]
             ],
             proj=proj,
         )

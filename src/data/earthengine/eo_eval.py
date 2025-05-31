@@ -684,11 +684,11 @@ class EarthEngineExporterEval:
             max_lon, max_lat = transformer.transform(max_xx, max_yy)
 
             ee_bbox = EEGeometry.from_coord_bounds(
-                min_lat=min_yy,
-                max_lat=max_yy,
-                min_lon=min_xx,
-                max_lon=max_xx,
-                proj=crs,
+                min_lat=min_lat,
+                max_lat=max_lat,
+                min_lon=min_lon,
+                max_lon=max_lon,
+                proj="EPSG:4326",
             )
 
             WINDOW_END_DATE = datetime.strptime(parts[1], "%Y%m%d").date()
