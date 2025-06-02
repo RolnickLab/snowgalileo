@@ -26,9 +26,19 @@ DATASET_OUTPUT_HW_HIGH_RES = 96
 DATASET_OUTPUT_HW_MED_RES = 96
 DATASET_OUTPUT_HW_LOW_RES = 96
 
+### NOTE: Remove later
+NEW_DATASET_OUTPUT_HW_HIGH_RES = 100
+NEW_DATASET_OUTPUT_HW_MED_RES = 100
+NEW_DATASET_OUTPUT_HW_LOW_RES = 100
+######################
+
 NUM_HIGH_RES_PIXELS_PER_DIM = EXPORTED_HEIGHT_WIDTH_METRES // DATASET_OUTPUT_HW_HIGH_RES
 NUM_MED_RES_PIXELS_PER_DIM = 3
 NUM_LOW_RES_PIXELS_PER_DIM = 2
+
+### NOTE: Remove later
+NEW_NUM_HIGH_RES_PIXELS_PER_DIM = EXPORTED_HEIGHT_WIDTH_METRES // NEW_DATASET_OUTPUT_HW_HIGH_RES
+######################
 
 # the idea is that for exporting different data, we will only have to change this dictionary in the end
 # i.e., sort the modalities into different shape_types, add / remove satellite modalities

@@ -777,7 +777,7 @@ class Encoder(FlexiPrestoBase):
 
     def __init__(
         self,
-        max_patch_size_high_res: int = 8,
+        max_patch_size_high_res,
         embedding_size: int = 128,
         depth=2,
         mlp_ratio=2,
@@ -1446,13 +1446,13 @@ class PrestoPixelDecoder(FlexiPrestoBase):
 
     def __init__(
         self,
+        max_patch_size_high_res,
         encoder_embedding_size: int = 128,
         decoder_embedding_size: int = 128,
         depth=2,
         mlp_ratio=2,
         num_heads=8,
         max_sequence_length=24,
-        max_patch_size_high_res: int = 8,
         learnable_channel_embeddings: bool = False,
         output_embedding_size: Optional[int] = None,
         use_fast_attn: bool = True,
