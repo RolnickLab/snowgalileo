@@ -316,7 +316,7 @@ optimizer = torch.optim.AdamW(
 if args["restart"]:
     assert model_path is not None
     print(f"Loading optimizer state from {model_path}", flush=True)
-    optimizer.load_state_dict(torch.load(id_dir / OPTIMIZER_FILENAME, map_location=device))
+    optimizer.load_state_dict(torch.load(id_dir / f"{start_epoch}_{OPTIMIZER_FILENAME}", map_location=device))
 
 assert training_config["effective_batch_size"] % training_config["batch_size"] == 0
 iters_to_accumulate = training_config["effective_batch_size"] / training_config["batch_size"]
