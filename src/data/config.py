@@ -37,6 +37,8 @@ NUM_MED_RES_PIXELS_PER_DIM = 3
 NUM_LOW_RES_PIXELS_PER_DIM = 2
 
 ### NOTE: Remove later
+# use 4 here to match the new dataset output size
+NEW_NUM_MED_RES_PIXELS_PER_DIM = 4
 NEW_NUM_HIGH_RES_PIXELS_PER_DIM = EXPORTED_HEIGHT_WIDTH_METRES // NEW_DATASET_OUTPUT_HW_HIGH_RES
 ######################
 

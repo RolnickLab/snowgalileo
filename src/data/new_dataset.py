@@ -24,6 +24,7 @@ from tqdm import tqdm
 from src.data.config import NEW_DATASET_OUTPUT_HW_HIGH_RES as DATASET_OUTPUT_HW_HIGH_RES
 from src.data.config import NEW_DATASET_OUTPUT_HW_MED_RES as DATASET_OUTPUT_HW_MED_RES
 from src.data.config import NEW_DATASET_OUTPUT_HW_LOW_RES as DATASET_OUTPUT_HW_LOW_RES
+from src.data.config import NEW_NUM_MED_RES_PIXELS_PER_DIM as NUM_MED_RES_PIXELS_PER_DIM
 
 from src.data.config import (
     CHANNEL_WISE_INVALID_DATA_THRESHOLDS,
@@ -34,7 +35,6 @@ from src.data.config import (
     MODALITIES,
     NO_DATA_VALUE,
     NUM_LOW_RES_PIXELS_PER_DIM,
-    NUM_MED_RES_PIXELS_PER_DIM,
     NUM_TIMESTEPS,
     TIFS_FOLDER,
 )
