@@ -686,8 +686,7 @@ class EarthEngineExporterEval:
                     'height': height
                 })
 
-            with rasterio.open(folder / f"wgs84_{filename}", 'w', **kwargs) as dst:
-                for i in range(1, src.count + 1):
+                with rasterio.open(folder / f"wgs84_{filename}", 'w', **kwargs) as dst:
                     reproject(
                         source=rasterio.band(src, i),
                         destination=rasterio.band(dst, i),
@@ -697,17 +696,17 @@ class EarthEngineExporterEval:
                         dst_crs=dst_crs,
                         resampling=Resampling.nearest)
 
-            # reproject to EPSG:4326
-            #print(f"Converting {crs} to EPSG:4326")
-            #from pyproj import Transformer
+                    # reproject to EPSG:4326
+                    #print(f"Converting {crs} to EPSG:4326")
+                    #from pyproj import Transformer
 
-            # NOTE: always_xy=True ensures that the first coordinate is always in northerly direction
-            #transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
-            #min_lon, min_lat = transformer.transform(min_xx, min_yy)
-            #max_lon, max_lat = transformer.transform(max_xx, max_yy)
+                    # NOTE: always_xy=True ensures that the first coordinate is always in northerly direction
+                    #transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
+                    #min_lon, min_lat = transformer.transform(min_xx, min_yy)
+                    #max_lon, max_lat = transformer.transform(max_xx, max_yy)
 
-            min_lon, min_lat = dst.bounds.left, dst.bounds.bottom
-            max_lon, max_lat = dst.bounds.right, dst.bounds.top
+                    min_lon, min_lat = dst.bounds.left, dst.bounds.bottom
+                    max_lon, max_lat = dst.bounds.right, dst.bounds.top
 
             ee_bbox = EEGeometry.from_coord_bounds(
                 min_lat=min_lat,
