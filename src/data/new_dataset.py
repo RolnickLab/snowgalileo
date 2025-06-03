@@ -189,7 +189,7 @@ class DatasetOutput(NamedTuple):
     valid_data_mask_time: np.ndarray
     valid_data_mask_static: np.ndarray
 
-    def normalize(self, normalizer: Optional[Normalizer]) -> "DatasetOutput":
+    def normalize(self, normalizer: Optional[NEWNormalizer]) -> "DatasetOutput":
         if normalizer is None:
             return self
         return DatasetOutput(
@@ -284,7 +284,7 @@ class NEWDataset(PyTorchDataset):
         output_hw_med_res: int = DATASET_OUTPUT_HW_MED_RES,
         output_hw_low_res: int = DATASET_OUTPUT_HW_LOW_RES,
         output_timesteps: int = NUM_TIMESTEPS,
-        normalizer: Optional[Normalizer] = None,
+        normalizer: Optional[NEWNormalizer] = None,
     ):
         self.data_folder = data_folder
         self.h5pys_only = h5pys_only
