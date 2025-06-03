@@ -687,14 +687,15 @@ class EarthEngineExporterEval:
                 })
 
                 with rasterio.open(folder / f"wgs84_{filename}", 'w', **kwargs) as dst:
-                    reproject(
-                        source=rasterio.band(src, i),
-                        destination=rasterio.band(dst, i),
-                        src_transform=src.transform,
-                        src_crs=src.crs,
-                        dst_transform=transform,
-                        dst_crs=dst_crs,
-                        resampling=Resampling.nearest)
+                    for i in range(1, src.count + 1):
+                        reproject(
+                            source=rasterio.band(src, i),
+                            destination=rasterio.band(dst, i),
+                            src_transform=src.transform,
+                            src_crs=src.crs,
+                            dst_transform=transform,
+                            dst_crs=dst_crs,
+                            resampling=Resampling.nearest)
 
                     # reproject to EPSG:4326
                     #print(f"Converting {crs} to EPSG:4326")
