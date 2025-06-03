@@ -727,7 +727,7 @@ class EarthEngineExporterEval:
                 polygon_identifier=identifier,
                 interval_start_date=WINDOW_START_DATE,
                 interval_end_date=WINDOW_END_DATE,
-                crs=dst.crs,
+                crs=dst_crs,
                 transform=transform,
             )
             if export_started:
