@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, List, Optional, Union
 from typing import OrderedDict as OrderedDictType
+from rasterio.warp import calculate_default_transform, reproject, Resampling
 
 import ee
 import numpy as np
@@ -663,25 +664,50 @@ class EarthEngineExporterEval:
         exports_started = 0
         print(f"Exporting {len(filenames)} latlons: ")
 
+        dst_crs = 'EPSG:4326'
+
         for filename in filenames:
             parts = filename.split("_")
 
             # TODO: make this more efficient
             # TODO: change the lat and lon names
             with rasterio.open(folder / filename) as src:
-                min_yy, max_yy = src.bounds.bottom, src.bounds.top
-                min_xx, max_xx = src.bounds.left, src.bounds.right
-                crs = src.crs.to_string()
-                transform = src.transform
+                #min_yy, max_yy = src.bounds.bottom, src.bounds.top
+                #min_xx, max_xx = src.bounds.left, src.bounds.right
+                #crs = src.crs.to_string()
+                #transform = src.transform
+                transform, width, height = calculate_default_transform(
+                src.crs, dst_crs, src.width, src.height, *src.bounds)
+                kwargs = src.meta.copy()
+                kwargs.update({
+                    'crs': dst_crs,
+                    'transform': transform,
+                    'width': width,
+                    'height': height
+                })
+
+            with rasterio.open(folder / f"wgs84_{filename}", 'w', **kwargs) as dst:
+                for i in range(1, src.count + 1):
+                    reproject(
+                        source=rasterio.band(src, i),
+                        destination=rasterio.band(dst, i),
+                        src_transform=src.transform,
+                        src_crs=src.crs,
+                        dst_transform=transform,
+                        dst_crs=dst_crs,
+                        resampling=Resampling.nearest)
 
             # reproject to EPSG:4326
-            print(f"Converting {crs} to EPSG:4326")
-            from pyproj import Transformer
+            #print(f"Converting {crs} to EPSG:4326")
+            #from pyproj import Transformer
 
             # NOTE: always_xy=True ensures that the first coordinate is always in northerly direction
-            transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
-            min_lon, min_lat = transformer.transform(min_xx, min_yy)
-            max_lon, max_lat = transformer.transform(max_xx, max_yy)
+            #transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
+            #min_lon, min_lat = transformer.transform(min_xx, min_yy)
+            #max_lon, max_lat = transformer.transform(max_xx, max_yy)
+
+            min_lon, min_lat = dst.bounds.left, dst.bounds.bottom
+            max_lon, max_lat = dst.bounds.right, dst.bounds.top
 
             ee_bbox = EEGeometry.from_coord_bounds(
                 min_lat=min_lat,
@@ -701,7 +727,7 @@ class EarthEngineExporterEval:
                 polygon_identifier=identifier,
                 interval_start_date=WINDOW_START_DATE,
                 interval_end_date=WINDOW_END_DATE,
-                crs=crs,
+                crs=dst.crs,
                 transform=transform,
             )
             if export_started:
