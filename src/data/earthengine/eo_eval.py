@@ -540,7 +540,7 @@ class EarthEngineExporterEval:
         transform: Optional[npt.NDArray[Any]] = None,
     ) -> bool:
         cloud_filename = f"{str(polygon_identifier)}"
-        local_filename = f"{str(polygon_identifier).replace('/', '_')}.tif"
+        local_filename = f"{str(polygon_identifier).replace('/', '_')}_{crs}.tif"
 
         # Description of the export cannot contain certrain characters
         description = ee_safe_str(cloud_filename)
