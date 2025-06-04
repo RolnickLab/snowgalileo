@@ -601,11 +601,22 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                 id_dir = timestamp_dirname(run_id)
                 id_dir = Path(model_path / id_dir)
                 id_dir.mkdir(parents=True, exist_ok=True)
-            print(f"Checkpointing to {model_path}")
-            torch.save(encoder.state_dict(), id_dir / ENCODER_FILENAME)
-            torch.save(predictor.state_dict(), id_dir / DECODER_FILENAME)
-            torch.save(target_encoder.state_dict(), id_dir / TARGET_ENCODER_FILENAME)
-            torch.save(optimizer.state_dict(), id_dir / OPTIMIZER_FILENAME)
+
+            if not config["best_loss"]:
+                config["best_loss"] = float("inf")
+            if not config["best_epoch"]:
+                config["best_epoch"] = 0
+
+            # checkpoint if loss is lower than the previous best loss
+            if train_loss.average < config["best_loss"]:
+                print(f"Checkpointing at epoch {e} to {id_dir}", flush=True)
+                config["best_loss"] = train_loss.average
+                config["best_epoch"] = e
+                torch.save(encoder.state_dict(), id_dir / ENCODER_FILENAME)
+                torch.save(predictor.state_dict(), id_dir / DECODER_FILENAME)
+                torch.save(target_encoder.state_dict(), id_dir / TARGET_ENCODER_FILENAME)
+                torch.save(optimizer.state_dict(), id_dir / OPTIMIZER_FILENAME)
+
             config["cur_epoch"] = e + 1
             with (id_dir / CONFIG_FILENAME).open("w") as f:
                 json.dump(config, f)
