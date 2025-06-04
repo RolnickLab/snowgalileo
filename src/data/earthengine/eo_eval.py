@@ -434,7 +434,7 @@ def create_ee_image(
                     region=polygon,
                     start_date=cur_date.strftime("%Y-%m-%d"),
                     end_date=cur_end_date.strftime("%Y-%m-%d"),
-                )
+                ).clip(polygon)
             )
 
         image_collection_list.append(ee.Image.cat(image_list))
@@ -697,26 +697,24 @@ class EarthEngineExporterEval:
                 #            dst_crs=dst_crs,
                 #            resampling=Resampling.nearest)
 
-                    # reproject to EPSG:4326
-                    #print(f"Converting {crs} to EPSG:4326")
-                    #from pyproj import Transformer
+                # reproject to EPSG:4326
+                print(f"Converting {crs} to EPSG:4326")
+                from pyproj import Transformer
 
-                    # NOTE: always_xy=True ensures that the first coordinate is always in northerly direction
-                    #transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
-                    #min_lon, min_lat = transformer.transform(min_xx, min_yy)
-                    #max_lon, max_lat = transformer.transform(max_xx, max_yy)
+                # NOTE: always_xy=True ensures that the first coordinate is always in northerly direction
+                transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
+                min_lon, min_lat = transformer.transform(min_xx, min_yy)
+                max_lon, max_lat = transformer.transform(max_xx, max_yy)
 
-                    #min_lon, min_lat = dst.bounds.left, dst.bounds.bottom
-                    #max_lon, max_lat = dst.bounds.right, dst.bounds.top
+                #min_lon, min_lat = dst.bounds.left, dst.bounds.bottom
+                #max_lon, max_lat = dst.bounds.right, dst.bounds.top
 
             ee_bbox = EEGeometry.from_coord_bounds(
-                min_lat=min_yy,
-                max_lat=max_yy,
-                min_lon=min_xx,
-                max_lon=max_xx,
-                proj=crs,
-                geodesic=False,
-                evenOdd=True
+                min_lat=min_lat,
+                max_lat=max_lat,
+                min_lon=min_lon,
+                max_lon=max_lon,
+                proj="EPSG:4326",
             )
 
             WINDOW_END_DATE = datetime.strptime(parts[1], "%Y%m%d").date()

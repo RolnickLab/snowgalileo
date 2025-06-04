@@ -17,7 +17,7 @@ class EEGeometry:
 
     @staticmethod
     def from_coord_bounds(
-        min_lat: float, min_lon: float, max_lat: float, max_lon: float, proj: str, geodesic: bool = True, evenOdd: bool = True
+        min_lat: float, min_lon: float, max_lat: float, max_lon: float, proj: str
     ) -> ee.Geometry:
         return ee.Geometry.Polygon(
             [
@@ -29,8 +29,6 @@ class EEGeometry:
                 ]
             ],
             proj=proj,
-            geodesic=geodesic,
-            evenOdd=evenOdd,
         )
 
 
