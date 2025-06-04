@@ -672,30 +672,30 @@ class EarthEngineExporterEval:
             # TODO: make this more efficient
             # TODO: change the lat and lon names
             with rasterio.open(folder / filename) as src:
-                #min_yy, max_yy = src.bounds.bottom, src.bounds.top
-                #min_xx, max_xx = src.bounds.left, src.bounds.right
-                #crs = src.crs.to_string()
-                #transform = src.transform
-                transform, width, height = calculate_default_transform(
-                src.crs, dst_crs, src.width, src.height, *src.bounds)
-                kwargs = src.meta.copy()
-                kwargs.update({
-                    'crs': dst_crs,
-                    'transform': transform,
-                    'width': width,
-                    'height': height
-                })
+                min_yy, max_yy = src.bounds.bottom, src.bounds.top
+                min_xx, max_xx = src.bounds.left, src.bounds.right
+                crs = src.crs.to_string()
+                transform = src.transform
+                #transform, width, height = calculate_default_transform(
+                #src.crs, dst_crs, src.width, src.height, *src.bounds)
+                #kwargs = src.meta.copy()
+                #kwargs.update({
+                #    'crs': dst_crs,
+                #    'transform': transform,
+                #    'width': width,
+                #    'height': height
+                #})
 
-                with rasterio.open(folder / f"wgs84_{filename}", 'w', **kwargs) as dst:
-                    for i in range(1, src.count + 1):
-                        reproject(
-                            source=rasterio.band(src, i),
-                            destination=rasterio.band(dst, i),
-                            src_transform=src.transform,
-                            src_crs=src.crs,
-                            dst_transform=transform,
-                            dst_crs=dst_crs,
-                            resampling=Resampling.nearest)
+                #with rasterio.open(folder / f"wgs84_{filename}", 'w', **kwargs) as dst:
+                #    for i in range(1, src.count + 1):
+                #        reproject(
+                #            source=rasterio.band(src, i),
+                #            destination=rasterio.band(dst, i),
+                #            src_transform=src.transform,
+                #            src_crs=src.crs,
+                #            dst_transform=transform,
+                #            dst_crs=dst_crs,
+                #            resampling=Resampling.nearest)
 
                     # reproject to EPSG:4326
                     #print(f"Converting {crs} to EPSG:4326")
@@ -706,21 +706,23 @@ class EarthEngineExporterEval:
                     #min_lon, min_lat = transformer.transform(min_xx, min_yy)
                     #max_lon, max_lat = transformer.transform(max_xx, max_yy)
 
-                    min_lon, min_lat = dst.bounds.left, dst.bounds.bottom
-                    max_lon, max_lat = dst.bounds.right, dst.bounds.top
+                    #min_lon, min_lat = dst.bounds.left, dst.bounds.bottom
+                    #max_lon, max_lat = dst.bounds.right, dst.bounds.top
 
             ee_bbox = EEGeometry.from_coord_bounds(
-                min_lat=min_lat,
-                max_lat=max_lat,
-                min_lon=min_lon,
-                max_lon=max_lon,
-                proj="EPSG:4326",
+                min_lat=min_yy,
+                max_lat=max_yy,
+                min_lon=min_xx,
+                max_lon=max_xx,
+                proj=crs,
+                geodesic=False,
+                evenOdd=False
             )
 
             WINDOW_END_DATE = datetime.strptime(parts[1], "%Y%m%d").date()
             WINDOW_START_DATE = WINDOW_END_DATE - timedelta(days=NUM_TIMESTEPS - 1)
 
-            identifier = f"{parts[0]}_{WINDOW_START_DATE}_{WINDOW_END_DATE}_{min_lat}_{min_lon}_{max_lat}_{max_lon}"
+            identifier = f"{parts[0]}_{WINDOW_START_DATE}_{WINDOW_END_DATE}_{min_yy}_{min_xx}_{max_yy}_{max_xx}"
 
             export_started = self._export_for_polygon(
                 polygon=ee_bbox,
