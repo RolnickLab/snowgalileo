@@ -716,7 +716,7 @@ class EarthEngineExporterEval:
                 max_lon=max_xx,
                 proj=crs,
                 geodesic=False,
-                evenOdd=False
+                evenOdd=True
             )
 
             WINDOW_END_DATE = datetime.strptime(parts[1], "%Y%m%d").date()
