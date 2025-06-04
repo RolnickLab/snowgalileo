@@ -572,6 +572,8 @@ class EarthEngineExporterEval:
 
         img = create_ee_image(polygon, interval_start_date, interval_end_date)
 
+        print("Exporting image in crs", crs, flush=True)
+
         if self.mode == "cloud":
             try:
                 ee.batch.Export.image.toCloudStorage(
@@ -727,7 +729,7 @@ class EarthEngineExporterEval:
                 polygon_identifier=identifier,
                 interval_start_date=WINDOW_START_DATE,
                 interval_end_date=WINDOW_END_DATE,
-                crs=dst_crs,
+                crs=crs,
                 transform=transform,
             )
             if export_started:
