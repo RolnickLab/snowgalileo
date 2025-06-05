@@ -763,6 +763,7 @@ if __name__ == "__main__":
     normalizing_dict = dataset.load_normalization_values(
         path=config_dir / NORMALIZATION_DICT_FILENAME
     )
+    print(NORMALIZATION_DICT_FILENAME)
     normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
     dataset.normalizer = normalizer
     sample = dataset[0]
