@@ -12,7 +12,7 @@ from src.data.config import DATA_FOLDER, NO_DATA_VALUE, CHANNEL_WISE_INVALID_DAT
 from src.data.dataset import Dataset as TifDataset
 from src.utils import masked_output_np_to_tensor
 
-from src.data.dataset import PytorchDataset
+from torch.utils.data import Dataset as PyTorchDataset
 
 
 with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval.json")).open("r") as f:
