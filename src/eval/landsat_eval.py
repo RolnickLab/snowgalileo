@@ -59,7 +59,7 @@ class LandsatEvalDataset(TifDataset):
     def prediction_month_from_file(cls, tif_path: Path) -> int:
         # assumes the tif file name is in the format "LC09_YYYYMMDD_[FSC]_[lat]_[lon].tif"
         prediction_month = int(tif_path.name.split("_")[1][4:6])
-        print(f"Start month: {prediction_month}", flash=True)
+        print(f"Start month: {prediction_month}", flush=True)
         return prediction_month
 
     def mask_prediction_timestep(self, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m):
