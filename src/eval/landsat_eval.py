@@ -689,6 +689,18 @@ class LandsatEvalDataset(PyTorchDataset):
                 hf["valid_data_mask_st"][:],
             )
         return output
+    
+    @staticmethod
+    def load_normalization_values(path: Path):
+        if not path.exists():
+            raise ValueError(f"No file found at path {path}")
+        with path.open("r") as f:
+            norm_dict = json.load(f)
+        # we computed the normalizing dict using the same datset
+        output_dict = {}
+        for key, val in norm_dict.items():
+            output_dict[key] = val
+        return output_dict
 
     def __getitem__(self, idx):
         # NOTE: input will be a DatasetOutput object
