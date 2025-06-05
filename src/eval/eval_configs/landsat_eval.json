@@ -1,0 +1,10 @@
+{
+    "input_folder": "landsat_eval_tifs/100m_tif_global",
+    "label_folder": "landsat_eval_masks/all/100m_mask_global",
+    "final_tif_folder": "landsat_eval_tifs/100m_tif_global_cropped",
+    "input_h5py_folder": "landsat_eval_h5pys/",
+    "resolution": 100,
+    "num_timesteps": 8,
+    "input_height_width": 100,
+    "num_outputs": 1
+}
