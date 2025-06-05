@@ -29,7 +29,7 @@ output_location_season = {f for f in output_files}
 for file_name in os.listdir(exported_tif_path):
     src_file = os.path.join(exported_tif_path, file_name)
     if os.path.isfile(src_file):
-        identifier = get_filename_without_epsg_extension(file_name)
+        identifier = get_filename_without_epsg_extension(src_file)
         if identifier in output_location_season:
             print(f"Duplicate found, skipping: {identifier}")
         else:
