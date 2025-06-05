@@ -6,7 +6,7 @@ import re
 import os
 import shutil
 
-get_filename_without_epsg_extension = lambda x: re.sub(r"_EPSG:\d+\.tif{1,2}f?$", "", x.name)
+get_filename_without_epsg_extension = lambda x: re.sub(r"_EPSG:\d+\.tif{1,2}f?$", "", x)
 
 exported_tif_path = Path(DATA_FOLDER / "landsat_eval_tifs" / "100m_tif_global")
 mask_path = Path(DATA_FOLDER / "landsat_eval_masks" / "all" / "100m_mask_global")
