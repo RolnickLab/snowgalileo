@@ -72,6 +72,10 @@ class LandsatEvalDataset(PyTorchDataset):
             except IndexError:
                 warnings.warn(f"IndexError for label {tif}")
 
+        assert len(self.input_tifs) == len(self.label_tifs), "Number of input tifs and label tifs do not match."
+        print(f"Number of input tifs: {len(self.input_tifs)}")
+        print(f"Number of label tifs: {len(self.label_tifs)}")
+
     # NOTE: overwritten from TifDataset since the eval tif files have different naming conventions
     @classmethod
     def prediction_month_from_file(cls, tif_path: Path) -> int:
