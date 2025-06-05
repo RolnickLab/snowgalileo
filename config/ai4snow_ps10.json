@@ -1,5 +1,5 @@
 {"training": {
-    "patch_sizes_high_res": [8],
+    "patch_sizes_high_res": [10],
     "patch_sizes_med_res": [1],
     "patch_sizes_low_res": [1],
     "conditioner_mode": "no_cond",
@@ -15,7 +15,7 @@
     "grad_clip": true,
     "betas": [0.9, 0.999],
     "ema": [0.996, 1.0],
-    "shape_time_combinations": [{"size": 12, "timesteps": 8}],
+    "shape_time_combinations": [{"size": 10, "timesteps": 8}],
     "masking_probabilities": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
     "augmentation": {"flip+rotate": true},
     "encode_ratio": 0.1,
@@ -37,23 +37,24 @@
     },
     "model": {
         "encoder": {
-            "embedding_size": 128,
-            "depth": 4,
-            "num_heads": 8,
+            "embedding_size": 192,
+            "depth": 12,
+            "num_heads": 3,
             "mlp_ratio": 4,
             "max_sequence_length": 24,
             "freeze_projections": false,
             "drop_path": 0.1,
-            "max_patch_size_high_res": 8
+            "max_patch_size_high_res": 10
         },
         "decoder": {
-            "depth": 2,
-            "num_heads": 8,
+            "depth": 4,
+            "num_heads": 3,
             "mlp_ratio": 4,
             "max_sequence_length": 24,
             "learnable_channel_embeddings": true,
-            "max_patch_size_high_res": 8,
-            "embedding_size": 128
+            "max_patch_size_high_res": 10,
+            "embedding_size": 192,
+            "use_fast_attn": true
+            }
         }
-    }
 }

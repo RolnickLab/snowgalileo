@@ -1,13 +1,13 @@
 from functools import partial
+from pathlib import Path
 
 import torch
 from torch.utils.data import DataLoader
 
 from src.collate_fns import mae_collate_fn
-from src.data.config import NO_DATA_VALUE, NORMALIZATION_DICT_FILENAME, TIFS_FOLDER, DATA_FOLDER
+from src.data.config import DATA_FOLDER, NO_DATA_VALUE, NORMALIZATION_DICT_FILENAME
 from src.data.dataset import Dataset, Normalizer
 from src.utils import config_dir, load_check_config
-from pathlib import Path
 
 config = load_check_config("ai4snow.json")
 training_config = config["training"]
@@ -20,7 +20,9 @@ dataset = Dataset(
 )
 
 if training_config["normalization"] == "std":
-    normalizing_dict = dataset.load_normalization_values(path=NORMALIZATION_DICT_FILENAME)
+    normalizing_dict = dataset.load_normalization_values(
+        path=config_dir / NORMALIZATION_DICT_FILENAME
+    )
     print(NORMALIZATION_DICT_FILENAME)
     print(normalizing_dict, flush=True)
     normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)

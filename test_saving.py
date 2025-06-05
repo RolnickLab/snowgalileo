@@ -292,9 +292,12 @@ param_groups.append(
 
 if args["restart"]:
     assert model_path is not None
-    print(f"Loading checkpoint for epoch {start_epoch} from {model_path}", flush=True)
-    encoder.load_state_dict(torch.load(id_dir / ENCODER_FILENAME, map_location=device))
-    predictor.load_state_dict(torch.load(id_dir / DECODER_FILENAME, map_location=device))
+    encoder_path = id_dir / f"{start_epoch}_{ENCODER_FILENAME}"
+    predictor_path = id_dir / f"{start_epoch}_{DECODER_FILENAME}"
+    print(f"Loading checkpoint for epoch {start_epoch} from {encoder_path}", flush=True)
+    print(f"Loading checkpoint for epoch {start_epoch} from {predictor_path}", flush=True)
+    encoder.load_state_dict(torch.load(encoder_path, map_location=device))
+    predictor.load_state_dict(torch.load(predictor_path, map_location=device))
 
 # print("Loading validation task")
 # val_task_no_latlons = EuroSatEval(
@@ -313,7 +316,7 @@ optimizer = torch.optim.AdamW(
 if args["restart"]:
     assert model_path is not None
     print(f"Loading optimizer state from {model_path}", flush=True)
-    optimizer.load_state_dict(torch.load(id_dir / OPTIMIZER_FILENAME, map_location=device))
+    optimizer.load_state_dict(torch.load(id_dir / f"{start_epoch}_{OPTIMIZER_FILENAME}", map_location=device))
 
 assert training_config["effective_batch_size"] % training_config["batch_size"] == 0
 iters_to_accumulate = training_config["effective_batch_size"] / training_config["batch_size"]
@@ -333,7 +336,7 @@ target_encoder.eval()
 if args["restart"]:
     assert model_path is not None
     target_encoder.load_state_dict(
-        torch.load(id_dir / TARGET_ENCODER_FILENAME, map_location=device)
+        torch.load(id_dir / f"{start_epoch}_{TARGET_ENCODER_FILENAME}", map_location=device)
     )
     # we also want to step through the momentum scheduler since we are going to fast forward training
     for momentum_epoch in range(start_epoch):
@@ -601,22 +604,11 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                 id_dir = timestamp_dirname(run_id)
                 id_dir = Path(model_path / id_dir)
                 id_dir.mkdir(parents=True, exist_ok=True)
-
-            if "best_loss" not in config:
-                config["best_loss"] = float("inf")
-            if "best_epoch" not in config:
-                config["best_epoch"] = 0
-
-            # checkpoint if loss is lower than the previous best loss
-            if train_loss.average < config["best_loss"]:
-                print(f"Checkpointing at epoch {e} to {id_dir}", flush=True)
-                config["best_loss"] = train_loss.average
-                config["best_epoch"] = e
-                torch.save(encoder.state_dict(), id_dir / ENCODER_FILENAME)
-                torch.save(predictor.state_dict(), id_dir / DECODER_FILENAME)
-                torch.save(target_encoder.state_dict(), id_dir / TARGET_ENCODER_FILENAME)
-                torch.save(optimizer.state_dict(), id_dir / OPTIMIZER_FILENAME)
-
+            print(f"Checkpointing to {model_path}")
+            torch.save(encoder.state_dict(), id_dir / f"{e + 1}_{ENCODER_FILENAME}")
+            torch.save(predictor.state_dict(), id_dir / f"{e + 1}_{DECODER_FILENAME}")
+            torch.save(target_encoder.state_dict(), id_dir / f"{e + 1}_{TARGET_ENCODER_FILENAME}")
+            torch.save(optimizer.state_dict(), id_dir / f"{e + 1}_{OPTIMIZER_FILENAME}")
             config["cur_epoch"] = e + 1
             with (id_dir / CONFIG_FILENAME).open("w") as f:
                 json.dump(config, f)
@@ -631,10 +623,10 @@ if model_path is None:
         id_dir = timestamp_dirname(run_id)
         id_dir = Path(model_path / id_dir)
         id_dir.mkdir(parents=True, exist_ok=True)
-torch.save(encoder.state_dict(), id_dir / ENCODER_FILENAME)
-torch.save(predictor.state_dict(), id_dir / DECODER_FILENAME)
-torch.save(target_encoder.state_dict(), id_dir / TARGET_ENCODER_FILENAME)
-torch.save(optimizer.state_dict(), id_dir / OPTIMIZER_FILENAME)
+torch.save(encoder.state_dict(), id_dir / f"{e + 1}_{ENCODER_FILENAME}")
+torch.save(predictor.state_dict(), id_dir / f"{e + 1}_{DECODER_FILENAME}")
+torch.save(target_encoder.state_dict(), id_dir / f"{e + 1}_{TARGET_ENCODER_FILENAME}")
+torch.save(optimizer.state_dict(), id_dir / f"{e + 1}_{OPTIMIZER_FILENAME}")
 with (model_path / CONFIG_FILENAME).open("w") as f:
     json.dump(config, f)
 

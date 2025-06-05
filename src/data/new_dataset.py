@@ -21,11 +21,13 @@ from googleapiclient.http import MediaIoBaseDownload
 from torch.utils.data import Dataset as PyTorchDataset
 from tqdm import tqdm
 
+from src.data.config import NEW_DATASET_OUTPUT_HW_HIGH_RES as DATASET_OUTPUT_HW_HIGH_RES
+from src.data.config import NEW_DATASET_OUTPUT_HW_MED_RES as DATASET_OUTPUT_HW_MED_RES
+from src.data.config import NEW_DATASET_OUTPUT_HW_LOW_RES as DATASET_OUTPUT_HW_LOW_RES
+from src.data.config import NEW_NUM_MED_RES_PIXELS_PER_DIM as NUM_MED_RES_PIXELS_PER_DIM
+
 from src.data.config import (
     CHANNEL_WISE_INVALID_DATA_THRESHOLDS,
-    DATASET_OUTPUT_HW_HIGH_RES,
-    DATASET_OUTPUT_HW_LOW_RES,
-    DATASET_OUTPUT_HW_MED_RES,
     EE_BUCKET_TIFS,
     EE_DRIVE_FOLDER_ID,
     EE_FOLDER_H5PYS,
@@ -33,7 +35,6 @@ from src.data.config import (
     MODALITIES,
     NO_DATA_VALUE,
     NUM_LOW_RES_PIXELS_PER_DIM,
-    NUM_MED_RES_PIXELS_PER_DIM,
     NUM_TIMESTEPS,
     TIFS_FOLDER,
 )
@@ -66,7 +67,7 @@ from src.data.utils import RunningStats
 logger = logging.getLogger("__main__")
 
 
-class Normalizer:
+class NEWNormalizer:
     # these are the bands we will replace with the 2*std computation
     # if std = True
     std_bands: Dict[str, list] = {
@@ -188,7 +189,7 @@ class DatasetOutput(NamedTuple):
     valid_data_mask_time: np.ndarray
     valid_data_mask_static: np.ndarray
 
-    def normalize(self, normalizer: Optional[Normalizer]) -> "DatasetOutput":
+    def normalize(self, normalizer: Optional[NEWNormalizer]) -> "DatasetOutput":
         if normalizer is None:
             return self
         return DatasetOutput(
@@ -272,7 +273,7 @@ def to_cartesian(
         raise AssertionError(f"Unexpected input type {type(lon)}")
 
 
-class Dataset(PyTorchDataset):
+class NEWDataset(PyTorchDataset):
     def __init__(
         self,
         data_folder: Path,
@@ -283,7 +284,7 @@ class Dataset(PyTorchDataset):
         output_hw_med_res: int = DATASET_OUTPUT_HW_MED_RES,
         output_hw_low_res: int = DATASET_OUTPUT_HW_LOW_RES,
         output_timesteps: int = NUM_TIMESTEPS,
-        normalizer: Optional[Normalizer] = None,
+        normalizer: Optional[NEWNormalizer] = None,
     ):
         self.data_folder = data_folder
         self.h5pys_only = h5pys_only

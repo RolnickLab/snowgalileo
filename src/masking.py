@@ -377,7 +377,7 @@ def subset_and_augment_batch_of_images(
         == valid_data_mask_s_t_m.shape[3]
         == valid_data_mask_s_t_l.shape[3]
     )
-    assert space_time_med_x.shape[1] == space_time_med_x.shape[2] == 3
+    #assert space_time_med_x.shape[1] == space_time_med_x.shape[2] == 3
     assert space_time_low_x.shape[1] == space_time_low_x.shape[2] == 2
     if augmentation_strategies is not None:
         return Augmentation(augmentation_strategies).apply(

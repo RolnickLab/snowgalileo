@@ -19,7 +19,8 @@ from wandb.sdk.wandb_run import Run
 
 from src.collate_fns import mae_collate_fn
 from src.config import DEFAULT_SEED, get_random_config
-from src.data import Dataset, Normalizer
+from src.data import NEWDataset as Dataset
+from src.data import NEWNormalizer as Normalizer
 from src.data.config import (
     CONFIG_FILENAME,
     DATA_FOLDER,
@@ -65,9 +66,9 @@ autocast_device = torch.bfloat16 if is_bf16_available() else torch.float32
 # tracker.start()
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument("--config_file", type=str, default="ai4snow.json")
+argparser.add_argument("--config_file", type=str, default="ai4snow_ps10.json")
 argparser.add_argument("--run_name_prefix", type=str, default="")
-argparser.add_argument("--h5py_folder", type=str, default="")
+argparser.add_argument("--h5py_folder", type=str, default="data/h5pys_ps10")
 argparser.add_argument("--output_folder", type=str, default="")
 argparser.add_argument("--download", dest="download", action="store_true")
 argparser.add_argument("--h5pys_only", dest="h5pys_only", action="store_true")
@@ -601,22 +602,11 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                 id_dir = timestamp_dirname(run_id)
                 id_dir = Path(model_path / id_dir)
                 id_dir.mkdir(parents=True, exist_ok=True)
-
-            if "best_loss" not in config:
-                config["best_loss"] = float("inf")
-            if "best_epoch" not in config:
-                config["best_epoch"] = 0
-
-            # checkpoint if loss is lower than the previous best loss
-            if train_loss.average < config["best_loss"]:
-                print(f"Checkpointing at epoch {e} to {id_dir}", flush=True)
-                config["best_loss"] = train_loss.average
-                config["best_epoch"] = e
-                torch.save(encoder.state_dict(), id_dir / ENCODER_FILENAME)
-                torch.save(predictor.state_dict(), id_dir / DECODER_FILENAME)
-                torch.save(target_encoder.state_dict(), id_dir / TARGET_ENCODER_FILENAME)
-                torch.save(optimizer.state_dict(), id_dir / OPTIMIZER_FILENAME)
-
+            print(f"Checkpointing to {model_path}")
+            torch.save(encoder.state_dict(), id_dir / ENCODER_FILENAME)
+            torch.save(predictor.state_dict(), id_dir / DECODER_FILENAME)
+            torch.save(target_encoder.state_dict(), id_dir / TARGET_ENCODER_FILENAME)
+            torch.save(optimizer.state_dict(), id_dir / OPTIMIZER_FILENAME)
             config["cur_epoch"] = e + 1
             with (id_dir / CONFIG_FILENAME).open("w") as f:
                 json.dump(config, f)
