@@ -125,12 +125,12 @@ class LandsatEvalDataset(PyTorchDataset):
         print("Amount of NO_DATA values in s_t_h_x:", np.sum(s_t_h_x == NO_DATA_VALUE), flush=True)
 
         # start by unmasking invalid data that is characterized by universal no data value
-        valid_mask_s_t_h = (s_t_h_x != NO_DATA_VALUE) and (s_t_h_x != 0)
-        valid_mask_s_t_m = (s_t_m_x != NO_DATA_VALUE) and (s_t_m_x != 0)
-        valid_mask_s_t_l = (s_t_l_x != NO_DATA_VALUE) and (s_t_l_x != 0)
-        valid_mask_sp = (sp_x != NO_DATA_VALUE) and (sp_x != 0)
-        valid_mask_t = (t_x != NO_DATA_VALUE) and (t_x != 0)
-        valid_mask_st = (st_x != NO_DATA_VALUE) and (st_x != 0)
+        valid_mask_s_t_h = (s_t_h_x != NO_DATA_VALUE) & (s_t_h_x != 0)
+        valid_mask_s_t_m = (s_t_m_x != NO_DATA_VALUE) & (s_t_m_x != 0)
+        valid_mask_s_t_l = (s_t_l_x != NO_DATA_VALUE) & (s_t_l_x != 0)
+        valid_mask_sp = (sp_x != NO_DATA_VALUE) & (sp_x != 0)
+        valid_mask_t = (t_x != NO_DATA_VALUE) & (t_x != 0)
+        valid_mask_st = (st_x != NO_DATA_VALUE) & (st_x != 0)
 
         print("Amount of invalid data in s_t_h_x:", np.sum(~valid_mask_s_t_h), flush=True)
 
