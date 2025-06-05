@@ -56,11 +56,12 @@ for file_name in os.listdir(mask_path):
                         mask_transform = mask_src.transform
                         mask_crs = mask_src.crs
 
+                        # TODO: an die Remote Sensing Leute: funktioniert das so?
                         transformed_mask_transform = mask_transform * rasterio.Affine.scale(0.1, 0.1)
 
                         assert input_crs == mask_crs, "Input and mask CRS do not match."
 
-                        cropped_data = crop_input_to_mask_bounds(input_data, mask_bounds, mask_transform)
+                        cropped_data = crop_input_to_mask_bounds(input_data, mask_bounds, transformed_mask_transform)
 
                         assert cropped_data.shape[1:] == (100, 100), "Cropped data shape does not match mask shape."
 
