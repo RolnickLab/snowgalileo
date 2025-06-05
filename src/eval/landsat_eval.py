@@ -44,7 +44,7 @@ class LandsatEvalDataset(PyTorchDataset):
         ### TODO: replace this by parent class init
         self.cache = True
         self.tifs = []
-        tifs = list(self.data_folder.glob("*.tif")) + list(self.data_folder.glob("*.tiff"))
+        tifs = list(self.input_tif_folder.glob("*.tif")) + list(self.input_tif_folder.glob("*.tiff"))
         for tif in tifs:
             try:
                 _ = self.start_month_from_file(tif)
