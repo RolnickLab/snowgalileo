@@ -8,16 +8,18 @@ import numpy as np
 import rioxarray
 import xarray as xr
 
-from src.data.config import DATA_FOLDER, NO_DATA_VALUE, CHANNEL_WISE_INVALID_DATA_THRESHOLDS
+from src.data.config import DATA_FOLDER, NO_DATA_VALUE, CHANNEL_WISE_INVALID_DATA_THRESHOLDS, DATASET_OUTPUT_HW_HIGH_RES, DATASET_OUTPUT_HW_MED_RES, DATASET_OUTPUT_HW_LOW_RES, DATASET_OUTPUT_HW_LOW_RES, NUM_TIMESTEPS
 from src.data.dataset import Dataset as TifDataset
 from src.utils import masked_output_np_to_tensor
+
+from src.data.dataset import PytorchDataset
 
 
 with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval.json")).open("r") as f:
     config = json.load(f)
 
 
-class LandsatEvalDataset(TifDataset):
+class LandsatEvalDataset(PytorchDataset):
     def __init__(self, split: str = "train", exclude_prediction_date: bool = False):
         self.split = split
         # whether to exclude the prediction date from the input timesteps
@@ -39,11 +41,27 @@ class LandsatEvalDataset(TifDataset):
         # print the number of input tifs
         print(f"Number of input tifs: {len(list(self.input_tif_folder.glob('*.tif')) + list(self.input_tif_folder.glob('*.tiff')))}")
 
-        super().__init__(
-            data_folder=self.input_tif_folder,
-            download=False,
-            h5py_folder=self.input_h5py_folder,
-        )
+        ### TODO: replace this by parent class init
+        self.cache = True
+        self.tifs = []
+        tifs = list(self.data_folder.glob("*.tif")) + list(self.data_folder.glob("*.tiff"))
+        for tif in tifs:
+            try:
+                _ = self.start_month_from_file(tif)
+                self.tifs.append(tif)
+            except IndexError:
+                warnings.warn(f"IndexError for {tif}")
+        self.h5pys = []
+
+        self.output_hw_high_res = DATASET_OUTPUT_HW_HIGH_RES
+        self.output_hw_med_res = DATASET_OUTPUT_HW_MED_RES
+        self.output_hw_low_res = DATASET_OUTPUT_HW_LOW_RES
+        self.output_timesteps = NUM_TIMESTEPS
+
+        assert self.output_hw_high_res == 100
+        assert self.output_hw_med_res == 100
+        assert self.output_hw_low_res == 100
+        ###
 
         self.label_tifs = []
         label_tifs = list(self.label_folder.glob("*.tif")) + list(self.label_folder.glob("*.tiff"))
