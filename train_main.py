@@ -602,9 +602,9 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                 id_dir = Path(model_path / id_dir)
                 id_dir.mkdir(parents=True, exist_ok=True)
 
-            if not config["best_loss"]:
+            if "best_loss" not in config:
                 config["best_loss"] = float("inf")
-            if not config["best_epoch"]:
+            if "best_epoch" not in config:
                 config["best_epoch"] = 0
 
             # checkpoint if loss is lower than the previous best loss
