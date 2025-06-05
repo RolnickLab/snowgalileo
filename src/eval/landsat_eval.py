@@ -740,12 +740,13 @@ class LandsatEvalDataset(PyTorchDataset):
                 s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
             )
 
-        label_path = self.label_tifs[idx].name
+        label = self.label_tifs[idx]
         # TODO: optinally add conversion to h5pys for labels
-        with cast(xr.Dataset, rioxarray.open_rasterio(label_path)) as data:
+        with cast(xr.Dataset, rioxarray.open_rasterio(label)) as data:
             label = cast(np.ndarray, data.values)
+            print(f"Label shape: {label.shape}", flush=True)
 
-        assert self.input_tifs.name[idx] == self.label_tifs.name[idx], "Input and label tif paths do not match."
+        assert self.input_tifs[idx].name == self.label_tifs[idx].name, f"Input path {self.input_tifs[idx].name} and label path {self.label_tifs[idx].name} do not match."
 
         return (
             masked_output_np_to_tensor(
