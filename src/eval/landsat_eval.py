@@ -2,13 +2,13 @@ import json
 import re
 import warnings
 from pathlib import Path
-from typing import cast, Optional, Union
+from typing import cast, Optional, Union, Tuple
 
 import numpy as np
 import rioxarray
 import xarray as xr
 
-from src.data.config import DATA_FOLDER
+from src.data.config import DATA_FOLDER, NO_DATA_VALUE, CHANNEL_WISE_INVALID_DATA_THRESHOLDS
 from src.data.dataset import Dataset as TifDataset
 from src.utils import masked_output_np_to_tensor
 
@@ -54,6 +54,15 @@ class LandsatEvalDataset(TifDataset):
             except IndexError:
                 warnings.warn(f"IndexError for {tif}")
 
+        self.input_tifs = []
+        input_tifs = list(self.input_tif_folder.glob("*.tif")) + list(self.input_tif_folder.glob("*.tiff"))
+        for tif in input_tifs:
+            try:
+                _ = self.prediction_month_from_file(tif)
+                self.input_tifs.append(tif)
+            except IndexError:
+                warnings.warn(f"IndexError for {tif}")
+
     # NOTE: overwritten from TifDataset since the eval tif files have different naming conventions
     @classmethod
     def prediction_month_from_file(cls, tif_path: Path) -> int:
@@ -69,8 +78,65 @@ class LandsatEvalDataset(TifDataset):
         s_t_m_m[:, :, -1, :] = 1
         s_t_l_m[:, :, -1, :] = 1
         t_m[-1, :] = 1
-
         return s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
+    
+    @staticmethod
+    def create_valid_mask(
+        s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        We need to adjust the mask function to account for no data values that occur due to the evaluation-specific export.
+
+        This function will mask out 0 values, and NO_DATA_VALUES that are based on missing sensors.
+
+        0: invalid data
+        1: valid data
+        """
+        print("Creating valid mask for LandsatEvalDataset", flush=True)
+        assert s_t_h_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_h_x"])
+        assert s_t_m_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_m_x"])
+        assert s_t_l_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_l_x"])
+        assert sp_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["sp_x"])
+        assert t_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["t_x"])
+        assert st_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["st_x"])
+
+        # TODO: assert the amount of 0 values in the input data, to check if they are int or float
+        print("Amount of 0 values in s_t_h_x:", np.sum(s_t_h_x == 0), flush=True)
+        print("Amount of 0.0 values in s_t_h_x:", np.sum(s_t_h_x == 0.0), flush=True)
+        print("Amount of NO_DATA values in s_t_h_x:", np.sum(s_t_h_x == NO_DATA_VALUE), flush=True)
+
+        # start by unmasking invalid data that is characterized by universal no data value
+        valid_mask_s_t_h = (s_t_h_x != NO_DATA_VALUE) and (s_t_h_x != 0)
+        valid_mask_s_t_m = (s_t_m_x != NO_DATA_VALUE) and (s_t_m_x != 0)
+        valid_mask_s_t_l = (s_t_l_x != NO_DATA_VALUE) and (s_t_l_x != 0)
+        valid_mask_sp = (sp_x != NO_DATA_VALUE) and (sp_x != 0)
+        valid_mask_t = (t_x != NO_DATA_VALUE) and (t_x != 0)
+        valid_mask_st = (st_x != NO_DATA_VALUE) and (st_x != 0)
+
+        print("Amount of invalid data in s_t_h_x:", np.sum(~valid_mask_s_t_h), flush=True)
+
+        # apply the channel-specific no-data bounds
+        for ch, lower_bound in CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_h_x"].items():
+            valid_mask_s_t_h[..., ch] &= s_t_h_x[..., ch] >= lower_bound
+        for ch, lower_bound in CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_m_x"].items():
+            valid_mask_s_t_m[..., ch] &= s_t_m_x[..., ch] >= lower_bound
+        for ch, lower_bound in CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_l_x"].items():
+            valid_mask_s_t_l[..., ch] &= s_t_l_x[..., ch] >= lower_bound
+        for ch, lower_bound in CHANNEL_WISE_INVALID_DATA_THRESHOLDS["sp_x"].items():
+            valid_mask_sp[..., ch] &= sp_x[..., ch] >= lower_bound
+        for ch, lower_bound in CHANNEL_WISE_INVALID_DATA_THRESHOLDS["t_x"].items():
+            valid_mask_t[..., ch] &= t_x[..., ch] >= lower_bound
+        for ch, lower_bound in CHANNEL_WISE_INVALID_DATA_THRESHOLDS["st_x"].items():
+            valid_mask_st[..., ch] &= st_x[..., ch] >= lower_bound
+
+        return (
+            valid_mask_s_t_h,
+            valid_mask_s_t_m,
+            valid_mask_s_t_l,
+            valid_mask_sp,
+            valid_mask_t,
+            valid_mask_st,
+        )
 
     def __getitem__(self, idx):
         # NOTE: input will be a DatasetOutput object
@@ -97,27 +163,24 @@ class LandsatEvalDataset(TifDataset):
         t_m = np.logical_not(valid_data_mask_t)
         st_m = np.logical_not(valid_data_mask_st)
 
-        # TODO: exclude inputs where only half of the image is given
-
         if self.exclude_prediction_date:
-            s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m = self.mask_prediction_timestep(
+            (
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+            ) = self.mask_prediction_timestep(
                 s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
             )
 
-        label_path = self.label_tifs[idx]
+        label_path = self.label_tifs[idx].name
         # TODO: optinally add conversion to h5pys for labels
         with cast(xr.Dataset, rioxarray.open_rasterio(label_path)) as data:
             label = cast(np.ndarray, data.values)
 
-            # TODO: add assertion that input and label have the same lat and lon
-            lat_pattern = r"lat=(.*?)_"
-            lon_pattern = r"lon=(.*?)_"
-            lat = float(
-                np.mean([float(value) for value in re.findall(lat_pattern, str(label_path))])
-            )
-            lon = float(
-                np.mean([float(value) for value in re.findall(lon_pattern, str(label_path))])
-            )
+        assert self.input_tifs.name[idx] == self.label_tifs.name[idx], "Input and label tif paths do not match."
 
         return (
             masked_output_np_to_tensor(
@@ -137,6 +200,7 @@ class LandsatEvalDataset(TifDataset):
             ),
             label,
         )
+
 
     def __len__(self) -> int:
         return len(self.label_tifs)

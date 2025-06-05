@@ -22,12 +22,12 @@ EXPORTED_HEIGHT_WIDTH_METRES = 1000
 # this is the maximum patch_size * num_patches.
 # we will need to change this if that assumption changes
 # Note: 96 for 1km x 1km and 48 for 500m x 500m
-DATASET_OUTPUT_HW_HIGH_RES = 96
-DATASET_OUTPUT_HW_MED_RES = 96
-DATASET_OUTPUT_HW_LOW_RES = 96
+DATASET_OUTPUT_HW_HIGH_RES = 100
+DATASET_OUTPUT_HW_MED_RES = 100
+DATASET_OUTPUT_HW_LOW_RES = 100
 
 NUM_HIGH_RES_PIXELS_PER_DIM = EXPORTED_HEIGHT_WIDTH_METRES // DATASET_OUTPUT_HW_HIGH_RES
-NUM_MED_RES_PIXELS_PER_DIM = 3
+NUM_MED_RES_PIXELS_PER_DIM = 4
 NUM_LOW_RES_PIXELS_PER_DIM = 2
 
 # the idea is that for exporting different data, we will only have to change this dictionary in the end
