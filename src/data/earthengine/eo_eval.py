@@ -726,7 +726,7 @@ class EarthEngineExporterEval:
 
             export_started = self._export_for_polygon(
                 polygon=ee_bbox,
-                polygon_identifier=identifier,
+                polygon_identifier=filename,
                 interval_start_date=WINDOW_START_DATE,
                 interval_end_date=WINDOW_END_DATE,
                 crs=crs,
