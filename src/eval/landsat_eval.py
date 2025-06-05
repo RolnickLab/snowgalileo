@@ -43,14 +43,14 @@ class LandsatEvalDataset(PyTorchDataset):
 
         ### TODO: replace this by parent class init
         self.cache = True
-        self.tifs = []
-        tifs = list(self.input_tif_folder.glob("*.tif")) + list(self.input_tif_folder.glob("*.tiff"))
-        for tif in tifs:
+        self.input_tifs = []
+        input_tifs = list(self.input_tif_folder.glob("*.tif")) + list(self.input_tif_folder.glob("*.tiff"))
+        for tif in input_tifs:
             try:
-                _ = self.start_month_from_file(tif)
-                self.tifs.append(tif)
+                _ = self.prediction_month_from_file(tif)
+                self.input_tifs.append(tif)
             except IndexError:
-                warnings.warn(f"IndexError for {tif}")
+                warnings.warn(f"IndexError for input {tif}")
         self.h5pys = []
 
         self.output_hw_high_res = DATASET_OUTPUT_HW_HIGH_RES
@@ -70,7 +70,7 @@ class LandsatEvalDataset(PyTorchDataset):
                 _ = self.prediction_month_from_file(tif)
                 self.label_tifs.append(tif)
             except IndexError:
-                warnings.warn(f"IndexError for {tif}")
+                warnings.warn(f"IndexError for label {tif}")
 
     # NOTE: overwritten from TifDataset since the eval tif files have different naming conventions
     @classmethod
