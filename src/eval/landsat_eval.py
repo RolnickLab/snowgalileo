@@ -54,15 +54,6 @@ class LandsatEvalDataset(TifDataset):
             except IndexError:
                 warnings.warn(f"IndexError for {tif}")
 
-        self.input_tifs = []
-        input_tifs = list(self.input_tif_folder.glob("*.tif")) + list(self.input_tif_folder.glob("*.tiff"))
-        for tif in input_tifs:
-            try:
-                _ = self.prediction_month_from_file(tif)
-                self.input_tifs.append(tif)
-            except IndexError:
-                warnings.warn(f"IndexError for {tif}")
-
     # NOTE: overwritten from TifDataset since the eval tif files have different naming conventions
     @classmethod
     def prediction_month_from_file(cls, tif_path: Path) -> int:
