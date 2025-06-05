@@ -2,7 +2,7 @@ import json
 import re
 import warnings
 from pathlib import Path
-from typing import cast
+from typing import cast, Optional, Union
 
 import numpy as np
 import rioxarray
@@ -31,13 +31,13 @@ class LandsatEvalDataset(TifDataset):
         self.input_tif_folder = DATA_FOLDER / config["input_tif_folder"]
 
         # print the number of label tifs
-        print(f"Number of label tifs: {len(list(self.label_folder.glob('*.tif')) + self.label_folder.glob('*.tiff'))}")
+        print(f"Number of label tifs: {len(list(self.label_folder.glob('*.tif')) + list(self.label_folder.glob('*.tiff')))}")
 
         # print the number of input h5pys
         print(f"Number of input h5pys: {len(list(self.input_h5py_folder.glob('*.h5py')))}")
 
         # print the number of input tifs
-        print(f"Number of input tifs: {len(list(self.input_tif_folder.glob('*.tif')) + self.input_tif_folder.glob('*.tiff'))}")
+        print(f"Number of input tifs: {len(list(self.input_tif_folder.glob('*.tif')) + list(self.input_tif_folder.glob('*.tiff')))}")
 
         super().__init__(
             data_folder=self.input_tif_folder,
