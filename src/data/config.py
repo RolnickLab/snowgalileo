@@ -334,7 +334,7 @@ DATA_FOLDER = Path(__file__).parents[2] / "data"
 #    / "data"
 # )
 TIFS_FOLDER = DATA_FOLDER / "tifs2500"
-NORMALIZATION_DICT_FILENAME = "normalizing_dict_new.json"
+NORMALIZATION_DICT_FILENAME = "normalizing_dict_full.json"
 OUTPUT_FOLDER = DATA_FOLDER / "outputs"
 MASK_FOLDER = DATA_FOLDER / "landsat_eval_masks/test"
 ENCODER_FILENAME = "encoder.pt"
