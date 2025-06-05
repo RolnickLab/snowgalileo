@@ -19,7 +19,7 @@ with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval.json
     config = json.load(f)
 
 
-class LandsatEvalDataset(PytorchDataset):
+class LandsatEvalDataset(PyTorchDataset):
     def __init__(self, split: str = "train", exclude_prediction_date: bool = False):
         self.split = split
         # whether to exclude the prediction date from the input timesteps
