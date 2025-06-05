@@ -420,7 +420,7 @@ class LandsatEvalDataset(PyTorchDataset):
                 new_idx = idx + 1
             else:
                 new_idx = idx - 1
-            self.tifs[idx] = self.input_tifs[new_idx]
+            self.input_tifs[idx] = self.input_tifs[new_idx]
             tif_path = self.input_tifs[idx]
         dataset = self._tif_to_array(tif_path)
         return dataset
