@@ -653,7 +653,7 @@ class EarthEngineExporterEval:
 
         for filename in os.listdir(folder):
             if not filename.startswith("LC0") or not filename.endswith(".tif"):
-                print(f"Filename {filename} does not start with L9_ or end with .tif")
+                print(f"Filename {filename} does not start with LC0_ or end with .tif")
                 continue
             parts = filename.split("_")
             if len(parts) != 5:
