@@ -43,10 +43,10 @@ def model_class_name(model: BaseEstimator) -> str:
 
 class EvalTask(ABC):
     name: str = "EvalTask"
-    regression: bool
-    spatial_token_prediction: bool = False
-    multilabel: bool
-    input_height_width: int
+    regression: bool = True
+    spatial_token_prediction: bool = True
+    multilabel: bool = False
+    input_height_width: int = 100
     num_outputs: int = 1
 
     all_regression_sklearn_models = [
@@ -83,7 +83,7 @@ class EvalTask(ABC):
         return model
 
     @torch.no_grad()
-    def group_targets_per_token(self, target: torch.Tensor) -> torch.Tensor:
+    def rearrange_targets_into_token_sequence(self, target: torch.Tensor) -> torch.Tensor:
         # group labels per token for segmentation
         return rearrange(
             target,
@@ -150,7 +150,6 @@ class EvalTask(ABC):
         train_dl: DataLoader,
         pretrained_model: Encoder,
         models: List[str] = ["Random Forest"],
-        c_i: Optional[Dict] = None,
     ) -> Sequence[BaseEstimator]:
         """
         Fit sklearn models on the encodings of the pretrained model.
@@ -187,9 +186,10 @@ class EvalTask(ABC):
             ) = [t.to(device) for t in masked_output]
 
             if self.spatial_token_prediction:
-                targets = self.group_targets_per_token(label).cpu().numpy()
+                targets = self.rearrange_targets_into_token_sequence(label).cpu().numpy()
 
-                targets_list.append(self.reduce_targets_per_token(targets))
+                #targets_list.append(self.reduce_targets_per_token(targets))
+                targets_list.append(targets)
             else:
                 targets_list.append(label.cpu().numpy())
 
@@ -207,7 +207,7 @@ class EvalTask(ABC):
                     sp_m,
                     t_m,
                     st_m,
-                    _,
+                    months,
                 ) = pretrained_model(
                     s_t_h_x=s_t_h_x,
                     s_t_m_x=s_t_m_x,
@@ -222,7 +222,6 @@ class EvalTask(ABC):
                     t_m=t_m,
                     st_m=st_m,
                     months=months,
-                    c_i=c_i,
                     patch_size_high_res=self.patch_size_high_res,
                     patch_size_med_res=1,
                     patch_size_low_res=1,

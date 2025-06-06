@@ -1267,8 +1267,13 @@ class Encoder(FlexiPrestoBase):
         st_m: torch.Tensor,
     ):
         s_t_h_x = rearrange(s_t_h_x, "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d")
-        s_t_m_x = rearrange(s_t_m_x, "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d")
-        s_t_l_x = rearrange(s_t_l_x, "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d")
+        # repeat low resolution tokens over high resolution
+        s_t_m_x = repeat(
+            rearrange(s_t_m_x, "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d"), "b t n d -> b (s t) n d", s=s_t_h_x.shape[1]
+        )
+        s_t_l_x = repeat(
+            rearrange(s_t_l_x, "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d"), "b t n d -> b (s t) n d", s=s_t_h_x.shape[1]
+        )
         sp_x = rearrange(sp_x, "b t_h t_w c_g d -> b (t_h t_w) c_g d")
         # repeat time tokens over space
         t_x = repeat(

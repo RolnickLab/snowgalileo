@@ -5,5 +5,5 @@
     "label_resolution": 100,
     "num_timesteps": 8,
     "input_height_width": 100,
-    "num_outputs": 1
+    "num_classes": 1
 }

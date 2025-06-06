@@ -4,17 +4,25 @@ import warnings
 from pathlib import Path
 from typing import cast, Optional, Union, Tuple
 import logging
+import torch
+from typing import Dict, List, Sequence
+from torch.utils.data import DataLoader
 
 import numpy as np
 import rioxarray
 import xarray as xr
 import h5py
 from einops import rearrange, repeat
+from tqdm import tqdm
 
 from src.data.config import DATA_FOLDER, NO_DATA_VALUE, CHANNEL_WISE_INVALID_DATA_THRESHOLDS, DATASET_OUTPUT_HW_HIGH_RES, DATASET_OUTPUT_HW_MED_RES, DATASET_OUTPUT_HW_LOW_RES, DATASET_OUTPUT_HW_LOW_RES, NUM_TIMESTEPS, NUM_HIGH_RES_PIXELS_PER_DIM, NUM_MED_RES_PIXELS_PER_DIM, NUM_LOW_RES_PIXELS_PER_DIM, NORMALIZATION_DICT_FILENAME, MODALITIES
 from src.data.dataset import DatasetOutput, Normalizer, to_cartesian
 from src.data.earthengine.eo_eval import EO_SPACE_TIME_LOW_RES_BANDS, SPACE_BANDS, SPACE_TIME_HIGH_RES_BANDS, SPACE_TIME_MED_RES_BANDS, SPACE_TIME_LOW_RES_BANDS, STATIC_BANDS, TIME_BANDS, EO_ALL_DYNAMIC_IN_TIME_BANDS, EO_ALL_DYNAMIC_IN_TIME_BANDS_NP, CLOUD_BANDS
-from src.utils import masked_output_np_to_tensor, config_dir
+from src.utils import masked_output_np_to_tensor, config_dir, device, DEFAULT_SEED
+from src.eval.eval import EvalTask, Hyperparams, model_class_name
+from sklearn.base import BaseEstimator
+from src.flexipresto import Encoder
+from sklearn.metrics import accuracy_score
 
 from torch.utils.data import Dataset as PyTorchDataset
 
@@ -740,7 +748,8 @@ class LandsatEvalDataset(PyTorchDataset):
                 s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
             )
 
-        label = self.label_tifs[idx]
+        label = self.label_tifs[idx][1:]
+        assert label.dim() == 2
         # TODO: optinally add conversion to h5pys for labels
         with cast(xr.Dataset, rioxarray.open_rasterio(label)) as data:
             label = cast(np.ndarray, data.values)
@@ -770,6 +779,193 @@ class LandsatEvalDataset(PyTorchDataset):
     def __len__(self) -> int:
         return len(self.label_tifs)
     
+
+class LandsatEval(EvalTask):
+    name = "landsat"
+    regression = True
+    spatial_token_prediction = True
+    multilabel = False
+    input_height_width = config["input_height_width"]
+    num_outputs = config["num_classes"]
+
+    def __init__(
+        self,
+        normalization: Union[str, Normalizer] = "std",  # or "scaling"
+        exclude_prediction_date: bool = False,
+        patch_size_high_res: int = 10,
+        seed=DEFAULT_SEED,
+    ):
+        self.normalization = normalization
+        self.exclude_prediction_date = exclude_prediction_date
+        self.patch_size_high_res = patch_size_high_res
+
+        super().__init__(self.patch_size_high_res, seed)
+        self.name = (
+            f"{self.name}_{'_num_timesteps_' + str(7) if self.exclude_prediction_date else '8'}"
+        )
+
+    def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
+        return {
+            f"{self.name}: {model_name}_accuracy_score": accuracy_score(target, preds),
+        }
+
+    @torch.no_grad()
+    def _evaluate_model(
+        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator]
+    ) -> Dict:
+        test_ds = LandsatEvalDataset(
+            exclude_prediction_date=self.exclude_prediction_date,
+            split="valid",
+        )
+
+        if self.normalization == "std":
+            normalizing_dict = test_ds.load_normalization_values(
+                path=config_dir / NORMALIZATION_DICT_FILENAME
+            )
+            print(normalizing_dict, flush=True)
+            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+            test_ds.normalizer = normalizer
+        else:
+            normalizer = Normalizer(std=False)
+            test_ds.normalizer = normalizer
+
+        test_dl = DataLoader(
+            test_ds,
+            batch_size=Hyperparams.batch_size,
+            shuffle=False,
+            num_workers=Hyperparams.num_workers,
+        )
+        pred_dict: Dict[str, BaseEstimator] = {
+            model_class_name(model): [] for model in sklearn_models
+        }
+
+        labels_list = []
+
+        for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
+            (
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+                months,
+            ) = [t.to(device) for t in masked_output]
+
+            pretrained_model.eval()
+
+            with torch.no_grad():
+                (
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    _,
+                ) = pretrained_model(
+                    s_t_h_x=s_t_h_x,
+                    s_t_m_x=s_t_m_x,
+                    s_t_l_x=s_t_l_x,
+                    sp_x=sp_x,
+                    t_x=t_x,
+                    st_x=st_x,
+                    s_t_h_m=s_t_h_m,
+                    s_t_m_m=s_t_m_m,
+                    s_t_l_m=s_t_l_m,
+                    sp_m=sp_m,
+                    t_m=t_m,
+                    st_m=st_m,
+                    months=months,
+                    patch_size_high_res=self.patch_size_high_res,
+                    patch_size_med_res=1,
+                    patch_size_low_res=1,
+                )
+                encodings = (
+                    pretrained_model.average_tokens(
+                        s_t_h_x,
+                        s_t_m_x,
+                        s_t_l_x,
+                        sp_x,
+                        t_x,
+                        st_x,
+                        s_t_h_m,
+                        s_t_m_m,
+                        s_t_l_m,
+                        sp_m,
+                        t_m,
+                        st_m,
+                    )
+                    .cpu()
+                    .numpy()
+                )
+
+            labels_list.append(label.cpu().numpy())
+
+            for model in sklearn_models:
+                preds = model.predict(encodings)
+                pred_dict[model_class_name(model)].append(preds)
+
+        target = np.concatenate(labels_list)
+        results_dict = {}
+
+        for model_name_str, pred_list in pred_dict.items():
+            test_preds_np = np.concatenate(pred_list, axis=0)
+            prefix = f"{model_name_str}"
+            results_dict.update(self.compute_metrics(prefix, test_preds_np, target))
+
+        return results_dict
+
+    def evaluate_model_on_task(
+        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
+    ) -> Dict:
+        if model_modes is None:
+            model_modes = self.all_regression_sklearn_models
+        for model_mode in model_modes:
+            assert model_mode in self.all_regression_sklearn_models
+
+        train_ds = LandsatEvalDataset(
+            exclude_prediction_date=self.exclude_prediction_date,
+            split="train",
+        )
+
+        if self.normalization == "std":
+            normalizing_dict = train_ds.load_normalization_values(
+                path=config_dir / NORMALIZATION_DICT_FILENAME
+            )
+            print(normalizing_dict, flush=True)
+            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+            train_ds.normalizer = normalizer
+        else:
+            normalizer = Normalizer(std=False)
+            train_ds.normalizer = normalizer
+
+        train_dl = DataLoader(
+            train_ds,
+            batch_size=Hyperparams.batch_size,
+            shuffle=True,
+            num_workers=Hyperparams.num_workers,
+        )
+
+        trained_sklearn_models = self.train_sklearn_model(
+            train_dl, pretrained_model, model_modes, None
+        )
+        results = self._evaluate_model(pretrained_model, trained_sklearn_models, None)
+
+        return results
+    
 if __name__ == "__main__":
     dataset = LandsatEvalDataset(split="test", exclude_prediction_date=True)
     print(f"Number of samples in dataset: {len(dataset)}")
@@ -780,5 +976,5 @@ if __name__ == "__main__":
     normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
     dataset.normalizer = normalizer
     sample = dataset[0]
-    print(f"Sample shape: {sample[0].shape}, Label shape: {sample[1].shape}")
     print(f"Prediction month: {dataset.prediction_month_from_file(dataset.label_tifs[0])}")
+

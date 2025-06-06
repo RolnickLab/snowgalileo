@@ -8,7 +8,7 @@ import torch
 
 from src.config import DEFAULT_SEED
 from src.eval import (
-    EuroSatEval,
+    LandsatEval,
 )
 from src.eval.eval import EvalTask
 from src.flexipresto import Encoder
@@ -31,7 +31,7 @@ else:
 
 eval_tasks: List[EvalTask] = [
     # geobench EuroSat only works without latlons
-    *[EuroSatEval(rgb=rgb, include_latlons=False, geobench=True) for rgb in [True, False]],
+    *[LandsatEval(exclude_prediction_date=excl) for excl in [True, False]],
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(pretrained_model=encoder)
