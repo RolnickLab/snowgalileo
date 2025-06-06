@@ -1269,8 +1269,8 @@ class Encoder(FlexiPrestoBase):
         ### TODO: very hacky solution to remove the shape error, change by using other med res patch sizes later
         s_t_m_x = torch.concatenate([s_t_m_x, s_t_m_x[:, -1:, :, :, :, :]], dim=1)
         s_t_m_x = torch.concatenate([s_t_m_x, s_t_m_x[:, :, -1:, :, :, :]], dim=2)
-        s_t_m_m = torch.concatenate([s_t_m_m, s_t_m_m[:, -1:, :, :, :, :]], dim=1)
-        s_t_m_m = torch.concatenate([s_t_m_m, s_t_m_m[:, :, -1:, :, :, :]], dim=2)
+        s_t_m_m = torch.concatenate([s_t_m_m, s_t_m_m[:, -1:, :, :, :]], dim=1)
+        s_t_m_m = torch.concatenate([s_t_m_m, s_t_m_m[:, :, -1:, :, :]], dim=2)
 
         p_m = s_t_h_x.shape[1] // s_t_m_x.shape[1]
         p_l = s_t_h_x.shape[1] // s_t_l_x.shape[1]
