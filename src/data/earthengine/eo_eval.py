@@ -666,7 +666,7 @@ class EarthEngineExporterEval:
         exports_started = 0
         print(f"Exporting {len(filenames)} latlons: ")
 
-        dst_crs = 'EPSG:4326'
+        dst_crs = "EPSG:4326"
 
         for filename in filenames:
             parts = filename.split("_")
@@ -678,17 +678,17 @@ class EarthEngineExporterEval:
                 min_xx, max_xx = src.bounds.left, src.bounds.right
                 crs = src.crs.to_string()
                 transform = src.transform
-                #transform, width, height = calculate_default_transform(
-                #src.crs, dst_crs, src.width, src.height, *src.bounds)
-                #kwargs = src.meta.copy()
-                #kwargs.update({
+                # transform, width, height = calculate_default_transform(
+                # src.crs, dst_crs, src.width, src.height, *src.bounds)
+                # kwargs = src.meta.copy()
+                # kwargs.update({
                 #    'crs': dst_crs,
                 #    'transform': transform,
                 #    'width': width,
                 #    'height': height
-                #})
+                # })
 
-                #with rasterio.open(folder / f"wgs84_{filename}", 'w', **kwargs) as dst:
+                # with rasterio.open(folder / f"wgs84_{filename}", 'w', **kwargs) as dst:
                 #    for i in range(1, src.count + 1):
                 #        reproject(
                 #            source=rasterio.band(src, i),
@@ -708,8 +708,8 @@ class EarthEngineExporterEval:
                 min_lon, min_lat = transformer.transform(min_xx, min_yy)
                 max_lon, max_lat = transformer.transform(max_xx, max_yy)
 
-                #min_lon, min_lat = dst.bounds.left, dst.bounds.bottom
-                #max_lon, max_lat = dst.bounds.right, dst.bounds.top
+                # min_lon, min_lat = dst.bounds.left, dst.bounds.bottom
+                # max_lon, max_lat = dst.bounds.right, dst.bounds.top
 
             ee_bbox = EEGeometry.from_coord_bounds(
                 min_lat=min_lat,

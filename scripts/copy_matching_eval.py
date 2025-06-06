@@ -46,10 +46,8 @@ def crop_input_to_mask_bounds(input_data, bounds, transform):
     west, south, east, north = bounds
     row_start, col_start = ~transform * (west, north)
     row_end, col_end = ~transform * (east, south)
-    
+
     row_start, row_end = int(row_start), int(row_end)
     col_start, col_end = int(col_start), int(col_end)
-    
+
     return input_data[:, row_start:row_end, col_start:col_end]
-
-

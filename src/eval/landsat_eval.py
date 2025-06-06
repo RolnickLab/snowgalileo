@@ -15,9 +15,34 @@ import h5py
 from einops import rearrange, repeat
 from tqdm import tqdm
 
-from src.data.config import DATA_FOLDER, NO_DATA_VALUE, CHANNEL_WISE_INVALID_DATA_THRESHOLDS, DATASET_OUTPUT_HW_HIGH_RES, DATASET_OUTPUT_HW_MED_RES, DATASET_OUTPUT_HW_LOW_RES, DATASET_OUTPUT_HW_LOW_RES, NUM_TIMESTEPS, NUM_HIGH_RES_PIXELS_PER_DIM, NUM_MED_RES_PIXELS_PER_DIM, NUM_LOW_RES_PIXELS_PER_DIM, NORMALIZATION_DICT_FILENAME, MODALITIES
+from src.data.config import (
+    DATA_FOLDER,
+    NO_DATA_VALUE,
+    CHANNEL_WISE_INVALID_DATA_THRESHOLDS,
+    DATASET_OUTPUT_HW_HIGH_RES,
+    DATASET_OUTPUT_HW_MED_RES,
+    DATASET_OUTPUT_HW_LOW_RES,
+    DATASET_OUTPUT_HW_LOW_RES,
+    NUM_TIMESTEPS,
+    NUM_HIGH_RES_PIXELS_PER_DIM,
+    NUM_MED_RES_PIXELS_PER_DIM,
+    NUM_LOW_RES_PIXELS_PER_DIM,
+    NORMALIZATION_DICT_FILENAME,
+    MODALITIES,
+)
 from src.data.dataset import DatasetOutput, Normalizer, to_cartesian
-from src.data.earthengine.eo_eval import EO_SPACE_TIME_LOW_RES_BANDS, SPACE_BANDS, SPACE_TIME_HIGH_RES_BANDS, SPACE_TIME_MED_RES_BANDS, SPACE_TIME_LOW_RES_BANDS, STATIC_BANDS, TIME_BANDS, EO_ALL_DYNAMIC_IN_TIME_BANDS, EO_ALL_DYNAMIC_IN_TIME_BANDS_NP, CLOUD_BANDS
+from src.data.earthengine.eo_eval import (
+    EO_SPACE_TIME_LOW_RES_BANDS,
+    SPACE_BANDS,
+    SPACE_TIME_HIGH_RES_BANDS,
+    SPACE_TIME_MED_RES_BANDS,
+    SPACE_TIME_LOW_RES_BANDS,
+    STATIC_BANDS,
+    TIME_BANDS,
+    EO_ALL_DYNAMIC_IN_TIME_BANDS,
+    EO_ALL_DYNAMIC_IN_TIME_BANDS_NP,
+    CLOUD_BANDS,
+)
 from src.utils import masked_output_np_to_tensor, config_dir, device, DEFAULT_SEED
 from src.eval.eval import EvalTask, Hyperparams, model_class_name
 from sklearn.base import BaseEstimator
@@ -33,32 +58,43 @@ with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval.json
 
 
 class LandsatEvalDataset(PyTorchDataset):
-    def __init__(self, split: str = "train", exclude_prediction_date: bool = False, normalizer: Optional[Normalizer] = None):
+    def __init__(
+        self,
+        split: str = "train",
+        exclude_prediction_date: bool = False,
+        normalizer: Optional[Normalizer] = None,
+    ):
         self.split = split
         # whether to exclude the prediction date from the input timesteps
         # if True, the prediction date will be masked out in the input
         self.exclude_prediction_date = exclude_prediction_date
         self.normalizer = normalizer
 
-        assert self.split in ["train", "valid", "test"]
+        assert self.split in ["train", "test"]
 
-        self.h5py_folder = DATA_FOLDER / config["input_h5py_folder"]
-        self.label_folder = DATA_FOLDER / config["label_folder"]
-        self.input_tif_folder = DATA_FOLDER / config["input_tif_folder"]
+        self.h5py_folder = DATA_FOLDER / config["input_h5py_folder"] / self.split
+        self.label_folder = DATA_FOLDER / config["label_folder"] / self.split
+        self.input_tif_folder = DATA_FOLDER / config["input_tif_folder"] / self.split
 
         # print the number of label tifs
-        print(f"Number of label tifs: {len(list(self.label_folder.glob('*.tif')) + list(self.label_folder.glob('*.tiff')))}")
+        print(
+            f"Number of label tifs: {len(list(self.label_folder.glob('*.tif')) + list(self.label_folder.glob('*.tiff')))}"
+        )
 
         # print the number of input h5pys
         print(f"Number of input h5pys: {len(list(self.h5py_folder.glob('*.h5py')))}")
 
         # print the number of input tifs
-        print(f"Number of input tifs: {len(list(self.input_tif_folder.glob('*.tif')) + list(self.input_tif_folder.glob('*.tiff')))}")
+        print(
+            f"Number of input tifs: {len(list(self.input_tif_folder.glob('*.tif')) + list(self.input_tif_folder.glob('*.tiff')))}"
+        )
 
         ### TODO: replace this by parent class init
         self.cache = True
         self.input_tifs = []
-        input_tifs = list(self.input_tif_folder.glob("*.tif")) + list(self.input_tif_folder.glob("*.tiff"))
+        input_tifs = list(self.input_tif_folder.glob("*.tif")) + list(
+            self.input_tif_folder.glob("*.tiff")
+        )
         for tif in input_tifs:
             try:
                 _ = self.prediction_month_from_file(tif)
@@ -86,7 +122,9 @@ class LandsatEvalDataset(PyTorchDataset):
             except IndexError:
                 warnings.warn(f"IndexError for label {tif}")
 
-        assert len(self.input_tifs) == len(self.label_tifs), "Number of input tifs and label tifs do not match."
+        assert len(self.input_tifs) == len(self.label_tifs), (
+            "Number of input tifs and label tifs do not match."
+        )
         print(f"Number of input tifs: {len(self.input_tifs)}")
         print(f"Number of label tifs: {len(self.label_tifs)}")
 
@@ -106,7 +144,7 @@ class LandsatEvalDataset(PyTorchDataset):
         s_t_l_m[:, :, -1, :] = 1
         t_m[-1, :] = 1
         return s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
-    
+
     @staticmethod
     def create_valid_mask(
         s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x
@@ -164,11 +202,12 @@ class LandsatEvalDataset(PyTorchDataset):
             valid_mask_t,
             valid_mask_st,
         )
-    
+
     @staticmethod
     def _check_and_fillna(data: np.ndarray, bands_np: np.ndarray) -> np.ndarray:
         """Fill in the missing values in the data array"""
         from einops import repeat
+
         if data.shape[-1] != len(bands_np):
             raise ValueError(f"Expected data to have {len(bands_np)} bands - got {data.shape[-1]}")
         is_nan_inf = np.isnan(data) | np.isinf(data)
@@ -697,7 +736,7 @@ class LandsatEvalDataset(PyTorchDataset):
                 hf["valid_data_mask_st"][:],
             )
         return output
-    
+
     @staticmethod
     def load_normalization_values(path: Path):
         if not path.exists():
@@ -744,9 +783,7 @@ class LandsatEvalDataset(PyTorchDataset):
                 sp_m,
                 t_m,
                 st_m,
-            ) = self.mask_prediction_timestep(
-                s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
-            )
+            ) = self.mask_prediction_timestep(s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m)
 
         label = self.label_tifs[idx]
         # TODO: optinally add conversion to h5pys for labels
@@ -756,7 +793,9 @@ class LandsatEvalDataset(PyTorchDataset):
             label = np.squeeze(label, axis=0)
             print(f"Label shape: {label.shape}", flush=True)
 
-        assert self.input_tifs[idx].name == self.label_tifs[idx].name, f"Input path {self.input_tifs[idx].name} and label path {self.label_tifs[idx].name} do not match."
+        assert self.input_tifs[idx].name == self.label_tifs[idx].name, (
+            f"Input path {self.input_tifs[idx].name} and label path {self.label_tifs[idx].name} do not match."
+        )
 
         return (
             masked_output_np_to_tensor(
@@ -779,7 +818,7 @@ class LandsatEvalDataset(PyTorchDataset):
 
     def __len__(self) -> int:
         return len(self.label_tifs)
-    
+
 
 class LandsatEval(EvalTask):
     name = "landsat"
@@ -807,6 +846,7 @@ class LandsatEval(EvalTask):
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
         from sklearn.metrics import root_mean_squared_error, r2_score
+
         # regression metrics
         return {
             f"{self.name}_{model_name}_rmse": root_mean_squared_error(target, preds),
@@ -819,7 +859,7 @@ class LandsatEval(EvalTask):
     ) -> Dict:
         test_ds = LandsatEvalDataset(
             exclude_prediction_date=self.exclude_prediction_date,
-            split="valid",
+            split="test",
         )
 
         if self.normalization == "std":
@@ -868,7 +908,21 @@ class LandsatEval(EvalTask):
 
             pretrained_model.eval()
             with torch.no_grad():
-                s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, _ = pretrained_model(
+                (
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    _,
+                ) = pretrained_model(
                     s_t_h_x,
                     s_t_m_x,
                     s_t_l_x,
@@ -883,8 +937,8 @@ class LandsatEval(EvalTask):
                     st_m,
                     months,
                     patch_size_high_res=self.patch_size_high_res,
-                    patch_size_med_res = 1,
-                    patch_size_low_res = 1,
+                    patch_size_med_res=1,
+                    patch_size_low_res=1,
                 )
 
             encodings = self.group_encodings_per_token(
@@ -951,13 +1005,12 @@ class LandsatEval(EvalTask):
             num_workers=Hyperparams.num_workers,
         )
 
-        trained_sklearn_models = self.train_sklearn_model(
-            train_dl, pretrained_model, model_modes
-        )
+        trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
         results = self._evaluate_model(pretrained_model, trained_sklearn_models)
 
         return results
-    
+
+
 if __name__ == "__main__":
     dataset = LandsatEvalDataset(split="test", exclude_prediction_date=True)
     print(f"Number of samples in dataset: {len(dataset)}")
@@ -969,4 +1022,3 @@ if __name__ == "__main__":
     dataset.normalizer = normalizer
     sample = dataset[0]
     print(f"Prediction month: {dataset.prediction_month_from_file(dataset.label_tifs[0])}")
-

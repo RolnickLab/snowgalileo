@@ -35,6 +35,7 @@ eval_tasks: List[EvalTask] = [
     *[LandsatEval(exclude_prediction_date=excl) for excl in [True, False]],
 ]
 for task in eval_tasks:
-    results = task.evaluate_model_on_task(pretrained_model=encoder, model_modes=["KNNat20 Regressor"])
+    results = task.evaluate_model_on_task(
+        pretrained_model=encoder, model_modes=["KNNat20 Regressor"]
+    )
     print(json.dumps(results, indent=2, default=str), flush=True)
-

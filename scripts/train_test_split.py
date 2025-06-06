@@ -9,12 +9,15 @@ mask_path = Path(DATA_FOLDER / "landsat_eval_masks/all/100m_mask_global_subset")
 # assert that input and mask path contain the same number of files
 assert len(list(input_path.glob("*.tif"))) == len(list(mask_path.glob("*.tif")))
 
+
 # create train and test split using sklearn's train_test_split
 def create_train_test_split(input_path, mask_path, test_size=0.2, random_state=DEFAULT_SEED):
     input_files = list(input_path.glob("*.tif"))
     mask_files = list(mask_path.glob("*.tif"))
 
-    assert len(input_files) == len(mask_files), "Input and mask directories must have the same number of files."
+    assert len(input_files) == len(mask_files), (
+        "Input and mask directories must have the same number of files."
+    )
 
     # Split the files into train and test sets
     train_input, test_input, train_mask, test_mask = train_test_split(
@@ -44,6 +47,7 @@ def create_train_test_split(input_path, mask_path, test_size=0.2, random_state=D
         Path(file).rename(mask_path / "test" / Path(file).name)
 
     return train_input, test_input, train_mask, test_mask
+
 
 if __name__ == "__main__":
     train_input, test_input, train_mask, test_mask = create_train_test_split(input_path, mask_path)

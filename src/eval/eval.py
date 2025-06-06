@@ -185,7 +185,7 @@ class EvalTask(ABC):
             if self.spatial_token_prediction:
                 targets = self.rearrange_targets_into_token_sequence(label).cpu().numpy()
 
-                #targets_list.append(self.reduce_targets_per_token(targets))
+                # targets_list.append(self.reduce_targets_per_token(targets))
                 targets_list.append(targets)
             else:
                 targets_list.append(label.cpu().numpy())

@@ -7,15 +7,17 @@ import os
 import shutil
 import rasterio
 
+
 def crop_input_to_mask_bounds(input_data, bounds, transform):
     west, south, east, north = bounds
     row_start, col_start = ~transform * (west, north)
     row_end, col_end = ~transform * (east, south)
-    
+
     row_start, row_end = int(row_start), int(row_end)
     col_start, col_end = int(col_start), int(col_end)
-    
+
     return input_data[:, row_start:row_end, col_start:col_end]
+
 
 get_filename_without_epsg_extension = lambda x: re.sub(r"_EPSG:\d+\.tif{1,2}f?$", "", x)
 
@@ -57,19 +59,33 @@ for file_name in os.listdir(mask_path):
                         mask_crs = mask_src.crs
 
                         # TODO: an die Remote Sensing Leute: funktioniert das so?
-                        transformed_mask_transform = mask_transform * rasterio.Affine.scale(0.1, 0.1)
+                        transformed_mask_transform = mask_transform * rasterio.Affine.scale(
+                            0.1, 0.1
+                        )
 
                         assert input_crs == mask_crs, "Input and mask CRS do not match."
 
-                        cropped_data = crop_input_to_mask_bounds(input_data, mask_bounds, transformed_mask_transform)
+                        cropped_data = crop_input_to_mask_bounds(
+                            input_data, mask_bounds, transformed_mask_transform
+                        )
 
-                        assert cropped_data.shape[1:] == (100, 100), "Cropped data shape does not match mask shape."
+                        assert cropped_data.shape[1:] == (100, 100), (
+                            "Cropped data shape does not match mask shape."
+                        )
 
                         dest_file = os.path.join(output_folder, file_name)
-                    
+
                         # Save the cropped data to the output folder
-                        with rasterio.open(dest_file, 'w', driver='GTiff', height=cropped_data.shape[1],
-                                        width=cropped_data.shape[2], count=cropped_data.shape[0],
-                                        dtype=cropped_data.dtype, crs=input_src.crs, transform=transformed_mask_transform) as dst:
+                        with rasterio.open(
+                            dest_file,
+                            "w",
+                            driver="GTiff",
+                            height=cropped_data.shape[1],
+                            width=cropped_data.shape[2],
+                            count=cropped_data.shape[0],
+                            dtype=cropped_data.dtype,
+                            crs=input_src.crs,
+                            transform=transformed_mask_transform,
+                        ) as dst:
                             dst.write(cropped_data)
                             print(f"Copied and cropped: {input_file} to {dest_file}")
