@@ -951,7 +951,7 @@ class LandsatEval(EvalTask):
         )
 
         trained_sklearn_models = self.train_sklearn_model(
-            train_dl, pretrained_model, None
+            train_dl, pretrained_model, model_modes
         )
         results = self._evaluate_model(pretrained_model, trained_sklearn_models, None)
 
