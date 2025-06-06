@@ -1293,12 +1293,12 @@ class Encoder(FlexiPrestoBase):
         st_x = repeat(st_x, "b c_g d -> b s c_g d", s=sp_x.shape[1])
         s_t_h_m = rearrange(s_t_h_m, "b t_h t_w t c_g-> b (t_h t_w) (t c_g)")
         s_t_m_m = rearrange(
-            repeat(s_t_m_m, "b t_h t_w t c_g d -> b (t_h p_h) (t_w p_w) t c_g d", p_h=p_m, p_w=p_m),
-            "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d"
+            repeat(s_t_m_m, "b t_h t_w t c_g -> b (t_h p_h) (t_w p_w) t c_g", p_h=p_m, p_w=p_m),
+            "b t_h t_w t c_g -> b (t_h t_w) (t c_g)"
         )
         s_t_l_m = rearrange(
-            repeat(s_t_l_m, "b t_h t_w t c_g d -> b (t_h p_h) (t_w p_w) t c_g d", p_h=p_l, p_w=p_l),
-            "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d"
+            repeat(s_t_l_m, "b t_h t_w t c_g -> b (t_h p_h) (t_w p_w) t c_g", p_h=p_l, p_w=p_l),
+            "b t_h t_w t c_g -> b (t_h t_w) (t c_g)"
         )
         sp_m = rearrange(sp_m, "b t_h t_w c_g-> b (t_h t_w) c_g")
         t_m = repeat(rearrange(t_m, "b t c_g -> b (t c_g)"), "b n -> b s n", s=sp_x.shape[1])
