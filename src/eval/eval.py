@@ -67,9 +67,6 @@ class EvalTask(ABC):
     def __init__(
         self, patch_size_high_res: int, seed: int = DEFAULT_SEED, output_mode: Optional[str] = None
     ):
-        if self.spatial_token_prediction:
-            assert output_mode in ["mode", "norm_counts"]
-
         self.output_mode = output_mode
         self.seed = seed
         self.patch_size_high_res = patch_size_high_res
