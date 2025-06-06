@@ -1270,7 +1270,7 @@ class Encoder(FlexiPrestoBase):
         s_t_m_x = torch.concatenate([s_t_m_x, s_t_m_x[:, -1:, :, :, :, :]], dim=1)
         s_t_m_x = torch.concatenate([s_t_m_x, s_t_m_x[:, :, -1:, :, :, :]], dim=2)
 
-        p_h = s_t_h_x.shape[1] // s_t_m_x.shape[1]
+        p_m = s_t_h_x.shape[1] // s_t_m_x.shape[1]
         p_l = s_t_h_x.shape[1] // s_t_l_x.shape[1]
 
         s_t_h_x = rearrange(s_t_h_x, "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d")
