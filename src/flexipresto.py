@@ -1270,14 +1270,17 @@ class Encoder(FlexiPrestoBase):
         s_t_m_x = torch.concatenate([s_t_m_x, s_t_m_x[:, -1:, :, :, :, :]], dim=1)
         s_t_m_x = torch.concatenate([s_t_m_x, s_t_m_x[:, :, -1:, :, :, :]], dim=2)
 
+        p_h = s_t_h_x.shape[1] // s_t_m_x.shape[1]
+        p_l = s_t_h_x.shape[1] // s_t_l_x.shape[1]
+
         s_t_h_x = rearrange(s_t_h_x, "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d")
         # repeat low resolution tokens over high resolution
         s_t_m_x = rearrange(
-            repeat(s_t_m_x, "b t_h t_w t c_g d -> b (t_h p_h) (t_w p_w) t c_g d", p_h=s_t_h_x.shape[1] // s_t_m_x.shape[1], p_w=s_t_h_x.shape[1] // s_t_m_x.shape[1]),
+            repeat(s_t_m_x, "b t_h t_w t c_g d -> b (t_h p_h) (t_w p_w) t c_g d", p_h=p_m, p_w=p_m),
             "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d"
         )
         s_t_l_x = rearrange(
-            repeat(s_t_l_x, "b t_h t_w t c_g d -> b (t_h p_h) (t_w p_w) t c_g d", p_h=s_t_h_x.shape[1] // s_t_l_x.shape[1], p_w=s_t_h_x.shape[1] // s_t_l_x.shape[1]),
+            repeat(s_t_l_x, "b t_h t_w t c_g d -> b (t_h p_h) (t_w p_w) t c_g d", p_h=p_l, p_w=p_l),
             "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d"
         )
         sp_x = rearrange(sp_x, "b t_h t_w c_g d -> b (t_h t_w) c_g d")
