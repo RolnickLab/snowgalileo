@@ -805,8 +805,11 @@ class LandsatEval(EvalTask):
         )
 
     def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
+        from sklearn.metrics import root_mean_squared_error, r2_score
+        # regression metrics
         return {
-            f"{self.name}: {model_name}_accuracy_score": accuracy_score(target, preds),
+            f"{self.name}_{model_name}_rmse": root_mean_squared_error(target, preds),
+            f"{self.name}_{model_name}_r2": r2_score(target, preds),
         }
 
     @torch.no_grad()
@@ -838,7 +841,9 @@ class LandsatEval(EvalTask):
         pred_dict: Dict[str, BaseEstimator] = {
             model_class_name(model): [] for model in sklearn_models
         }
+        results_dict: Dict[str, float] = {}
 
+        encodings_list = []
         labels_list = []
 
         for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
@@ -858,10 +863,11 @@ class LandsatEval(EvalTask):
                 months,
             ) = [t.to(device) for t in masked_output]
 
-            pretrained_model.eval()
+            labels_list.append(self.rearrange_targets_into_token_sequence(label))
 
+            pretrained_model.eval()
             with torch.no_grad():
-                (
+                s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, _ = pretrained_model(
                     s_t_h_x,
                     s_t_m_x,
                     s_t_l_x,
@@ -874,59 +880,44 @@ class LandsatEval(EvalTask):
                     sp_m,
                     t_m,
                     st_m,
-                    _,
-                ) = pretrained_model(
-                    s_t_h_x=s_t_h_x,
-                    s_t_m_x=s_t_m_x,
-                    s_t_l_x=s_t_l_x,
-                    sp_x=sp_x,
-                    t_x=t_x,
-                    st_x=st_x,
-                    s_t_h_m=s_t_h_m,
-                    s_t_m_m=s_t_m_m,
-                    s_t_l_m=s_t_l_m,
-                    sp_m=sp_m,
-                    t_m=t_m,
-                    st_m=st_m,
-                    months=months,
+                    months,
                     patch_size_high_res=self.patch_size_high_res,
-                    patch_size_med_res=1,
-                    patch_size_low_res=1,
-                )
-                encodings = (
-                    pretrained_model.average_tokens(
-                        s_t_h_x,
-                        s_t_m_x,
-                        s_t_l_x,
-                        sp_x,
-                        t_x,
-                        st_x,
-                        s_t_h_m,
-                        s_t_m_m,
-                        s_t_l_m,
-                        sp_m,
-                        t_m,
-                        st_m,
-                    )
-                    .cpu()
-                    .numpy()
+                    patch_size_med_res = 1,
+                    patch_size_low_res = 1,
                 )
 
-            labels_list.append(label.cpu().numpy())
+            encodings = self.group_encodings_per_token(
+                pretrained_model,
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+            )
+            encodings_list.append(encodings.cpu().numpy())
+
+            encodings_np, targets_np = np.concatenate(encodings_list), np.concatenate(labels_list)
 
             for model in sklearn_models:
-                preds = model.predict(encodings)
+                preds = model.predict(encodings_np)
                 pred_dict[model_class_name(model)].append(preds)
 
-        target = np.concatenate(labels_list)
-        results_dict = {}
-
-        for model_name_str, pred_list in pred_dict.items():
-            test_preds_np = np.concatenate(pred_list, axis=0)
-            prefix = f"{model_name_str}"
-            results_dict.update(self.compute_metrics(prefix, test_preds_np, target))
-
-        return results_dict
+            for model_name_str, pred_list in pred_dict.items():
+                results_dict.update(
+                    self.compute_metrics(
+                        model_name_str,
+                        np.concatenate(pred_list),
+                        targets_np,
+                    )
+                )
+            return results_dict
 
     def evaluate_model_on_task(
         self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
@@ -960,7 +951,7 @@ class LandsatEval(EvalTask):
         )
 
         trained_sklearn_models = self.train_sklearn_model(
-            train_dl, pretrained_model, model_modes, None
+            train_dl, pretrained_model, None
         )
         results = self._evaluate_model(pretrained_model, trained_sklearn_models, None)
 
