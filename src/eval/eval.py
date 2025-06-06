@@ -84,7 +84,7 @@ class EvalTask(ABC):
         # group labels per token for segmentation
         return rearrange(
             target,
-            "b (h p1) (w p2) -> (b h w) (p1 p2)",
+            "b (h p1) (w p2) -> (b h w p1 p2)",
             p1=self.patch_size_high_res,
             p2=self.patch_size_high_res,
         )
