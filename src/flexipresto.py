@@ -1267,8 +1267,8 @@ class Encoder(FlexiPrestoBase):
         st_m: torch.Tensor,
     ):
         ### TODO: very hacky solution to remove the shape error, change by using other med res patch sizes later
-        s_t_m_x = np.concatenate([s_t_m_x, s_t_m_x[:, -1:, :, :, :, :]], axis=1)
-        s_t_m_x = np.concatenate([s_t_m_x, s_t_m_x[:, :, -1:, :, :, :]], axis=2)
+        s_t_m_x = torch.concatenate([s_t_m_x, s_t_m_x[:, -1:, :, :, :, :]], dim=1)
+        s_t_m_x = torch.concatenate([s_t_m_x, s_t_m_x[:, :, -1:, :, :, :]], dim=2)
 
         s_t_h_x = rearrange(s_t_h_x, "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d")
         # repeat low resolution tokens over high resolution
