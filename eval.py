@@ -13,6 +13,7 @@ from src.eval import (
 from src.eval.eval import EvalTask
 from src.flexipresto import Encoder
 from src.utils import device, load_check_config, seed_everything
+from src.data.config import DATA_FOLDER
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -24,7 +25,7 @@ argparser.add_argument("--output_folder", type=str, default="")
 args = argparser.parse_args().__dict__
 
 if args["output_folder"] != "":
-    encoder = Encoder.load_from_folder(Path(args["output_folder"])).to(device)
+    encoder = Encoder.load_from_folder(Path(DATA_FOLDER / args["output_folder"])).to(device)
 else:
     config = load_check_config("ai4snow.json")
     encoder = Encoder(**config["model"]["encoder"])
