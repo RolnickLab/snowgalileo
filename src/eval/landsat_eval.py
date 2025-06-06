@@ -748,11 +748,12 @@ class LandsatEvalDataset(PyTorchDataset):
                 s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
             )
 
-        label = self.label_tifs[idx][1:]
-        assert label.dim() == 2
+        label = self.label_tifs[idx]
         # TODO: optinally add conversion to h5pys for labels
         with cast(xr.Dataset, rioxarray.open_rasterio(label)) as data:
             label = cast(np.ndarray, data.values)
+            label = label[1:]
+            assert label.dim() == 2
             print(f"Label shape: {label.shape}", flush=True)
 
         assert self.input_tifs[idx].name == self.label_tifs[idx].name, f"Input path {self.input_tifs[idx].name} and label path {self.label_tifs[idx].name} do not match."
