@@ -36,6 +36,6 @@ eval_tasks: List[EvalTask] = [
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(
-        pretrained_model=encoder, model_modes=["KNNat20 Regressor"]
+        pretrained_model=encoder, model_modes=["Regression"]
     )
     print(json.dumps(results, indent=2, default=str), flush=True)

@@ -7,6 +7,7 @@ import logging
 import torch
 from typing import Dict, List, Sequence
 from torch.utils.data import DataLoader
+from sklearn.metrics import root_mean_squared_error, r2_score
 
 import numpy as np
 import rioxarray
@@ -70,7 +71,7 @@ class LandsatEvalDataset(PyTorchDataset):
         self.exclude_prediction_date = exclude_prediction_date
         self.normalizer = normalizer
 
-        assert self.split in ["train", "test"]
+        assert self.split in ["train", "test", "visualize"]
 
         self.h5py_folder = DATA_FOLDER / config["input_h5py_folder"] / self.split
         self.label_folder = DATA_FOLDER / config["label_folder"] / self.split
@@ -814,6 +815,7 @@ class LandsatEvalDataset(PyTorchDataset):
                 month,
             ),
             label,
+            self.input_tifs[idx].name,  # for logging purposes
         )
 
     def __len__(self) -> int:
@@ -834,23 +836,23 @@ class LandsatEval(EvalTask):
         exclude_prediction_date: bool = False,
         patch_size_high_res: int = 10,
         seed=DEFAULT_SEED,
+        visualize_predictions: bool = True,
     ):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
         self.patch_size_high_res = patch_size_high_res
+        self.visualize_predictions = visualize_predictions
 
         super().__init__(self.patch_size_high_res, seed)
         self.name = (
             f"{self.name}_{'_num_timesteps_' + str(7) if self.exclude_prediction_date else '8'}"
         )
 
-    def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict:
-        from sklearn.metrics import root_mean_squared_error, r2_score
-
+    def compute_metrics(self, model_name: str, filename: str, preds: np.ndarray, target: np.ndarray) -> Dict[str, Dict[str, float]]:
         # regression metrics
         return {
-            f"{self.name}_{model_name}_rmse": root_mean_squared_error(target, preds),
-            f"{self.name}_{model_name}_r2": r2_score(target, preds),
+            f"{self.name}_{model_name}_rmse": {filename: root_mean_squared_error(target, preds)},
+            f"{self.name}_{model_name}_r2": {filename: r2_score(target, preds)},
         }
 
     @torch.no_grad()
@@ -887,7 +889,7 @@ class LandsatEval(EvalTask):
         encodings_list = []
         labels_list = []
 
-        for masked_output, label in tqdm(test_dl, desc="Computing test predictions"):
+        for masked_output, label,_ in tqdm(test_dl, desc="Computing test predictions"):
             (
                 s_t_h_x,
                 s_t_m_x,
@@ -973,6 +975,123 @@ class LandsatEval(EvalTask):
                     )
                 )
             return results_dict
+        
+    @torch.no_grad()
+    def _visualize_predictions(
+        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator]
+    ) -> Dict:
+        vis_ds = LandsatEvalDataset(
+            exclude_prediction_date=self.exclude_prediction_date,
+            split="visualize",
+        )
+        import matplotlib.pyplot as plt
+
+        visualization_folder = DATA_FOLDER / "visualizations"
+        if not visualization_folder.exists():
+            visualization_folder.mkdir(parents=True, exist_ok=True)
+
+        if self.normalization == "std":
+            normalizing_dict = vis_ds.load_normalization_values(
+                path=config_dir / NORMALIZATION_DICT_FILENAME
+            )
+            print(normalizing_dict, flush=True)
+            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+            vis_ds.normalizer = normalizer
+        else:
+            normalizer = Normalizer(std=False)
+            vis_ds.normalizer = normalizer
+
+        vis_dl = DataLoader(
+            vis_ds,
+            batch_size=1,
+            shuffle=False,
+            num_workers=Hyperparams.num_workers,
+        )
+
+        for masked_output, label, filename in tqdm(vis_dl, desc="Computing test predictions"):
+            (
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+                months,
+            ) = [t.to(device) for t in masked_output]
+
+            label = label.squeeze(0).numpy()
+
+            pretrained_model.eval()
+            with torch.no_grad():
+                (
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    _,
+                ) = pretrained_model(
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                    patch_size_high_res=self.patch_size_high_res,
+                    patch_size_med_res=1,
+                    patch_size_low_res=1,
+                )
+
+            encodings = self.group_encodings_per_token(
+                pretrained_model,
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+            )
+            encodings = encodings.cpu().numpy()
+
+            for model in sklearn_models:
+                preds = model.predict(encodings)
+                # reshape the predictions to match the label shape
+                pred_reshaped = preds.reshape(label.shape)
+                r2 = r2_score(label, preds)
+
+                # save the predictions as numpy
+                np.save(
+                    visualization_folder / f"{filename}_{model_class_name(model)}_{r2}.npy",
+                    pred_reshaped,
+                )
+            print(f"Saved predictions for {filename} with R2: {r2}", flush=True)
+
 
     def evaluate_model_on_task(
         self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
@@ -1007,6 +1126,9 @@ class LandsatEval(EvalTask):
 
         trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
         results = self._evaluate_model(pretrained_model, trained_sklearn_models)
+
+        if self.visualize_predictions:
+            self._visualize_predictions(pretrained_model, trained_sklearn_models)
 
         return results
 

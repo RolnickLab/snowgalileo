@@ -165,7 +165,7 @@ class EvalTask(ABC):
 
         encodings_list, targets_list = [], []
 
-        for masked_output, label in tqdm(train_dl, desc="Computing encodings for sklearn"):
+        for masked_output, label, _ in tqdm(train_dl, desc="Computing encodings for sklearn"):
             (
                 s_t_h_x,
                 s_t_m_x,
