@@ -848,11 +848,11 @@ class LandsatEval(EvalTask):
             f"{self.name}_{'_num_timesteps_' + str(7) if self.exclude_prediction_date else '8'}"
         )
 
-    def compute_metrics(self, model_name: str, filename: str, preds: np.ndarray, target: np.ndarray) -> Dict[str, Dict[str, float]]:
+    def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict[str, float]:
         # regression metrics
         return {
-            f"{self.name}_{model_name}_rmse": {filename: root_mean_squared_error(target, preds)},
-            f"{self.name}_{model_name}_r2": {filename: r2_score(target, preds)},
+            f"{self.name}_{model_name}_rmse": root_mean_squared_error(target, preds),
+            f"{self.name}_{model_name}_r2": r2_score(target, preds),
         }
 
     @torch.no_grad()
