@@ -73,9 +73,11 @@ class LandsatEvalDataset(PyTorchDataset):
 
         assert self.split in ["train", "test", "visualize"]
 
-        self.h5py_folder = DATA_FOLDER / config["input_h5py_folder"] / self.split
         self.label_folder = DATA_FOLDER / config["label_folder"] / self.split
         self.input_tif_folder = DATA_FOLDER / config["input_tif_folder"] / self.split
+
+        if self.split != "visualize":
+            self.h5py_folder = DATA_FOLDER / config["input_h5py_folder"] / self.split
 
         # print the number of label tifs
         print(
@@ -1125,12 +1127,14 @@ class LandsatEval(EvalTask):
         )
 
         trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
-        results = self._evaluate_model(pretrained_model, trained_sklearn_models)
 
-        if self.visualize_predictions:
+        if not self.visualize_predictions:
+            results = self._evaluate_model(pretrained_model, trained_sklearn_models)
+            return results
+
+        else: 
             self._visualize_predictions(pretrained_model, trained_sklearn_models)
-
-        return results
+        return {"results": "Visualizations saved to disk."}
 
 
 if __name__ == "__main__":
