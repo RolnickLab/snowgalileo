@@ -78,6 +78,8 @@ class LandsatEvalDataset(PyTorchDataset):
 
         if self.split != "visualize":
             self.h5py_folder = DATA_FOLDER / config["input_h5py_folder"] / self.split
+        else:
+            self.h5py_folder = None
 
         # print the number of label tifs
         print(
