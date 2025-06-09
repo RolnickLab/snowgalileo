@@ -912,6 +912,7 @@ class LandsatEval(EvalTask):
             model_class_name(model): [] for model in sklearn_models
         }
         results_dict: Dict[str, float] = {}
+        pred_list = []
 
         encodings_list = []
         labels_list = []
@@ -995,8 +996,11 @@ class LandsatEval(EvalTask):
         for model in sklearn_models:
             preds = model.predict(encodings_np)
             pred_dict[model_class_name(model)].append(preds)
+        
+        # TODO: careful, this only works if we only use one model
+        pred_list.append(preds)
 
-        preds_np = np.concatenate(preds)
+        preds_np = np.concatenate(pred_list)
         baseline_np = np.zeros_like(preds_np)
 
         # TODO: Binning
