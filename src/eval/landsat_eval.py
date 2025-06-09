@@ -849,11 +849,32 @@ class LandsatEval(EvalTask):
             f"{self.name}_{'_num_timesteps_' + str(7) if self.exclude_prediction_date else '8'}"
         )
 
-    def compute_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict[str, float]:
-        # regression metrics
+    def compute_regression_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict[str, float]:
         return {
             f"{self.name}_{model_name}_rmse": root_mean_squared_error(target, preds),
             f"{self.name}_{model_name}_r2": r2_score(target, preds),
+        }
+    
+    def compute_baseline_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict[str, float]:
+        return {
+            f"baseline_{self.name}_{model_name}_rmse": root_mean_squared_error(target, preds),
+            f"baseline_{self.name}_{model_name}_r2": r2_score(target, preds),
+        }
+    
+    def compute_classification_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict[str, float]:
+        return {
+            f"{self.name}_{model_name}_accuracy": root_mean_squared_error(target, preds),
+            f"{self.name}_{model_name}_recall": r2_score(target, preds),
+            f"{self.name}_{model_name}_precision": r2_score(target, preds),
+            f"{self.name}_{model_name}_f1": r2_score(target, preds),
+        }
+    
+    def compute_segmentation_metrics(
+        self, model_name: str, preds: np.ndarray, target: np.ndarray
+    ) -> Dict[str, float]:
+        from src.eval.metrics import jaccard_index
+        return {
+            f"{self.name}_{model_name}_iou": jaccard_index(target, preds),
         }
 
     @torch.no_grad()
@@ -894,8 +915,6 @@ class LandsatEval(EvalTask):
 
         encodings_list = []
         labels_list = []
-
-        bs_idx = 0
 
         for masked_output, label,_ in tqdm(test_dl, desc="Computing test predictions"):
             (
@@ -977,18 +996,35 @@ class LandsatEval(EvalTask):
             preds = model.predict(encodings_np)
             pred_dict[model_class_name(model)].append(preds)
 
-        preds_np = np.concatenate(pred_list)
+        preds_np = np.concatenate(preds)
+        baseline_np = np.zeros_like(preds_np)
+
+        # TODO: Binning
+
+        # bin the predictions and targets into categorical values
+        #multi_class_bins = np.linspace(
+        #    0, 1, num=11
+        #)
+        #preds_np = np.digitize(preds_np, bins=multi_class_bins) - 1
+        #targets_np = np.digitize(targets_np, bins=multi_class_bins) - 1
 
         for model_name_str, pred_list in pred_dict.items():
             results_dict.update(
-                self.compute_metrics(
+                self.compute_regression_metrics(
                     model_name_str,
                     preds_np,
                     targets_np,
                 )
             )
+            results_dict.update(
+                self.compute_baseline_metrics(
+                    model_name_str,
+                    baseline_np,
+                    targets_np,
+                )
+            )
         np.save(
-            prediction_folder / f"{bs_idx}.npy",
+            prediction_folder / f"predictions.npy",
             preds_np,
         )
 
