@@ -837,7 +837,7 @@ class LandsatEval(EvalTask):
         exclude_prediction_date: bool = False,
         patch_size_high_res: int = 10,
         seed=DEFAULT_SEED,
-        visualize_predictions: bool = True,
+        visualize_predictions: bool = False,
     ):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
@@ -860,6 +860,11 @@ class LandsatEval(EvalTask):
     def _evaluate_model(
         self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator]
     ) -> Dict:
+        
+        prediction_folder = DATA_FOLDER / "predictions"
+        if not prediction_folder.exists():
+            prediction_folder.mkdir(parents=True, exist_ok=True)
+
         test_ds = LandsatEvalDataset(
             exclude_prediction_date=self.exclude_prediction_date,
             split="test",
@@ -889,6 +894,8 @@ class LandsatEval(EvalTask):
 
         encodings_list = []
         labels_list = []
+
+        bs_idx = 0
 
         for masked_output, label,_ in tqdm(test_dl, desc="Computing test predictions"):
             (
@@ -961,21 +968,31 @@ class LandsatEval(EvalTask):
             )
             encodings_list.append(encodings.cpu().numpy())
 
-            encodings_np, targets_np = np.concatenate(encodings_list), np.concatenate(labels_list)
+        encodings_np, targets_np = np.concatenate(encodings_list), np.concatenate(labels_list)
 
-            for model in sklearn_models:
-                preds = model.predict(encodings_np)
-                pred_dict[model_class_name(model)].append(preds)
+        print(f"Shape of encodings: {encodings_np.shape}", flush=True)
+        print(f"Shape of targets: {targets_np.shape}", flush=True)
 
-            for model_name_str, pred_list in pred_dict.items():
-                results_dict.update(
-                    self.compute_metrics(
-                        model_name_str,
-                        np.concatenate(pred_list),
-                        targets_np,
-                    )
+        for model in sklearn_models:
+            preds = model.predict(encodings_np)
+            pred_dict[model_class_name(model)].append(preds)
+
+        preds_np = np.concatenate(pred_list)
+
+        for model_name_str, pred_list in pred_dict.items():
+            results_dict.update(
+                self.compute_metrics(
+                    model_name_str,
+                    preds_np,
+                    targets_np,
                 )
-            return results_dict
+            )
+        np.save(
+            prediction_folder / f"{bs_idx}.npy",
+            preds_np,
+        )
+
+        return results_dict
         
     @torch.no_grad()
     def _visualize_predictions(
@@ -985,7 +1002,6 @@ class LandsatEval(EvalTask):
             exclude_prediction_date=self.exclude_prediction_date,
             split="visualize",
         )
-        import matplotlib.pyplot as plt
 
         visualization_folder = DATA_FOLDER / "visualizations"
         if not visualization_folder.exists():
