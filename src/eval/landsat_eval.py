@@ -85,10 +85,7 @@ class LandsatEvalDataset(PyTorchDataset):
         print(
             f"Number of label tifs: {len(list(self.label_folder.glob('*.tif')) + list(self.label_folder.glob('*.tiff')))}"
         )
-
-        # print the number of input h5pys
-        print(f"Number of input h5pys: {len(list(self.h5py_folder.glob('*.h5py')))}")
-
+        
         # print the number of input tifs
         print(
             f"Number of input tifs: {len(list(self.input_tif_folder.glob('*.tif')) + list(self.input_tif_folder.glob('*.tiff')))}"
