@@ -85,7 +85,7 @@ class LandsatEvalDataset(PyTorchDataset):
         print(
             f"Number of label tifs: {len(list(self.label_folder.glob('*.tif')) + list(self.label_folder.glob('*.tiff')))}"
         )
-        
+
         # print the number of input tifs
         print(
             f"Number of input tifs: {len(list(self.input_tif_folder.glob('*.tif')) + list(self.input_tif_folder.glob('*.tiff')))}"
@@ -1084,7 +1084,7 @@ class LandsatEval(EvalTask):
                 preds = model.predict(encodings)
                 # reshape the predictions to match the label shape
                 pred_reshaped = preds.reshape(label.shape)
-                r2 = r2_score(label, preds)
+                r2 = r2_score(label, pred_reshaped)
 
                 # save the predictions as numpy
                 np.save(
