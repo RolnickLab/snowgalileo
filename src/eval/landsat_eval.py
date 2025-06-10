@@ -869,9 +869,9 @@ class LandsatEval(EvalTask):
         return {
             f"{bs}{self.name}_{model_name}_overall_accuracy": accuracy_score(target, preds),
             f"{bs}{self.name}_{model_name}_balanced_accuracy": balanced_accuracy_score(target, preds),
-            f"{bs}{self.name}_{model_name}_recall": recall_score(target, preds),
-            f"{bs}{self.name}_{model_name}_precision": precision_score(target, preds),
-            f"{bs}{self.name}_{model_name}_f1": f1_score(target, preds),
+            f"{bs}{self.name}_{model_name}_recall": recall_score(target, preds, average='weighted'),
+            f"{bs}{self.name}_{model_name}_precision": precision_score(target, preds, average='weighted'),
+            f"{bs}{self.name}_{model_name}_f1": f1_score(target, preds, average='weighted'),
         }
 
     @torch.no_grad()
