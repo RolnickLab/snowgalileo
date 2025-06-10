@@ -7,7 +7,7 @@ import logging
 import torch
 from typing import Dict, List, Sequence
 from torch.utils.data import DataLoader
-from sklearn.metrics import root_mean_squared_error, r2_score
+from sklearn.metrics import root_mean_squared_error, r2_score, balanced_accuracy_score, accuracy_score, f1_score, precision_score, recall_score
 
 import numpy as np
 import rioxarray
@@ -861,20 +861,17 @@ class LandsatEval(EvalTask):
             f"baseline_{self.name}_{model_name}_r2": r2_score(target, preds),
         }
     
-    def compute_classification_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict[str, float]:
+    def compute_classification_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray, baseline=False) -> Dict[str, float]:
+        if baseline:
+            bs = "baseline_"
+        else:
+            bs = ""
         return {
-            f"{self.name}_{model_name}_accuracy": root_mean_squared_error(target, preds),
-            f"{self.name}_{model_name}_recall": r2_score(target, preds),
-            f"{self.name}_{model_name}_precision": r2_score(target, preds),
-            f"{self.name}_{model_name}_f1": r2_score(target, preds),
-        }
-    
-    def compute_segmentation_metrics(
-        self, model_name: str, preds: np.ndarray, target: np.ndarray
-    ) -> Dict[str, float]:
-        from src.eval.metrics import jaccard_index
-        return {
-            f"{self.name}_{model_name}_iou": jaccard_index(target, preds),
+            f"{bs}{self.name}_{model_name}_overall_accuracy": accuracy_score(target, preds),
+            f"{bs}{self.name}_{model_name}_balanced_accuracy": balanced_accuracy_score(target, preds),
+            f"{bs}{self.name}_{model_name}_recall": recall_score(target, preds),
+            f"{bs}{self.name}_{model_name}_precision": precision_score(target, preds),
+            f"{bs}{self.name}_{model_name}_f1": f1_score(target, preds),
         }
 
     @torch.no_grad()
@@ -1005,12 +1002,10 @@ class LandsatEval(EvalTask):
 
         # TODO: Binning
 
-        # bin the predictions and targets into categorical values
-        #multi_class_bins = np.linspace(
-        #    0, 1, num=11
-        #)
-        #preds_np = np.digitize(preds_np, bins=multi_class_bins) - 1
-        #targets_np = np.digitize(targets_np, bins=multi_class_bins) - 1
+        # create 10 bins for multi-class classification
+        multi_class_bins = np.linspace(0.1, 1, 11)
+        binned_preds_np = np.digitize(preds_np, bins=multi_class_bins)
+        binned_targets_np = np.digitize(targets_np, bins=multi_class_bins)
 
         for model_name_str, pred_list in pred_dict.items():
             results_dict.update(
@@ -1027,8 +1022,24 @@ class LandsatEval(EvalTask):
                     targets_np,
                 )
             )
+            results_dict.update(
+                self.compute_classification_metrics(
+                    model_name_str,
+                    binned_preds_np,
+                    binned_targets_np,
+                    baseline=False,
+                )
+            )
+            results_dict.update(
+                self.compute_classification_metrics(
+                    model_name_str,
+                    baseline_np,
+                    binned_targets_np,
+                    baseline=True,
+                )
+            )
         np.save(
-            prediction_folder / f"predictions.npy",
+            prediction_folder / f"predictions_final.npy",
             preds_np,
         )
 
