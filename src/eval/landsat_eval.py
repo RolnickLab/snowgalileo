@@ -863,18 +863,20 @@ class LandsatEval(EvalTask):
         self,
         normalization: Union[str, Normalizer] = "std",  # or "scaling"
         exclude_prediction_date: bool = False,
+        exclude_prediction_high_res: bool = False,
         patch_size_high_res: int = 10,
         seed=DEFAULT_SEED,
         visualize_predictions: bool = False,
     ):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
+        self.exclude_prediction_high_res = exclude_prediction_high_res
         self.patch_size_high_res = patch_size_high_res
         self.visualize_predictions = visualize_predictions
 
         super().__init__(self.patch_size_high_res, seed)
         self.name = (
-            f"{self.name}_{'_num_timesteps_' + str(7) if self.exclude_prediction_date else '8'}"
+            f"{self.name}_{'_num_timesteps_' + str(7) if self.exclude_prediction_date else '8'}_{'_no_high_res' if self.exclude_prediction_high_res else ''}"
         )
 
     def compute_regression_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict[str, float]:
@@ -1079,6 +1081,7 @@ class LandsatEval(EvalTask):
     ) -> Dict:
         vis_ds = LandsatEvalDataset(
             exclude_prediction_date=self.exclude_prediction_date,
+            exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="visualize",
         )
 
