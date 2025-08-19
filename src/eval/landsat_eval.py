@@ -70,7 +70,7 @@ class LandsatEvalDataset(PyTorchDataset):
         # whether to exclude the prediction date from the input timesteps
         # if True, the prediction date will be masked out in the input
         self.exclude_prediction_date = exclude_prediction_date
-        self.exclulde_prediction_high_res = exclude_prediction_high_res
+        self.exclude_prediction_high_res = exclude_prediction_high_res
         self.normalizer = normalizer
 
         assert self.split in ["train", "test", "visualize"]
