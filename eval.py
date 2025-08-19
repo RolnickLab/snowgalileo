@@ -32,7 +32,7 @@ else:
 
 eval_tasks: List[EvalTask] = [
     # geobench EuroSat only works without latlons
-    *[LandsatEval(exclude_prediction_date=excl) for excl in [True, False]],
+    *[LandsatEval(exclude_prediction_high_res=high) for high in [True, False]],
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(

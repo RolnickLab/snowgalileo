@@ -63,12 +63,14 @@ class LandsatEvalDataset(PyTorchDataset):
         self,
         split: str = "train",
         exclude_prediction_date: bool = False,
+        exclude_prediction_high_res: bool = False,
         normalizer: Optional[Normalizer] = None,
     ):
         self.split = split
         # whether to exclude the prediction date from the input timesteps
         # if True, the prediction date will be masked out in the input
         self.exclude_prediction_date = exclude_prediction_date
+        self.exclulde_prediction_high_res = exclude_prediction_high_res
         self.normalizer = normalizer
 
         assert self.split in ["train", "test", "visualize"]
@@ -145,6 +147,15 @@ class LandsatEvalDataset(PyTorchDataset):
         s_t_m_m[:, :, -1, :] = 1
         s_t_l_m[:, :, -1, :] = 1
         t_m[-1, :] = 1
+        return s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
+    
+    def mask_prediction_high_res(self, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m):
+        # masks the high resolution, optical data in the prediction timestep
+        # high resolution channels are: 3 x s1, s2, landsat, so we retain the first 3 channels
+        # NOTE: 0 = valid, 1 = masked
+        assert self.exclude_prediction_high_res
+        assert s_t_h_m.shape[-1] == len(SPACE_TIME_HIGH_RES_BANDS)
+        s_t_h_m[:, :, -1, 3:] = 1
         return s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
 
     @staticmethod
@@ -787,6 +798,16 @@ class LandsatEvalDataset(PyTorchDataset):
                 st_m,
             ) = self.mask_prediction_timestep(s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m)
 
+        if self.exclude_prediction_high_res:
+            (
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+            ) = self.mask_prediction_high_res(s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m)
+
         label = self.label_tifs[idx]
         # TODO: optinally add conversion to h5pys for labels
         with cast(xr.Dataset, rioxarray.open_rasterio(label)) as data:
@@ -795,9 +816,16 @@ class LandsatEvalDataset(PyTorchDataset):
             label = np.squeeze(label, axis=0)
             print(f"Label shape: {label.shape}", flush=True)
 
-        assert self.input_tifs[idx].name == self.label_tifs[idx].name, (
-            f"Input path {self.input_tifs[idx].name} and label path {self.label_tifs[idx].name} do not match."
-        )
+
+        # if assertion is triggered, go to the next tif file
+        try:
+            assert self.input_tifs[idx].name == self.label_tifs[idx].name, (f"Input path {self.input_tifs[idx].name} and label path {self.label_tifs[idx].name} do not match.")
+        except AssertionError:
+            print(
+                f"Label shape {label.shape} does not match expected shape ({self.input_height_width}, {self.input_height_width}) for {label.name}"
+            )
+            self.label_tifs[idx] = self.label_tifs[idx + 1] if idx < len(self.label_tifs) - 1 else self.label_tifs[idx - 1]
+            return self.__getitem__(idx)
 
         return (
             masked_output_np_to_tensor(
@@ -1155,7 +1183,7 @@ class LandsatEval(EvalTask):
 
                 # save the predictions as numpy
                 np.save(
-                    visualization_folder / f"{filename}_{model_class_name(model)}_{r2}.npy",
+                    visualization_folder / f"{filename}_{r2}.npy",
                     pred_reshaped,
                 )
             print(f"Saved predictions for {filename} with R2: {r2}", flush=True)
