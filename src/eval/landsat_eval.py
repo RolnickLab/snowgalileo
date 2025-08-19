@@ -866,13 +866,13 @@ class LandsatEval(EvalTask):
         exclude_prediction_high_res: bool = False,
         patch_size_high_res: int = 10,
         seed=DEFAULT_SEED,
-        visualize_predictions: bool = False,
+        evaluation_mode: str = "evaluate",
     ):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
         self.exclude_prediction_high_res = exclude_prediction_high_res
         self.patch_size_high_res = patch_size_high_res
-        self.visualize_predictions = visualize_predictions
+        self.evaluation_mode = evaluation_mode
 
         super().__init__(self.patch_size_high_res, seed)
         self.name = (
@@ -896,6 +896,7 @@ class LandsatEval(EvalTask):
             bs = "baseline_"
         else:
             bs = ""
+
         return {
             f"{bs}{self.name}_{model_name}_overall_accuracy": accuracy_score(target, preds),
             f"{bs}{self.name}_{model_name}_balanced_accuracy": balanced_accuracy_score(target, preds),
@@ -1074,7 +1075,188 @@ class LandsatEval(EvalTask):
         )
 
         return results_dict
+
+    @torch.no_grad()
+    def _visualize_best_worst(
+        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator], num_images: int = 10, sort_for: str = "overall_accuracy"
+    ) -> Dict:
         
+        prediction_folder = DATA_FOLDER / "ascending_accuracy_predictions"
+        if not prediction_folder.exists():
+            prediction_folder.mkdir(parents=True, exist_ok=True)
+
+        test_ds = LandsatEvalDataset(
+            exclude_prediction_date=self.exclude_prediction_date,
+            split="test",
+        )
+
+        if self.normalization == "std":
+            normalizing_dict = test_ds.load_normalization_values(
+                path=config_dir / NORMALIZATION_DICT_FILENAME
+            )
+            print(normalizing_dict, flush=True)
+            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+            test_ds.normalizer = normalizer
+        else:
+            normalizer = Normalizer(std=False)
+            test_ds.normalizer = normalizer
+
+        test_dl = DataLoader(
+            test_ds,
+            batch_size=1,
+            shuffle=False,
+            num_workers=Hyperparams.num_workers,
+        )
+
+        predictions = []
+        targets = []
+        results_per_image = []
+
+        for masked_output, label, filename in tqdm(test_dl, desc="Computing test predictions"):
+            (
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+                months,
+            ) = [t.to(device) for t in masked_output]
+
+            label = label.squeeze(0).numpy()
+
+            pretrained_model.eval()
+            with torch.no_grad():
+                (
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    _,
+                ) = pretrained_model(
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                    patch_size_high_res=self.patch_size_high_res,
+                    patch_size_med_res=1,
+                    patch_size_low_res=1,
+                )
+
+            encodings = self.group_encodings_per_token(
+                pretrained_model,
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+            )
+            encodings = encodings.cpu().numpy()
+
+            for model in sklearn_models:
+
+                preds = model.predict(encodings)
+                # reshape the predictions to match the label shape
+                pred_reshaped = preds.reshape(label.shape)
+
+                results_per_image.append({
+                    f"overall_accuracy": accuracy_score(target, pred_reshaped),
+                    f"balanced_accuracy": balanced_accuracy_score(target, pred_reshaped),
+                    f"recall": recall_score(target, pred_reshaped, average='weighted'),
+                    f"precision": precision_score(target, pred_reshaped, average='weighted'),
+                    f"f1": f1_score(target, pred_reshaped, average='weighted'),
+                }
+                    )
+                predictions.append(pred_reshaped)
+                targets.append(label)
+
+        preds = np.array(predictions)
+        target = np.array(targets)
+                
+        if sort_for == "overall_accuracy":
+            sorted_indices = np.argsort([res["overall_accuracy"] for res in results_per_image])
+        elif sort_for == "balanced_accuracy":
+            sorted_indices = np.argsort([res["balanced_accuracy"] for res in results_per_image])
+        else:
+            raise ValueError(f"Unknown sort_for value: {sort_for}")
+
+        # reorders predictions and targets based on increasing accuracy (worst to best)
+        preds = preds[sorted_indices]
+        target = target[sorted_indices]
+
+        for i in range(num_images):
+            # save predictions and targets with lowest accuracy
+            filename = test_ds.input_tifs[sorted_indices[i]].name
+            print(f"Processing {filename} with index {sorted_indices[i]}", flush=True)
+            
+            pred_to_save = preds[i]
+            target_to_save = target[i]
+
+            acc = results_per_image[sorted_indices[i]]["overall_accuracy"]
+
+            # save the predictions as numpy
+            np.save(
+                prediction_folder / f"{filename}_{acc}_prediction.npy",
+                pred_to_save,
+            )
+            np.save(
+                prediction_folder / f"{filename}_{acc}_target.npy",
+                target_to_save,
+            )
+            print(f"Saved predictions for {filename} with overall accuracy: {acc}", flush=True)
+
+        for i in range(num_images):
+            # now save predictions and targets with highest accuracy
+            filename = test_ds.input_tifs[sorted_indices[-(i + 1)]].name
+            print(f"Processing {filename} with index {sorted_indices[-(i + 1)]}", flush=True)
+
+            pred_to_save = preds[-(i + 1)]
+            target_to_save = target[-(i + 1)]
+
+            acc = results_per_image[sorted_indices[-(i + 1)]]["overall_accuracy"]
+
+            # save the predictions as numpy
+            np.save(
+                prediction_folder / f"prediction_{acc}.npy",
+                pred_to_save,
+            )
+            np.save(
+                prediction_folder / f"target_{acc}.npy",
+                target_to_save,
+            )
+            print(f"Saved predictions for {filename} with overall accuracy: {acc}", flush=True)
+        
+
     @torch.no_grad()
     def _visualize_predictions(
         self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator]
@@ -1225,12 +1407,18 @@ class LandsatEval(EvalTask):
 
         trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
 
-        if not self.visualize_predictions:
+        if self.evaluation_mode == "evaluate":
             results = self._evaluate_model(pretrained_model, trained_sklearn_models)
             return results
+        
+        elif self.evaluation_mode == "visualize_best_worst":
+            self._visualize_best_worst(pretrained_model, trained_sklearn_models)
 
-        else: 
+        elif self.evaluation_mode == "visualize_predictions": 
             self._visualize_predictions(pretrained_model, trained_sklearn_models)
+
+        else:
+            raise ValueError(f"Unknown evaluation mode: {self.evaluation_mode}")
         return {"results": "Visualizations saved to disk."}
 
 

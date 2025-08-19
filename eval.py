@@ -18,6 +18,8 @@ from src.data.config import DATA_FOLDER
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
 
+eval_mode = "evaluate"  # or "visualize_predictions" or "visualize_predictions_best_worst"
+
 torch.backends.cuda.matmul.allow_tf32 = True
 
 argparser = argparse.ArgumentParser()
@@ -32,7 +34,7 @@ else:
 
 eval_tasks: List[EvalTask] = [
     # geobench EuroSat only works without latlons
-    *[LandsatEval(exclude_prediction_high_res=high) for high in [True, False]],
+    *[LandsatEval(exclude_prediction_high_res=high, evaluation_mode=eval_mode) for high in [True, False]],
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(
