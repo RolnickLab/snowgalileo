@@ -1411,7 +1411,7 @@ class LandsatEval(EvalTask):
             results = self._evaluate_model(pretrained_model, trained_sklearn_models)
             return results
         
-        elif self.evaluation_mode == "visualize_best_worst":
+        elif self.evaluation_mode == "visualize_predictions_best_worst":
             self._visualize_best_worst(pretrained_model, trained_sklearn_models)
 
         elif self.evaluation_mode == "visualize_predictions": 
