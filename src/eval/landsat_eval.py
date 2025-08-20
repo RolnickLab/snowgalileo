@@ -1190,11 +1190,11 @@ class LandsatEval(EvalTask):
                 pred_reshaped = preds.reshape(label.shape)
 
                 results_per_image.append({
-                    f"overall_accuracy": accuracy_score(label, pred_reshaped),
-                    f"balanced_accuracy": balanced_accuracy_score(label, pred_reshaped),
-                    f"recall": recall_score(label, pred_reshaped, average='weighted'),
-                    f"precision": precision_score(label, pred_reshaped, average='weighted'),
-                    f"f1": f1_score(label, pred_reshaped, average='weighted'),
+                    f"overall_accuracy": accuracy_score(label.flatten(), preds),
+                    f"balanced_accuracy": balanced_accuracy_score(label.flatten(), preds),
+                    f"recall": recall_score(label.flatten(), preds, average='weighted'),
+                    f"precision": precision_score(label.flatten(), preds, average='weighted'),
+                    f"f1": f1_score(label.flatten(), preds, average='weighted'),
                 }
                     )
                 predictions.append(pred_reshaped)
