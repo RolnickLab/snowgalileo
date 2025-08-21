@@ -12,6 +12,6 @@ if [ -f '/home/mila/m/marlena.reil/google-cloud-sdk/completion.bash.inc' ]; then
 conda activate presto-v3
 export GOOGLE_APPLICATION_CREDENTIALS="/home/mila/m/marlena.reil/scratch/ai4snow/presto-v3/ee-marlena-credentials.json"
 
-python export.py --mode "url" --start_export_from_idx 6000 --tifs_folder "tifs6000"
-#python export.py --mode "url" --start_export_from_idx 7000 --tifs_folder "tifs6000"
-#python export.py --mode "url" --start_export_from_idx 8000 --tifs_folder "tifs6000"
+python export.py --mode "url" --start_export_from_idx 0 --tifs_folder "tifs0"
+#python export.py --mode "url" --start_export_from_idx 1000 --tifs_folder "tifs0"
+#python export.py --mode "url" --start_export_from_idx 2000 --tifs_folder "tifs0"
