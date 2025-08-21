@@ -1189,12 +1189,17 @@ class LandsatEval(EvalTask):
                 # reshape the predictions to match the label shape
                 pred_reshaped = preds.reshape(label.shape)
 
+                # create 10 bins for multi-class classification
+                multi_class_bins = np.linspace(0.1, 1, 11)
+                binned_preds_np = np.digitize(preds, bins=multi_class_bins)
+                binned_targets_np = np.digitize(label.flatten(), bins=multi_class_bins)
+
                 results_per_image.append({
-                    f"overall_accuracy": accuracy_score(label.flatten(), preds),
-                    f"balanced_accuracy": balanced_accuracy_score(label.flatten(), preds),
-                    f"recall": recall_score(label.flatten(), preds, average='weighted'),
-                    f"precision": precision_score(label.flatten(), preds, average='weighted'),
-                    f"f1": f1_score(label.flatten(), preds, average='weighted'),
+                    f"overall_accuracy": accuracy_score(binned_targets_np, binned_preds_np),
+                    f"balanced_accuracy": balanced_accuracy_score(binned_targets_np, binned_preds_np),
+                    f"recall": recall_score(binned_targets_np, binned_preds_np, average='weighted'),
+                    f"precision": precision_score(binned_targets_np, binned_preds_np, average='weighted'),
+                    f"f1": f1_score(binned_targets_np, binned_preds_np, average='weighted'),
                 }
                     )
                 predictions.append(pred_reshaped)
