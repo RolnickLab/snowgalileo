@@ -21,5 +21,4 @@ scrap
 imgs
 local
 old_slurms/
-*.sh
 error*

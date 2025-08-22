@@ -1,0 +1,193 @@
+import argparse
+from pathlib import Path
+
+import psutil
+import os
+
+from src.config import DEFAULT_SEED
+import rioxarray
+import xarray as xr
+import numpy as np
+from typing import cast
+import re
+from src.utils import seed_everything
+from src.data.config import DATA_FOLDER
+from src.data.earthengine.eo import(
+    EO_ALL_DYNAMIC_IN_TIME_BANDS,
+    EO_ALL_DYNAMIC_IN_TIME_BANDS_NP,
+    STATIC_BANDS,
+    NUM_TIMESTEPS,
+    SPACE_BANDS,
+)
+from einops import rearrange, repeat
+import warnings
+from src.data.dataset import to_cartesian
+from scipy import stats
+
+seed_everything(DEFAULT_SEED)
+process = psutil.Process()
+
+argparser = argparse.ArgumentParser()
+argparser.add_argument("--tifs_folder", type=str, default="")
+args = argparser.parse_args().__dict__
+
+tifs_folder = DATA_FOLDER / args["tifs_folder"]
+assert tifs_folder.exists(), f"{tifs_folder} does not exist!"
+
+def _check_and_fillna(data: np.ndarray, bands_np: np.ndarray) -> np.ndarray:
+    """Fill in the missing values in the data array"""
+    if data.shape[-1] != len(bands_np):
+        raise ValueError(f"Expected data to have {len(bands_np)} bands - got {data.shape[-1]}")
+    is_nan_inf = np.isnan(data) | np.isinf(data)
+
+    if not is_nan_inf.any():
+        return data
+
+    if len(data.shape) <= 2:
+        return np.nan_to_num(data, nan=0)
+    if len(data.shape) == 3:
+        has_time = False
+    elif len(data.shape) == 4:
+        has_time = True
+    else:
+        raise ValueError(
+            f"Expected data to be 3D or 4D (x, y, (time), band) - got {data.shape}"
+        )
+
+    # treat infinities as NaNs
+    data = np.nan_to_num(data, nan=np.nan, posinf=np.nan, neginf=np.nan)
+
+    # if any of the bands has only nan values, array should be markes as invalid
+    # assert np.isnan(data).all(axis=tuple(range(data.ndim - 1))).any()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        mean_per_time_band = np.nanmean(data, axis=(0, 1))  # t, b or b
+
+    mean_per_time_band = np.nan_to_num(mean_per_time_band, nan=0, posinf=0, neginf=0)
+    assert not (np.isnan(mean_per_time_band).any() | np.isinf(mean_per_time_band).any())
+
+    if is_nan_inf.any():
+        if has_time:
+            means_to_fill = (
+                repeat(
+                    np.nanmean(mean_per_time_band, axis=0),
+                    "b -> h w t b",
+                    h=data.shape[0],
+                    w=data.shape[1],
+                    t=data.shape[2],
+                )
+                * is_nan_inf
+            )
+        else:
+            means_to_fill = (
+                repeat(mean_per_time_band, "b -> h w b", h=data.shape[0], w=data.shape[1])
+                * is_nan_inf
+            )
+        data = np.nan_to_num(data, nan=0, posinf=0, neginf=0) + means_to_fill
+    return data
+
+def get_cloud_state_modis(state: int) -> int:
+
+    qa_bin = format(state, ">016b")
+
+    # mapping 0: clear, 1: cloudy, 2: mixed
+    # 00 clear, 01 cloudy, 10 mixed, 11 clear
+    cloud_state = qa_bin[:2]  # first two bits
+    if cloud_state == "00":
+        return 0
+    elif cloud_state == "01":
+        return 1
+    elif cloud_state == "10":
+        return 2
+    elif cloud_state == "11":
+        return 0
+
+def _get_cloud_bands(tif_path: Path):
+    with cast(xr.Dataset, rioxarray.open_rasterio(tif_path)) as data:
+        # [all_combined_bands, H, W]
+        # all_combined_bands includes all dynamic-in-time bands
+        # interleaved for all timesteps
+        # followed by the static-in-time bands
+        values = cast(np.ndarray, data.values)
+
+        # extract lat, lon in EPSG:4326 from tif_path
+        lat_pattern = r"lat=(.*?)_"
+        lon_pattern = r"lon=(.*?)_"
+        lat = float(
+            np.mean([float(value) for value in re.findall(lat_pattern, str(tif_path))])
+        )
+        lon = float(
+            np.mean([float(value) for value in re.findall(lon_pattern, str(tif_path))])
+        )
+
+    num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(EO_ALL_DYNAMIC_IN_TIME_BANDS)
+    assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
+    assert num_timesteps == NUM_TIMESTEPS, f"{tif_path} has incorrect number of timesteps"
+    dynamic_in_time_x = rearrange(
+        values[: -(len(SPACE_BANDS))],
+        "(t c) h w -> h w t c",
+        c=len(EO_ALL_DYNAMIC_IN_TIME_BANDS),
+        t=int(num_timesteps),
+    )
+    dynamic_in_time_x = _check_and_fillna(
+        dynamic_in_time_x, EO_ALL_DYNAMIC_IN_TIME_BANDS_NP
+    )
+    # resolution: 1000m
+    modis_cloud_x = dynamic_in_time_x[
+        :,
+        :,
+        :,
+        -3 : -2,
+    ]
+    # resolution: 60m
+    s2_cloud_x = dynamic_in_time_x[
+        :,
+        :,
+        :,
+        -2 : -1,
+    ]
+    # resolution: 30m
+    landsat_cloud_x = dynamic_in_time_x[
+        :,
+        :,
+        :,
+        -1,
+    ]
+    # get the mode cloud value for each image
+    modis_cloud_x = stats.mode(modis_cloud_x, axis=(0, 1))[0]
+
+    static_x = to_cartesian(lat, lon)
+    static_x = _check_and_fillna(static_x, np.array(STATIC_BANDS))
+
+    try:
+        assert not np.isnan(modis_cloud_x).any(), f"NaNs in modis cloud for {tif_path}"
+        assert not np.isnan(s2_cloud_x).any(), f"NaNs in s2 cloud for {tif_path}"
+        assert not np.isnan(landsat_cloud_x).any(), f"NaNs in landsat cloud for {tif_path}"
+        assert not np.isinf(modis_cloud_x).any(), f"Infs in modis cloud for {tif_path}"
+        assert not np.isinf(s2_cloud_x).any(), f"Infs in s2 cloud for {tif_path}"
+        assert not np.isinf(landsat_cloud_x).any(), f"Infs in landsat cloud for {tif_path}"
+        return modis_cloud_x, s2_cloud_x, landsat_cloud_x, static_x
+    except AssertionError as e:
+        raise e
+
+def main():
+    modis_cloud = []
+    for i in os.listdir(tifs_folder):
+        tif_path = Path(tifs_folder / i)
+        if tif_path.suffix == ".tif":
+            try:
+                modis_state, s2_state, landsat_state, latlon = _get_cloud_bands(tif_path)
+                for timestep in range(modis_state):
+                    modis_cloud_map = get_cloud_state_modis(int(modis_state[timestep]))
+                    modis_cloud.append(modis_cloud_map)
+                print(f"Processed {tif_path}")
+            except Exception as e:
+                print(f"Error processing {tif_path}: {e}")
+                continue
+
+    modis_cloud_map = np.stack(modis_cloud)
+    np.save(DATA_FOLDER / f"distributions/modis_cloud_from_{tifs_folder}.npy", modis_cloud_map)
+
+if __name__ == "__main__":
+    main()
