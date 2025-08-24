@@ -180,7 +180,7 @@ def main():
         if tif_path.suffix == ".tif":
             try:
                 modis_state, s2_state, landsat_state, latlon = _get_cloud_bands(tif_path)
-                for timestep in range(modis_state):
+                for timestep in range(NUM_TIMESTEPS):
                     modis_cloud_map = get_cloud_state_modis(int(modis_state[timestep]))
                     if modis_cloud_map == 0:
                         modis_cloud_counts["clear"] += 1
