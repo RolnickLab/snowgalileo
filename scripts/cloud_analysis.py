@@ -172,21 +172,36 @@ def _get_cloud_bands(tif_path: Path):
         raise e
 
 def main():
-    modis_cloud = []
+    modis_cloud_counts = {"clear": 0, "cloudy": 0, "mixed": 0}
     for i in os.listdir(tifs_folder):
         tif_path = Path(tifs_folder / i)
+        # print the number of files in the folder
+        print(f"Processing {tif_path} - {len(os.listdir(tifs_folder))} files in folder")
         if tif_path.suffix == ".tif":
             try:
                 modis_state, s2_state, landsat_state, latlon = _get_cloud_bands(tif_path)
                 for timestep in range(modis_state):
                     modis_cloud_map = get_cloud_state_modis(int(modis_state[timestep]))
-                    modis_cloud.append(modis_cloud_map)
+                    if modis_cloud_map == 0:
+                        modis_cloud_counts["clear"] += 1
+                    elif modis_cloud_map == 1:
+                        modis_cloud_counts["cloudy"] += 1
+                    elif modis_cloud_map == 2:
+                        modis_cloud_counts["mixed"] += 1
                 print(f"Processed {tif_path}")
             except Exception as e:
                 print(f"Error processing {tif_path}: {e}")
                 continue
 
-    modis_cloud_map = np.stack(modis_cloud)
+    # save the counts
+    print(f"Modis cloud counts: {modis_cloud_counts}")
+    modis_cloud_map = np.array(
+        [
+            modis_cloud_counts["clear"],
+            modis_cloud_counts["cloudy"],
+            modis_cloud_counts["mixed"],
+        ]
+    )
     np.save(DATA_FOLDER / f"distributions/modis_cloud_from_{tifs_folder}.npy", modis_cloud_map)
 
 if __name__ == "__main__":
