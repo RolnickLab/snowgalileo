@@ -1708,7 +1708,7 @@ class LandsatEval(EvalTask):
 
     @torch.no_grad()
     def _visualize_best_worst(
-        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator], num_images: int = 10, sort_for: str = "overall_accuracy"
+        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator], num_images: int = 50, sort_for: str = "overall_accuracy"
     ) -> Dict:
         
         prediction_folder = DATA_FOLDER / "ascending_accuracy_predictions"
@@ -1850,7 +1850,7 @@ class LandsatEval(EvalTask):
         target = target[sorted_indices]
 
         for i in range(num_images):
-            # save predictions and targets with lowest accuracy
+            # save predictions and targets with three lowest accuracies
             filename = test_ds.input_tifs[sorted_indices[i]].name
             print(f"Processing {filename} with index {sorted_indices[i]}", flush=True)
             
@@ -1882,11 +1882,11 @@ class LandsatEval(EvalTask):
 
             # save the predictions as numpy
             np.save(
-                prediction_folder / f"prediction_{acc}.npy",
+                prediction_folder / f"{filename}_{acc}_prediction.npy",
                 pred_to_save,
             )
             np.save(
-                prediction_folder / f"target_{acc}.npy",
+                prediction_folder / f"{filename}_{acc}_target.npy",
                 target_to_save,
             )
             print(f"Saved predictions for {filename} with overall accuracy: {acc}", flush=True)
