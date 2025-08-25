@@ -202,7 +202,7 @@ def main():
             modis_cloud_counts["mixed"],
         ]
     )
-    np.save(DATA_FOLDER / f"distributions/modis_cloud_from_{tifs_folder}.npy", modis_cloud_map)
+    print(f"Modis cloud map: {modis_cloud_map}")
 
 if __name__ == "__main__":
     main()
