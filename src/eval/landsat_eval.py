@@ -2018,7 +2018,7 @@ class LandsatEval(EvalTask):
         n_images = len(train_ds)
         print(f"Number of images: {n_images}")
         count_per_class = [0] * nclasses
-        for target in train_ds:
+        for _, target, _ in train_ds:
             mean_per_image = np.mean(target)
             # bin the mean value into one of nclasses classes
             # 0.0 will be in class 0, 1.0 in class nclasses-1, 0.99 in class nclasses-2
@@ -2029,7 +2029,7 @@ class LandsatEval(EvalTask):
         for i in range(nclasses):
             weight_per_class[i] = float(n_images) / float(count_per_class[i])
         weights = [0] * n_images
-        for idx, target in enumerate(train_ds):
+        for idx, (_, target, _) in enumerate(train_ds):
             mean_per_image = np.mean(target)
             # bin the mean value into one of nclasses classes
             multi_class_bins = np.linspace(0.1, 1, nclasses-1)
