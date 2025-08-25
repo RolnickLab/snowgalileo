@@ -101,7 +101,7 @@ def get_cloud_state_modis(state: int) -> int:
     elif cloud_state == "10":
         return 2
     elif cloud_state == "11":
-        return 0
+        return 3
 
 def _get_cloud_bands(tif_path: Path):
     with cast(xr.Dataset, rioxarray.open_rasterio(tif_path)) as data:
@@ -172,11 +172,11 @@ def _get_cloud_bands(tif_path: Path):
         raise e
 
 def main():
-    modis_cloud_counts = {"clear": 0, "cloudy": 0, "mixed": 0}
+    modis_cloud_counts = {"clear": 0, "cloudy": 0, "mixed": 0, "assumed_clear": 0}
 
     num_samples = 3000
 
-    all_files = [f for f in os.listdir('.') if os.path.isfile(f)]
+    all_files = [f for f in os.listdir(tifs_folder) if os.path.isfile(f)]
     random_subset = np.random.choice(all_files, num_samples, replace=False)
 
     for i in random_subset:
@@ -194,6 +194,8 @@ def main():
                         modis_cloud_counts["cloudy"] += 1
                     elif modis_cloud_map == 2:
                         modis_cloud_counts["mixed"] += 1
+                    elif modis_cloud_map == 3:
+                        modis_cloud_counts["assumed_clear"] += 1
                 print(f"Processed {tif_path}")
             except Exception as e:
                 print(f"Error processing {tif_path}: {e}")
@@ -206,6 +208,7 @@ def main():
             modis_cloud_counts["clear"],
             modis_cloud_counts["cloudy"],
             modis_cloud_counts["mixed"],
+            modis_cloud_counts["assumed_clear"],
         ]
     )
     print(f"Modis cloud map: {modis_cloud_map}")
