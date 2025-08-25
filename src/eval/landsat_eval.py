@@ -1497,12 +1497,14 @@ class LandsatEval(EvalTask):
         patch_size_high_res: int = 10,
         seed=DEFAULT_SEED,
         evaluation_mode: str = "evaluate",
+        resample: bool = False,
     ):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
         self.exclude_prediction_high_res = exclude_prediction_high_res
         self.patch_size_high_res = patch_size_high_res
         self.evaluation_mode = evaluation_mode
+        self.resample = resample
 
         super().__init__(self.patch_size_high_res, seed)
         self.name = (
@@ -2009,6 +2011,32 @@ class LandsatEval(EvalTask):
             print(f"Saved predictions for {filename} with R2: {r2}", flush=True)
 
 
+    # TODO: test this function
+    def make_weights_for_balanced_classes(train_ds, nclasses):
+        """
+        Computes a weight for each sample based on the frquency of its mean class per image, binned into nclasses classes.
+        """
+        n_images = len(train_ds)
+        count_per_class = [0] * nclasses
+        for _, target, _ in train_ds:
+            mean_per_image = np.mean(target)
+            # bin the mean value into one of nclasses classes
+            multi_class_bins = np.linspace(0.1, 1, nclasses + 1)
+            binned_targets_np = np.digitize(mean_per_image, bins=multi_class_bins)
+            count_per_class[binned_targets_np] += 1
+        weight_per_class = [0.] * nclasses
+        for i in range(nclasses):
+            weight_per_class[i] = float(n_images) / float(count_per_class[i])
+        weights = [0] * n_images
+        for idx, (image, target, _) in enumerate(train_ds):
+            mean_per_image = np.mean(target)
+            # bin the mean value into one of nclasses classes
+            multi_class_bins = np.linspace(0.1, 1, nclasses + 1)
+            binned_targets_np = np.digitize(mean_per_image, bins=multi_class_bins)
+            weights[idx] = weight_per_class[binned_targets_np]
+        return weights
+
+
     def evaluate_model_on_task(
         self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
     ) -> Dict:
@@ -2033,12 +2061,26 @@ class LandsatEval(EvalTask):
             normalizer = Normalizer(std=False)
             train_ds.normalizer = normalizer
 
-        train_dl = DataLoader(
-            train_ds,
-            batch_size=Hyperparams.batch_size,
-            shuffle=True,
-            num_workers=Hyperparams.num_workers,
-        )
+        if self.resample:
+            from torch.utils.data import WeightedRandomSampler
+            # oversample the dataset to have a uniform distribution of mean class values per image
+            weights = self.make_weights_for_balanced_classes(train_ds, nclasses=10)
+            weights = torch.DoubleTensor(weights)
+            sampler = WeightedRandomSampler(weights, num_samples=len(weights), replacement=True)
+            train_dl = DataLoader(
+                train_ds,
+                batch_size=Hyperparams.batch_size,
+                sampler=sampler,
+                shuffle=True,
+                num_workers=Hyperparams.num_workers,
+            )
+        else:
+            train_dl = DataLoader(
+                train_ds,
+                batch_size=Hyperparams.batch_size,
+                shuffle=True,
+                num_workers=Hyperparams.num_workers,
+            )
 
         trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
 

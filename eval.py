@@ -19,22 +19,29 @@ seed_everything(DEFAULT_SEED)
 process = psutil.Process()
 
 eval_mode = "evaluate"  # or "visualize_predictions" or "visualize_predictions_best_worst"
+resample = False
 
 torch.backends.cuda.matmul.allow_tf32 = True
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--output_folder", type=str, default="")
+argparser.add_argument("--encoder_type", type=str, default="snowgalileo", choices=["gabis_galileo", "snowgalileo"])
 args = argparser.parse_args().__dict__
 
-if args["output_folder"] != "":
-    encoder = Encoder.load_from_folder(Path(DATA_FOLDER / args["output_folder"])).to(device)
+if args["encoder_type"] == "gabis_galileo":
+    encoder = Encoder.load_from_folder("galileo/data/models/nano").to(device)
 else:
-    config = load_check_config("ai4snow.json")
-    encoder = Encoder(**config["model"]["encoder"])
+    if args["output_folder"] != "":
+        # load pretrained snowgalileo encoder
+        encoder = Encoder.load_from_folder(Path(DATA_FOLDER / args["output_folder"])).to(device)
+    else:
+        # randomly initialized snowgalileo encoder
+        config = load_check_config("ai4snow.json")
+        encoder = Encoder(**config["model"]["encoder"])
 
 eval_tasks: List[EvalTask] = [
     # geobench EuroSat only works without latlons
-    *[LandsatEval(exclude_prediction_high_res=high, evaluation_mode=eval_mode) for high in [True, False]],
+    *[LandsatEval(exclude_prediction_high_res=high, evaluation_mode=eval_mode, resample=resample) for high in [True, False]],
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(
