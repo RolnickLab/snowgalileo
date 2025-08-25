@@ -173,7 +173,13 @@ def _get_cloud_bands(tif_path: Path):
 
 def main():
     modis_cloud_counts = {"clear": 0, "cloudy": 0, "mixed": 0}
-    for i in os.listdir(tifs_folder):
+
+    num_samples = 3000
+
+    all_files = [f for f in os.listdir('.') if os.path.isfile(f)]
+    random_subset = np.random.choice(all_files, num_samples, replace=False)
+
+    for i in random_subset:
         tif_path = Path(tifs_folder / i)
         # print the number of files in the folder
         print(f"Processing {tif_path} - {len(os.listdir(tifs_folder))} files in folder")
