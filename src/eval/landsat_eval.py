@@ -2012,7 +2012,7 @@ class LandsatEval(EvalTask):
 
 
     # TODO: test this function
-    def make_weights_for_balanced_classes(train_ds, nclasses):
+    def make_weights_for_balanced_classes(self, train_ds, nclasses):
         """
         Computes a weight for each sample based on the frquency of its mean class per image, binned into nclasses classes.
         """
