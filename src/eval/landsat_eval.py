@@ -2072,7 +2072,6 @@ class LandsatEval(EvalTask):
                 train_ds,
                 batch_size=Hyperparams.batch_size,
                 sampler=sampler,
-                shuffle=True,
                 num_workers=Hyperparams.num_workers,
             )
         else:
