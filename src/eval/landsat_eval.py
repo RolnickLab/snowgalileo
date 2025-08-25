@@ -1666,7 +1666,7 @@ class LandsatEval(EvalTask):
         # TODO: Binning
 
         # create 10 bins for multi-class classification
-        multi_class_bins = np.linspace(0.1, 1, 11)
+        multi_class_bins = np.linspace(0.1, 1, 9)
         binned_preds_np = np.digitize(preds_np, bins=multi_class_bins)
         binned_targets_np = np.digitize(targets_np, bins=multi_class_bins)
 
@@ -1822,7 +1822,7 @@ class LandsatEval(EvalTask):
                 pred_reshaped = preds.reshape(label.shape)
 
                 # create 10 bins for multi-class classification
-                multi_class_bins = np.linspace(0.1, 1, 11)
+                multi_class_bins = np.linspace(0.1, 1, 9)
                 binned_preds_np = np.digitize(preds, bins=multi_class_bins)
                 binned_targets_np = np.digitize(label.flatten(), bins=multi_class_bins)
 
@@ -2011,27 +2011,28 @@ class LandsatEval(EvalTask):
             print(f"Saved predictions for {filename} with R2: {r2}", flush=True)
 
 
-    # TODO: test this function
-    def make_weights_for_balanced_classes(self, train_ds, nclasses):
+    def make_weights_for_balanced_classes(train_ds, nclasses):
         """
         Computes a weight for each sample based on the frquency of its mean class per image, binned into nclasses classes.
         """
         n_images = len(train_ds)
+        print(f"Number of images: {n_images}")
         count_per_class = [0] * nclasses
-        for _, target, _ in train_ds:
+        for target in train_ds:
             mean_per_image = np.mean(target)
             # bin the mean value into one of nclasses classes
-            multi_class_bins = np.linspace(0.1, 1, nclasses + 1)
+            # 0.0 will be in class 0, 1.0 in class nclasses-1, 0.99 in class nclasses-2
+            multi_class_bins = np.linspace(0.1, 1, nclasses-1)
             binned_targets_np = np.digitize(mean_per_image, bins=multi_class_bins)
             count_per_class[binned_targets_np] += 1
         weight_per_class = [0.] * nclasses
         for i in range(nclasses):
             weight_per_class[i] = float(n_images) / float(count_per_class[i])
         weights = [0] * n_images
-        for idx, (image, target, _) in enumerate(train_ds):
+        for idx, target in enumerate(train_ds):
             mean_per_image = np.mean(target)
             # bin the mean value into one of nclasses classes
-            multi_class_bins = np.linspace(0.1, 1, nclasses + 1)
+            multi_class_bins = np.linspace(0.1, 1, nclasses-1)
             binned_targets_np = np.digitize(mean_per_image, bins=multi_class_bins)
             weights[idx] = weight_per_class[binned_targets_np]
         return weights
