@@ -181,7 +181,7 @@ def main():
             try:
                 modis_state, s2_state, landsat_state, latlon = _get_cloud_bands(tif_path)
                 for timestep in range(NUM_TIMESTEPS):
-                    modis_cloud_map = get_cloud_state_modis(modis_state[timestep].item(0))
+                    modis_cloud_map = get_cloud_state_modis(modis_state[timestep].astype(int).item(0))
                     if modis_cloud_map == 0:
                         modis_cloud_counts["clear"] += 1
                     elif modis_cloud_map == 1:
