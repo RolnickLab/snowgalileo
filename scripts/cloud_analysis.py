@@ -176,7 +176,7 @@ def main():
 
     num_samples = 3000
 
-    all_files = [f for f in os.listdir(tifs_folder) if os.path.isfile(f)]
+    all_files = [f for f in os.listdir(tifs_folder) if f.endswith(".tif")]
     random_subset = np.random.choice(all_files, num_samples, replace=False)
 
     for i in random_subset:
