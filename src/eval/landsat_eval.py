@@ -2011,7 +2011,7 @@ class LandsatEval(EvalTask):
             print(f"Saved predictions for {filename} with R2: {r2}", flush=True)
 
 
-    def make_weights_for_balanced_classes(train_ds, nclasses):
+    def make_weights_for_balanced_classes(self, train_ds, nclasses):
         """
         Computes a weight for each sample based on the frquency of its mean class per image, binned into nclasses classes.
         """
