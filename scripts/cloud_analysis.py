@@ -11,7 +11,7 @@ import numpy as np
 from typing import cast
 import re
 from src.utils import seed_everything
-from src.data.config import DATA_FOLDER
+from src.data.config import DATA_FOLDER, NO_DATA_VALUE
 from src.data.earthengine.eo import(
     EO_ALL_DYNAMIC_IN_TIME_BANDS,
     EO_ALL_DYNAMIC_IN_TIME_BANDS_NP,
@@ -29,6 +29,7 @@ process = psutil.Process()
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--tifs_folder", type=str, default="")
+argparser.add_argument("--satellite", type=str, default="modis", choices=["modis", "landsat"])
 args = argparser.parse_args().__dict__
 
 tifs_folder = DATA_FOLDER / args["tifs_folder"]
@@ -103,6 +104,44 @@ def get_cloud_state_modis(state: int) -> int:
     elif cloud_state == "11":
         return 3
 
+def get_cloud_state_landsat(state: int) -> str:
+    if state == 21824:
+        return "clear with lows set"
+    elif state == 21826:
+        return "dilated cloud over land"
+    elif state == 21888:
+        return "water with lows set"
+    elif state == 21890:
+        return "dilated cloud over water"
+    elif state == 22080:
+        return "mid conf cloud"
+    elif state == 22144:
+        return "mid conf cloud over water"
+    elif state == 22280:
+        return "high conf cloud"
+    elif state == 23888:
+        return "high conf cloud shadow"
+    elif state == 23952:
+        return "water with cloud shadow"
+    elif state == 24088:
+        return "mid conf cloud w shadow"
+    elif state == 24216:
+        return "mid conf cloud w shadow over water"
+    elif state == 24344:
+        return "high conf cloud w shadow"
+    elif state == 24472:
+        return "high conf cloud w shadow over water"
+    elif state == 30048:
+        return "high conf snow/ice"
+    elif state == 54596:
+        return "high conf cirrus"
+    elif state == 54852:
+        return "cirrus, mid cloud"
+    elif state == 55052:
+        return "cirrus, high cloud"
+    else:
+        return "unknown"
+
 def _get_cloud_bands(tif_path: Path):
     with cast(xr.Dataset, rioxarray.open_rasterio(tif_path)) as data:
         # [all_combined_bands, H, W]
@@ -173,6 +212,13 @@ def _get_cloud_bands(tif_path: Path):
 
 def main():
     modis_cloud_counts = {"clear": 0, "cloudy": 0, "mixed": 0, "assumed_clear": 0}
+    landsat_cloud_counts = {"clear with lows set": 0, "dilated cloud over land": 0, "water with lows set": 0,
+                            "dilated cloud over water": 0, "mid conf cloud": 0, "mid conf cloud over water": 0,
+                            "high conf cloud": 0, "high conf cloud shadow": 0, "water with cloud shadow": 0,
+                            "mid conf cloud w shadow": 0, "mid conf cloud w shadow over water": 0,
+                            "high conf cloud w shadow": 0, "high conf cloud w shadow over water": 0,
+                            "high conf snow/ice": 0, "high conf cirrus": 0, "cirrus, mid cloud": 0,
+                            "cirrus, high cloud": 0}
 
     num_samples = 3000
 
@@ -186,32 +232,47 @@ def main():
         if tif_path.suffix == ".tif":
             try:
                 modis_state, s2_state, landsat_state, latlon = _get_cloud_bands(tif_path)
-                for timestep in range(NUM_TIMESTEPS):
-                    modis_cloud_map = get_cloud_state_modis(modis_state[timestep].astype(int).item(0))
-                    if modis_cloud_map == 0:
-                        modis_cloud_counts["clear"] += 1
-                    elif modis_cloud_map == 1:
-                        modis_cloud_counts["cloudy"] += 1
-                    elif modis_cloud_map == 2:
-                        modis_cloud_counts["mixed"] += 1
-                    elif modis_cloud_map == 3:
-                        modis_cloud_counts["assumed_clear"] += 1
+
+                if args["satellite"] == "modis":
+                    for timestep in range(NUM_TIMESTEPS):
+                        modis_cloud_map = get_cloud_state_modis(modis_state[timestep].astype(int).item(0))
+                        if modis_cloud_map == 0:
+                            modis_cloud_counts["clear"] += 1
+                        elif modis_cloud_map == 1:
+                            modis_cloud_counts["cloudy"] += 1
+                        elif modis_cloud_map == 2:
+                            modis_cloud_counts["mixed"] += 1
+                        elif modis_cloud_map == 3:
+                            modis_cloud_counts["assumed_clear"] += 1
+                elif args["satellite"] == "landsat":
+                    for timestep in range(NUM_TIMESTEPS):
+                        landsat_qa_state = landsat_state[timestep].astype(int).item(0)
+                        if landsat_qa_state == NO_DATA_VALUE:
+                            continue
+                        landsat_cloud_map = get_cloud_state_landsat(landsat_qa_state)
+                        if landsat_cloud_map in landsat_cloud_counts:
+                            landsat_cloud_counts[landsat_cloud_map] += 1
+
                 print(f"Processed {tif_path}")
             except Exception as e:
                 print(f"Error processing {tif_path}: {e}")
                 continue
 
-    # save the counts
-    print(f"Modis cloud counts: {modis_cloud_counts}")
-    modis_cloud_map = np.array(
-        [
-            modis_cloud_counts["clear"],
-            modis_cloud_counts["cloudy"],
-            modis_cloud_counts["mixed"],
-            modis_cloud_counts["assumed_clear"],
-        ]
-    )
-    print(f"Modis cloud map: {modis_cloud_map}")
+    if args["satellite"] == "landsat":
+        print(f"Landsat cloud counts: {landsat_cloud_counts}")
+        landsat_cloud_map = np.array([count for count in landsat_cloud_counts.values()])
+        print(f"Landsat cloud map: {landsat_cloud_map}")
+    elif args["satellite"] == "modis":
+        print(f"Modis cloud counts: {modis_cloud_counts}")
+        modis_cloud_map = np.array(
+            [
+                modis_cloud_counts["clear"],
+                modis_cloud_counts["cloudy"],
+                modis_cloud_counts["mixed"],
+                modis_cloud_counts["assumed_clear"],
+            ]
+        )
+        print(f"Modis cloud map: {modis_cloud_map}")
 
 if __name__ == "__main__":
     main()
