@@ -18,14 +18,14 @@ from src.data.config import DATA_FOLDER
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
 
-eval_mode = "evaluate"  # or "visualize_predictions" or "visualize_predictions_best_worst"
-resample = False
-
 torch.backends.cuda.matmul.allow_tf32 = True
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--output_folder", type=str, default="")
 argparser.add_argument("--encoder_type", type=str, default="snowgalileo", choices=["gabis_galileo", "snowgalileo"])
+argparser.add_argument("--finetune", dest="finetune", action="store_true", help="Whether to finetune the model, else linear probe.")
+argparser.add_argument("--eval_mode", type=str, default="evaluate", choices=["evaluate", "visualize_predictions", "visualize_predictions_best_worst"])
+argparser.add_argument("--resample", action="store_true", help="Whether to use oversampling.")
 args = argparser.parse_args().__dict__
 
 if args["encoder_type"] == "gabis_galileo":
@@ -41,7 +41,7 @@ else:
 
 eval_tasks: List[EvalTask] = [
     # geobench EuroSat only works without latlons
-    *[LandsatEval(exclude_prediction_high_res=high, evaluation_mode=eval_mode, resample=resample) for high in [True, False]],
+    *[LandsatEval(exclude_prediction_high_res=high, evaluation_mode=args["eval_mode"], resample=args["resample"], finetune=args["finetune"]) for high in [True, False]],
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(

@@ -46,6 +46,7 @@ from src.data.earthengine.eo_eval import (
 )
 from src.utils import masked_output_np_to_tensor, config_dir, device, DEFAULT_SEED
 from src.eval.eval import EvalTask, Hyperparams, model_class_name
+from src.eval.finetune import get_finetune_results
 from sklearn.base import BaseEstimator
 from src.flexipresto import Encoder
 from sklearn.metrics import accuracy_score
@@ -1498,6 +1499,7 @@ class LandsatEval(EvalTask):
         seed=DEFAULT_SEED,
         evaluation_mode: str = "evaluate",
         resample: bool = False,
+        finetune: bool = False,
     ):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
@@ -1505,6 +1507,7 @@ class LandsatEval(EvalTask):
         self.patch_size_high_res = patch_size_high_res
         self.evaluation_mode = evaluation_mode
         self.resample = resample
+        self.finetune = finetune
 
         super().__init__(self.patch_size_high_res, seed)
         self.name = (
@@ -1536,16 +1539,8 @@ class LandsatEval(EvalTask):
             f"{bs}{self.name}_{model_name}_precision": precision_score(target, preds, average='weighted'),
             f"{bs}{self.name}_{model_name}_f1": f1_score(target, preds, average='weighted'),
         }
-
-    @torch.no_grad()
-    def _evaluate_model(
-        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator]
-    ) -> Dict:
-        
-        prediction_folder = DATA_FOLDER / "predictions"
-        if not prediction_folder.exists():
-            prediction_folder.mkdir(parents=True, exist_ok=True)
-
+    
+    def get_test_dl(self) -> DataLoader:
         test_ds = LandsatEvalDataset(
             exclude_prediction_date=self.exclude_prediction_date,
             split="test",
@@ -1568,6 +1563,19 @@ class LandsatEval(EvalTask):
             shuffle=False,
             num_workers=Hyperparams.num_workers,
         )
+        return test_dl
+
+    @torch.no_grad()
+    def _evaluate_model(
+        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator]
+    ) -> Dict:
+        
+        prediction_folder = DATA_FOLDER / "predictions"
+        if not prediction_folder.exists():
+            prediction_folder.mkdir(parents=True, exist_ok=True)
+
+        test_dl = self.get_test_dl()
+
         pred_dict: Dict[str, BaseEstimator] = {
             model_class_name(model): [] for model in sklearn_models
         }
@@ -1717,28 +1725,7 @@ class LandsatEval(EvalTask):
         if not prediction_folder.exists():
             prediction_folder.mkdir(parents=True, exist_ok=True)
 
-        test_ds = LandsatEvalDataset(
-            exclude_prediction_date=self.exclude_prediction_date,
-            split="test",
-        )
-
-        if self.normalization == "std":
-            normalizing_dict = test_ds.load_normalization_values(
-                path=config_dir / NORMALIZATION_DICT_FILENAME
-            )
-            print(normalizing_dict, flush=True)
-            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
-            test_ds.normalizer = normalizer
-        else:
-            normalizer = Normalizer(std=False)
-            test_ds.normalizer = normalizer
-
-        test_dl = DataLoader(
-            test_ds,
-            batch_size=1,
-            shuffle=False,
-            num_workers=Hyperparams.num_workers,
-        )
+        test_dl = self.get_test_dl()
 
         predictions = []
         targets = []
@@ -2041,10 +2028,6 @@ class LandsatEval(EvalTask):
     def evaluate_model_on_task(
         self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
     ) -> Dict:
-        if model_modes is None:
-            model_modes = self.all_regression_sklearn_models
-        for model_mode in model_modes:
-            assert model_mode in self.all_regression_sklearn_models
 
         train_ds = LandsatEvalDataset(
             exclude_prediction_date=self.exclude_prediction_date,
@@ -2082,7 +2065,18 @@ class LandsatEval(EvalTask):
                 num_workers=Hyperparams.num_workers,
             )
 
-        trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
+        if self.finetune:
+            test_dl = self.get_test_dl()
+            loaders_dict = {"train": train_dl, "test": test_dl}
+            test_miou = get_finetune_results(loaders_dict, pretrained_model, num_runs=1, device=device)
+            print(f"Finetuning test mIoU: {test_miou}")
+        else:
+            if model_modes is None:
+                model_modes = self.all_regression_sklearn_models
+            for model_mode in model_modes:
+                assert model_mode in self.all_regression_sklearn_models
+
+            trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
 
         if self.evaluation_mode == "evaluate":
             results = self._evaluate_model(pretrained_model, trained_sklearn_models)
