@@ -104,7 +104,7 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, num_classes=1, patch_
             input, labels, _ = batch
 
             with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-                logits = finetuned_encoder(input)  # (bsz, num_patches, logits_per_patch)
+                logits = finetuned_encoder(**input)  # (bsz, num_patches, logits_per_patch)
                 spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
                 logits = rearrange(
                     logits,
@@ -149,7 +149,7 @@ def evaluate_seg(data_loader, finetuned_encoder, device, num_classes=1):
             input, labels, _ = batch
 
             with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-                logits = finetuned_encoder(input)  # (bsz, num_patches, logits_per_patch)
+                logits = finetuned_encoder(**input)  # (bsz, num_patches, logits_per_patch)
                 spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
                 logits = rearrange(
                     logits,
