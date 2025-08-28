@@ -27,8 +27,8 @@ class EncoderWithHead(nn.Module):
         # attach a sigmoid to squeeze outputs to [0, 1]
         self.sigmoid = nn.Sigmoid()
 
-    def forward(self, **batch):
-        features = self.encoder(**batch)
+    def forward(self, batch):
+        features = self.encoder(batch)
         output = self.sigmoid(self.head(features))
         return output
 
@@ -102,10 +102,10 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, num_classes=1, patch_
 
     for epoch in range(epochs):
         for i, batch in enumerate(data_loader):
-            _, batch_labels, _ = batch
+            input, labels = batch
 
             with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-                logits = finetuned_encoder(**batch)  # (bsz, num_patches, logits_per_patch)
+                logits = finetuned_encoder(input)  # (bsz, num_patches, logits_per_patch)
                 spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
                 logits = rearrange(
                     logits,
@@ -118,11 +118,11 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, num_classes=1, patch_
                 )
                 logits = F.interpolate(
                     logits.float(),
-                    size=(batch_labels.shape[-2], batch_labels.shape[-1]),
+                    size=(labels.shape[-2], labels.shape[-1]),
                     mode="bilinear",
                     align_corners=True,
                 )  # (bsz, num_classes, H, W)
-                loss = loss_function(logits, batch_labels.to(device))
+                loss = loss_function(logits, labels.to(device))
 
             (loss / grad_accum).backward()
 
@@ -148,10 +148,10 @@ def evaluate_seg(data_loader, finetuned_encoder, device, num_classes=1):
     all_labels = []
     with torch.no_grad():
         for batch in data_loader:
-            _, batch_labels, _ = batch
+            input, labels, _ = batch
 
             with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-                logits = finetuned_encoder(**batch)  # (bsz, num_patches, logits_per_patch)
+                logits = finetuned_encoder(input)  # (bsz, num_patches, logits_per_patch)
                 spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
                 logits = rearrange(
                     logits,
@@ -164,14 +164,14 @@ def evaluate_seg(data_loader, finetuned_encoder, device, num_classes=1):
                 )
                 logits = F.interpolate(
                     logits.float(),
-                    size=(batch_labels.shape[-2], batch_labels.shape[-1]),
+                    size=(labels.shape[-2], labels.shape[-1]),
                     mode="bilinear",
                     align_corners=True,
                 )  # (bsz, num_classes, H, W)
 
             preds = torch.argmax(logits, dim=1).cpu()
             all_preds.append(preds)
-            all_labels.append(batch_labels)
+            all_labels.append(labels)
 
     all_preds = torch.cat(all_preds)
     all_labels = torch.cat(all_labels)
