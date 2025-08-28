@@ -6,7 +6,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
-from sklearn.metrics import accuracy_score, f1_score
 
 from src.flexipresto import adjust_learning_rate
 
@@ -102,7 +101,7 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, num_classes=1, patch_
 
     for epoch in range(epochs):
         for i, batch in enumerate(data_loader):
-            input, labels = batch
+            input, labels, _ = batch
 
             with torch.cuda.amp.autocast(dtype=torch.bfloat16):
                 logits = finetuned_encoder(input)  # (bsz, num_patches, logits_per_patch)
@@ -139,7 +138,6 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, num_classes=1, patch_
                 opt.zero_grad()
 
     return finetuned_encoder
-
 
 def evaluate_seg(data_loader, finetuned_encoder, device, num_classes=1):
     finetuned_encoder = finetuned_encoder.eval()
