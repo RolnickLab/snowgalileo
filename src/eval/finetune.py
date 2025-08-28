@@ -71,13 +71,13 @@ def get_finetune_results_with_val(loaders, encoder, num_runs, device):
 
     return final_tests
 
-def get_finetune_results(loaders, config, encoder, num_runs, device):
+def get_finetune_results(loaders, encoder, num_runs, device):
     final_tests = []  # chosen using LR with best val, for each run
     for _ in range(num_runs):
         tests = []
         for lr in FT_LRs:
             test = finetune_and_eval_seg(
-                lr=lr, config=config, loaders=loaders, encoder=encoder, device=device
+                lr=lr, loaders=loaders, encoder=encoder, device=device
             )
             tests.append(test)
 
