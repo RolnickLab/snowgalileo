@@ -26,8 +26,8 @@ class EncoderWithHead(nn.Module):
         # attach a sigmoid to squeeze outputs to [0, 1]
         self.sigmoid = nn.Sigmoid()
 
-    def forward(self, batch):
-        features = self.encoder(batch)
+    def forward(self, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, months, patch_size_high_res=10, patch_size_med_res=1, patch_size_low_res=1):
+        features = self.encoder(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, months, patch_size_high_res=patch_size_high_res, patch_size_med_res=patch_size_med_res, patch_size_low_res=patch_size_low_res)
         output = self.sigmoid(self.head(features))
         return output
 
