@@ -29,8 +29,7 @@ class EncoderWithHead(nn.Module):
     def forward(self, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, months, patch_size_high_res=10, patch_size_med_res=1, patch_size_low_res=1):
         encodings = self.encoder(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, months, patch_size_high_res=patch_size_high_res, patch_size_med_res=patch_size_med_res, patch_size_low_res=patch_size_low_res)
         s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, _ = encodings
-        encodings = rearrange(
-            self.encoder.apply_mask_and_average_tokens_per_patch(
+        encodings = self.encoder.apply_mask_and_average_tokens_per_patch(
                 s_t_h_x,
                 s_t_m_x,
                 s_t_l_x,
@@ -43,9 +42,7 @@ class EncoderWithHead(nn.Module):
                 sp_m,
                 t_m,
                 st_m,
-            ),
-            "b n_t n_f -> (b n_t) n_f",
-        )
+            )
         output = self.sigmoid(self.head(encodings))
         return output
 
