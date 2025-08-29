@@ -100,11 +100,43 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, num_classes=1, patch_
     loss_function = nn.MSELoss()
 
     for epoch in range(epochs):
-        for i, batch in enumerate(data_loader):
-            input, labels, _ = batch
+        for i, (masked_output, labels, _) in enumerate(data_loader):
+            (
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+                months,
+            ) = [t.to(device) for t in masked_output]
+
 
             with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-                logits = finetuned_encoder(input)  # (bsz, num_patches, logits_per_patch)
+                logits = finetuned_encoder(
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                    patch_size_high_res=patch_size_high_res,
+                    patch_size_med_res=1,
+                    patch_size_low_res=1,
+                )
                 spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
                 logits = rearrange(
                     logits,
@@ -139,17 +171,48 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, num_classes=1, patch_
 
     return finetuned_encoder
 
-def evaluate_seg(data_loader, finetuned_encoder, device, num_classes=1):
+def evaluate_seg(data_loader, finetuned_encoder, device, num_classes=1, patch_size_high_res=10):
     finetuned_encoder = finetuned_encoder.eval()
 
     all_preds = []
     all_labels = []
     with torch.no_grad():
-        for batch in data_loader:
-            input, labels, _ = batch
+        for masked_output, labels, _ in data_loader:
+            (
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+                months,
+            ) = [t.to(device) for t in masked_output]
 
             with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-                logits = finetuned_encoder(input)  # (bsz, num_patches, logits_per_patch)
+                logits = finetuned_encoder(
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                    patch_size_high_res=patch_size_high_res,
+                    patch_size_med_res=1,
+                    patch_size_low_res=1,
+                )
                 spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
                 logits = rearrange(
                     logits,
