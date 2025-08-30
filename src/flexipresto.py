@@ -1266,17 +1266,23 @@ class Encoder(FlexiPrestoBase):
         t_m: torch.Tensor,
         st_m: torch.Tensor,
     ):
-        ### TODO: very hacky solution to remove the shape error, change by using other med res patch sizes later
-        s_t_m_x = torch.concatenate([s_t_m_x, s_t_m_x[:, -1:, :, :, :, :]], dim=1)
-        s_t_m_x = torch.concatenate([s_t_m_x, s_t_m_x[:, :, -1:, :, :, :]], dim=2)
-        s_t_m_m = torch.concatenate([s_t_m_m, s_t_m_m[:, -1:, :, :, :]], dim=1)
-        s_t_m_m = torch.concatenate([s_t_m_m, s_t_m_m[:, :, -1:, :, :]], dim=2)
+        ### used for spatial token prediction.
+        # We create an output of tokens of shape (batch size, num_tokens, token_dim), where masked tokens are removed.
+        # tokens are in high resolution. We upsample med and low resolution tokens and then take the mean per spatial patch, to incorporate them into the high resolution tokens.
+
+
+        ### pad medium resolution tokens to be able to fit them into the high resolution tokens.
+        #s_t_m_x = torch.concatenate([s_t_m_x, s_t_m_x[:, -1:, :, :, :, :]], dim=1)
+        #s_t_m_x = torch.concatenate([s_t_m_x, s_t_m_x[:, :, -1:, :, :, :]], dim=2)
+        #s_t_m_m = torch.concatenate([s_t_m_m, s_t_m_m[:, -1:, :, :, :]], dim=1)
+        #s_t_m_m = torch.concatenate([s_t_m_m, s_t_m_m[:, :, -1:, :, :]], dim=2)
 
         p_m = s_t_h_x.shape[1] // s_t_m_x.shape[1]
         p_l = s_t_h_x.shape[1] // s_t_l_x.shape[1]
 
         s_t_h_x = rearrange(s_t_h_x, "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d")
-        # repeat low resolution tokens over high resolution
+
+        # repeat medium and low resolution tokens over high resolution
         s_t_m_x = rearrange(
             repeat(
                 s_t_m_x, "b t_h t_w t c_g d -> b (t_h p_h) (t_w p_w) t c_g d", p_h=p_m, p_w=p_m
@@ -1290,6 +1296,7 @@ class Encoder(FlexiPrestoBase):
             "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d",
         )
         sp_x = rearrange(sp_x, "b t_h t_w c_g d -> b (t_h t_w) c_g d")
+
         # repeat time tokens over space
         t_x = repeat(
             rearrange(t_x, "b t c_g d -> b (t c_g) d"), "b n d -> b s n d", s=sp_x.shape[1]
