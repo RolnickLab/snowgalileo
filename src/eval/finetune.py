@@ -175,7 +175,12 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, num_classes=1, patch_
             if ((i + 1) % grad_accum == 0) or (i + 1 == len(data_loader)):
                 epoch_fraction = epoch + (i / len(data_loader))
                 set_lr = adjust_learning_rate(
-                    epoch_fraction, sched_config
+                    optimizer=opt,
+                    epoch=epoch_fraction,
+                    total_epochs=sched_config["epochs"],
+                    warmup_epochs=sched_config["warmup_epochs"],
+                    max_lr=sched_config["lr"],
+                    min_lr=sched_config["min_lr"],
                 )  # get LR for this epoch
                 for g in opt.param_groups:
                     g["lr"] = set_lr  # update
