@@ -218,7 +218,7 @@ def main():
                             "mid conf cloud w shadow": 0, "mid conf cloud w shadow over water": 0,
                             "high conf cloud w shadow": 0, "high conf cloud w shadow over water": 0,
                             "high conf snow/ice": 0, "high conf cirrus": 0, "cirrus, mid cloud": 0,
-                            "cirrus, high cloud": 0}
+                            "cirrus, high cloud": 0, "unknown": 0}
 
     num_samples = 3000
 
