@@ -394,7 +394,7 @@ def evaluate_seg(data_loader, finetuned_encoder, device, identifier, patch_size_
     binned_preds_np = np.digitize(all_preds_2D, bins=multi_class_bins)
     binned_targets_np = np.digitize(all_labels_2D, bins=multi_class_bins)
 
-    results_dict.append(
+    results_dict.update(
         compute_segmentation_metrics(
             identifier,
             binned_preds_np,
@@ -402,7 +402,7 @@ def evaluate_seg(data_loader, finetuned_encoder, device, identifier, patch_size_
             baseline=False
         )
     )
-    results_dict.append(
+    results_dict.update(
         compute_segmentation_metrics(
             identifier,
             baseline_preds_2D,
