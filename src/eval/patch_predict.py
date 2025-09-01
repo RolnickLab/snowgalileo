@@ -334,8 +334,8 @@ def evaluate_seg(data_loader, finetuned_encoder, device, identifier, patch_size_
                 w=spatial_patches_per_dim,
             )
 
-            all_preds_2D.append(logits.cpu())
-            all_labels_2D.append(labels.cpu())
+            all_preds_2D.append(logits.float().cpu())
+            all_labels_2D.append(labels.float().cpu())
 
     # sequence prediction
     all_preds_1D = np.concatenate(all_preds_1D)
