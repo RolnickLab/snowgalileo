@@ -8,8 +8,11 @@ import torch.nn.functional as F
 from einops import rearrange
 
 from src.flexipresto import adjust_learning_rate
+from sklearn.metrics import root_mean_squared_error, r2_score, balanced_accuracy_score, accuracy_score, f1_score, precision_score, recall_score
 
 from .metrics import mean_iou
+import numpy as np
+from typing import Dict
 
 #FT_LRs = [1e-5, 3e-5, 6e-5, 1e-4, 3e-4, 6e-4, 1e-3, 3e-3, 6e-3]
 FT_LRs = [1e-5]
@@ -47,7 +50,7 @@ class EncoderWithHead(nn.Module):
         return output
 
 
-def finetune_and_eval_seg(lr, loaders, encoder, device, num_finetune_epochs=50):
+def finetune_and_eval_seg(lr, loaders, encoder, device, identifier, num_finetune_epochs=50):
     finetuned_encoder = finetune_seg(
         data_loader=loaders["train"],
         lr=lr,
@@ -66,11 +69,12 @@ def finetune_and_eval_seg(lr, loaders, encoder, device, num_finetune_epochs=50):
         data_loader=loaders["test"],
         finetuned_encoder=finetuned_encoder,
         device=device,
+        identifier=identifier,
     )
     return test_miou
 
 
-def linear_probe_and_eval_seg(lr, loaders, encoder, device):
+def linear_probe_and_eval_seg(lr, loaders, encoder, device, identifier):
     # we train the regression head for one epoch, while the encoder remains frozen
     encoder = finetune_seg(
         data_loader=loaders["train"],
@@ -90,6 +94,7 @@ def linear_probe_and_eval_seg(lr, loaders, encoder, device):
         data_loader=loaders["test"],
         finetuned_encoder=encoder,
         device=device,
+        identifier=identifier,
     )
     return test_miou
 
@@ -110,13 +115,13 @@ def get_finetune_results_with_val(loaders, encoder, num_runs, device):
 
     return final_tests
 
-def get_finetune_results(loaders, encoder, num_runs, device, num_finetune_epochs):
+def get_finetune_results(loaders, encoder, num_runs, device, identifier, num_finetune_epochs):
     final_tests = []  # chosen using LR with best val, for each run
     for _ in range(num_runs):
         tests = []
         for lr in FT_LRs:
             test = finetune_and_eval_seg(
-                lr=lr, loaders=loaders, encoder=encoder, device=device, num_finetune_epochs=num_finetune_epochs
+                lr=lr, loaders=loaders, encoder=encoder, device=device, identifier=identifier, num_finetune_epochs=num_finetune_epochs
             )
             tests.append(test)
 
@@ -124,13 +129,13 @@ def get_finetune_results(loaders, encoder, num_runs, device, num_finetune_epochs
 
     return final_tests
 
-def get_linear_probe_results(loaders, encoder, num_runs, device):
+def get_linear_probe_results(loaders, encoder, num_runs, device, identifier):
     final_tests = []  # chosen using LR with best val, for each run
     for _ in range(num_runs):
         tests = []
         for lr in FT_LRs:
             test = linear_probe_and_eval_seg(
-                lr=lr, loaders=loaders, encoder=encoder, device=device
+                lr=lr, loaders=loaders, encoder=encoder, device=device, identifier=identifier
             )
             tests.append(test)
 
@@ -138,7 +143,7 @@ def get_linear_probe_results(loaders, encoder, num_runs, device):
 
     return final_tests
 
-def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False, num_classes=1, patch_size_high_res=10, inputs_per_target=10):
+def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False, patch_size_high_res=10, inputs_per_target=10):
     finetuned_encoder = EncoderWithHead(encoder=encoder, patch_size_high_res=patch_size_high_res, inputs_per_target=inputs_per_target).to(device)
     finetuned_encoder = finetuned_encoder.train()
     opt = torch.optim.AdamW(finetuned_encoder.parameters(), lr=lr)
@@ -231,11 +236,52 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False,
 
     return finetuned_encoder
 
-def evaluate_seg(data_loader, finetuned_encoder, device, num_classes=1, patch_size_high_res=10):
+def compute_regression_metrics(identifier: str, preds: np.ndarray, target: np.ndarray, baseline=False) -> Dict[str, float]:
+    if baseline:
+        bs = "baseline_"
+    else:
+        bs = ""
+
+    return {
+        f"{bs}{identifier}_rmse": root_mean_squared_error(target, preds),
+        f"{bs}{identifier}_r2": r2_score(target, preds),
+    }
+
+def compute_classification_metrics(identifier: str, preds: np.ndarray, target: np.ndarray, baseline=False) -> Dict[str, float]:
+    if baseline:
+        bs = "baseline_"
+    else:
+        bs = ""
+
+    return {
+        f"{bs}{identifier}_overall_accuracy": accuracy_score(target, preds),
+        f"{bs}{identifier}_balanced_accuracy": balanced_accuracy_score(target, preds),
+        f"{bs}{identifier}_recall": recall_score(target, preds, average='weighted'),
+        f"{bs}{identifier}_precision": precision_score(target, preds, average='weighted'),
+        f"{bs}{identifier}_f1": f1_score(target, preds, average='weighted'),
+    }
+
+def compute_segmentation_metrics(identifier: str, preds: np.ndarray, target: np.ndarray, baseline=False) -> Dict[str, float]:
+    if baseline:
+        bs = "baseline_"
+    else:
+        bs = ""
+
+    return {
+        f"{bs}{identifier}_rmse": mean_iou(preds, target, num_classes=10),
+    }
+
+def evaluate_seg(data_loader, finetuned_encoder, device, identifier, patch_size_high_res=10):
     finetuned_encoder = finetuned_encoder.eval()
 
-    all_preds = []
-    all_labels = []
+    all_preds_1D = []
+    all_labels_1D = []
+
+    all_preds_2D = []
+    all_labels_2D = []
+
+    results_dict: Dict[str, float] = {}
+
     with torch.no_grad():
         for masked_output, labels, _ in data_loader:
             (
@@ -273,21 +319,96 @@ def evaluate_seg(data_loader, finetuned_encoder, device, num_classes=1, patch_si
                     patch_size_med_res=1,
                     patch_size_low_res=1,
                 )
-                spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
-                logits = rearrange(
-                    torch.squeeze(logits),
-                    "b (h w) -> b h w",
-                    h=spatial_patches_per_dim,
-                    w=spatial_patches_per_dim,
-                )
 
             # check that all predictions are between 0 and 1
             assert logits.min() >= 0 and logits.max() <= 1
 
-            all_preds.append(logits.cpu())
-            all_labels.append(labels.cpu())
+            all_preds_1D.append(rearrange(torch.squeeze(logits), "b (h w) -> (b h w)").numpy().cpu())
+            all_labels_1D.append(rearrange(labels, "b h w -> (b h w)").numpy().cpu())
 
-    all_preds = torch.cat(all_preds)
-    all_labels = torch.cat(all_labels)
-    miou = mean_iou(all_preds, all_labels, num_classes=num_classes, ignore_label=-1)
-    return miou
+            spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
+            logits = rearrange(
+                torch.squeeze(logits),
+                "b (h w) -> b h w",
+                h=spatial_patches_per_dim,
+                w=spatial_patches_per_dim,
+            )
+
+            all_preds_2D.append(logits.cpu())
+            all_labels_2D.append(labels.cpu())
+
+    # sequence prediction
+    all_preds_1D = np.concatenate(all_preds_1D)
+    baseline_preds_1D = np.zeros_like(all_preds_1D)
+    all_labels_1D = np.concatenate(all_labels_1D)
+
+    # create 10 bins for multi-class classification
+    multi_class_bins = np.linspace(0.1, 1, 9)
+    binned_preds_np = np.digitize(all_preds_1D, bins=multi_class_bins)
+    binned_targets_np = np.digitize(all_labels_1D, bins=multi_class_bins)
+
+    # sequence regression
+    results_dict.update(
+        compute_regression_metrics(
+            identifier,
+            all_preds_1D,
+            all_labels_1D,
+            baseline=False
+        )
+    )
+    # sequence regression (baseline)
+    results_dict.update(
+        compute_regression_metrics(
+            identifier,
+            baseline_preds_1D,
+            all_labels_1D,
+            baseline=True
+        )
+    )
+    # sequence classification
+    results_dict.update(
+        compute_classification_metrics(
+            identifier,
+            binned_preds_np,
+            binned_targets_np,
+            baseline=False,
+        )
+    )
+    # sequence classification (baseline)
+    results_dict.update(
+        compute_classification_metrics(
+            identifier,
+            baseline_preds_1D,
+            binned_targets_np,
+            baseline=True,
+        )
+    )
+
+    # spatial prediction
+    all_preds_2D = torch.cat(all_preds_2D)
+    baseline_preds_2D = torch.zeros_like(all_preds_2D)
+    all_labels_2D = torch.cat(all_labels_2D)
+
+    # create 10 bins for multi-class segmentation
+    multi_class_bins = np.linspace(0.1, 1, 9)
+    binned_preds_np = np.digitize(all_preds_2D, bins=multi_class_bins)
+    binned_targets_np = np.digitize(all_labels_2D, bins=multi_class_bins)
+
+    results_dict.append(
+        compute_segmentation_metrics(
+            identifier,
+            binned_preds_np,
+            binned_targets_np,
+            baseline=False
+        )
+    )
+    results_dict.append(
+        compute_segmentation_metrics(
+            identifier,
+            baseline_preds_2D,
+            binned_targets_np,
+            baseline=True
+        )
+    )
+
+    return results_dict

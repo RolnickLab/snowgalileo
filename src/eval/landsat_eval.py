@@ -2070,8 +2070,8 @@ class LandsatEval(EvalTask):
         if self.finetune:
             test_dl = self.get_test_dl()
             loaders_dict = {"train": train_dl, "test": test_dl}
-            test_miou = get_finetune_results(loaders_dict, pretrained_model, num_runs=1, device=device, num_finetune_epochs=self.num_finetune_epochs)
-            print(f"Finetuning test mIoU: {test_miou}")
+            results = get_finetune_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name, num_finetune_epochs=self.num_finetune_epochs)
+            return results
         else:
             if model_modes is None:
                 model_modes = self.all_regression_sklearn_models
@@ -2080,18 +2080,18 @@ class LandsatEval(EvalTask):
 
             trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
 
-        if self.evaluation_mode == "evaluate":
-            results = self._evaluate_model(pretrained_model, trained_sklearn_models)
-            return results
-        
-        elif self.evaluation_mode == "visualize_predictions_best_worst":
-            self._visualize_best_worst(pretrained_model, trained_sklearn_models)
+            if self.evaluation_mode == "evaluate":
+                results = self._evaluate_model(pretrained_model, trained_sklearn_models)
+                return results
+            
+            elif self.evaluation_mode == "visualize_predictions_best_worst":
+                self._visualize_best_worst(pretrained_model, trained_sklearn_models)
 
-        elif self.evaluation_mode == "visualize_predictions": 
-            self._visualize_predictions(pretrained_model, trained_sklearn_models)
+            elif self.evaluation_mode == "visualize_predictions": 
+                self._visualize_predictions(pretrained_model, trained_sklearn_models)
 
-        else:
-            raise ValueError(f"Unknown evaluation mode: {self.evaluation_mode}")
+            else:
+                raise ValueError(f"Unknown evaluation mode: {self.evaluation_mode}")
         return {"results": "Visualizations saved to disk."}
 
 
