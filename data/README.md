@@ -7,6 +7,8 @@ Note: all required shell scripts are stored in the `shell_scripts` folder.
 2) run `run_copy_files.sh` to copy individual tifs into one large tif folder
 3) run `run_export_checks.sh` to perform some checks on the exports
 
+This results in ~149,496 files being stored in `data/tifs_all_bands/`.
+
 ## Landsat Evaluation Data
 1) run `run_eval_export.sh` (all possible input tifs are exported, the resulting number of files will be smaller than the number of masks)
 2) run `run_copy_eval.sh` (all masks that have a matching input will be copied into a new folder)
