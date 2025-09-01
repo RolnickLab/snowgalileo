@@ -46,7 +46,7 @@ from src.data.earthengine.eo_eval import (
 )
 from src.utils import masked_output_np_to_tensor, config_dir, device, DEFAULT_SEED
 from src.eval.eval import EvalTask, Hyperparams, model_class_name
-from src.eval.finetune import get_finetune_results
+from src.eval.patch_predict import get_finetune_results, get_linear_probe_results
 from sklearn.base import BaseEstimator
 from src.flexipresto import Encoder
 from sklearn.metrics import accuracy_score
