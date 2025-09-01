@@ -2073,6 +2073,12 @@ class LandsatEval(EvalTask):
             results = get_finetune_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name, num_finetune_epochs=self.num_finetune_epochs)
             return results
         else:
+            test_dl = self.get_test_dl()
+            loaders_dict = {"train": train_dl, "test": test_dl}
+            results = get_linear_probe_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name)
+            return results
+
+            """
             if model_modes is None:
                 model_modes = self.all_regression_sklearn_models
             for model_mode in model_modes:
@@ -2093,6 +2099,7 @@ class LandsatEval(EvalTask):
             else:
                 raise ValueError(f"Unknown evaluation mode: {self.evaluation_mode}")
         return {"results": "Visualizations saved to disk."}
+        """
 
 
 if __name__ == "__main__":
