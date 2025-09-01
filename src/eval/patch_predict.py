@@ -183,21 +183,7 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False,
 
 
             with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-                (
-                    s_t_h_x,
-                    s_t_m_x,
-                    s_t_l_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_h_m,
-                    s_t_m_m,
-                    s_t_l_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                    months,
-                ) = finetuned_encoder(
+                logits = finetuned_encoder(
                     s_t_h_x,
                     s_t_m_x,
                     s_t_l_x,
@@ -215,36 +201,13 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False,
                     patch_size_med_res=1,
                     patch_size_low_res=1,
                 )
-                logits = finetuned_encoder.apply_mask_and_average_tokens_per_patch(
-                    s_t_h_x,
-                    s_t_m_x,
-                    s_t_l_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_h_m,
-                    s_t_m_m,
-                    s_t_l_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                )
                 spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
                 logits = rearrange(
                     logits,
-                    "b (h w) (c i j) -> b c (h i) (w j)",
+                    "b (h w) -> b h w",
                     h=spatial_patches_per_dim,
                     w=spatial_patches_per_dim,
-                    c=num_classes,
-                    i=1,
-                    j=1,
                 )
-                logits = F.interpolate(
-                    logits.float(),
-                    size=(labels.shape[-2], labels.shape[-1]),
-                    mode="bilinear",
-                    align_corners=True,
-                )  # (bsz, num_classes, H, W)
                 loss = loss_function(logits, labels.to(device))
 
             (loss / grad_accum).backward()
@@ -292,21 +255,7 @@ def evaluate_seg(data_loader, finetuned_encoder, device, num_classes=1, patch_si
             ) = [t.to(device) for t in masked_output]
 
             with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-                (
-                    s_t_h_x,
-                    s_t_m_x,
-                    s_t_l_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_h_m,
-                    s_t_m_m,
-                    s_t_l_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                    months,
-                ) = finetuned_encoder(
+                logits = finetuned_encoder(
                     s_t_h_x,
                     s_t_m_x,
                     s_t_l_x,
@@ -324,40 +273,19 @@ def evaluate_seg(data_loader, finetuned_encoder, device, num_classes=1, patch_si
                     patch_size_med_res=1,
                     patch_size_low_res=1,
                 )
-                logits = finetuned_encoder.apply_mask_and_average_tokens_per_patch(
-                    s_t_h_x,
-                    s_t_m_x,
-                    s_t_l_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_h_m,
-                    s_t_m_m,
-                    s_t_l_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                )
                 spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
                 logits = rearrange(
                     logits,
-                    "b (h w) (c i j) -> b c (h i) (w j)",
+                    "b (h w) -> b h w",
                     h=spatial_patches_per_dim,
                     w=spatial_patches_per_dim,
-                    c=num_classes,
-                    i=1,
-                    j=1,
                 )
-                logits = F.interpolate(
-                    logits.float(),
-                    size=(labels.shape[-2], labels.shape[-1]),
-                    mode="bilinear",
-                    align_corners=True,
-                )  # (bsz, num_classes, H, W)
 
-            preds = torch.argmax(logits, dim=1).cpu()
-            all_preds.append(preds)
-            all_labels.append(labels)
+            # check that all predictions are between 0 and 1
+            assert logits.min() >= 0 and logits.max() <= 1
+
+            all_preds.append(logits.cpu())
+            all_labels.append(labels.cpu())
 
     all_preds = torch.cat(all_preds)
     all_labels = torch.cat(all_labels)
