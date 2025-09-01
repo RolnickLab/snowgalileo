@@ -26,6 +26,7 @@ argparser.add_argument("--encoder_type", type=str, default="snowgalileo", choice
 argparser.add_argument("--finetune", dest="finetune", action="store_true", help="Whether to finetune the model, else linear probe.")
 argparser.add_argument("--eval_mode", type=str, default="evaluate", choices=["evaluate", "visualize_predictions", "visualize_predictions_best_worst"])
 argparser.add_argument("--resample", action="store_true", help="Whether to use oversampling.")
+argparser.add_argument("--num_finetune_epochs", type=int, default=50, help="Number of epochs to finetune for.")
 args = argparser.parse_args().__dict__
 
 if args["encoder_type"] == "gabis_galileo":
@@ -41,7 +42,7 @@ else:
 
 eval_tasks: List[EvalTask] = [
     # geobench EuroSat only works without latlons
-    *[LandsatEval(exclude_prediction_high_res=high, evaluation_mode=args["eval_mode"], resample=args["resample"], finetune=args["finetune"]) for high in [True, False]],
+    *[LandsatEval(exclude_prediction_high_res=high, evaluation_mode=args["eval_mode"], resample=args["resample"], finetune=args["finetune"], num_finetune_epochs=args["num_finetune_epochs"]) for high in [True, False]],
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(

@@ -47,11 +47,11 @@ class EncoderWithHead(nn.Module):
         return output
 
 
-def finetune_and_eval_seg(lr, loaders, encoder, device):
+def finetune_and_eval_seg(lr, loaders, encoder, device, num_finetune_epochs=50):
     finetuned_encoder = finetune_seg(
         data_loader=loaders["train"],
         lr=lr,
-        epochs=50,
+        epochs=num_finetune_epochs,
         encoder=encoder,
         device=device,
         freeze_encoder=False,
@@ -110,13 +110,13 @@ def get_finetune_results_with_val(loaders, encoder, num_runs, device):
 
     return final_tests
 
-def get_finetune_results(loaders, encoder, num_runs, device):
+def get_finetune_results(loaders, encoder, num_runs, device, num_finetune_epochs):
     final_tests = []  # chosen using LR with best val, for each run
     for _ in range(num_runs):
         tests = []
         for lr in FT_LRs:
             test = finetune_and_eval_seg(
-                lr=lr, loaders=loaders, encoder=encoder, device=device
+                lr=lr, loaders=loaders, encoder=encoder, device=device, num_finetune_epochs=num_finetune_epochs
             )
             tests.append(test)
 
@@ -203,7 +203,7 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False,
                 )
                 spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
                 logits = rearrange(
-                    logits,
+                    torch.squeeze(logits),
                     "b (h w) -> b h w",
                     h=spatial_patches_per_dim,
                     w=spatial_patches_per_dim,
@@ -275,7 +275,7 @@ def evaluate_seg(data_loader, finetuned_encoder, device, num_classes=1, patch_si
                 )
                 spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
                 logits = rearrange(
-                    logits,
+                    torch.squeeze(logits),
                     "b (h w) -> b h w",
                     h=spatial_patches_per_dim,
                     w=spatial_patches_per_dim,

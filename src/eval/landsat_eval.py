@@ -1500,6 +1500,7 @@ class LandsatEval(EvalTask):
         evaluation_mode: str = "evaluate",
         resample: bool = False,
         finetune: bool = False,
+        num_finetune_epochs: int = 50,
     ):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
@@ -1508,6 +1509,7 @@ class LandsatEval(EvalTask):
         self.evaluation_mode = evaluation_mode
         self.resample = resample
         self.finetune = finetune
+        self.num_finetune_epochs = num_finetune_epochs
 
         super().__init__(self.patch_size_high_res, seed)
         self.name = (
@@ -2068,7 +2070,7 @@ class LandsatEval(EvalTask):
         if self.finetune:
             test_dl = self.get_test_dl()
             loaders_dict = {"train": train_dl, "test": test_dl}
-            test_miou = get_finetune_results(loaders_dict, pretrained_model, num_runs=1, device=device)
+            test_miou = get_finetune_results(loaders_dict, pretrained_model, num_runs=1, device=device, num_finetune_epochs=self.num_finetune_epochs)
             print(f"Finetuning test mIoU: {test_miou}")
         else:
             if model_modes is None:
