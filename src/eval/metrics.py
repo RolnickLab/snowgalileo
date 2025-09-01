@@ -8,7 +8,7 @@ def class_wise_f1(y_pred, y_true, num_classes):
 
 
 def mean_iou(
-    predictions: torch.Tensor, labels: torch.Tensor, num_classes: int, ignore_label: int = -1
+    predictions: np.ndarray, labels: np.ndarray, num_classes: int, ignore_label: int = -1
 ):
     """
     Calculate mean IoU given prediction and label tensors, ignoring pixels with a specific label.
@@ -22,13 +22,10 @@ def mean_iou(
     Returns:
     float: Mean IoU across all classes
     """
-    # Ensure inputs are on the same device
-    device = predictions.device
-    labels = labels.to(device)
 
     # Initialize tensors to store intersection and union for each class
-    intersection = torch.zeros(num_classes, device=device)
-    union = torch.zeros(num_classes, device=device)
+    intersection = np.zeros(num_classes)
+    union = np.zeros(num_classes)
 
     # Create a mask for valid pixels (i.e., not ignore_label)
     valid_mask = labels != ignore_label
@@ -40,8 +37,8 @@ def mean_iou(
         label_mask = (labels == class_id) & valid_mask
 
         # Calculate intersection and union
-        intersection[class_id] = (pred_mask & label_mask).sum().float()
-        union[class_id] = (pred_mask | label_mask).sum().float()
+        intersection[class_id] = (pred_mask & label_mask).sum()
+        union[class_id] = (pred_mask | label_mask).sum()
 
     # Calculate IoU for each class
     iou = intersection / (union + 1e-8)  # Add small epsilon to avoid division by zero
@@ -50,4 +47,4 @@ def mean_iou(
     valid_classes = union > 0
     mean_iou = iou[valid_classes].mean()
 
-    return mean_iou.item()
+    return mean_iou
