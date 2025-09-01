@@ -183,7 +183,21 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False,
 
 
             with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-                logits = finetuned_encoder(
+                (
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                ) = finetuned_encoder(
                     s_t_h_x,
                     s_t_m_x,
                     s_t_l_x,
@@ -200,6 +214,20 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False,
                     patch_size_high_res=patch_size_high_res,
                     patch_size_med_res=1,
                     patch_size_low_res=1,
+                )
+                logits = finetuned_encoder.apply_mask_and_average_tokens_per_patch(
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
                 )
                 spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
                 logits = rearrange(
@@ -264,7 +292,21 @@ def evaluate_seg(data_loader, finetuned_encoder, device, num_classes=1, patch_si
             ) = [t.to(device) for t in masked_output]
 
             with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-                logits = finetuned_encoder(
+                (
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                ) = finetuned_encoder(
                     s_t_h_x,
                     s_t_m_x,
                     s_t_l_x,
@@ -281,6 +323,20 @@ def evaluate_seg(data_loader, finetuned_encoder, device, num_classes=1, patch_si
                     patch_size_high_res=patch_size_high_res,
                     patch_size_med_res=1,
                     patch_size_low_res=1,
+                )
+                logits = finetuned_encoder.apply_mask_and_average_tokens_per_patch(
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
                 )
                 spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
                 logits = rearrange(
