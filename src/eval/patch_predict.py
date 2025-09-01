@@ -268,7 +268,7 @@ def compute_segmentation_metrics(identifier: str, preds: np.ndarray, target: np.
         bs = ""
 
     return {
-        f"{bs}{identifier}_rmse": mean_iou(preds, target, num_classes=10),
+        f"{bs}{identifier}_miou": mean_iou(preds, target, num_classes=10),
     }
 
 def evaluate_seg(data_loader, finetuned_encoder, device, identifier, patch_size_high_res=10):
