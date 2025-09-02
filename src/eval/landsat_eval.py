@@ -31,16 +31,16 @@ from src.data.config import (
     NORMALIZATION_DICT_FILENAME,
     MODALITIES,
 )
-from galileo.src.data.dataset import SPACE_BANDS as GALILEO_SPACE_BANDS
-from galileo.src.data.dataset import STATIC_BANDS as GALILEO_STATIC_BANDS
-from galileo.src.data.dataset import TIME_BANDS as GALILEO_TIME_BANDS
-from galileo.src.data.dataset import SPACE_TIME_BANDS as GALILEO_SPACE_TIME_BANDS
-from galileo.src.data.dataset import SPACE_BAND_GROUPS_IDX as GALILEO_SPACE_BANDS_GROUPS_IDX
-from galileo.src.data.dataset import STATIC_BAND_GROUPS_IDX as GALILEO_STATIC_BANDS_GROUPS_IDX
-from galileo.src.data.dataset import TIME_BAND_GROUPS_IDX as GALILEO_TIME_BANDS_GROUPS_IDX
-from galileo.src.data.dataset import SPACE_TIME_BANDS_GROUPS_IDX as GALILEO_SPACE_TIME_BANDS_GROUPS_IDX
-from galileo.src.data.dataset import NUM_TIMESTEPS as GALILEO_TIMESTEPS
-from galileo.src.data.dataset import DATASET_OUTPUT_HW as GALILEO_HW
+#from galileo.src.data.dataset import SPACE_BANDS as GALILEO_SPACE_BANDS
+#from galileo.src.data.dataset import STATIC_BANDS as GALILEO_STATIC_BANDS
+#from galileo.src.data.dataset import TIME_BANDS as GALILEO_TIME_BANDS
+#from galileo.src.data.dataset import SPACE_TIME_BANDS as GALILEO_SPACE_TIME_BANDS
+#from galileo.src.data.dataset import SPACE_BAND_GROUPS_IDX as GALILEO_SPACE_BANDS_GROUPS_IDX
+#from galileo.src.data.dataset import STATIC_BAND_GROUPS_IDX as GALILEO_STATIC_BANDS_GROUPS_IDX
+#from galileo.src.data.dataset import TIME_BAND_GROUPS_IDX as GALILEO_TIME_BANDS_GROUPS_IDX
+#from galileo.src.data.dataset import SPACE_TIME_BANDS_GROUPS_IDX as GALILEO_SPACE_TIME_BANDS_GROUPS_IDX
+#from galileo.src.data.dataset import NUM_TIMESTEPS as GALILEO_TIMESTEPS
+#from galileo.src.data.dataset import DATASET_OUTPUT_HW as GALILEO_HW
 
 from src.data.dataset import DatasetOutput, Normalizer, to_cartesian
 from src.data.earthengine.eo_eval import (
@@ -68,7 +68,6 @@ logger = logging.getLogger("__main__")
 
 with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval.json")).open("r") as f:
     config = json.load(f)
-
 
 # TODO: Adjust to Galileo dataset specifics
 class LandsatEvalDatasetGalileo(PyTorchDataset):
