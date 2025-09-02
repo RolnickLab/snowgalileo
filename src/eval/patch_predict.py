@@ -271,7 +271,7 @@ def compute_segmentation_metrics(identifier: str, preds: np.ndarray, target: np.
         f"{bs}{identifier}_miou": mean_iou(preds, target, num_classes=10),
     }
 
-def evaluate_seg(data_loader, finetuned_encoder, device, identifier, patch_size_high_res=10):
+def evaluate_seg(data_loader, finetuned_encoder, device, identifier, trained_sklearn_models,patch_size_high_res=10):
     finetuned_encoder = finetuned_encoder.eval()
 
     all_preds_1D = []
@@ -300,8 +300,32 @@ def evaluate_seg(data_loader, finetuned_encoder, device, identifier, patch_size_
                 months,
             ) = [t.to(device) for t in masked_output]
 
-            with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-                logits = finetuned_encoder(
+            #with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+            logits = finetuned_encoder(
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+                months,
+                patch_size_high_res=patch_size_high_res,
+                patch_size_med_res=1,
+                patch_size_low_res=1,
+            )
+
+            # check that all predictions are between 0 and 1
+            #assert logits.min() >= 0 and logits.max() <= 1
+
+            ####
+            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, _ = logits
+            logits = finetuned_encoder.apply_mask_and_average_tokens_per_patch(
                     s_t_h_x,
                     s_t_m_x,
                     s_t_l_x,
@@ -314,14 +338,8 @@ def evaluate_seg(data_loader, finetuned_encoder, device, identifier, patch_size_
                     sp_m,
                     t_m,
                     st_m,
-                    months,
-                    patch_size_high_res=patch_size_high_res,
-                    patch_size_med_res=1,
-                    patch_size_low_res=1,
                 )
-
-            # check that all predictions are between 0 and 1
-            assert logits.min() >= 0 and logits.max() <= 1
+            ####
 
             all_preds_1D.append(rearrange(torch.squeeze(logits), "b s -> (b s)").float().cpu().numpy())
             all_labels_1D.append(rearrange(labels, "b h w -> (b h w)").float().cpu().numpy())
@@ -341,6 +359,9 @@ def evaluate_seg(data_loader, finetuned_encoder, device, identifier, patch_size_
     all_preds_1D = np.concatenate(all_preds_1D)
     baseline_preds_1D = np.zeros_like(all_preds_1D)
     all_labels_1D = np.concatenate(all_labels_1D)
+
+    ###NOTE: remove later
+    all_preds_1D = trained_sklearn_models.predict(all_preds_1D)
 
     # create 10 bins for multi-class classification
     multi_class_bins = np.linspace(0.1, 1, 9)

@@ -31,6 +31,17 @@ from src.data.config import (
     NORMALIZATION_DICT_FILENAME,
     MODALITIES,
 )
+from galileo.src.data.dataset import SPACE_BANDS as GALILEO_SPACE_BANDS
+from galileo.src.data.dataset import STATIC_BANDS as GALILEO_STATIC_BANDS
+from galileo.src.data.dataset import TIME_BANDS as GALILEO_TIME_BANDS
+from galileo.src.data.dataset import SPACE_TIME_BANDS as GALILEO_SPACE_TIME_BANDS
+from galileo.src.data.dataset import SPACE_BAND_GROUPS_IDX as GALILEO_SPACE_BANDS_GROUPS_IDX
+from galileo.src.data.dataset import STATIC_BAND_GROUPS_IDX as GALILEO_STATIC_BANDS_GROUPS_IDX
+from galileo.src.data.dataset import TIME_BAND_GROUPS_IDX as GALILEO_TIME_BANDS_GROUPS_IDX
+from galileo.src.data.dataset import SPACE_TIME_BANDS_GROUPS_IDX as GALILEO_SPACE_TIME_BANDS_GROUPS_IDX
+from galileo.src.data.dataset import NUM_TIMESTEPS as GALILEO_TIMESTEPS
+from galileo.src.data.dataset import DATASET_OUTPUT_HW as GALILEO_HW
+
 from src.data.dataset import DatasetOutput, Normalizer, to_cartesian
 from src.data.earthengine.eo_eval import (
     EO_SPACE_TIME_LOW_RES_BANDS,
@@ -332,13 +343,12 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
         ]
         time_x = np.nanmean(time_x, axis=(0, 1))
 
-        # TODO: change this to use high res channels or remove
         # NDVI = (NIR - Red) / (NIR + Red)
         if MODALITIES["ndvi"].get("active"):
-            ndvi = cls.calculate_ndi(
-                space_time_low_res_x, band_1="sur_refl_b02", band_2="sur_refl_b01"
+            ndvi = cls.calculate_ndi_high_res(
+                space_time_high_res_x, band_1="B8", band_2="B4"
             )
-            space_time_low_res_x = np.concatenate((space_time_low_res_x, ndvi), axis=-1)
+            space_time_high_res_x = np.concatenate((space_time_high_res_x, ndvi), axis=-1)
 
         space_x = rearrange(
             values[-len(SPACE_BANDS) :],
@@ -349,7 +359,7 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
         static_x = to_cartesian(lat, lon)
         static_x = cls._check_and_fillna(static_x, np.array(STATIC_BANDS))
 
-        months = cls.month_array_from_file(tif_path, int(num_timesteps))
+        months = cls.month_array_from_file(tif_path, int(GALILEO_TIMESTEPS))
 
         (
             valid_data_mask_s_t_h,
@@ -363,25 +373,36 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
             static_x,
         )
 
+        galileo_s_t_x = torch.empty((GALILEO_HW, GALILEO_HW, GALILEO_TIMESTEPS, GALILEO_SPACE_TIME_BANDS))
+        galileo_sp_x = torch.empty((GALILEO_HW, GALILEO_HW, GALILEO_SPACE_BANDS))
+        galileo_t_x = torch.empty((GALILEO_TIMESTEPS, GALILEO_TIME_BANDS))
+        galileo_st_x = torch.empty((GALILEO_STATIC_BANDS,))
+
+        # empty bands should have a mask of one
+        galileo_s_t_m = torch.empty((GALILEO_HW, GALILEO_HW, GALILEO_TIMESTEPS, len(GALILEO_SPACE_TIME_BANDS_GROUPS_IDX)))
+        galileo_sp_m = torch.empty((GALILEO_HW, GALILEO_HW, len(GALILEO_SPACE_BANDS_GROUPS_IDX)))
+        galileo_t_m = torch.empty((GALILEO_TIMESTEPS, len(GALILEO_TIME_BANDS_GROUPS_IDX)))
+        galileo_st_m = torch.empty((len(GALILEO_STATIC_BANDS_GROUPS_IDX),))
+
         try:
-            assert not np.isnan(space_time_high_res_x).any(), f"NaNs in s_t_h_x for {tif_path}"
-            assert not np.isnan(space_x).any(), f"NaNs in sp_x for {tif_path}"
-            assert not np.isnan(time_x).any(), f"NaNs in t_x for {tif_path}"
-            assert not np.isnan(static_x).any(), f"NaNs in st_x for {tif_path}"
-            assert not np.isinf(space_time_high_res_x).any(), f"Infs in s_t_h_x for {tif_path}"
-            assert not np.isinf(space_x).any(), f"Infs in sp_x for {tif_path}"
-            assert not np.isinf(time_x).any(), f"Infs in t_x for {tif_path}"
-            assert not np.isinf(static_x).any(), f"Infs in st_x for {tif_path}"
-            return DatasetOutput(
-                space_time_high_res_x,
-                space_x,
-                time_x,
-                static_x,
-                months,
-                valid_data_mask_s_t_h,
-                valid_data_mask_sp,
-                valid_data_mask_t,
-                valid_data_mask_st,
+            assert not np.isnan(galileo_s_t_x).any(), f"NaNs in s_t_h_x for {tif_path}"
+            assert not np.isnan(galileo_sp_x).any(), f"NaNs in sp_x for {tif_path}"
+            assert not np.isnan(galileo_t_x).any(), f"NaNs in t_x for {tif_path}"
+            assert not np.isnan(galileo_st_x).any(), f"NaNs in st_x for {tif_path}"
+            assert not np.isinf(galileo_s_t_x).any(), f"Infs in s_t_h_x for {tif_path}"
+            assert not np.isinf(galileo_sp_x).any(), f"Infs in sp_x for {tif_path}"
+            assert not np.isinf(galileo_t_x).any(), f"Infs in t_x for {tif_path}"
+            assert not np.isinf(galileo_st_x).any(), f"Infs in st_x for {tif_path}"
+            return (
+                galileo_s_t_x,
+                galileo_sp_x,
+                galileo_t_x,
+                galileo_st_x,
+                galileo_s_t_m,
+                galileo_sp_m,
+                galileo_t_m,
+                galileo_st_m,
+                months.long(),
             )
         except AssertionError as e:
             raise e
@@ -526,7 +547,7 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
             hf.create_dataset("valid_data_mask_st", data=valid_data_mask_st)
 
     @staticmethod
-    def calculate_ndi(input_array: np.ndarray, band_1: str, band_2: str) -> np.ndarray:
+    def calculate_ndi_high_res(input_array: np.ndarray, band_1: str, band_2: str) -> np.ndarray:
         r"""
         Given an input array of shape [h, w, t, bands]
         where bands == len(EO_DYNAMIC_IN_TIME_BANDS_NP), returns an array of shape
@@ -535,11 +556,11 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
         """
 
         # TODO: make this dynamic instead
-        assert band_1 in SPACE_TIME_LOW_RES_BANDS
-        assert band_2 in SPACE_TIME_LOW_RES_BANDS
+        assert band_1 in SPACE_TIME_HIGH_RES_BANDS
+        assert band_2 in SPACE_TIME_HIGH_RES_BANDS
 
-        band_1_np = input_array[:, :, :, SPACE_TIME_LOW_RES_BANDS.index(band_1)]
-        band_2_np = input_array[:, :, :, SPACE_TIME_LOW_RES_BANDS.index(band_2)]
+        band_1_np = input_array[:, :, :, SPACE_TIME_HIGH_RES_BANDS.index(band_1)]
+        band_2_np = input_array[:, :, :, SPACE_TIME_HIGH_RES_BANDS.index(band_2)]
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message="invalid value encountered in divide")
@@ -551,7 +572,7 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
                 np.where(
                     (band_1_np + band_2_np) > 0,
                     (band_1_np - band_2_np) / (band_1_np + band_2_np),
-                    0,
+                    NO_DATA_VALUE,
                 ),
                 -1,
             )
@@ -2075,7 +2096,14 @@ class LandsatEval(EvalTask):
         else:
             test_dl = self.get_test_dl()
             loaders_dict = {"train": train_dl, "test": test_dl}
-            results = get_linear_probe_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name)
+
+            #### REMOVE LATER
+            trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
+            from src.eval.patch_predict import evaluate_seg
+            results = evaluate_seg(test_dl, pretrained_model, device, "test", trained_sklearn_models)  
+
+
+            #results = get_linear_probe_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name)
             return results
 
             """
