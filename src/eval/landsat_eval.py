@@ -42,7 +42,7 @@ from src.data.config import (
 #from galileo.src.data.dataset import NUM_TIMESTEPS as GALILEO_TIMESTEPS
 #from galileo.src.data.dataset import DATASET_OUTPUT_HW as GALILEO_HW
 
-from src.eval.landsat_bands import LANDSAT_SPACE_TIME_BANDS, LANDSAT_SPACE_BANDS, LANDSAT_TIME_BANDS, LANDSAT_STATIC_BANDS
+#from src.eval.landsat_bands import LANDSAT_SPACE_TIME_BANDS, LANDSAT_SPACE_BANDS, LANDSAT_TIME_BANDS, LANDSAT_STATIC_BANDS
 
 from src.data.dataset import DatasetOutput, Normalizer, to_cartesian
 from src.data.earthengine.eo_eval import (
@@ -71,6 +71,7 @@ logger = logging.getLogger("__main__")
 with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval.json")).open("r") as f:
     config = json.load(f)
 
+"""
 LANDSAT_SPACE_TIME_HIGH_RES_BANDS_TO_GALILEO_SPACE_TIME_BANDS = [LANDSAT_SPACE_TIME_BANDS.index(s) for s in GALILEO_SPACE_TIME_BANDS if s in LANDSAT_SPACE_TIME_BANDS]
 GALILEO_SPACE_TIME_BANDS_TO_LANDSAT_SPACE_TIME_HIGH_RES_BANDS = [idx for idx, s in enumerate(GALILEO_SPACE_TIME_BANDS) if s in LANDSAT_SPACE_TIME_BANDS]
 
@@ -82,6 +83,7 @@ GALILEO_TIME_BANDS_TO_LANDSAT_BANDS = [idx for idx, s in enumerate(GALILEO_TIME_
 
 LANDSAT_STATIC_BANDS_TO_GALILEO_STATIC_BANDS = [LANDSAT_STATIC_BANDS.index(s) for s in GALILEO_STATIC_BANDS if s in LANDSAT_STATIC_BANDS]
 GALILEO_STATIC_BANDS_TO_LANDSAT_STATIC_BANDS = [idx for idx, s in enumerate(GALILEO_STATIC_BANDS) if s in LANDSAT_STATIC_BANDS]
+"""
 
 # TODO: Adjust to Galileo dataset specifics
 class LandsatEvalDatasetGalileo(PyTorchDataset):
