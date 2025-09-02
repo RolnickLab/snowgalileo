@@ -42,6 +42,8 @@ from src.data.config import (
 #from galileo.src.data.dataset import NUM_TIMESTEPS as GALILEO_TIMESTEPS
 #from galileo.src.data.dataset import DATASET_OUTPUT_HW as GALILEO_HW
 
+from src.eval.landsat_bands import LANDSAT_SPACE_TIME_BANDS, LANDSAT_SPACE_BANDS, LANDSAT_TIME_BANDS, LANDSAT_STATIC_BANDS
+
 from src.data.dataset import DatasetOutput, Normalizer, to_cartesian
 from src.data.earthengine.eo_eval import (
     EO_SPACE_TIME_LOW_RES_BANDS,
@@ -68,6 +70,18 @@ logger = logging.getLogger("__main__")
 
 with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval.json")).open("r") as f:
     config = json.load(f)
+
+LANDSAT_SPACE_TIME_HIGH_RES_BANDS_TO_GALILEO_SPACE_TIME_BANDS = [LANDSAT_SPACE_TIME_BANDS.index(s) for s in GALILEO_SPACE_TIME_BANDS if s in LANDSAT_SPACE_TIME_BANDS]
+GALILEO_SPACE_TIME_BANDS_TO_LANDSAT_SPACE_TIME_HIGH_RES_BANDS = [idx for idx, s in enumerate(GALILEO_SPACE_TIME_BANDS) if s in LANDSAT_SPACE_TIME_BANDS]
+
+LANDSAT_SPACE_BANDS_TO_GALILEO_SPACE_BANDS = [LANDSAT_SPACE_BANDS.index(s) for s in GALILEO_SPACE_BANDS if s in LANDSAT_SPACE_BANDS]
+GALILEO_SPACE_BANDS_TO_LANDSAT_SPACE_BANDS = [idx for idx, s in enumerate(GALILEO_SPACE_BANDS) if s in LANDSAT_SPACE_BANDS]
+
+LANDSAT_TIME_BANDS_TO_GALILEO_TIME_BANDS = [LANDSAT_TIME_BANDS.index(s) for s in GALILEO_TIME_BANDS if s in LANDSAT_TIME_BANDS]
+GALILEO_TIME_BANDS_TO_LANDSAT_BANDS = [idx for idx, s in enumerate(GALILEO_TIME_BANDS) if s in LANDSAT_TIME_BANDS]
+
+LANDSAT_STATIC_BANDS_TO_GALILEO_STATIC_BANDS = [LANDSAT_STATIC_BANDS.index(s) for s in GALILEO_STATIC_BANDS if s in LANDSAT_STATIC_BANDS]
+GALILEO_STATIC_BANDS_TO_LANDSAT_STATIC_BANDS = [idx for idx, s in enumerate(GALILEO_STATIC_BANDS) if s in LANDSAT_STATIC_BANDS]
 
 # TODO: Adjust to Galileo dataset specifics
 class LandsatEvalDatasetGalileo(PyTorchDataset):
@@ -379,7 +393,7 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
 
         # empty bands should have a mask of one
         galileo_s_t_m = torch.empty((GALILEO_HW, GALILEO_HW, GALILEO_TIMESTEPS, len(GALILEO_SPACE_TIME_BANDS_GROUPS_IDX)))
-        galileo_sp_m = torch.empty((GALILEO_HW, GALILEO_HW, len(GALILEO_SPACE_BANDS_GROUPS_IDX)))
+        galileo_sp_m = torch.ones((GALILEO_HW, GALILEO_HW, len(GALILEO_SPACE_BANDS_GROUPS_IDX)))
         galileo_t_m = torch.empty((GALILEO_TIMESTEPS, len(GALILEO_TIME_BANDS_GROUPS_IDX)))
         galileo_st_m = torch.empty((len(GALILEO_STATIC_BANDS_GROUPS_IDX),))
 
@@ -618,6 +632,61 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
                 hf["valid_data_mask_st"][:],
             )
         return output
+    
+    @staticmethod
+    def subset_image(
+        space_time_x: np.ndarray,
+        space_x: np.ndarray,
+        time_x: np.ndarray,
+        static_x: np.ndarray,
+        months: np.ndarray,
+        size: int,
+        num_timesteps: int,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        space_time_x: array of shape [H, W, T, D]
+        space_x: array of shape [H, W, D]
+        time_x: array of shape [T, D]
+        static_x: array of shape [D]
+
+        size must be greater or equal to H & W
+        """
+        assert (space_time_x.shape[0] == space_x.shape[0]) & (
+            space_time_x.shape[1] == space_x.shape[1]
+        )
+        assert space_time_x.shape[2] == time_x.shape[0]
+        possible_h = space_time_x.shape[0] - size
+        possible_w = space_time_x.shape[1] - size
+        assert (possible_h >= 0) & (possible_w >= 0)
+        possible_t = space_time_x.shape[2] - num_timesteps
+        assert possible_t >= 0
+
+        if possible_h > 0:
+            start_h = np.random.choice(possible_h)
+        else:
+            start_h = possible_h
+
+        if possible_w > 0:
+            start_w = np.random.choice(possible_w)
+        else:
+            start_w = possible_w
+
+        if possible_t > 0:
+            start_t = np.random.choice(possible_t)
+        else:
+            start_t = possible_t
+
+        return (
+            space_time_x[
+                start_h : start_h + size,
+                start_w : start_w + size,
+                start_t : start_t + num_timesteps,
+            ],
+            space_x[start_h : start_h + size, start_w : start_w + size],
+            time_x[start_t : start_t + num_timesteps],
+            static_x,
+            months[start_t : start_t + num_timesteps],
+        )
 
     @staticmethod
     def load_normalization_values(path: Path):
@@ -640,34 +709,16 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
             t_x,
             st_x,
             month,
-            valid_data_mask_s_t_h,
+            valid_data_mask_s_t,
             valid_data_mask_sp,
             valid_data_mask_t,
             valid_data_mask_st,
         ) = h5py.normalize(self.normalizer)
 
-        s_t_h_m = np.logical_not(valid_data_mask_s_t_h)
+        s_t_m = np.logical_not(valid_data_mask_s_t)
         sp_m = np.logical_not(valid_data_mask_sp)
         t_m = np.logical_not(valid_data_mask_t)
         st_m = np.logical_not(valid_data_mask_st)
-
-        if self.exclude_prediction_date:
-            (
-                s_t_h_m,
-                sp_m,
-                t_m,
-                st_m,
-            ) = self.mask_prediction_timestep(s_t_h_m, sp_m, t_m, st_m)
-
-        if self.exclude_prediction_high_res:
-            (
-                s_t_h_m,
-                s_t_m_m,
-                s_t_l_m,
-                sp_m,
-                t_m,
-                st_m,
-            ) = self.mask_prediction_high_res(s_t_h_m, sp_m, t_m, st_m)
 
         label = self.label_tifs[idx]
         # TODO: optinally add conversion to h5pys for labels
@@ -676,7 +727,6 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
             # remove first dimension
             label = np.squeeze(label, axis=0)
             print(f"Label shape: {label.shape}", flush=True)
-
 
         # if assertion is triggered, go to the next tif file
         try:
@@ -2097,12 +2147,12 @@ class LandsatEval(EvalTask):
             loaders_dict = {"train": train_dl, "test": test_dl}
 
             #### REMOVE LATER
-            trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
-            from src.eval.patch_predict import evaluate_seg
-            results = evaluate_seg(test_dl, pretrained_model, device, "test", trained_sklearn_models)  
+            #trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
+            #from src.eval.patch_predict import evaluate_seg
+            #results = evaluate_seg(test_dl, pretrained_model, device, "test", trained_sklearn_models)  
 
 
-            #results = get_linear_probe_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name)
+            results = get_linear_probe_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name)
             return results
 
             """
