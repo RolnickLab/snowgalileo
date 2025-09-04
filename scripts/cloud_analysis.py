@@ -103,6 +103,78 @@ def get_cloud_state_modis(state: int) -> int:
         return 2
     elif cloud_state == "11":
         return 3
+    
+def get_cloud_state_landsat_bit(state: int, cloud_dict: dict) -> dict:
+
+    qa_bin = format(state, ">016b")
+
+    if qa_bin[0] == "0":
+        cloud_dict["fill"]["image"] += 1
+    else:
+        cloud_dict["fill"]["fill"] += 1
+    
+    if qa_bin[1] == "0":
+        cloud_dict["dilated cloud"]["not dilated or no cloud"] += 1
+    else:
+        cloud_dict["dilated cloud"]["cloud dilation"] += 1
+    if qa_bin[2] == "0":
+        cloud_dict["cirrus"]["not dilated or no cloud"] += 1
+    else:
+        cloud_dict["cirrus"]["cloud dilation"] += 1
+    if qa_bin[3] == "0":
+        cloud_dict["cloud"]["not high confidence cloud"] += 1
+    else:
+        cloud_dict["cloud"]["high confidence cloud"] += 1
+    if qa_bin[4] == "0":
+        cloud_dict["cloud shadow"]["not high confidence cloud shadow"] += 1
+    else:
+        cloud_dict["cloud shadow"]["high confidence cloud shadow"] += 1
+    if qa_bin[5] == "0":
+        cloud_dict["snow"]["not high confidence snow"] += 1
+    else:
+        cloud_dict["snow"]["high confidence snow"] += 1
+    if qa_bin[6] == "0":
+        cloud_dict["clear"]["dilated cloud or cloud are set"] += 1
+    else:
+        cloud_dict["clear"]["dilated cloud or cloud are not set"] += 1
+    if qa_bin[7] == "0":
+        cloud_dict["water"]["land or cloud"] += 1
+    else:
+        cloud_dict["water"]["water"] += 1
+    if qa_bin[8:10] == "00":
+        cloud_dict["cloud confidence"]["no confidence set"] += 1
+    elif qa_bin[8:10] == "01":
+        cloud_dict["cloud confidence"]["low confidence"] += 1
+    elif qa_bin[8:10] == "10":
+        cloud_dict["cloud confidence"]["medium confidence"] += 1
+    elif qa_bin[8:10] == "11":
+        cloud_dict["cloud confidence"]["high confidence"] += 1
+    if qa_bin[10:12] == "00":
+        cloud_dict["cloud shadow confidence"]["no confidence set"] += 1
+    elif qa_bin[10:12] == "01":
+        cloud_dict["cloud shadow confidence"]["low confidence"] += 1
+    elif qa_bin[10:12] == "10":
+        cloud_dict["cloud shadow confidence"]["reserved"] += 1
+    elif qa_bin[10:12] == "11":
+        cloud_dict["cloud shadow confidence"]["high confidence"] += 1
+    if qa_bin[12:14] == "00":
+        cloud_dict["snow/ice confidence"]["no confidence set"] += 1
+    elif qa_bin[12:14] == "01":
+        cloud_dict["snow/ice confidence"]["low confidence"] += 1
+    elif qa_bin[12:14] == "10":
+        cloud_dict["snow/ice confidence"]["reserved"] += 1
+    elif qa_bin[12:14] == "11":
+        cloud_dict["snow/ice confidence"]["high confidence"] += 1
+    if qa_bin[14:16] == "00":
+        cloud_dict["cirrus confidence"]["no confidence set"] += 1
+    elif qa_bin[14:16] == "01":
+        cloud_dict["cirrus confidence"]["low confidence"] += 1
+    elif qa_bin[14:16] == "10":
+        cloud_dict["cirrus confidence"]["reserved"] += 1
+    elif qa_bin[14:16] == "11":
+        cloud_dict["cloud shadow confidence"]["high confidence"] += 1
+
+    return cloud_dict
 
 def get_cloud_state_landsat(state: int) -> str:
     if state == 21824:
@@ -220,6 +292,21 @@ def main():
                             "high conf snow/ice": 0, "high conf cirrus": 0, "cirrus, mid cloud": 0,
                             "cirrus, high cloud": 0, "unknown": 0}
 
+    landsat_cloud_dict = {
+        "fill": {"image": 0, "fill": 0},
+        "dilated cloud": {"not dilated or no cloud": 0, "cloud dilation": 0},
+        "cirrus": {"not dilated or no cloud": 0, "cloud dilation": 0},
+        "cloud": {"not high confidence cloud": 0, "high confidence cloud": 0},
+        "cloud shadow": {"not high confidence cloud shadow": 0, "high confidence cloud shadow": 0},
+        "snow": {"not high confidence snow": 0, "high confidence snow": 0},
+        "clear": {"dilated cloud or cloud are set": 0, "dilated cloud or cloud are not set": 0},
+        "water": {"land or cloud": 0, "water": 0},
+        "cloud confidence": {"no confidence set": 0, "low confidence": 0, "medium confidence": 0, "high confidence": 0},
+        "cloud shadow confidence": {"no confidence set": 0, "low confidence": 0, "reserved": 0, "high confidence": 0},
+        "snow/ice confidence": {"no confidence set": 0, "low confidence": 0, "reserved": 0, "high confidence": 0},
+        "cirrus confidence": {"no confidence set": 0, "low confidence": 0, "reserved": 0, "high confidence": 0},
+    }
+
     num_samples = 3000
 
     all_files = [f for f in os.listdir(tifs_folder) if f.endswith(".tif")]
@@ -252,6 +339,7 @@ def main():
                         landsat_cloud_map = get_cloud_state_landsat(landsat_qa_state)
                         if landsat_cloud_map in landsat_cloud_counts:
                             landsat_cloud_counts[landsat_cloud_map] += 1
+                        landsat_cloud_dict = get_cloud_state_landsat_bit(landsat_qa_state, landsat_cloud_dict)
 
                 print(f"Processed {tif_path}")
             except Exception as e:
@@ -262,6 +350,7 @@ def main():
         print(f"Landsat cloud counts: {landsat_cloud_counts}")
         landsat_cloud_map = np.array([count for count in landsat_cloud_counts.values()])
         print(f"Landsat cloud map: {landsat_cloud_map}")
+        print(f"Landsat cloud dict: {landsat_cloud_dict}")
     elif args["satellite"] == "modis":
         print(f"Modis cloud counts: {modis_cloud_counts}")
         modis_cloud_map = np.array(
