@@ -796,12 +796,12 @@ class LandsatEvalDataset(PyTorchDataset):
         t_m = torch.zeros((self.output_timesteps, len(TIME_BANDS_GROUPS_IDX)))
         st_m = torch.zeros((len(STATIC_BAND_GROUPS_IDX),))
 
-        invalid_data_mask_s_t_h = np.logical_not(valid_data_mask_s_t_h)
-        invalid_data_mask_s_t_m = np.logical_not(valid_data_mask_s_t_m)
-        invalid_data_mask_s_t_l = np.logical_not(valid_data_mask_s_t_l)
-        invalid_data_mask_sp = np.logical_not(valid_data_mask_sp)
-        invalid_data_mask_t = np.logical_not(valid_data_mask_t)
-        invalid_data_mask_st = np.logical_not(valid_data_mask_st)
+        invalid_data_mask_s_t_h = torch.as_tensor(np.logical_not(valid_data_mask_s_t_h))
+        invalid_data_mask_s_t_m = torch.as_tensor(np.logical_not(valid_data_mask_s_t_m))
+        invalid_data_mask_s_t_l = torch.as_tensor(np.logical_not(valid_data_mask_s_t_l))
+        invalid_data_mask_sp = torch.as_tensor(np.logical_not(valid_data_mask_sp))
+        invalid_data_mask_t = torch.as_tensor(np.logical_not(valid_data_mask_t))
+        invalid_data_mask_st = torch.as_tensor(np.logical_not(valid_data_mask_st))
 
         cg_mask_s_t_h, cg_mask_s_t_m, cg_mask_s_t_l, cg_mask_sp, cg_mask_t, cg_mask_st = (
             _aggregate_mask_per_channel_group(
