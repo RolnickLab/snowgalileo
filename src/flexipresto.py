@@ -1270,13 +1270,6 @@ class Encoder(FlexiPrestoBase):
         # We create an output of tokens of shape (batch size, num_tokens, token_dim), where masked tokens are removed.
         # tokens are in high resolution. We upsample med and low resolution tokens and then take the mean per spatial patch, to incorporate them into the high resolution tokens.
 
-
-        ### pad medium resolution tokens to be able to fit them into the high resolution tokens.
-        #s_t_m_x = torch.concatenate([s_t_m_x, s_t_m_x[:, -1:, :, :, :, :]], dim=1)
-        #s_t_m_x = torch.concatenate([s_t_m_x, s_t_m_x[:, :, -1:, :, :, :]], dim=2)
-        #s_t_m_m = torch.concatenate([s_t_m_m, s_t_m_m[:, -1:, :, :, :]], dim=1)
-        #s_t_m_m = torch.concatenate([s_t_m_m, s_t_m_m[:, :, -1:, :, :]], dim=2)
-
         p_m = s_t_h_x.shape[1] // s_t_m_x.shape[1]
         p_l = s_t_h_x.shape[1] // s_t_l_x.shape[1]
 

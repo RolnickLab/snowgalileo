@@ -799,6 +799,7 @@ class Dataset(PyTorchDataset):
         )
 
         # for downsampling, the arrays need to be in divisible shape so we do it after cropping
+        # this is also why we use target shape (5, 5) for medium resolution
         space_time_med_res_x, valid_data_mask_s_t_m = cls.downsample_dynamic_in_time_with_mean(
             space_time_med_res_x,
             valid_data_mask_s_t_m,
