@@ -638,6 +638,7 @@ class EarthEngineExporterEval:
     def export_from_filename_for_folder(
         self,
         folder: str = MASK_FOLDER,
+        start_idx: int = 0,
     ) -> None:
         """
         Export boxes with length and width EXPORTED_HEIGHT_WIDTH_METRES
@@ -663,6 +664,7 @@ class EarthEngineExporterEval:
             lon = parts[4]
             filenames.append(filename)
 
+        filenames = sorted(filenames)[start_idx:]
         exports_started = 0
         print(f"Exporting {len(filenames)} latlons: ")
 

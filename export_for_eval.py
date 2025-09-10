@@ -16,11 +16,12 @@ argparser.add_argument("--tifs_folder", type=str, default="landsat_eval_tifs/100
 argparser.add_argument(
     "--mask_folder", type=str, default="landsat_eval_masks/all/100m_mask_global"
 )
+argparser.add_argument("--start_idx", type=int, default=0)
 args = argparser.parse_args().__dict__
 
 exporter = EarthEngineExporterEval(
     check_gcp=args["check_gcp"], mode=args["mode"], tifs_folder=args["tifs_folder"]
 )
 exporter.export_from_filename_for_folder(
-    folder=args["mask_folder"],
+    folder=args["mask_folder"], start_idx=args["start_idx"]
 )
