@@ -85,7 +85,7 @@ class LandsatEvalDataset(PyTorchDataset):
         self.label_folder = DATA_FOLDER / config["label_folder"] / self.split
         self.input_tif_folder = DATA_FOLDER / config["input_tif_folder"] / self.split
 
-        if self.split != "visualize":
+        if self.split != "visualize" and self.split != "":
             self.h5py_folder = DATA_FOLDER / config["input_h5py_folder"] / self.split
         else:
             self.h5py_folder = None
