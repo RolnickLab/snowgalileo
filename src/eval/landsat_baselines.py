@@ -11,6 +11,7 @@ import xarray as xr
 import h5py
 from einops import rearrange, repeat
 from tqdm import tqdm
+from typing import NamedTuple
 
 from src.data.config import (
     DATA_FOLDER,
