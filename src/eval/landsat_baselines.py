@@ -11,7 +11,8 @@ import xarray as xr
 import h5py
 from einops import rearrange, repeat
 from tqdm import tqdm
-from typing import NamedTuple
+from typing import NamedTuple, Dict
+from copy import deepcopy
 
 from src.data.config import (
     DATA_FOLDER,
@@ -30,8 +31,21 @@ from galileo.src.data.dataset import TIME_BAND_GROUPS_IDX as GALILEO_TIME_BANDS_
 from galileo.src.data.dataset import SPACE_TIME_BANDS_GROUPS_IDX as GALILEO_SPACE_TIME_BANDS_GROUPS_IDX
 from galileo.src.data.dataset import NUM_TIMESTEPS as GALILEO_TIMESTEPS
 from galileo.src.data.dataset import DATASET_OUTPUT_HW as GALILEO_HW
+from galileo.src.data.dataset import SRTM_BANDS, LANDSCAN_BANDS
+from galileo.src.data.dataset import (
+    SPACE_SHIFT_VALUES as GALILEO_SPACE_SHIFT_VALUES,
+    SPACE_DIV_VALUES as GALILEO_SPACE_DIV_VALUES,
+    TIME_SHIFT_VALUES as GALILEO_TIME_SHIFT_VALUES,
+    TIME_DIV_VALUES as GALILEO_TIME_DIV_VALUES,
+    STATIC_SHIFT_VALUES as GALILEO_STATIC_SHIFT_VALUES,
+    STATIC_DIV_VALUES as GALILEO_STATIC_DIV_VALUES,
+    SPACE_TIME_SHIFT_VALUES as GALILEO_SPACE_TIME_SHIFT_VALUES,
+    SPACE_TIME_DIV_VALUES as GALILEO_SPACE_TIME_DIV_VALUES,
+)
+from galileo.src.data.config import NORMALIZATION_DICT_FILENAME as GALILEO_NORMALIZATION_DICT_FILENAME
+from galileo.src.utils import config_dir as galileo_config_dir
 
-from src.eval.landsat_bands import LANDSAT_SPACE_TIME_BANDS, LANDSAT_TIME_BANDS, LANDSAT_STATIC_BANDS
+from src.eval.landsat_bands import LANDSAT_SPACE_TIME_BANDS, LANDSAT_STATIC_BANDS
 
 from src.data.dataset import Normalizer, to_cartesian
 from src.data.earthengine.eo_eval import (
@@ -70,7 +84,6 @@ class MaskedOutputGalileo(NamedTuple):
     1: not seen by the encoder, and ignored by the decoder
     2: not seen by the encoder, and processed by the decoder (the decoder's query values)
     """
-
     space_time_x: torch.Tensor
     space_x: torch.Tensor
     time_x: torch.Tensor
@@ -109,6 +122,73 @@ class GalileoDatasetOutput(NamedTuple):
     galileo_valid_data_mask_t: np.ndarray
     galileo_valid_data_mask_st: np.ndarray
 
+
+
+class GalileoNormalizer:
+    # these are the bands we will replace with the 2*std computation
+    # if std = True
+    std_bands: Dict[int, list] = {
+        len(GALILEO_SPACE_TIME_BANDS): [b for b in GALILEO_SPACE_TIME_BANDS if b != "NDVI"],
+        len(GALILEO_SPACE_BANDS): SRTM_BANDS,
+        len(GALILEO_TIME_BANDS): GALILEO_TIME_BANDS,
+        len(GALILEO_STATIC_BANDS): LANDSCAN_BANDS,
+    }
+
+    def __init__(
+        self, std: bool = True, normalizing_dicts: Optional[Dict] = None, std_multiplier: float = 2
+    ):
+        self.shift_div_dict = {
+            len(GALILEO_SPACE_TIME_BANDS): {
+                "shift": deepcopy(GALILEO_SPACE_TIME_SHIFT_VALUES),
+                "div": deepcopy(GALILEO_SPACE_TIME_DIV_VALUES),
+            },
+            len(GALILEO_SPACE_BANDS): {
+                "shift": deepcopy(GALILEO_SPACE_SHIFT_VALUES),
+                "div": deepcopy(GALILEO_SPACE_DIV_VALUES),
+            },
+            len(GALILEO_TIME_BANDS): {
+                "shift": deepcopy(GALILEO_TIME_SHIFT_VALUES),
+                "div": deepcopy(GALILEO_TIME_DIV_VALUES),
+            },
+            len(GALILEO_STATIC_BANDS): {
+                "shift": deepcopy(GALILEO_STATIC_SHIFT_VALUES),
+                "div": deepcopy(GALILEO_STATIC_DIV_VALUES),
+            },
+        }
+        print(self.shift_div_dict.keys())
+        self.normalizing_dicts = normalizing_dicts
+        if std:
+            name_to_bands = {
+                len(GALILEO_SPACE_TIME_BANDS): GALILEO_SPACE_TIME_BANDS,
+                len(GALILEO_SPACE_BANDS): GALILEO_SPACE_BANDS,
+                len(GALILEO_TIME_BANDS): GALILEO_TIME_BANDS,
+                len(GALILEO_STATIC_BANDS): GALILEO_STATIC_BANDS,
+            }
+            assert normalizing_dicts is not None
+            for key, val in normalizing_dicts.items():
+                if isinstance(key, str):
+                    continue
+                bands_to_replace = self.std_bands[key]
+                for band in bands_to_replace:
+                    band_idx = name_to_bands[key].index(band)
+                    mean = val["mean"][band_idx]
+                    std = val["std"][band_idx]
+                    min_value = mean - (std_multiplier * std)
+                    max_value = mean + (std_multiplier * std)
+                    div = max_value - min_value
+                    if div == 0:
+                        raise ValueError(f"{band} has div value of 0")
+                    self.shift_div_dict[key]["shift"][band_idx] = min_value
+                    self.shift_div_dict[key]["div"][band_idx] = div
+
+    @staticmethod
+    def _normalize(x: np.ndarray, shift_values: np.ndarray, div_values: np.ndarray) -> np.ndarray:
+        x = (x - shift_values) / div_values
+        return x
+
+    def __call__(self, x: np.ndarray):
+        div_values = self.shift_div_dict[x.shape[-1]]["div"]
+        return self._normalize(x, self.shift_div_dict[x.shape[-1]]["shift"], div_values)
 
 class LandsatEvalDatasetGalileo(PyTorchDataset):
     def __init__(
@@ -791,7 +871,8 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
 # - normalizer in eval script
 
 if __name__ == "__main__":
-    ds = LandsatEvalDatasetGalileo(split="train")
+    normalizer=Normalizer(normalizing_dicts=LandsatEvalDatasetGalileo.load_normalization_values(galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME), std_multiplier=2),
+    ds = LandsatEvalDatasetGalileo(split="train", normalizer=normalizer)
     sample = ds[0]
     import pdb; pdb.set_trace()
     print(sample[0])
