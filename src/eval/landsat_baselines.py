@@ -46,7 +46,6 @@ from src.data.earthengine.eo_eval import (
     EO_ALL_DYNAMIC_IN_TIME_BANDS_NP,
     CLOUD_BANDS,
 )
-from src.utils import masked_output_np_to_tensor
 
 from torch.utils.data import Dataset as PyTorchDataset
 
@@ -63,6 +62,41 @@ GALILEO_SPACE_TIME_BANDS_TO_LANDSAT_SPACE_TIME_HIGH_RES_BANDS = [idx for idx, s 
 
 LANDSAT_STATIC_BANDS_TO_GALILEO_STATIC_BANDS = [LANDSAT_STATIC_BANDS.index(s) for s in GALILEO_STATIC_BANDS if s in LANDSAT_STATIC_BANDS]
 GALILEO_STATIC_BANDS_TO_LANDSAT_STATIC_BANDS = [idx for idx, s in enumerate(GALILEO_STATIC_BANDS) if s in LANDSAT_STATIC_BANDS]
+
+class MaskedOutputGalileo(NamedTuple):
+    """
+    A mask can take 3 values:
+    0: seen by the encoder (i.e. makes the key and value tokens in the decoder)
+    1: not seen by the encoder, and ignored by the decoder
+    2: not seen by the encoder, and processed by the decoder (the decoder's query values)
+    """
+
+    space_time_x: torch.Tensor
+    space_x: torch.Tensor
+    time_x: torch.Tensor
+    static_x: torch.Tensor
+    space_time_mask: torch.Tensor
+    space_mask: torch.Tensor
+    time_mask: torch.Tensor
+    static_mask: torch.Tensor
+    months: torch.Tensor
+
+def masked_output_np_to_tensor_galileo(
+    s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, month
+) -> MaskedOutputGalileo:
+    """converts eval task"""
+    return MaskedOutputGalileo(
+        torch.as_tensor(s_t_x, dtype=torch.float32),
+        torch.as_tensor(sp_x, dtype=torch.float32),
+        torch.as_tensor(t_x, dtype=torch.float32),
+        torch.as_tensor(st_x, dtype=torch.float32),
+        torch.as_tensor(s_t_m, dtype=torch.float32),
+        torch.as_tensor(sp_m, dtype=torch.float32),
+        torch.as_tensor(t_m, dtype=torch.float32),
+        torch.as_tensor(st_m, dtype=torch.float32),
+        torch.as_tensor(month, dtype=torch.long),
+    )
+
 
 class GalileoDatasetOutput(NamedTuple):
     galileo_space_time_x: np.ndarray
@@ -734,7 +768,7 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
             return self.__getitem__(idx)
 
         return (
-            masked_output_np_to_tensor(
+            masked_output_np_to_tensor_galileo(
                 self.normalizer(galileo_s_t_x),
                 self.normalizer(galileo_sp_x),
                 self.normalizer(galileo_t_x),
