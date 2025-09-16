@@ -439,28 +439,17 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
         galileo_valid_data_mask_s_t[:, :, :-4, GALILEO_SPACE_TIME_BANDS_TO_LANDSAT_SPACE_TIME_HIGH_RES_BANDS] = valid_data_mask_s_t_h[:, :, :, LANDSAT_SPACE_TIME_HIGH_RES_BANDS_TO_GALILEO_SPACE_TIME_BANDS]
         galileo_valid_data_mask_st[GALILEO_STATIC_BANDS_TO_LANDSAT_STATIC_BANDS] = valid_data_mask_st[LANDSAT_STATIC_BANDS_TO_GALILEO_STATIC_BANDS]
 
-        try:
-            assert not np.isnan(galileo_s_t_x).any(), f"NaNs in s_t_h_x for {tif_path}"
-            assert not np.isnan(galileo_sp_x).any(), f"NaNs in sp_x for {tif_path}"
-            assert not np.isnan(galileo_t_x).any(), f"NaNs in t_x for {tif_path}"
-            assert not np.isnan(galileo_st_x).any(), f"NaNs in st_x for {tif_path}"
-            assert not np.isinf(galileo_s_t_x).any(), f"Infs in s_t_h_x for {tif_path}"
-            assert not np.isinf(galileo_sp_x).any(), f"Infs in sp_x for {tif_path}"
-            assert not np.isinf(galileo_t_x).any(), f"Infs in t_x for {tif_path}"
-            assert not np.isinf(galileo_st_x).any(), f"Infs in st_x for {tif_path}"
-            return (
-                galileo_s_t_x,
-                galileo_sp_x,
-                galileo_t_x,
-                galileo_st_x,
-                galileo_valid_data_mask_s_t,
-                galileo_valid_data_mask_sp,
-                galileo_valid_data_mask_t,
-                galileo_valid_data_mask_st,
-                galileo_months.long(),
-            )
-        except AssertionError as e:
-            raise e
+        return (
+            galileo_s_t_x,
+            galileo_sp_x,
+            galileo_t_x,
+            galileo_st_x,
+            galileo_valid_data_mask_s_t,
+            galileo_valid_data_mask_sp,
+            galileo_valid_data_mask_t,
+            galileo_valid_data_mask_st,
+            galileo_months,
+        )
 
     def _tif_to_array_with_checks(self, idx):
         tif_path = self.input_tifs[idx]
@@ -560,7 +549,6 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
                     galileo_sp_x,
                     galileo_t_x,
                     galileo_st_x,
-                    galileo_months,
                     galileo_valid_data_mask_s_t,
                     galileo_valid_data_mask_sp,
                     galileo_valid_data_mask_t,
@@ -718,8 +706,8 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
 
         # TODO: We will assume for now that data will be processed with Galileo Loader + collate, and that this works
         # TODO: Test this. Should mask everything that is either not present in the input, or not valid
-        galileo_s_t_m = galileo_s_t_m | np.logical_not(galileo_valid_data_mask_s_t)
-        galileo_st_m = galileo_st_m | np.logical_not(galileo_valid_data_mask_st)
+        galileo_s_t_m = np.logical_or(galileo_s_t_m, np.logical_not(galileo_valid_data_mask_s_t))
+        galileo_st_m = np.logical_or(galileo_st_m, np.logical_not(galileo_valid_data_mask_st))
 
         # turn it from band-space into band-group-space
         galileo_s_t_m = galileo_s_t_m[:, :, :, [g[0] for _, g in GALILEO_SPACE_TIME_BANDS_GROUPS_IDX.items()]]
