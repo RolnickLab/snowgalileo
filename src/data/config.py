@@ -321,6 +321,24 @@ CHANNEL_WISE_INVALID_DATA_THRESHOLDS: Dict[str, Dict] = {
         1: -1,  # y
         2: -1,  # z
     },
+    "s_t_h_x_galileo": {
+        0: -50,  # S1 VV
+        1: -50,  # S1 VH
+        2: 0,  # S1 angle
+        3: -2000,  # S2 B2
+        4: -2000,  # S2 B3
+        5: -2000,  # S2 B4
+        6: -2000,  # S2 B8
+        7: -2000,  # S2 B11
+        8: -2000,  # S2 B12
+        9: -2000,  # Landsat B2
+        10: -2000,  # Landsat B3
+        11: -2000,  # Landsat B4
+        12: -2000,  # Landsat B5
+        13: -2000,  # Landsat B6
+        14: -2000,  # Landsat B7
+        15: -5,  # NDVI
+    },
 }
 USE_INDECES = False
 
