@@ -179,7 +179,7 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
         1: valid data
         """
         print("Creating valid mask for LandsatEvalDataset", flush=True)
-        assert s_t_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_h_x"])
+        assert s_t_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_h_x_galileo"])
         assert sp_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["sp_x"])
         assert t_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["t_x"])
         assert st_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["st_x"])
@@ -198,7 +198,7 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
         print("Amount of invalid data in s_t_h_x:", np.sum(~valid_mask_s_t_h), flush=True)
 
         # apply the channel-specific no-data bounds
-        for ch, lower_bound in CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_h_x"].items():
+        for ch, lower_bound in CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_h_x_galileo"].items():
             valid_mask_s_t_h[..., ch] &= s_t_x[..., ch] >= lower_bound
         for ch, lower_bound in CHANNEL_WISE_INVALID_DATA_THRESHOLDS["sp_x"].items():
             valid_mask_sp[..., ch] &= sp_x[..., ch] >= lower_bound
