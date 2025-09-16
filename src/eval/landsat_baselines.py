@@ -425,11 +425,11 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
 
         galileo_months = cls.month_array_from_file(tif_path, int(GALILEO_TIMESTEPS))
 
-        galileo_valid_data_mask_s_t = np.ones((GALILEO_HW, GALILEO_HW, GALILEO_TIMESTEPS, len(GALILEO_SPACE_TIME_BANDS)))
-        # no matching space data
+        galileo_valid_data_mask_s_t = np.zeros((GALILEO_HW, GALILEO_HW, GALILEO_TIMESTEPS, len(GALILEO_SPACE_TIME_BANDS)))
+        # no matching space data and no matching time data, so we can just fill it with zeros (= all invalid)
         galileo_valid_data_mask_sp = np.zeros((GALILEO_HW, GALILEO_HW, len(GALILEO_SPACE_BANDS)))
-        galileo_valid_data_mask_t = np.ones((GALILEO_TIMESTEPS, len(GALILEO_TIME_BANDS)))
-        galileo_valid_data_mask_st = np.ones((len(GALILEO_STATIC_BANDS),))
+        galileo_valid_data_mask_t = np.zeros((GALILEO_TIMESTEPS, len(GALILEO_TIME_BANDS)))
+        galileo_valid_data_mask_st = np.zeros((len(GALILEO_STATIC_BANDS),))
 
         # fill galileo bands with matching landsat bands
         # landsat bands have only 8 timesteps, so we need to slice accordingly
@@ -444,11 +444,11 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
             galileo_sp_x,
             galileo_t_x,
             galileo_st_x,
+            galileo_months,
             galileo_valid_data_mask_s_t,
             galileo_valid_data_mask_sp,
             galileo_valid_data_mask_t,
             galileo_valid_data_mask_st,
-            galileo_months,
         )
 
     def _tif_to_array_with_checks(self, idx):
