@@ -871,7 +871,7 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
 # - normalizer in eval script
 
 if __name__ == "__main__":
-    normalizer=Normalizer(normalizing_dicts=LandsatEvalDatasetGalileo.load_normalization_values(galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME), std_multiplier=2),
+    normalizer=GalileoNormalizer(normalizing_dicts=LandsatEvalDatasetGalileo.load_normalization_values(galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME), std_multiplier=2),
     ds = LandsatEvalDatasetGalileo(split="train", normalizer=normalizer)
     sample = ds[0]
     import pdb; pdb.set_trace()
