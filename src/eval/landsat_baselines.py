@@ -211,7 +211,7 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
         self.label_folder = DATA_FOLDER / config["label_folder"] / self.split
         self.input_tif_folder = DATA_FOLDER / config["input_tif_folder"] / self.split
 
-        if (self.split != "visualize") and (self.split != "test") and (config.get("input_h5py_folder") is not ""):
+        if (self.split != "visualize") and (self.split != "test") and (config.get("input_h5py_folder") != ""):
             self.h5py_folder = DATA_FOLDER / config["input_h5py_folder"] / self.split
         else:
             self.h5py_folder = None
@@ -871,7 +871,7 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
 # - normalizer in eval script
 
 if __name__ == "__main__":
-    normalizer=GalileoNormalizer(normalizing_dicts=LandsatEvalDatasetGalileo.load_normalization_values(galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME), std_multiplier=2),
+    normalizer=GalileoNormalizer(normalizing_dicts=LandsatEvalDatasetGalileo.load_normalization_values(galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME), std_multiplier=2)
     ds = LandsatEvalDatasetGalileo(split="train", normalizer=normalizer)
     sample = ds[0]
     import pdb; pdb.set_trace()
