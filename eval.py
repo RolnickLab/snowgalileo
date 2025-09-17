@@ -31,7 +31,7 @@ argparser.add_argument("--num_finetune_epochs", type=int, default=50, help="Numb
 args = argparser.parse_args().__dict__
 
 if args["encoder_type"] == "gabis_galileo":
-    encoder = GalileoEncoder.load_from_folder("galileo/data/models/nano").to(device)
+    encoder = GalileoEncoder.load_from_folder(Path("galileo/data/models/nano")).to(device)
 else:
     if args["output_folder"] != "":
         # load pretrained snowgalileo encoder

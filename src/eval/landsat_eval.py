@@ -1501,7 +1501,7 @@ class LandsatEval(EvalTask):
         if self.finetune:
             test_dl = self.get_test_dl(baseline_galileo=baseline_galileo)
             loaders_dict = {"train": train_dl, "test": test_dl}
-            results = get_finetune_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name, num_finetune_epochs=self.num_finetune_epochs)
+            results = get_finetune_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name, num_finetune_epochs=self.num_finetune_epochs, baseline_galileo=baseline_galileo)
             return results
         else:
             test_dl = self.get_test_dl(baseline_galileo=baseline_galileo)
@@ -1513,7 +1513,7 @@ class LandsatEval(EvalTask):
             #results = evaluate_seg(test_dl, pretrained_model, device, "test", trained_sklearn_models)  
 
 
-            results = get_linear_probe_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name)
+            results = get_linear_probe_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name, baseline_galileo=baseline_galileo)
             return results
 
             """

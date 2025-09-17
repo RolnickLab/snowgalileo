@@ -17,6 +17,35 @@ from typing import Dict
 #FT_LRs = [1e-5, 3e-5, 6e-5, 1e-4, 3e-4, 6e-4, 1e-3, 3e-3, 6e-3]
 FT_LRs = [1e-5]
 
+class GalileoEncoderWithHead(nn.Module):
+    def __init__(self, encoder, patch_size_high_res=10, inputs_per_target=10):
+        super(GalileoEncoderWithHead, self).__init__()
+        self.encoder = deepcopy(encoder)  # just in case
+        # for segmentation
+        # since our patch size is 10x10 and targets 100m resolution, each patch predicts 1 x 1 of 100m
+        # since we do regression, we predict one value per patch
+        logits_per_patch = int((patch_size_high_res / inputs_per_target) * (patch_size_high_res / inputs_per_target))
+        self.head = nn.Linear(encoder.embedding_size, logits_per_patch)
+        # attach a sigmoid to squeeze outputs to [0, 1]
+        self.sigmoid = nn.Sigmoid()
+        self.sigmoid_slope = 1.0
+
+    def forward(self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size_high_res=10):
+        encodings = self.encoder(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size_high_res=patch_size_high_res)
+        s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = encodings
+        encodings = self.encoder.apply_mask_and_average_tokens_per_patch(
+                s_t_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_m,
+                sp_m,
+                t_m,
+                st_m,
+            )
+        output = self.sigmoid(self.head(encodings) * self.sigmoid_slope)
+        return output
+
 class EncoderWithHead(nn.Module):
     def __init__(self, encoder, patch_size_high_res=10, inputs_per_target=10):
         super(EncoderWithHead, self).__init__()
@@ -51,7 +80,7 @@ class EncoderWithHead(nn.Module):
         return output
 
 
-def finetune_and_eval_seg(lr, loaders, encoder, device, identifier, num_finetune_epochs=50):
+def finetune_and_eval_seg(lr, loaders, encoder, device, identifier, num_finetune_epochs=50, baseline_galileo=False):
     finetuned_encoder = finetune_seg(
         data_loader=loaders["train"],
         lr=lr,
@@ -59,23 +88,27 @@ def finetune_and_eval_seg(lr, loaders, encoder, device, identifier, num_finetune
         encoder=encoder,
         device=device,
         freeze_encoder=False,
+        baseline_galileo=baseline_galileo
     )
     #val_miou = evaluate_seg(
     #    data_loader=loaders["valid"],
     #    finetuned_encoder=finetuned_encoder,
     #    num_classes=config["num_classes"],
     #    device=device,
+    #    identifier=identifier,
+    #    baseline_galileo=baseline_galileo,
     #)
     test_miou = evaluate_seg(
         data_loader=loaders["test"],
         finetuned_encoder=finetuned_encoder,
         device=device,
         identifier=identifier,
+        baseline_galileo=baseline_galileo,
     )
     return test_miou
 
 
-def linear_probe_and_eval_seg(lr, loaders, encoder, device, identifier):
+def linear_probe_and_eval_seg(lr, loaders, encoder, device, identifier, baseline_galileo=False):
     # we train the regression head for one epoch, while the encoder remains frozen
     encoder = finetune_seg(
         data_loader=loaders["train"],
@@ -84,6 +117,7 @@ def linear_probe_and_eval_seg(lr, loaders, encoder, device, identifier):
         encoder=encoder,
         device=device,
         freeze_encoder=True,
+        baseline_galileo=baseline_galileo,
     )
     #val_miou = evaluate_seg(
     #    data_loader=loaders["valid"],
@@ -96,18 +130,19 @@ def linear_probe_and_eval_seg(lr, loaders, encoder, device, identifier):
         finetuned_encoder=encoder,
         device=device,
         identifier=identifier,
+        baseline_galileo=baseline_galileo,
     )
     return test_miou
 
 # TODO: implement validation too
-def get_finetune_results_with_val(loaders, encoder, num_runs, device):
+def get_finetune_results_with_val(loaders, encoder, num_runs, device, baseline_galileo=False):
     final_tests = []  # chosen using LR with best val, for each run
     for _ in range(num_runs):
         vals = []
         tests = []
         for lr in FT_LRs:
             val, test = finetune_and_eval_seg(
-                lr=lr, loaders=loaders, encoder=encoder, device=device
+                lr=lr, loaders=loaders, encoder=encoder, device=device, baseline_galileo=baseline_galileo
             )
             vals.append(val)
             tests.append(test)
@@ -116,13 +151,13 @@ def get_finetune_results_with_val(loaders, encoder, num_runs, device):
 
     return final_tests
 
-def get_finetune_results(loaders, encoder, num_runs, device, identifier, num_finetune_epochs):
+def get_finetune_results(loaders, encoder, num_runs, device, identifier, num_finetune_epochs, baseline_galileo=False):
     final_tests = []  # chosen using LR with best val, for each run
     for _ in range(num_runs):
         tests = []
         for lr in FT_LRs:
             test = finetune_and_eval_seg(
-                lr=lr, loaders=loaders, encoder=encoder, device=device, identifier=identifier, num_finetune_epochs=num_finetune_epochs
+                lr=lr, loaders=loaders, encoder=encoder, device=device, identifier=identifier, num_finetune_epochs=num_finetune_epochs, baseline_galileo=baseline_galileo
             )
             tests.append(test)
 
@@ -130,13 +165,13 @@ def get_finetune_results(loaders, encoder, num_runs, device, identifier, num_fin
 
     return final_tests
 
-def get_linear_probe_results(loaders, encoder, num_runs, device, identifier):
+def get_linear_probe_results(loaders, encoder, num_runs, device, identifier, baseline_galileo=False):
     final_tests = []  # chosen using LR with best val, for each run
     for _ in range(num_runs):
         tests = []
         for lr in FT_LRs:
             test = linear_probe_and_eval_seg(
-                lr=lr, loaders=loaders, encoder=encoder, device=device, identifier=identifier
+                lr=lr, loaders=loaders, encoder=encoder, device=device, identifier=identifier, baseline_galileo=baseline_galileo
             )
             tests.append(test)
 
@@ -144,8 +179,13 @@ def get_linear_probe_results(loaders, encoder, num_runs, device, identifier):
 
     return final_tests
 
-def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False, patch_size_high_res=10, inputs_per_target=10):
-    finetuned_encoder = EncoderWithHead(encoder=encoder, patch_size_high_res=patch_size_high_res, inputs_per_target=inputs_per_target).to(device)
+def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False, patch_size_high_res=10, inputs_per_target=10, baseline_galileo=False):
+    
+    if baseline_galileo:
+        finetuned_encoder = GalileoEncoderWithHead(encoder=encoder, patch_size_high_res=patch_size_high_res, inputs_per_target=inputs_per_target).to(device)
+    else:
+        finetuned_encoder = EncoderWithHead(encoder=encoder, patch_size_high_res=patch_size_high_res, inputs_per_target=inputs_per_target).to(device)
+    
     finetuned_encoder = finetuned_encoder.train()
     opt = torch.optim.AdamW(finetuned_encoder.parameters(), lr=lr)
 
@@ -170,26 +210,45 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False,
     loss_function = nn.MSELoss()
 
     for epoch in range(epochs):
-        for i, (masked_output, labels, _) in enumerate(data_loader):
-            (
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                s_t_h_m,
-                s_t_m_m,
-                s_t_l_m,
-                sp_m,
-                t_m,
-                st_m,
-                months,
-            ) = [t.to(device) for t in masked_output]
+        if baseline_galileo:
+            for i, (masked_output, labels, _) in enumerate(data_loader):
+                (
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                ) = [t.to(device) for t in masked_output]
 
 
-            with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-                logits = finetuned_encoder(
+                with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                    logits = finetuned_encoder(
+                        s_t_x,
+                        sp_x,
+                        t_x,
+                        st_x,
+                        s_t_m,
+                        sp_m,
+                        t_m,
+                        st_m,
+                        months,
+                        patch_size_high_res=patch_size_high_res,
+                    )
+                    spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
+                    logits = rearrange(
+                        torch.squeeze(logits),
+                        "b (h w) -> b h w",
+                        h=spatial_patches_per_dim,
+                        w=spatial_patches_per_dim,
+                    )
+                    loss = loss_function(logits, labels.to(device))
+        else:
+            for i, (masked_output, labels, _) in enumerate(data_loader):
+                (
                     s_t_h_x,
                     s_t_m_x,
                     s_t_l_x,
@@ -203,18 +262,36 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False,
                     t_m,
                     st_m,
                     months,
-                    patch_size_high_res=patch_size_high_res,
-                    patch_size_med_res=1,
-                    patch_size_low_res=1,
-                )
-                spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
-                logits = rearrange(
-                    torch.squeeze(logits),
-                    "b (h w) -> b h w",
-                    h=spatial_patches_per_dim,
-                    w=spatial_patches_per_dim,
-                )
-                loss = loss_function(logits, labels.to(device))
+                ) = [t.to(device) for t in masked_output]
+
+
+                with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                    logits = finetuned_encoder(
+                        s_t_h_x,
+                        s_t_m_x,
+                        s_t_l_x,
+                        sp_x,
+                        t_x,
+                        st_x,
+                        s_t_h_m,
+                        s_t_m_m,
+                        s_t_l_m,
+                        sp_m,
+                        t_m,
+                        st_m,
+                        months,
+                        patch_size_high_res=patch_size_high_res,
+                        patch_size_med_res=1,
+                        patch_size_low_res=1,
+                    )
+                    spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
+                    logits = rearrange(
+                        torch.squeeze(logits),
+                        "b (h w) -> b h w",
+                        h=spatial_patches_per_dim,
+                        w=spatial_patches_per_dim,
+                    )
+                    loss = loss_function(logits, labels.to(device))
 
             (loss / grad_accum).backward()
 
@@ -272,7 +349,7 @@ def compute_segmentation_metrics(identifier: str, preds: np.ndarray, target: np.
         f"{bs}{identifier}_miou": mean_iou(preds, target, num_classes=10),
     }
 
-def evaluate_seg(data_loader, finetuned_encoder, device, identifier, patch_size_high_res=10):
+def evaluate_seg(data_loader, finetuned_encoder, device, identifier, patch_size_high_res=10, baseline_galileo=False):
     finetuned_encoder = finetuned_encoder.eval()
 
     all_preds_1D = []
@@ -284,42 +361,70 @@ def evaluate_seg(data_loader, finetuned_encoder, device, identifier, patch_size_
     results_dict: Dict[str, float] = {}
 
     with torch.no_grad():
-        for masked_output, labels, _ in data_loader:
-            (
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                s_t_h_m,
-                s_t_m_m,
-                s_t_l_m,
-                sp_m,
-                t_m,
-                st_m,
-                months,
-            ) = [t.to(device) for t in masked_output]
+        if baseline_galileo:
+            for masked_output, labels, _ in data_loader:
+                (
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                ) = [t.to(device) for t in masked_output]
 
-            #with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-            logits = finetuned_encoder(
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                s_t_h_m,
-                s_t_m_m,
-                s_t_l_m,
-                sp_m,
-                t_m,
-                st_m,
-                months,
-                patch_size_high_res=patch_size_high_res,
-                patch_size_med_res=1,
-                patch_size_low_res=1,
-            )
+                #with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                logits = finetuned_encoder(
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                    patch_size_high_res=patch_size_high_res,
+                )
+        else:
+            for masked_output, labels, _ in data_loader:
+                (
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                ) = [t.to(device) for t in masked_output]
+
+                #with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                logits = finetuned_encoder(
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                    patch_size_high_res=patch_size_high_res,
+                    patch_size_med_res=1,
+                    patch_size_low_res=1,
+                )
 
             # check that all predictions are between 0 and 1
             assert logits.min() >= 0 and logits.max() <= 1

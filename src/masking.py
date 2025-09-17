@@ -237,6 +237,7 @@ def batch_subset_mask_presto(
 ) -> MaskedOutput:
     assert len(masking_probabilities) == len(MASKING_MODES)
 
+    # not used by Snow Galileo so far (only random masking)
     if masking_function.value < 2:
         f: Callable = batch_mask_space if masking_function.value == 1 else batch_mask_time  # type: ignore
         num_masking_modes = random.choice(list(range(2, MAX_MASKING_STRATEGIES + 1)))
@@ -294,6 +295,7 @@ def batch_subset_mask_presto(
             patch_size_low_res=patch_size_low_res,
         )
 
+    # used by Snow Galileo
     elif masking_function.value == 2:
         # 2 is random
         masked_output = batch_mask_random(
@@ -1087,6 +1089,8 @@ def batch_mask_random(
     b, h_m, w_m, t, _ = space_time_med_x.shape
     b, h_l, w_l, t, _ = space_time_low_x.shape
 
+    # extract the number of tokens for each type of data
+    # we assume that the patch sizes divide height and width exactly
     assert (h_h % patch_size_high_res == 0) and (w_h % patch_size_high_res == 0)
     h_p_h = int(h_h / patch_size_high_res)
     w_p_h = int(w_h / patch_size_high_res)
