@@ -945,21 +945,35 @@ class LandsatEval(EvalTask):
             f"{bs}{self.name}_{model_name}_f1": f1_score(target, preds, average='weighted'),
         }
     
-    def get_test_dl(self) -> DataLoader:
-        test_ds = LandsatEvalDataset(
-            exclude_prediction_date=self.exclude_prediction_date,
-            split="test",
-        )
-
-        if self.normalization == "std":
-            normalizing_dict = test_ds.load_normalization_values(
-                path=config_dir / NORMALIZATION_DICT_FILENAME
+    def get_test_dl(self, baseline_galileo=False) -> DataLoader:
+        if baseline_galileo:
+            from src.eval.landsat_baselines import LandsatEvalDatasetGalileo, GalileoNormalizer, galileo_config_dir, GALILEO_NORMALIZATION_DICT_FILENAME
+            test_ds = LandsatEvalDatasetGalileo(
+                exclude_prediction_date=self.exclude_prediction_date,
+                split="test",
             )
-            print(normalizing_dict, flush=True)
-            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+            if self.normalization == "std":
+                normalizer=GalileoNormalizer(std=True,
+                                             normalizing_dicts=test_ds.load_normalization_values(galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME), 
+                                             std_multiplier=2)
+                print(test_ds.load_normalization_values(galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME), flush=True)
+            else:
+                normalizer = GalileoNormalizer(std=False)
             test_ds.normalizer = normalizer
         else:
-            normalizer = Normalizer(std=False)
+            test_ds = LandsatEvalDataset(
+                exclude_prediction_date=self.exclude_prediction_date,
+                split="test",
+            )
+
+            if self.normalization == "std":
+                normalizing_dict = test_ds.load_normalization_values(
+                    path=config_dir / NORMALIZATION_DICT_FILENAME
+                )
+                print(normalizing_dict, flush=True)
+                normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+            else:
+                normalizer = Normalizer(std=False)
             test_ds.normalizer = normalizer
 
         test_dl = DataLoader(
@@ -972,14 +986,14 @@ class LandsatEval(EvalTask):
 
     @torch.no_grad()
     def _evaluate_model(
-        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator]
+        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator], baseline_galileo=False
     ) -> Dict:
         
         prediction_folder = DATA_FOLDER / "predictions"
         if not prediction_folder.exists():
             prediction_folder.mkdir(parents=True, exist_ok=True)
 
-        test_dl = self.get_test_dl()
+        test_dl = self.get_test_dl(baseline_galileo=baseline_galileo)
 
         pred_dict: Dict[str, BaseEstimator] = {
             model_class_name(model): [] for model in sklearn_models
@@ -1123,14 +1137,14 @@ class LandsatEval(EvalTask):
 
     @torch.no_grad()
     def _visualize_best_worst(
-        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator], num_images: int = 50, sort_for: str = "overall_accuracy"
+        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator], num_images: int = 50, sort_for: str = "overall_accuracy", baseline_galileo=False
     ) -> Dict:
         
         prediction_folder = DATA_FOLDER / "ascending_accuracy_predictions"
         if not prediction_folder.exists():
             prediction_folder.mkdir(parents=True, exist_ok=True)
 
-        test_dl = self.get_test_dl()
+        test_dl = self.get_test_dl(baseline_galileo=baseline_galileo)
 
         predictions = []
         targets = []
@@ -1431,23 +1445,37 @@ class LandsatEval(EvalTask):
 
 
     def evaluate_model_on_task(
-        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
+        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None, baseline_galileo: bool = False
     ) -> Dict:
 
-        train_ds = LandsatEvalDataset(
-            exclude_prediction_date=self.exclude_prediction_date,
-            split="train",
-        )
-
-        if self.normalization == "std":
-            normalizing_dict = train_ds.load_normalization_values(
-                path=config_dir / NORMALIZATION_DICT_FILENAME
+        if baseline_galileo:
+            from src.eval.landsat_baselines import LandsatEvalDatasetGalileo, GalileoNormalizer, galileo_config_dir, GALILEO_NORMALIZATION_DICT_FILENAME
+            train_ds = LandsatEvalDatasetGalileo(
+                exclude_prediction_date=self.exclude_prediction_date,
+                split="train",
             )
-            print(normalizing_dict, flush=True)
-            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+            if self.normalization == "std":
+                normalizer=GalileoNormalizer(std=True,
+                                             normalizing_dicts=train_ds.load_normalization_values(galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME), 
+                                             std_multiplier=2)
+                print(train_ds.load_normalization_values(galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME), flush=True)
+            else:
+                normalizer = GalileoNormalizer(std=False)
             train_ds.normalizer = normalizer
         else:
-            normalizer = Normalizer(std=False)
+            train_ds = LandsatEvalDataset(
+                exclude_prediction_date=self.exclude_prediction_date,
+                split="train",
+            )
+
+            if self.normalization == "std":
+                normalizing_dict = train_ds.load_normalization_values(
+                    path=config_dir / NORMALIZATION_DICT_FILENAME
+                )
+                print(normalizing_dict, flush=True)
+                normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+            else:
+                normalizer = Normalizer(std=False)
             train_ds.normalizer = normalizer
 
         if self.resample:
@@ -1471,12 +1499,12 @@ class LandsatEval(EvalTask):
             )
 
         if self.finetune:
-            test_dl = self.get_test_dl()
+            test_dl = self.get_test_dl(baseline_galileo=baseline_galileo)
             loaders_dict = {"train": train_dl, "test": test_dl}
             results = get_finetune_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name, num_finetune_epochs=self.num_finetune_epochs)
             return results
         else:
-            test_dl = self.get_test_dl()
+            test_dl = self.get_test_dl(baseline_galileo=baseline_galileo)
             loaders_dict = {"train": train_dl, "test": test_dl}
 
             #### REMOVE LATER
@@ -1497,11 +1525,11 @@ class LandsatEval(EvalTask):
             trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
 
             if self.evaluation_mode == "evaluate":
-                results = self._evaluate_model(pretrained_model, trained_sklearn_models)
+                results = self._evaluate_model(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo)
                 return results
             
             elif self.evaluation_mode == "visualize_predictions_best_worst":
-                self._visualize_best_worst(pretrained_model, trained_sklearn_models)
+                self._visualize_best_worst(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo)
 
             elif self.evaluation_mode == "visualize_predictions": 
                 self._visualize_predictions(pretrained_model, trained_sklearn_models)
