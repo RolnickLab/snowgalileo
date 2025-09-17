@@ -12,6 +12,7 @@ from src.eval import (
 )
 from src.eval.eval import EvalTask
 from src.flexipresto import Encoder
+from galileo.src.galileo import Encoder as GalileoEncoder
 from src.utils import device, load_check_config, seed_everything
 from src.data.config import DATA_FOLDER
 
@@ -30,7 +31,7 @@ argparser.add_argument("--num_finetune_epochs", type=int, default=50, help="Numb
 args = argparser.parse_args().__dict__
 
 if args["encoder_type"] == "gabis_galileo":
-    encoder = Encoder.load_from_folder("galileo/data/models/nano").to(device)
+    encoder = GalileoEncoder.load_from_folder("galileo/data/models/nano").to(device)
 else:
     if args["output_folder"] != "":
         # load pretrained snowgalileo encoder
