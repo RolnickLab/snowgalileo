@@ -40,7 +40,7 @@ else:
     else:
         # randomly initialized snowgalileo encoder
         config = load_check_config("ai4snow.json")
-        encoder = Encoder(**config["model"]["encoder"])
+        encoder = Encoder(**config["model"]["encoder"]).to(device)
 
 eval_tasks: List[EvalTask] = [
     # geobench EuroSat only works without latlons
