@@ -31,7 +31,7 @@ class GalileoEncoderWithHead(nn.Module):
         self.sigmoid_slope = 1.0
 
     def forward(self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size_high_res=10):
-        encodings = self.encoder(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size_high_res=patch_size_high_res)
+        encodings = self.encoder(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size=patch_size_high_res)
         s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = encodings
         encodings = self.encoder.apply_mask_and_average_tokens_per_patch(
                 s_t_x,
