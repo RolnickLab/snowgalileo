@@ -28,6 +28,7 @@ argparser.add_argument("--finetune", dest="finetune", action="store_true", help=
 argparser.add_argument("--eval_mode", type=str, default="evaluate", choices=["evaluate", "visualize_predictions", "visualize_predictions_best_worst"])
 argparser.add_argument("--resample", action="store_true", help="Whether to use oversampling.")
 argparser.add_argument("--num_finetune_epochs", type=int, default=50, help="Number of epochs to finetune for.")
+argparser.add_argument("--sklearn", dest="sklearn", action="store_true", help="Whether to use sklearn models for linear probing.")
 args = argparser.parse_args().__dict__
 
 if args["encoder_type"] == "gabis_galileo":
@@ -47,6 +48,6 @@ eval_tasks: List[EvalTask] = [
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(
-        pretrained_model=encoder, model_modes=["Regression"], baseline_galileo=(args["encoder_type"]=="gabis_galileo")
+        pretrained_model=encoder, model_modes=["Regression"], baseline_galileo=(args["encoder_type"]=="gabis_galileo"), sklearn=args["sklearn"]
     )
     print(json.dumps(results, indent=2, default=str), flush=True)

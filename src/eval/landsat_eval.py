@@ -1445,7 +1445,7 @@ class LandsatEval(EvalTask):
 
 
     def evaluate_model_on_task(
-        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None, baseline_galileo: bool = False
+        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None, baseline_galileo: bool = False, sklearn: bool = False
     ) -> Dict:
 
         if baseline_galileo:
@@ -1507,13 +1507,12 @@ class LandsatEval(EvalTask):
             test_dl = self.get_test_dl(baseline_galileo=baseline_galileo)
             loaders_dict = {"train": train_dl, "test": test_dl}
 
-            #### REMOVE LATER
-            #trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
-            #from src.eval.patch_predict import evaluate_seg
-            #results = evaluate_seg(test_dl, pretrained_model, device, "test", trained_sklearn_models)  
+            if sklearn:
+                trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
+                results = self._evaluate_model(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo)  
 
-
-            results = get_linear_probe_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name, baseline_galileo=baseline_galileo)
+            else:
+                results = get_linear_probe_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name, baseline_galileo=baseline_galileo)
             return results
 
             """
