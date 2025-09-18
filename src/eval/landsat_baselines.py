@@ -216,6 +216,9 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
         else:
             self.h5py_folder = None
 
+        # NOTE: setting h5py folder to None here for Galileo
+        self.h5py_folder = None
+
         # print the number of label tifs
         print(
             f"Number of label tifs: {len(list(self.label_folder.glob('*.tif')) + list(self.label_folder.glob('*.tiff')))}"
