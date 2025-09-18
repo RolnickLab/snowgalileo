@@ -532,10 +532,11 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
             static_x,
         )
 
-        galileo_s_t_x = np.empty((GALILEO_HW, GALILEO_HW, GALILEO_TIMESTEPS, len(GALILEO_SPACE_TIME_BANDS)))
-        galileo_sp_x = np.empty((GALILEO_HW, GALILEO_HW, len(GALILEO_SPACE_BANDS)))
-        galileo_t_x = np.empty((GALILEO_TIMESTEPS, len(GALILEO_TIME_BANDS)))
-        galileo_st_x = np.empty((len(GALILEO_STATIC_BANDS),))
+        # NOTE: We initialize with zeros and not with NaNs, because Galileo cannot handle NaNs and we will mask out the invalid data anyway
+        galileo_s_t_x = np.zeros((GALILEO_HW, GALILEO_HW, GALILEO_TIMESTEPS, len(GALILEO_SPACE_TIME_BANDS)))
+        galileo_sp_x = np.zeros((GALILEO_HW, GALILEO_HW, len(GALILEO_SPACE_BANDS)))
+        galileo_t_x = np.zeros((GALILEO_TIMESTEPS, len(GALILEO_TIME_BANDS)))
+        galileo_st_x = np.zeros((len(GALILEO_STATIC_BANDS),))
 
         galileo_months = cls.month_array_from_file(tif_path, int(GALILEO_TIMESTEPS))
 
@@ -553,17 +554,28 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
         galileo_valid_data_mask_s_t[:, :, :-4, GALILEO_SPACE_TIME_BANDS_TO_LANDSAT_SPACE_TIME_HIGH_RES_BANDS] = valid_data_mask_s_t_h[:, :, :, LANDSAT_SPACE_TIME_HIGH_RES_BANDS_TO_GALILEO_SPACE_TIME_BANDS]
         galileo_valid_data_mask_st[GALILEO_STATIC_BANDS_TO_LANDSAT_STATIC_BANDS] = valid_data_mask_st[LANDSAT_STATIC_BANDS_TO_GALILEO_STATIC_BANDS]
 
-        return (
-            galileo_s_t_x,
-            galileo_sp_x,
-            galileo_t_x,
-            galileo_st_x,
-            galileo_months,
-            galileo_valid_data_mask_s_t,
-            galileo_valid_data_mask_sp,
-            galileo_valid_data_mask_t,
-            galileo_valid_data_mask_st,
-        )
+        try:
+            assert not np.isnan(galileo_s_t_x).any(), f"NaNs in s_t_x for {tif_path}"
+            assert not np.isnan(galileo_sp_x).any(), f"NaNs in sp_x for {tif_path}"
+            assert not np.isnan(galileo_t_x).any(), f"NaNs in t_x for {tif_path}"
+            assert not np.isnan(galileo_st_x).any(), f"NaNs in st_x for {tif_path}"
+            assert not np.isinf(galileo_s_t_x).any(), f"Infs in s_t_x for {tif_path}"
+            assert not np.isinf(galileo_sp_x).any(), f"Infs in sp_x for {tif_path}"
+            assert not np.isinf(galileo_t_x).any(), f"Infs in t_x for {tif_path}"
+            assert not np.isinf(galileo_st_x).any(), f"Infs in st_x for {tif_path}"
+            return (
+                galileo_s_t_x,
+                galileo_sp_x,
+                galileo_t_x,
+                galileo_st_x,
+                galileo_months,
+                galileo_valid_data_mask_s_t,
+                galileo_valid_data_mask_sp,
+                galileo_valid_data_mask_t,
+                galileo_valid_data_mask_st,
+            )
+        except AssertionError as e:
+            raise e
 
     def _tif_to_array_with_checks(self, idx):
         tif_path = self.input_tifs[idx]
