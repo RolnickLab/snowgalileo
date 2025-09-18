@@ -246,6 +246,25 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False,
                         w=spatial_patches_per_dim,
                     )
                     loss = loss_function(logits, labels.to(device))
+                (loss / grad_accum).backward()
+
+                if ((i + 1) % grad_accum == 0) or (i + 1 == len(data_loader)):
+                    epoch_fraction = epoch + (i / len(data_loader))
+                    set_lr = adjust_learning_rate(
+                        optimizer=opt,
+                        epoch=epoch_fraction,
+                        total_epochs=sched_config["epochs"],
+                        warmup_epochs=sched_config["warmup_epochs"],
+                        max_lr=sched_config["lr"],
+                        min_lr=sched_config["min_lr"],
+                    )  # get LR for this epoch
+                    for g in opt.param_groups:
+                        g["lr"] = set_lr  # update
+
+                    torch.nn.utils.clip_grad_norm_(finetuned_encoder.parameters(), 1.0)
+                    opt.step()
+                    opt.zero_grad()
+
         else:
             for i, (masked_output, labels, _) in enumerate(data_loader):
                 (
@@ -293,24 +312,24 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False,
                     )
                     loss = loss_function(logits, labels.to(device))
 
-            (loss / grad_accum).backward()
+                (loss / grad_accum).backward()
 
-            if ((i + 1) % grad_accum == 0) or (i + 1 == len(data_loader)):
-                epoch_fraction = epoch + (i / len(data_loader))
-                set_lr = adjust_learning_rate(
-                    optimizer=opt,
-                    epoch=epoch_fraction,
-                    total_epochs=sched_config["epochs"],
-                    warmup_epochs=sched_config["warmup_epochs"],
-                    max_lr=sched_config["lr"],
-                    min_lr=sched_config["min_lr"],
-                )  # get LR for this epoch
-                for g in opt.param_groups:
-                    g["lr"] = set_lr  # update
+                if ((i + 1) % grad_accum == 0) or (i + 1 == len(data_loader)):
+                    epoch_fraction = epoch + (i / len(data_loader))
+                    set_lr = adjust_learning_rate(
+                        optimizer=opt,
+                        epoch=epoch_fraction,
+                        total_epochs=sched_config["epochs"],
+                        warmup_epochs=sched_config["warmup_epochs"],
+                        max_lr=sched_config["lr"],
+                        min_lr=sched_config["min_lr"],
+                    )  # get LR for this epoch
+                    for g in opt.param_groups:
+                        g["lr"] = set_lr  # update
 
-                torch.nn.utils.clip_grad_norm_(finetuned_encoder.parameters(), 1.0)
-                opt.step()
-                opt.zero_grad()
+                    torch.nn.utils.clip_grad_norm_(finetuned_encoder.parameters(), 1.0)
+                    opt.step()
+                    opt.zero_grad()
 
     return finetuned_encoder
 
@@ -388,6 +407,23 @@ def evaluate_seg(data_loader, finetuned_encoder, device, identifier, patch_size_
                     months,
                     patch_size_high_res=patch_size_high_res,
                 )
+                # check that all predictions are between 0 and 1
+                assert logits.min() >= 0 and logits.max() <= 1
+
+                all_preds_1D.append(rearrange(torch.squeeze(logits), "b s -> (b s)").float().cpu().numpy())
+                all_labels_1D.append(rearrange(labels, "b h w -> (b h w)").float().cpu().numpy())
+
+                spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
+                logits = rearrange(
+                    torch.squeeze(logits),
+                    "b (h w) -> b h w",
+                    h=spatial_patches_per_dim,
+                    w=spatial_patches_per_dim,
+                )
+
+                all_preds_2D.append(logits.float().cpu())
+                all_labels_2D.append(labels.float().cpu())
+
         else:
             for masked_output, labels, _ in data_loader:
                 (
@@ -426,22 +462,22 @@ def evaluate_seg(data_loader, finetuned_encoder, device, identifier, patch_size_
                     patch_size_low_res=1,
                 )
 
-            # check that all predictions are between 0 and 1
-            assert logits.min() >= 0 and logits.max() <= 1
+                # check that all predictions are between 0 and 1
+                assert logits.min() >= 0 and logits.max() <= 1
 
-            all_preds_1D.append(rearrange(torch.squeeze(logits), "b s -> (b s)").float().cpu().numpy())
-            all_labels_1D.append(rearrange(labels, "b h w -> (b h w)").float().cpu().numpy())
+                all_preds_1D.append(rearrange(torch.squeeze(logits), "b s -> (b s)").float().cpu().numpy())
+                all_labels_1D.append(rearrange(labels, "b h w -> (b h w)").float().cpu().numpy())
 
-            spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
-            logits = rearrange(
-                torch.squeeze(logits),
-                "b (h w) -> b h w",
-                h=spatial_patches_per_dim,
-                w=spatial_patches_per_dim,
-            )
+                spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
+                logits = rearrange(
+                    torch.squeeze(logits),
+                    "b (h w) -> b h w",
+                    h=spatial_patches_per_dim,
+                    w=spatial_patches_per_dim,
+                )
 
-            all_preds_2D.append(logits.float().cpu())
-            all_labels_2D.append(labels.float().cpu())
+                all_preds_2D.append(logits.float().cpu())
+                all_labels_2D.append(labels.float().cpu())
 
     # sequence prediction
     all_preds_1D = np.concatenate(all_preds_1D)
