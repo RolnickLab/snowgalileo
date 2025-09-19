@@ -35,5 +35,5 @@ print(len(longitudes))
 latitudes = np.array(latitudes)
 longitudes = np.array(longitudes)
 
-np.save(f'latitudes_{mask_folder}.npy', latitudes)
-np.save(f'longitudes_{mask_folder}.npy', longitudes)
+np.save(os.path.join(DATA_FOLDER, "landsat_eval_masks", f'latitudes_{mask_folder}.npy'), latitudes)
+np.save(os.path.join(DATA_FOLDER, "landsat_eval_masks", f'longitudes_{mask_folder}.npy'), longitudes)
