@@ -85,6 +85,7 @@ argparser.add_argument(
 )
 argparser.add_argument("--restart", action="store_true", help="If set, will restart the run")
 argparser.add_argument("--path_to_model_checkpoint", type=str, default="")
+argparser.add_argument("--ablate", type=str, choices=["", "time", "space", "high_res", "low_res", "aux", "location"], default="")
 
 argparser.set_defaults(download=False)
 argparser.set_defaults(cache_in_ram=False)
@@ -228,6 +229,7 @@ dataloader = DataLoader(
         max_unmasking_channels=training_config["max_unmasking_channels"],
         random_masking=training_config["random_masking"],
         unmasking_channels_combo=training_config["unmasking_channels_combo"],
+        ablate=args["ablate"],
     ),
     pin_memory=True,
 )
@@ -254,6 +256,7 @@ if training_config["wandb_plot_every_n_epochs"] > 0:
             max_unmasking_channels=training_config["max_unmasking_channels"],
             random_masking=training_config["random_masking"],
             unmasking_channels_combo=training_config["unmasking_channels_combo"],
+            ablate=args["ablate"],
         ),
     )
     prepared_image_to_plot = {}

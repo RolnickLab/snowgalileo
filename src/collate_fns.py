@@ -59,6 +59,7 @@ def collated_batch_to_output(
     masking_probabilities=None,
     max_unmasking_channels=4,
     unmasking_channels_combo: str = "shapes",
+    ablate: str = "",
 ) -> CollateFnOutput:
     if fixed_patch_size_high_res is not None:
         patch_size_high_res = fixed_patch_size_high_res
@@ -94,19 +95,19 @@ def collated_batch_to_output(
 
     # randomly select a masking strategy
     masked_output = batch_subset_mask_presto(
-        s_t_h_x,
-        s_t_m_x,
-        s_t_l_x,
-        sp_x,
-        t_x,
-        st_x,
-        months,
-        valid_data_mask_s_t_h,
-        valid_data_mask_s_t_m,
-        valid_data_mask_s_t_l,
-        valid_data_mask_sp,
-        valid_data_mask_t,
-        valid_data_mask_st,
+        s_t_h_x=s_t_h_x,
+        s_t_m_x=s_t_m_x,
+        s_t_l_x=s_t_l_x,
+        sp_x=sp_x,
+        t_x=t_x,
+        st_x=st_x,
+        months=months,
+        valid_data_mask_s_t_h=valid_data_mask_s_t_h,
+        valid_data_mask_s_t_m=valid_data_mask_s_t_m,
+        valid_data_mask_s_t_l=valid_data_mask_s_t_l,
+        valid_data_mask_sp=valid_data_mask_sp,
+        valid_data_mask_t=valid_data_mask_t,
+        valid_data_mask_st=valid_data_mask_st,
         encode_ratio=encode_ratio,
         patch_size_high_res=patch_size_high_res,
         patch_size_med_res=patch_size_med_res,
@@ -119,6 +120,7 @@ def collated_batch_to_output(
         masking_function=masking_function,
         max_unmasking_channels=max_unmasking_channels,
         unmasking_channels_combo=unmasking_channels_combo,
+        ablate=ablate,
     )
 
     s_t_h_x = masked_output.space_time_high_x
@@ -173,6 +175,7 @@ def mae_collate_fn(
     max_unmasking_channels=4,
     random_masking: str = "None",
     unmasking_channels_combo: str = "shapes",
+    ablate: str = "",
 ) -> Tuple[CollateFnOutput, CollateFnOutput, CollateFnOutput, CollateFnOutput]:
     (
         s_t_h_x,
@@ -218,6 +221,7 @@ def mae_collate_fn(
         "shape_time_combinations": shape_time_combinations,
         "max_unmasking_channels": max_unmasking_channels,
         "unmasking_channels_combo": unmasking_channels_combo,
+        "ablate": ablate,
     }
     if random_masking == "none":
         return (

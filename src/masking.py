@@ -234,8 +234,28 @@ def batch_subset_mask_presto(
     masking_function: MaskingFunctions,
     max_unmasking_channels: int,
     unmasking_channels_combo: str = "shapes",
+    ablate: str = "",
 ) -> MaskedOutput:
     assert len(masking_probabilities) == len(MASKING_MODES)
+
+    # take care of ablations, TODO: maybe move this to the dataset class
+    if ablate == "high_res":
+        print("Ablating high res data")
+        valid_data_mask_s_t_h = torch.zeros_like(valid_data_mask_s_t_h)
+    elif ablate == "low_res":
+        print("Ablating low res data including NDVI and NDSI")
+        valid_data_mask_s_t_l = torch.zeros_like(valid_data_mask_s_t_l)
+        valid_data_mask_s_t_m = torch.zeros_like(valid_data_mask_s_t_m)
+        # the first 4 channels of time are VIIRS coarse resolution data
+        valid_data_mask_t[..., :4] = torch.zeros_like(valid_data_mask_t[..., :4])
+    elif ablate == "aux":
+        print("Ablating auxiliary data")
+        valid_data_mask_sp = torch.zeros_like(valid_data_mask_sp)
+        # the last channels of time are ERA5 data
+        valid_data_mask_t[..., 4:] = torch.zeros_like(valid_data_mask_t[..., 4:])
+    elif ablate == "location":
+        print("Ablating location data")
+        valid_data_mask_st = torch.zeros_like(valid_data_mask_st)
 
     # not used by Snow Galileo so far (only random masking)
     if masking_function.value < 2:
