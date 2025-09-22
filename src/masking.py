@@ -272,13 +272,13 @@ def batch_subset_mask_presto(
         original_valid_data_mask_t = valid_data_mask_t.clone()
 
         valid_data_mask_s_t_h = torch.zeros_like(valid_data_mask_s_t_h)
-        valid_data_mask_s_t_h[:, :, :, timestep_to_keep, :] = original_valid_data_mask_s_t_h[..., timestep_to_keep, :]
+        valid_data_mask_s_t_h[..., timestep_to_keep, :] = original_valid_data_mask_s_t_h[..., timestep_to_keep, :]
         valid_data_mask_s_t_m = torch.zeros_like(valid_data_mask_s_t_m)
-        valid_data_mask_s_t_m[:, :, :, timestep_to_keep, :] = original_valid_data_mask_s_t_m[..., timestep_to_keep, :]
+        valid_data_mask_s_t_m[..., timestep_to_keep, :] = original_valid_data_mask_s_t_m[..., timestep_to_keep, :]
         valid_data_mask_s_t_l = torch.zeros_like(valid_data_mask_s_t_l)
-        valid_data_mask_s_t_l[:, :, :, timestep_to_keep, :] = original_valid_data_mask_s_t_l[..., timestep_to_keep, :]
+        valid_data_mask_s_t_l[..., timestep_to_keep, :] = original_valid_data_mask_s_t_l[..., timestep_to_keep, :]
         valid_data_mask_t = torch.zeros_like(valid_data_mask_t)
-        valid_data_mask_t[:, timestep_to_keep, :] = original_valid_data_mask_t[..., timestep_to_keep, :]
+        valid_data_mask_t[..., timestep_to_keep, :] = original_valid_data_mask_t[..., timestep_to_keep, :]
 
     # not used by Snow Galileo so far (only random masking)
     if masking_function.value < 2:
