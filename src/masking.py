@@ -257,6 +257,29 @@ def batch_subset_mask_presto(
         print("Ablating location data")
         valid_data_mask_st = torch.zeros_like(valid_data_mask_st)
 
+    elif ablate == "time":
+        print("Ablating all but one timestep")
+        # default: keep the first timestep
+        timestep_to_keep = 0
+        # look for a timestep that contains landsat data, so where valid_data_mask_s_t_h[...,10] is not all zero
+        for t in range(num_timesteps):
+            if valid_data_mask_s_t_h[..., t].sum() > 0:
+                timestep_to_keep = t
+                break
+        original_valid_data_mask_s_t_h = valid_data_mask_s_t_h.clone()
+        original_valid_data_mask_s_t_m = valid_data_mask_s_t_m.clone()
+        original_valid_data_mask_s_t_l = valid_data_mask_s_t_l.clone()
+        original_valid_data_mask_t = valid_data_mask_t.clone()
+
+        valid_data_mask_s_t_h = torch.zeros_like(valid_data_mask_s_t_h)
+        valid_data_mask_s_t_h[:, :, :, timestep_to_keep, :] = original_valid_data_mask_s_t_h[..., timestep_to_keep, :]
+        valid_data_mask_s_t_m = torch.zeros_like(valid_data_mask_s_t_m)
+        valid_data_mask_s_t_m[:, :, :, timestep_to_keep, :] = original_valid_data_mask_s_t_m[..., timestep_to_keep, :]
+        valid_data_mask_s_t_l = torch.zeros_like(valid_data_mask_s_t_l)
+        valid_data_mask_s_t_l[:, :, :, timestep_to_keep, :] = original_valid_data_mask_s_t_l[..., timestep_to_keep, :]
+        valid_data_mask_t = torch.zeros_like(valid_data_mask_t)
+        valid_data_mask_t[:, timestep_to_keep, :] = original_valid_data_mask_t[..., timestep_to_keep, :]
+
     # not used by Snow Galileo so far (only random masking)
     if masking_function.value < 2:
         f: Callable = batch_mask_space if masking_function.value == 1 else batch_mask_time  # type: ignore
