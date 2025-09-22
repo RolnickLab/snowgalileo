@@ -261,9 +261,9 @@ def batch_subset_mask_presto(
         print("Ablating all but one timestep")
         # default: keep the first timestep
         timestep_to_keep = 0
-        # look for a timestep that contains landsat data, so where valid_data_mask_s_t_h[...,10] is not all zero
+        # look for a timestep that contains landsat data, so where e.g., valid_data_mask_s_t_h[..., 10] is not all zero (not dynamic!)
         for t in range(num_timesteps):
-            if valid_data_mask_s_t_h[..., t].sum() > 0:
+            if valid_data_mask_s_t_h[..., t, 10].sum() > 0:
                 timestep_to_keep = t
                 break
         original_valid_data_mask_s_t_h = valid_data_mask_s_t_h.clone()
