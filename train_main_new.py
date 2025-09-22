@@ -85,7 +85,7 @@ argparser.add_argument(
 )
 argparser.add_argument("--restart", action="store_true", help="If set, will restart the run")
 argparser.add_argument("--path_to_model_checkpoint", type=str, default="")
-argparser.add_argument("--ablate", type=str, choices=["", "time", "space", "high_res", "low_res", "aux", "location", "time"], default="")
+argparser.add_argument("--ablate", type=str, choices=["", "time", "space", "high_res", "low_res", "aux", "location", "time", "space"], default="")
 
 argparser.set_defaults(download=False)
 argparser.set_defaults(cache_in_ram=False)
