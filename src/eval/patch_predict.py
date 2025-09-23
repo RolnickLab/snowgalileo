@@ -225,27 +225,27 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False,
                 ) = [t.to(device) for t in masked_output]
 
 
-                with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-                    logits = finetuned_encoder(
-                        s_t_x,
-                        sp_x,
-                        t_x,
-                        st_x,
-                        s_t_m,
-                        sp_m,
-                        t_m,
-                        st_m,
-                        months,
-                        patch_size_high_res=patch_size_high_res,
-                    )
-                    spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
-                    logits = rearrange(
-                        torch.squeeze(logits),
-                        "b (h w) -> b h w",
-                        h=spatial_patches_per_dim,
-                        w=spatial_patches_per_dim,
-                    )
-                    loss = loss_function(logits, labels.to(device))
+                #with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                logits = finetuned_encoder(
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                    patch_size_high_res=patch_size_high_res,
+                )
+                spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
+                logits = rearrange(
+                    torch.squeeze(logits),
+                    "b (h w) -> b h w",
+                    h=spatial_patches_per_dim,
+                    w=spatial_patches_per_dim,
+                )
+                loss = loss_function(logits, labels.to(device))
                 (loss / grad_accum).backward()
 
                 if ((i + 1) % grad_accum == 0) or (i + 1 == len(data_loader)):
@@ -284,33 +284,33 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False,
                 ) = [t.to(device) for t in masked_output]
 
 
-                with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-                    logits = finetuned_encoder(
-                        s_t_h_x,
-                        s_t_m_x,
-                        s_t_l_x,
-                        sp_x,
-                        t_x,
-                        st_x,
-                        s_t_h_m,
-                        s_t_m_m,
-                        s_t_l_m,
-                        sp_m,
-                        t_m,
-                        st_m,
-                        months,
-                        patch_size_high_res=patch_size_high_res,
-                        patch_size_med_res=1,
-                        patch_size_low_res=1,
-                    )
-                    spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
-                    logits = rearrange(
-                        torch.squeeze(logits),
-                        "b (h w) -> b h w",
-                        h=spatial_patches_per_dim,
-                        w=spatial_patches_per_dim,
-                    )
-                    loss = loss_function(logits, labels.to(device))
+                #with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                logits = finetuned_encoder(
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                    patch_size_high_res=patch_size_high_res,
+                    patch_size_med_res=1,
+                    patch_size_low_res=1,
+                )
+                spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
+                logits = rearrange(
+                    torch.squeeze(logits),
+                    "b (h w) -> b h w",
+                    h=spatial_patches_per_dim,
+                    w=spatial_patches_per_dim,
+                )
+                loss = loss_function(logits, labels.to(device))
 
                 (loss / grad_accum).backward()
 

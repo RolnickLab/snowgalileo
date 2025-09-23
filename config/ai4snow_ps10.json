@@ -33,7 +33,8 @@
     "unmasking_channels_combo": "all",
     "wandb_plot_every_n_epochs": 10,
     "num_images_to_wandb_plot": 3,
-    "timesteps_to_wandb_plot": [0]
+    "timesteps_to_wandb_plot": [0],
+    "target_masking": "all"
     },
     "model": {
         "encoder": {
