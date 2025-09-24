@@ -4,9 +4,8 @@ from pathlib import Path
 from src.data.config import DATA_FOLDER
 import re
 import os
-import shutil
 import rasterio
-
+import gc
 
 def crop_input_to_mask_bounds(input_data, bounds, transform):
     west, south, east, north = bounds
@@ -21,9 +20,9 @@ def crop_input_to_mask_bounds(input_data, bounds, transform):
 
 get_filename_without_epsg_extension = lambda x: re.sub(r"_EPSG:\d+\.tif{1,2}f?$", "", x)
 
-exported_tif_path = Path(DATA_FOLDER / "landsat_eval_tifs" / "100m_tif_global")
-mask_path = Path(DATA_FOLDER / "landsat_eval_masks" / "all" / "100m_mask_global_subset")
-output_folder = Path(DATA_FOLDER / "landsat_eval_tifs" / "100m_tif_global_cropped")
+exported_tif_path = Path(DATA_FOLDER / "landsat_eval_tifs" / "patches_UTM_5_95")
+mask_path = Path(DATA_FOLDER / "landsat_eval_masks" / "all" / "patches_UTM_5_95_subset")
+output_folder = Path(DATA_FOLDER / "landsat_eval_tifs" / "patches_UTM_5_95_cropped")
 
 output_folder.mkdir(parents=True, exist_ok=True)
 
@@ -89,3 +88,5 @@ for file_name in os.listdir(mask_path):
                         ) as dst:
                             dst.write(cropped_data)
                             print(f"Copied and cropped: {input_file} to {dest_file}")
+                del input_data, cropped_data
+                gc.collect()
