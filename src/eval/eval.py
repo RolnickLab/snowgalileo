@@ -410,7 +410,7 @@ class EvalTask(ABC):
                     t_m=t_m,
                     st_m=st_m,
                     months=months,
-                    patch_size_high_res=self.patch_size_high_res,
+                    patch_size=self.patch_size_high_res,
                 )
                 if self.spatial_token_prediction:
                     encodings = (
