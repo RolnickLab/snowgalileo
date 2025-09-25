@@ -1004,27 +1004,62 @@ class LandsatEval(EvalTask):
         encodings_list = []
         labels_list = []
 
-        for masked_output, label,_ in tqdm(test_dl, desc="Computing test predictions"):
-            (
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                s_t_h_m,
-                s_t_m_m,
-                s_t_l_m,
-                sp_m,
-                t_m,
-                st_m,
-                months,
-            ) = [t.to(device) for t in masked_output]
+        if baseline_galileo:
+            for masked_output, label,_ in tqdm(test_dl, desc="Computing test predictions"):
+                (
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                ) = [t.to(device) for t in masked_output]
 
-            labels_list.append(self.rearrange_targets_into_token_sequence(label))
+                labels_list.append(self.rearrange_targets_into_token_sequence(label))
 
-            pretrained_model.eval()
-            with torch.no_grad():
+                pretrained_model.eval()
+                with torch.no_grad():
+                    (
+                        s_t_x,
+                        sp_x,
+                        t_x,
+                        st_x,
+                        s_t_m,
+                        sp_m,
+                        t_m,
+                        st_m,
+                        _,
+                    ) = pretrained_model(
+                        s_t_x,
+                        sp_x,
+                        t_x,
+                        st_x,
+                        s_t_m,
+                        sp_m,
+                        t_m,
+                        st_m,
+                        months,
+                        patch_size_high_res=self.patch_size_high_res,
+                    )
+
+                encodings = self.group_encodings_per_token_galileo_baseline(
+                    pretrained_model,
+                    s_t_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                )
+                encodings_list.append(encodings.cpu().numpy())
+
+        else:
+            for masked_output, label,_ in tqdm(test_dl, desc="Computing test predictions"):
                 (
                     s_t_h_x,
                     s_t_m_x,
@@ -1038,8 +1073,48 @@ class LandsatEval(EvalTask):
                     sp_m,
                     t_m,
                     st_m,
-                    _,
-                ) = pretrained_model(
+                    months,
+                ) = [t.to(device) for t in masked_output]
+
+                labels_list.append(self.rearrange_targets_into_token_sequence(label))
+
+                pretrained_model.eval()
+                with torch.no_grad():
+                    (
+                        s_t_h_x,
+                        s_t_m_x,
+                        s_t_l_x,
+                        sp_x,
+                        t_x,
+                        st_x,
+                        s_t_h_m,
+                        s_t_m_m,
+                        s_t_l_m,
+                        sp_m,
+                        t_m,
+                        st_m,
+                        _,
+                    ) = pretrained_model(
+                        s_t_h_x,
+                        s_t_m_x,
+                        s_t_l_x,
+                        sp_x,
+                        t_x,
+                        st_x,
+                        s_t_h_m,
+                        s_t_m_m,
+                        s_t_l_m,
+                        sp_m,
+                        t_m,
+                        st_m,
+                        months,
+                        patch_size_high_res=self.patch_size_high_res,
+                        patch_size_med_res=1,
+                        patch_size_low_res=1,
+                    )
+
+                encodings = self.group_encodings_per_token(
+                    pretrained_model,
                     s_t_h_x,
                     s_t_m_x,
                     s_t_l_x,
@@ -1052,28 +1127,8 @@ class LandsatEval(EvalTask):
                     sp_m,
                     t_m,
                     st_m,
-                    months,
-                    patch_size_high_res=self.patch_size_high_res,
-                    patch_size_med_res=1,
-                    patch_size_low_res=1,
                 )
-
-            encodings = self.group_encodings_per_token(
-                pretrained_model,
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                s_t_h_m,
-                s_t_m_m,
-                s_t_l_m,
-                sp_m,
-                t_m,
-                st_m,
-            )
-            encodings_list.append(encodings.cpu().numpy())
+                encodings_list.append(encodings.cpu().numpy())
 
         encodings_np, targets_np = np.concatenate(encodings_list), np.concatenate(labels_list)
 
@@ -1508,7 +1563,7 @@ class LandsatEval(EvalTask):
             loaders_dict = {"train": train_dl, "test": test_dl}
 
             if sklearn:
-                trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
+                trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes, baseline_galileo=baseline_galileo)
                 results = self._evaluate_model(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo)  
 
             else:
