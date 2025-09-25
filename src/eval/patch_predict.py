@@ -15,7 +15,7 @@ import numpy as np
 from typing import Dict
 
 #FT_LRs = [1e-5, 3e-5, 6e-5, 1e-4, 3e-4, 6e-4, 1e-3, 3e-3, 6e-3]
-FT_LRs = [1e-5]
+FT_LRs = [0.1]
 
 class GalileoEncoderWithHead(nn.Module):
     def __init__(self, encoder, patch_size_high_res=10, inputs_per_target=10):
@@ -113,7 +113,7 @@ def linear_probe_and_eval_seg(lr, loaders, encoder, device, identifier, baseline
     encoder = finetune_seg(
         data_loader=loaders["train"],
         lr=lr,
-        epochs=1,
+        epochs=50,
         encoder=encoder,
         device=device,
         freeze_encoder=True,
