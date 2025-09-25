@@ -1042,7 +1042,7 @@ class LandsatEval(EvalTask):
                         t_m,
                         st_m,
                         months,
-                        patch_size_high_res=self.patch_size_high_res,
+                        patch_size=self.patch_size_high_res,
                     )
 
                 encodings = self.group_encodings_per_token_galileo_baseline(
