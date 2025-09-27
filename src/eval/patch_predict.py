@@ -14,6 +14,8 @@ from .metrics import mean_iou
 import numpy as np
 from typing import Dict
 
+import wandb
+
 #FT_LRs = [1e-5, 3e-5, 6e-5, 1e-4, 3e-4, 6e-4, 1e-3, 3e-3, 6e-3]
 FT_LRs = [0.1]
 
@@ -80,9 +82,13 @@ class EncoderWithHead(nn.Module):
         return output
 
 
-def finetune_and_eval_seg(lr, loaders, encoder, device, identifier, num_finetune_epochs=50, baseline_galileo=False):
+def finetune_and_eval_seg(lr, loaders, encoder, device, identifier, num_finetune_epochs=50, baseline_galileo=False, log_wandb=False):
+    if log_wandb:
+        wandb.init(entity="sea-ice", project="ai4snow-finetune", name=f"finetune-seg-{identifier}-lr{lr}")
+        wandb.config.update({"learning_rate": lr, "num_finetune_epochs": num_finetune_epochs, "baseline_galileo": baseline_galileo})
+
     finetuned_encoder = finetune_seg(
-        data_loader=loaders["train"],
+        data_loaders=loaders,
         lr=lr,
         epochs=num_finetune_epochs,
         encoder=encoder,
@@ -111,7 +117,7 @@ def finetune_and_eval_seg(lr, loaders, encoder, device, identifier, num_finetune
 def linear_probe_and_eval_seg(lr, loaders, encoder, device, identifier, baseline_galileo=False):
     # we train the regression head for one epoch, while the encoder remains frozen
     encoder = finetune_seg(
-        data_loader=loaders["train"],
+        data_loader=loaders,
         lr=lr,
         epochs=50,
         encoder=encoder,
@@ -135,14 +141,14 @@ def linear_probe_and_eval_seg(lr, loaders, encoder, device, identifier, baseline
     return test_miou
 
 # TODO: implement validation too
-def get_finetune_results_with_val(loaders, encoder, num_runs, device, baseline_galileo=False):
+def get_finetune_results_with_val(loaders, encoder, num_runs, device, baseline_galileo=False, log_wandb=False):
     final_tests = []  # chosen using LR with best val, for each run
     for _ in range(num_runs):
         vals = []
         tests = []
         for lr in FT_LRs:
             val, test = finetune_and_eval_seg(
-                lr=lr, loaders=loaders, encoder=encoder, device=device, baseline_galileo=baseline_galileo
+                lr=lr, loaders=loaders, encoder=encoder, device=device, baseline_galileo=baseline_galileo, log_wandb=log_wandb
             )
             vals.append(val)
             tests.append(test)
@@ -151,13 +157,13 @@ def get_finetune_results_with_val(loaders, encoder, num_runs, device, baseline_g
 
     return final_tests
 
-def get_finetune_results(loaders, encoder, num_runs, device, identifier, num_finetune_epochs, baseline_galileo=False):
+def get_finetune_results(loaders, encoder, num_runs, device, identifier, num_finetune_epochs, baseline_galileo=False, log_wandb=False):
     final_tests = []  # chosen using LR with best val, for each run
     for _ in range(num_runs):
         tests = []
         for lr in FT_LRs:
             test = finetune_and_eval_seg(
-                lr=lr, loaders=loaders, encoder=encoder, device=device, identifier=identifier, num_finetune_epochs=num_finetune_epochs, baseline_galileo=baseline_galileo
+                lr=lr, loaders=loaders, encoder=encoder, device=device, identifier=identifier, num_finetune_epochs=num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb
             )
             tests.append(test)
 
@@ -179,8 +185,11 @@ def get_linear_probe_results(loaders, encoder, num_runs, device, identifier, bas
 
     return final_tests
 
-def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False, patch_size_high_res=10, inputs_per_target=10, baseline_galileo=False):
-    
+def finetune_seg(data_loaders, lr, epochs, encoder, device, freeze_encoder=False, patch_size_high_res=10, inputs_per_target=10, baseline_galileo=False, log_wandb=False):
+
+    train_loader = data_loaders["train"]
+    test_loader = data_loaders["test"]
+
     if baseline_galileo:
         finetuned_encoder = GalileoEncoderWithHead(encoder=encoder, patch_size_high_res=patch_size_high_res, inputs_per_target=inputs_per_target).to(device)
     else:
@@ -199,7 +208,7 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False,
         for param in finetuned_encoder.head.parameters():
             assert param.requires_grad
 
-    grad_accum = int(256 / data_loader.batch_size)
+    grad_accum = int(256 / train_loader.batch_size)
     sched_config = {
         "lr": lr,
         "warmup_epochs": int(epochs * 0.1),
@@ -211,7 +220,7 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False,
 
     for epoch in range(epochs):
         if baseline_galileo:
-            for i, (masked_output, labels, _) in enumerate(data_loader):
+            for i, (masked_output, labels, _) in enumerate(train_loader):
                 (
                     s_t_x,
                     sp_x,
@@ -248,8 +257,8 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False,
                 loss = loss_function(logits, labels.to(device))
                 (loss / grad_accum).backward()
 
-                if ((i + 1) % grad_accum == 0) or (i + 1 == len(data_loader)):
-                    epoch_fraction = epoch + (i / len(data_loader))
+                if ((i + 1) % grad_accum == 0) or (i + 1 == len(train_loader)):
+                    epoch_fraction = epoch + (i / len(train_loader))
                     set_lr = adjust_learning_rate(
                         optimizer=opt,
                         epoch=epoch_fraction,
@@ -266,7 +275,7 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False,
                     opt.zero_grad()
 
         else:
-            for i, (masked_output, labels, _) in enumerate(data_loader):
+            for i, (masked_output, labels, _) in enumerate(train_loader):
                 (
                     s_t_h_x,
                     s_t_m_x,
@@ -314,8 +323,8 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False,
 
                 (loss / grad_accum).backward()
 
-                if ((i + 1) % grad_accum == 0) or (i + 1 == len(data_loader)):
-                    epoch_fraction = epoch + (i / len(data_loader))
+                if ((i + 1) % grad_accum == 0) or (i + 1 == len(train_loader)):
+                    epoch_fraction = epoch + (i / len(train_loader))
                     set_lr = adjust_learning_rate(
                         optimizer=opt,
                         epoch=epoch_fraction,
@@ -331,6 +340,31 @@ def finetune_seg(data_loader, lr, epochs, encoder, device, freeze_encoder=False,
                     opt.step()
                     opt.zero_grad()
 
+        if log_wandb:
+            if epoch % 10 == 0 or epoch == epochs - 1:
+                results = evaluate_seg(
+                    data_loader=test_loader,
+                    finetuned_encoder=finetuned_encoder,
+                    device=device,
+                    identifier="",
+                    patch_size_high_res=patch_size_high_res,
+                    baseline_galileo=baseline_galileo
+                )
+                to_log = {
+                    "train_loss": loss.average,
+                    "r2": results.get("r2", -1),
+                    "rmse": results.get("rmse", -1),
+                    "overall_accuracy": results.get("overall_accuracy", -1),
+                    "balanced_accuracy": results.get("balanced_accuracy", -1),
+                    "recall": results.get("recall", -1),
+                    "precision": results.get("precision", -1),
+                    "f1": results.get("f1", -1),
+                    "miou": results.get("miou", -1),
+                    "epoch": epoch,
+                }
+                wandb.log(to_log, step=epoch)
+                print(f"Finished epoch {epoch+1}/{epochs}")
+
     return finetuned_encoder
 
 def compute_regression_metrics(identifier: str, preds: np.ndarray, target: np.ndarray, baseline=False) -> Dict[str, float]:
@@ -340,8 +374,8 @@ def compute_regression_metrics(identifier: str, preds: np.ndarray, target: np.nd
         bs = ""
 
     return {
-        f"{bs}{identifier}_rmse": root_mean_squared_error(target, preds),
-        f"{bs}{identifier}_r2": r2_score(target, preds),
+        f"{bs}{identifier}rmse": root_mean_squared_error(target, preds),
+        f"{bs}{identifier}r2": r2_score(target, preds),
     }
 
 def compute_classification_metrics(identifier: str, preds: np.ndarray, target: np.ndarray, baseline=False) -> Dict[str, float]:
@@ -351,11 +385,11 @@ def compute_classification_metrics(identifier: str, preds: np.ndarray, target: n
         bs = ""
 
     return {
-        f"{bs}{identifier}_overall_accuracy": accuracy_score(target, preds),
-        f"{bs}{identifier}_balanced_accuracy": balanced_accuracy_score(target, preds),
-        f"{bs}{identifier}_recall": recall_score(target, preds, average='weighted'),
-        f"{bs}{identifier}_precision": precision_score(target, preds, average='weighted'),
-        f"{bs}{identifier}_f1": f1_score(target, preds, average='weighted'),
+        f"{bs}{identifier}overall_accuracy": accuracy_score(target, preds),
+        f"{bs}{identifier}balanced_accuracy": balanced_accuracy_score(target, preds),
+        f"{bs}{identifier}recall": recall_score(target, preds, average='weighted'),
+        f"{bs}{identifier}precision": precision_score(target, preds, average='weighted'),
+        f"{bs}{identifier}f1": f1_score(target, preds, average='weighted'),
     }
 
 def compute_segmentation_metrics(identifier: str, preds: np.ndarray, target: np.ndarray, baseline=False) -> Dict[str, float]:
@@ -368,7 +402,7 @@ def compute_segmentation_metrics(identifier: str, preds: np.ndarray, target: np.
         f"{bs}{identifier}_miou": mean_iou(preds, target, num_classes=10),
     }
 
-def evaluate_seg(data_loader, finetuned_encoder, device, identifier, patch_size_high_res=10, baseline_galileo=False):
+def evaluate_seg(data_loader, finetuned_encoder, device, identifier="", patch_size_high_res=10, baseline_galileo=False):
     finetuned_encoder = finetuned_encoder.eval()
 
     all_preds_1D = []

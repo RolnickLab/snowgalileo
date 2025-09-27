@@ -916,7 +916,7 @@ class LandsatEval(EvalTask):
 
         super().__init__(self.patch_size_high_res, seed)
         self.name = (
-            f"{self.name}_{'_num_timesteps_' + str(7) if self.exclude_prediction_date else '8'}_{'_no_high_res' if self.exclude_prediction_high_res else ''}"
+            f"{self.name}_{'_num_timesteps_' + str(7) if self.exclude_prediction_date else '8'}_{'no_high_res_' if self.exclude_prediction_high_res else ''}"
         )
 
     def compute_regression_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict[str, float]:
@@ -1500,7 +1500,7 @@ class LandsatEval(EvalTask):
 
 
     def evaluate_model_on_task(
-        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None, baseline_galileo: bool = False, sklearn: bool = False
+        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None, baseline_galileo: bool = False, sklearn: bool = False, log_wandb: bool = False
     ) -> Dict:
 
         if baseline_galileo:
@@ -1556,8 +1556,7 @@ class LandsatEval(EvalTask):
         if self.finetune:
             test_dl = self.get_test_dl(baseline_galileo=baseline_galileo)
             loaders_dict = {"train": train_dl, "test": test_dl}
-            results = get_finetune_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name, num_finetune_epochs=self.num_finetune_epochs, baseline_galileo=baseline_galileo)
-            return results
+            results = get_finetune_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name, num_finetune_epochs=self.num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb)
         else:
             test_dl = self.get_test_dl(baseline_galileo=baseline_galileo)
             loaders_dict = {"train": train_dl, "test": test_dl}
@@ -1568,30 +1567,30 @@ class LandsatEval(EvalTask):
 
             else:
                 results = get_linear_probe_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name, baseline_galileo=baseline_galileo)
-            return results
+        return results
 
-            """
-            if model_modes is None:
-                model_modes = self.all_regression_sklearn_models
-            for model_mode in model_modes:
-                assert model_mode in self.all_regression_sklearn_models
-
-            trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
-
-            if self.evaluation_mode == "evaluate":
-                results = self._evaluate_model(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo)
-                return results
-            
-            elif self.evaluation_mode == "visualize_predictions_best_worst":
-                self._visualize_best_worst(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo)
-
-            elif self.evaluation_mode == "visualize_predictions": 
-                self._visualize_predictions(pretrained_model, trained_sklearn_models)
-
-            else:
-                raise ValueError(f"Unknown evaluation mode: {self.evaluation_mode}")
-        return {"results": "Visualizations saved to disk."}
         """
+        if model_modes is None:
+            model_modes = self.all_regression_sklearn_models
+        for model_mode in model_modes:
+            assert model_mode in self.all_regression_sklearn_models
+
+        trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
+
+        if self.evaluation_mode == "evaluate":
+            results = self._evaluate_model(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo)
+            return results
+        
+        elif self.evaluation_mode == "visualize_predictions_best_worst":
+            self._visualize_best_worst(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo)
+
+        elif self.evaluation_mode == "visualize_predictions": 
+            self._visualize_predictions(pretrained_model, trained_sklearn_models)
+
+        else:
+            raise ValueError(f"Unknown evaluation mode: {self.evaluation_mode}")
+    return {"results": "Visualizations saved to disk."}
+    """
 
 
 if __name__ == "__main__":

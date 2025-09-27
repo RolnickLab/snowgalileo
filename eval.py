@@ -39,7 +39,7 @@ else:
         encoder = Encoder.load_from_folder(Path(DATA_FOLDER / args["output_folder"])).to(device)
     else:
         # randomly initialized snowgalileo encoder
-        config = load_check_config("ai4snow.json")
+        config = load_check_config("ai4snow_ps10.json")
         encoder = Encoder(**config["model"]["encoder"]).to(device)
 
 eval_tasks: List[EvalTask] = [
@@ -48,6 +48,6 @@ eval_tasks: List[EvalTask] = [
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(
-        pretrained_model=encoder, model_modes=["Regression"], baseline_galileo=(args["encoder_type"]=="gabis_galileo"), sklearn=args["sklearn"]
+        pretrained_model=encoder, model_modes=["Regression"], baseline_galileo=(args["encoder_type"]=="gabis_galileo"), sklearn=args["sklearn"], log_wandb=True
     )
     print(json.dumps(results, indent=2, default=str), flush=True)
