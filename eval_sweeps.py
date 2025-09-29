@@ -17,6 +17,7 @@ from src.eval.eval import EvalTask
 from src.utils import device, load_check_config, seed_everything
 import argparse
 from typing import List, Optional
+from pathlib import Path
 
 seed_everything(DEFAULT_SEED)
 
