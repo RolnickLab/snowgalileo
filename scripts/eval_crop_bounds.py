@@ -27,9 +27,9 @@ output_folder = Path(DATA_FOLDER / "landsat_eval_tifs" / "patches_UTM_5_95_cropp
 output_folder.mkdir(parents=True, exist_ok=True)
 
 # check the number of tifs and masks that are left to be processed
+output_files = list(output_folder.glob("*.tif")) + list(output_folder.glob("*.tiff"))
 tif_files = list(exported_tif_path.glob("*.tif")) + list(exported_tif_path.glob("*.tiff"))
 mask_files = [f for f in mask_path.glob("*.tif") if f.name not in output_files] + [f for f in mask_path.glob("*.tiff") if f.name not in output_files]
-output_files = list(output_folder.glob("*.tif")) + list(output_folder.glob("*.tiff"))
 
 print(f"Number of remaining TIF files: {len(tif_files)}")
 print(f"Number of remaining Mask files: {len(mask_files)}")
@@ -41,7 +41,6 @@ output_location_season = {f for f in output_files}
 for file_name in os.listdir(mask_path):
     mask_file = os.path.join(mask_path, file_name)
     if os.path.isfile(mask_file):
-        matching_files = [f for f in output_location_season if file_name in os.path.basename(f)]
         # check if identifier is in output_location_season, where the actual filename can be longer
         if any(file_name in fname for fname in output_location_season):
             print(f"Duplicate found, skipping: {file_name}")
