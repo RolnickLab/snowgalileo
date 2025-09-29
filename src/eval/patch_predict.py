@@ -94,7 +94,8 @@ def finetune_and_eval_seg(lr, loaders, encoder, device, identifier, num_finetune
         encoder=encoder,
         device=device,
         freeze_encoder=False,
-        baseline_galileo=baseline_galileo
+        baseline_galileo=baseline_galileo,
+        log_wandb=log_wandb,
     )
     #val_miou = evaluate_seg(
     #    data_loader=loaders["valid"],
