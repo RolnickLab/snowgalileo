@@ -352,7 +352,7 @@ def finetune_seg(data_loaders, lr, epochs, encoder, device, freeze_encoder=False
                     baseline_galileo=baseline_galileo
                 )
                 to_log = {
-                    "train_loss": loss.average,
+                    "train_loss": loss.item(),
                     "r2": results.get("r2", -1),
                     "rmse": results.get("rmse", -1),
                     "overall_accuracy": results.get("overall_accuracy", -1),
