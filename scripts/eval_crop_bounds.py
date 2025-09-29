@@ -26,14 +26,14 @@ output_folder = Path(DATA_FOLDER / "landsat_eval_tifs" / "patches_UTM_5_95_cropp
 
 output_folder.mkdir(parents=True, exist_ok=True)
 
-# check the number of tifs and masks
+# check the number of tifs and masks that are left to be processed
 tif_files = list(exported_tif_path.glob("*.tif")) + list(exported_tif_path.glob("*.tiff"))
-mask_files = list(mask_path.glob("*.tif")) + list(mask_path.glob("*.tiff"))
+mask_files = [f for f in mask_path.glob("*.tif") if f.name not in output_files] + [f for f in mask_path.glob("*.tiff") if f.name not in output_files]
 output_files = list(output_folder.glob("*.tif")) + list(output_folder.glob("*.tiff"))
 
-print(f"Number of TIF files: {len(tif_files)}")
-print(f"Number of Mask files: {len(mask_files)}")
-print(f"Number of Output files: {len(output_files)}")
+print(f"Number of remaining TIF files: {len(tif_files)}")
+print(f"Number of remaining Mask files: {len(mask_files)}")
+print(f"Number of already cropped Output files: {len(output_files)}")
 
 output_files = os.listdir(output_folder)
 output_location_season = {f for f in output_files}
