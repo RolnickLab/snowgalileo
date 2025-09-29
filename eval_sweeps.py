@@ -26,7 +26,7 @@ parser.add_argument(
     "--pretrain", default="none", type=str, choices=["none", "snow", "galileo"]
 )
 parser.add_argument(
-    "--resample", type=bool, default=False, action="store_true"
+    "--resample", action="store_true"
 )
 parser.add_argument(
     "--num_finetune_epochs", type=int, default=50
