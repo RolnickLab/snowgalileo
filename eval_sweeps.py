@@ -80,7 +80,7 @@ def train_and_validate():
 
         eval_tasks: List[EvalTask] = [
             # geobench EuroSat only works without latlons
-            *[LandsatEval(exclude_prediction_high_res=False, evaluation_mode="evaluate", resample=sweep_run.config["resample"], finetune=True, num_finetune_epochs=args.num_finetune_epochs)],
+            *[LandsatEval(exclude_prediction_high_res=False, evaluation_mode="evaluate", resample=args.resample, finetune=True, num_finetune_epochs=args.num_finetune_epochs)],
         ]
         for task in eval_tasks:
             results = task.evaluate_model_on_task(
