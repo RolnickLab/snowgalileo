@@ -1500,7 +1500,7 @@ class LandsatEval(EvalTask):
 
 
     def evaluate_model_on_task(
-        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None, baseline_galileo: bool = False, sklearn: bool = False, log_wandb: bool = False
+        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None, baseline_galileo: bool = False, sklearn: bool = False, log_wandb: bool = False, hyperparams_config: Optional[Dict] = None
     ) -> Dict:
 
         if baseline_galileo:
@@ -1533,6 +1533,13 @@ class LandsatEval(EvalTask):
                 normalizer = Normalizer(std=False)
             train_ds.normalizer = normalizer
 
+        if hyperparams_config is not None:
+            batch_size = hyperparams_config.get("batch_size", Hyperparams.batch_size)
+            num_workers = hyperparams_config.get("num_workers", Hyperparams.num_workers)
+        else:
+            batch_size = Hyperparams.batch_size
+            num_workers = Hyperparams.num_workers
+        
         if self.resample:
             from torch.utils.data import WeightedRandomSampler
             # oversample the dataset to have a uniform distribution of mean class values per image
@@ -1541,22 +1548,22 @@ class LandsatEval(EvalTask):
             sampler = WeightedRandomSampler(weights, num_samples=len(weights), replacement=True)
             train_dl = DataLoader(
                 train_ds,
-                batch_size=Hyperparams.batch_size,
+                batch_size=batch_size,
                 sampler=sampler,
-                num_workers=Hyperparams.num_workers,
+                num_workers=num_workers,
             )
         else:
             train_dl = DataLoader(
                 train_ds,
-                batch_size=Hyperparams.batch_size,
+                batch_size=batch_size,
                 shuffle=True,
-                num_workers=Hyperparams.num_workers,
+                num_workers=num_workers,
             )
 
         if self.finetune:
             test_dl = self.get_test_dl(baseline_galileo=baseline_galileo)
             loaders_dict = {"train": train_dl, "test": test_dl}
-            results = get_finetune_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name, num_finetune_epochs=self.num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb)
+            results = get_finetune_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name, num_finetune_epochs=self.num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb, hyperparams_config=hyperparams_config)
         else:
             test_dl = self.get_test_dl(baseline_galileo=baseline_galileo)
             loaders_dict = {"train": train_dl, "test": test_dl}
