@@ -539,7 +539,7 @@ class TestPresto(unittest.TestCase):
         st_m[:, -1] = 1
         st_x[:, -1] = 0
 
-        mean = Encoder.average_tokens(
+        mean = Encoder.apply_mask_and_average_tokens(
             s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
         )
         self.assertEqual(mean.shape, (b, d))

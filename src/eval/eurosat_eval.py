@@ -188,7 +188,7 @@ class EuroSatEval(EvalTask):
                     patch_size_low_res=1,
                 )
                 encodings = (
-                    pretrained_model.average_tokens(
+                    pretrained_model.apply_mask_and_average_tokens(
                         s_t_h_x,
                         s_t_m_x,
                         s_t_l_x,

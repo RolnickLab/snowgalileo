@@ -1240,7 +1240,7 @@ class Encoder(FlexiPrestoBase):
         )
 
     @classmethod
-    def average_tokens(
+    def apply_mask_and_average_tokens(
         cls, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
     ):
         x, m = cls.collapse_and_combine_hwtc(
@@ -1251,7 +1251,19 @@ class Encoder(FlexiPrestoBase):
         return x_for_mean.sum(dim=1) / torch.sum(1 - m, -1, keepdim=True)
 
     @classmethod
-    def apply_mask_and_average_tokens_per_patch(
+    def apply_mask_and_get_token_sequence(
+        cls, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
+    ):
+        # returns the full sequence of tokens, with masked tokens removed (for use in token-based losses)
+        # output shape is (batch size, num unmasked tokens, token_dim)
+        x, m = cls.collapse_and_combine_hwtc(
+            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
+        )
+        x, _, m = cls.remove_masked_tokens(x, m)
+        return x
+
+    @classmethod
+    def apply_mask_and_average_tokens_per_highres_spatial_patch(
         cls,
         s_t_h_x: torch.Tensor,
         s_t_m_x: torch.Tensor,

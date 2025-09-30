@@ -53,7 +53,7 @@ from src.data.earthengine.eo_eval import (
 )
 from src.utils import masked_output_np_to_tensor, config_dir, device, DEFAULT_SEED
 from src.eval.eval import EvalTask, Hyperparams, model_class_name
-from src.eval.patch_predict import get_finetune_results, get_linear_probe_results
+from src.eval.patch_predict import get_finetune_results
 from sklearn.base import BaseEstimator
 from src.flexipresto import Encoder
 from sklearn.metrics import accuracy_score
@@ -64,6 +64,8 @@ logger = logging.getLogger("__main__")
 
 with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval.json")).open("r") as f:
     config = json.load(f)
+    data_config = config["data"]
+    training_config = config["training"]
 
 class LandsatEvalDataset(PyTorchDataset):
     def __init__(
@@ -82,11 +84,11 @@ class LandsatEvalDataset(PyTorchDataset):
 
         assert self.split in ["train", "test", "visualize"]
 
-        self.label_folder = DATA_FOLDER / config["label_folder"] / self.split
-        self.input_tif_folder = DATA_FOLDER / config["input_tif_folder"] / self.split
+        self.label_folder = DATA_FOLDER / data_config["label_folder"] / self.split
+        self.input_tif_folder = DATA_FOLDER / data_config["input_tif_folder"] / self.split
 
         if self.split != "visualize" and self.split != "":
-            self.h5py_folder = DATA_FOLDER / config["input_h5py_folder"] / self.split
+            self.h5py_folder = DATA_FOLDER / data_config["input_h5py_folder"] / self.split
         else:
             self.h5py_folder = None
 
@@ -890,8 +892,8 @@ class LandsatEval(EvalTask):
     regression = True
     spatial_token_prediction = True
     multilabel = False
-    input_height_width = config["input_height_width"]
-    num_outputs = config["num_classes"]
+    input_height_width = data_config["input_height_width"]
+    num_outputs = data_config["num_classes"]
 
     def __init__(
         self,
@@ -902,7 +904,6 @@ class LandsatEval(EvalTask):
         seed=DEFAULT_SEED,
         evaluation_mode: str = "evaluate",
         resample: bool = False,
-        finetune: bool = False,
         num_finetune_epochs: int = 50,
     ):
         self.normalization = normalization
@@ -911,7 +912,6 @@ class LandsatEval(EvalTask):
         self.patch_size_high_res = patch_size_high_res
         self.evaluation_mode = evaluation_mode
         self.resample = resample
-        self.finetune = finetune
         self.num_finetune_epochs = num_finetune_epochs
 
         super().__init__(self.patch_size_high_res, seed)
@@ -1500,8 +1500,24 @@ class LandsatEval(EvalTask):
 
 
     def evaluate_model_on_task(
-        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None, baseline_galileo: bool = False, sklearn: bool = False, log_wandb: bool = False, hyperparams_config: Optional[Dict] = None
+        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None, evaluation_mode: str = "finetune", baseline_galileo: bool = False, log_wandb: bool = False, hyperparams_config: Optional[Dict] = None
     ) -> Dict:
+        
+        assert evaluation_mode in ["finetune", "linear_probe", "attention_probe", "sklearn"], f"Unknown evaluation mode: {evaluation_mode}"
+        if evaluation_mode == "finetune":
+            eval_config = config["finetune"]
+        elif evaluation_mode == "linear_probe":
+            eval_config = config["linear_probe"]
+        elif evaluation_mode == "attention_probe":
+            eval_config = config["attention_probe"]
+        elif evaluation_mode == "sklearn":
+            eval_config = None
+
+        if hyperparams_config is None:
+            hyperparams_config = config["hyperparams"]
+
+        BATCH_SIZE = hyperparams_config.get("batch_size", 16)
+        NUM_WORKERS = hyperparams_config.get("num_workers", 4)
 
         if baseline_galileo:
             from src.eval.landsat_baselines import LandsatEvalDatasetGalileo, GalileoNormalizer, galileo_config_dir, GALILEO_NORMALIZATION_DICT_FILENAME
@@ -1532,13 +1548,6 @@ class LandsatEval(EvalTask):
             else:
                 normalizer = Normalizer(std=False)
             train_ds.normalizer = normalizer
-
-        if hyperparams_config is not None:
-            batch_size = hyperparams_config.get("batch_size", Hyperparams.batch_size)
-            num_workers = hyperparams_config.get("num_workers", Hyperparams.num_workers)
-        else:
-            batch_size = Hyperparams.batch_size
-            num_workers = Hyperparams.num_workers
         
         if self.resample:
             from torch.utils.data import WeightedRandomSampler
@@ -1548,32 +1557,29 @@ class LandsatEval(EvalTask):
             sampler = WeightedRandomSampler(weights, num_samples=len(weights), replacement=True)
             train_dl = DataLoader(
                 train_ds,
-                batch_size=batch_size,
+                batch_size=BATCH_SIZE,
                 sampler=sampler,
-                num_workers=num_workers,
+                num_workers=NUM_WORKERS,
             )
         else:
             train_dl = DataLoader(
                 train_ds,
-                batch_size=batch_size,
+                batch_size=BATCH_SIZE,
                 shuffle=True,
-                num_workers=num_workers,
+                num_workers=NUM_WORKERS,
             )
+        
+        if evaluation_mode == "sklearn":
+            trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes, baseline_galileo=baseline_galileo)
+            results = self._evaluate_model(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo) 
 
-        if self.finetune:
+        elif evaluation_mode in ["finetune", "linear_probe", "attention_probe"]:
             test_dl = self.get_test_dl(baseline_galileo=baseline_galileo)
             loaders_dict = {"train": train_dl, "test": test_dl}
-            results = get_finetune_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name, num_finetune_epochs=self.num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb, hyperparams_config=hyperparams_config)
+            results = get_finetune_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name, eval_config=eval_config, hyperparams_config=hyperparams_config, num_finetune_epochs=self.num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb)
         else:
-            test_dl = self.get_test_dl(baseline_galileo=baseline_galileo)
-            loaders_dict = {"train": train_dl, "test": test_dl}
+            raise ValueError(f"Unknown evaluation mode: {evaluation_mode}")
 
-            if sklearn:
-                trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes, baseline_galileo=baseline_galileo)
-                results = self._evaluate_model(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo)  
-
-            else:
-                results = get_linear_probe_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name, baseline_galileo=baseline_galileo)
         return results
 
         """

@@ -35,7 +35,7 @@ class GalileoEncoderWithHead(nn.Module):
     def forward(self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size_high_res=10):
         encodings = self.encoder(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size=patch_size_high_res)
         s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = encodings
-        encodings = self.encoder.apply_mask_and_average_tokens_per_patch(
+        encodings = self.encoder.apply_mask_and_average_tokens_per_highres_spatial_patch(
                 s_t_x,
                 sp_x,
                 t_x,
@@ -64,7 +64,7 @@ class EncoderWithHead(nn.Module):
     def forward(self, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, months, patch_size_high_res=10, patch_size_med_res=1, patch_size_low_res=1):
         encodings = self.encoder(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, months, patch_size_high_res=patch_size_high_res, patch_size_med_res=patch_size_med_res, patch_size_low_res=patch_size_low_res)
         s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, _ = encodings
-        encodings = self.encoder.apply_mask_and_average_tokens_per_patch(
+        encodings = self.encoder.apply_mask_and_average_tokens_per_highres_spatial_patch(
                 s_t_h_x,
                 s_t_m_x,
                 s_t_l_x,
@@ -82,18 +82,20 @@ class EncoderWithHead(nn.Module):
         return output
 
 
-def finetune_and_eval_seg(lr, loaders, encoder, device, identifier, num_finetune_epochs=50, baseline_galileo=False, log_wandb=False, hyperparams_config: Optional[Dict] = None):
+def finetune_and_eval_seg(loaders, encoder, device, identifier, eval_config, hyperparams_config, num_finetune_epochs=50, baseline_galileo=False, log_wandb=False):
     if log_wandb:
-        wandb.init(entity="sea-ice", project="ai4snow-finetune", name=f"finetune-seg-{identifier}-lr{lr}")
-        wandb.config.update({"learning_rate": lr, "num_finetune_epochs": num_finetune_epochs, "baseline_galileo": baseline_galileo})
+        wandb.init(entity="sea-ice", project="ai4snow-finetune", name=f"finetune-seg-{identifier}-lr{hyperparams_config.get('learning_rate')}")
+        wandb.config.update(hyperparams_config)
+        wandb.config.update({"identifier": identifier, "baseline_galileo": baseline_galileo, "num_finetune_epochs": num_finetune_epochs})
+        wandb.config.update(eval_config)
 
     finetuned_encoder = finetune_seg(
         data_loaders=loaders,
-        lr=lr,
         epochs=num_finetune_epochs,
         encoder=encoder,
         device=device,
-        freeze_encoder=False,
+        token_mapping=eval_config["token_mapping"],
+        freeze_encoder=eval_config["freeze_encoder"],
         baseline_galileo=baseline_galileo,
         log_wandb=log_wandb,
         hyperparams_config=hyperparams_config,
@@ -115,42 +117,15 @@ def finetune_and_eval_seg(lr, loaders, encoder, device, identifier, num_finetune
     )
     return test_miou
 
-
-def linear_probe_and_eval_seg(lr, loaders, encoder, device, identifier, baseline_galileo=False):
-    # we train the regression head for one epoch, while the encoder remains frozen
-    encoder = finetune_seg(
-        data_loader=loaders,
-        lr=lr,
-        epochs=50,
-        encoder=encoder,
-        device=device,
-        freeze_encoder=True,
-        baseline_galileo=baseline_galileo,
-    )
-    #val_miou = evaluate_seg(
-    #    data_loader=loaders["valid"],
-    #    finetuned_encoder=finetuned_encoder,
-    #    num_classes=config["num_classes"],
-    #    device=device,
-    #)
-    test_miou = evaluate_seg(
-        data_loader=loaders["test"],
-        finetuned_encoder=encoder,
-        device=device,
-        identifier=identifier,
-        baseline_galileo=baseline_galileo,
-    )
-    return test_miou
-
 # TODO: implement validation too
-def get_finetune_results_with_val(loaders, encoder, num_runs, device, baseline_galileo=False, log_wandb=False, hyperparams_config: Optional[Dict] = None):
+def get_finetune_results_with_val(loaders, encoder, num_runs, device, identifier, eval_config, hyperparams_config, num_finetune_epochs, baseline_galileo=False, log_wandb=False):
     final_tests = []  # chosen using LR with best val, for each run
     for _ in range(num_runs):
         vals = []
         tests = []
         for lr in FT_LRs:
             val, test = finetune_and_eval_seg(
-                lr=lr, loaders=loaders, encoder=encoder, device=device, baseline_galileo=baseline_galileo, log_wandb=log_wandb, hyperparams_config=hyperparams_config
+                lr=lr, loaders=loaders, encoder=encoder, device=device, identifier=identifier, eval_config=eval_config, num_finetune_epochs=num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb, hyperparams_config=hyperparams_config
             )
             vals.append(val)
             tests.append(test)
@@ -159,13 +134,13 @@ def get_finetune_results_with_val(loaders, encoder, num_runs, device, baseline_g
 
     return final_tests
 
-def get_finetune_results(loaders, encoder, num_runs, device, identifier, num_finetune_epochs, baseline_galileo=False, log_wandb=False, hyperparams_config: Optional[Dict] = None):
+def get_finetune_results(loaders, encoder, num_runs, device, identifier, eval_config, hyperparams_config, num_finetune_epochs, baseline_galileo=False, log_wandb=False):
     final_tests = []  # chosen using LR with best val, for each run
     for _ in range(num_runs):
         tests = []
         for lr in FT_LRs:
             test = finetune_and_eval_seg(
-                lr=lr, loaders=loaders, encoder=encoder, device=device, identifier=identifier, num_finetune_epochs=num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb, hyperparams_config=hyperparams_config
+                lr=lr, loaders=loaders, encoder=encoder, device=device, identifier=identifier, eval_config=eval_config, num_finetune_epochs=num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb, hyperparams_config=hyperparams_config
             )
             tests.append(test)
 
@@ -173,36 +148,26 @@ def get_finetune_results(loaders, encoder, num_runs, device, identifier, num_fin
 
     return final_tests
 
-def get_linear_probe_results(loaders, encoder, num_runs, device, identifier, baseline_galileo=False):
-    final_tests = []  # chosen using LR with best val, for each run
-    for _ in range(num_runs):
-        tests = []
-        for lr in FT_LRs:
-            test = linear_probe_and_eval_seg(
-                lr=lr, loaders=loaders, encoder=encoder, device=device, identifier=identifier, baseline_galileo=baseline_galileo
-            )
-            tests.append(test)
-
-        final_tests.append(tests)
-
-    return final_tests
-
-def finetune_seg(data_loaders, lr, epochs, encoder, device, freeze_encoder=False, patch_size_high_res=10, inputs_per_target=10, baseline_galileo=False, log_wandb=False, hyperparams_config: Optional[Dict] = None):
-    if hyperparams_config is not None:
-        lr = hyperparams_config.get("learning_rate", lr)
-        weight_decay = hyperparams_config.get("weight_decay", 0.0)
-        lr_schedule = hyperparams_config.get("lr_schedule", True)
-        optimizer = hyperparams_config.get("optimizer", "Adam")
-        sigmoid_slope = hyperparams_config.get("sigmoid_slope", 1.0)
-        loss_fn = hyperparams_config.get("loss_fn", "MSE")
-        warmup_fraction = hyperparams_config.get("warmup_fraction", 0.1)
-    else:
-        weight_decay = 0.0
-        lr_schedule = True
-        optimizer = "Adam"
-        sigmoid_slope = 1.0
-        loss_fn = "MSE"
-        warmup_fraction = 0.1
+def finetune_seg(
+        data_loaders, 
+        epochs, 
+        encoder, 
+        device,
+        hyperparams_config,
+        token_mapping="spatial_mean",
+        freeze_encoder=False, 
+        patch_size_high_res=10, 
+        inputs_per_target=10, 
+        baseline_galileo=False, 
+        log_wandb=False, 
+    ):
+    lr = hyperparams_config.get("learning_rate", 0.1)
+    weight_decay = hyperparams_config.get("weight_decay", 0.0)
+    lr_schedule = hyperparams_config.get("lr_schedule", True)
+    optimizer = hyperparams_config.get("optimizer", "Adam")
+    sigmoid_slope = hyperparams_config.get("sigmoid_slope", 1.0)
+    loss_fn = hyperparams_config.get("loss_fn", "MSE")
+    warmup_fraction = hyperparams_config.get("warmup_fraction", 0.1)
 
     train_loader = data_loaders["train"]
     test_loader = data_loaders["test"]

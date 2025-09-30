@@ -31,6 +31,9 @@ parser.add_argument(
 parser.add_argument(
     "--num_finetune_epochs", type=int, default=50
 )
+parser.add_argument(
+    "--strategy", type=str, default="finetune", choices=["finetune", "linear_probe", "attention_probe", "sklearn"], help="Whether to finetune the model, else probe."
+)
 
 args = parser.parse_args() 
 pretrain = args.pretrain
@@ -49,7 +52,7 @@ sweep_configuration = {
         "optimizer": {"values": ["Adam", "SGD"]},
         "weight_decay": {"values": [0, 1e-5, 1e-3]},
         "num_workers": {"values": [4]},
-        "sigmoid_slope": {"values": [0.01, 0.1, 1.0]},
+        "sigmoid_slope": {"values": [0.01, 0.1, 0.5, 1.0]},
         "loss_fn": {"values": ["MSE"]},
     },
 }
@@ -80,11 +83,11 @@ def train_and_validate():
 
         eval_tasks: List[EvalTask] = [
             # geobench EuroSat only works without latlons
-            *[LandsatEval(exclude_prediction_high_res=False, evaluation_mode="evaluate", resample=args.resample, finetune=True, num_finetune_epochs=args.num_finetune_epochs)],
+            *[LandsatEval(exclude_prediction_high_res=False, evaluation_mode="evaluate", resample=args.resample, num_finetune_epochs=args.num_finetune_epochs)],
         ]
         for task in eval_tasks:
             results = task.evaluate_model_on_task(
-                pretrained_model=encoder, model_modes=["Regression"], baseline_galileo=(args.pretrain=="galileo"), sklearn=False, hyperparams_config=sweep_run.config, log_wandb=False
+                pretrained_model=encoder, model_modes=["Regression"], evaluation_mode=args.strategy, baseline_galileo=(args.pretrain=="galileo"), hyperparams_config=sweep_run.config, log_wandb=False
             )
         # log metric to sweep run
         sweep_run.log(

@@ -28,12 +28,6 @@ from .knn import (
 logger = logging.getLogger("__main__")
 
 
-@dataclass
-class Hyperparams:
-    batch_size: int = 16
-    num_workers: int = 4
-
-
 def model_class_name(model: BaseEstimator) -> str:
     if isinstance(model, MultiOutputClassifier):
         return model.estimator.__class__.__name__
@@ -117,7 +111,7 @@ class EvalTask(ABC):
         st_m,
     ) -> torch.Tensor:
         encodings = rearrange(
-            model.apply_mask_and_average_tokens_per_patch(
+            model.apply_mask_and_average_tokens_per_highres_spatial_patch(
                 s_t_h_x,
                 s_t_m_x,
                 s_t_l_x,
@@ -149,7 +143,7 @@ class EvalTask(ABC):
         st_m,
     ) -> torch.Tensor:
         encodings = rearrange(
-            model.apply_mask_and_average_tokens_per_patch(
+            model.apply_mask_and_average_tokens_per_highres_spatial_patch(
                 s_t_x,
                 sp_x,
                 t_x,
@@ -290,7 +284,7 @@ class EvalTask(ABC):
                     encodings_list.append(encodings)
                 else:
                     encodings_list.append(
-                        pretrained_model.average_tokens(
+                        pretrained_model.apply_mask_and_average_tokens(
                             s_t_h_x,
                             s_t_m_x,
                             s_t_l_x,
@@ -432,7 +426,7 @@ class EvalTask(ABC):
                     encodings_list.append(encodings)
                 else:
                     encodings_list.append(
-                        pretrained_model.average_tokens(
+                        pretrained_model.apply_mask_and_average_tokens(
                             s_t_x,
                             sp_x,
                             t_x,
