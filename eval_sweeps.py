@@ -89,14 +89,14 @@ def train_and_validate():
         # log metric to sweep run
         sweep_run.log(
             {
-                "r2": results[0][0].get("r2", -1),
-                "rmse": results[0][0].get("rmse", -1),
-                "overall_accuracy": results[0][0].get("overall_accuracy", -1),
-                "balanced_accuracy": results[0][0].get("balanced_accuracy", -1),
-                "recall": results[0][0].get("recall", -1),
-                "precision": results[0][0].get("precision", -1),
-                "f1": results[0][0].get("f1", -1),
-                "miou": results[0][0].get("miou", -1),
+                "r2": results[0][0].get("landsat_s42_ps10_8_r2", -1),
+                "rmse": results[0][0].get("landsat_s42_ps10_8_rmse", -1),
+                "overall_accuracy": results[0][0].get("landsat_s42_ps10_8_overall_accuracy", -1),
+                "balanced_accuracy": results[0][0].get("landsat_s42_ps10_8_balanced_accuracy", -1),
+                "recall": results[0][0].get("landsat_s42_ps10_8_recall", -1),
+                "precision": results[0][0].get("landsat_s42_ps10_8_precision", -1),
+                "f1": results[0][0].get("landsat_s42_ps10_8_f1", -1),
+                "miou": results[0][0].get("landsat_s42_ps10_8_miou", -1),
             }
         )
         sweep_run.finish()
