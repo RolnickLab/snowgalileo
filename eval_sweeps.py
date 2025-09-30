@@ -89,14 +89,14 @@ def train_and_validate():
         # log metric to sweep run
         sweep_run.log(
             {
-                "r2": results.get("r2", -1),
-                "rmse": results.get("rmse", -1),
-                "overall_accuracy": results.get("overall_accuracy", -1),
-                "balanced_accuracy": results.get("balanced_accuracy", -1),
-                "recall": results.get("recall", -1),
-                "precision": results.get("precision", -1),
-                "f1": results.get("f1", -1),
-                "miou": results.get("miou", -1),
+                "r2": results[0][0].get("r2", -1),
+                "rmse": results[0][0].get("rmse", -1),
+                "overall_accuracy": results[0][0].get("overall_accuracy", -1),
+                "balanced_accuracy": results[0][0].get("balanced_accuracy", -1),
+                "recall": results[0][0].get("recall", -1),
+                "precision": results[0][0].get("precision", -1),
+                "f1": results[0][0].get("f1", -1),
+                "miou": results[0][0].get("miou", -1),
             }
         )
         sweep_run.finish()
