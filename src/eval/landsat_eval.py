@@ -945,8 +945,8 @@ class LandsatEval(EvalTask):
             f"{bs}{self.name}_{model_name}_precision": precision_score(target, preds, average='weighted'),
             f"{bs}{self.name}_{model_name}_f1": f1_score(target, preds, average='weighted'),
         }
-    
-    def get_test_dl(self, baseline_galileo=False) -> DataLoader:
+
+    def get_test_dl(self, baseline_galileo=False, hyperparams_config=None) -> DataLoader:
         if baseline_galileo:
             from src.eval.landsat_baselines import LandsatEvalDatasetGalileo, GalileoNormalizer, galileo_config_dir, GALILEO_NORMALIZATION_DICT_FILENAME
             test_ds = LandsatEvalDatasetGalileo(
@@ -979,22 +979,22 @@ class LandsatEval(EvalTask):
 
         test_dl = DataLoader(
             test_ds,
-            batch_size=Hyperparams.batch_size,
+            batch_size=hyperparams_config["batch_size"],
             shuffle=False,
-            num_workers=Hyperparams.num_workers,
+            num_workers=hyperparams_config["num_workers"],
         )
         return test_dl
 
     @torch.no_grad()
     def _evaluate_model(
-        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator], baseline_galileo=False
+        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator], baseline_galileo=False, hyperparams_config=None
     ) -> Dict:
         
         prediction_folder = DATA_FOLDER / "predictions"
         if not prediction_folder.exists():
             prediction_folder.mkdir(parents=True, exist_ok=True)
 
-        test_dl = self.get_test_dl(baseline_galileo=baseline_galileo)
+        test_dl = self.get_test_dl(baseline_galileo=baseline_galileo, hyperparams_config=hyperparams_config)
 
         pred_dict: Dict[str, BaseEstimator] = {
             model_class_name(model): [] for model in sklearn_models
@@ -1193,14 +1193,14 @@ class LandsatEval(EvalTask):
 
     @torch.no_grad()
     def _visualize_best_worst(
-        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator], num_images: int = 50, sort_for: str = "overall_accuracy", baseline_galileo=False
+        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator], num_images: int = 50, sort_for: str = "overall_accuracy", baseline_galileo=False, hyperparams_config=None
     ) -> Dict:
         
         prediction_folder = DATA_FOLDER / "ascending_accuracy_predictions"
         if not prediction_folder.exists():
             prediction_folder.mkdir(parents=True, exist_ok=True)
 
-        test_dl = self.get_test_dl(baseline_galileo=baseline_galileo)
+        test_dl = self.get_test_dl(baseline_galileo=baseline_galileo, hyperparams_config=hyperparams_config)
 
         predictions = []
         targets = []
@@ -1358,7 +1358,7 @@ class LandsatEval(EvalTask):
 
     @torch.no_grad()
     def _visualize_predictions(
-        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator]
+        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator], hyperparams_config: Dict
     ) -> Dict:
         vis_ds = LandsatEvalDataset(
             exclude_prediction_date=self.exclude_prediction_date,
@@ -1385,7 +1385,7 @@ class LandsatEval(EvalTask):
             vis_ds,
             batch_size=1,
             shuffle=False,
-            num_workers=Hyperparams.num_workers,
+            num_workers=hyperparams_config["num_workers"],
         )
 
         for masked_output, label, filename in tqdm(vis_dl, desc="Computing test predictions"):
@@ -1583,10 +1583,10 @@ class LandsatEval(EvalTask):
         
         if evaluation_mode == "sklearn":
             trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes, baseline_galileo=baseline_galileo)
-            results = self._evaluate_model(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo) 
+            results = self._evaluate_model(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo, hyperparams_config=hyperparams_config) 
 
         elif evaluation_mode in ["finetune", "linear_probe", "attention_probe"]:
-            test_dl = self.get_test_dl(baseline_galileo=baseline_galileo)
+            test_dl = self.get_test_dl(hyperparams_config=hyperparams_config, baseline_galileo=baseline_galileo)
             loaders_dict = {"train": train_dl, "test": test_dl}
             results = get_finetune_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name, eval_config=eval_config, hyperparams_config=hyperparams_config, num_finetune_epochs=self.num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb, sweep_run=sweep_run)
         else:
@@ -1603,14 +1603,14 @@ class LandsatEval(EvalTask):
         trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
 
         if self.evaluation_mode == "evaluate":
-            results = self._evaluate_model(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo)
+            results = self._evaluate_model(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo, hyperparams_config=hyperparams_config)
             return results
         
         elif self.evaluation_mode == "visualize_predictions_best_worst":
-            self._visualize_best_worst(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo)
+            self._visualize_best_worst(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo, hyperparams_config=hyperparams_config)
 
         elif self.evaluation_mode == "visualize_predictions": 
-            self._visualize_predictions(pretrained_model, trained_sklearn_models)
+            self._visualize_predictions(pretrained_model, trained_sklearn_models, hyperparams_config=hyperparams_config)
 
         else:
             raise ValueError(f"Unknown evaluation mode: {self.evaluation_mode}")
