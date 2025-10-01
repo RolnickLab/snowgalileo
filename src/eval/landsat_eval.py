@@ -52,7 +52,7 @@ from src.data.earthengine.eo_eval import (
     STATIC_BAND_GROUPS_IDX
 )
 from src.utils import masked_output_np_to_tensor, config_dir, device, DEFAULT_SEED
-from src.eval.eval import EvalTask, Hyperparams, model_class_name
+from src.eval.eval import EvalTask, model_class_name
 from src.eval.patch_predict import get_finetune_results
 from sklearn.base import BaseEstimator
 from src.flexipresto import Encoder
