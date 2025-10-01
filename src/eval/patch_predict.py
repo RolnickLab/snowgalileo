@@ -82,7 +82,7 @@ class EncoderWithHead(nn.Module):
         return output
 
 
-def finetune_and_eval_seg(loaders, encoder, device, identifier, eval_config, hyperparams_config, num_finetune_epochs=50, baseline_galileo=False, log_wandb=False):
+def finetune_and_eval_seg(loaders, encoder, device, identifier, eval_config, hyperparams_config, num_finetune_epochs=50, baseline_galileo=False, log_wandb=False, sweep_run=None):
     if log_wandb:
         wandb.init(entity="sea-ice", project="ai4snow-finetune", name=f"finetune-seg-{identifier}-lr{hyperparams_config.get('learning_rate')}")
         wandb.config.update(hyperparams_config)
@@ -99,6 +99,7 @@ def finetune_and_eval_seg(loaders, encoder, device, identifier, eval_config, hyp
         baseline_galileo=baseline_galileo,
         log_wandb=log_wandb,
         hyperparams_config=hyperparams_config,
+        sweep_run=sweep_run
     )
     #val_miou = evaluate_seg(
     #    data_loader=loaders["valid"],
@@ -113,19 +114,19 @@ def finetune_and_eval_seg(loaders, encoder, device, identifier, eval_config, hyp
         finetuned_encoder=finetuned_encoder,
         device=device,
         identifier=identifier,
-        baseline_galileo=baseline_galileo,
+        baseline_galileo=baseline_galileo
     )
     return test_miou
 
 # TODO: implement validation too
-def get_finetune_results_with_val(loaders, encoder, num_runs, device, identifier, eval_config, hyperparams_config, num_finetune_epochs, baseline_galileo=False, log_wandb=False):
+def get_finetune_results_with_val(loaders, encoder, num_runs, device, identifier, eval_config, hyperparams_config, num_finetune_epochs, baseline_galileo=False, log_wandb=False, sweep_run=None):
     final_tests = []  # chosen using LR with best val, for each run
     for _ in range(num_runs):
         vals = []
         tests = []
         for lr in FT_LRs:
             val, test = finetune_and_eval_seg(
-                lr=lr, loaders=loaders, encoder=encoder, device=device, identifier=identifier, eval_config=eval_config, num_finetune_epochs=num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb, hyperparams_config=hyperparams_config
+                lr=lr, loaders=loaders, encoder=encoder, device=device, identifier=identifier, eval_config=eval_config, num_finetune_epochs=num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb, hyperparams_config=hyperparams_config, sweep_run=sweep_run
             )
             vals.append(val)
             tests.append(test)
@@ -134,13 +135,13 @@ def get_finetune_results_with_val(loaders, encoder, num_runs, device, identifier
 
     return final_tests
 
-def get_finetune_results(loaders, encoder, num_runs, device, identifier, eval_config, hyperparams_config, num_finetune_epochs, baseline_galileo=False, log_wandb=False):
+def get_finetune_results(loaders, encoder, num_runs, device, identifier, eval_config, hyperparams_config, num_finetune_epochs, baseline_galileo=False, log_wandb=False, sweep_run=None):
     final_tests = []  # chosen using LR with best val, for each run
     for _ in range(num_runs):
         tests = []
         for lr in FT_LRs:
             test = finetune_and_eval_seg(
-                lr=lr, loaders=loaders, encoder=encoder, device=device, identifier=identifier, eval_config=eval_config, num_finetune_epochs=num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb, hyperparams_config=hyperparams_config
+                lr=lr, loaders=loaders, encoder=encoder, device=device, identifier=identifier, eval_config=eval_config, num_finetune_epochs=num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb, hyperparams_config=hyperparams_config, sweep_run=sweep_run
             )
             tests.append(test)
 
@@ -160,6 +161,7 @@ def finetune_seg(
         inputs_per_target=10, 
         baseline_galileo=False, 
         log_wandb=False, 
+        sweep_run=None
     ):
     lr = hyperparams_config.get("learning_rate", 0.1)
     weight_decay = hyperparams_config.get("weight_decay", 0.0)
@@ -335,7 +337,7 @@ def finetune_seg(
                     opt.step()
                     opt.zero_grad()
 
-        if log_wandb:
+        if log_wandb or sweep_run is not None:
             if epoch % 5 == 0 or epoch == epochs - 1:
                 results = evaluate_seg(
                     data_loader=test_loader,
@@ -357,7 +359,10 @@ def finetune_seg(
                     "miou": results.get("miou", -1),
                     "epoch": epoch,
                 }
-                wandb.log(to_log, step=epoch)
+                if log_wandb:
+                    wandb.log(to_log, step=epoch)
+                if sweep_run is not None:
+                    sweep_run.log(to_log, step=epoch)
                 print(f"Finished epoch {epoch+1}/{epochs}")
 
     return finetuned_encoder

@@ -1501,7 +1501,15 @@ class LandsatEval(EvalTask):
 
 
     def evaluate_model_on_task(
-        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None, evaluation_mode: str = "finetune", baseline_galileo: bool = False, log_wandb: bool = False, hyperparams_config: Optional[Dict] = None, initialization_id: Optional[str] = None
+        self, 
+        pretrained_model: Encoder, 
+        model_modes: Optional[List[str]] = None, 
+        evaluation_mode: str = "finetune", 
+        baseline_galileo: bool = False, 
+        log_wandb: bool = False, 
+        hyperparams_config: Optional[Dict] = None, 
+        initialization_id: Optional[str] = None, 
+        sweep_run = None
     ) -> Dict:
         
         assert evaluation_mode in ["finetune", "linear_probe", "attention_probe", "sklearn"], f"Unknown evaluation mode: {evaluation_mode}"
@@ -1580,7 +1588,7 @@ class LandsatEval(EvalTask):
         elif evaluation_mode in ["finetune", "linear_probe", "attention_probe"]:
             test_dl = self.get_test_dl(baseline_galileo=baseline_galileo)
             loaders_dict = {"train": train_dl, "test": test_dl}
-            results = get_finetune_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name, eval_config=eval_config, hyperparams_config=hyperparams_config, num_finetune_epochs=self.num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb)
+            results = get_finetune_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name, eval_config=eval_config, hyperparams_config=hyperparams_config, num_finetune_epochs=self.num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb, sweep_run=sweep_run)
         else:
             raise ValueError(f"Unknown evaluation mode: {evaluation_mode}")
 

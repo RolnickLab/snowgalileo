@@ -73,13 +73,19 @@ def train_and_validate():
     with wandb.init(project="ai4snow_sweeps") as sweep_run:
         if args.pretrain == "galileo":
             encoder = GalileoEncoder.load_from_folder(Path("galileo/data/models/nano")).to(device)
+            initialization_id = "galileo_pretrained"
         elif args.pretrain == "snow":
             # load pretrained snowgalileo encoder
             encoder = Encoder.load_from_folder(Path(DATA_FOLDER / "outputs/checkpoints_ps10_5/epoch_82/")).to(device)
+            initialization_id = "snowgalileo_pretrained"
         else:
             # randomly initialized snowgalileo encoder
             config = load_check_config("ai4snow_ps10.json")
             encoder = Encoder(**config["model"]["encoder"]).to(device)
+            initialization_id = "snowgalileo_random"
+
+        sweep_run.config.update(args)
+        sweep_run.config.update({"initialization_id": initialization_id})
 
         eval_tasks: List[EvalTask] = [
             # geobench EuroSat only works without latlons
@@ -87,7 +93,7 @@ def train_and_validate():
         ]
         for task in eval_tasks:
             results = task.evaluate_model_on_task(
-                pretrained_model=encoder, model_modes=["Regression"], evaluation_mode=args.strategy, baseline_galileo=(args.pretrain=="galileo"), hyperparams_config=sweep_run.config, log_wandb=False
+                pretrained_model=encoder, model_modes=["Regression"], evaluation_mode=args.strategy, baseline_galileo=(args.pretrain=="galileo"), hyperparams_config=sweep_run.config, log_wandb=False, initialization_id=initialization_id, sweep_run=sweep_run
             )
         # log metric to sweep run
         sweep_run.log(

@@ -32,14 +32,17 @@ args = argparser.parse_args().__dict__
 
 if args["encoder_type"] == "gabis_galileo":
     encoder = GalileoEncoder.load_from_folder(Path("galileo/data/models/nano")).to(device)
+    initialization_id = "galileo_pretrained"
 else:
     if args["output_folder"] != "":
         # load pretrained snowgalileo encoder
         encoder = Encoder.load_from_folder(Path(DATA_FOLDER / args["output_folder"])).to(device)
+        initialization_id = "snowgalileo_pretrained"
     else:
         # randomly initialized snowgalileo encoder
         config = load_check_config("ai4snow_ps10.json")
         encoder = Encoder(**config["model"]["encoder"]).to(device)
+        initialization_id = "snowgalileo_random"
 
 eval_tasks: List[EvalTask] = [
     # geobench EuroSat only works without latlons
@@ -47,6 +50,6 @@ eval_tasks: List[EvalTask] = [
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(
-        pretrained_model=encoder, model_modes=["Regression"], evaluation_mode=args["strategy"], baseline_galileo=(args["encoder_type"]=="gabis_galileo"), log_wandb=True
+        pretrained_model=encoder, model_modes=["Regression"], evaluation_mode=args["strategy"], baseline_galileo=(args["encoder_type"]=="gabis_galileo"), log_wandb=True, initialization_id=initialization_id
     )
     print(json.dumps(results, indent=2, default=str), flush=True)
