@@ -1,5 +1,4 @@
 from src.data.dataset import Dataset, Normalizer
-from src.data.new_dataset import NEWDataset, NEWNormalizer
 from src.data.earthengine.eo import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
@@ -22,6 +21,4 @@ __all__ = [
     "SPACE_BAND_GROUPS_IDX",
     "TIME_BANDS_GROUPS_IDX",
     "STATIC_BAND_GROUPS_IDX",
-    "NEWDataset",
-    "NEWNormalizer",
 ]
