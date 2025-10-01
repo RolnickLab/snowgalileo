@@ -461,12 +461,12 @@ class LandsatEvalDataset(PyTorchDataset):
             assert not np.isinf(time_x).any(), f"Infs in t_x for {tif_path}"
             assert not np.isinf(static_x).any(), f"Infs in st_x for {tif_path}"
             return DatasetOutput(
-                space_time_high_res_x,
-                space_time_med_res_x,
-                space_time_low_res_x,
-                space_x,
-                time_x,
-                static_x,
+                space_time_high_res_x.astype(np.half),
+                space_time_med_res_x.astype(np.half),
+                space_time_low_res_x.astype(np.half),
+                space_x.astype(np.half),
+                time_x.astype(np.half),
+                static_x.astype(np.half),
                 months,
                 valid_data_mask_s_t_h,
                 valid_data_mask_s_t_m,
@@ -690,6 +690,7 @@ class LandsatEvalDataset(PyTorchDataset):
 
     def read_and_slice_h5py_file(self, h5py_path: Path):
         with h5py.File(h5py_path, "r") as hf:
+            print(f"Reading h5py file {h5py_path}", flush=True)
             assert hf["s_t_h_x"].shape == (
                 self.output_hw_high_res,
                 self.output_hw_high_res,
@@ -1500,7 +1501,7 @@ class LandsatEval(EvalTask):
 
 
     def evaluate_model_on_task(
-        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None, evaluation_mode: str = "finetune", baseline_galileo: bool = False, log_wandb: bool = False, hyperparams_config: Optional[Dict] = None
+        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None, evaluation_mode: str = "finetune", baseline_galileo: bool = False, log_wandb: bool = False, hyperparams_config: Optional[Dict] = None, initialization_id: Optional[str] = None
     ) -> Dict:
         
         assert evaluation_mode in ["finetune", "linear_probe", "attention_probe", "sklearn"], f"Unknown evaluation mode: {evaluation_mode}"
@@ -1515,6 +1516,9 @@ class LandsatEval(EvalTask):
 
         if hyperparams_config is None:
             hyperparams_config = config["hyperparams"]
+
+        if initialization_id is not None:
+            hyperparams_config["initialization_id"] = initialization_id
 
         BATCH_SIZE = hyperparams_config.get("batch_size", 16)
         NUM_WORKERS = hyperparams_config.get("num_workers", 4)
