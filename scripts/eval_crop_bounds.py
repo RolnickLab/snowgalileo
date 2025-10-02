@@ -20,7 +20,7 @@ def crop_input_to_mask_bounds(input_data, bounds, transform):
 
 get_filename_without_epsg_extension = lambda x: re.sub(r"_EPSG:\d+\.tif{1,2}f?$", "", x)
 
-exported_tif_path = Path(DATA_FOLDER / "landsat_eval_tifs" / "patches_UTM_5_95")
+exported_tif_path = Path(DATA_FOLDER / "landsat_eval_tifs" / "patches_UTM_5_95_sorted")
 mask_path = Path(DATA_FOLDER / "landsat_eval_masks" / "all" / "patches_UTM_5_95_subset")
 output_folder = Path(DATA_FOLDER / "landsat_eval_tifs" / "patches_UTM_5_95_cropped")
 
