@@ -126,7 +126,7 @@ def get_finetune_results_with_val(loaders, encoder, num_runs, device, identifier
         tests = []
         for lr in FT_LRs:
             val, test = finetune_and_eval_seg(
-                lr=lr, loaders=loaders, encoder=encoder, device=device, identifier=identifier, eval_config=eval_config, num_finetune_epochs=num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb, hyperparams_config=hyperparams_config, sweep_run=sweep_run
+                loaders=loaders, encoder=encoder, device=device, identifier=identifier, eval_config=eval_config, num_finetune_epochs=num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb, hyperparams_config=hyperparams_config, sweep_run=sweep_run
             )
             vals.append(val)
             tests.append(test)
@@ -141,7 +141,7 @@ def get_finetune_results(loaders, encoder, num_runs, device, identifier, eval_co
         tests = []
         for lr in FT_LRs:
             test = finetune_and_eval_seg(
-                lr=lr, loaders=loaders, encoder=encoder, device=device, identifier=identifier, eval_config=eval_config, num_finetune_epochs=num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb, hyperparams_config=hyperparams_config, sweep_run=sweep_run
+                loaders=loaders, encoder=encoder, device=device, identifier=identifier, eval_config=eval_config, num_finetune_epochs=num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb, hyperparams_config=hyperparams_config, sweep_run=sweep_run
             )
             tests.append(test)
 
