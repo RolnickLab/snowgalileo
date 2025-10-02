@@ -65,7 +65,6 @@ logger = logging.getLogger("__main__")
 with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval.json")).open("r") as f:
     config = json.load(f)
     data_config = config["data"]
-    training_config = config["training"]
 
 class LandsatEvalDataset(PyTorchDataset):
     def __init__(
