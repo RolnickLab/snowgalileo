@@ -1,8 +1,8 @@
 {
     "data": {
-        "label_folder": "landsat_eval_masks/all/patches_UTM_1_99_test",
-        "input_tif_folder": "landsat_eval_tifs/patches_UTM_1_99_test_cropped",
-        "input_h5py_folder": "landsat_eval_h5pys_1_99_test/",
+        "label_folder": "landsat_eval_masks/all/patches_UTM_1_99",
+        "input_tif_folder": "landsat_eval_tifs/patches_UTM_1_99",
+        "input_h5py_folder": "landsat_eval_h5pys_1_99/",
         "label_resolution": 100,
         "num_timesteps": 8,
         "input_height_width": 100,
@@ -18,17 +18,21 @@
     },
     "attention_probe": {
         "freeze_encoder": true,
-        "token_mapping": "attention"
+        "token_mapping": "attention",
+        "n_heads": 2,
+        "attn_dropout_p": 0.0,
+        "use_tanh": false,
+        "hidden_dim": 0
     },
     "hyperparams": {
         "batch_size": 16,
         "num_workers": 4,
-        "weight_decay": 0.0,
+        "weight_decay": 1e-5,
         "sigmoid_slope": 1.0,
         "lr_schedule": true,
-        "learning_rate": 0.1,
+        "learning_rate": 3e-4,
         "optimizer": "Adam",
-        "warmup_fraction": 0.1,
+        "warmup_fraction": 0.0,
         "loss_fn": "MSE"
     }
 }
