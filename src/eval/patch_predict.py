@@ -55,20 +55,22 @@ class EncoderWithHead(nn.Module):
         # for segmentation
         # since our patch size is 10x10 and targets 100m resolution, each patch predicts 1 x 1 of 100m
         # since we do regression, we predict one value per patch
-        logits_per_patch = int((patch_size_high_res / inputs_per_target) * (patch_size_high_res / inputs_per_target))
+        self.logits_per_patch = int((patch_size_high_res / inputs_per_target) * (patch_size_high_res / inputs_per_target))
+        # TODO: make this more dynamic
+        self.number_of_patches = int(inputs_per_target * inputs_per_target)
         self.token_mapping = eval_config["token_mapping"]
+        self.eval_config = eval_config
 
         if self.token_mapping == "spatial_mean":
-            self.head = nn.Linear(encoder.embedding_size, logits_per_patch)
+            self.head = nn.Linear(encoder.embedding_size, self.logits_per_patch)
         elif self.token_mapping == "attention_probe":
             self.head = AttentionProbe(d_in=encoder.embedding_size, n_heads=self.eval_config["n_heads"], 
                                        attn_dropout_p=self.eval_config["attn_dropout_p"], use_tanh=self.eval_config["use_tanh"],
-                                       hidden_dim=self.eval_config["hidden_dim"], output_dim=inputs_per_target)
+                                       hidden_dim=self.eval_config["hidden_dim"], output_dim=self.number_of_patches * self.logits_per_patch)
 
         # attach a sigmoid to squeeze outputs to [0, 1]
         self.sigmoid = nn.Sigmoid()
         self.sigmoid_slope = sigmoid_slope
-        self.eval_config = eval_config
 
     def forward(self, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, months, patch_size_high_res=10, patch_size_med_res=1, patch_size_low_res=1):
         encodings = self.encoder(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, months, patch_size_high_res=patch_size_high_res, patch_size_med_res=patch_size_med_res, patch_size_low_res=patch_size_low_res)
@@ -93,7 +95,7 @@ class EncoderWithHead(nn.Module):
             )
             output = self.sigmoid(self.head(encodings) * self.sigmoid_slope)
         # map token sequence to patch output using attention probes.
-        # maps from [batch, all_tokens, embedding_dim] to [batch, spatial_patches, logits_per_patch].
+        # maps from [batch, all_tokens, embedding_dim] to [batch, spatial_patches * logits_per_patch].
         # TODO: alternatively, map from [batch, spatial_patches, tokens_per_patch, embedding_dim] to [batch, spatial_patches, logits_per_patch]?
         elif self.token_mapping == "attention_probe":
             x, m, pos = self.encoder.preprocess_tokens_for_attention_probe(
@@ -318,7 +320,6 @@ def finetune_seg(
                     st_m,
                     months,
                 ) = [t.to(device) for t in masked_output]
-
 
                 #with torch.cuda.amp.autocast(dtype=torch.bfloat16):
                 logits = finetuned_encoder(

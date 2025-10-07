@@ -1,8 +1,8 @@
 {
     "data": {
-        "label_folder": "landsat_eval_masks/all/patches_UTM_1_99_subset/",
-        "input_tif_folder": "landsat_eval_tifs/patches_UTM_1_99_cropped/",
-        "input_h5py_folder": "landsat_eval_h5pys_1_99/",
+        "label_folder": "landsat_eval_masks/all/patches_UTM_1_99_test/",
+        "input_tif_folder": "landsat_eval_tifs/patches_UTM_1_99_test_cropped/",
+        "input_h5py_folder": "landsat_eval_h5pys_1_99_test/",
         "label_resolution": 100,
         "num_timesteps": 8,
         "input_height_width": 100,
@@ -26,7 +26,7 @@
     },
     "hyperparams": {
         "batch_size": 16,
-        "num_workers": 4,
+        "num_workers": 0,
         "weight_decay": 1e-5,
         "sigmoid_slope": 1.0,
         "lr_schedule": true,

@@ -19,8 +19,8 @@ from wandb.sdk.wandb_run import Run
 
 from src.collate_fns import mae_collate_fn
 from src.config import DEFAULT_SEED, get_random_config
-from src.data import NEWDataset as Dataset
-from src.data import NEWNormalizer as Normalizer
+from src.data import Dataset
+from src.data import Normalizer
 from src.data.config import (
     CONFIG_FILENAME,
     DATA_FOLDER,
