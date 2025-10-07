@@ -860,7 +860,7 @@ class LandsatEvalDataset(PyTorchDataset):
             assert self.input_tifs[idx].name == self.label_tifs[idx].name, (f"Input path {self.input_tifs[idx].name} and label path {self.label_tifs[idx].name} do not match.")
         except AssertionError:
             print(
-                f"Label shape {label.shape} does not match expected shape ({self.label_height_width}, {self.label_height_width}) for {label.name}"
+                f"Label shape {label.shape} does not match expected shape ({self.label_height_width}, {self.label_height_width}) for {self.label_tifs[idx].name}"
             )
             self.label_tifs[idx] = self.label_tifs[idx + 1] if idx < len(self.label_tifs) - 1 else self.label_tifs[idx - 1]
             return self.__getitem__(idx)
