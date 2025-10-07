@@ -18,7 +18,7 @@
     },
     "attention_probe": {
         "freeze_encoder": true,
-        "token_mapping": "attention",
+        "token_mapping": "attention_probe",
         "n_heads": 2,
         "attn_dropout_p": 0.0,
         "use_tanh": false,

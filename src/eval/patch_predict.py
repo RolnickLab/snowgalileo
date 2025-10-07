@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 
-from src.flexipresto import adjust_learning_rate
+from src.flexipresto import adjust_learning_rate, AttentionProbe
 from sklearn.metrics import root_mean_squared_error, r2_score, balanced_accuracy_score, accuracy_score, f1_score, precision_score, recall_score
 
 from .metrics import mean_iou
@@ -49,22 +49,35 @@ class GalileoEncoderWithHead(nn.Module):
         return output
 
 class EncoderWithHead(nn.Module):
-    def __init__(self, encoder, patch_size_high_res=10, inputs_per_target=10, sigmoid_slope=1.0):
+    def __init__(self, encoder, patch_size_high_res=10, inputs_per_target=10, sigmoid_slope=1.0, eval_config=None):
         super(EncoderWithHead, self).__init__()
         self.encoder = deepcopy(encoder)  # just in case
         # for segmentation
         # since our patch size is 10x10 and targets 100m resolution, each patch predicts 1 x 1 of 100m
         # since we do regression, we predict one value per patch
         logits_per_patch = int((patch_size_high_res / inputs_per_target) * (patch_size_high_res / inputs_per_target))
-        self.head = nn.Linear(encoder.embedding_size, logits_per_patch)
+        self.token_mapping = eval_config["token_mapping"]
+
+        if self.token_mapping == "spatial_mean":
+            self.head = nn.Linear(encoder.embedding_size, logits_per_patch)
+        elif self.token_mapping == "attention_probe":
+            self.head = AttentionProbe(d_in=encoder.embedding_size, n_heads=self.eval_config["n_heads"], 
+                                       attn_dropout_p=self.eval_config["attn_dropout_p"], use_tanh=self.eval_config["use_tanh"],
+                                       hidden_dim=self.eval_config["hidden_dim"], output_dim=inputs_per_target)
+
         # attach a sigmoid to squeeze outputs to [0, 1]
         self.sigmoid = nn.Sigmoid()
         self.sigmoid_slope = sigmoid_slope
+        self.eval_config = eval_config
 
     def forward(self, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, months, patch_size_high_res=10, patch_size_med_res=1, patch_size_low_res=1):
         encodings = self.encoder(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, months, patch_size_high_res=patch_size_high_res, patch_size_med_res=patch_size_med_res, patch_size_low_res=patch_size_low_res)
         s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, _ = encodings
-        encodings = self.encoder.apply_mask_and_average_tokens_per_highres_spatial_patch(
+        
+        # map patch mean of tokens to output using a linear layer + sigmoid.
+        # maps from [batch, spatial_patches, embedding_dim] to [batch, spatial_patches, logits_per_patch].
+        if self.token_mapping == "spatial_mean":
+            encodings = self.encoder.apply_mask_and_average_tokens_per_highres_spatial_patch(
                 s_t_h_x,
                 s_t_m_x,
                 s_t_l_x,
@@ -78,7 +91,28 @@ class EncoderWithHead(nn.Module):
                 t_m,
                 st_m,
             )
-        output = self.sigmoid(self.head(encodings) * self.sigmoid_slope)
+            output = self.sigmoid(self.head(encodings) * self.sigmoid_slope)
+        # map token sequence to patch output using attention probes.
+        # maps from [batch, all_tokens, embedding_dim] to [batch, spatial_patches, logits_per_patch].
+        # TODO: alternatively, map from [batch, spatial_patches, tokens_per_patch, embedding_dim] to [batch, spatial_patches, logits_per_patch]?
+        elif self.token_mapping == "attention_probe":
+            x, m, pos = self.encoder.preprocess_tokens_for_attention_probe(
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+            )
+            output = self.sigmoid(self.head(x, m, pos) * self.sigmoid_slope)
+        else:
+            raise ValueError(f"Unknown token mapping: {self.token_mapping}")
         return output
 
 
@@ -94,11 +128,10 @@ def finetune_and_eval_seg(loaders, encoder, device, identifier, eval_config, hyp
         epochs=num_finetune_epochs,
         encoder=encoder,
         device=device,
-        token_mapping=eval_config["token_mapping"],
-        freeze_encoder=eval_config["freeze_encoder"],
+        hyperparams_config=hyperparams_config,
+        eval_config=eval_config,
         baseline_galileo=baseline_galileo,
         log_wandb=log_wandb,
-        hyperparams_config=hyperparams_config,
         sweep_run=sweep_run
     )
     #val_miou = evaluate_seg(
@@ -155,8 +188,7 @@ def finetune_seg(
         encoder, 
         device,
         hyperparams_config,
-        token_mapping="spatial_mean",
-        freeze_encoder=False, 
+        eval_config,
         patch_size_high_res=10, 
         inputs_per_target=10, 
         baseline_galileo=False, 
@@ -177,7 +209,7 @@ def finetune_seg(
     if baseline_galileo:
         finetuned_encoder = GalileoEncoderWithHead(encoder=encoder, patch_size_high_res=patch_size_high_res, inputs_per_target=inputs_per_target, sigmoid_slope=sigmoid_slope).to(device)
     else:
-        finetuned_encoder = EncoderWithHead(encoder=encoder, patch_size_high_res=patch_size_high_res, inputs_per_target=inputs_per_target, sigmoid_slope=sigmoid_slope).to(device)
+        finetuned_encoder = EncoderWithHead(encoder=encoder, patch_size_high_res=patch_size_high_res, inputs_per_target=inputs_per_target, sigmoid_slope=sigmoid_slope, eval_config=eval_config).to(device)
 
     finetuned_encoder = finetuned_encoder.train()
 
@@ -188,7 +220,7 @@ def finetune_seg(
     else:
         raise ValueError(f"Unknown optimizer: {optimizer}")
 
-    if freeze_encoder:
+    if eval_config["freeze_encoder"]:
         for param in finetuned_encoder.encoder.parameters():
             param.requires_grad = False
 

@@ -194,6 +194,87 @@ class FlexiPatchEmbed(nn.Module):
         return x
 
 
+class AttentionProbe(nn.Module):
+    # Credits to: https://github.com/EleutherAI/attention-probes
+    # Modified to invert meaning of masks (1 = masked, 0 = unmasked)
+    # Also changed default output_dim to 100 since this is the number of patches we want to predict.
+    """
+    Torch module for attention probes.
+    Supports:
+    * multiple heads
+    * relative position bias
+    * post-attention MLP
+    * attention weight dropout
+    * attention weight recording via PyTorch forward hooks
+    """
+    
+    def __init__(self, d_in, n_heads, output_dim: int = 100, hidden_dim: int = 0, use_tanh: bool = False, attn_dropout_p: float = 0.0, config: Any = None):
+        """
+        Args:
+            d_in (int): input dimensionality.
+            n_heads (int): number of attention heads.
+            output_dim (int): output dimension (default: 100).
+            Returns logits, needs to be passed through an activation function.
+            hidden_dim (int): hidden dimension for post-attention MLP (default: 0, no MLP).
+            use_tanh (bool): use tanh activation for attention weights (default: False).
+            attn_dropout_p (float): dropout probability for attention weights (default: 0.0).
+            config (Any): additional configuration parameters to store in the model.
+        """
+        super().__init__()
+        # projection from inputs to attention logits
+        self.q = nn.Linear(d_in, n_heads, bias=False)
+        self.q.weight.data.zero_()
+        # projection to per-head output logits (or pre-MLP intermediate states)
+        self.v = nn.Linear(d_in, n_heads * (hidden_dim or output_dim))
+
+        self.n_heads = n_heads
+        self.output_dim = output_dim
+        self.use_tanh = use_tanh
+        self.attn_dropout_p = attn_dropout_p
+        # alibi-like relative (to the beginning/end of the sequence) position bias
+        self.position_weight = nn.Parameter(torch.zeros((n_heads,), dtype=torch.float32))
+        # MLP after the attention
+        self.hidden_dim = hidden_dim
+        if hidden_dim:
+            self.o = nn.Linear(hidden_dim, output_dim)
+        # hookpoint to record attention probabilities. use register_forward_hook to record
+        self.attn_hook = nn.Identity()
+        
+        self.config = config
+
+    def forward(self, x, mask, position):
+        # x: (batch_size, seq_len, d_in)
+        # mask: (batch_size, seq_len)
+        # position: (batch_size, seq_len)
+        
+        # k: (batch_size, seq_len, n_heads)
+        # elements that are masked are set to -infinity
+        # position is added to the key weighted by the per-head position_weight
+        # NOTE: removed mask inversion here compared to original implementation
+        k = self.q(x) - (mask.float() * 1e9)[..., None] + position[..., None] * self.position_weight
+        if self.training:
+            # apply dropout to the keys
+            k = torch.where(torch.rand_like(k) < self.attn_dropout_p, -1e9, k)
+        # p: (batch_size, seq_len, n_heads)
+        # probability of each element after softmax, with masked elements set to 0
+        # dim=-2 is the sequence length dimension
+        if self.use_tanh:
+            p = torch.tanh(k)
+        else:
+            p = torch.nn.functional.softmax(k, dim=-2)
+        # record attention probabilities if necessary
+        self.attn_hook(p)
+        # v: (batch_size, seq_len, n_heads, output_dim)
+        v = self.v(x).unflatten(-1, (self.n_heads, -1))
+        # o: (batch_size, output_dim)
+        # weight v by the attention probabilities and sum over the sequence length and head dimensions
+        o = (p[..., None] * v).sum((-2, -3))
+        # if we have an MLP after the attention, apply it
+        if self.hidden_dim:
+            o = self.o(o.relu())
+        return o
+
+
 class Attention(nn.Module):
     # https://github.com/huggingface/pytorch-image-models/blob/main/timm/models/vision_transformer.py
     fast_attn: Final[bool]
@@ -1251,16 +1332,22 @@ class Encoder(FlexiPrestoBase):
         return x_for_mean.sum(dim=1) / torch.sum(1 - m, -1, keepdim=True)
 
     @classmethod
-    def apply_mask_and_get_token_sequence(
+    def preprocess_tokens_for_attention_probe(
         cls, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
     ):
-        # returns the full sequence of tokens, with masked tokens removed (for use in token-based losses)
-        # output shape is (batch size, num unmasked tokens, token_dim)
+        """
+        Preprocess tokens for attention probe by collapsing spatial dimensions. Also return position.
+
+        Output shapes:
+        - x: (batch size, num tokens, token_dim)
+        - m: (batch size, num tokens) with 1 for masked tokens and 0 for unmasked tokens
+        - position: (batch size, num tokens) with position indices
+        """
         x, m = cls.collapse_and_combine_hwtc(
             s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
         )
-        x, _, m = cls.remove_masked_tokens(x, m)
-        return x
+        position = torch.arange(x.shape[1], device=x.device).unsqueeze(0).expand(x.shape[0], -1)
+        return x, m, position
 
     @classmethod
     def apply_mask_and_average_tokens_per_highres_spatial_patch(
