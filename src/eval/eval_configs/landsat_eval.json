@@ -1,7 +1,7 @@
 {
     "data": {
-        "label_folder": "landsat_eval_masks/all/patches_UTM_1_99_test/",
-        "input_tif_folder": "landsat_eval_tifs/patches_UTM_1_99_test_cropped/",
+        "label_folder": "landsat_eval_masks/all/patches_UTM_1_99_subset/",
+        "input_tif_folder": "landsat_eval_tifs/patches_UTM_1_99_cropped/",
         "input_h5py_folder": "landsat_eval_h5pys_1_99_test/",
         "label_resolution": 100,
         "num_timesteps": 8,
