@@ -17,7 +17,7 @@
         "token_mapping": "spatial_mean"
     },
     "attention_probe": {
-        "freeze_encoder": true,
+        "freeze_encoder": false,
         "token_mapping": "attention_probe",
         "n_heads": 2,
         "attn_dropout_p": 0.0,
