@@ -207,15 +207,14 @@ def finetune_seg(
     sigmoid_slope = hyperparams_config.get("sigmoid_slope", 1.0)
     loss_fn = hyperparams_config.get("loss_fn", "MSE")
     warmup_fraction = hyperparams_config.get("warmup_fraction", 0.1)
-    med_and_low_res_repeat = hyperparams_config.get("med_and_low_res_repeat", True)
 
     train_loader = data_loaders["train"]
     test_loader = data_loaders["test"]
 
     if baseline_galileo:
-        finetuned_encoder = GalileoEncoderWithHead(encoder=encoder, patch_size_high_res=patch_size_high_res, inputs_per_target=inputs_per_target, sigmoid_slope=sigmoid_slope, med_and_low_res_repeat=med_and_low_res_repeat).to(device)
+        finetuned_encoder = GalileoEncoderWithHead(encoder=encoder, patch_size_high_res=patch_size_high_res, inputs_per_target=inputs_per_target, sigmoid_slope=sigmoid_slope).to(device)
     else:
-        finetuned_encoder = EncoderWithHead(encoder=encoder, patch_size_high_res=patch_size_high_res, inputs_per_target=inputs_per_target, sigmoid_slope=sigmoid_slope, eval_config=eval_config, med_and_low_res_repeat=med_and_low_res_repeat).to(device)
+        finetuned_encoder = EncoderWithHead(encoder=encoder, patch_size_high_res=patch_size_high_res, inputs_per_target=inputs_per_target, sigmoid_slope=sigmoid_slope, eval_config=eval_config).to(device)
 
     finetuned_encoder = finetuned_encoder.train()
 
