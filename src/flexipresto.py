@@ -1333,16 +1333,23 @@ class Encoder(FlexiPrestoBase):
 
     @classmethod
     def preprocess_tokens_for_attention_probe(
-        cls, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
+        cls, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, attend_over_spatial: bool=False
     ):
         """
         Preprocess tokens for attention probe by collapsing spatial dimensions. Also return position.
 
         Output shapes:
-        - x: (batch size, num tokens, token_dim)
+        - x: (batch size, num tokens, token_dim) or (batch size, high_res_spatial_positions, num tokens, token_dim) if attend_over_spatial is True
         - m: (batch size, num tokens) with 1 for masked tokens and 0 for unmasked tokens
         - position: (batch size, num tokens) with position indices
         """
+        if attend_over_spatial:
+            x, m = cls.combine_tokens_per_highres_spatial_patch(
+                s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
+            )
+            position = torch.arange(x.shape[2], device=x.device).unsqueeze(0).expand(x.shape[0], -1)
+            return x, m, position
+
         x, m = cls.collapse_and_combine_hwtc(
             s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
         )

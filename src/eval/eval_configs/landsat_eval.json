@@ -10,11 +10,13 @@
     },
     "finetune": {
         "freeze_encoder": false,
-        "token_mapping": "spatial_mean"
+        "token_mapping": "spatial_mean",
+        "med_and_low_res_repeat": true
     },
     "linear_probe": {
         "freeze_encoder": true,
-        "token_mapping": "spatial_mean"
+        "token_mapping": "spatial_mean",
+        "med_and_low_res_repeat": true
     },
     "attention_probe": {
         "freeze_encoder": false,
@@ -22,7 +24,8 @@
         "n_heads": 2,
         "attn_dropout_p": 0.0,
         "use_tanh": false,
-        "hidden_dim": 0
+        "hidden_dim": 0,
+        "attend_over_spatial": false
     },
     "hyperparams": {
         "batch_size": 16,
@@ -33,7 +36,6 @@
         "learning_rate": 3e-4,
         "optimizer": "Adam",
         "warmup_fraction": 0.0,
-        "loss_fn": "MSE",
-        "med_and_low_res_repeat": true
+        "loss_fn": "MSE"
     }
 }
