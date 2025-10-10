@@ -1346,8 +1346,82 @@ class Encoder(FlexiPrestoBase):
         x, m = cls.collapse_and_combine_hwtc(
             s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
         )
+        # to accelerate attention probing, we remove masked tokens here
+        x, _, m = cls.remove_masked_tokens(x, m)
         position = torch.arange(x.shape[1], device=x.device).unsqueeze(0).expand(x.shape[0], -1)
         return x, m, position
+    
+    @classmethod
+    def combine_tokens_per_highres_spatial_patch(
+        cls,
+        s_t_h_x: torch.Tensor,
+        s_t_m_x: torch.Tensor,
+        s_t_l_x: torch.Tensor,
+        sp_x: torch.Tensor,
+        t_x: torch.Tensor,
+        st_x: torch.Tensor,
+        s_t_h_m: torch.Tensor,
+        s_t_m_m: torch.Tensor,
+        s_t_l_m: torch.Tensor,
+        sp_m: torch.Tensor,
+        t_m: torch.Tensor,
+        st_m: torch.Tensor,
+        med_and_low_res_repeat: bool=True
+    ):
+        # Creates an output of tokens with shape (batch size, high_res_spatial_positions, num_tokens, token_dim), where masked tokens are removed.
+        # We upsample med and low resolution tokens, to be able to incorporate them into the high resolution tokens.
+        # If med_and_low_res_repeat is False, we remove med and low resolution tokens instead of repeating them.
+
+        p_m = s_t_h_x.shape[1] // s_t_m_x.shape[1]
+        p_l = s_t_h_x.shape[1] // s_t_l_x.shape[1]
+
+        s_t_h_x = rearrange(s_t_h_x, "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d")
+        sp_x = rearrange(sp_x, "b t_h t_w c_g d -> b (t_h t_w) c_g d")
+        s_t_h_m = rearrange(s_t_h_m, "b t_h t_w t c_g-> b (t_h t_w) (t c_g)")
+        sp_m = rearrange(sp_m, "b t_h t_w c_g-> b (t_h t_w) c_g")
+
+        # only keep high resolution tokens
+        if not med_and_low_res_repeat:
+            print("Removing medium and low resolution tokens instead of repeating them.", flush=True)
+            x = torch.cat([s_t_h_x, sp_x], dim=2)  # B, S, N, D
+            m = torch.cat([s_t_h_m, sp_m], dim=2)  # B, S, N
+            return x, m
+
+        print("Repeating medium and low resolution tokens to match high resolution tokens.", flush=True)
+        # repeat medium and low resolution tokens over high resolution
+        s_t_m_x = rearrange(
+            repeat(
+                s_t_m_x, "b t_h t_w t c_g d -> b (t_h p_h) (t_w p_w) t c_g d", p_h=p_m, p_w=p_m
+            ),
+            "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d",
+        )
+        s_t_l_x = rearrange(
+            repeat(
+                s_t_l_x, "b t_h t_w t c_g d -> b (t_h p_h) (t_w p_w) t c_g d", p_h=p_l, p_w=p_l
+            ),
+            "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d",
+        )
+        # repeat time tokens over space
+        t_x = repeat(
+            rearrange(t_x, "b t c_g d -> b (t c_g) d"), "b n d -> b s n d", s=sp_x.shape[1]
+        )
+        st_x = repeat(st_x, "b c_g d -> b s c_g d", s=sp_x.shape[1])
+
+        s_t_m_m = rearrange(
+            repeat(s_t_m_m, "b t_h t_w t c_g -> b (t_h p_h) (t_w p_w) t c_g", p_h=p_m, p_w=p_m),
+            "b t_h t_w t c_g -> b (t_h t_w) (t c_g)",
+        )
+        s_t_l_m = rearrange(
+            repeat(s_t_l_m, "b t_h t_w t c_g -> b (t_h p_h) (t_w p_w) t c_g", p_h=p_l, p_w=p_l),
+            "b t_h t_w t c_g -> b (t_h t_w) (t c_g)",
+        )
+        t_m = repeat(rearrange(t_m, "b t c_g -> b (t c_g)"), "b n -> b s n", s=sp_x.shape[1])
+        st_m = repeat(st_m, "b c_g -> b s c_g", s=sp_x.shape[1])
+
+        x = torch.cat([s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x], dim=2)  # B, S, N, D
+        m = torch.cat([s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m], dim=2)  # B, S, N
+
+        return x, m
 
     @classmethod
     def apply_mask_and_average_tokens_per_highres_spatial_patch(
@@ -1364,51 +1438,23 @@ class Encoder(FlexiPrestoBase):
         sp_m: torch.Tensor,
         t_m: torch.Tensor,
         st_m: torch.Tensor,
+        med_and_low_res_repeat: bool=True
     ):
-        ### used for spatial token prediction.
-        # We create an output of tokens of shape (batch size, num_tokens, token_dim), where masked tokens are removed.
-        # tokens are in high resolution. We upsample med and low resolution tokens and then take the mean per spatial patch, to incorporate them into the high resolution tokens.
-
-        p_m = s_t_h_x.shape[1] // s_t_m_x.shape[1]
-        p_l = s_t_h_x.shape[1] // s_t_l_x.shape[1]
-
-        s_t_h_x = rearrange(s_t_h_x, "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d")
-
-        # repeat medium and low resolution tokens over high resolution
-        s_t_m_x = rearrange(
-            repeat(
-                s_t_m_x, "b t_h t_w t c_g d -> b (t_h p_h) (t_w p_w) t c_g d", p_h=p_m, p_w=p_m
-            ),
-            "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d",
+        x, m = cls.combine_tokens_per_highres_spatial_patch(
+            s_t_h_x, 
+            s_t_m_x, 
+            s_t_l_x, 
+            sp_x, 
+            t_x, 
+            st_x, 
+            s_t_h_m, 
+            s_t_m_m, 
+            s_t_l_m, 
+            sp_m, 
+            t_m, 
+            st_m, 
+            med_and_low_res_repeat=med_and_low_res_repeat
         )
-        s_t_l_x = rearrange(
-            repeat(
-                s_t_l_x, "b t_h t_w t c_g d -> b (t_h p_h) (t_w p_w) t c_g d", p_h=p_l, p_w=p_l
-            ),
-            "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d",
-        )
-        sp_x = rearrange(sp_x, "b t_h t_w c_g d -> b (t_h t_w) c_g d")
-
-        # repeat time tokens over space
-        t_x = repeat(
-            rearrange(t_x, "b t c_g d -> b (t c_g) d"), "b n d -> b s n d", s=sp_x.shape[1]
-        )
-        st_x = repeat(st_x, "b c_g d -> b s c_g d", s=sp_x.shape[1])
-        s_t_h_m = rearrange(s_t_h_m, "b t_h t_w t c_g-> b (t_h t_w) (t c_g)")
-        s_t_m_m = rearrange(
-            repeat(s_t_m_m, "b t_h t_w t c_g -> b (t_h p_h) (t_w p_w) t c_g", p_h=p_m, p_w=p_m),
-            "b t_h t_w t c_g -> b (t_h t_w) (t c_g)",
-        )
-        s_t_l_m = rearrange(
-            repeat(s_t_l_m, "b t_h t_w t c_g -> b (t_h p_h) (t_w p_w) t c_g", p_h=p_l, p_w=p_l),
-            "b t_h t_w t c_g -> b (t_h t_w) (t c_g)",
-        )
-        sp_m = rearrange(sp_m, "b t_h t_w c_g-> b (t_h t_w) c_g")
-        t_m = repeat(rearrange(t_m, "b t c_g -> b (t c_g)"), "b n -> b s n", s=sp_x.shape[1])
-        st_m = repeat(st_m, "b c_g -> b s c_g", s=sp_x.shape[1])
-
-        x = torch.cat([s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x], dim=2)  # B, S, N, D
-        m = torch.cat([s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m], dim=2)  # B, S, N
 
         x_for_mean = x * (1 - m.unsqueeze(-1))
 

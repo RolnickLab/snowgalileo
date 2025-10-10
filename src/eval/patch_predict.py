@@ -20,7 +20,7 @@ import wandb
 FT_LRs = [0.1]
 
 class GalileoEncoderWithHead(nn.Module):
-    def __init__(self, encoder, patch_size_high_res=10, inputs_per_target=10, sigmoid_slope=1.0):
+    def __init__(self, encoder, patch_size_high_res=10, inputs_per_target=10, sigmoid_slope=1.0, med_and_low_res_repeat=True):
         super(GalileoEncoderWithHead, self).__init__()
         self.encoder = deepcopy(encoder)  # just in case
         # for segmentation
@@ -31,6 +31,7 @@ class GalileoEncoderWithHead(nn.Module):
         # attach a sigmoid to squeeze outputs to [0, 1]
         self.sigmoid = nn.Sigmoid()
         self.sigmoid_slope = sigmoid_slope
+        self.med_and_low_res_repeat = med_and_low_res_repeat
 
     def forward(self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size_high_res=10):
         encodings = self.encoder(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size=patch_size_high_res)
@@ -44,12 +45,13 @@ class GalileoEncoderWithHead(nn.Module):
                 sp_m,
                 t_m,
                 st_m,
+                med_and_low_res_repeat=self.med_and_low_res_repeat
             )
         output = self.sigmoid(self.head(encodings) * self.sigmoid_slope)
         return output
 
 class EncoderWithHead(nn.Module):
-    def __init__(self, encoder, patch_size_high_res=10, inputs_per_target=10, sigmoid_slope=1.0, eval_config=None):
+    def __init__(self, encoder, patch_size_high_res=10, inputs_per_target=10, sigmoid_slope=1.0, eval_config=None, med_and_low_res_repeat=True):
         super(EncoderWithHead, self).__init__()
         self.encoder = deepcopy(encoder)  # just in case
         # for segmentation
@@ -60,6 +62,7 @@ class EncoderWithHead(nn.Module):
         self.number_of_patches = int(inputs_per_target * inputs_per_target)
         self.token_mapping = eval_config["token_mapping"]
         self.eval_config = eval_config
+        self.med_and_low_res_repeat = med_and_low_res_repeat
 
         if self.token_mapping == "spatial_mean":
             self.head = nn.Linear(encoder.embedding_size, self.logits_per_patch)
@@ -92,6 +95,7 @@ class EncoderWithHead(nn.Module):
                 sp_m,
                 t_m,
                 st_m,
+                med_and_low_res_repeat=self.med_and_low_res_repeat
             )
             output = self.sigmoid(self.head(encodings) * self.sigmoid_slope)
         # map token sequence to patch output using attention probes.
@@ -204,14 +208,15 @@ def finetune_seg(
     sigmoid_slope = hyperparams_config.get("sigmoid_slope", 1.0)
     loss_fn = hyperparams_config.get("loss_fn", "MSE")
     warmup_fraction = hyperparams_config.get("warmup_fraction", 0.1)
+    med_and_low_res_repeat = hyperparams_config.get("med_and_low_res_repeat", True)
 
     train_loader = data_loaders["train"]
     test_loader = data_loaders["test"]
 
     if baseline_galileo:
-        finetuned_encoder = GalileoEncoderWithHead(encoder=encoder, patch_size_high_res=patch_size_high_res, inputs_per_target=inputs_per_target, sigmoid_slope=sigmoid_slope).to(device)
+        finetuned_encoder = GalileoEncoderWithHead(encoder=encoder, patch_size_high_res=patch_size_high_res, inputs_per_target=inputs_per_target, sigmoid_slope=sigmoid_slope, med_and_low_res_repeat=med_and_low_res_repeat).to(device)
     else:
-        finetuned_encoder = EncoderWithHead(encoder=encoder, patch_size_high_res=patch_size_high_res, inputs_per_target=inputs_per_target, sigmoid_slope=sigmoid_slope, eval_config=eval_config).to(device)
+        finetuned_encoder = EncoderWithHead(encoder=encoder, patch_size_high_res=patch_size_high_res, inputs_per_target=inputs_per_target, sigmoid_slope=sigmoid_slope, eval_config=eval_config, med_and_low_res_repeat=med_and_low_res_repeat).to(device)
 
     finetuned_encoder = finetuned_encoder.train()
 

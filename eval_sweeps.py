@@ -43,7 +43,7 @@ pretrain = args.pretrain
 sweep_configuration = {
     "name": f"sweep_pretrain_{args.pretrain}_resample_{args.resample}",
     "method": "random",
-    "metric": {"goal": "maximize", "name": "balanced_accuracy"},
+    "metric": {"goal": "minimize", "name": "rmse"},
     "parameters": {
         "learning_rate": {"values": [1e-5, 3e-5, 6e-5, 1e-4, 3e-4, 6e-4, 1e-3, 3e-3, 6e-3]},
         "lr_schedule": {"values": [True, False]},
