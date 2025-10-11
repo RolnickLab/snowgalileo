@@ -117,7 +117,8 @@ class EncoderWithHead(nn.Module):
                 sp_m,
                 t_m,
                 st_m,
-                attend_over_spatial=self.eval_config.get("attend_over_spatial", False)
+                attend_over_spatial=self.eval_config.get("attend_over_spatial", False),
+                med_and_low_res_repeat=self.eval_config.get("med_and_low_res_repeat", True)
             )
             output = self.sigmoid(self.head(x, m, pos) * self.sigmoid_slope)
         else:

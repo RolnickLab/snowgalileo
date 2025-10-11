@@ -1333,7 +1333,7 @@ class Encoder(FlexiPrestoBase):
 
     @classmethod
     def preprocess_tokens_for_attention_probe(
-        cls, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, attend_over_spatial: bool=False
+        cls, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, attend_over_spatial: bool=False, med_and_low_res_repeat: bool=True
     ):
         """
         Preprocess tokens for attention probe by collapsing spatial dimensions. Also return position.
@@ -1346,7 +1346,7 @@ class Encoder(FlexiPrestoBase):
         if attend_over_spatial:
             print("Attending over spatial patches.", flush=True)
             x, m = cls.combine_tokens_per_highres_spatial_patch(
-                s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
+                s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, med_and_low_res_repeat=med_and_low_res_repeat
             )
             position = torch.arange(x.shape[2], device=x.device).unsqueeze(0).expand(x.shape[1], -1).unsqueeze(0).expand(x.shape[0], -1, -1)
             return x, m, position
