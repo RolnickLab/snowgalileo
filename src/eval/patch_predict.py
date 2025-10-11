@@ -61,13 +61,17 @@ class EncoderWithHead(nn.Module):
         self.number_of_patches = int(inputs_per_target * inputs_per_target)
         self.token_mapping = eval_config["token_mapping"]
         self.eval_config = eval_config
+        if self.eval_config["attend_over_spatial"]:
+            self.attn_output_dim = self.logits_per_patch
+        else:
+            self.attn_output_dim = self.number_of_patches * self.logits_per_patch
 
         if self.token_mapping == "spatial_mean":
             self.head = nn.Linear(encoder.embedding_size, self.logits_per_patch)
         elif self.token_mapping == "attention_probe":
-            self.head = AttentionProbe(d_in=encoder.embedding_size, n_heads=self.eval_config["n_heads"], 
+            self.head = AttentionProbe(d_in=encoder.embedding_size, output_dim=self.attn_output_dim, n_heads=self.eval_config["n_heads"], 
                                        attn_dropout_p=self.eval_config["attn_dropout_p"], use_tanh=self.eval_config["use_tanh"],
-                                       hidden_dim=self.eval_config["hidden_dim"], output_dim=self.number_of_patches * self.logits_per_patch)
+                                       hidden_dim=self.eval_config["hidden_dim"])
 
         # attach a sigmoid to squeeze outputs to [0, 1]
         self.sigmoid = nn.Sigmoid()
