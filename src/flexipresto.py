@@ -1348,7 +1348,7 @@ class Encoder(FlexiPrestoBase):
             x, m = cls.combine_tokens_per_highres_spatial_patch(
                 s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
             )
-            position = torch.arange(x.shape[2], device=x.device).unsqueeze(0).expand(x.shape[0], -1)
+            position = torch.arange(x.shape[2], device=x.device).unsqueeze(0).expand(x.shape[1], -1).unsqueeze(0).expand(x.shape[0], -1, -1)
             return x, m, position
 
         print("Attending over all tokens.", flush=True)
