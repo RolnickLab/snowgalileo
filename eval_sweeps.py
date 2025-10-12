@@ -29,7 +29,7 @@ parser.add_argument(
     "--resample", action="store_true"
 )
 parser.add_argument(
-    "--num_finetune_epochs", type=int, default=50
+    "--num_finetune_epochs", type=int, default=25
 )
 parser.add_argument(
     "--strategy", type=str, default="finetune", choices=["finetune", "linear_probe", "attention_probe", "sklearn"], help="Whether to finetune the model, else probe."
@@ -43,7 +43,7 @@ pretrain = args.pretrain
 sweep_configuration = {
     "name": f"sweep_pretrain_{args.pretrain}_resample_{args.resample}",
     "method": "random",
-    "metric": {"goal": "minimize", "name": "rmse"},
+    "metric": {"goal": "maximize", "name": "r2"},
     "parameters": {
         "learning_rate": {"values": [1e-5, 3e-5, 6e-5, 1e-4, 3e-4, 6e-4, 1e-3, 3e-3, 6e-3]},
         "lr_schedule": {"values": [True, False]},
