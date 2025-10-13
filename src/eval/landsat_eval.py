@@ -890,7 +890,7 @@ class LandsatEvalDataset(PyTorchDataset):
 
 
 class LandsatEval(EvalTask):
-    name = "landsat"
+    name = "ls"
     regression = True
     spatial_token_prediction = True
     multilabel = False
@@ -907,6 +907,7 @@ class LandsatEval(EvalTask):
         evaluation_mode: str = "evaluate",
         resample: bool = False,
         num_finetune_epochs: int = 50,
+        decoder_mode: str = "attention_probe"
     ):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
@@ -915,10 +916,12 @@ class LandsatEval(EvalTask):
         self.evaluation_mode = evaluation_mode
         self.resample = resample
         self.num_finetune_epochs = num_finetune_epochs
+        self.decoder_mode = decoder_mode
+        self.name = "ls"
 
         super().__init__(self.patch_size_high_res, seed)
         self.name = (
-            f"{self.name}_{'_num_timesteps_' + str(7) if self.exclude_prediction_date else '8'}_{'no_high_res_' if self.exclude_prediction_high_res else ''}"
+            f"{self.name}_{'attn' if self.decoder_mode == 'attention_probe' else 'linear' if self.decoder_mode == 'linear_probe' else 'finetune' if self.decoder_mode == 'finetune' else 'sklearn'}_{'_exclude_prediction_date_' if self.exclude_prediction_date else ''}{'_no_high_res_in_pred_date' if self.exclude_prediction_high_res else ''}"
         )
 
     def compute_regression_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict[str, float]:
@@ -1505,22 +1508,22 @@ class LandsatEval(EvalTask):
         self, 
         pretrained_model: Encoder, 
         model_modes: Optional[List[str]] = None, 
-        evaluation_mode: str = "finetune", 
         baseline_galileo: bool = False, 
         log_wandb: bool = False, 
         hyperparams_config: Optional[Dict] = None, 
         initialization_id: Optional[str] = None, 
-        sweep_run = None
+        sweep_run = None,
+        save_final_checkpoint: bool = False,
     ) -> Dict:
         
-        assert evaluation_mode in ["finetune", "linear_probe", "attention_probe", "sklearn"], f"Unknown evaluation mode: {evaluation_mode}"
-        if evaluation_mode == "finetune":
+        assert self.decoder_mode in ["finetune", "linear_probe", "attention_probe", "sklearn"], f"Unknown evaluation mode: {self.decoder_mode}"
+        if self.decoder_mode == "finetune":
             eval_config = config["finetune"]
-        elif evaluation_mode == "linear_probe":
+        elif self.decoder_mode == "linear_probe":
             eval_config = config["linear_probe"]
-        elif evaluation_mode == "attention_probe":
+        elif self.decoder_mode == "attention_probe":
             eval_config = config["attention_probe"]
-        elif evaluation_mode == "sklearn":
+        elif self.decoder_mode == "sklearn":
             eval_config = None
 
         if hyperparams_config is None:
@@ -1581,17 +1584,31 @@ class LandsatEval(EvalTask):
                 shuffle=True,
                 num_workers=NUM_WORKERS,
             )
-        
-        if evaluation_mode == "sklearn":
+
+        if self.decoder_mode == "sklearn":
+            assert save_final_checkpoint == False, "Cannot save final checkpoint when using sklearn evaluation mode."
             trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes, baseline_galileo=baseline_galileo)
             results = self._evaluate_model(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo, hyperparams_config=hyperparams_config) 
 
-        elif evaluation_mode in ["finetune", "linear_probe", "attention_probe"]:
+        elif self.decoder_mode in ["finetune", "linear_probe", "attention_probe"]:
             test_dl = self.get_test_dl(hyperparams_config=hyperparams_config, baseline_galileo=baseline_galileo)
             loaders_dict = {"train": train_dl, "test": test_dl}
-            results = get_finetune_results(loaders_dict, pretrained_model, num_runs=1, device=device, identifier=self.name, eval_config=eval_config, hyperparams_config=hyperparams_config, num_finetune_epochs=self.num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb, sweep_run=sweep_run)
+            results = get_finetune_results(
+                loaders_dict, 
+                pretrained_model, 
+                num_runs=1, 
+                device=device, 
+                identifier=self.name, 
+                eval_config=eval_config, 
+                hyperparams_config=hyperparams_config, 
+                num_finetune_epochs=self.num_finetune_epochs, 
+                baseline_galileo=baseline_galileo, 
+                log_wandb=log_wandb, 
+                sweep_run=sweep_run,
+                save_final_checkpoint=save_final_checkpoint
+            )
         else:
-            raise ValueError(f"Unknown evaluation mode: {evaluation_mode}")
+            raise ValueError(f"Unknown evaluation mode: {self.decoder_mode}")
 
         return results
 

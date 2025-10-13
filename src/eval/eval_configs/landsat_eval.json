@@ -30,13 +30,13 @@
     },
     "hyperparams": {
         "batch_size": 16,
-        "num_workers": 0,
+        "num_workers": 4,
         "weight_decay": 1e-5,
         "sigmoid_slope": 1.0,
-        "lr_schedule": true,
+        "lr_schedule": false,
         "learning_rate": 3e-4,
         "optimizer": "Adam",
-        "warmup_fraction": 0.0,
+        "warmup_fraction": 0.1,
         "loss_fn": "MSE"
     }
 }

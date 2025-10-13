@@ -26,6 +26,7 @@ from src.masking import MASKING_MODES, MaskedOutput
 data_dir = Path(__file__).parent.parent / "data"
 logging_dir = Path(__file__).parent.parent / "logs"
 config_dir = Path(__file__).parent.parent / "config"
+checkpoints_dir = Path(__file__).parent.parent / "checkpoints"
 
 if not torch.cuda.is_available():
     device = torch.device("cpu")
@@ -69,6 +70,13 @@ def masked_output_np_to_tensor(
         torch.as_tensor(month, dtype=torch.long),
     )
 
+def save_checkpoint(model, filename='default.pth'):
+    save_dir = checkpoints_dir
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    filename = os.path.join(save_dir, filename)
+    torch.save(model.state_dict(), filename)
+    print(f"Saved checkpoint to {filename}")
 
 class AverageMeter:
     """computes and stores the average and current value"""

@@ -88,12 +88,17 @@ def train_and_validate():
         sweep_run.config.update({"initialization_id": initialization_id})
 
         eval_tasks: List[EvalTask] = [
-            # geobench EuroSat only works without latlons
-            *[LandsatEval(exclude_prediction_high_res=False, evaluation_mode="evaluate", resample=args.resample, num_finetune_epochs=args.num_finetune_epochs)],
+            *[LandsatEval(exclude_prediction_high_res=False, 
+                          evaluation_mode="evaluate", 
+                          resample=args.resample, 
+                          num_finetune_epochs=args.num_finetune_epochs,
+                          decoder_mode=args.strategy,
+                          ) for _ in [0]
+            ],
         ]
         for task in eval_tasks:
             results = task.evaluate_model_on_task(
-                pretrained_model=encoder, model_modes=["Regression"], evaluation_mode=args.strategy, baseline_galileo=(args.pretrain=="galileo"), hyperparams_config=sweep_run.config, log_wandb=False, initialization_id=initialization_id, sweep_run=sweep_run
+                pretrained_model=encoder, model_modes=["Regression"], baseline_galileo=(args.pretrain=="galileo"), hyperparams_config=sweep_run.config, log_wandb=False, initialization_id=initialization_id, sweep_run=sweep_run
             )
         # log metric to sweep run
         sweep_run.log(

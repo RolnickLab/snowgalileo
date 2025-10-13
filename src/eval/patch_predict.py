@@ -10,9 +10,10 @@ from einops import rearrange
 from src.flexipresto import adjust_learning_rate, AttentionProbe
 from sklearn.metrics import root_mean_squared_error, r2_score, balanced_accuracy_score, accuracy_score, f1_score, precision_score, recall_score
 
-from .metrics import mean_iou
+from src.eval.metrics import mean_iou
 import numpy as np
 from typing import Dict, Optional
+from src.utils import save_checkpoint
 
 import wandb
 
@@ -126,14 +127,14 @@ class EncoderWithHead(nn.Module):
         return output
 
 
-def finetune_and_eval_seg(loaders, encoder, device, identifier, eval_config, hyperparams_config, num_finetune_epochs=50, baseline_galileo=False, log_wandb=False, sweep_run=None):
+def finetune_and_eval_seg(loaders, encoder, device, identifier, eval_config, hyperparams_config, num_finetune_epochs=50, baseline_galileo=False, log_wandb=False, sweep_run=None, save_final_checkpoint=False):
     if log_wandb:
         wandb.init(entity="sea-ice", project="ai4snow-finetune", name=f"finetune-seg-{identifier}-lr{hyperparams_config.get('learning_rate')}")
         wandb.config.update(hyperparams_config)
         wandb.config.update({"identifier": identifier, "baseline_galileo": baseline_galileo, "num_finetune_epochs": num_finetune_epochs})
         wandb.config.update(eval_config)
 
-    finetuned_encoder = finetune_seg(
+    finetuned_model = finetune_seg(
         data_loaders=loaders,
         epochs=num_finetune_epochs,
         encoder=encoder,
@@ -154,22 +155,35 @@ def finetune_and_eval_seg(loaders, encoder, device, identifier, eval_config, hyp
     #)
     test_miou = evaluate_seg(
         data_loader=loaders["test"],
-        finetuned_encoder=finetuned_encoder,
+        finetuned_model=finetuned_model,
         device=device,
         identifier=identifier,
         baseline_galileo=baseline_galileo
     )
+    if save_final_checkpoint:
+        filename = f"finetuned_seg_{identifier}_final.pth"
+        save_checkpoint(finetuned_model, filename)
     return test_miou
 
 # TODO: implement validation too
-def get_finetune_results_with_val(loaders, encoder, num_runs, device, identifier, eval_config, hyperparams_config, num_finetune_epochs, baseline_galileo=False, log_wandb=False, sweep_run=None):
+def get_finetune_results_with_val(loaders, encoder, num_runs, device, identifier, eval_config, hyperparams_config, num_finetune_epochs, baseline_galileo=False, log_wandb=False, sweep_run=None, save_final_checkpoint=False):
     final_tests = []  # chosen using LR with best val, for each run
     for _ in range(num_runs):
         vals = []
         tests = []
         for lr in FT_LRs:
             val, test = finetune_and_eval_seg(
-                loaders=loaders, encoder=encoder, device=device, identifier=identifier, eval_config=eval_config, num_finetune_epochs=num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb, hyperparams_config=hyperparams_config, sweep_run=sweep_run
+                loaders=loaders, 
+                encoder=encoder, 
+                device=device, 
+                identifier=identifier, 
+                eval_config=eval_config, 
+                num_finetune_epochs=num_finetune_epochs, 
+                baseline_galileo=baseline_galileo, 
+                log_wandb=log_wandb, 
+                hyperparams_config=hyperparams_config, 
+                sweep_run=sweep_run,
+                save_final_checkpoint=save_final_checkpoint
             )
             vals.append(val)
             tests.append(test)
@@ -178,13 +192,23 @@ def get_finetune_results_with_val(loaders, encoder, num_runs, device, identifier
 
     return final_tests
 
-def get_finetune_results(loaders, encoder, num_runs, device, identifier, eval_config, hyperparams_config, num_finetune_epochs, baseline_galileo=False, log_wandb=False, sweep_run=None):
+def get_finetune_results(loaders, encoder, num_runs, device, identifier, eval_config, hyperparams_config, num_finetune_epochs, baseline_galileo=False, log_wandb=False, sweep_run=None, save_final_checkpoint=False):
     final_tests = []  # chosen using LR with best val, for each run
     for _ in range(num_runs):
         tests = []
         for lr in FT_LRs:
             test = finetune_and_eval_seg(
-                loaders=loaders, encoder=encoder, device=device, identifier=identifier, eval_config=eval_config, num_finetune_epochs=num_finetune_epochs, baseline_galileo=baseline_galileo, log_wandb=log_wandb, hyperparams_config=hyperparams_config, sweep_run=sweep_run
+                loaders=loaders, 
+                encoder=encoder, 
+                device=device, 
+                identifier=identifier, 
+                eval_config=eval_config, 
+                num_finetune_epochs=num_finetune_epochs, 
+                baseline_galileo=baseline_galileo, 
+                log_wandb=log_wandb, 
+                hyperparams_config=hyperparams_config, 
+                sweep_run=sweep_run,
+                save_final_checkpoint=save_final_checkpoint
             )
             tests.append(test)
 
@@ -382,7 +406,7 @@ def finetune_seg(
             if epoch % 5 == 0 or epoch == epochs - 1:
                 results = evaluate_seg(
                     data_loader=test_loader,
-                    finetuned_encoder=finetuned_encoder,
+                    finetuned_model=finetuned_encoder,
                     device=device,
                     identifier="",
                     patch_size_high_res=patch_size_high_res,
@@ -443,8 +467,8 @@ def compute_segmentation_metrics(identifier: str, preds: np.ndarray, target: np.
         f"{bs}{identifier}miou": mean_iou(preds, target, num_classes=10),
     }
 
-def evaluate_seg(data_loader, finetuned_encoder, device, identifier="", patch_size_high_res=10, baseline_galileo=False):
-    finetuned_encoder = finetuned_encoder.eval()
+def evaluate_seg(data_loader, finetuned_model, device, identifier="", patch_size_high_res=10, baseline_galileo=False):
+    finetuned_model = finetuned_model.eval()
 
     all_preds_1D = []
     all_labels_1D = []
@@ -470,7 +494,7 @@ def evaluate_seg(data_loader, finetuned_encoder, device, identifier="", patch_si
                 ) = [t.to(device) for t in masked_output]
 
                 #with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-                logits = finetuned_encoder(
+                logits = finetuned_model(
                     s_t_x,
                     sp_x,
                     t_x,
@@ -518,7 +542,7 @@ def evaluate_seg(data_loader, finetuned_encoder, device, identifier="", patch_si
                 ) = [t.to(device) for t in masked_output]
 
                 #with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-                logits = finetuned_encoder(
+                logits = finetuned_model(
                     s_t_h_x,
                     s_t_m_x,
                     s_t_l_x,

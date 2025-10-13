@@ -24,10 +24,11 @@ torch.backends.cuda.matmul.allow_tf32 = True
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--output_folder", type=str, default="")
 argparser.add_argument("--encoder_type", type=str, default="snowgalileo", choices=["gabis_galileo", "snowgalileo"])
-argparser.add_argument("--strategy", type=str, default="finetune", choices=["finetune", "linear_probe", "attention_probe", "sklearn"], help="Whether to finetune the model, else probe.")
+argparser.add_argument("--strategy", type=str, default="attention_probe", choices=["finetune", "linear_probe", "attention_probe", "sklearn"], help="Whether to finetune the model, else probe.")
 argparser.add_argument("--eval_mode", type=str, default="evaluate", choices=["evaluate", "visualize_predictions", "visualize_predictions_best_worst"])
 argparser.add_argument("--resample", action="store_true", help="Whether to use oversampling.")
-argparser.add_argument("--num_finetune_epochs", type=int, default=50, help="Number of epochs to finetune for.")
+argparser.add_argument("--num_finetune_epochs", type=int, default=25, help="Number of epochs to finetune for.")
+argparser.add_argument("--save_final_checkpoint", action="store_true", help="Whether to save the final checkpoint after finetuning.")
 args = argparser.parse_args().__dict__
 
 if args["encoder_type"] == "gabis_galileo":
@@ -46,10 +47,17 @@ else:
 
 eval_tasks: List[EvalTask] = [
     # geobench EuroSat only works without latlons
-    *[LandsatEval(exclude_prediction_high_res=high, evaluation_mode=args["eval_mode"], resample=args["resample"], num_finetune_epochs=args["num_finetune_epochs"]) for high in [True, False]],
+    *[LandsatEval(
+        exclude_prediction_high_res=high, 
+        evaluation_mode=args["eval_mode"], 
+        resample=args["resample"], 
+        decoder_mode=args["strategy"],
+        num_finetune_epochs=args["num_finetune_epochs"],
+        ) for high in [True, False]
+    ],
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(
-        pretrained_model=encoder, model_modes=["Regression"], evaluation_mode=args["strategy"], baseline_galileo=(args["encoder_type"]=="gabis_galileo"), log_wandb=True, initialization_id=initialization_id
+        pretrained_model=encoder, model_modes=["Regression"], baseline_galileo=(args["encoder_type"]=="gabis_galileo"), log_wandb=True, initialization_id=initialization_id
     )
     print(json.dumps(results, indent=2, default=str), flush=True)
