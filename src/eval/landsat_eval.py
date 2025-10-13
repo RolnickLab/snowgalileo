@@ -56,6 +56,7 @@ from src.eval.eval import EvalTask, model_class_name
 from src.eval.patch_predict import get_finetune_results
 from sklearn.base import BaseEstimator
 from src.flexipresto import Encoder
+from src.eval.patch_predict import EncoderWithHead, GalileoEncoderWithHead
 from sklearn.metrics import accuracy_score
 
 from torch.utils.data import Dataset as PyTorchDataset
@@ -1362,8 +1363,10 @@ class LandsatEval(EvalTask):
 
     @torch.no_grad()
     def _visualize_predictions(
-        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator], hyperparams_config: Dict
-    ) -> Dict:
+        self, 
+        model: EncoderWithHead,
+        log_wandb: bool = False,
+    ):
         vis_ds = LandsatEvalDataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
@@ -1389,30 +1392,11 @@ class LandsatEval(EvalTask):
             vis_ds,
             batch_size=1,
             shuffle=False,
-            num_workers=hyperparams_config["num_workers"],
+            num_workers=0,
         )
 
-        for masked_output, label, filename in tqdm(vis_dl, desc="Computing test predictions"):
-            (
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                s_t_h_m,
-                s_t_m_m,
-                s_t_l_m,
-                sp_m,
-                t_m,
-                st_m,
-                months,
-            ) = [t.to(device) for t in masked_output]
-
-            label = label.squeeze(0).numpy()
-
-            pretrained_model.eval()
-            with torch.no_grad():
+        with torch.no_grad():
+            for masked_output, labels, filename in tqdm(vis_dl, desc="Predicting visualization images"):
                 (
                     s_t_h_x,
                     s_t_m_x,
@@ -1426,8 +1410,11 @@ class LandsatEval(EvalTask):
                     sp_m,
                     t_m,
                     st_m,
-                    _,
-                ) = pretrained_model(
+                    months,
+                ) = [t.to(device) for t in masked_output]
+
+                #with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                logits = model(
                     s_t_h_x,
                     s_t_m_x,
                     s_t_l_x,
@@ -1441,40 +1428,52 @@ class LandsatEval(EvalTask):
                     t_m,
                     st_m,
                     months,
-                    patch_size_high_res=self.patch_size_high_res,
+                    patch_size_high_res=10,
                     patch_size_med_res=1,
                     patch_size_low_res=1,
                 )
 
-            encodings = self.group_encodings_per_token(
-                pretrained_model,
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                s_t_h_m,
-                s_t_m_m,
-                s_t_l_m,
-                sp_m,
-                t_m,
-                st_m,
-            )
-            encodings = encodings.cpu().numpy()
+                # check that all predictions are between 0 and 1
+                assert logits.min() >= 0 and logits.max() <= 1
 
-            for model in sklearn_models:
-                preds = model.predict(encodings)
-                # reshape the predictions to match the label shape
-                pred_reshaped = preds.reshape(label.shape)
-                r2 = r2_score(label, pred_reshaped)
+                spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
+                preds_2D = rearrange(
+                    torch.squeeze(logits),
+                    "b (h w) -> b h w",
+                    h=spatial_patches_per_dim,
+                    w=spatial_patches_per_dim,
+                ).float().cpu().numpy()
+                labels = labels.float().cpu().numpy()
+
+                r2 = r2_score(labels, preds_2D)
+                rmse = root_mean_squared_error(labels, preds_2D)
+
+                if log_wandb:
+                    import wandb
+
+                    wandb.init(entity="sea-ice", project="ai4snow-finetune")
+                    wandb.log(
+                        {
+                            f"{self.name}_visualization_{filename}_r2_{r2}_rmse_{rmse}": wandb.Image(
+                                np.concatenate(
+                                    [
+                                        preds_2D,
+                                        labels,
+                                        np.abs(preds_2D - labels),
+                                    ],
+                                    axis=1,
+                                ),
+                                caption=f"Predictions | Ground Truth | Absolute Error | R2: {r2:.4f}, RMSE: {rmse:.4f}",
+                            )
+                        }
+                    )
 
                 # save the predictions as numpy
                 np.save(
-                    visualization_folder / f"{filename}_{r2}.npy",
-                    pred_reshaped,
+                    visualization_folder / f"{filename}_r2_{r2}_rmse_{rmse}.npy",
+                    preds_2D,
                 )
-            print(f"Saved predictions for {filename} with R2: {r2}", flush=True)
+                print(f"Saved predictions for {filename} with R2: {r2} and RMSE: {rmse}", flush=True)
 
 
     def make_weights_for_balanced_classes(self, train_ds, nclasses):
@@ -1586,6 +1585,10 @@ class LandsatEval(EvalTask):
             )
 
         if self.decoder_mode == "sklearn":
+            if model_modes is None:
+                model_modes = self.all_regression_sklearn_models
+            for model_mode in model_modes:
+                assert model_mode in self.all_regression_sklearn_models
             assert save_final_checkpoint == False, "Cannot save final checkpoint when using sklearn evaluation mode."
             trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes, baseline_galileo=baseline_galileo)
             results = self._evaluate_model(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo, hyperparams_config=hyperparams_config) 
@@ -1611,39 +1614,10 @@ class LandsatEval(EvalTask):
             raise ValueError(f"Unknown evaluation mode: {self.decoder_mode}")
 
         return results
-
-        """
-        if model_modes is None:
-            model_modes = self.all_regression_sklearn_models
-        for model_mode in model_modes:
-            assert model_mode in self.all_regression_sklearn_models
-
-        trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes)
-
-        if self.evaluation_mode == "evaluate":
-            results = self._evaluate_model(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo, hyperparams_config=hyperparams_config)
-            return results
-        
-        elif self.evaluation_mode == "visualize_predictions_best_worst":
-            self._visualize_best_worst(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo, hyperparams_config=hyperparams_config)
-
-        elif self.evaluation_mode == "visualize_predictions": 
-            self._visualize_predictions(pretrained_model, trained_sklearn_models, hyperparams_config=hyperparams_config)
-
-        else:
-            raise ValueError(f"Unknown evaluation mode: {self.evaluation_mode}")
-    return {"results": "Visualizations saved to disk."}
-    """
-
-
-if __name__ == "__main__":
-    dataset = LandsatEvalDataset(split="test", exclude_prediction_date=True)
-    print(f"Number of samples in dataset: {len(dataset)}")
-    normalizing_dict = dataset.load_normalization_values(
-        path=config_dir / NORMALIZATION_DICT_FILENAME
-    )
-    print(NORMALIZATION_DICT_FILENAME)
-    normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
-    dataset.normalizer = normalizer
-    sample = dataset[0]
-    print(f"Prediction month: {dataset.prediction_month_from_file(dataset.label_tifs[0])}")
+    
+    def visualize_sample_predictions(
+        self,
+        model: EncoderWithHead, 
+        log_wandb: bool = False, 
+    ):
+        self._visualize_predictions(model, log_wandb=log_wandb)

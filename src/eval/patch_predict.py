@@ -51,7 +51,14 @@ class GalileoEncoderWithHead(nn.Module):
         return output
 
 class EncoderWithHead(nn.Module):
-    def __init__(self, encoder, patch_size_high_res=10, inputs_per_target=10, sigmoid_slope=1.0, eval_config=None):
+    def __init__(
+            self, 
+            encoder, 
+            patch_size_high_res=10, 
+            inputs_per_target=10, 
+            sigmoid_slope=1.0, 
+            eval_config=None
+        ):
         super(EncoderWithHead, self).__init__()
         self.encoder = deepcopy(encoder)  # just in case
         # for segmentation
@@ -129,7 +136,7 @@ class EncoderWithHead(nn.Module):
 
 def finetune_and_eval_seg(loaders, encoder, device, identifier, eval_config, hyperparams_config, num_finetune_epochs=50, baseline_galileo=False, log_wandb=False, sweep_run=None, save_final_checkpoint=False):
     if log_wandb:
-        wandb.init(entity="sea-ice", project="ai4snow-finetune", name=f"finetune-seg-{identifier}-lr{hyperparams_config.get('learning_rate')}")
+        wandb.init(entity="sea-ice", project="ai4snow-finetune", name=f"{identifier}-lr{hyperparams_config.get('learning_rate')}")
         wandb.config.update(hyperparams_config)
         wandb.config.update({"identifier": identifier, "baseline_galileo": baseline_galileo, "num_finetune_epochs": num_finetune_epochs})
         wandb.config.update(eval_config)

@@ -23,7 +23,7 @@ torch.backends.cuda.matmul.allow_tf32 = True
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--output_folder", type=str, default="")
-argparser.add_argument("--encoder_type", type=str, default="snowgalileo", choices=["gabis_galileo", "snowgalileo"])
+argparser.add_argument("--encoder_type", type=str, default="snowgalileo", choices=["orig_galileo", "snowgalileo"])
 argparser.add_argument("--strategy", type=str, default="attention_probe", choices=["finetune", "linear_probe", "attention_probe", "sklearn"], help="Whether to finetune the model, else probe.")
 argparser.add_argument("--eval_mode", type=str, default="evaluate", choices=["evaluate", "visualize_predictions", "visualize_predictions_best_worst"])
 argparser.add_argument("--resample", action="store_true", help="Whether to use oversampling.")
@@ -31,7 +31,7 @@ argparser.add_argument("--num_finetune_epochs", type=int, default=25, help="Numb
 argparser.add_argument("--save_final_checkpoint", action="store_true", help="Whether to save the final checkpoint after finetuning.")
 args = argparser.parse_args().__dict__
 
-if args["encoder_type"] == "gabis_galileo":
+if args["encoder_type"] == "orig_galileo":
     encoder = GalileoEncoder.load_from_folder(Path("galileo/data/models/nano")).to(device)
     initialization_id = "galileo_pretrained"
 else:
@@ -60,7 +60,7 @@ for task in eval_tasks:
     results = task.evaluate_model_on_task(
         pretrained_model=encoder, 
         model_modes=["Regression"], 
-        baseline_galileo=(args["encoder_type"]=="gabis_galileo"), 
+        baseline_galileo=(args["encoder_type"]=="orig_galileo"), 
         log_wandb=True, 
         initialization_id=initialization_id,
         save_final_checkpoint=args["save_final_checkpoint"],
