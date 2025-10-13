@@ -58,6 +58,11 @@ eval_tasks: List[EvalTask] = [
 ]
 for task in eval_tasks:
     results = task.evaluate_model_on_task(
-        pretrained_model=encoder, model_modes=["Regression"], baseline_galileo=(args["encoder_type"]=="gabis_galileo"), log_wandb=True, initialization_id=initialization_id
+        pretrained_model=encoder, 
+        model_modes=["Regression"], 
+        baseline_galileo=(args["encoder_type"]=="gabis_galileo"), 
+        log_wandb=True, 
+        initialization_id=initialization_id,
+        save_final_checkpoint=args["save_final_checkpoint"],
     )
     print(json.dumps(results, indent=2, default=str), flush=True)
