@@ -28,7 +28,7 @@ argparser.add_argument("--strategy", type=str, default="attention_probe", choice
 argparser.add_argument("--resample", action="store_true", help="Whether to use oversampling.")
 argparser.add_argument("--num_finetune_epochs", type=int, default=25, help="Number of epochs to finetune for.")
 argparser.add_argument("--save_final_checkpoint", action="store_true", help="Whether to save the final checkpoint after finetuning.")
-argparser.add_argument("--exclude_prediction_high_res", action="store_false", help="Whether to exclude high-res in prediction date.")
+argparser.add_argument("--exclude_prediction_high_res", action="store_true", help="Whether to exclude high-res in prediction date.")
 args = argparser.parse_args().__dict__
 
 if args["encoder_type"] == "orig_galileo":
