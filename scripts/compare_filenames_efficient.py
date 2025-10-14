@@ -27,5 +27,9 @@ def compare_filenames(folder1, folder2):
     print(f"Non-matching files in {folder2}: {len(only_in_folder2)}")
     print(f"Total non-matching (unique across both): {len(only_in_folder1) + len(only_in_folder2)}")
 
+    # print the first 10 filenames that are not matching
+    print(f"First 10 non-matching files in {folder1}: {list(only_in_folder1)[:10]}")
+    print(f"First 10 non-matching files in {folder2}: {list(only_in_folder2)[:10]}")
+
 if __name__ == "__main__":
     compare_filenames(input_path, output_path)
