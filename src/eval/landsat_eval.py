@@ -955,7 +955,7 @@ class LandsatEval(EvalTask):
             from src.eval.landsat_baselines import LandsatEvalDatasetGalileo, GalileoNormalizer, galileo_config_dir, GALILEO_NORMALIZATION_DICT_FILENAME
             test_ds = LandsatEvalDatasetGalileo(
                 exclude_prediction_date=self.exclude_prediction_date,
-                exclude_predicition_high_res=self.exclude_prediction_high_res,
+                exclude_prediction_high_res=self.exclude_prediction_high_res,
                 split="test",
             )
             if self.normalization == "std":
@@ -969,7 +969,7 @@ class LandsatEval(EvalTask):
         else:
             test_ds = LandsatEvalDataset(
                 exclude_prediction_date=self.exclude_prediction_date,
-                exclude_predicition_high_res=self.exclude_prediction_high_res,
+                exclude_prediction_high_res=self.exclude_prediction_high_res,
                 split="test",
             )
 
