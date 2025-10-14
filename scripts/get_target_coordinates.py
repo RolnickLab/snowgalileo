@@ -19,13 +19,12 @@ for filename in os.listdir(mask_path):
     with rasterio.open(os.path.join(mask_path, filename)) as src:
         crs = src.crs
 
-    utm_lat = filename.split('_')[3]
-    utm_lon = filename.split('_')[4].split('.tif')[0]
-    print(utm_lat, utm_lon)
+    lat = filename.split('_')[3]
+    lon = filename.split('_')[4].split('.tif')[0]
 
     # transform from UTM to lat/lon
-    transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
-    lon, lat = transformer.transform(utm_lon, utm_lat)
+    #transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
+    #lon, lat = transformer.transform(utm_lon, utm_lat)
     latitudes.append(float(lat))
     longitudes.append(float(lon))
 
