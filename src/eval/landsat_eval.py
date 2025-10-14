@@ -1463,7 +1463,7 @@ class LandsatEval(EvalTask):
                     fig.tight_layout(rect=[0, 0, 0.92, 1])
                     cbar_ax = fig.add_axes([1, 0.05, 0.015, 0.9])  # [left, bottom, width, height]
                     fig.colorbar(axs[2].images[0], cax=cbar_ax)
-                    plt.tight_layout()
+                    #plt.tight_layout()
                     #plt.savefig(f"visualizations/{filename}_r2_{r2}_rmse_{rmse}.png")
 
                     filename = filename[0].split(".tif")[0]
