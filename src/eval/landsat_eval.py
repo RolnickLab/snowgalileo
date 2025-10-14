@@ -63,7 +63,7 @@ from torch.utils.data import Dataset as PyTorchDataset
 
 logger = logging.getLogger("__main__")
 
-with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval.json")).open("r") as f:
+with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval_1_99_test.json")).open("r") as f:
     config = json.load(f)
     data_config = config["data"]
 
@@ -1452,6 +1452,7 @@ class LandsatEval(EvalTask):
                     import wandb
 
                     wandb.init(entity="sea-ice", project="ai4snow-finetune")
+
                     wandb.log(
                         {
                             f"{self.name}_visualization_{filename}_r2_{r2}_rmse_{rmse}": wandb.Image(
