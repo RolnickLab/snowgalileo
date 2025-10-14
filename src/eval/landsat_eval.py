@@ -1437,7 +1437,7 @@ class LandsatEval(EvalTask):
                 spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
                 preds_2D = rearrange(
                     torch.squeeze(logits),
-                    "b (h w) -> b h w",
+                    "(h w) -> h w",
                     h=spatial_patches_per_dim,
                     w=spatial_patches_per_dim,
                 ).float().cpu().numpy()
