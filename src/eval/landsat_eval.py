@@ -1464,12 +1464,14 @@ class LandsatEval(EvalTask):
                     plt.tight_layout()
                     #plt.savefig(f"visualizations/{filename}_r2_{r2}_rmse_{rmse}.png")
 
+                    filename = filename[0].split(".tif")[0]
+
                     wandb.init(entity="sea-ice", project="ai4snow-finetune")
                     wandb.log(
                         {
                             f"{self.name}_visualization_{filename}_r2_{r2}_rmse_{rmse}": wandb.Image(
                                 fig,
-                                caption=f"R2: {r2:.4f}, RMSE: {rmse:.4f}, Lat: {filename.split('_')[3]}, Lon: {filename.split('_')[4].split('.tif')[0]}, Date: {filename.split('_')[1]}",
+                                caption=f"R2: {r2:.4f}, RMSE: {rmse:.4f}, Lat: {filename.split('_')[3]}, Lon: {filename.split('_')[4]}, Date: {filename.split('_')[1]}",
                             )
                         }
                     )
