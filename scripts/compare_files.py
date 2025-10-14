@@ -37,7 +37,7 @@ for file in input_path.glob("*.tif"):
 count = 0
 non_count = 0
 for file in os.listdir(input_path):
-    stem = file.split(".")[0]
+    stem = file
     # assert that the stem only occurs once in the input folder
     assert sum(1 for f in os.listdir(input_path) if f.startswith(stem)) == 1, f"File {stem} occurs multiple times in input folder"
 
