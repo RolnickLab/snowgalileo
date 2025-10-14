@@ -1442,7 +1442,8 @@ class LandsatEval(EvalTask):
                     w=spatial_patches_per_dim,
                 ).float().cpu().numpy()
                 labels = labels.float().cpu().numpy()
-                if labels.ndim() == 3:
+                # squeeze labels if needed
+                if len(labels.shape) == 3:
                     labels = np.squeeze(labels, axis=0)
 
                 r2 = r2_score(labels, preds_2D)
