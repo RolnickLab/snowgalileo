@@ -23,7 +23,6 @@ torch.backends.cuda.matmul.allow_tf32 = True
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--checkpoint_name", type=str, default="finetuned_seg_ls_s42_ps10_attn__no_high_res_in_pred_date_final.pth")
-argparser.add_argument("--output_folder", type=str, default="outputs/checkpoints_ps10_5/epoch_82/")
 args = argparser.parse_args().__dict__
 
 # TODO: fix the EncoderWithHead loading pipeline
@@ -40,14 +39,6 @@ if args["checkpoint_name"] != "":
     model = EncoderWithHead(encoder_random_init, eval_config=default_attn_config, sigmoid_slope=sigmoid_slope).to(device)
     checkpoint = torch.load(Path(checkpoints_dir / args["checkpoint_name"]), map_location=device)
     model.load_state_dict(checkpoint)
-
-    if args["output_folder"] != "":
-        # for debugging, load the pretrained encoder as well
-        encoder_pretrained = Encoder.load_from_folder(Path(DATA_FOLDER / args["output_folder"])).to(device)
-        model_debug = EncoderWithHead(encoder_pretrained, eval_config=default_attn_config, sigmoid_slope=sigmoid_slope).to(device)
-        model_debug.load_state_dict(checkpoint)
-        assert all(p1.equal(p2) for p1, p2 in zip(model.parameters(), model_debug.parameters())), "Model parameters do not match between random and pretrained encoder!"
-        print("Model parameters match between random and pretrained encoder (as they should)!")
 else:
     # randomly initialized snowgalileo encoder
     config = load_check_config("ai4snow_ps10.json")
