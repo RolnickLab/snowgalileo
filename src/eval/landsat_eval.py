@@ -1451,24 +1451,29 @@ class LandsatEval(EvalTask):
 
                 if log_wandb:
                     import wandb
+                    import matplotlib.pyplot as plt
+
+                    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+                    axs[0].imshow(preds_2D, cmap="gray", vmin=0, vmax=1)
+                    axs[0].set_title("Predictions")
+                    axs[1].imshow(labels, cmap="gray", vmin=0, vmax=1)
+                    axs[1].set_title("Ground Truth")
+                    axs[2].imshow(np.abs(preds_2D - labels), cmap="viridis", vmin=0, vmax=1)
+                    axs[2].set_title("Absolute Error")
+                    plt.colorbar(axs[2].images[0], ax=axs, orientation="vertical")
+                    plt.tight_layout()
+                    #plt.savefig(f"visualizations/{filename}_r2_{r2}_rmse_{rmse}.png")
 
                     wandb.init(entity="sea-ice", project="ai4snow-finetune")
-
                     wandb.log(
                         {
                             f"{self.name}_visualization_{filename}_r2_{r2}_rmse_{rmse}": wandb.Image(
-                                np.concatenate(
-                                    [
-                                        preds_2D,
-                                        labels,
-                                        np.abs(preds_2D - labels),
-                                    ],
-                                    axis=1,
-                                ),
-                                caption=f"Predictions | Ground Truth | Absolute Error | R2: {r2:.4f}, RMSE: {rmse:.4f}",
+                                fig,
+                                caption=f"R2: {r2:.4f}, RMSE: {rmse:.4f}, Lat: {filename.split('_')[3]}, Lon: {filename.split('_')[4].split('.tif')[0]}, Date: {filename.split('_')[1]}",
                             )
                         }
                     )
+                    plt.close(fig)
 
                 # save the predictions as numpy
                 np.save(
