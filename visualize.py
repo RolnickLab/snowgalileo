@@ -38,7 +38,7 @@ if args["checkpoint_name"] != "":
     config = load_check_config("ai4snow_ps10.json")
     encoder_random_init = Encoder(**config["model"]["encoder"])
     model = EncoderWithHead(encoder_random_init, eval_config=default_attn_config, sigmoid_slope=sigmoid_slope).to(device)
-    checkpoint = torch.load(checkpoints_dir() / args["checkpoint_name"], map_location=device)
+    checkpoint = torch.load(Path(checkpoints_dir / args["checkpoint_name"]), map_location=device)
     model.load_state_dict(checkpoint["model_state_dict"])
 
     if args["output_folder"] != "":
