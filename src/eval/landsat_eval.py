@@ -1460,7 +1460,9 @@ class LandsatEval(EvalTask):
                     axs[1].set_title("Ground Truth")
                     axs[2].imshow(np.abs(preds_2D - labels), cmap="viridis", vmin=0, vmax=1)
                     axs[2].set_title("Absolute Error")
-                    plt.colorbar(axs[2].images[0], ax=axs, orientation="vertical")
+                    fig.tight_layout(rect=[0, 0, 0.92, 1])
+                    cbar_ax = fig.add_axes([1, 0.05, 0.015, 0.9])  # [left, bottom, width, height]
+                    fig.colorbar(axs[2].images[0], cax=cbar_ax)
                     plt.tight_layout()
                     #plt.savefig(f"visualizations/{filename}_r2_{r2}_rmse_{rmse}.png")
 
