@@ -28,6 +28,7 @@ argparser.add_argument("--strategy", type=str, default="attention_probe", choice
 argparser.add_argument("--resample", action="store_true", help="Whether to use oversampling.")
 argparser.add_argument("--num_finetune_epochs", type=int, default=25, help="Number of epochs to finetune for.")
 argparser.add_argument("--save_final_checkpoint", action="store_true", help="Whether to save the final checkpoint after finetuning.")
+argparser.add_argument("--exclude_prediction_high_res", action="store_false", help="Whether to exclude high-res in prediction date.")
 args = argparser.parse_args().__dict__
 
 if args["encoder_type"] == "orig_galileo":
@@ -47,11 +48,11 @@ else:
 eval_tasks: List[EvalTask] = [
     # geobench EuroSat only works without latlons
     *[LandsatEval(
-        exclude_prediction_high_res=high, 
+        exclude_prediction_high_res=args["exclude_prediction_high_res"], 
         resample=args["resample"], 
         decoder_mode=args["strategy"],
         num_finetune_epochs=args["num_finetune_epochs"],
-        ) for high in [True, False]
+        )
     ],
 ]
 for task in eval_tasks:
