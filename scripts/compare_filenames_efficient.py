@@ -32,7 +32,7 @@ def compare_filenames(folder1, folder2):
     print(f"First 10 non-matching files in {folder2}: {list(only_in_folder2)[:10]}")
 
     # of the non-matching files, print those that have the same prefix (before the first .)
-    prefixes1 = {f.split("")[0]: f for f in only_in_folder1}
+    prefixes1 = {f.split(".")[0]: f for f in only_in_folder1}
     prefixes2 = {f.split(".")[0]: f for f in only_in_folder2}
     common_prefixes = set(prefixes1.keys()) & set(prefixes2.keys())
     print(f"Files with common prefixes but different suffixes: {len(common_prefixes)}")
