@@ -1446,8 +1446,8 @@ class LandsatEval(EvalTask):
                 if len(labels.shape) == 3:
                     labels = np.squeeze(labels, axis=0)
 
-                r2 = r2_score(labels, preds_2D)
-                rmse = root_mean_squared_error(labels, preds_2D)
+                r2 = r2_score(labels.flatten(), preds_2D.flatten())
+                rmse = root_mean_squared_error(labels.flatten(), preds_2D.flatten())
 
                 if log_wandb:
                     import wandb
