@@ -5,8 +5,8 @@ from src.data.config import DATA_FOLDER
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--src_folder_input", type=str, default="landsat_eval_tifs/patches_UTM_1_99_test_cropped/test/")
 argparser.add_argument("--dest_folder_input", type=str, default="landsat_eval_tifs/patches_UTM_1_99_test_cropped/visualize/")
-argparser.add_argument("--src_folder_label", type=str, default="landsat_eval_masks/patches_UTM_1_99_subset/test/")
-argparser.add_argument("--dest_folder_label", type=str, default="landsat_eval_masks/patches_UTM_1_99_subset/visualize/")
+argparser.add_argument("--src_folder_label", type=str, default="landsat_eval_masks/all/patches_UTM_1_99_subset/test/")
+argparser.add_argument("--dest_folder_label", type=str, default="landsat_eval_masks/all/patches_UTM_1_99_subset/visualize/")
 argparser.add_argument("--file_limit", type=int, default=10)
 
 args = argparser.parse_args().__dict__
