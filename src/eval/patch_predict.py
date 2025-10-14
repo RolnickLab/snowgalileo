@@ -141,8 +141,10 @@ def finetune_and_eval_seg(loaders, encoder, device, identifier, eval_config, hyp
         wandb.config.update({"identifier": identifier, "baseline_galileo": baseline_galileo, "num_finetune_epochs": num_finetune_epochs})
         wandb.config.update(eval_config)
         sweep_name = wandb.run.name
+    elif sweep_run is not None:
+        sweep_name = sweep_run.name
     else:
-        sweep_name = ''
+        sweep_name = ""
 
     finetuned_model = finetune_seg(
         data_loaders=loaders,
@@ -171,7 +173,7 @@ def finetune_and_eval_seg(loaders, encoder, device, identifier, eval_config, hyp
         baseline_galileo=baseline_galileo
     )
     if save_final_checkpoint:
-        filename = f"finetuned_seg_{identifier}_final_{sweep_name}.pth"
+        filename = f"finetuned_seg_{identifier}_{hyperparams_config['initialization_id']}_final_{sweep_name}.pth"
         save_checkpoint(finetuned_model, filename)
     return test_miou
 

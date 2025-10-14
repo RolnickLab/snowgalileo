@@ -88,8 +88,7 @@ def train_and_validate():
         sweep_run.config.update({"initialization_id": initialization_id})
 
         eval_tasks: List[EvalTask] = [
-            *[LandsatEval(exclude_prediction_high_res=False, 
-                          evaluation_mode="evaluate", 
+            *[LandsatEval(exclude_prediction_high_res=False,  
                           resample=args.resample, 
                           num_finetune_epochs=args.num_finetune_epochs,
                           decoder_mode=args.strategy,

@@ -22,10 +22,9 @@ process = psutil.Process()
 torch.backends.cuda.matmul.allow_tf32 = True
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument("--output_folder", type=str, default="")
+argparser.add_argument("--output_folder", type=str, default="outputs/checkpoints_ps10_5/epoch_82/")
 argparser.add_argument("--encoder_type", type=str, default="snowgalileo", choices=["orig_galileo", "snowgalileo"])
 argparser.add_argument("--strategy", type=str, default="attention_probe", choices=["finetune", "linear_probe", "attention_probe", "sklearn"], help="Whether to finetune the model, else probe.")
-argparser.add_argument("--eval_mode", type=str, default="evaluate", choices=["evaluate", "visualize_predictions", "visualize_predictions_best_worst"])
 argparser.add_argument("--resample", action="store_true", help="Whether to use oversampling.")
 argparser.add_argument("--num_finetune_epochs", type=int, default=25, help="Number of epochs to finetune for.")
 argparser.add_argument("--save_final_checkpoint", action="store_true", help="Whether to save the final checkpoint after finetuning.")
@@ -49,7 +48,6 @@ eval_tasks: List[EvalTask] = [
     # geobench EuroSat only works without latlons
     *[LandsatEval(
         exclude_prediction_high_res=high, 
-        evaluation_mode=args["eval_mode"], 
         resample=args["resample"], 
         decoder_mode=args["strategy"],
         num_finetune_epochs=args["num_finetune_epochs"],

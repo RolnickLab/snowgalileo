@@ -905,7 +905,6 @@ class LandsatEval(EvalTask):
         exclude_prediction_high_res: bool = False,
         patch_size_high_res: int = 10,
         seed=DEFAULT_SEED,
-        evaluation_mode: str = "evaluate",
         resample: bool = False,
         num_finetune_epochs: int = 50,
         decoder_mode: str = "attention_probe"
@@ -914,7 +913,6 @@ class LandsatEval(EvalTask):
         self.exclude_prediction_date = exclude_prediction_date
         self.exclude_prediction_high_res = exclude_prediction_high_res
         self.patch_size_high_res = patch_size_high_res
-        self.evaluation_mode = evaluation_mode
         self.resample = resample
         self.num_finetune_epochs = num_finetune_epochs
         self.decoder_mode = decoder_mode
