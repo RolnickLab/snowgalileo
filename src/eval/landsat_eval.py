@@ -164,6 +164,7 @@ class LandsatEvalDataset(PyTorchDataset):
         # masks the high resolution, optical data in the prediction timestep
         # high resolution channel groups are: s1, s2, landsat, so we retain the first channel
         # NOTE: 0 = valid, 1 = masked
+        print("Masking high resolution data in prediction timestep", flush=True)
         assert self.exclude_prediction_high_res
         assert s_t_h_m.shape[-1] == len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX)
         s_t_h_m[:, :, -1, 1:] = 1
@@ -954,6 +955,7 @@ class LandsatEval(EvalTask):
             from src.eval.landsat_baselines import LandsatEvalDatasetGalileo, GalileoNormalizer, galileo_config_dir, GALILEO_NORMALIZATION_DICT_FILENAME
             test_ds = LandsatEvalDatasetGalileo(
                 exclude_prediction_date=self.exclude_prediction_date,
+                exclude_predicition_high_res=self.exclude_prediction_high_res,
                 split="test",
             )
             if self.normalization == "std":
@@ -967,6 +969,7 @@ class LandsatEval(EvalTask):
         else:
             test_ds = LandsatEvalDataset(
                 exclude_prediction_date=self.exclude_prediction_date,
+                exclude_predicition_high_res=self.exclude_prediction_high_res,
                 split="test",
             )
 
@@ -1546,6 +1549,7 @@ class LandsatEval(EvalTask):
             from src.eval.landsat_baselines import LandsatEvalDatasetGalileo, GalileoNormalizer, galileo_config_dir, GALILEO_NORMALIZATION_DICT_FILENAME
             train_ds = LandsatEvalDatasetGalileo(
                 exclude_prediction_date=self.exclude_prediction_date,
+                exclude_prediction_high_res=self.exclude_prediction_high_res,
                 split="train",
             )
             if self.normalization == "std":
@@ -1559,6 +1563,7 @@ class LandsatEval(EvalTask):
         else:
             train_ds = LandsatEvalDataset(
                 exclude_prediction_date=self.exclude_prediction_date,
+                exclude_prediction_high_res=self.exclude_prediction_high_res,
                 split="train",
             )
 
