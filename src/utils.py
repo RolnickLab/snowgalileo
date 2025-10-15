@@ -26,7 +26,7 @@ from src.masking import MASKING_MODES, MaskedOutput
 data_dir = Path(__file__).parent.parent / "data"
 logging_dir = Path(__file__).parent.parent / "logs"
 config_dir = Path(__file__).parent.parent / "config"
-checkpoints_dir = Path(__file__).parent.parent / "checkpoints"
+checkpoints_dir = Path(__file__).parent.parent / "checkpoint_backup"
 
 if not torch.cuda.is_available():
     device = torch.device("cpu")
