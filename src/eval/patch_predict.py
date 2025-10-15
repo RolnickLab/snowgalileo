@@ -69,10 +69,13 @@ class EncoderWithHead(nn.Module):
         self.number_of_patches = int(inputs_per_target * inputs_per_target)
         self.token_mapping = eval_config["token_mapping"]
         self.eval_config = eval_config
-        if self.eval_config["attend_over_spatial"]:
-            self.attn_output_dim = self.logits_per_patch
-        else:
-            self.attn_output_dim = self.number_of_patches * self.logits_per_patch
+
+        # first check if config has attn over spatial variable
+        if "attend_over_spatial" in self.eval_config:
+            if self.eval_config["attend_over_spatial"]:
+                self.attn_output_dim = self.logits_per_patch
+            else:
+                self.attn_output_dim = self.number_of_patches * self.logits_per_patch
 
         if self.token_mapping == "spatial_mean":
             self.head = nn.Linear(encoder.embedding_size, self.logits_per_patch)
