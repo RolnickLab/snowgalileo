@@ -9,7 +9,7 @@ import numpy as np
 import rioxarray
 import xarray as xr
 import h5py
-from einops import rearrange, repeat
+from einops import rearrange, repeat, reduce
 from tqdm import tqdm
 from typing import NamedTuple, Dict
 from copy import deepcopy
@@ -1074,6 +1074,108 @@ class LandsatEvalRandomForest(LandsatEval):
         ])
         assert x.shape == m.shape
         return x[m == 0]
+
+    # this option ends up in shapes of [B, S, N] where for RF, S is n_samples and n_features.
+    # the dimension of N is (C * T) for space-time tokens, C for space tokens, (C * T) for time tokens, and C for static tokens
+    # concatenated
+    # Next step would we to concatenate along S, and along B
+    def aggregate_per_output_pixel_and_remove_masked_data(
+        s_t_h_x: torch.Tensor,
+        s_t_m_x: torch.Tensor,
+        s_t_l_x: torch.Tensor,
+        sp_x: torch.Tensor,
+        t_x: torch.Tensor,
+        st_x: torch.Tensor,
+        s_t_h_m: torch.Tensor,
+        s_t_m_m: torch.Tensor,
+        s_t_l_m: torch.Tensor,
+        sp_m: torch.Tensor,
+        t_m: torch.Tensor,
+        st_m: torch.Tensor,
+        month: torch.Tensor,
+        patch_size_high_res: int = 10
+    ):
+        p_m = patch_size_high_res // s_t_m_x.shape[1]
+        p_l = patch_size_high_res // s_t_l_x.shape[1]
+
+        # first, bring high res into token resolution (the output resolution)
+        # t_h = token height, t_w = token width
+        s_t_h_x = reduce(
+            s_t_h_x,
+            "b (t_h p_h) (t_w p_w) t c -> b t_h t_w t c",
+            p_h=patch_size_high_res,
+            p_w=patch_size_high_res,
+            reduction="mean",
+        )
+        s_t_h_m = reduce(
+            s_t_h_m,
+            "b (t_h p_h) (t_w p_w) t c -> b t_h t_w t c",
+            p_h=patch_size_high_res,
+            p_w=patch_size_high_res,
+            reduction="max", # if one value is masked, the entire patch is masked
+        )
+        sp_x = reduce(
+            sp_x,
+            "b (t_h p_h) (t_w p_w) c -> b t_h t_w c",
+            p_h=patch_size_high_res,
+            p_w=patch_size_high_res,
+            reduction="mean",
+        )
+        sp_m = reduce(
+            sp_m,
+            "b (t_h p_h) (t_w p_w) c -> b t_h t_w c",
+            p_h=patch_size_high_res,
+            p_w=patch_size_high_res,
+            reduction="max", # if one value is masked, the entire patch is masked
+        )
+
+        assert s_t_h_x.shape[1] == 10
+
+        s_t_h_x = rearrange(s_t_h_x, "b t_h t_w t c -> b (t_h t_w) (t c)")
+        sp_x = rearrange(sp_x, "b t_h t_w c -> b (t_h t_w) c")
+        s_t_h_m = rearrange(s_t_h_m, "b t_h t_w t c -> b (t_h t_w) (t c)")
+        sp_m = rearrange(sp_m, "b t_h t_w c -> b (t_h t_w) c")
+
+        # repeat medium and low resolution tokens over high resolution
+        s_t_m_x = rearrange(
+            repeat(
+                s_t_m_x, "b t_h t_w t c d -> b (t_h p_h) (t_w p_w) t c d", p_h=p_m, p_w=p_m
+            ),
+            "b t_h t_w t c d -> b (t_h t_w) (t c) d",
+        )
+        s_t_l_x = rearrange(
+            repeat(
+                s_t_l_x, "b t_h t_w t c d -> b (t_h p_h) (t_w p_w) t c d", p_h=p_l, p_w=p_l
+            ),
+            "b t_h t_w t c d -> b (t_h t_w) (t c) d",
+        )
+        # repeat time tokens over space
+        t_x = repeat(
+            rearrange(t_x, "b t c d -> b (t c) d"), "b n d -> b s n d", s=sp_x.shape[1]
+        )
+        st_x = repeat(st_x, "b c d -> b s c d", s=sp_x.shape[1])
+
+        s_t_m_m = rearrange(
+            repeat(s_t_m_m, "b t_h t_w t c -> b (t_h p_h) (t_w p_w) t c", p_h=p_m, p_w=p_m),
+            "b t_h t_w t c -> b (t_h t_w) (t c)",
+        )
+        s_t_l_m = rearrange(
+            repeat(s_t_l_m, "b t_h t_w t c -> b (t_h p_h) (t_w p_w) t c", p_h=p_l, p_w=p_l),
+            "b t_h t_w t c -> b (t_h t_w) (t c)",
+        )
+        t_m = repeat(rearrange(t_m, "b t c -> b (t c)"), "b n -> b s n", s=sp_x.shape[1])
+        st_m = repeat(st_m, "b c -> b s c", s=sp_x.shape[1])
+
+        # also include month as a feature, repeat over space
+        month = repeat(month, "b c -> b s c", s=sp_x.shape[1])
+
+        x = torch.cat([s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, month], dim=2)  # B, S, N
+        m = torch.cat([s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, torch.zeros_like(month)], dim=2)  # B, S, N
+
+        import pdb; pdb.set_trace()
+
+        return x[m == 0]
+        
     
     def test(self):
         train_ds = LandsatEvalDatasetRandomForest(
@@ -1090,7 +1192,7 @@ class LandsatEvalRandomForest(LandsatEval):
         else:
             normalizer = Normalizer(std=False)
         train_ds.normalizer = normalizer
-        rf_input = self.remove_masked_data_and_flatten(*train_ds[0][0])
+        rf_input = self.aggregate_per_output_pixel_and_remove_masked_data(*train_ds[0][0])
         import pdb; pdb.set_trace()
 
 
