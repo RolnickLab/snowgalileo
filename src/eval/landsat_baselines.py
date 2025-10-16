@@ -1045,7 +1045,7 @@ class LandsatEvalRandomForest(LandsatEval):
             st_m,
             month
     ):
-        # returns: (B, N) where N is the number of unmasked values
+        # returns: (N) where N is the number of unmasked values
         assert s_t_h_x.shape == s_t_h_m.shape
         assert s_t_m_x.shape == s_t_m_m.shape
         assert s_t_l_x.shape == s_t_l_m.shape
@@ -1053,28 +1053,25 @@ class LandsatEvalRandomForest(LandsatEval):
         assert t_x.shape == t_m.shape
         assert st_x.shape == st_m.shape
         x = torch.cat([
-            s_t_h_x.flatten(start_dim=1),
-            s_t_m_x.flatten(start_dim=1),
-            s_t_l_x.flatten(start_dim=1),
-            sp_x.flatten(start_dim=1),
-            t_x.flatten(start_dim=1),
-            st_x.flatten(start_dim=1),
+            s_t_h_x.flatten(),
+            s_t_m_x.flatten(),
+            s_t_l_x.flatten(),
+            sp_x.flatten(),
+            t_x.flatten(),
+            st_x.flatten(),
         ])
         m = torch.cat([
-            s_t_h_m.flatten(start_dim=1),
-            s_t_m_m.flatten(start_dim=1),
-            s_t_l_m.flatten(start_dim=1),
-            sp_m.flatten(start_dim=1),
-            t_m.flatten(start_dim=1),
-            st_m.flatten(start_dim=1),
-            month.flatten(start_dim=1),
+            s_t_h_m.flatten(),
+            s_t_m_m.flatten(),
+            s_t_l_m.flatten(),
+            sp_m.flatten(),
+            t_m.flatten(),
+            st_m.flatten(),
+            month.flatten(),
         ])
         assert x.shape == m.shape
         import pdb; pdb.set_trace()
-        outputs = []
-        for i in range(x.shape[0]):
-            outputs.append(x[i][m[i] == 0])
-        return outputs
+        return x[m == 0]
     
     def test(self):
         train_ds = LandsatEvalDatasetRandomForest(
