@@ -1171,8 +1171,8 @@ class LandsatEvalRandomForest(LandsatEval):
         # also include month as a feature, repeat over space
         month = repeat(month, "c -> s c", s=sp_x.shape[1])
 
-        x = torch.cat([s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, month], dim=2)  # S, N
-        m = torch.cat([s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, torch.zeros_like(month)], dim=2)  # S, N
+        x = torch.cat([s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, month], dim=1)  # S, N
+        m = torch.cat([s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, torch.zeros_like(month)], dim=1)  # S, N
 
         import pdb; pdb.set_trace()
 
