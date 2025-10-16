@@ -21,6 +21,7 @@ from src.data.config import (
     NUM_TIMESTEPS,
     MODALITIES,
 )
+from src.eval.landsat_eval import LandsatEvalDataset, masked_output_np_to_tensor, LandsatEval
 from galileo.src.data.dataset import SPACE_BANDS as GALILEO_SPACE_BANDS
 from galileo.src.data.dataset import STATIC_BANDS as GALILEO_STATIC_BANDS
 from galileo.src.data.dataset import TIME_BANDS as GALILEO_TIME_BANDS
@@ -892,3 +893,178 @@ if __name__ == "__main__":
     sample = ds[0]
     import pdb; pdb.set_trace()
     print(sample[0])
+
+
+class LandsatEvalDatasetRandomForest(LandsatEvalDataset):
+    """
+    The Random Forest baseline uses the same dataset as the main LandsatEvalDataset,
+    but doesn't group channel masks into channel group masks, so that we can directly
+    remove masked channels for the Random Forest input.
+    """
+    def __init__(
+        self,
+        split: str = "train",
+        exclude_prediction_date: bool = False,
+        exclude_prediction_high_res: bool = False,
+        normalizer: Optional[Normalizer] = None,
+    ):
+        super().__init__(
+            split=split,
+            exclude_prediction_date=exclude_prediction_date,
+            exclude_prediction_high_res=exclude_prediction_high_res,
+            normalizer=normalizer,
+        )
+
+    def mask_prediction_high_res(self, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m):
+        # masks the high resolution, optical data in the prediction timestep
+        # high resolution channels are: s1, s2, landsat, so we retain the first 3 channels
+        # NOTE: 0 = valid, 1 = masked
+        print("Masking high resolution data in prediction timestep", flush=True)
+        assert self.exclude_prediction_high_res
+        assert s_t_h_m.shape[-1] == len(SPACE_TIME_HIGH_RES_BANDS)
+        s_t_h_m[:, :, -1, 3:] = 1
+        return s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
+
+    def __getitem__(self, idx):
+        h5py = self.load_tif(idx)
+        (
+            s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
+            sp_x,
+            t_x,
+            st_x,
+            month,
+            valid_data_mask_s_t_h,
+            valid_data_mask_s_t_m,
+            valid_data_mask_s_t_l,
+            valid_data_mask_sp,
+            valid_data_mask_t,
+            valid_data_mask_st,
+        ) = h5py.normalize(self.normalizer)
+
+        s_t_h_m = torch.as_tensor(np.logical_not(valid_data_mask_s_t_h))
+        s_t_m_m = torch.as_tensor(np.logical_not(valid_data_mask_s_t_m))
+        s_t_l_m = torch.as_tensor(np.logical_not(valid_data_mask_s_t_l))
+        sp_m = torch.as_tensor(np.logical_not(valid_data_mask_sp))
+        t_m = torch.as_tensor(np.logical_not(valid_data_mask_t))
+        st_m = torch.as_tensor(np.logical_not(valid_data_mask_st))
+
+        # since the prediction timestep function is channel-independent, we don't have to overwrite it
+        if self.exclude_prediction_date:
+            (
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+            ) = self.mask_prediction_timestep(s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m)
+
+        if self.exclude_prediction_high_res:
+            (
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+            ) = self.mask_prediction_high_res(s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m)
+
+        label = self.label_tifs[idx]
+        # TODO: optinally add conversion to h5pys for labels
+        with cast(xr.Dataset, rioxarray.open_rasterio(label)) as data:
+            label = cast(np.ndarray, data.values)
+            # remove first dimension
+            label = np.squeeze(label, axis=0)
+            print(f"Label shape: {label.shape}", flush=True)
+
+        # if assertion is triggered, go to the next tif file
+        try:
+            assert self.input_tifs[idx].name == self.label_tifs[idx].name, (f"Input path {self.input_tifs[idx].name} and label path {self.label_tifs[idx].name} do not match.")
+        except AssertionError:
+            print(
+                f"Label shape {label.shape} does not match expected shape ({self.label_height_width}, {self.label_height_width}) for {self.label_tifs[idx].name}"
+            )
+            self.label_tifs[idx] = self.label_tifs[idx + 1] if idx < len(self.label_tifs) - 1 else self.label_tifs[idx - 1]
+            return self.__getitem__(idx)
+
+        return (
+            masked_output_np_to_tensor(
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+                month,
+            ),
+            label,
+            self.input_tifs[idx].name,  # for logging purposes
+        )
+    
+class LandsatEvalRandomForest(LandsatEval):
+    name = "ls_rf"
+    regression = True
+    spatial_token_prediction = True
+    multilabel = False
+    input_height_width = data_config["input_height_width"]
+    num_outputs = data_config["num_classes"]
+
+    def __init__(
+        self,
+        normalization: Union[str, Normalizer] = "std",  # or "scaling"
+        exclude_prediction_date: bool = False,
+        exclude_prediction_high_res: bool = False,
+        resample: bool = False,
+    ):
+        self.normalization = normalization
+        self.exclude_prediction_date = exclude_prediction_date
+        self.exclude_prediction_high_res = exclude_prediction_high_res
+        self.resample = resample
+        self.name = "ls_rf"
+
+        super().__init__(
+            normalization=normalization,
+            exclude_prediction_date=exclude_prediction_date,
+            exclude_prediction_high_res=exclude_prediction_high_res,
+            resample=resample,
+        )
+
+    def remove_masked_data_and_flatten(self, x, m):
+        # x: (B, H, W, T, C)
+        # m: (B, H, W, T, C)
+        # returns: (B, N) where N is the number of unmasked values
+        assert x.shape == m.shape
+        batch_size = x.shape[0]
+        x = x.reshape(batch_size, -1)
+        m = m.reshape(batch_size, -1)
+        outputs = []
+        for i in range(batch_size):
+            outputs.append(x[i][m[i] == 0])
+        return outputs
+    
+    def test(self):
+        masked_output, label, filename = LandsatEvalDatasetRandomForest(
+            split="train",
+            exclude_prediction_date=self.exclude_prediction_date,
+            exclude_prediction_high_res=self.exclude_prediction_high_res,
+            normalizer=self.normalizer,
+        )
+        import pdb; pdb.set_trace()
+
+
+if __name__ == "__main__":
+    rf = LandsatEvalRandomForest(
+        normalization="std",
+        exclude_prediction_date=False,
+        exclude_prediction_high_res=False,
+        resample=False,
+    )
+    rf.test()
