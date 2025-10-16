@@ -143,9 +143,9 @@ def finetune_and_eval_seg(loaders, encoder, device, identifier, eval_config, hyp
         wandb.config.update(hyperparams_config)
         wandb.config.update({"identifier": identifier, "baseline_galileo": baseline_galileo, "num_finetune_epochs": num_finetune_epochs})
         wandb.config.update(eval_config)
-        sweep_name = wandb.run.name
+        sweep_name = wandb.run.id
     elif sweep_run is not None:
-        sweep_name = sweep_run.name
+        sweep_name = sweep_run.id
     else:
         sweep_name = ""
 
