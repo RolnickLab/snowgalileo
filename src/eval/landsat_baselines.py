@@ -1192,7 +1192,8 @@ class LandsatEvalRandomForest(LandsatEval):
         else:
             normalizer = Normalizer(std=False)
         train_ds.normalizer = normalizer
-        rf_input = self.aggregate_per_output_pixel_and_remove_masked_data(*train_ds[0][0])
+        rf1_input = self.remove_masked_data_and_flatten(*train_ds[0][0])
+        rf_input = self.aggregate_per_output_pixel_and_remove_masked_data(*train_ds[0][0], patch_size_high_res=10)
         import pdb; pdb.set_trace()
 
 
