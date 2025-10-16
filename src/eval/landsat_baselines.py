@@ -1059,6 +1059,7 @@ class LandsatEvalRandomForest(LandsatEval):
             sp_x.flatten(),
             t_x.flatten(),
             st_x.flatten(),
+            month.flatten(),
         ])
         m = torch.cat([
             s_t_h_m.flatten(),
@@ -1067,7 +1068,7 @@ class LandsatEvalRandomForest(LandsatEval):
             sp_m.flatten(),
             t_m.flatten(),
             st_m.flatten(),
-            month.flatten(),
+            torch.zeros_like(month).flatten(),  # month is never masked
         ])
         assert x.shape == m.shape
         import pdb; pdb.set_trace()
