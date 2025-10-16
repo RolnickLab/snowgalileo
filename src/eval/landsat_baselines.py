@@ -1093,8 +1093,9 @@ class LandsatEvalRandomForest(LandsatEval):
         t_m: torch.Tensor,
         st_m: torch.Tensor,
         month: torch.Tensor,
-        patch_size_high_res: int = 10
     ):
+        # TODO: make this more dynamic
+        patch_size_high_res = 10
         p_m = patch_size_high_res // s_t_m_x.shape[1]
         p_l = patch_size_high_res // s_t_l_x.shape[1]
 
@@ -1193,7 +1194,7 @@ class LandsatEvalRandomForest(LandsatEval):
             normalizer = Normalizer(std=False)
         train_ds.normalizer = normalizer
         rf1_input = self.remove_masked_data_and_flatten(*train_ds[0][0])
-        rf_input = self.aggregate_per_output_pixel_and_remove_masked_data(*train_ds[0][0], patch_size_high_res=10)
+        rf_input = self.aggregate_per_output_pixel_and_remove_masked_data(*train_ds[0][0])
         import pdb; pdb.set_trace()
 
 
