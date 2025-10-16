@@ -68,7 +68,7 @@ GALILEO_HW = 100
 
 logger = logging.getLogger("__main__")
 
-with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval.json")).open("r") as f:
+with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval_1_99_test.json")).open("r") as f:
     config = json.load(f)
 
 LANDSAT_SPACE_TIME_HIGH_RES_BANDS_TO_GALILEO_SPACE_TIME_BANDS = [LANDSAT_SPACE_TIME_BANDS.index(s) for s in GALILEO_SPACE_TIME_BANDS if s in LANDSAT_SPACE_TIME_BANDS]
