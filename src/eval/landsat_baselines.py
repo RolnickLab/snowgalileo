@@ -1141,21 +1141,21 @@ class LandsatEvalRandomForest(LandsatEval):
         # repeat medium and low resolution tokens over high resolution
         s_t_m_x = rearrange(
             repeat(
-                s_t_m_x, "t_h t_w t c d -> (t_h p_h) (t_w p_w) t c d", p_h=p_m, p_w=p_m
+                s_t_m_x, "t_h t_w t c -> (t_h p_h) (t_w p_w) t c", p_h=p_m, p_w=p_m
             ),
-            "t_h t_w t c d -> (t_h t_w) (t c) d",
+            "t_h t_w t c -> (t_h t_w) (t c)",
         )
         s_t_l_x = rearrange(
             repeat(
-                s_t_l_x, "t_h t_w t c d -> (t_h p_h) (t_w p_w) t c d", p_h=p_l, p_w=p_l
+                s_t_l_x, "t_h t_w t c -> (t_h p_h) (t_w p_w) t c", p_h=p_l, p_w=p_l
             ),
-            "t_h t_w t c d -> (t_h t_w) (t c) d",
+            "t_h t_w t c -> (t_h t_w) (t c)",
         )
         # repeat time tokens over space
         t_x = repeat(
-            rearrange(t_x, "t c d -> b (t c) d"), "n d -> s n d", s=sp_x.shape[1]
+            rearrange(t_x, "t c -> (t c)"), "n -> s n", s=sp_x.shape[1]
         )
-        st_x = repeat(st_x, "c d -> s c d", s=sp_x.shape[1])
+        st_x = repeat(st_x, "c -> s c", s=sp_x.shape[1])
 
         s_t_m_m = rearrange(
             repeat(s_t_m_m, "t_h t_w t c -> (t_h p_h) (t_w p_w) t c", p_h=p_m, p_w=p_m),
