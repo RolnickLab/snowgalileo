@@ -1047,9 +1047,19 @@ class LandsatEvalRandomForest(LandsatEval):
             split="train",
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
-            normalizer=self.normalizer,
         )
         import pdb; pdb.set_trace()
+        """
+        if self.normalization == "std":
+            normalizing_dict = train_ds.load_normalization_values(
+                path=config_dir / NORMALIZATION_DICT_FILENAME
+            )
+            print(normalizing_dict, flush=True)
+            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+        else:
+            normalizer = Normalizer(std=False)
+        train_ds.normalizer = normalizer
+        """
 
 
 if __name__ == "__main__":
