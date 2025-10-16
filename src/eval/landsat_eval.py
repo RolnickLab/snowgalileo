@@ -892,7 +892,6 @@ class LandsatEvalDataset(PyTorchDataset):
 
 
 class LandsatEval(EvalTask):
-    name = "ls"
     regression = True
     spatial_token_prediction = True
     multilabel = False
@@ -917,11 +916,10 @@ class LandsatEval(EvalTask):
         self.resample = resample
         self.num_finetune_epochs = num_finetune_epochs
         self.decoder_mode = decoder_mode
-        self.name = "ls"
 
         super().__init__(self.patch_size_high_res, seed)
         self.name = (
-            f"{self.name}_{'attn' if self.decoder_mode == 'attention_probe' else 'linear' if self.decoder_mode == 'linear_probe' else 'finetune' if self.decoder_mode == 'finetune' else 'sklearn'}_{'_exclude_prediction_date_' if self.exclude_prediction_date else ''}{'_no_high_res_in_pred_date' if self.exclude_prediction_high_res else ''}"
+            f"{'attn' if self.decoder_mode == 'attention_probe' else 'linear' if self.decoder_mode == 'linear_probe' else 'finetune' if self.decoder_mode == 'finetune' else 'sklearn'}_{'_exclude_prediction_date_' if self.exclude_prediction_date else ''}{'_no_high_res_in_pred_date' if self.exclude_prediction_high_res else ''}"
         )
 
     def compute_regression_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict[str, float]:
