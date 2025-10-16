@@ -70,6 +70,7 @@ logger = logging.getLogger("__main__")
 
 with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval_1_99_test.json")).open("r") as f:
     config = json.load(f)
+    data_config = config["data"]
 
 LANDSAT_SPACE_TIME_HIGH_RES_BANDS_TO_GALILEO_SPACE_TIME_BANDS = [LANDSAT_SPACE_TIME_BANDS.index(s) for s in GALILEO_SPACE_TIME_BANDS if s in LANDSAT_SPACE_TIME_BANDS]
 GALILEO_SPACE_TIME_BANDS_TO_LANDSAT_SPACE_TIME_HIGH_RES_BANDS = [idx for idx, s in enumerate(GALILEO_SPACE_TIME_BANDS) if s in LANDSAT_SPACE_TIME_BANDS]
@@ -208,11 +209,11 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
 
         assert self.split in ["train", "test", "visualize"]
 
-        self.label_folder = DATA_FOLDER / config["label_folder"] / self.split
-        self.input_tif_folder = DATA_FOLDER / config["input_tif_folder"] / self.split
+        self.label_folder = DATA_FOLDER / data_config["label_folder"] / self.split
+        self.input_tif_folder = DATA_FOLDER / data_config["input_tif_folder"] / self.split
 
-        if (self.split != "visualize") and (self.split != "test") and (config.get("input_h5py_folder") != ""):
-            self.h5py_folder = DATA_FOLDER / config["input_h5py_folder"] / self.split
+        if (self.split != "visualize") and (self.split != "test") and (data_config.get("input_h5py_folder") != ""):
+            self.h5py_folder = DATA_FOLDER / data_config["input_h5py_folder"] / self.split
         else:
             self.h5py_folder = None
 
