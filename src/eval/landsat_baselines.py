@@ -1029,16 +1029,50 @@ class LandsatEvalRandomForest(LandsatEval):
             resample=resample,
         )
 
-    def remove_masked_data_and_flatten(self, x, m):
-        # x: (B, H, W, T, C)
-        # m: (B, H, W, T, C)
+    def remove_masked_data_and_flatten(
+            self,
+            s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
+            sp_x,
+            t_x,
+            st_x,
+            s_t_h_m,
+            s_t_m_m,
+            s_t_l_m,
+            sp_m,
+            t_m,
+            st_m,
+            month
+    ):
         # returns: (B, N) where N is the number of unmasked values
+        assert s_t_h_x.shape == s_t_h_m.shape
+        assert s_t_m_x.shape == s_t_m_m.shape
+        assert s_t_l_x.shape == s_t_l_m.shape
+        assert sp_x.shape == sp_m.shape
+        assert t_x.shape == t_m.shape
+        assert st_x.shape == st_m.shape
+        x = torch.cat([
+            s_t_h_x.flatten(start_dim=1),
+            s_t_m_x.flatten(start_dim=1),
+            s_t_l_x.flatten(start_dim=1),
+            sp_x.flatten(start_dim=1),
+            t_x.flatten(start_dim=1),
+            st_x.flatten(start_dim=1),
+        ])
+        m = torch.cat([
+            s_t_h_m.flatten(start_dim=1),
+            s_t_m_m.flatten(start_dim=1),
+            s_t_l_m.flatten(start_dim=1),
+            sp_m.flatten(start_dim=1),
+            t_m.flatten(start_dim=1),
+            st_m.flatten(start_dim=1),
+            month.flatten(start_dim=1),
+        ])
         assert x.shape == m.shape
-        batch_size = x.shape[0]
-        x = x.reshape(batch_size, -1)
-        m = m.reshape(batch_size, -1)
+        import pdb; pdb.set_trace()
         outputs = []
-        for i in range(batch_size):
+        for i in range(x.shape[0]):
             outputs.append(x[i][m[i] == 0])
         return outputs
     
@@ -1048,6 +1082,7 @@ class LandsatEvalRandomForest(LandsatEval):
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
         )
+        rf_input = self.remove_masked_data_and_flatten(*train_ds[0][0])
         import pdb; pdb.set_trace()
         """
         if self.normalization == "std":
