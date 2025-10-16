@@ -20,7 +20,9 @@ from src.data.config import (
     CHANNEL_WISE_INVALID_DATA_THRESHOLDS,
     NUM_TIMESTEPS,
     MODALITIES,
+    NORMALIZATION_DICT_FILENAME,
 )
+from src.utils import config_dir
 from src.eval.landsat_eval import LandsatEvalDataset, masked_output_np_to_tensor, LandsatEval
 from galileo.src.data.dataset import SPACE_BANDS as GALILEO_SPACE_BANDS
 from galileo.src.data.dataset import STATIC_BANDS as GALILEO_STATIC_BANDS
@@ -1071,7 +1073,6 @@ class LandsatEvalRandomForest(LandsatEval):
             torch.zeros_like(month).flatten(),  # month is never masked
         ])
         assert x.shape == m.shape
-        import pdb; pdb.set_trace()
         return x[m == 0]
     
     def test(self):
@@ -1080,9 +1081,6 @@ class LandsatEvalRandomForest(LandsatEval):
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
         )
-        rf_input = self.remove_masked_data_and_flatten(*train_ds[0][0])
-        import pdb; pdb.set_trace()
-        """
         if self.normalization == "std":
             normalizing_dict = train_ds.load_normalization_values(
                 path=config_dir / NORMALIZATION_DICT_FILENAME
@@ -1092,7 +1090,9 @@ class LandsatEvalRandomForest(LandsatEval):
         else:
             normalizer = Normalizer(std=False)
         train_ds.normalizer = normalizer
-        """
+        rf_input = self.remove_masked_data_and_flatten(*train_ds[0][0])
+        import pdb; pdb.set_trace()
+
 
 
 if __name__ == "__main__":
