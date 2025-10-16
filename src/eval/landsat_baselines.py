@@ -1153,9 +1153,9 @@ class LandsatEvalRandomForest(LandsatEval):
         )
         # repeat time tokens over space
         t_x = repeat(
-            rearrange(t_x, "t c -> (t c)"), "n -> s n", s=sp_x.shape[1]
+            rearrange(t_x, "t c -> (t c)"), "n -> s n", s=sp_x.shape[0]
         )
-        st_x = repeat(st_x, "c -> s c", s=sp_x.shape[1])
+        st_x = repeat(st_x, "c -> s c", s=sp_x.shape[0])
 
         s_t_m_m = rearrange(
             repeat(s_t_m_m, "t_h t_w t c -> (t_h p_h) (t_w p_w) t c", p_h=p_m, p_w=p_m),
@@ -1165,11 +1165,11 @@ class LandsatEvalRandomForest(LandsatEval):
             repeat(s_t_l_m, "t_h t_w t c -> (t_h p_h) (t_w p_w) t c", p_h=p_l, p_w=p_l),
             "t_h t_w t c -> (t_h t_w) (t c)",
         )
-        t_m = repeat(rearrange(t_m, "t c -> (t c)"), "n -> s n", s=sp_x.shape[1])
-        st_m = repeat(st_m, "c -> s c", s=sp_x.shape[1])
+        t_m = repeat(rearrange(t_m, "t c -> (t c)"), "n -> s n", s=sp_x.shape[0])
+        st_m = repeat(st_m, "c -> s c", s=sp_x.shape[0])
 
         # also include month as a feature, repeat over space
-        month = repeat(month, "c -> s c", s=sp_x.shape[1])
+        month = repeat(month, "c -> s c", s=sp_x.shape[0])
 
         import pdb; pdb.set_trace()
 
