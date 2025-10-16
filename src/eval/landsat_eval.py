@@ -63,7 +63,7 @@ from torch.utils.data import Dataset as PyTorchDataset
 
 logger = logging.getLogger("__main__")
 
-with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval_1_99_test.json")).open("r") as f:
+with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval_5_95.json")).open("r") as f:
     config = json.load(f)
     data_config = config["data"]
 
