@@ -1043,7 +1043,7 @@ class LandsatEvalRandomForest(LandsatEval):
         return outputs
     
     def test(self):
-        masked_output, label, filename = LandsatEvalDatasetRandomForest(
+        train_ds = LandsatEvalDatasetRandomForest(
             split="train",
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
