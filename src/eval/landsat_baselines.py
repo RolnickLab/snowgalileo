@@ -1080,6 +1080,7 @@ class LandsatEvalRandomForest(LandsatEval):
     # concatenated
     # Next step would we to concatenate along S, and along B
     def aggregate_per_output_pixel_and_remove_masked_data(
+        self,
         s_t_h_x: torch.Tensor,
         s_t_m_x: torch.Tensor,
         s_t_l_x: torch.Tensor,
