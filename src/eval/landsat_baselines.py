@@ -79,6 +79,9 @@ GALILEO_SPACE_TIME_BANDS_TO_LANDSAT_SPACE_TIME_HIGH_RES_BANDS = [idx for idx, s 
 LANDSAT_STATIC_BANDS_TO_GALILEO_STATIC_BANDS = [LANDSAT_STATIC_BANDS.index(s) for s in GALILEO_STATIC_BANDS if s in LANDSAT_STATIC_BANDS]
 GALILEO_STATIC_BANDS_TO_LANDSAT_STATIC_BANDS = [idx for idx, s in enumerate(GALILEO_STATIC_BANDS) if s in LANDSAT_STATIC_BANDS]
 
+# TODO:
+# - subset image and label
+# - normalizer in eval script
 class MaskedOutputGalileo(NamedTuple):
     """
     A mask can take 3 values:
@@ -882,17 +885,6 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
 
     def __len__(self) -> int:
         return len(self.label_tifs)
-    
-# TODO:
-# - subset image and label
-# - normalizer in eval script
-
-if __name__ == "__main__":
-    normalizer=GalileoNormalizer(normalizing_dicts=LandsatEvalDatasetGalileo.load_normalization_values(galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME), std_multiplier=2)
-    ds = LandsatEvalDatasetGalileo(split="train", normalizer=normalizer)
-    sample = ds[0]
-    import pdb; pdb.set_trace()
-    print(sample[0])
 
 
 class LandsatEvalDatasetRandomForest(LandsatEvalDataset):
