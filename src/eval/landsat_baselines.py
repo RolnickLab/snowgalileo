@@ -1081,22 +1081,25 @@ class LandsatEvalRandomForest(LandsatEval):
     # the dimension of N is (C * T) for space-time tokens, C for space tokens, (C * T) for time tokens, and C for static tokens
     # concatenated
     # Next step would we to concatenate along S
-    def aggregate_per_output_pixel_and_remove_masked_data(
+    def aggregate_per_output_pixel_and_remove_masked_data_collate_fn(
         self,
-        s_t_h_x: torch.Tensor,
-        s_t_m_x: torch.Tensor,
-        s_t_l_x: torch.Tensor,
-        sp_x: torch.Tensor,
-        t_x: torch.Tensor,
-        st_x: torch.Tensor,
-        s_t_h_m: torch.Tensor,
-        s_t_m_m: torch.Tensor,
-        s_t_l_m: torch.Tensor,
-        sp_m: torch.Tensor,
-        t_m: torch.Tensor,
-        st_m: torch.Tensor,
-        month: torch.Tensor,
+        batch
     ):
+        (
+            s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
+            sp_x,
+            t_x,
+            st_x,
+            s_t_h_m,
+            s_t_m_m,
+            s_t_l_m,
+            sp_m,
+            t_m,
+            st_m,
+            month
+        ) = batch
         # TODO: make this more dynamic
         patch_size_high_res = 10
         p_m = patch_size_high_res // s_t_m_x.shape[1]
@@ -1178,13 +1181,8 @@ class LandsatEvalRandomForest(LandsatEval):
 
         # TODO: exclude samples that are fully masked? Or should we keep them and mask more refined somehow?
         return x
-    
-    def fit_random_forest(self, rf_input, rf_labels):
-        regr = RandomForestRegressor(max_depth=2, random_state=0)
-        regr.fit(rf_input, rf_labels)
-        return regr
 
-    def test(self):
+    def fit_random_forest(self):
         train_ds = LandsatEvalDatasetRandomForest(
             split="train",
             exclude_prediction_date=self.exclude_prediction_date,
@@ -1199,11 +1197,31 @@ class LandsatEvalRandomForest(LandsatEval):
         else:
             normalizer = Normalizer(std=False)
         train_ds.normalizer = normalizer
+
         # TODO: CHECK! does the masking work correctly here? (suspiciously small number of tokens are removed), from [100,311] to (21866,)
-        rf_input = self.aggregate_per_output_pixel_and_remove_masked_data(*train_ds[0][0])
+        train_dl = DataLoader(
+            train_ds,
+            batch_size=1,
+            shuffle=True,
+            num_workers=0,
+            collate_fn=self.aggregate_per_output_pixel_and_remove_masked_data_collate_fn,
+        )
+
+        all_samples = []
+        all_labels = []
+
+        for input, label, _ in train_dl:
+            import pdb; pdb.set_trace()
+            all_samples.append(input)
+            all_labels.append(label)
+
+        rf_input = torch.cat(all_samples, dim=0).numpy()
+        rf_labels = torch.cat(all_labels, dim=0).numpy()
 
         import pdb; pdb.set_trace()
 
+        regr = RandomForestRegressor(max_depth=2, random_state=0)
+        regr.fit(rf_input, rf_labels)
 
 if __name__ == "__main__":
     rf = LandsatEvalRandomForest(
