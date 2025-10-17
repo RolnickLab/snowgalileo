@@ -1082,26 +1082,22 @@ class LandsatEvalRandomForest(LandsatEval):
     # the dimension of N is (C * T) for space-time tokens, C for space tokens, (C * T) for time tokens, and C for static tokens
     # concatenated
     # Next step would we to concatenate along S
-    def aggregate_per_output_pixel_and_remove_masked_data_collate_fn(
+    def aggregate_per_output_pixel_and_remove_masked_data(
         self,
-        batch
+        s_t_h_x,
+        s_t_m_x,
+        s_t_l_x,
+        sp_x,
+        t_x,
+        st_x,
+        s_t_h_m,
+        s_t_m_m,
+        s_t_l_m,
+        sp_m,
+        t_m,
+        st_m,
+        month
     ):
-        (
-            s_t_h_x,
-            s_t_m_x,
-            s_t_l_x,
-            sp_x,
-            t_x,
-            st_x,
-            s_t_h_m,
-            s_t_m_m,
-            s_t_l_m,
-            sp_m,
-            t_m,
-            st_m,
-            month
-        ) = batch[0]
-        label = batch[1]
         # TODO: make this more dynamic
         patch_size_high_res = 10
         p_m = patch_size_high_res // s_t_m_x.shape[1]
@@ -1182,7 +1178,7 @@ class LandsatEvalRandomForest(LandsatEval):
         m = torch.cat([s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, torch.zeros_like(month)], dim=1)  # S, N
 
         # TODO: exclude samples that are fully masked? Or should we keep them and mask more refined somehow?
-        return x, label
+        return x
 
     def fit_random_forest(self):
         train_ds = LandsatEvalDatasetRandomForest(
@@ -1206,15 +1202,13 @@ class LandsatEvalRandomForest(LandsatEval):
             batch_size=1,
             shuffle=True,
             num_workers=0,
-            collate_fn=self.aggregate_per_output_pixel_and_remove_masked_data_collate_fn,
         )
 
         all_samples = []
         all_labels = []
 
-        import pdb; pdb.set_trace()
-
         for input, label, _ in train_dl:
+            input = self.aggregate_per_output_pixel_and_remove_masked_data(*input)
             all_samples.append(input)
             all_labels.append(label)
 
