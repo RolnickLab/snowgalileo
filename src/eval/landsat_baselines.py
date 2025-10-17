@@ -65,6 +65,8 @@ from src.data.earthengine.eo_eval import (
 )
 
 from torch.utils.data import Dataset as PyTorchDataset
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.datasets import make_regression
 
 # TODO: !!! Change this later because it doesn't match pre-training shape
 GALILEO_HW = 100
@@ -1171,16 +1173,17 @@ class LandsatEvalRandomForest(LandsatEval):
         # also include month as a feature, repeat over space
         month = repeat(month, "c -> s c", s=sp_x.shape[0])
 
-        import pdb; pdb.set_trace()
-
         x = torch.cat([s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, month], dim=1)  # S, N
         m = torch.cat([s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, torch.zeros_like(month)], dim=1)  # S, N
 
-        import pdb; pdb.set_trace()
-
+        # TODO: exclude samples that are fully masked? Or should we keep them and mask more refined somehow?
         return x[m == 0]
-        
     
+    def fit_random_forest(self, rf_input, rf_labels):
+        regr = RandomForestRegressor(max_depth=2, random_state=0)
+        regr.fit(rf_input, rf_labels)
+        return regr
+
     def test(self):
         train_ds = LandsatEvalDatasetRandomForest(
             split="train",
@@ -1196,10 +1199,10 @@ class LandsatEvalRandomForest(LandsatEval):
         else:
             normalizer = Normalizer(std=False)
         train_ds.normalizer = normalizer
-        rf1_input = self.remove_masked_data_and_flatten(*train_ds[0][0])
+        # TODO: CHECK! does the masking work correctly here? (suspiciously small number of tokens are removed), from [100,311] to (21866,)
         rf_input = self.aggregate_per_output_pixel_and_remove_masked_data(*train_ds[0][0])
-        import pdb; pdb.set_trace()
 
+        import pdb; pdb.set_trace()
 
 
 if __name__ == "__main__":
