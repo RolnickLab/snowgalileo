@@ -1100,7 +1100,8 @@ class LandsatEvalRandomForest(LandsatEval):
             t_m,
             st_m,
             month
-        ) = batch
+        ) = batch[0]
+        label = batch[1]
         # TODO: make this more dynamic
         patch_size_high_res = 10
         p_m = patch_size_high_res // s_t_m_x.shape[1]
@@ -1181,7 +1182,7 @@ class LandsatEvalRandomForest(LandsatEval):
         m = torch.cat([s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, torch.zeros_like(month)], dim=1)  # S, N
 
         # TODO: exclude samples that are fully masked? Or should we keep them and mask more refined somehow?
-        return x
+        return x, label
 
     def fit_random_forest(self):
         train_ds = LandsatEvalDatasetRandomForest(
