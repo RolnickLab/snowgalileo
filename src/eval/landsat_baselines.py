@@ -1177,7 +1177,7 @@ class LandsatEvalRandomForest(LandsatEval):
         m = torch.cat([s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, torch.zeros_like(month)], dim=1)  # S, N
 
         # TODO: exclude samples that are fully masked? Or should we keep them and mask more refined somehow?
-        return x[m == 0]
+        return x
     
     def fit_random_forest(self, rf_input, rf_labels):
         regr = RandomForestRegressor(max_depth=2, random_state=0)
