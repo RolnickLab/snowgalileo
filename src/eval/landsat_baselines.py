@@ -13,6 +13,7 @@ from einops import rearrange, repeat, reduce
 from tqdm import tqdm
 from typing import NamedTuple, Dict
 from copy import deepcopy
+from torch.utils.data import DataLoader
 
 from src.data.config import (
     DATA_FOLDER,
@@ -1210,8 +1211,9 @@ class LandsatEvalRandomForest(LandsatEval):
         all_samples = []
         all_labels = []
 
+        import pdb; pdb.set_trace()
+
         for input, label, _ in train_dl:
-            import pdb; pdb.set_trace()
             all_samples.append(input)
             all_labels.append(label)
 
@@ -1230,4 +1232,4 @@ if __name__ == "__main__":
         exclude_prediction_high_res=False,
         resample=False,
     )
-    rf.test()
+    rf.fit_random_forest()
