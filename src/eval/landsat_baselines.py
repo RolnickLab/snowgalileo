@@ -1136,10 +1136,10 @@ class LandsatEvalRandomForest(LandsatEval):
 
         assert s_t_h_x.shape[1] == 10
 
-        s_t_h_x = rearrange(s_t_h_x, "b t_h t_w t c -> (t_h t_w) (t c)")
-        sp_x = rearrange(sp_x, "b t_h t_w c -> (t_h t_w) c")
-        s_t_h_m = rearrange(s_t_h_m, "b t_h t_w t c -> (t_h t_w) (t c)")
-        sp_m = rearrange(sp_m, "b t_h t_w c -> (t_h t_w) c")
+        s_t_h_x = rearrange(s_t_h_x, "b t_h t_w t c -> b (t_h t_w) (t c)")
+        sp_x = rearrange(sp_x, "b t_h t_w c -> b (t_h t_w) c")
+        s_t_h_m = rearrange(s_t_h_m, "b t_h t_w t c -> b (t_h t_w) (t c)")
+        sp_m = rearrange(sp_m, "b t_h t_w c -> b (t_h t_w) c")
 
         # repeat medium and low resolution tokens over high resolution
         s_t_m_x = rearrange(
