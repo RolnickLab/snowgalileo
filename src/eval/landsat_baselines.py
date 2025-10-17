@@ -1107,28 +1107,28 @@ class LandsatEvalRandomForest(LandsatEval):
         # t_h = token height, t_w = token width
         s_t_h_x = reduce(
             s_t_h_x,
-            "(t_h p_h) (t_w p_w) t c -> t_h t_w t c",
+            "b (t_h p_h) (t_w p_w) t c -> b t_h t_w t c",
             p_h=patch_size_high_res,
             p_w=patch_size_high_res,
             reduction="mean",
         )
         s_t_h_m = reduce(
             s_t_h_m,
-            "(t_h p_h) (t_w p_w) t c -> t_h t_w t c",
+            "b (t_h p_h) (t_w p_w) t c -> b t_h t_w t c",
             p_h=patch_size_high_res,
             p_w=patch_size_high_res,
             reduction="max", # if one value is masked, the entire patch is masked
         )
         sp_x = reduce(
             sp_x,
-            "(t_h p_h) (t_w p_w) c -> t_h t_w c",
+            "b (t_h p_h) (t_w p_w) c -> b t_h t_w c",
             p_h=patch_size_high_res,
             p_w=patch_size_high_res,
             reduction="mean",
         )
         sp_m = reduce(
             sp_m,
-            "(t_h p_h) (t_w p_w) c -> t_h t_w c",
+            "b (t_h p_h) (t_w p_w) c -> b t_h t_w c",
             p_h=patch_size_high_res,
             p_w=patch_size_high_res,
             reduction="max", # if one value is masked, the entire patch is masked
@@ -1136,46 +1136,46 @@ class LandsatEvalRandomForest(LandsatEval):
 
         assert s_t_h_x.shape[1] == 10
 
-        s_t_h_x = rearrange(s_t_h_x, "t_h t_w t c -> (t_h t_w) (t c)")
-        sp_x = rearrange(sp_x, "t_h t_w c -> (t_h t_w) c")
-        s_t_h_m = rearrange(s_t_h_m, "t_h t_w t c -> (t_h t_w) (t c)")
-        sp_m = rearrange(sp_m, "t_h t_w c -> (t_h t_w) c")
+        s_t_h_x = rearrange(s_t_h_x, "b t_h t_w t c -> (t_h t_w) (t c)")
+        sp_x = rearrange(sp_x, "b t_h t_w c -> (t_h t_w) c")
+        s_t_h_m = rearrange(s_t_h_m, "b t_h t_w t c -> (t_h t_w) (t c)")
+        sp_m = rearrange(sp_m, "b t_h t_w c -> (t_h t_w) c")
 
         # repeat medium and low resolution tokens over high resolution
         s_t_m_x = rearrange(
             repeat(
-                s_t_m_x, "t_h t_w t c -> (t_h p_h) (t_w p_w) t c", p_h=p_m, p_w=p_m
+                s_t_m_x, "b t_h t_w t c -> b (t_h p_h) (t_w p_w) t c", p_h=p_m, p_w=p_m
             ),
-            "t_h t_w t c -> (t_h t_w) (t c)",
+            "b t_h t_w t c -> b (t_h t_w) (t c)",
         )
         s_t_l_x = rearrange(
             repeat(
-                s_t_l_x, "t_h t_w t c -> (t_h p_h) (t_w p_w) t c", p_h=p_l, p_w=p_l
+                s_t_l_x, "b t_h t_w t c -> b (t_h p_h) (t_w p_w) t c", p_h=p_l, p_w=p_l
             ),
-            "t_h t_w t c -> (t_h t_w) (t c)",
+            "b t_h t_w t c -> b (t_h t_w) (t c)",
         )
         # repeat time tokens over space
         t_x = repeat(
-            rearrange(t_x, "t c -> (t c)"), "n -> s n", s=sp_x.shape[0]
+            rearrange(t_x, "b t c -> b (t c)"), "b n -> b s n", s=sp_x.shape[1]
         )
-        st_x = repeat(st_x, "c -> s c", s=sp_x.shape[0])
+        st_x = repeat(st_x, "b c -> b s c", s=sp_x.shape[1])
 
         s_t_m_m = rearrange(
-            repeat(s_t_m_m, "t_h t_w t c -> (t_h p_h) (t_w p_w) t c", p_h=p_m, p_w=p_m),
-            "t_h t_w t c -> (t_h t_w) (t c)",
+            repeat(s_t_m_m, "b t_h t_w t c -> b (t_h p_h) (t_w p_w) t c", p_h=p_m, p_w=p_m),
+            "b t_h t_w t c -> b (t_h t_w) (t c)",
         )
         s_t_l_m = rearrange(
-            repeat(s_t_l_m, "t_h t_w t c -> (t_h p_h) (t_w p_w) t c", p_h=p_l, p_w=p_l),
-            "t_h t_w t c -> (t_h t_w) (t c)",
+            repeat(s_t_l_m, "b t_h t_w t c -> b (t_h p_h) (t_w p_w) t c", p_h=p_l, p_w=p_l),
+            "b t_h t_w t c -> b (t_h t_w) (t c)",
         )
-        t_m = repeat(rearrange(t_m, "t c -> (t c)"), "n -> s n", s=sp_x.shape[0])
-        st_m = repeat(st_m, "c -> s c", s=sp_x.shape[0])
+        t_m = repeat(rearrange(t_m, "b t c -> b (t c)"), "b n -> b s n", s=sp_x.shape[1])
+        st_m = repeat(st_m, "b c -> b s c", s=sp_x.shape[1])
 
         # also include month as a feature, repeat over space
-        month = repeat(month, "c -> s c", s=sp_x.shape[0])
+        month = repeat(month, "b c -> b s c", s=sp_x.shape[1])
 
-        x = torch.cat([s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, month], dim=1)  # S, N
-        m = torch.cat([s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, torch.zeros_like(month)], dim=1)  # S, N
+        x = torch.cat([s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, month], dim=1)  # B, S, N
+        m = torch.cat([s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, torch.zeros_like(month)], dim=1)  # B, S, N
 
         # TODO: exclude samples that are fully masked? Or should we keep them and mask more refined somehow?
         return x
@@ -1208,7 +1208,8 @@ class LandsatEvalRandomForest(LandsatEval):
         all_labels = []
 
         for input, label, _ in train_dl:
-            input = self.aggregate_per_output_pixel_and_remove_masked_data(*input)
+            input = torch.squeeze(self.aggregate_per_output_pixel_and_remove_masked_data(*input))  # (N, num_features)
+            label = torch.squeeze(label).flatten()  # (N,)
             all_samples.append(input)
             all_labels.append(label)
 
