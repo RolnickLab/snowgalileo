@@ -1292,10 +1292,13 @@ class LandsatEvalRandomForest(LandsatEval):
         regr.fit(rf_input, rf_labels)
 
 if __name__ == "__main__":
+    with (Path(__file__).parents[2] / Path("eval_configs") / Path("landsat_eval_5_95.json")).open("r") as f:
+        config = json.load(f)
     rf = LandsatEvalRandomForest(
         normalization="std",
         exclude_prediction_date=False,
         exclude_prediction_high_res=False,
         resample=False,
+        eval_config=config,
     )
     rf.fit_random_forest()
