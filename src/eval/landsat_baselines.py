@@ -1283,11 +1283,11 @@ class LandsatEvalRandomForest(LandsatEval):
         all_labels = []
 
         for input, label, _ in train_dl:
-            input, _ = torch.squeeze(
+            input = torch.squeeze(
                 self.aggregate_per_output_pixel_and_replace_masked_data(
                     *input,
                     replace_with="mean"
-                ))  # (N, num_features)
+                )[0])  # (N, num_features)
             label = torch.squeeze(label).flatten()  # (N,)
             all_samples.append(input)
             all_labels.append(label)
