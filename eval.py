@@ -15,6 +15,7 @@ from src.flexipresto import Encoder
 from galileo.src.galileo import Encoder as GalileoEncoder
 from src.utils import device, load_check_config, seed_everything
 from src.data.config import DATA_FOLDER
+from sklearn.model_selection import train_test_split
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -29,7 +30,11 @@ argparser.add_argument("--resample", action="store_true", help="Whether to use o
 argparser.add_argument("--num_finetune_epochs", type=int, default=25, help="Number of epochs to finetune for.")
 argparser.add_argument("--save_final_checkpoint", action="store_true", help="Whether to save the final checkpoint after finetuning.")
 argparser.add_argument("--exclude_prediction_high_res", action="store_true", help="Whether to exclude high-res in prediction date.")
+argparser.add_argument("--eval_config", type=str, default="landsat_eval_5_95.json", help="Which eval config to use.")
 args = argparser.parse_args().__dict__
+
+with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval_5_95.json")).open("r") as f:
+    config = json.load(f)
 
 if args["encoder_type"] == "orig_galileo":
     encoder = GalileoEncoder.load_from_folder(Path("galileo/data/models/nano")).to(device)
@@ -45,6 +50,36 @@ else:
         encoder = Encoder(**config["model"]["encoder"]).to(device)
         initialization_id = "snowgalileo_random"
 
+# TODO: move this somewhere else
+# create dataset split on the fly, so we don't have to store multiple copies
+# NOTE: assumes that all input files are in h5py folder
+if config["data"]["split_type"] == "train_val_test_random":
+    config["data"]["train_val_test_split"] = [0.7, 0.15, 0.15]
+    input_path = Path(DATA_FOLDER / config["data"]["input_tif_folder"])
+    mask_path = Path(DATA_FOLDER / config["data"]["label_folder"])
+    h5pys_path = Path(DATA_FOLDER / config["data"]["input_h5py_folder"])
+
+    assert len(list(input_path.glob("*.tif"))) == len(list(mask_path.glob("*.tif"))) == len(list(h5pys_path.glob("*.h5py")))
+
+    # Make sure input_files and mask_files are properly matched
+    # both should contain the same filenames in corresponding order
+    input_files = sorted(Path(input_path).glob("*.h5py"))
+    mask_files = sorted(Path(mask_path).glob("*.tif"))
+
+    assert all(f.stem == m.stem for f, m in zip(input_files, mask_files)), "Input and mask files not aligned!"
+
+    # Pair them together before splitting
+    pairs = list(zip(input_files, mask_files))
+
+    X_train, X_temp, y_train, y_temp = train_test_split(pairs, test_size=0.3, random_state=DEFAULT_SEED)
+    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=DEFAULT_SEED)
+
+    # zip back to pairs
+    train_pairs = list(zip(X_train, y_train))
+    val_pairs = list(zip(X_val, y_val))
+    test_pairs = list(zip(X_test, y_test))
+
+
 eval_tasks: List[EvalTask] = [
     # geobench EuroSat only works without latlons
     *[LandsatEval(
@@ -52,6 +87,7 @@ eval_tasks: List[EvalTask] = [
         resample=args["resample"], 
         decoder_mode=args["strategy"],
         num_finetune_epochs=args["num_finetune_epochs"],
+        eval_config=config,
         )
     ],
 ]

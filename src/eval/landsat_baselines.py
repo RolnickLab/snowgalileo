@@ -904,12 +904,14 @@ class LandsatEvalDatasetRandomForest(LandsatEvalDataset):
         exclude_prediction_date: bool = False,
         exclude_prediction_high_res: bool = False,
         normalizer: Optional[Normalizer] = None,
+        data_config: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             split=split,
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
             normalizer=normalizer,
+            data_config=data_config,
         )
 
     def mask_prediction_high_res(self, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m):
@@ -1007,12 +1009,9 @@ class LandsatEvalDatasetRandomForest(LandsatEvalDataset):
         )
     
 class LandsatEvalRandomForest(LandsatEval):
-    name = "ls_rf"
     regression = True
     spatial_token_prediction = True
     multilabel = False
-    input_height_width = data_config["input_height_width"]
-    num_outputs = data_config["num_classes"]
 
     def __init__(
         self,
@@ -1020,6 +1019,7 @@ class LandsatEvalRandomForest(LandsatEval):
         exclude_prediction_date: bool = False,
         exclude_prediction_high_res: bool = False,
         resample: bool = False,
+        eval_config: Dict = None,
     ):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
@@ -1032,6 +1032,7 @@ class LandsatEvalRandomForest(LandsatEval):
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
             resample=resample,
+            eval_config=eval_config,
         )
 
     def remove_masked_data_and_flatten(
@@ -1077,12 +1078,25 @@ class LandsatEvalRandomForest(LandsatEval):
         ])
         assert x.shape == m.shape
         return x[m == 0]
+    
+    def replace_masked_data_with_mean_per_channel(
+        self,
+        x,
+        m,
+    ):
+        x = torch.masked_fill(x, m.bool(), float('nan'))
+        x = torch.where(torch.isnan(x), torch.nanmean(x, dim=-1, keepdim=True), x)
+
+        # if there are still NaNs (all values were masked), replace mean over timesteps (all channels)
+        x = torch.where(torch.isnan(x), torch.nanmean(x, dim=-2, keepdim=True), x)
+
+        return x
 
     # this option ends up in shapes of [B, S, N] where for RF, S is n_samples and n_features.
     # the dimension of N is (C * T) for space-time tokens, C for space tokens, (C * T) for time tokens, and C for static tokens
     # concatenated
     # Next step would we to concatenate along S
-    def aggregate_per_output_pixel_and_remove_masked_data(
+    def aggregate_per_output_pixel_and_replace_masked_data(
         self,
         s_t_h_x,
         s_t_m_x,
@@ -1096,95 +1110,146 @@ class LandsatEvalRandomForest(LandsatEval):
         sp_m,
         t_m,
         st_m,
-        month
+        month,
+        replace_with="last"
     ):
+        # replace masked data with (A) the last timestep of this sensor, (B) the mean over time of this sensor, (C) zeros, (D) NaNs to be handled by RF.
+        # RF computes median for missing values
+        # TODO: replace all invalid with mean per timestep
+        assert replace_with in ["last", "mean", "zeros", "nan"]
+        assert replace_with not in ["last", "mean"], "Not implemented yet"
+
         # TODO: make this more dynamic
         patch_size_high_res = 10
         p_m = patch_size_high_res // s_t_m_x.shape[1]
         p_l = patch_size_high_res // s_t_l_x.shape[1]
 
-        # first, bring high res into token resolution (the output resolution)
+        # first, bring all data into token resolution (the output resolution)
         # t_h = token height, t_w = token width
-        s_t_h_x = reduce(
-            s_t_h_x,
-            "b (t_h p_h) (t_w p_w) t c -> b t_h t_w t c",
-            p_h=patch_size_high_res,
-            p_w=patch_size_high_res,
-            reduction="mean",
+        s_t_h_x = rearrange(
+            reduce(
+                s_t_h_x,
+                "b (t_h p_h) (t_w p_w) t c -> b t_h t_w t c",
+                p_h=patch_size_high_res,
+                p_w=patch_size_high_res,
+                reduction="mean",
+            ),
+            "b t_h t_w t c -> b (t_h t_w) t c",
         )
-        s_t_h_m = reduce(
-            s_t_h_m,
-            "b (t_h p_h) (t_w p_w) t c -> b t_h t_w t c",
-            p_h=patch_size_high_res,
-            p_w=patch_size_high_res,
-            reduction="max", # if one value is masked, the entire patch is masked
+        s_t_h_m = rearrange(
+            reduce(
+                s_t_h_m,
+                "b (t_h p_h) (t_w p_w) t c -> b t_h t_w t c",
+                p_h=patch_size_high_res,
+                p_w=patch_size_high_res,
+                reduction="max", # if one value is masked, the entire patch is masked
+            ),
+            "b t_h t_w t c -> b (t_h t_w) t c",
         )
-        sp_x = reduce(
-            sp_x,
-            "b (t_h p_h) (t_w p_w) c -> b t_h t_w c",
-            p_h=patch_size_high_res,
-            p_w=patch_size_high_res,
-            reduction="mean",
-        )
-        sp_m = reduce(
-            sp_m,
-            "b (t_h p_h) (t_w p_w) c -> b t_h t_w c",
-            p_h=patch_size_high_res,
-            p_w=patch_size_high_res,
-            reduction="max", # if one value is masked, the entire patch is masked
-        )
-
-        assert s_t_h_x.shape[1] == 10
-
-        s_t_h_x = rearrange(s_t_h_x, "b t_h t_w t c -> b (t_h t_w) (t c)")
-        sp_x = rearrange(sp_x, "b t_h t_w c -> b (t_h t_w) c")
-        s_t_h_m = rearrange(s_t_h_m, "b t_h t_w t c -> b (t_h t_w) (t c)")
-        sp_m = rearrange(sp_m, "b t_h t_w c -> b (t_h t_w) c")
 
         # repeat medium and low resolution tokens over high resolution
         s_t_m_x = rearrange(
             repeat(
                 s_t_m_x, "b t_h t_w t c -> b (t_h p_h) (t_w p_w) t c", p_h=p_m, p_w=p_m
             ),
-            "b t_h t_w t c -> b (t_h t_w) (t c)",
+            "b t_h t_w t c -> b (t_h t_w) t c",
         )
+        s_t_m_m = rearrange(
+            repeat(
+                s_t_m_m, "b t_h t_w t c -> b (t_h p_h) (t_w p_w) t c", p_h=p_m, p_w=p_m
+            ),
+            "b t_h t_w t c -> b (t_h t_w) t c",
+        )
+
         s_t_l_x = rearrange(
             repeat(
                 s_t_l_x, "b t_h t_w t c -> b (t_h p_h) (t_w p_w) t c", p_h=p_l, p_w=p_l
             ),
-            "b t_h t_w t c -> b (t_h t_w) (t c)",
-        )
-        # repeat time tokens over space
-        t_x = repeat(
-            rearrange(t_x, "b t c -> b (t c)"), "b n -> b s n", s=sp_x.shape[1]
-        )
-        st_x = repeat(st_x, "b c -> b s c", s=sp_x.shape[1])
-
-        s_t_m_m = rearrange(
-            repeat(s_t_m_m, "b t_h t_w t c -> b (t_h p_h) (t_w p_w) t c", p_h=p_m, p_w=p_m),
-            "b t_h t_w t c -> b (t_h t_w) (t c)",
+            "b t_h t_w t c -> b (t_h t_w) t c",
         )
         s_t_l_m = rearrange(
-            repeat(s_t_l_m, "b t_h t_w t c -> b (t_h p_h) (t_w p_w) t c", p_h=p_l, p_w=p_l),
-            "b t_h t_w t c -> b (t_h t_w) (t c)",
+            repeat(
+                s_t_l_m, "b t_h t_w t c -> b (t_h p_h) (t_w p_w) t c", p_h=p_l, p_w=p_l
+            ),
+            "b t_h t_w t c -> b (t_h t_w) t c",
         )
-        t_m = repeat(rearrange(t_m, "b t c -> b (t c)"), "b n -> b s n", s=sp_x.shape[1])
+
+        sp_x = rearrange(
+            reduce(
+                sp_x,
+                "b (t_h p_h) (t_w p_w) c -> b t_h t_w c",
+                p_h=patch_size_high_res,
+                p_w=patch_size_high_res,
+                reduction="mean",
+            ),
+            "b t_h t_w c -> b (t_h t_w) c",
+        )
+        sp_m = rearrange(
+            reduce(
+                sp_m,
+                "b (t_h p_h) (t_w p_w) c -> b t_h t_w c",
+                p_h=patch_size_high_res,
+                p_w=patch_size_high_res,
+                reduction="max", # if one value is masked, the entire patch is masked
+        ),
+            "b t_h t_w c -> b (t_h t_w) c",
+        )
+
+        # repeat time tokens over space
+        t_x = repeat(
+            t_x, "b t c -> b s t c", s=sp_x.shape[1]
+        )
+        t_m = repeat(t_m, "b t c -> b s t c", s=sp_x.shape[1])
+
+        st_x = repeat(st_x, "b c -> b s c", s=sp_x.shape[1])
         st_m = repeat(st_m, "b c -> b s c", s=sp_x.shape[1])
 
         # also include month as a feature, repeat over space
         month = repeat(month, "b c -> b s c", s=sp_x.shape[1])
 
+        assert s_t_h_x.shape[1] == 100
+
+        if replace_with == "mean":
+            s_t_h_x = self.replace_masked_data_with_mean_per_channel(s_t_h_x, s_t_h_m)
+            s_t_m_x = self.replace_masked_data_with_mean_per_channel(s_t_m_x, s_t_m_m)
+            s_t_l_x = self.replace_masked_data_with_mean_per_channel(s_t_l_x, s_t_l_m)
+            t_x = self.replace_masked_data_with_mean_per_channel(t_x, t_m)
+        elif replace_with == "nan":
+            s_t_h_x = s_t_h_x.masked_fill(s_t_h_m.bool(), float('nan'))
+            s_t_m_x = s_t_m_x.masked_fill(s_t_m_m.bool(), float('nan'))
+            s_t_l_x = s_t_l_x.masked_fill(s_t_l_m.bool(), float('nan'))
+            t_x = t_x.masked_fill(t_m.bool(), float('nan'))
+        elif replace_with == "zeros":
+            s_t_h_x = s_t_h_x.masked_fill(s_t_h_m.bool(), 0.0)
+            s_t_m_x = s_t_m_x.masked_fill(s_t_m_m.bool(), 0.0)
+            s_t_l_x = s_t_l_x.masked_fill(s_t_l_m.bool(), 0.0)
+            t_x = t_x.masked_fill(t_m.bool(), 0.0)
+        
+        s_t_h_x = rearrange(s_t_h_x, "b s t c -> b s (t c)")
+        s_t_h_m = rearrange(s_t_h_m, "b s t c -> b s (t c)")
+        s_t_m_x = rearrange(s_t_m_x, "b s t c -> b s (t c)")
+        s_t_m_m = rearrange(s_t_m_m, "b s t c -> b s (t c)")
+        s_t_l_x = rearrange(s_t_l_x, "b s t c -> b s (t c)")
+        s_t_l_m = rearrange(s_t_l_m, "b s t c -> b s (t c)")
+        t_x = rearrange(t_x, "b s t c -> b s (t c)")
+        t_m = rearrange(t_m, "b s t c -> b s (t c)")
+
+        # assert there are no masked values in space, and static tokens
+        assert not torch.any(sp_m.bool()), "Masked space tokens not handled yet."
+        assert not torch.any(st_m.bool()), "Masked static tokens not handled yet."
+        assert not torch.any(month.bool()), "Masked month tokens not handled yet."
+
         x = torch.cat([s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, month], dim=2)  # B, S, N
         m = torch.cat([s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, torch.zeros_like(month)], dim=2)  # B, S, N
 
-        # TODO: exclude samples that are fully masked? Or should we keep them and mask more refined somehow?
-        return x
+        return x, m
 
     def fit_random_forest(self):
         train_ds = LandsatEvalDatasetRandomForest(
             split="train",
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
+            data_config=self.data_config,
         )
         if self.normalization == "std":
             normalizing_dict = train_ds.load_normalization_values(
@@ -1208,7 +1273,11 @@ class LandsatEvalRandomForest(LandsatEval):
         all_labels = []
 
         for input, label, _ in train_dl:
-            input = torch.squeeze(self.aggregate_per_output_pixel_and_remove_masked_data(*input))  # (N, num_features)
+            input = torch.squeeze(
+                self.aggregate_per_output_pixel_and_remove_masked_data(
+                    *input,
+                    replace_with="mean"
+                ))  # (N, num_features)
             label = torch.squeeze(label).flatten()  # (N,)
             all_samples.append(input)
             all_labels.append(label)

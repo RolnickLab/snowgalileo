@@ -63,10 +63,6 @@ from torch.utils.data import Dataset as PyTorchDataset
 
 logger = logging.getLogger("__main__")
 
-with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval_5_95.json")).open("r") as f:
-    config = json.load(f)
-    data_config = config["data"]
-
 class LandsatEvalDataset(PyTorchDataset):
     def __init__(
         self,
@@ -74,6 +70,7 @@ class LandsatEvalDataset(PyTorchDataset):
         exclude_prediction_date: bool = False,
         exclude_prediction_high_res: bool = False,
         normalizer: Optional[Normalizer] = None,
+        data_config: Dict = {},
     ):
         self.split = split
         # whether to exclude the prediction date from the input timesteps
@@ -895,8 +892,6 @@ class LandsatEval(EvalTask):
     regression = True
     spatial_token_prediction = True
     multilabel = False
-    input_height_width = data_config["input_height_width"]
-    num_outputs = data_config["num_classes"]
 
     def __init__(
         self,
@@ -907,7 +902,8 @@ class LandsatEval(EvalTask):
         seed=DEFAULT_SEED,
         resample: bool = False,
         num_finetune_epochs: int = 50,
-        decoder_mode: str = "attention_probe"
+        decoder_mode: str = "attention_probe",
+        eval_config: Dict = None,
     ):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
@@ -921,6 +917,8 @@ class LandsatEval(EvalTask):
         self.name = (
             f"{'attn' if self.decoder_mode == 'attention_probe' else 'linear' if self.decoder_mode == 'linear_probe' else 'finetune' if self.decoder_mode == 'finetune' else 'sklearn'}_{'_exclude_prediction_date_' if self.exclude_prediction_date else ''}{'_no_high_res_in_pred_date' if self.exclude_prediction_high_res else ''}"
         )
+        self.eval_config = eval_config
+        self.data_config = self.eval_config["data"]
 
     def compute_regression_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict[str, float]:
         return {
@@ -969,6 +967,7 @@ class LandsatEval(EvalTask):
                 exclude_prediction_date=self.exclude_prediction_date,
                 exclude_prediction_high_res=self.exclude_prediction_high_res,
                 split="test",
+                data_config=self.data_config
             )
 
             if self.normalization == "std":
@@ -1370,6 +1369,7 @@ class LandsatEval(EvalTask):
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="visualize",
+            data_config=self.data_config
         )
 
         visualization_folder = DATA_FOLDER / "visualizations"
@@ -1524,18 +1524,19 @@ class LandsatEval(EvalTask):
         save_final_checkpoint: bool = False,
     ) -> Dict:
         
+        # TODO: refine naming of eval config
         assert self.decoder_mode in ["finetune", "linear_probe", "attention_probe", "sklearn"], f"Unknown evaluation mode: {self.decoder_mode}"
         if self.decoder_mode == "finetune":
-            eval_config = config["finetune"]
+            eval_config = self.eval_config["finetune"]
         elif self.decoder_mode == "linear_probe":
-            eval_config = config["linear_probe"]
+            eval_config = self.eval_config["linear_probe"]
         elif self.decoder_mode == "attention_probe":
-            eval_config = config["attention_probe"]
+            eval_config = self.eval_config["attention_probe"]
         elif self.decoder_mode == "sklearn":
             eval_config = None
 
         if hyperparams_config is None:
-            hyperparams_config = config["hyperparams"]
+            hyperparams_config = self.eval_config["hyperparams"]
 
         if initialization_id is not None:
             hyperparams_config["initialization_id"] = initialization_id
@@ -1563,6 +1564,7 @@ class LandsatEval(EvalTask):
                 exclude_prediction_date=self.exclude_prediction_date,
                 exclude_prediction_high_res=self.exclude_prediction_high_res,
                 split="train",
+                data_config=self.data_config
             )
 
             if self.normalization == "std":
