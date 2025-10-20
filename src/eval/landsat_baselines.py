@@ -1283,7 +1283,7 @@ class LandsatEvalRandomForest(LandsatEval):
         all_labels = []
 
         for input, label, _ in train_dl:
-            input = torch.squeeze(
+            input, _ = torch.squeeze(
                 self.aggregate_per_output_pixel_and_replace_masked_data(
                     *input,
                     replace_with="mean"
@@ -1295,10 +1295,10 @@ class LandsatEvalRandomForest(LandsatEval):
         rf_input = torch.cat(all_samples, dim=0).numpy()
         rf_labels = torch.cat(all_labels, dim=0).numpy()
 
-        import pdb; pdb.set_trace()
-
         regr = RandomForestRegressor(max_depth=2, random_state=0)
         regr.fit(rf_input, rf_labels)
+
+        print("Training pipeline complete.", flush=True)
 
 if __name__ == "__main__":
     with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval_5_95.json")).open("r") as f:
