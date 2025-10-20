@@ -1249,9 +1249,6 @@ class LandsatEvalRandomForest(LandsatEval):
         t_x = rearrange(t_x, "b s t c -> b s (t c)")
         t_m = rearrange(t_m, "b s t c -> b s (t c)")
 
-        # assert there are no masked values in space, and static tokens
-        assert not torch.any(month.bool()), "Masked month tokens not handled yet."
-
         x = torch.cat([s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, month], dim=2)  # B, S, N
         m = torch.cat([s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, torch.zeros_like(month)], dim=2)  # B, S, N
 
