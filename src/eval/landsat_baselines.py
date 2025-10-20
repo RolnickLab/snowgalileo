@@ -1086,9 +1086,17 @@ class LandsatEvalRandomForest(LandsatEval):
         m,
     ):
         x = torch.masked_fill(x, m.bool(), float('nan'))
+
+        # for timeseries data:
+        # for each channel, replaces NaNs with mean over timestep for this channel
+        # for space-only and static data:
+        # replaces NaNs with mean over all channels in the same data group
         x = torch.where(torch.isnan(x), torch.nanmean(x, dim=-1, keepdim=True), x)
 
-        # if there are still NaNs (all values were masked), replace mean over timesteps (all channels)
+        # if there are still NaNs (all values in the timeseries (for timeseries) or 
+        # data group (for space-only and static data) were masked):
+        # replace mean over timesteps (all channels in the same data group)
+        # or replace with spatial mean (for space-only and static data)
         x = torch.where(torch.isnan(x), torch.nanmean(x, dim=-2, keepdim=True), x)
 
         return x
@@ -1214,17 +1222,23 @@ class LandsatEvalRandomForest(LandsatEval):
             s_t_h_x = self.replace_masked_data_with_mean_per_channel(s_t_h_x, s_t_h_m)
             s_t_m_x = self.replace_masked_data_with_mean_per_channel(s_t_m_x, s_t_m_m)
             s_t_l_x = self.replace_masked_data_with_mean_per_channel(s_t_l_x, s_t_l_m)
+            sp_x = self.replace_masked_data_with_mean_per_channel(sp_x, sp_m)
             t_x = self.replace_masked_data_with_mean_per_channel(t_x, t_m)
+            st_x = self.replace_masked_data_with_mean_per_channel(st_x, st_m)
         elif replace_with == "nan":
             s_t_h_x = s_t_h_x.masked_fill(s_t_h_m.bool(), float('nan'))
             s_t_m_x = s_t_m_x.masked_fill(s_t_m_m.bool(), float('nan'))
             s_t_l_x = s_t_l_x.masked_fill(s_t_l_m.bool(), float('nan'))
+            sp_x = sp_x.masked_fill(sp_m.bool(), float('nan'))
             t_x = t_x.masked_fill(t_m.bool(), float('nan'))
+            st_x = st_x.masked_fill(st_m.bool(), float('nan'))
         elif replace_with == "zeros":
             s_t_h_x = s_t_h_x.masked_fill(s_t_h_m.bool(), 0.0)
             s_t_m_x = s_t_m_x.masked_fill(s_t_m_m.bool(), 0.0)
             s_t_l_x = s_t_l_x.masked_fill(s_t_l_m.bool(), 0.0)
+            sp_x = sp_x.masked_fill(sp_m.bool(), 0.0)
             t_x = t_x.masked_fill(t_m.bool(), 0.0)
+            st_x = st_x.masked_fill(st_m.bool(), 0.0)
         
         s_t_h_x = rearrange(s_t_h_x, "b s t c -> b s (t c)")
         s_t_h_m = rearrange(s_t_h_m, "b s t c -> b s (t c)")
@@ -1236,8 +1250,6 @@ class LandsatEvalRandomForest(LandsatEval):
         t_m = rearrange(t_m, "b s t c -> b s (t c)")
 
         # assert there are no masked values in space, and static tokens
-        assert not torch.any(sp_m.bool()), "Masked space tokens not handled yet."
-        assert not torch.any(st_m.bool()), "Masked static tokens not handled yet."
         assert not torch.any(month.bool()), "Masked month tokens not handled yet."
 
         x = torch.cat([s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, month], dim=2)  # B, S, N
