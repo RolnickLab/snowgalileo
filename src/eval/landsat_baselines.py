@@ -14,6 +14,8 @@ from tqdm import tqdm
 from typing import NamedTuple, Dict
 from copy import deepcopy
 from torch.utils.data import DataLoader
+import joblib
+from sklearn.metrics import r2_score, root_mean_squared_error
 
 from src.data.config import (
     DATA_FOLDER,
@@ -1298,7 +1300,59 @@ class LandsatEvalRandomForest(LandsatEval):
         regr = RandomForestRegressor(max_depth=2, random_state=0)
         regr.fit(rf_input, rf_labels)
 
+        # save the model
+        try: 
+            model_path = Path("./landsat_rf_model.joblib")
+            joblib.dump(regr, model_path)
+            print(f"Saved Random Forest model to {model_path}", flush=True)
+        except Exception as e:
+            print(f"Could not save Random Forest model due to {e}", flush=True)
+
+        test_ds = LandsatEvalDatasetRandomForest(
+            split="test",
+            exclude_prediction_date=self.exclude_prediction_date,
+            exclude_prediction_high_res=self.exclude_prediction_high_res,
+            data_config=self.data_config,
+        )
+        test_ds.normalizer = normalizer
+
+        test_dl = DataLoader(
+            test_ds,
+            batch_size=1,
+            shuffle=False,
+            num_workers=0,
+        )
+        all_preds = []
+        all_test_labels = []
+
+        for input, label, _ in test_dl:
+            input = torch.squeeze(
+                self.aggregate_per_output_pixel_and_replace_masked_data(
+                    *input,
+                    replace_with="mean"
+                )[0])  # (N, num_features)
+            preds = regr.predict(input.numpy())
+            all_preds.append(torch.as_tensor(preds))
+            all_test_labels.append(torch.squeeze(label).flatten())
+
+        test_preds = torch.cat(all_preds, dim=0).numpy()
+        test_labels = torch.cat(all_test_labels, dim=0).numpy()
+
+        rmse = root_mean_squared_error(test_labels, test_preds)
+        print(f"Test RMSE: {rmse}", flush=True)
+        r2 = r2_score(test_labels, test_preds)
+        print(f"Test R2: {r2}", flush=True)
+
         print("Training pipeline complete.", flush=True)
+
+        # store results as json
+        results = {
+            "test_rmse": float(rmse),
+            "test_r2": float(r2),
+        }
+        results_path = Path("./landsat_rf_results.json")
+        with results_path.open("w") as f:
+            json.dump(results, f)
 
 if __name__ == "__main__":
     with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval_5_95.json")).open("r") as f:
