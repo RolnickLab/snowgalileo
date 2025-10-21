@@ -6,8 +6,8 @@ import shutil
 import argparse
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument("--csv", type=str, default="evaluation_results.csv")
-argparser.add_argument("--csv_compare", type=str, default="evaluation_results_no_hr.csv")
+argparser.add_argument("--csv", type=str, default="evaluation_results_attn_snow_with_hr.csv")
+argparser.add_argument("--csv_compare", type=str, default="evaluation_results_attn_snow_no_hr.csv")
 
 args = argparser.parse_args().__dict__
 
