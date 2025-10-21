@@ -96,7 +96,7 @@ def train_and_validate():
             ],
         ]
         for task in eval_tasks:
-            results = task.evaluate_model_on_task(
+            results = task.train_and_evaluate_model_on_task(
                 pretrained_model=encoder, 
                 model_modes=["Regression"], 
                 baseline_galileo=(args.pretrain=="galileo"), 

@@ -1254,6 +1254,9 @@ class LandsatEvalRandomForest(LandsatEval):
         x = torch.cat([s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, month], dim=2)  # B, S, N
         m = torch.cat([s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, torch.zeros_like(month)], dim=2)  # B, S, N
 
+        # check that no no-data values (-9999) are left
+        assert not (x == -9999).any(), "No-data values (-9999) left in input after replacing masked data"
+
         return x, m
 
     def fit_random_forest(self):

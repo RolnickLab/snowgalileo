@@ -476,7 +476,7 @@ class EvalTask(ABC):
             )
         return fit_models
 
-    def evaluate_model_on_task(
+    def train_and_evaluate_model_on_task(
         self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
     ) -> Dict:
         raise NotImplementedError

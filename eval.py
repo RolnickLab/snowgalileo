@@ -92,7 +92,7 @@ eval_tasks: List[EvalTask] = [
     ],
 ]
 for task in eval_tasks:
-    results = task.evaluate_model_on_task(
+    results = task.train_and_evaluate_model_on_task(
         pretrained_model=encoder, 
         model_modes=["Regression"], 
         baseline_galileo=(args["encoder_type"]=="orig_galileo"), 

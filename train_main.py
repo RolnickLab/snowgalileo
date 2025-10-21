@@ -648,7 +648,7 @@ os.system(f"gcloud storage rsync -r gs://{EE_BUCKET_TIFS}/outputs {model_path}")
 
 eval_tasks: List[EvalTask] = []
 for task in eval_tasks:
-    results = task.evaluate_model_on_task(encoder)
+    results = task.train_and_evaluate_model_on_task(encoder)
     print(json.dumps(results, indent=2), flush=True)
     if wandb_enabled:
         wandb.log(results, step=training_config["num_epochs"])

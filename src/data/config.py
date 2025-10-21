@@ -338,6 +338,9 @@ EE_DRIVE_FOLDER_ID = "1cL7tEHhC92UHmuwdEgH0ero6aXQqhBcb"
 EE_FOLDER_TIFS = "tifs4"
 EE_FOLDER_H5PYS = "h5pys"
 
+# TODO: this should be defined somewhere else
+RESULTS_FOLDER = Path(__file__).parents[2] / "results"
+
 # when in this repo, uncomment the following line
 DATA_FOLDER = Path(__file__).parents[2] / "data"
 # for storing files on archive,

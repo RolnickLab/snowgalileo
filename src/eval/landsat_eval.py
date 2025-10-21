@@ -18,6 +18,7 @@ from tqdm import tqdm
 
 from src.data.config import (
     DATA_FOLDER,
+    RESULTS_FOLDER,
     NO_DATA_VALUE,
     CHANNEL_WISE_INVALID_DATA_THRESHOLDS,
     DATASET_OUTPUT_HW_HIGH_RES,
@@ -989,7 +990,7 @@ class LandsatEval(EvalTask):
         return test_dl
 
     @torch.no_grad()
-    def _evaluate_model(
+    def _evaluate_trained_sklearn_model(
         self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator], baseline_galileo=False, hyperparams_config=None
     ) -> Dict:
         
@@ -1358,6 +1359,104 @@ class LandsatEval(EvalTask):
             )
             print(f"Saved predictions for {filename} with overall accuracy: {acc}", flush=True)
         
+    @torch.no_grad()
+    def _evaluate_model(
+        self,
+        model: EncoderWithHead,
+    ):
+        test_ds = LandsatEvalDataset(
+            exclude_prediction_date=self.exclude_prediction_date,
+            exclude_prediction_high_res=self.exclude_prediction_high_res,
+            split="test",
+            data_config=self.data_config
+        )
+
+        if self.normalization == "std":
+            normalizing_dict = test_ds.load_normalization_values(
+                path=config_dir / NORMALIZATION_DICT_FILENAME
+            )
+            print(normalizing_dict, flush=True)
+            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+            test_ds.normalizer = normalizer
+        else:
+            normalizer = Normalizer(std=False)
+            test_ds.normalizer = normalizer
+
+        test_dl = DataLoader(
+            test_ds,
+            batch_size=1,
+            shuffle=False,
+            num_workers=0,
+        )
+
+        # create a csv to store results
+        results_csv_path = RESULTS_FOLDER / "evaluation_results.csv"
+        results_csv_path.mkdir(parents=True, exist_ok=True)
+
+        # create header if file is empty
+        if results_csv_path.stat().st_size == 0:
+            with open(results_csv_path, "w") as f:
+                f.write("filename,r2,rmse\n")
+
+        with torch.no_grad():
+            for masked_output, labels, filename in tqdm(test_dl, desc="Predicting visualization images"):
+                (
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                ) = [t.to(device) for t in masked_output]
+
+                #with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                logits = model(
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                    patch_size_high_res=10,
+                    patch_size_med_res=1,
+                    patch_size_low_res=1,
+                )
+
+                # check that all predictions are between 0 and 1
+                assert logits.min() >= 0 and logits.max() <= 1
+
+                spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
+                preds_2D = rearrange(
+                    torch.squeeze(logits),
+                    "(h w) -> h w",
+                    h=spatial_patches_per_dim,
+                    w=spatial_patches_per_dim,
+                ).float().cpu().numpy()
+                labels = labels.float().cpu().numpy()
+                # squeeze labels if needed
+                if len(labels.shape) == 3:
+                    labels = np.squeeze(labels, axis=0)
+
+                r2 = r2_score(labels.flatten(), preds_2D.flatten())
+                rmse = root_mean_squared_error(labels.flatten(), preds_2D.flatten())
+
+                # append results to csv with filename, r2, rmse
+                with open(results_csv_path, "a") as f:
+                    f.write(f"{filename[0]},{r2},{rmse}\n")
 
     @torch.no_grad()
     def _visualize_predictions(
@@ -1512,7 +1611,7 @@ class LandsatEval(EvalTask):
         return weights
 
 
-    def evaluate_model_on_task(
+    def train_and_evaluate_model_on_task(
         self, 
         pretrained_model: Encoder, 
         model_modes: Optional[List[str]] = None, 
@@ -1604,7 +1703,7 @@ class LandsatEval(EvalTask):
                 assert model_mode in self.all_regression_sklearn_models
             assert save_final_checkpoint == False, "Cannot save final checkpoint when using sklearn evaluation mode."
             trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes, baseline_galileo=baseline_galileo)
-            results = self._evaluate_model(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo, hyperparams_config=hyperparams_config) 
+            results = self._evaluate_trained_sklearn_model(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo, hyperparams_config=hyperparams_config)
 
         elif self.decoder_mode in ["finetune", "linear_probe", "attention_probe"]:
             test_dl = self.get_test_dl(hyperparams_config=hyperparams_config, baseline_galileo=baseline_galileo)
@@ -1634,3 +1733,9 @@ class LandsatEval(EvalTask):
         log_wandb: bool = False, 
     ):
         self._visualize_predictions(model, log_wandb=log_wandb)
+
+    def evaluate_model_on_task(
+        self, 
+        model: EncoderWithHead,  
+    ):
+        self._evaluate_model(model)

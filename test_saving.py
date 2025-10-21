@@ -316,7 +316,9 @@ optimizer = torch.optim.AdamW(
 if args["restart"]:
     assert model_path is not None
     print(f"Loading optimizer state from {model_path}", flush=True)
-    optimizer.load_state_dict(torch.load(id_dir / f"{start_epoch}_{OPTIMIZER_FILENAME}", map_location=device))
+    optimizer.load_state_dict(
+        torch.load(id_dir / f"{start_epoch}_{OPTIMIZER_FILENAME}", map_location=device)
+    )
 
 assert training_config["effective_batch_size"] % training_config["batch_size"] == 0
 iters_to_accumulate = training_config["effective_batch_size"] / training_config["batch_size"]
@@ -640,7 +642,7 @@ os.system(f"gcloud storage rsync -r gs://{EE_BUCKET_TIFS}/outputs {model_path}")
 
 eval_tasks: List[EvalTask] = []
 for task in eval_tasks:
-    results = task.evaluate_model_on_task(encoder)
+    results = task.train_and_evaluate_model_on_task(encoder)
     print(json.dumps(results, indent=2), flush=True)
     if wandb_enabled:
         wandb.log(results, step=training_config["num_epochs"])
