@@ -23,6 +23,7 @@ torch.backends.cuda.matmul.allow_tf32 = True
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--checkpoint_name", type=str, default="finetuned_seg_ls_s42_ps10_attn__no_high_res_in_pred_date_final.pth")
+argparser.add_argument("--exclude_prediction_high_res", action="store_true", help="Whether to exclude high-res in prediction date. Should match checkpoint training.")
 args = argparser.parse_args().__dict__
 
 # TODO: fix the EncoderWithHead loading pipeline
@@ -45,6 +46,8 @@ else:
     encoder = Encoder(**config["model"]["encoder"])
     model = EncoderWithHead(encoder, eval_config=default_attn_config, sigmoid_slope=sigmoid_slope).to(device)
 
-eval_task = LandsatEval()
+eval_task = LandsatEval(
+    exclude_prediction_high_res=args["exclude_prediction_high_res"]
+)
 
 eval_task.visualize_sample_predictions(model=model, log_wandb=True)
