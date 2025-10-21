@@ -1363,6 +1363,7 @@ class LandsatEval(EvalTask):
     def _evaluate_model(
         self,
         model: EncoderWithHead,
+        id: str,
     ):
         test_ds = LandsatEvalDataset(
             exclude_prediction_date=self.exclude_prediction_date,
@@ -1390,7 +1391,7 @@ class LandsatEval(EvalTask):
         )
 
         # create a csv to store results
-        results_csv_path = RESULTS_FOLDER / "evaluation_results.csv"
+        results_csv_path = RESULTS_FOLDER / f"evaluation_results_{id}.csv"
         results_csv_path.touch(exist_ok=True)
 
         # create header if file is empty
@@ -1439,20 +1440,14 @@ class LandsatEval(EvalTask):
                 # check that all predictions are between 0 and 1
                 assert logits.min() >= 0 and logits.max() <= 1
 
-                spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
-                preds_2D = rearrange(
-                    torch.squeeze(logits),
-                    "(h w) -> h w",
-                    h=spatial_patches_per_dim,
-                    w=spatial_patches_per_dim,
-                ).float().cpu().numpy()
-                labels = labels.float().cpu().numpy()
-                # squeeze labels if needed
-                if len(labels.shape) == 3:
-                    labels = np.squeeze(labels, axis=0)
+                preds_1D = rearrange(torch.squeeze(logits), "b s -> (b s)").float().cpu().numpy()
+                labels_1D = rearrange(labels, "b h w -> (b h w)").float().cpu().numpy()
 
-                r2 = r2_score(labels.flatten(), preds_2D.flatten())
-                rmse = root_mean_squared_error(labels.flatten(), preds_2D.flatten())
+                if len(labels_1D.shape) == 3:
+                    labels_1D = np.squeeze(labels_1D, axis=0)
+
+                r2 = r2_score(labels_1D.flatten(), preds_1D.flatten())
+                rmse = root_mean_squared_error(labels_1D.flatten(), preds_1D.flatten())
 
                 # append results to csv with filename, r2, rmse
                 with open(results_csv_path, "a") as f:
@@ -1737,5 +1732,6 @@ class LandsatEval(EvalTask):
     def evaluate_model_on_task(
         self, 
         model: EncoderWithHead,  
+        id: str
     ):
-        self._evaluate_model(model)
+        self._evaluate_model(model, id=id)

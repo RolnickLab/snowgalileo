@@ -51,4 +51,4 @@ eval_task = LandsatEval(
     eval_config=eval_config
 )
 
-eval_task.evaluate_model_on_task(model=model)
+eval_task.evaluate_model_on_task(model=model, id=args["checkpoint_name"])
