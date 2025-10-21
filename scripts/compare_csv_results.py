@@ -21,7 +21,7 @@ def compare_csv_results(hr_csv: Path, no_hr_csv: Path, metric: str = "rmse"):
     df_no_hr = pd.read_csv(no_hr_csv)
 
     assert len(df_hr) == len(df_no_hr), "CSV files must have the same number of rows for comparison."
-    assert hr_csv.columns.equals(no_hr_csv.columns), "CSV files must have the same columns for comparison."
+    assert df_hr.columns.equals(df_no_hr.columns), "CSV files must have the same columns for comparison."
     assert all(df_hr['filename'] == df_no_hr['filename']), "CSV files must have the same filenames in the same order."
 
     comparison_data = {
