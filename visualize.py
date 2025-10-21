@@ -29,9 +29,9 @@ args = argparser.parse_args().__dict__
 # TODO: fix the EncoderWithHead loading pipeline
 # TODO: make sure the eval config matches the training config
 with (Path("src") / Path("eval") / Path("eval_configs") / Path("landsat_eval_1_99_test.json")).open("r") as f:
-    config = json.load(f)
-    default_attn_config = config["attention_probe"]
-    sigmoid_slope = config["hyperparams"]["sigmoid_slope"]
+    eval_config = json.load(f)
+    default_attn_config = eval_config["attention_probe"]
+    sigmoid_slope = eval_config["hyperparams"]["sigmoid_slope"]
 
 if args["checkpoint_name"] != "":
     # load pretrained snowgalileo encoder
@@ -47,7 +47,8 @@ else:
     model = EncoderWithHead(encoder, eval_config=default_attn_config, sigmoid_slope=sigmoid_slope).to(device)
 
 eval_task = LandsatEval(
-    exclude_prediction_high_res=args["exclude_prediction_high_res"]
+    exclude_prediction_high_res=args["exclude_prediction_high_res"],
+    eval_config=eval_config
 )
 
 eval_task.visualize_sample_predictions(model=model, log_wandb=True)

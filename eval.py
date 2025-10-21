@@ -34,7 +34,7 @@ argparser.add_argument("--eval_config", type=str, default="landsat_eval_5_95.jso
 args = argparser.parse_args().__dict__
 
 with (Path(__file__).parents[0] / Path("src/eval/eval_configs") / Path("landsat_eval_5_95.json")).open("r") as f:
-    config = json.load(f)
+    eval_config = json.load(f)
 
 if args["encoder_type"] == "orig_galileo":
     encoder = GalileoEncoder.load_from_folder(Path("galileo/data/models/nano")).to(device)
@@ -53,11 +53,11 @@ else:
 # TODO: move this somewhere else
 # create dataset split on the fly, so we don't have to store multiple copies
 # NOTE: assumes that all input files are in h5py folder
-if config["data"]["split_type"] == "train_val_test_random":
-    config["data"]["train_val_test_split"] = [0.7, 0.15, 0.15]
-    input_path = Path(DATA_FOLDER / config["data"]["input_tif_folder"])
-    mask_path = Path(DATA_FOLDER / config["data"]["label_folder"])
-    h5pys_path = Path(DATA_FOLDER / config["data"]["input_h5py_folder"])
+if eval_config["data"]["split_type"] == "train_val_test_random":
+    eval_config["data"]["train_val_test_split"] = [0.7, 0.15, 0.15]
+    input_path = Path(DATA_FOLDER / eval_config["data"]["input_tif_folder"])
+    mask_path = Path(DATA_FOLDER / eval_config["data"]["label_folder"])
+    h5pys_path = Path(DATA_FOLDER / eval_config["data"]["input_h5py_folder"])
 
     assert len(list(input_path.glob("*.tif"))) == len(list(mask_path.glob("*.tif"))) == len(list(h5pys_path.glob("*.h5py")))
 
@@ -87,7 +87,7 @@ eval_tasks: List[EvalTask] = [
         resample=args["resample"], 
         decoder_mode=args["strategy"],
         num_finetune_epochs=args["num_finetune_epochs"],
-        eval_config=config,
+        eval_config=eval_config,
         )
     ],
 ]
