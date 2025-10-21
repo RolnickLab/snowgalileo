@@ -1440,7 +1440,7 @@ class LandsatEval(EvalTask):
                 # check that all predictions are between 0 and 1
                 assert logits.min() >= 0 and logits.max() <= 1
 
-                preds_1D = rearrange(torch.squeeze(logits)).float().cpu().numpy()
+                preds_1D = torch.squeeze(logits).float().cpu().numpy()
                 labels_1D = rearrange(torch.squeeze(labels), "h w -> (h w)").float().cpu().numpy()
 
                 r2 = r2_score(labels_1D, preds_1D)
