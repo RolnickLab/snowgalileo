@@ -1391,7 +1391,6 @@ class LandsatEval(EvalTask):
 
         # create a csv to store results
         results_csv_path = RESULTS_FOLDER / "evaluation_results.csv"
-        results_csv_path.mkdir(parents=True, exist_ok=True)
 
         # create header if file is empty
         if results_csv_path.stat().st_size == 0:
