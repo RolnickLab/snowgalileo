@@ -1440,14 +1440,11 @@ class LandsatEval(EvalTask):
                 # check that all predictions are between 0 and 1
                 assert logits.min() >= 0 and logits.max() <= 1
 
-                preds_1D = rearrange(torch.squeeze(logits), "b s -> (b s)").float().cpu().numpy()
-                labels_1D = rearrange(labels, "b h w -> (b h w)").float().cpu().numpy()
+                preds_1D = rearrange(torch.squeeze(logits)).float().cpu().numpy()
+                labels_1D = rearrange(torch.squeeze(labels), "h w -> (h w)").float().cpu().numpy()
 
-                if len(labels_1D.shape) == 3:
-                    labels_1D = np.squeeze(labels_1D, axis=0)
-
-                r2 = r2_score(labels_1D.flatten(), preds_1D.flatten())
-                rmse = root_mean_squared_error(labels_1D.flatten(), preds_1D.flatten())
+                r2 = r2_score(labels_1D, preds_1D)
+                rmse = root_mean_squared_error(labels_1D, preds_1D)
 
                 # append results to csv with filename, r2, rmse
                 with open(results_csv_path, "a") as f:
