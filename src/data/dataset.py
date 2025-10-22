@@ -1368,7 +1368,7 @@ if __name__ == "__main__":
     dataset = Dataset(
         data_folder=DATA_FOLDER / "tifs_all_bands",
         download=False,
-        h5py_folder="data/h5pys_ps10_5",
+        h5py_folder=Path("data/h5pys_ps10_5"),
         h5pys_only=True,
     )
 
