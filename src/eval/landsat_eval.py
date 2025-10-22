@@ -1399,6 +1399,12 @@ class LandsatEval(EvalTask):
             with open(results_csv_path, "w") as f:
                 f.write("filename,r2,rmse\n")
 
+        all_preds = []
+        all_labels = []
+
+        all_preds_1D = []
+        all_labels_1D = []
+
         with torch.no_grad():
             for masked_output, labels, filename in tqdm(test_dl, desc="Predicting visualization images"):
                 (
@@ -1440,6 +1446,9 @@ class LandsatEval(EvalTask):
                 # check that all predictions are between 0 and 1
                 assert logits.min() >= 0 and logits.max() <= 1
 
+                all_preds_1D.append(rearrange(torch.squeeze(logits), "b s -> (b s)").float().cpu().numpy())
+                all_labels_1D.append(rearrange(labels, "b h w -> (b h w)").float().cpu().numpy())
+
                 spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
                 preds_2D = rearrange(
                     torch.squeeze(logits),
@@ -1451,6 +1460,9 @@ class LandsatEval(EvalTask):
                 # squeeze labels if needed
                 if len(labels.shape) == 3:
                     labels = np.squeeze(labels, axis=0)
+
+                all_preds.append(preds_2D.flatten())
+                all_labels.append(labels.flatten())
 
                 r2 = r2_score(labels.flatten(), preds_2D.flatten())
                 rmse = root_mean_squared_error(labels.flatten(), preds_2D.flatten())
@@ -1464,6 +1476,12 @@ class LandsatEval(EvalTask):
                 # append results to csv with filename, r2, rmse
                 with open(results_csv_path, "a") as f:
                     f.write(f"{filename[0]},{r2},{rmse}\n")
+
+            print("Mean r2 score 2D: ", r2_score(np.concatenate(all_labels).flatten(), np.concatenate(all_preds).flatten()), flush=True)
+            print("Mean RMSE 2D: ", root_mean_squared_error(np.concatenate(all_labels).flatten(), np.concatenate(all_preds).flatten()), flush=True)
+
+            print("Mean r2 score 1D: ", r2_score(np.concatenate(all_labels_1D).flatten(), np.concatenate(all_preds_1D).flatten()), flush=True)
+            print("Mean RMSE 1D: ", root_mean_squared_error(np.concatenate(all_labels_1D).flatten(), np.concatenate(all_preds_1D).flatten()), flush=True)
 
     @torch.no_grad()
     def _visualize_predictions(
