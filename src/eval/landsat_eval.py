@@ -1464,7 +1464,7 @@ class LandsatEval(EvalTask):
                 # check that all predictions are between 0 and 1
                 assert logits.min() >= 0 and logits.max() <= 1
 
-                all_preds_1D.append(rearrange(torch.squeeze(logits), "b s -> (b s)").float().cpu().numpy())
+                all_preds_1D.append(torch.squeeze(logits).float().cpu().numpy())
                 all_labels_1D.append(rearrange(labels, "b h w -> (b h w)").float().cpu().numpy())
 
                 spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
