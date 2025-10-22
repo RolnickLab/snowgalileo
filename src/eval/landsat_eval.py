@@ -776,21 +776,40 @@ class LandsatEvalDataset(PyTorchDataset):
     def __getitem__(self, idx):
         # NOTE: input will be a DatasetOutput object
         h5py = self.load_tif(idx)
-        (
-            s_t_h_x,
-            s_t_m_x,
-            s_t_l_x,
-            sp_x,
-            t_x,
-            st_x,
-            month,
-            valid_data_mask_s_t_h,
-            valid_data_mask_s_t_m,
-            valid_data_mask_s_t_l,
-            valid_data_mask_sp,
-            valid_data_mask_t,
-            valid_data_mask_st,
-        ) = h5py.normalize(self.normalizer)
+
+        if self.normalizer is None:
+            (
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                month,
+                valid_data_mask_s_t_h,
+                valid_data_mask_s_t_m,
+                valid_data_mask_s_t_l,
+                valid_data_mask_sp,
+                valid_data_mask_t,
+                valid_data_mask_st,
+            ) = h5py
+
+        else:
+            (
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                month,
+                valid_data_mask_s_t_h,
+                valid_data_mask_s_t_m,
+                valid_data_mask_s_t_l,
+                valid_data_mask_sp,
+                valid_data_mask_t,
+                valid_data_mask_st,
+            ) = h5py.normalize(self.normalizer)
 
         # unmask everything per default, then mask invalid data
         s_t_h_m = torch.zeros((self.output_hw_high_res, self.output_hw_high_res, self.output_timesteps, len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX)))
@@ -853,7 +872,6 @@ class LandsatEvalDataset(PyTorchDataset):
             # remove first dimension
             label = np.squeeze(label, axis=0)
             print(f"Label shape: {label.shape}", flush=True)
-
 
         # if assertion is triggered, go to the next tif file
         try:

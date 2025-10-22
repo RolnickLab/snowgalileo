@@ -1259,22 +1259,14 @@ class LandsatEvalRandomForest(LandsatEval):
 
         return x, m
 
-    def fit_random_forest(self):
+    def fit_random_forest(self, id: str):
         train_ds = LandsatEvalDatasetRandomForest(
             split="train",
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             data_config=self.data_config,
         )
-        if self.normalization == "std":
-            normalizing_dict = train_ds.load_normalization_values(
-                path=config_dir / NORMALIZATION_DICT_FILENAME
-            )
-            print(normalizing_dict, flush=True)
-            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
-        else:
-            normalizer = Normalizer(std=False)
-        train_ds.normalizer = normalizer
+        # NOTE: no normalization here, since RF works better without normalization!
 
         # TODO: CHECK! does the masking work correctly here? (suspiciously small number of tokens are removed), from [100,311] to (21866,)
         train_dl = DataLoader(
@@ -1305,7 +1297,7 @@ class LandsatEvalRandomForest(LandsatEval):
 
         # save the model
         try: 
-            model_path = Path("./landsat_rf_model.joblib")
+            model_path = Path(f"./landsat_rf_model_{id}.joblib")
             joblib.dump(regr, model_path)
             print(f"Saved Random Forest model to {model_path}", flush=True)
         except Exception as e:
@@ -1317,7 +1309,6 @@ class LandsatEvalRandomForest(LandsatEval):
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             data_config=self.data_config,
         )
-        test_ds.normalizer = normalizer
 
         test_dl = DataLoader(
             test_ds,
@@ -1353,11 +1344,12 @@ class LandsatEvalRandomForest(LandsatEval):
             "test_rmse": float(rmse),
             "test_r2": float(r2),
         }
-        results_path = Path("./landsat_rf_results.json")
+        results_path = Path(f"./landsat_rf_results_{id}.json")
         with results_path.open("w") as f:
             json.dump(results, f)
 
 if __name__ == "__main__":
+    id = "test"
     with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval_5_95.json")).open("r") as f:
         config = json.load(f)
     rf = LandsatEvalRandomForest(
@@ -1367,4 +1359,4 @@ if __name__ == "__main__":
         resample=False,
         eval_config=config,
     )
-    rf.fit_random_forest()
+    rf.fit_random_forest(id)
