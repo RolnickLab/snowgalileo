@@ -1440,11 +1440,26 @@ class LandsatEval(EvalTask):
                 # check that all predictions are between 0 and 1
                 assert logits.min() >= 0 and logits.max() <= 1
 
-                preds_1D = torch.squeeze(logits).float().cpu().numpy()
-                labels_1D = rearrange(torch.squeeze(labels), "h w -> (h w)").float().cpu().numpy()
+                spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
+                preds_2D = rearrange(
+                    torch.squeeze(logits),
+                    "(h w) -> h w",
+                    h=spatial_patches_per_dim,
+                    w=spatial_patches_per_dim,
+                ).float().cpu().numpy()
+                labels = labels.float().cpu().numpy()
+                # squeeze labels if needed
+                if len(labels.shape) == 3:
+                    labels = np.squeeze(labels, axis=0)
 
-                r2 = r2_score(labels_1D, preds_1D)
-                rmse = root_mean_squared_error(labels_1D, preds_1D)
+                r2 = r2_score(labels.flatten(), preds_2D.flatten())
+                rmse = root_mean_squared_error(labels.flatten(), preds_2D.flatten())
+
+                #preds_1D = torch.squeeze(logits).float().cpu().numpy()
+                #labels_1D = rearrange(torch.squeeze(labels), "h w -> (h w)").float().cpu().numpy()
+
+                #r2 = r2_score(labels_1D, preds_1D)
+                #rmse = root_mean_squared_error(labels_1D, preds_1D)
 
                 # append results to csv with filename, r2, rmse
                 with open(results_csv_path, "a") as f:
