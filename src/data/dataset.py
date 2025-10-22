@@ -1360,3 +1360,121 @@ class Dataset(PyTorchDataset):
             json.dump(norm_dict, f)
 
         return norm_dict
+
+if __name__ == "__main__":
+
+    from src.data.config import DATA_FOLDER, NORMALIZATION_DICT_FILENAME
+
+    dataset = Dataset(
+        data_folder=DATA_FOLDER / "tifs_all_bands",
+        download=False,
+        h5py_folder="data/h5pys_ps10_5",
+        h5pys_only=True,
+    )
+
+    normalizing_dict = dataset.load_normalization_values(
+        path=Path("config" / NORMALIZATION_DICT_FILENAME)
+    )
+    print(normalizing_dict, flush=True)
+    normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+    dataset.normalizer = normalizer
+
+    # create a csv that stores the min and max values for each channel
+    for i in range(len(dataset)):
+        (
+            s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
+            sp_x,
+            t_x,
+            st_x,
+            months,
+            valid_data_mask_s_t_h,
+            valid_data_mask_s_t_m,
+            valid_data_mask_s_t_l,
+            valid_data_mask_sp,
+            valid_data_mask_t,
+            valid_data_mask_st,
+        ) = dataset[i]
+
+        assert valid_data_mask_s_t_h.min() == 0 and valid_data_mask_s_t_h.max() == 1
+        assert valid_data_mask_s_t_m.min() == 0 and valid_data_mask_s_t_m.max() == 1
+        assert valid_data_mask_s_t_l.min() == 0 and valid_data_mask_s_t_l.max() == 1
+        assert valid_data_mask_sp.min() == 0 and valid_data_mask_sp.max() == 1
+        assert valid_data_mask_t.min() == 0 and valid_data_mask_t.max() == 1
+        assert valid_data_mask_st.min() == 0 and valid_data_mask_st.max() == 1
+
+        s_t_h_x_valid = s_t_h_x[valid_data_mask_s_t_h.astype(bool)]
+        s_t_m_x_valid = s_t_m_x[valid_data_mask_s_t_m.astype(bool)]
+        s_t_l_x_valid = s_t_l_x[valid_data_mask_s_t_l.astype(bool)]
+        sp_x_valid = sp_x[valid_data_mask_sp.astype(bool)]
+        t_x_valid = t_x[valid_data_mask_t.astype(bool)]
+        st_x_valid = st_x[valid_data_mask_st.astype(bool)]
+
+        # get the min and max values for each channel and store them in a combined csv for the entire dataset
+        import pandas as pd
+        stats = []
+        for channel_idx in range(s_t_h_x.shape[-1]):
+            channel_data = s_t_h_x_valid[..., channel_idx]
+            stats.append(
+                {
+                    "array_type": "space_time_high_res",
+                    "channel_idx": channel_idx,
+                    "min": float(np.min(channel_data)),
+                    "max": float(np.max(channel_data)),
+                }
+            )
+        for channel_idx in range(s_t_m_x.shape[-1]):
+            channel_data = s_t_m_x_valid[..., channel_idx]
+            stats.append(
+                {
+                    "array_type": "space_time_med_res",
+                    "channel_idx": channel_idx,
+                    "min": float(np.min(channel_data)),
+                    "max": float(np.max(channel_data)),
+                }
+            )
+        for channel_idx in range(s_t_l_x.shape[-1]):
+            channel_data = s_t_l_x_valid[..., channel_idx]
+            stats.append(
+                {
+                    "array_type": "space_time_low_res",
+                    "channel_idx": channel_idx,
+                    "min": float(np.min(channel_data)),
+                    "max": float(np.max(channel_data)),
+                }
+            )
+        for channel_idx in range(sp_x.shape[-1]):
+            channel_data = sp_x_valid[..., channel_idx]
+            stats.append(
+                {
+                    "array_type": "space",
+                    "channel_idx": channel_idx,
+                    "min": float(np.min(channel_data)),
+                    "max": float(np.max(channel_data)),
+                }
+            )
+        for channel_idx in range(t_x.shape[-1]):
+            channel_data = t_x_valid[..., channel_idx]
+            stats.append(
+                {
+                    "array_type": "time",
+                    "channel_idx": channel_idx,
+                    "min": float(np.min(channel_data)),
+                    "max": float(np.max(channel_data)),
+                }
+            )
+        for channel_idx in range(st_x.shape[-1]):
+            channel_data = st_x_valid[..., channel_idx]
+            stats.append(
+                {
+                    "array_type": "static",
+                    "channel_idx": channel_idx,
+                    "min": float(np.min(channel_data)),
+                    "max": float(np.max(channel_data)),
+                }
+            )
+
+        # save the combined stats to a csv file
+        df = pd.DataFrame(stats)
+        df.to_csv(f"channel_min_max_values_{i}.csv", index=False)
