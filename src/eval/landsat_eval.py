@@ -934,7 +934,7 @@ class LandsatEval(EvalTask):
 
         super().__init__(self.patch_size_high_res, seed)
         self.name = (
-            f"{'attn' if self.decoder_mode == 'attention_probe' else 'linear' if self.decoder_mode == 'linear_probe' else 'finetune' if self.decoder_mode == 'finetune' else 'sklearn'}_{'_exclude_prediction_date_' if self.exclude_prediction_date else ''}{'_no_high_res_in_pred_date' if self.exclude_prediction_high_res else ''}"
+            f"{'attn' if self.decoder_mode == 'attention_probe' else 'linear' if self.decoder_mode == 'linear_probe' else 'finetune' if self.decoder_mode == 'finetune' else 'sklearn'}_{'_exclude_prediction_date_' if self.exclude_prediction_date else ''}{'_no_high_res_in_pred_date' if self.exclude_prediction_high_res else ''}{f'{eval_config['name']}' if eval_config and 'name' in eval_config else ''}"
         )
         self.eval_config = eval_config
         self.data_config = self.eval_config["data"]

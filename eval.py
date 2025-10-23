@@ -53,7 +53,7 @@ else:
 # TODO: move this somewhere else
 # create dataset split on the fly, so we don't have to store multiple copies
 # NOTE: assumes that all input files are in h5py folder
-if eval_config["data"]["split_type"] == "train_val_test_random":
+if eval_config["data"]["split_type"] in eval_config and eval_config["data"]["split_type"] == "train_val_test_random":
     eval_config["data"]["train_val_test_split"] = [0.7, 0.15, 0.15]
     input_path = Path(DATA_FOLDER / eval_config["data"]["input_tif_folder"])
     mask_path = Path(DATA_FOLDER / eval_config["data"]["label_folder"])

@@ -1,4 +1,5 @@
 {
+    "name": "landsat_eval_5_95",
     "data": {
         "label_folder": "landsat_eval_masks/all/patches_UTM_5_95_subset/",
         "input_tif_folder": "landsat_eval_tifs/patches_UTM_5_95_cropped/",
@@ -6,7 +7,8 @@
         "label_resolution": 100,
         "num_timesteps": 8,
         "input_height_width": 100,
-        "num_classes": 1
+        "num_classes": 1,
+        "split_type": "train_test_random"
     },
     "finetune": {
         "freeze_encoder": false,

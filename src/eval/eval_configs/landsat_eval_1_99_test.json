@@ -1,4 +1,5 @@
 {
+    "name": "landsat_eval_1_99_test",
     "data": {
         "label_folder": "landsat_eval_masks/all/patches_UTM_1_99_test/",
         "input_tif_folder": "landsat_eval_tifs/patches_UTM_1_99_test_cropped/",
