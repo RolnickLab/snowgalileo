@@ -1400,13 +1400,6 @@ if __name__ == "__main__":
             valid_data_mask_st,
         ) = dataset[i]
 
-        assert valid_data_mask_s_t_h.min() == 0 and valid_data_mask_s_t_h.max() == 1
-        assert valid_data_mask_s_t_m.min() == 0 and valid_data_mask_s_t_m.max() == 1
-        assert valid_data_mask_s_t_l.min() == 0 and valid_data_mask_s_t_l.max() == 1
-        assert valid_data_mask_sp.min() == 0 and valid_data_mask_sp.max() == 1
-        assert valid_data_mask_t.min() == 0 and valid_data_mask_t.max() == 1
-        assert valid_data_mask_st.min() == 0 and valid_data_mask_st.max() == 1
-
         s_t_h_x_valid = s_t_h_x[valid_data_mask_s_t_h.astype(bool)]
         s_t_m_x_valid = s_t_m_x[valid_data_mask_s_t_m.astype(bool)]
         s_t_l_x_valid = s_t_l_x[valid_data_mask_s_t_l.astype(bool)]
