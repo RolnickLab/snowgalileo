@@ -1415,7 +1415,7 @@ if __name__ == "__main__":
         st_x_valid = st_x[valid_data_mask_st.astype(bool)]
 
         stats.append({
-            "tif": dataset.tifs[i].name,
+            "tif": i,
             "s_t_h_x_min": s_t_h_x_valid.min(axis=0).tolist(),
             "s_t_h_x_max": s_t_h_x_valid.max(axis=0).tolist(),
             "s_t_m_x_min": s_t_m_x_valid.min(axis=0).tolist(),
