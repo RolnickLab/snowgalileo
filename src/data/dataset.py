@@ -1364,6 +1364,7 @@ class Dataset(PyTorchDataset):
 if __name__ == "__main__":
 
     from src.data.config import DATA_FOLDER, NORMALIZATION_DICT_FILENAME
+    from src.utils import config_dir
 
     dataset = Dataset(
         data_folder=DATA_FOLDER / "tifs_all_bands",
@@ -1373,7 +1374,7 @@ if __name__ == "__main__":
     )
 
     normalizing_dict = dataset.load_normalization_values(
-        path=Path("config" / NORMALIZATION_DICT_FILENAME)
+        path=config_dir / NORMALIZATION_DICT_FILENAME
     )
     print(normalizing_dict, flush=True)
     normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
