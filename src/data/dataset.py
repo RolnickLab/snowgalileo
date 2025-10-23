@@ -1379,6 +1379,8 @@ if __name__ == "__main__":
     normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
     dataset.normalizer = normalizer
 
+    stats = []
+
     # create a csv that stores the min and max values for each channel
     for i in range(len(dataset)):
         (
@@ -1411,70 +1413,22 @@ if __name__ == "__main__":
         t_x_valid = t_x[valid_data_mask_t.astype(bool)]
         st_x_valid = st_x[valid_data_mask_st.astype(bool)]
 
-        # get the min and max values for each channel and store them in a combined csv for the entire dataset
-        import pandas as pd
-        stats = []
-        for channel_idx in range(s_t_h_x.shape[-1]):
-            channel_data = s_t_h_x_valid[..., channel_idx]
-            stats.append(
-                {
-                    "array_type": "space_time_high_res",
-                    "channel_idx": channel_idx,
-                    "min": float(np.min(channel_data)),
-                    "max": float(np.max(channel_data)),
-                }
-            )
-        for channel_idx in range(s_t_m_x.shape[-1]):
-            channel_data = s_t_m_x_valid[..., channel_idx]
-            stats.append(
-                {
-                    "array_type": "space_time_med_res",
-                    "channel_idx": channel_idx,
-                    "min": float(np.min(channel_data)),
-                    "max": float(np.max(channel_data)),
-                }
-            )
-        for channel_idx in range(s_t_l_x.shape[-1]):
-            channel_data = s_t_l_x_valid[..., channel_idx]
-            stats.append(
-                {
-                    "array_type": "space_time_low_res",
-                    "channel_idx": channel_idx,
-                    "min": float(np.min(channel_data)),
-                    "max": float(np.max(channel_data)),
-                }
-            )
-        for channel_idx in range(sp_x.shape[-1]):
-            channel_data = sp_x_valid[..., channel_idx]
-            stats.append(
-                {
-                    "array_type": "space",
-                    "channel_idx": channel_idx,
-                    "min": float(np.min(channel_data)),
-                    "max": float(np.max(channel_data)),
-                }
-            )
-        for channel_idx in range(t_x.shape[-1]):
-            channel_data = t_x_valid[..., channel_idx]
-            stats.append(
-                {
-                    "array_type": "time",
-                    "channel_idx": channel_idx,
-                    "min": float(np.min(channel_data)),
-                    "max": float(np.max(channel_data)),
-                }
-            )
-        for channel_idx in range(st_x.shape[-1]):
-            channel_data = st_x_valid[..., channel_idx]
-            stats.append(
-                {
-                    "array_type": "static",
-                    "channel_idx": channel_idx,
-                    "min": float(np.min(channel_data)),
-                    "max": float(np.max(channel_data)),
-                }
-            )
+        stats.append({
+            "tif": dataset.tifs[i].name,
+            "s_t_h_x_min": s_t_h_x_valid.min(axis=0).tolist(),
+            "s_t_h_x_max": s_t_h_x_valid.max(axis=0).tolist(),
+            "s_t_m_x_min": s_t_m_x_valid.min(axis=0).tolist(),
+            "s_t_m_x_max": s_t_m_x_valid.max(axis=0).tolist(),
+            "s_t_l_x_min": s_t_l_x_valid.min(axis=0).tolist(),
+            "s_t_l_x_max": s_t_l_x_valid.max(axis=0).tolist(),
+            "sp_x_min": sp_x_valid.min(axis=0).tolist(),
+            "sp_x_max": sp_x_valid.max(axis=0).tolist(),
+            "t_x_min": t_x_valid.min(axis=0).tolist(),
+            "t_x_max": t_x_valid.max(axis=0).tolist(),
+            "st_x_min": st_x_valid.min(axis=0).tolist(),
+            "st_x_max": st_x_valid.max(axis=0).tolist(),
+        })
 
-        # save the combined stats to a csv file
-        df = pd.DataFrame(stats)
-        df.to_csv(f"channel_min_max_values_{i}.csv", index=False)
+    import pandas as pd
+    df = pd.DataFrame(stats)
+    df.to_csv("data_stats.csv", index=False)
