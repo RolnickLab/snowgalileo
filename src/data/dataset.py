@@ -1409,18 +1409,18 @@ if __name__ == "__main__":
 
         stats.append({
             "tif": i,
-            "s_t_h_x_min": s_t_h_x_valid.min().tolist(),
-            "s_t_h_x_max": s_t_h_x_valid.max().tolist(),
-            "s_t_m_x_min": s_t_m_x_valid.min().tolist(),
-            "s_t_m_x_max": s_t_m_x_valid.max().tolist(),
-            "s_t_l_x_min": s_t_l_x_valid.min().tolist(),
-            "s_t_l_x_max": s_t_l_x_valid.max().tolist(),
-            "sp_x_min": sp_x_valid.min().tolist(),
-            "sp_x_max": sp_x_valid.max().tolist(),
-            "t_x_min": t_x_valid.min().tolist(),
-            "t_x_max": t_x_valid.max().tolist(),
-            "st_x_min": st_x_valid.min().tolist(),
-            "st_x_max": st_x_valid.max().tolist(),
+            "s_t_h_x_min": s_t_h_x_valid.min().tolist() if s_t_h_x_valid.size > 0 else None,
+            "s_t_h_x_max": s_t_h_x_valid.max().tolist() if s_t_h_x_valid.size > 0 else None,
+            "s_t_m_x_min": s_t_m_x_valid.min().tolist() if s_t_m_x_valid.size > 0 else None,
+            "s_t_m_x_max": s_t_m_x_valid.max().tolist() if s_t_m_x_valid.size > 0 else None,
+            "s_t_l_x_min": s_t_l_x_valid.min().tolist() if s_t_l_x_valid.size > 0 else None,
+            "s_t_l_x_max": s_t_l_x_valid.max().tolist() if s_t_l_x_valid.size > 0 else None,
+            "sp_x_min": sp_x_valid.min().tolist() if sp_x_valid.size > 0 else None,
+            "sp_x_max": sp_x_valid.max().tolist() if sp_x_valid.size > 0 else None,
+            "t_x_min": t_x_valid.min().tolist() if t_x_valid.size > 0 else None,
+            "t_x_max": t_x_valid.max().tolist() if t_x_valid.size > 0 else None,
+            "st_x_min": st_x_valid.min().tolist() if st_x_valid.size > 0 else None,
+            "st_x_max": st_x_valid.max().tolist() if st_x_valid.size > 0 else None,
         })
 
     import pandas as pd
