@@ -1106,10 +1106,11 @@ class LandsatEvalRandomForest(LandsatEval):
                     # all values are masked, replace with zeros
                     x[..., i, :] = 0.0
                 else:
-                    last_valid_index = torch.where(~channel_mask)[0][-1]
-                    last_valid_value = channel_data[last_valid_index]
-                    channel_data[channel_mask] = last_valid_value
-                    x[..., i, :] = channel_data
+                    x = x
+                    #last_valid_index = torch.where(~channel_mask)[0][-1]
+                    #last_valid_value = channel_data[last_valid_index]
+                    #channel_data[channel_mask] = last_valid_value
+                    #x[..., i, :] = channel_data
         return x
 
     
