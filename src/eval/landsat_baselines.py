@@ -1087,25 +1087,29 @@ class LandsatEvalRandomForest(LandsatEval):
         x,
         m,
     ):
-        import pdb; pdb.set_trace()
         # shape: (B, (S), C, (T))
         # for timeseries data:
         # for each channel, replaces masked values with the last unmasked value over timestep for this channel
         # for space-only and static data:
         # replaces masked values with the last unmasked value over all channels in the same data group
-        """
-        for i in range(x.shape[-1]):
-            channel_data = x[:, i]
-            channel_mask = m[:, i]
-            if torch.all(channel_mask):
-                # all values are masked, replace with zeros
-                x[:, i] = 0.0
+        for i in range(x.shape[-2]):
+            if x.dim() == 3:
+                # space-only or static data
+                channel_data = x[..., i]
+                channel_mask = m[..., i]
+                channel_data[channel_mask] = 0.0
+                import pdb; pdb.set_trace()
             else:
-                last_valid_index = torch.where(~channel_mask)[0][-1]
-                last_valid_value = channel_data[last_valid_index]
-                channel_data[channel_mask] = last_valid_value
-                x[:, i] = channel_data
-        """
+                channel_data = x[..., i, :]
+                channel_mask = m[..., i, :]
+                if torch.all(channel_mask):
+                    # all values are masked, replace with zeros
+                    x[..., i, :] = 0.0
+                else:
+                    last_valid_index = torch.where(~channel_mask)[0][-1]
+                    last_valid_value = channel_data[last_valid_index]
+                    channel_data[channel_mask] = last_valid_value
+                    x[..., i, :] = channel_data
         return x
 
     
