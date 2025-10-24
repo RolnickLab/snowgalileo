@@ -1155,7 +1155,6 @@ class LandsatEvalRandomForest(LandsatEval):
         # RF computes median for missing values
         # TODO: replace all invalid with mean per timestep
         assert replace_with in ["last", "mean", "zeros", "nan"]
-        assert replace_with not in ["last"], "Not implemented yet"
 
         # TODO: make this more dynamic
         patch_size_high_res = 10
@@ -1357,7 +1356,7 @@ class LandsatEvalRandomForest(LandsatEval):
             input = torch.squeeze(
                 self.aggregate_per_output_pixel_and_replace_masked_data(
                     *input,
-                    replace_with="mean"
+                    replace_with="last"
                 )[0])  # (N, num_features)
             preds = regr.predict(input.numpy())
             all_preds.append(torch.as_tensor(preds))
