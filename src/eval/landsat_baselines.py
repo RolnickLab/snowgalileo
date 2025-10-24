@@ -1081,6 +1081,33 @@ class LandsatEvalRandomForest(LandsatEval):
         ])
         assert x.shape == m.shape
         return x[m == 0]
+
+    def replace_masked_data_with_last_per_channel(
+        self,
+        x,
+        m,
+    ):
+        import pdb; pdb.set_trace()
+        # shape: (B, (S), C, (T))
+        # for timeseries data:
+        # for each channel, replaces masked values with the last unmasked value over timestep for this channel
+        # for space-only and static data:
+        # replaces masked values with the last unmasked value over all channels in the same data group
+        """
+        for i in range(x.shape[-1]):
+            channel_data = x[:, i]
+            channel_mask = m[:, i]
+            if torch.all(channel_mask):
+                # all values are masked, replace with zeros
+                x[:, i] = 0.0
+            else:
+                last_valid_index = torch.where(~channel_mask)[0][-1]
+                last_valid_value = channel_data[last_valid_index]
+                channel_data[channel_mask] = last_valid_value
+                x[:, i] = channel_data
+        """
+        return x
+
     
     def replace_masked_data_with_mean_per_channel(
         self,
@@ -1221,12 +1248,19 @@ class LandsatEvalRandomForest(LandsatEval):
         assert s_t_h_x.shape[1] == 100
 
         if replace_with == "mean":
-            s_t_h_x = self.replace_masked_data_with_mean_per_channel(s_t_h_x, s_t_h_m)
-            s_t_m_x = self.replace_masked_data_with_mean_per_channel(s_t_m_x, s_t_m_m)
-            s_t_l_x = self.replace_masked_data_with_mean_per_channel(s_t_l_x, s_t_l_m)
-            sp_x = self.replace_masked_data_with_mean_per_channel(sp_x, sp_m)
-            t_x = self.replace_masked_data_with_mean_per_channel(t_x, t_m)
-            st_x = self.replace_masked_data_with_mean_per_channel(st_x, st_m)
+            s_t_h_x = self.replace_masked_data_with_mean_per_channel(rearrange(s_t_h_x, "b s t c -> b s c t"), rearrange(s_t_h_m, "b s t c -> b s c t"))
+            s_t_m_x = self.replace_masked_data_with_mean_per_channel(rearrange(s_t_m_x, "b s t c -> b s c t"), rearrange(s_t_m_m, "b s t c -> b s c t"))
+            s_t_l_x = self.replace_masked_data_with_mean_per_channel(rearrange(s_t_l_x, "b s t c -> b s c t"), rearrange(s_t_l_m, "b s t c -> b s c t"))
+            sp_x = self.replace_masked_data_with_mean_per_channel(rearrange(sp_x, "b s c -> b s c"), rearrange(sp_m, "b s c -> b s c"))
+            t_x = self.replace_masked_data_with_mean_per_channel(rearrange(t_x, "b s t c -> b s c t"), rearrange(t_m, "b s t c -> b s c t"))
+            st_x = self.replace_masked_data_with_mean_per_channel(rearrange(st_x, "b s c -> b s c"), rearrange(st_m, "b s c -> b s c"))
+        if replace_with == "last":
+            s_t_h_x = self.replace_masked_data_with_last_per_channel(rearrange(s_t_h_x, "b s t c -> b s c t"), rearrange(s_t_h_m, "b s t c -> b s c t"))
+            s_t_m_x = self.replace_masked_data_with_last_per_channel(rearrange(s_t_m_x, "b s t c -> b s c t"), rearrange(s_t_m_m, "b s t c -> b s c t"))
+            s_t_l_x = self.replace_masked_data_with_last_per_channel(rearrange(s_t_l_x, "b s t c -> b s c t"), rearrange(s_t_l_m, "b s t c -> b s c t"))
+            sp_x = self.replace_masked_data_with_last_per_channel(rearrange(sp_x, "b s c -> b s c"), rearrange(sp_m, "b s c -> b s c"))
+            t_x = self.replace_masked_data_with_last_per_channel(rearrange(t_x, "b s t c -> b s c t"), rearrange(t_m, "b s t c -> b s c t"))
+            st_x = self.replace_masked_data_with_last_per_channel(rearrange(st_x, "b s c -> b s c"), rearrange(st_m, "b s c -> b s c"))
         elif replace_with == "nan":
             s_t_h_x = s_t_h_x.masked_fill(s_t_h_m.bool(), float('nan'))
             s_t_m_x = s_t_m_x.masked_fill(s_t_m_m.bool(), float('nan'))
