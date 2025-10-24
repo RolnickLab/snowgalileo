@@ -1316,7 +1316,7 @@ class LandsatEvalRandomForest(LandsatEval):
             input = torch.squeeze(
                 self.aggregate_per_output_pixel_and_replace_masked_data(
                     *input,
-                    replace_with="mean"
+                    replace_with="last"
                 )[0])  # (N, num_features)
             label = torch.squeeze(label).flatten()  # (N,)
             all_samples.append(input)
