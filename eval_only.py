@@ -24,11 +24,12 @@ torch.backends.cuda.matmul.allow_tf32 = True
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--checkpoint_name", type=str, default="finetuned_seg_ls_s42_ps10_attn__no_high_res_in_pred_date_final.pth")
 argparser.add_argument("--exclude_prediction_high_res", action="store_true", help="Whether to exclude high-res in prediction date. Should match checkpoint training.")
+argparser.add_argument("--config_name", type=str, default="landsat_eval_1_99_test.json", help="Config name for evaluation.")
 args = argparser.parse_args().__dict__
 
 # TODO: fix the EncoderWithHead loading pipeline
 # TODO: make sure the eval config matches the training config
-with (Path("src") / Path("eval") / Path("eval_configs") / Path("landsat_eval_1_99_test.json")).open("r") as f:
+with (Path("src") / Path("eval") / Path("eval_configs") / Path(args["config_name"])).open("r") as f:
     eval_config = json.load(f)
     default_attn_config = eval_config["attention_probe"]
     sigmoid_slope = eval_config["hyperparams"]["sigmoid_slope"]
