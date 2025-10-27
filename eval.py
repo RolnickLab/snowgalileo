@@ -33,7 +33,7 @@ argparser.add_argument("--exclude_prediction_high_res", action="store_true", hel
 argparser.add_argument("--eval_config", type=str, default="landsat_eval_5_95.json", help="Which eval config to use.")
 args = argparser.parse_args().__dict__
 
-with (Path(__file__).parents[0] / Path("src/eval/eval_configs") / Path("landsat_eval_5_95.json")).open("r") as f:
+with (Path(__file__).parents[0] / Path("src/eval/eval_configs") / Path(args["eval_config"])).open("r") as f:
     eval_config = json.load(f)
 
 if args["encoder_type"] == "orig_galileo":
