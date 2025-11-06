@@ -1,28 +1,28 @@
 import argparse
-from pathlib import Path
-
-import psutil
 import os
+import re
+import warnings
+from pathlib import Path
+from typing import cast
 
-from src.config import DEFAULT_SEED
+import numpy as np
+import psutil
 import rioxarray
 import xarray as xr
-import numpy as np
-from typing import cast
-import re
-from src.utils import seed_everything
+from einops import rearrange, repeat
+from scipy import stats
+
+from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER, NO_DATA_VALUE
-from src.data.earthengine.eo import(
+from src.data.dataset import to_cartesian
+from src.data.earthengine.eo import (
     EO_ALL_DYNAMIC_IN_TIME_BANDS,
     EO_ALL_DYNAMIC_IN_TIME_BANDS_NP,
-    STATIC_BANDS,
     NUM_TIMESTEPS,
     SPACE_BANDS,
+    STATIC_BANDS,
 )
-from einops import rearrange, repeat
-import warnings
-from src.data.dataset import to_cartesian
-from scipy import stats
+from src.utils import seed_everything
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -34,6 +34,7 @@ args = argparser.parse_args().__dict__
 
 tifs_folder = DATA_FOLDER / args["tifs_folder"]
 assert tifs_folder.exists(), f"{tifs_folder} does not exist!"
+
 
 def _check_and_fillna(data: np.ndarray, bands_np: np.ndarray) -> np.ndarray:
     """Fill in the missing values in the data array"""
@@ -51,9 +52,7 @@ def _check_and_fillna(data: np.ndarray, bands_np: np.ndarray) -> np.ndarray:
     elif len(data.shape) == 4:
         has_time = True
     else:
-        raise ValueError(
-            f"Expected data to be 3D or 4D (x, y, (time), band) - got {data.shape}"
-        )
+        raise ValueError(f"Expected data to be 3D or 4D (x, y, (time), band) - got {data.shape}")
 
     # treat infinities as NaNs
     data = np.nan_to_num(data, nan=np.nan, posinf=np.nan, neginf=np.nan)
@@ -88,8 +87,8 @@ def _check_and_fillna(data: np.ndarray, bands_np: np.ndarray) -> np.ndarray:
         data = np.nan_to_num(data, nan=0, posinf=0, neginf=0) + means_to_fill
     return data
 
-def get_cloud_state_modis(state: int) -> int:
 
+def get_cloud_state_modis(state: int) -> int:
     qa_bin = format(state, ">016b")
 
     # mapping 0: clear, 1: cloudy, 2: mixed
@@ -103,16 +102,16 @@ def get_cloud_state_modis(state: int) -> int:
         return 2
     elif cloud_state == "11":
         return 3
-    
-def get_cloud_state_landsat_bit(state: int, cloud_dict: dict) -> dict:
 
+
+def get_cloud_state_landsat_bit(state: int, cloud_dict: dict) -> dict:
     qa_bin = format(state, ">016b")
 
     if qa_bin[0] == "0":
         cloud_dict["fill"]["image"] += 1
     else:
         cloud_dict["fill"]["fill"] += 1
-    
+
     if qa_bin[1] == "0":
         cloud_dict["dilated cloud"]["not dilated or no cloud"] += 1
     else:
@@ -176,6 +175,7 @@ def get_cloud_state_landsat_bit(state: int, cloud_dict: dict) -> dict:
 
     return cloud_dict
 
+
 def get_cloud_state_landsat(state: int) -> str:
     if state == 21824:
         return "clear with lows set"
@@ -214,6 +214,7 @@ def get_cloud_state_landsat(state: int) -> str:
     else:
         return "unknown"
 
+
 def _get_cloud_bands(tif_path: Path):
     with cast(xr.Dataset, rioxarray.open_rasterio(tif_path)) as data:
         # [all_combined_bands, H, W]
@@ -225,12 +226,8 @@ def _get_cloud_bands(tif_path: Path):
         # extract lat, lon in EPSG:4326 from tif_path
         lat_pattern = r"lat=(.*?)_"
         lon_pattern = r"lon=(.*?)_"
-        lat = float(
-            np.mean([float(value) for value in re.findall(lat_pattern, str(tif_path))])
-        )
-        lon = float(
-            np.mean([float(value) for value in re.findall(lon_pattern, str(tif_path))])
-        )
+        lat = float(np.mean([float(value) for value in re.findall(lat_pattern, str(tif_path))]))
+        lon = float(np.mean([float(value) for value in re.findall(lon_pattern, str(tif_path))]))
 
     num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(EO_ALL_DYNAMIC_IN_TIME_BANDS)
     assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
@@ -241,22 +238,20 @@ def _get_cloud_bands(tif_path: Path):
         c=len(EO_ALL_DYNAMIC_IN_TIME_BANDS),
         t=int(num_timesteps),
     )
-    dynamic_in_time_x = _check_and_fillna(
-        dynamic_in_time_x, EO_ALL_DYNAMIC_IN_TIME_BANDS_NP
-    )
+    dynamic_in_time_x = _check_and_fillna(dynamic_in_time_x, EO_ALL_DYNAMIC_IN_TIME_BANDS_NP)
     # resolution: 1000m
     modis_cloud_x = dynamic_in_time_x[
         :,
         :,
         :,
-        -3 : -2,
+        -3:-2,
     ]
     # resolution: 60m
     s2_cloud_x = dynamic_in_time_x[
         :,
         :,
         :,
-        -2 : -1,
+        -2:-1,
     ]
     # resolution: 30m
     landsat_cloud_x = dynamic_in_time_x[
@@ -282,15 +277,29 @@ def _get_cloud_bands(tif_path: Path):
     except AssertionError as e:
         raise e
 
+
 def main():
     modis_cloud_counts = {"clear": 0, "cloudy": 0, "mixed": 0, "assumed_clear": 0}
-    landsat_cloud_counts = {"clear with lows set": 0, "dilated cloud over land": 0, "water with lows set": 0,
-                            "dilated cloud over water": 0, "mid conf cloud": 0, "mid conf cloud over water": 0,
-                            "high conf cloud": 0, "high conf cloud shadow": 0, "water with cloud shadow": 0,
-                            "mid conf cloud w shadow": 0, "mid conf cloud w shadow over water": 0,
-                            "high conf cloud w shadow": 0, "high conf cloud w shadow over water": 0,
-                            "high conf snow/ice": 0, "high conf cirrus": 0, "cirrus, mid cloud": 0,
-                            "cirrus, high cloud": 0, "unknown": 0}
+    landsat_cloud_counts = {
+        "clear with lows set": 0,
+        "dilated cloud over land": 0,
+        "water with lows set": 0,
+        "dilated cloud over water": 0,
+        "mid conf cloud": 0,
+        "mid conf cloud over water": 0,
+        "high conf cloud": 0,
+        "high conf cloud shadow": 0,
+        "water with cloud shadow": 0,
+        "mid conf cloud w shadow": 0,
+        "mid conf cloud w shadow over water": 0,
+        "high conf cloud w shadow": 0,
+        "high conf cloud w shadow over water": 0,
+        "high conf snow/ice": 0,
+        "high conf cirrus": 0,
+        "cirrus, mid cloud": 0,
+        "cirrus, high cloud": 0,
+        "unknown": 0,
+    }
 
     landsat_cloud_dict = {
         "fill": {"image": 0, "fill": 0},
@@ -301,10 +310,30 @@ def main():
         "snow": {"not high confidence snow": 0, "high confidence snow": 0},
         "clear": {"dilated cloud or cloud are set": 0, "dilated cloud or cloud are not set": 0},
         "water": {"land or cloud": 0, "water": 0},
-        "cloud confidence": {"no confidence set": 0, "low confidence": 0, "medium confidence": 0, "high confidence": 0},
-        "cloud shadow confidence": {"no confidence set": 0, "low confidence": 0, "reserved": 0, "high confidence": 0},
-        "snow/ice confidence": {"no confidence set": 0, "low confidence": 0, "reserved": 0, "high confidence": 0},
-        "cirrus confidence": {"no confidence set": 0, "low confidence": 0, "reserved": 0, "high confidence": 0},
+        "cloud confidence": {
+            "no confidence set": 0,
+            "low confidence": 0,
+            "medium confidence": 0,
+            "high confidence": 0,
+        },
+        "cloud shadow confidence": {
+            "no confidence set": 0,
+            "low confidence": 0,
+            "reserved": 0,
+            "high confidence": 0,
+        },
+        "snow/ice confidence": {
+            "no confidence set": 0,
+            "low confidence": 0,
+            "reserved": 0,
+            "high confidence": 0,
+        },
+        "cirrus confidence": {
+            "no confidence set": 0,
+            "low confidence": 0,
+            "reserved": 0,
+            "high confidence": 0,
+        },
     }
 
     num_samples = 3000
@@ -322,7 +351,9 @@ def main():
 
                 if args["satellite"] == "modis":
                     for timestep in range(NUM_TIMESTEPS):
-                        modis_cloud_map = get_cloud_state_modis(modis_state[timestep].astype(int).item(0))
+                        modis_cloud_map = get_cloud_state_modis(
+                            modis_state[timestep].astype(int).item(0)
+                        )
                         if modis_cloud_map == 0:
                             modis_cloud_counts["clear"] += 1
                         elif modis_cloud_map == 1:
@@ -339,7 +370,9 @@ def main():
                         landsat_cloud_map = get_cloud_state_landsat(landsat_qa_state)
                         if landsat_cloud_map in landsat_cloud_counts:
                             landsat_cloud_counts[landsat_cloud_map] += 1
-                        landsat_cloud_dict = get_cloud_state_landsat_bit(landsat_qa_state, landsat_cloud_dict)
+                        landsat_cloud_dict = get_cloud_state_landsat_bit(
+                            landsat_qa_state, landsat_cloud_dict
+                        )
 
                 print(f"Processed {tif_path}")
             except Exception as e:
@@ -362,6 +395,7 @@ def main():
             ]
         )
         print(f"Modis cloud map: {modis_cloud_map}")
+
 
 if __name__ == "__main__":
     main()

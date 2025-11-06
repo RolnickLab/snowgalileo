@@ -1,13 +1,15 @@
-from src.data.config import DATA_FOLDER
-from pathlib import Path
-from sklearn.model_selection import train_test_split
-from src.config import DEFAULT_SEED
 import argparse
+from pathlib import Path
+
 import rasterio
 from pyproj import Transformer
 
+from src.data.config import DATA_FOLDER
+
 argparser = argparse.ArgumentParser()
-argparser.add_argument("--folder", type=str, default="landsat_eval_tifs/patches_UTM_1_99_test_cropped")
+argparser.add_argument(
+    "--folder", type=str, default="landsat_eval_tifs/patches_UTM_1_99_test_cropped"
+)
 
 args = argparser.parse_args().__dict__
 
@@ -15,7 +17,6 @@ path = Path(DATA_FOLDER / args["folder"])
 
 # connvert all files in the folder from _UTM_ to _WGS84_ in their filename
 for file in path.glob("*.tif"):
-
     with rasterio.open(file) as src:
         crs = src.crs.to_string()
 

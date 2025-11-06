@@ -1,12 +1,19 @@
 # TODO: integrate this more beautifully with the rest of the codebase!
 
-from pathlib import Path
-from src.data.config import DATA_FOLDER
-import re
 import os
+import re
 import shutil
+from pathlib import Path
 
-get_filename_without_epsg_extension = lambda x: re.sub(r"_EPSG:\d+\.tif{1,2}f?$", "", x)
+from src.data.config import DATA_FOLDER
+
+
+# Source - https://stackoverflow.com/a
+# Posted by Gareth Latty, modified by community. See post 'Timeline' for change history
+# Retrieved 2025-11-06, License - CC BY-SA 4.0
+def get_filename_without_epsg_extension(x):
+    return re.sub(r"_EPSG:\d+\.tif{1,2}f?$", "", x)
+
 
 exported_tif_path = Path(DATA_FOLDER / "landsat_eval_tifs" / "100m_tif_global")
 mask_path = Path(DATA_FOLDER / "landsat_eval_masks" / "all" / "100m_mask_global")

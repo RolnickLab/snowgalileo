@@ -7,11 +7,11 @@ import warnings
 from functools import partial
 from pathlib import Path
 from typing import List, cast
-import torch.nn as nn
 
 import codecarbon
 import psutil
 import torch
+import torch.nn as nn
 import wandb
 from torch.utils.data import BatchSampler, DataLoader, Subset
 from tqdm import tqdm

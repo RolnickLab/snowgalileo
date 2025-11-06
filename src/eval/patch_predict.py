@@ -1,24 +1,28 @@
-import json
 from copy import deepcopy
-from pathlib import Path
+from typing import Dict
 
+import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import wandb
 from einops import rearrange
-
-from src.flexipresto import adjust_learning_rate, AttentionProbe
-from sklearn.metrics import root_mean_squared_error, r2_score, balanced_accuracy_score, accuracy_score, f1_score, precision_score, recall_score
+from sklearn.metrics import (
+    accuracy_score,
+    balanced_accuracy_score,
+    f1_score,
+    precision_score,
+    r2_score,
+    recall_score,
+    root_mean_squared_error,
+)
 
 from src.eval.metrics import mean_iou
-import numpy as np
-from typing import Dict, Optional
+from src.flexipresto import AttentionProbe, adjust_learning_rate
 from src.utils import save_checkpoint
 
-import wandb
-
-#FT_LRs = [1e-5, 3e-5, 6e-5, 1e-4, 3e-4, 6e-4, 1e-3, 3e-3, 6e-3]
+# FT_LRs = [1e-5, 3e-5, 6e-5, 1e-4, 3e-4, 6e-4, 1e-3, 3e-3, 6e-3]
 FT_LRs = [0.1]
+
 
 class GalileoEncoderWithHead(nn.Module):
     def __init__(self, encoder, patch_size_high_res=10, inputs_per_target=10, sigmoid_slope=1.0):
@@ -27,44 +31,53 @@ class GalileoEncoderWithHead(nn.Module):
         # for segmentation
         # since our patch size is 10x10 and targets 100m resolution, each patch predicts 1 x 1 of 100m
         # since we do regression, we predict one value per patch
-        logits_per_patch = int((patch_size_high_res / inputs_per_target) * (patch_size_high_res / inputs_per_target))
+        logits_per_patch = int(
+            (patch_size_high_res / inputs_per_target) * (patch_size_high_res / inputs_per_target)
+        )
         self.head = nn.Linear(encoder.embedding_size, logits_per_patch)
         # attach a sigmoid to squeeze outputs to [0, 1]
         self.sigmoid = nn.Sigmoid()
         self.sigmoid_slope = sigmoid_slope
 
-    def forward(self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size_high_res=10):
-        encodings = self.encoder(s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size=patch_size_high_res)
+    def forward(
+        self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size_high_res=10
+    ):
+        encodings = self.encoder(
+            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size=patch_size_high_res
+        )
         s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = encodings
         encodings = self.encoder.apply_mask_and_average_tokens_per_highres_spatial_patch(
-                s_t_x,
-                sp_x,
-                t_x,
-                st_x,
-                s_t_m,
-                sp_m,
-                t_m,
-                st_m,
-                med_and_low_res_repeat=self.eval_config.get("med_and_low_res_repeat", True)
-            )
+            s_t_x,
+            sp_x,
+            t_x,
+            st_x,
+            s_t_m,
+            sp_m,
+            t_m,
+            st_m,
+            med_and_low_res_repeat=self.eval_config.get("med_and_low_res_repeat", True),
+        )
         output = self.sigmoid(self.head(encodings) * self.sigmoid_slope)
         return output
 
+
 class EncoderWithHead(nn.Module):
     def __init__(
-            self, 
-            encoder, 
-            patch_size_high_res=10, 
-            inputs_per_target=10, 
-            sigmoid_slope=1.0, 
-            eval_config=None
-        ):
+        self,
+        encoder,
+        patch_size_high_res=10,
+        inputs_per_target=10,
+        sigmoid_slope=1.0,
+        eval_config=None,
+    ):
         super(EncoderWithHead, self).__init__()
         self.encoder = deepcopy(encoder)  # just in case
         # for segmentation
         # since our patch size is 10x10 and targets 100m resolution, each patch predicts 1 x 1 of 100m
         # since we do regression, we predict one value per patch
-        self.logits_per_patch = int((patch_size_high_res / inputs_per_target) * (patch_size_high_res / inputs_per_target))
+        self.logits_per_patch = int(
+            (patch_size_high_res / inputs_per_target) * (patch_size_high_res / inputs_per_target)
+        )
         # TODO: make this more dynamic
         self.number_of_patches = int(inputs_per_target * inputs_per_target)
         self.token_mapping = eval_config["token_mapping"]
@@ -80,18 +93,72 @@ class EncoderWithHead(nn.Module):
         if self.token_mapping == "spatial_mean":
             self.head = nn.Linear(encoder.embedding_size, self.logits_per_patch)
         elif self.token_mapping == "attention_probe":
-            self.head = AttentionProbe(d_in=encoder.embedding_size, output_dim=self.attn_output_dim, n_heads=self.eval_config["n_heads"], 
-                                       attn_dropout_p=self.eval_config["attn_dropout_p"], use_tanh=self.eval_config["use_tanh"],
-                                       hidden_dim=self.eval_config["hidden_dim"])
+            self.head = AttentionProbe(
+                d_in=encoder.embedding_size,
+                output_dim=self.attn_output_dim,
+                n_heads=self.eval_config["n_heads"],
+                attn_dropout_p=self.eval_config["attn_dropout_p"],
+                use_tanh=self.eval_config["use_tanh"],
+                hidden_dim=self.eval_config["hidden_dim"],
+            )
 
         # attach a sigmoid to squeeze outputs to [0, 1]
         self.sigmoid = nn.Sigmoid()
         self.sigmoid_slope = sigmoid_slope
 
-    def forward(self, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, months, patch_size_high_res=10, patch_size_med_res=1, patch_size_low_res=1):
-        encodings = self.encoder(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, months, patch_size_high_res=patch_size_high_res, patch_size_med_res=patch_size_med_res, patch_size_low_res=patch_size_low_res)
-        s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, _ = encodings
-        
+    def forward(
+        self,
+        s_t_h_x,
+        s_t_m_x,
+        s_t_l_x,
+        sp_x,
+        t_x,
+        st_x,
+        s_t_h_m,
+        s_t_m_m,
+        s_t_l_m,
+        sp_m,
+        t_m,
+        st_m,
+        months,
+        patch_size_high_res=10,
+        patch_size_med_res=1,
+        patch_size_low_res=1,
+    ):
+        encodings = self.encoder(
+            s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
+            sp_x,
+            t_x,
+            st_x,
+            s_t_h_m,
+            s_t_m_m,
+            s_t_l_m,
+            sp_m,
+            t_m,
+            st_m,
+            months,
+            patch_size_high_res=patch_size_high_res,
+            patch_size_med_res=patch_size_med_res,
+            patch_size_low_res=patch_size_low_res,
+        )
+        (
+            s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
+            sp_x,
+            t_x,
+            st_x,
+            s_t_h_m,
+            s_t_m_m,
+            s_t_l_m,
+            sp_m,
+            t_m,
+            st_m,
+            _,
+        ) = encodings
+
         # map patch mean of tokens to output using a linear layer + sigmoid.
         # maps from [batch, spatial_patches, embedding_dim] to [batch, spatial_patches, logits_per_patch].
         if self.token_mapping == "spatial_mean":
@@ -108,7 +175,7 @@ class EncoderWithHead(nn.Module):
                 sp_m,
                 t_m,
                 st_m,
-                med_and_low_res_repeat=self.eval_config.get("med_and_low_res_repeat", True)
+                med_and_low_res_repeat=self.eval_config.get("med_and_low_res_repeat", True),
             )
             output = self.sigmoid(self.head(encodings) * self.sigmoid_slope)
         # map token sequence to patch output using attention probes.
@@ -129,7 +196,7 @@ class EncoderWithHead(nn.Module):
                 t_m,
                 st_m,
                 attend_over_spatial=self.eval_config.get("attend_over_spatial", False),
-                med_and_low_res_repeat=self.eval_config.get("med_and_low_res_repeat", True)
+                med_and_low_res_repeat=self.eval_config.get("med_and_low_res_repeat", True),
             )
             output = self.sigmoid(self.head(x, m, pos) * self.sigmoid_slope)
         else:
@@ -137,11 +204,33 @@ class EncoderWithHead(nn.Module):
         return output
 
 
-def finetune_and_eval_seg(loaders, encoder, device, identifier, eval_config, hyperparams_config, num_finetune_epochs=50, baseline_galileo=False, log_wandb=False, sweep_run=None, save_final_checkpoint=False):
+def finetune_and_eval_seg(
+    loaders,
+    encoder,
+    device,
+    identifier,
+    eval_config,
+    hyperparams_config,
+    num_finetune_epochs=50,
+    baseline_galileo=False,
+    log_wandb=False,
+    sweep_run=None,
+    save_final_checkpoint=False,
+):
     if log_wandb:
-        wandb.init(entity="sea-ice", project="ai4snow-finetune", name=f"{identifier}-lr{hyperparams_config.get('learning_rate')}")
+        wandb.init(
+            entity="sea-ice",
+            project="ai4snow-finetune",
+            name=f"{identifier}-lr{hyperparams_config.get('learning_rate')}",
+        )
         wandb.config.update(hyperparams_config)
-        wandb.config.update({"identifier": identifier, "baseline_galileo": baseline_galileo, "num_finetune_epochs": num_finetune_epochs})
+        wandb.config.update(
+            {
+                "identifier": identifier,
+                "baseline_galileo": baseline_galileo,
+                "num_finetune_epochs": num_finetune_epochs,
+            }
+        )
         wandb.config.update(eval_config)
         sweep_name = wandb.run.id
     elif sweep_run is not None:
@@ -158,47 +247,61 @@ def finetune_and_eval_seg(loaders, encoder, device, identifier, eval_config, hyp
         eval_config=eval_config,
         baseline_galileo=baseline_galileo,
         log_wandb=log_wandb,
-        sweep_run=sweep_run
+        sweep_run=sweep_run,
     )
-    #val_miou = evaluate_seg(
+    # val_miou = evaluate_seg(
     #    data_loader=loaders["valid"],
     #    finetuned_encoder=finetuned_encoder,
     #    num_classes=config["num_classes"],
     #    device=device,
     #    identifier=identifier,
     #    baseline_galileo=baseline_galileo,
-    #)
+    # )
     test_miou = evaluate_seg(
         data_loader=loaders["test"],
         finetuned_model=finetuned_model,
         device=device,
         identifier=identifier,
-        baseline_galileo=baseline_galileo
+        baseline_galileo=baseline_galileo,
     )
     if save_final_checkpoint:
         filename = f"{identifier}_{hyperparams_config['initialization_id']}_{sweep_name}.pth"
         save_checkpoint(finetuned_model, filename)
     return test_miou
 
+
 # TODO: implement validation too
-def get_finetune_results_with_val(loaders, encoder, num_runs, device, identifier, eval_config, hyperparams_config, num_finetune_epochs, baseline_galileo=False, log_wandb=False, sweep_run=None, save_final_checkpoint=False):
+def get_finetune_results_with_val(
+    loaders,
+    encoder,
+    num_runs,
+    device,
+    identifier,
+    eval_config,
+    hyperparams_config,
+    num_finetune_epochs,
+    baseline_galileo=False,
+    log_wandb=False,
+    sweep_run=None,
+    save_final_checkpoint=False,
+):
     final_tests = []  # chosen using LR with best val, for each run
     for _ in range(num_runs):
         vals = []
         tests = []
         for lr in FT_LRs:
             val, test = finetune_and_eval_seg(
-                loaders=loaders, 
-                encoder=encoder, 
-                device=device, 
-                identifier=identifier, 
-                eval_config=eval_config, 
-                num_finetune_epochs=num_finetune_epochs, 
-                baseline_galileo=baseline_galileo, 
-                log_wandb=log_wandb, 
-                hyperparams_config=hyperparams_config, 
+                loaders=loaders,
+                encoder=encoder,
+                device=device,
+                identifier=identifier,
+                eval_config=eval_config,
+                num_finetune_epochs=num_finetune_epochs,
+                baseline_galileo=baseline_galileo,
+                log_wandb=log_wandb,
+                hyperparams_config=hyperparams_config,
                 sweep_run=sweep_run,
-                save_final_checkpoint=save_final_checkpoint
+                save_final_checkpoint=save_final_checkpoint,
             )
             vals.append(val)
             tests.append(test)
@@ -207,23 +310,37 @@ def get_finetune_results_with_val(loaders, encoder, num_runs, device, identifier
 
     return final_tests
 
-def get_finetune_results(loaders, encoder, num_runs, device, identifier, eval_config, hyperparams_config, num_finetune_epochs, baseline_galileo=False, log_wandb=False, sweep_run=None, save_final_checkpoint=False):
+
+def get_finetune_results(
+    loaders,
+    encoder,
+    num_runs,
+    device,
+    identifier,
+    eval_config,
+    hyperparams_config,
+    num_finetune_epochs,
+    baseline_galileo=False,
+    log_wandb=False,
+    sweep_run=None,
+    save_final_checkpoint=False,
+):
     final_tests = []  # chosen using LR with best val, for each run
     for _ in range(num_runs):
         tests = []
         for lr in FT_LRs:
             test = finetune_and_eval_seg(
-                loaders=loaders, 
-                encoder=encoder, 
-                device=device, 
-                identifier=identifier, 
-                eval_config=eval_config, 
-                num_finetune_epochs=num_finetune_epochs, 
-                baseline_galileo=baseline_galileo, 
-                log_wandb=log_wandb, 
-                hyperparams_config=hyperparams_config, 
+                loaders=loaders,
+                encoder=encoder,
+                device=device,
+                identifier=identifier,
+                eval_config=eval_config,
+                num_finetune_epochs=num_finetune_epochs,
+                baseline_galileo=baseline_galileo,
+                log_wandb=log_wandb,
+                hyperparams_config=hyperparams_config,
                 sweep_run=sweep_run,
-                save_final_checkpoint=save_final_checkpoint
+                save_final_checkpoint=save_final_checkpoint,
             )
             tests.append(test)
 
@@ -231,19 +348,20 @@ def get_finetune_results(loaders, encoder, num_runs, device, identifier, eval_co
 
     return final_tests
 
+
 def finetune_seg(
-        data_loaders, 
-        epochs, 
-        encoder, 
-        device,
-        hyperparams_config,
-        eval_config,
-        patch_size_high_res=10, 
-        inputs_per_target=10, 
-        baseline_galileo=False, 
-        log_wandb=False, 
-        sweep_run=None
-    ):
+    data_loaders,
+    epochs,
+    encoder,
+    device,
+    hyperparams_config,
+    eval_config,
+    patch_size_high_res=10,
+    inputs_per_target=10,
+    baseline_galileo=False,
+    log_wandb=False,
+    sweep_run=None,
+):
     lr = hyperparams_config.get("learning_rate", 0.1)
     weight_decay = hyperparams_config.get("weight_decay", 0.0)
     lr_schedule = hyperparams_config.get("lr_schedule", True)
@@ -256,14 +374,27 @@ def finetune_seg(
     test_loader = data_loaders["test"]
 
     if baseline_galileo:
-        finetuned_encoder = GalileoEncoderWithHead(encoder=encoder, patch_size_high_res=patch_size_high_res, inputs_per_target=inputs_per_target, sigmoid_slope=sigmoid_slope).to(device)
+        finetuned_encoder = GalileoEncoderWithHead(
+            encoder=encoder,
+            patch_size_high_res=patch_size_high_res,
+            inputs_per_target=inputs_per_target,
+            sigmoid_slope=sigmoid_slope,
+        ).to(device)
     else:
-        finetuned_encoder = EncoderWithHead(encoder=encoder, patch_size_high_res=patch_size_high_res, inputs_per_target=inputs_per_target, sigmoid_slope=sigmoid_slope, eval_config=eval_config).to(device)
+        finetuned_encoder = EncoderWithHead(
+            encoder=encoder,
+            patch_size_high_res=patch_size_high_res,
+            inputs_per_target=inputs_per_target,
+            sigmoid_slope=sigmoid_slope,
+            eval_config=eval_config,
+        ).to(device)
 
     finetuned_encoder = finetuned_encoder.train()
 
     if optimizer == "SGD":
-        opt = torch.optim.SGD(finetuned_encoder.parameters(), lr=lr, momentum=0.9, weight_decay=weight_decay)
+        opt = torch.optim.SGD(
+            finetuned_encoder.parameters(), lr=lr, momentum=0.9, weight_decay=weight_decay
+        )
     elif optimizer == "Adam":
         opt = torch.optim.Adam(finetuned_encoder.parameters(), lr=lr, weight_decay=weight_decay)
     else:
@@ -307,8 +438,7 @@ def finetune_seg(
                     months,
                 ) = [t.to(device) for t in masked_output]
 
-
-                #with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                # with torch.cuda.amp.autocast(dtype=torch.bfloat16):
                 logits = finetuned_encoder(
                     s_t_x,
                     sp_x,
@@ -332,7 +462,6 @@ def finetune_seg(
                 (loss / grad_accum).backward()
 
                 if ((i + 1) % grad_accum == 0) or (i + 1 == len(train_loader)):
-
                     if lr_schedule:
                         epoch_fraction = epoch + (i / len(train_loader))
                         set_lr = adjust_learning_rate(
@@ -368,7 +497,7 @@ def finetune_seg(
                     months,
                 ) = [t.to(device) for t in masked_output]
 
-                #with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                # with torch.cuda.amp.autocast(dtype=torch.bfloat16):
                 logits = finetuned_encoder(
                     s_t_h_x,
                     s_t_m_x,
@@ -425,7 +554,7 @@ def finetune_seg(
                     device=device,
                     identifier="",
                     patch_size_high_res=patch_size_high_res,
-                    baseline_galileo=baseline_galileo
+                    baseline_galileo=baseline_galileo,
                 )
                 to_log = {
                     "train_loss": loss.item(),
@@ -443,11 +572,14 @@ def finetune_seg(
                     wandb.log(to_log, step=epoch)
                 if sweep_run is not None:
                     sweep_run.log(to_log, step=epoch)
-                print(f"Finished epoch {epoch+1}/{epochs}")
+                print(f"Finished epoch {epoch + 1}/{epochs}")
 
     return finetuned_encoder
 
-def compute_regression_metrics(identifier: str, preds: np.ndarray, target: np.ndarray, baseline=False) -> Dict[str, float]:
+
+def compute_regression_metrics(
+    identifier: str, preds: np.ndarray, target: np.ndarray, baseline=False
+) -> Dict[str, float]:
     if baseline:
         bs = "baseline_"
     else:
@@ -458,7 +590,10 @@ def compute_regression_metrics(identifier: str, preds: np.ndarray, target: np.nd
         f"{bs}{identifier}r2": r2_score(target, preds),
     }
 
-def compute_classification_metrics(identifier: str, preds: np.ndarray, target: np.ndarray, baseline=False) -> Dict[str, float]:
+
+def compute_classification_metrics(
+    identifier: str, preds: np.ndarray, target: np.ndarray, baseline=False
+) -> Dict[str, float]:
     if baseline:
         bs = "baseline_"
     else:
@@ -467,12 +602,15 @@ def compute_classification_metrics(identifier: str, preds: np.ndarray, target: n
     return {
         f"{bs}{identifier}overall_accuracy": accuracy_score(target, preds),
         f"{bs}{identifier}balanced_accuracy": balanced_accuracy_score(target, preds),
-        f"{bs}{identifier}recall": recall_score(target, preds, average='weighted'),
-        f"{bs}{identifier}precision": precision_score(target, preds, average='weighted'),
-        f"{bs}{identifier}f1": f1_score(target, preds, average='weighted'),
+        f"{bs}{identifier}recall": recall_score(target, preds, average="weighted"),
+        f"{bs}{identifier}precision": precision_score(target, preds, average="weighted"),
+        f"{bs}{identifier}f1": f1_score(target, preds, average="weighted"),
     }
 
-def compute_segmentation_metrics(identifier: str, preds: np.ndarray, target: np.ndarray, baseline=False) -> Dict[str, float]:
+
+def compute_segmentation_metrics(
+    identifier: str, preds: np.ndarray, target: np.ndarray, baseline=False
+) -> Dict[str, float]:
     if baseline:
         bs = "baseline_"
     else:
@@ -482,7 +620,15 @@ def compute_segmentation_metrics(identifier: str, preds: np.ndarray, target: np.
         f"{bs}{identifier}miou": mean_iou(preds, target, num_classes=10),
     }
 
-def evaluate_seg(data_loader, finetuned_model, device, identifier="", patch_size_high_res=10, baseline_galileo=False):
+
+def evaluate_seg(
+    data_loader,
+    finetuned_model,
+    device,
+    identifier="",
+    patch_size_high_res=10,
+    baseline_galileo=False,
+):
     finetuned_model = finetuned_model.eval()
 
     all_preds_1D = []
@@ -508,7 +654,7 @@ def evaluate_seg(data_loader, finetuned_model, device, identifier="", patch_size
                     months,
                 ) = [t.to(device) for t in masked_output]
 
-                #with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                # with torch.cuda.amp.autocast(dtype=torch.bfloat16):
                 logits = finetuned_model(
                     s_t_x,
                     sp_x,
@@ -524,7 +670,9 @@ def evaluate_seg(data_loader, finetuned_model, device, identifier="", patch_size
                 # check that all predictions are between 0 and 1
                 assert logits.min() >= 0 and logits.max() <= 1
 
-                all_preds_1D.append(rearrange(torch.squeeze(logits), "b s -> (b s)").float().cpu().numpy())
+                all_preds_1D.append(
+                    rearrange(torch.squeeze(logits), "b s -> (b s)").float().cpu().numpy()
+                )
                 all_labels_1D.append(rearrange(labels, "b h w -> (b h w)").float().cpu().numpy())
 
                 spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
@@ -556,7 +704,7 @@ def evaluate_seg(data_loader, finetuned_model, device, identifier="", patch_size
                     months,
                 ) = [t.to(device) for t in masked_output]
 
-                #with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                # with torch.cuda.amp.autocast(dtype=torch.bfloat16):
                 logits = finetuned_model(
                     s_t_h_x,
                     s_t_m_x,
@@ -579,7 +727,9 @@ def evaluate_seg(data_loader, finetuned_model, device, identifier="", patch_size
                 # check that all predictions are between 0 and 1
                 assert logits.min() >= 0 and logits.max() <= 1
 
-                all_preds_1D.append(rearrange(torch.squeeze(logits), "b s -> (b s)").float().cpu().numpy())
+                all_preds_1D.append(
+                    rearrange(torch.squeeze(logits), "b s -> (b s)").float().cpu().numpy()
+                )
                 all_labels_1D.append(rearrange(labels, "b h w -> (b h w)").float().cpu().numpy())
 
                 spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
@@ -605,21 +755,11 @@ def evaluate_seg(data_loader, finetuned_model, device, identifier="", patch_size
 
     # sequence regression
     results_dict.update(
-        compute_regression_metrics(
-            identifier,
-            all_preds_1D,
-            all_labels_1D,
-            baseline=False
-        )
+        compute_regression_metrics(identifier, all_preds_1D, all_labels_1D, baseline=False)
     )
     # sequence regression (baseline)
     results_dict.update(
-        compute_regression_metrics(
-            identifier,
-            baseline_preds_1D,
-            all_labels_1D,
-            baseline=True
-        )
+        compute_regression_metrics(identifier, baseline_preds_1D, all_labels_1D, baseline=True)
     )
     # sequence classification
     results_dict.update(
@@ -652,18 +792,12 @@ def evaluate_seg(data_loader, finetuned_model, device, identifier="", patch_size
 
     results_dict.update(
         compute_segmentation_metrics(
-            identifier,
-            binned_preds_np,
-            binned_targets_np,
-            baseline=False
+            identifier, binned_preds_np, binned_targets_np, baseline=False
         )
     )
     results_dict.update(
         compute_segmentation_metrics(
-            identifier,
-            baseline_preds_2D,
-            binned_targets_np,
-            baseline=True
+            identifier, baseline_preds_2D, binned_targets_np, baseline=True
         )
     )
 

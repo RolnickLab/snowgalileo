@@ -1,7 +1,9 @@
-import os
-import rasterio
-import numpy as np
 import argparse
+import os
+
+import numpy as np
+import rasterio
+
 from src.data.config import DATA_FOLDER
 
 argparser = argparse.ArgumentParser()

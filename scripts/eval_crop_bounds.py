@@ -1,11 +1,14 @@
 # TODO: integrate this more beautifully with the rest of the codebase!
 
-from pathlib import Path
-from src.data.config import DATA_FOLDER
-import re
-import os
-import rasterio
 import gc
+import os
+import re
+from pathlib import Path
+
+import rasterio
+
+from src.data.config import DATA_FOLDER
+
 
 def crop_input_to_mask_bounds(input_data, bounds, transform):
     west, south, east, north = bounds
@@ -18,7 +21,9 @@ def crop_input_to_mask_bounds(input_data, bounds, transform):
     return input_data[:, row_start:row_end, col_start:col_end]
 
 
-get_filename_without_epsg_extension = lambda x: re.sub(r"_EPSG:\d+\.tif{1,2}f?$", "", x)
+def get_filename_without_epsg_extension(x):
+    return re.sub(r"_EPSG:\d+\.tif{1,2}f?$", "", x)
+
 
 exported_tif_path = Path(DATA_FOLDER / "landsat_eval_tifs" / "patches_UTM_5_95_sorted")
 mask_path = Path(DATA_FOLDER / "landsat_eval_masks" / "all" / "patches_UTM_5_95_subset")
@@ -29,7 +34,9 @@ output_folder.mkdir(parents=True, exist_ok=True)
 # check the number of tifs and masks that are left to be processed
 output_files = list(output_folder.glob("*.tif")) + list(output_folder.glob("*.tiff"))
 tif_files = list(exported_tif_path.glob("*.tif")) + list(exported_tif_path.glob("*.tiff"))
-mask_files = [f for f in mask_path.glob("*.tif") if f.name not in output_files] + [f for f in mask_path.glob("*.tiff") if f.name not in output_files]
+mask_files = [f for f in mask_path.glob("*.tif") if f.name not in output_files] + [
+    f for f in mask_path.glob("*.tiff") if f.name not in output_files
+]
 
 print(f"Number of remaining TIF files: {len(tif_files)}")
 print(f"Number of remaining Mask files: {len(mask_files)}")

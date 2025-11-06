@@ -272,13 +272,21 @@ def batch_subset_mask_presto(
         original_valid_data_mask_t = valid_data_mask_t.clone()
 
         valid_data_mask_s_t_h = torch.zeros_like(valid_data_mask_s_t_h)
-        valid_data_mask_s_t_h[..., timestep_to_keep, :] = original_valid_data_mask_s_t_h[..., timestep_to_keep, :]
+        valid_data_mask_s_t_h[..., timestep_to_keep, :] = original_valid_data_mask_s_t_h[
+            ..., timestep_to_keep, :
+        ]
         valid_data_mask_s_t_m = torch.zeros_like(valid_data_mask_s_t_m)
-        valid_data_mask_s_t_m[..., timestep_to_keep, :] = original_valid_data_mask_s_t_m[..., timestep_to_keep, :]
+        valid_data_mask_s_t_m[..., timestep_to_keep, :] = original_valid_data_mask_s_t_m[
+            ..., timestep_to_keep, :
+        ]
         valid_data_mask_s_t_l = torch.zeros_like(valid_data_mask_s_t_l)
-        valid_data_mask_s_t_l[..., timestep_to_keep, :] = original_valid_data_mask_s_t_l[..., timestep_to_keep, :]
+        valid_data_mask_s_t_l[..., timestep_to_keep, :] = original_valid_data_mask_s_t_l[
+            ..., timestep_to_keep, :
+        ]
         valid_data_mask_t = torch.zeros_like(valid_data_mask_t)
-        valid_data_mask_t[..., timestep_to_keep, :] = original_valid_data_mask_t[..., timestep_to_keep, :]
+        valid_data_mask_t[..., timestep_to_keep, :] = original_valid_data_mask_t[
+            ..., timestep_to_keep, :
+        ]
 
     elif ablate == "space":
         print("Only keeping the upper left patch of the image")
@@ -288,13 +296,21 @@ def batch_subset_mask_presto(
         original_valid_data_mask_sp = valid_data_mask_sp.clone()
 
         valid_data_mask_s_t_h = torch.zeros_like(valid_data_mask_s_t_h)
-        valid_data_mask_s_t_h[..., :patch_size_high_res, :patch_size_high_res, :, :] = original_valid_data_mask_s_t_h[..., :patch_size_high_res, :patch_size_high_res, :, :]
+        valid_data_mask_s_t_h[..., :patch_size_high_res, :patch_size_high_res, :, :] = (
+            original_valid_data_mask_s_t_h[..., :patch_size_high_res, :patch_size_high_res, :, :]
+        )
         valid_data_mask_s_t_m = torch.zeros_like(valid_data_mask_s_t_m)
-        valid_data_mask_s_t_m[..., :patch_size_med_res, :patch_size_med_res, :, :] = original_valid_data_mask_s_t_m[..., :patch_size_med_res, :patch_size_med_res, :, :]
+        valid_data_mask_s_t_m[..., :patch_size_med_res, :patch_size_med_res, :, :] = (
+            original_valid_data_mask_s_t_m[..., :patch_size_med_res, :patch_size_med_res, :, :]
+        )
         valid_data_mask_s_t_l = torch.zeros_like(valid_data_mask_s_t_l)
-        valid_data_mask_s_t_l[..., :patch_size_low_res, :patch_size_low_res, :, :] = original_valid_data_mask_s_t_l[..., :patch_size_low_res, :patch_size_low_res, :, :]
+        valid_data_mask_s_t_l[..., :patch_size_low_res, :patch_size_low_res, :, :] = (
+            original_valid_data_mask_s_t_l[..., :patch_size_low_res, :patch_size_low_res, :, :]
+        )
         valid_data_mask_sp = torch.zeros_like(valid_data_mask_sp)
-        valid_data_mask_sp[..., :patch_size_high_res, :patch_size_high_res, :] = original_valid_data_mask_sp[..., :patch_size_high_res, :patch_size_high_res, :]
+        valid_data_mask_sp[..., :patch_size_high_res, :patch_size_high_res, :] = (
+            original_valid_data_mask_sp[..., :patch_size_high_res, :patch_size_high_res, :]
+        )
 
     # not used by Snow Galileo so far (only random masking)
     if masking_function.value < 2:

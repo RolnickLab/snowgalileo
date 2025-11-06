@@ -1360,8 +1360,8 @@ class Dataset(PyTorchDataset):
 
         return norm_dict
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
     from src.data.config import DATA_FOLDER, NORMALIZATION_DICT_FILENAME
     from src.utils import config_dir
 
@@ -1406,22 +1406,25 @@ if __name__ == "__main__":
         t_x_valid = t_x[valid_data_mask_t.astype(bool)]
         st_x_valid = st_x[valid_data_mask_st.astype(bool)]
 
-        stats.append({
-            "tif": i,
-            "s_t_h_x_min": s_t_h_x_valid.min().tolist() if s_t_h_x_valid.size > 0 else None,
-            "s_t_h_x_max": s_t_h_x_valid.max().tolist() if s_t_h_x_valid.size > 0 else None,
-            "s_t_m_x_min": s_t_m_x_valid.min().tolist() if s_t_m_x_valid.size > 0 else None,
-            "s_t_m_x_max": s_t_m_x_valid.max().tolist() if s_t_m_x_valid.size > 0 else None,
-            "s_t_l_x_min": s_t_l_x_valid.min().tolist() if s_t_l_x_valid.size > 0 else None,
-            "s_t_l_x_max": s_t_l_x_valid.max().tolist() if s_t_l_x_valid.size > 0 else None,
-            "sp_x_min": sp_x_valid.min().tolist() if sp_x_valid.size > 0 else None,
-            "sp_x_max": sp_x_valid.max().tolist() if sp_x_valid.size > 0 else None,
-            "t_x_min": t_x_valid.min().tolist() if t_x_valid.size > 0 else None,
-            "t_x_max": t_x_valid.max().tolist() if t_x_valid.size > 0 else None,
-            "st_x_min": st_x_valid.min().tolist() if st_x_valid.size > 0 else None,
-            "st_x_max": st_x_valid.max().tolist() if st_x_valid.size > 0 else None,
-        })
+        stats.append(
+            {
+                "tif": i,
+                "s_t_h_x_min": s_t_h_x_valid.min().tolist() if s_t_h_x_valid.size > 0 else None,
+                "s_t_h_x_max": s_t_h_x_valid.max().tolist() if s_t_h_x_valid.size > 0 else None,
+                "s_t_m_x_min": s_t_m_x_valid.min().tolist() if s_t_m_x_valid.size > 0 else None,
+                "s_t_m_x_max": s_t_m_x_valid.max().tolist() if s_t_m_x_valid.size > 0 else None,
+                "s_t_l_x_min": s_t_l_x_valid.min().tolist() if s_t_l_x_valid.size > 0 else None,
+                "s_t_l_x_max": s_t_l_x_valid.max().tolist() if s_t_l_x_valid.size > 0 else None,
+                "sp_x_min": sp_x_valid.min().tolist() if sp_x_valid.size > 0 else None,
+                "sp_x_max": sp_x_valid.max().tolist() if sp_x_valid.size > 0 else None,
+                "t_x_min": t_x_valid.min().tolist() if t_x_valid.size > 0 else None,
+                "t_x_max": t_x_valid.max().tolist() if t_x_valid.size > 0 else None,
+                "st_x_min": st_x_valid.min().tolist() if st_x_valid.size > 0 else None,
+                "st_x_max": st_x_valid.max().tolist() if st_x_valid.size > 0 else None,
+            }
+        )
 
     import pandas as pd
+
     df = pd.DataFrame(stats)
     df.to_csv("data_stats.csv", index=False)

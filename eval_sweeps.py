@@ -1,41 +1,33 @@
-import wandb
+import argparse
 import os
-from sklearn.model_selection import KFold
-import torch
-import torch.backends.cudnn as cudnn
-from torch.utils.data import DataLoader
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-import json
-import numpy as np
-from sklearn.metrics import confusion_matrix
+from pathlib import Path
+from typing import List
+
+import wandb
+
+from galileo.src.galileo import Encoder as GalileoEncoder
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER
-from src.flexipresto import Encoder
-from galileo.src.galileo import Encoder as GalileoEncoder
 from src.eval import LandsatEval
 from src.eval.eval import EvalTask
+from src.flexipresto import Encoder
 from src.utils import device, load_check_config, seed_everything
-import argparse
-from typing import List, Optional
-from pathlib import Path
 
 seed_everything(DEFAULT_SEED)
 
 parser = argparse.ArgumentParser(description="PyTorch Unet Training")
+parser.add_argument("--pretrain", default="none", type=str, choices=["none", "snow", "galileo"])
+parser.add_argument("--resample", action="store_true")
+parser.add_argument("--num_finetune_epochs", type=int, default=25)
 parser.add_argument(
-    "--pretrain", default="none", type=str, choices=["none", "snow", "galileo"]
-)
-parser.add_argument(
-    "--resample", action="store_true"
-)
-parser.add_argument(
-    "--num_finetune_epochs", type=int, default=25
-)
-parser.add_argument(
-    "--strategy", type=str, default="finetune", choices=["finetune", "linear_probe", "attention_probe", "sklearn"], help="Whether to finetune the model, else probe."
+    "--strategy",
+    type=str,
+    default="finetune",
+    choices=["finetune", "linear_probe", "attention_probe", "sklearn"],
+    help="Whether to finetune the model, else probe.",
 )
 
-args = parser.parse_args() 
+args = parser.parse_args()
 pretrain = args.pretrain
 
 # TODO: potentially change from balanced accuracy to OA
@@ -57,6 +49,7 @@ sweep_configuration = {
     },
 }
 
+
 def reset_wandb_env():
     exclude = {
         "WANDB_PROJECT",
@@ -67,8 +60,9 @@ def reset_wandb_env():
         if key.startswith("WANDB_") and key not in exclude:
             del os.environ[key]
 
+
 def train_and_validate():
-    args=parser.parse_args()
+    args = parser.parse_args()
 
     with wandb.init(project="ai4snow_sweeps") as sweep_run:
         if args.pretrain == "galileo":
@@ -76,7 +70,9 @@ def train_and_validate():
             initialization_id = "galileo_pretrained"
         elif args.pretrain == "snow":
             # load pretrained snowgalileo encoder
-            encoder = Encoder.load_from_folder(Path(DATA_FOLDER / "outputs/checkpoints_ps10_5/epoch_82/")).to(device)
+            encoder = Encoder.load_from_folder(
+                Path(DATA_FOLDER / "outputs/checkpoints_ps10_5/epoch_82/")
+            ).to(device)
             initialization_id = "snowgalileo_pretrained"
         else:
             # randomly initialized snowgalileo encoder
@@ -88,23 +84,26 @@ def train_and_validate():
         sweep_run.config.update({"initialization_id": initialization_id})
 
         eval_tasks: List[EvalTask] = [
-            *[LandsatEval(exclude_prediction_high_res=False,  
-                          resample=args.resample, 
-                          num_finetune_epochs=args.num_finetune_epochs,
-                          decoder_mode=args.strategy,
-                          ) for _ in [0]
+            *[
+                LandsatEval(
+                    exclude_prediction_high_res=False,
+                    resample=args.resample,
+                    num_finetune_epochs=args.num_finetune_epochs,
+                    decoder_mode=args.strategy,
+                )
+                for _ in [0]
             ],
         ]
         for task in eval_tasks:
             results = task.train_and_evaluate_model_on_task(
-                pretrained_model=encoder, 
-                model_modes=["Regression"], 
-                baseline_galileo=(args.pretrain=="galileo"), 
-                hyperparams_config=sweep_run.config, 
-                log_wandb=False, 
-                initialization_id=initialization_id, 
+                pretrained_model=encoder,
+                model_modes=["Regression"],
+                baseline_galileo=(args.pretrain == "galileo"),
+                hyperparams_config=sweep_run.config,
+                log_wandb=False,
+                initialization_id=initialization_id,
                 sweep_run=sweep_run,
-                save_final_checkpoint=False
+                save_final_checkpoint=False,
             )
         # log metric to sweep run
         sweep_run.log(
@@ -122,7 +121,7 @@ def train_and_validate():
         sweep_run.finish()
 
 
-def main():    
+def main():
     wandb.login()
 
     sweep_config = sweep_configuration

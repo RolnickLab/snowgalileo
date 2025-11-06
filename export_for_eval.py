@@ -22,6 +22,4 @@ args = argparser.parse_args().__dict__
 exporter = EarthEngineExporterEval(
     check_gcp=args["check_gcp"], mode=args["mode"], tifs_folder=args["tifs_folder"]
 )
-exporter.export_from_filename_for_folder(
-    folder=args["mask_folder"], start_idx=args["start_idx"]
-)
+exporter.export_from_filename_for_folder(folder=args["mask_folder"], start_idx=args["start_idx"])

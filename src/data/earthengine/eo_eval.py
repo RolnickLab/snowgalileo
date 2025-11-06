@@ -6,7 +6,6 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, List, Optional, Union
 from typing import OrderedDict as OrderedDictType
-from rasterio.warp import calculate_default_transform, reproject, Resampling
 
 import ee
 import numpy as np
@@ -660,15 +659,11 @@ class EarthEngineExporterEval:
             if len(parts) != 5:
                 print(f"Filename {filename} does not have 5 parts")
                 continue
-            lat = parts[3]
-            lon = parts[4]
             filenames.append(filename)
 
         filenames = sorted(filenames)[start_idx:]
         exports_started = 0
         print(f"Exporting {len(filenames)} latlons: ")
-
-        dst_crs = "EPSG:4326"
 
         for filename in filenames:
             parts = filename.split("_")
@@ -723,8 +718,6 @@ class EarthEngineExporterEval:
 
             WINDOW_END_DATE = datetime.strptime(parts[1], "%Y%m%d").date()
             WINDOW_START_DATE = WINDOW_END_DATE - timedelta(days=NUM_TIMESTEPS - 1)
-
-            identifier = f"{parts[0]}_{WINDOW_START_DATE}_{WINDOW_END_DATE}_{min_yy}_{min_xx}_{max_yy}_{max_xx}"
 
             export_started = self._export_for_polygon(
                 polygon=ee_bbox,

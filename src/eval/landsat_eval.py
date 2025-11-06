@@ -1,68 +1,70 @@
 import json
-import re
+import logging
 import warnings
 from pathlib import Path
-from typing import cast, Optional, Union, Tuple
-import logging
-import torch
-from typing import Dict, List, Sequence
-from torch.utils.data import DataLoader
-from sklearn.metrics import root_mean_squared_error, r2_score, balanced_accuracy_score, accuracy_score, f1_score, precision_score, recall_score
+from typing import Dict, List, Optional, Sequence, Tuple, Union, cast
 
+import h5py
 import numpy as np
 import rioxarray
+import torch
 import xarray as xr
-import h5py
 from einops import rearrange, repeat
+from sklearn.base import BaseEstimator
+from sklearn.metrics import (
+    accuracy_score,
+    balanced_accuracy_score,
+    f1_score,
+    precision_score,
+    r2_score,
+    recall_score,
+    root_mean_squared_error,
+)
+from torch.utils.data import DataLoader
+from torch.utils.data import Dataset as PyTorchDataset
 from tqdm import tqdm
 
 from src.data.config import (
-    DATA_FOLDER,
-    RESULTS_FOLDER,
-    NO_DATA_VALUE,
     CHANNEL_WISE_INVALID_DATA_THRESHOLDS,
+    DATA_FOLDER,
     DATASET_OUTPUT_HW_HIGH_RES,
+    DATASET_OUTPUT_HW_LOW_RES,
     DATASET_OUTPUT_HW_MED_RES,
-    DATASET_OUTPUT_HW_LOW_RES,
-    DATASET_OUTPUT_HW_LOW_RES,
-    NUM_TIMESTEPS,
-    NUM_HIGH_RES_PIXELS_PER_DIM,
-    NUM_MED_RES_PIXELS_PER_DIM,
-    NUM_LOW_RES_PIXELS_PER_DIM,
-    NORMALIZATION_DICT_FILENAME,
     MODALITIES,
+    NO_DATA_VALUE,
+    NORMALIZATION_DICT_FILENAME,
+    NUM_LOW_RES_PIXELS_PER_DIM,
+    NUM_MED_RES_PIXELS_PER_DIM,
+    NUM_TIMESTEPS,
+    RESULTS_FOLDER,
 )
-from src.masking import _aggregate_mask_per_channel_group
 from src.data.dataset import DatasetOutput, Normalizer, to_cartesian
 from src.data.earthengine.eo_eval import (
-    EO_SPACE_TIME_LOW_RES_BANDS,
-    SPACE_BANDS,
-    SPACE_TIME_HIGH_RES_BANDS,
-    SPACE_TIME_MED_RES_BANDS,
-    SPACE_TIME_LOW_RES_BANDS,
-    STATIC_BANDS,
-    TIME_BANDS,
+    CLOUD_BANDS,
     EO_ALL_DYNAMIC_IN_TIME_BANDS,
     EO_ALL_DYNAMIC_IN_TIME_BANDS_NP,
-    CLOUD_BANDS,
+    EO_SPACE_TIME_LOW_RES_BANDS,
     SPACE_BAND_GROUPS_IDX,
+    SPACE_BANDS,
+    SPACE_TIME_HIGH_RES_BANDS,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
+    SPACE_TIME_LOW_RES_BANDS,
     SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX,
+    SPACE_TIME_MED_RES_BANDS,
     SPACE_TIME_MED_RES_BANDS_GROUPS_IDX,
+    STATIC_BAND_GROUPS_IDX,
+    STATIC_BANDS,
+    TIME_BANDS,
     TIME_BANDS_GROUPS_IDX,
-    STATIC_BAND_GROUPS_IDX
 )
-from src.utils import masked_output_np_to_tensor, config_dir, device, DEFAULT_SEED
 from src.eval.eval import EvalTask, model_class_name
-from src.eval.patch_predict import get_finetune_results
-from sklearn.base import BaseEstimator
+from src.eval.patch_predict import EncoderWithHead, get_finetune_results
 from src.flexipresto import Encoder
-from src.eval.patch_predict import EncoderWithHead, GalileoEncoderWithHead
-from sklearn.metrics import accuracy_score
-
-from torch.utils.data import Dataset as PyTorchDataset
+from src.masking import _aggregate_mask_per_channel_group
+from src.utils import DEFAULT_SEED, config_dir, device, masked_output_np_to_tensor
 
 logger = logging.getLogger("__main__")
+
 
 class LandsatEvalDataset(PyTorchDataset):
     def __init__(
@@ -157,7 +159,7 @@ class LandsatEvalDataset(PyTorchDataset):
         s_t_l_m[:, :, -1, :] = 1
         t_m[-1, :] = 1
         return s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
-    
+
     def mask_prediction_high_res(self, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m):
         # masks the high resolution, optical data in the prediction timestep
         # high resolution channel groups are: s1, s2, landsat, so we retain the first channel
@@ -229,7 +231,6 @@ class LandsatEvalDataset(PyTorchDataset):
     @staticmethod
     def _check_and_fillna(data: np.ndarray, bands_np: np.ndarray) -> np.ndarray:
         """Fill in the missing values in the data array"""
-        from einops import repeat
 
         if data.shape[-1] != len(bands_np):
             raise ValueError(f"Expected data to have {len(bands_np)} bands - got {data.shape[-1]}")
@@ -812,10 +813,33 @@ class LandsatEvalDataset(PyTorchDataset):
             ) = h5py.normalize(self.normalizer)
 
         # unmask everything per default, then mask invalid data
-        s_t_h_m = torch.zeros((self.output_hw_high_res, self.output_hw_high_res, self.output_timesteps, len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX)))
-        s_t_m_m = torch.zeros((NUM_MED_RES_PIXELS_PER_DIM, NUM_MED_RES_PIXELS_PER_DIM, self.output_timesteps, len(SPACE_TIME_MED_RES_BANDS_GROUPS_IDX)))
-        s_t_l_m = torch.zeros((NUM_LOW_RES_PIXELS_PER_DIM, NUM_LOW_RES_PIXELS_PER_DIM, self.output_timesteps, len(SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX)))
-        sp_m = torch.zeros((self.output_hw_high_res, self.output_hw_high_res, len(SPACE_BAND_GROUPS_IDX)))
+        s_t_h_m = torch.zeros(
+            (
+                self.output_hw_high_res,
+                self.output_hw_high_res,
+                self.output_timesteps,
+                len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX),
+            )
+        )
+        s_t_m_m = torch.zeros(
+            (
+                NUM_MED_RES_PIXELS_PER_DIM,
+                NUM_MED_RES_PIXELS_PER_DIM,
+                self.output_timesteps,
+                len(SPACE_TIME_MED_RES_BANDS_GROUPS_IDX),
+            )
+        )
+        s_t_l_m = torch.zeros(
+            (
+                NUM_LOW_RES_PIXELS_PER_DIM,
+                NUM_LOW_RES_PIXELS_PER_DIM,
+                self.output_timesteps,
+                len(SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX),
+            )
+        )
+        sp_m = torch.zeros(
+            (self.output_hw_high_res, self.output_hw_high_res, len(SPACE_BAND_GROUPS_IDX))
+        )
         t_m = torch.zeros((self.output_timesteps, len(TIME_BANDS_GROUPS_IDX)))
         st_m = torch.zeros((len(STATIC_BAND_GROUPS_IDX),))
 
@@ -875,12 +899,18 @@ class LandsatEvalDataset(PyTorchDataset):
 
         # if assertion is triggered, go to the next tif file
         try:
-            assert self.input_tifs[idx].name == self.label_tifs[idx].name, (f"Input path {self.input_tifs[idx].name} and label path {self.label_tifs[idx].name} do not match.")
+            assert self.input_tifs[idx].name == self.label_tifs[idx].name, (
+                f"Input path {self.input_tifs[idx].name} and label path {self.label_tifs[idx].name} do not match."
+            )
         except AssertionError:
             print(
                 f"Label shape {label.shape} does not match expected shape ({self.label_height_width}, {self.label_height_width}) for {self.label_tifs[idx].name}"
             )
-            self.label_tifs[idx] = self.label_tifs[idx + 1] if idx < len(self.label_tifs) - 1 else self.label_tifs[idx - 1]
+            self.label_tifs[idx] = (
+                self.label_tifs[idx + 1]
+                if idx < len(self.label_tifs) - 1
+                else self.label_tifs[idx - 1]
+            )
             return self.__getitem__(idx)
 
         return (
@@ -933,25 +963,29 @@ class LandsatEval(EvalTask):
         self.decoder_mode = decoder_mode
 
         super().__init__(self.patch_size_high_res, seed)
-        self.name = (
-            f"{'attn' if self.decoder_mode == 'attention_probe' else 'linear' if self.decoder_mode == 'linear_probe' else 'finetune' if self.decoder_mode == 'finetune' else 'sklearn'}_{'_exclude_prediction_date_' if self.exclude_prediction_date else ''}{'_no_high_res_in_pred_date' if self.exclude_prediction_high_res else ''}{f'{eval_config['name']}' if eval_config and 'name' in eval_config else ''}"
-        )
+        self.name = f"{'attn' if self.decoder_mode == 'attention_probe' else 'linear' if self.decoder_mode == 'linear_probe' else 'finetune' if self.decoder_mode == 'finetune' else 'sklearn'}_{'_exclude_prediction_date_' if self.exclude_prediction_date else ''}{'_no_high_res_in_pred_date' if self.exclude_prediction_high_res else ''}{f'{eval_config["name"]}' if eval_config and 'name' in eval_config else ''}"
         self.eval_config = eval_config
         self.data_config = self.eval_config["data"]
 
-    def compute_regression_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict[str, float]:
+    def compute_regression_metrics(
+        self, model_name: str, preds: np.ndarray, target: np.ndarray
+    ) -> Dict[str, float]:
         return {
             f"{self.name}_{model_name}_rmse": root_mean_squared_error(target, preds),
             f"{self.name}_{model_name}_r2": r2_score(target, preds),
         }
-    
-    def compute_baseline_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray) -> Dict[str, float]:
+
+    def compute_baseline_metrics(
+        self, model_name: str, preds: np.ndarray, target: np.ndarray
+    ) -> Dict[str, float]:
         return {
             f"baseline_{self.name}_{model_name}_rmse": root_mean_squared_error(target, preds),
             f"baseline_{self.name}_{model_name}_r2": r2_score(target, preds),
         }
-    
-    def compute_classification_metrics(self, model_name: str, preds: np.ndarray, target: np.ndarray, baseline=False) -> Dict[str, float]:
+
+    def compute_classification_metrics(
+        self, model_name: str, preds: np.ndarray, target: np.ndarray, baseline=False
+    ) -> Dict[str, float]:
         if baseline:
             bs = "baseline_"
         else:
@@ -959,25 +993,46 @@ class LandsatEval(EvalTask):
 
         return {
             f"{bs}{self.name}_{model_name}_overall_accuracy": accuracy_score(target, preds),
-            f"{bs}{self.name}_{model_name}_balanced_accuracy": balanced_accuracy_score(target, preds),
-            f"{bs}{self.name}_{model_name}_recall": recall_score(target, preds, average='weighted'),
-            f"{bs}{self.name}_{model_name}_precision": precision_score(target, preds, average='weighted'),
-            f"{bs}{self.name}_{model_name}_f1": f1_score(target, preds, average='weighted'),
+            f"{bs}{self.name}_{model_name}_balanced_accuracy": balanced_accuracy_score(
+                target, preds
+            ),
+            f"{bs}{self.name}_{model_name}_recall": recall_score(
+                target, preds, average="weighted"
+            ),
+            f"{bs}{self.name}_{model_name}_precision": precision_score(
+                target, preds, average="weighted"
+            ),
+            f"{bs}{self.name}_{model_name}_f1": f1_score(target, preds, average="weighted"),
         }
 
-    def get_test_dl(self, baseline_galileo=False, hyperparams_config=None) -> DataLoader:
+    def get_test_dl(self, baseline_galileo=False, hyperparams_config=None, return_ds=False):
         if baseline_galileo:
-            from src.eval.landsat_baselines import LandsatEvalDatasetGalileo, GalileoNormalizer, galileo_config_dir, GALILEO_NORMALIZATION_DICT_FILENAME
+            from src.eval.landsat_baselines import (
+                GALILEO_NORMALIZATION_DICT_FILENAME,
+                GalileoNormalizer,
+                LandsatEvalDatasetGalileo,
+                galileo_config_dir,
+            )
+
             test_ds = LandsatEvalDatasetGalileo(
                 exclude_prediction_date=self.exclude_prediction_date,
                 exclude_prediction_high_res=self.exclude_prediction_high_res,
                 split="test",
             )
             if self.normalization == "std":
-                normalizer=GalileoNormalizer(std=True,
-                                             normalizing_dicts=test_ds.load_normalization_values(galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME), 
-                                             std_multiplier=2)
-                print(test_ds.load_normalization_values(galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME), flush=True)
+                normalizer = GalileoNormalizer(
+                    std=True,
+                    normalizing_dicts=test_ds.load_normalization_values(
+                        galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME
+                    ),
+                    std_multiplier=2,
+                )
+                print(
+                    test_ds.load_normalization_values(
+                        galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME
+                    ),
+                    flush=True,
+                )
             else:
                 normalizer = GalileoNormalizer(std=False)
             test_ds.normalizer = normalizer
@@ -986,7 +1041,7 @@ class LandsatEval(EvalTask):
                 exclude_prediction_date=self.exclude_prediction_date,
                 exclude_prediction_high_res=self.exclude_prediction_high_res,
                 split="test",
-                data_config=self.data_config
+                data_config=self.data_config,
             )
 
             if self.normalization == "std":
@@ -1005,18 +1060,25 @@ class LandsatEval(EvalTask):
             shuffle=False,
             num_workers=hyperparams_config["num_workers"],
         )
+        if return_ds:
+            return test_ds, test_dl
         return test_dl
 
     @torch.no_grad()
     def _evaluate_trained_sklearn_model(
-        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator], baseline_galileo=False, hyperparams_config=None
+        self,
+        pretrained_model: Encoder,
+        sklearn_models: Sequence[BaseEstimator],
+        baseline_galileo=False,
+        hyperparams_config=None,
     ) -> Dict:
-        
         prediction_folder = DATA_FOLDER / "predictions"
         if not prediction_folder.exists():
             prediction_folder.mkdir(parents=True, exist_ok=True)
 
-        test_dl = self.get_test_dl(baseline_galileo=baseline_galileo, hyperparams_config=hyperparams_config)
+        test_dl = self.get_test_dl(
+            baseline_galileo=baseline_galileo, hyperparams_config=hyperparams_config
+        )
 
         pred_dict: Dict[str, BaseEstimator] = {
             model_class_name(model): [] for model in sklearn_models
@@ -1028,7 +1090,7 @@ class LandsatEval(EvalTask):
         labels_list = []
 
         if baseline_galileo:
-            for masked_output, label,_ in tqdm(test_dl, desc="Computing test predictions"):
+            for masked_output, label, _ in tqdm(test_dl, desc="Computing test predictions"):
                 (
                     s_t_x,
                     sp_x,
@@ -1082,7 +1144,7 @@ class LandsatEval(EvalTask):
                 encodings_list.append(encodings.cpu().numpy())
 
         else:
-            for masked_output, label,_ in tqdm(test_dl, desc="Computing test predictions"):
+            for masked_output, label, _ in tqdm(test_dl, desc="Computing test predictions"):
                 (
                     s_t_h_x,
                     s_t_m_x,
@@ -1161,7 +1223,7 @@ class LandsatEval(EvalTask):
         for model in sklearn_models:
             preds = model.predict(encodings_np)
             pred_dict[model_class_name(model)].append(preds)
-        
+
         # TODO: careful, this only works if we only use one model
         pred_list.append(preds)
 
@@ -1207,7 +1269,7 @@ class LandsatEval(EvalTask):
                 )
             )
         np.save(
-            prediction_folder / f"predictions_final.npy",
+            prediction_folder / "predictions_final.npy",
             preds_np,
         )
 
@@ -1215,14 +1277,23 @@ class LandsatEval(EvalTask):
 
     @torch.no_grad()
     def _visualize_best_worst(
-        self, pretrained_model: Encoder, sklearn_models: Sequence[BaseEstimator], num_images: int = 50, sort_for: str = "overall_accuracy", baseline_galileo=False, hyperparams_config=None
+        self,
+        pretrained_model: Encoder,
+        sklearn_models: Sequence[BaseEstimator],
+        num_images: int = 50,
+        sort_for: str = "overall_accuracy",
+        baseline_galileo=False,
+        hyperparams_config=None,
     ) -> Dict:
-        
         prediction_folder = DATA_FOLDER / "ascending_accuracy_predictions"
         if not prediction_folder.exists():
             prediction_folder.mkdir(parents=True, exist_ok=True)
 
-        test_dl = self.get_test_dl(baseline_galileo=baseline_galileo, hyperparams_config=hyperparams_config)
+        test_ds, test_dl = self.get_test_dl(
+            baseline_galileo=baseline_galileo,
+            hyperparams_config=hyperparams_config,
+            return_ds=True,
+        )
 
         predictions = []
         targets = []
@@ -1300,7 +1371,6 @@ class LandsatEval(EvalTask):
             encodings = encodings.cpu().numpy()
 
             for model in sklearn_models:
-
                 preds = model.predict(encodings)
                 # reshape the predictions to match the label shape
                 pred_reshaped = preds.reshape(label.shape)
@@ -1310,20 +1380,27 @@ class LandsatEval(EvalTask):
                 binned_preds_np = np.digitize(preds, bins=multi_class_bins)
                 binned_targets_np = np.digitize(label.flatten(), bins=multi_class_bins)
 
-                results_per_image.append({
-                    f"overall_accuracy": accuracy_score(binned_targets_np, binned_preds_np),
-                    f"balanced_accuracy": balanced_accuracy_score(binned_targets_np, binned_preds_np),
-                    f"recall": recall_score(binned_targets_np, binned_preds_np, average='weighted'),
-                    f"precision": precision_score(binned_targets_np, binned_preds_np, average='weighted'),
-                    f"f1": f1_score(binned_targets_np, binned_preds_np, average='weighted'),
-                }
-                    )
+                results_per_image.append(
+                    {
+                        "overall_accuracy": accuracy_score(binned_targets_np, binned_preds_np),
+                        "balanced_accuracy": balanced_accuracy_score(
+                            binned_targets_np, binned_preds_np
+                        ),
+                        "recall": recall_score(
+                            binned_targets_np, binned_preds_np, average="weighted"
+                        ),
+                        "precision": precision_score(
+                            binned_targets_np, binned_preds_np, average="weighted"
+                        ),
+                        "f1": f1_score(binned_targets_np, binned_preds_np, average="weighted"),
+                    }
+                )
                 predictions.append(pred_reshaped)
                 targets.append(label)
 
         preds = np.array(predictions)
         target = np.array(targets)
-                
+
         if sort_for == "overall_accuracy":
             sorted_indices = np.argsort([res["overall_accuracy"] for res in results_per_image])
         elif sort_for == "balanced_accuracy":
@@ -1339,7 +1416,7 @@ class LandsatEval(EvalTask):
             # save predictions and targets with three lowest accuracies
             filename = test_ds.input_tifs[sorted_indices[i]].name
             print(f"Processing {filename} with index {sorted_indices[i]}", flush=True)
-            
+
             pred_to_save = preds[i]
             target_to_save = target[i]
 
@@ -1376,7 +1453,7 @@ class LandsatEval(EvalTask):
                 target_to_save,
             )
             print(f"Saved predictions for {filename} with overall accuracy: {acc}", flush=True)
-        
+
     @torch.no_grad()
     def _evaluate_model(
         self,
@@ -1387,7 +1464,7 @@ class LandsatEval(EvalTask):
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="test",
-            data_config=self.data_config
+            data_config=self.data_config,
         )
 
         if self.normalization == "std":
@@ -1424,7 +1501,9 @@ class LandsatEval(EvalTask):
         all_labels_1D = []
 
         with torch.no_grad():
-            for masked_output, labels, filename in tqdm(test_dl, desc="Predicting visualization images"):
+            for masked_output, labels, filename in tqdm(
+                test_dl, desc="Predicting visualization images"
+            ):
                 (
                     s_t_h_x,
                     s_t_m_x,
@@ -1441,7 +1520,7 @@ class LandsatEval(EvalTask):
                     months,
                 ) = [t.to(device) for t in masked_output]
 
-                #with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                # with torch.cuda.amp.autocast(dtype=torch.bfloat16):
                 logits = model(
                     s_t_h_x,
                     s_t_m_x,
@@ -1468,12 +1547,17 @@ class LandsatEval(EvalTask):
                 all_labels_1D.append(rearrange(labels, "b h w -> (b h w)").float().cpu().numpy())
 
                 spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
-                preds_2D = rearrange(
-                    torch.squeeze(logits),
-                    "(h w) -> h w",
-                    h=spatial_patches_per_dim,
-                    w=spatial_patches_per_dim,
-                ).float().cpu().numpy()
+                preds_2D = (
+                    rearrange(
+                        torch.squeeze(logits),
+                        "(h w) -> h w",
+                        h=spatial_patches_per_dim,
+                        w=spatial_patches_per_dim,
+                    )
+                    .float()
+                    .cpu()
+                    .numpy()
+                )
                 labels = labels.float().cpu().numpy()
                 # squeeze labels if needed
                 if len(labels.shape) == 3:
@@ -1485,25 +1569,49 @@ class LandsatEval(EvalTask):
                 r2 = r2_score(labels.flatten(), preds_2D.flatten())
                 rmse = root_mean_squared_error(labels.flatten(), preds_2D.flatten())
 
-                #preds_1D = torch.squeeze(logits).float().cpu().numpy()
-                #labels_1D = rearrange(torch.squeeze(labels), "h w -> (h w)").float().cpu().numpy()
+                # preds_1D = torch.squeeze(logits).float().cpu().numpy()
+                # labels_1D = rearrange(torch.squeeze(labels), "h w -> (h w)").float().cpu().numpy()
 
-                #r2 = r2_score(labels_1D, preds_1D)
-                #rmse = root_mean_squared_error(labels_1D, preds_1D)
+                # r2 = r2_score(labels_1D, preds_1D)
+                # rmse = root_mean_squared_error(labels_1D, preds_1D)
 
                 # append results to csv with filename, r2, rmse
                 with open(results_csv_path, "a") as f:
                     f.write(f"{filename[0]},{r2},{rmse}\n")
 
-            print("Mean r2 score 2D: ", r2_score(np.concatenate(all_labels).flatten(), np.concatenate(all_preds).flatten()), flush=True)
-            print("Mean RMSE 2D: ", root_mean_squared_error(np.concatenate(all_labels).flatten(), np.concatenate(all_preds).flatten()), flush=True)
+            print(
+                "Mean r2 score 2D: ",
+                r2_score(
+                    np.concatenate(all_labels).flatten(), np.concatenate(all_preds).flatten()
+                ),
+                flush=True,
+            )
+            print(
+                "Mean RMSE 2D: ",
+                root_mean_squared_error(
+                    np.concatenate(all_labels).flatten(), np.concatenate(all_preds).flatten()
+                ),
+                flush=True,
+            )
 
-            print("Mean r2 score 1D: ", r2_score(np.concatenate(all_labels_1D).flatten(), np.concatenate(all_preds_1D).flatten()), flush=True)
-            print("Mean RMSE 1D: ", root_mean_squared_error(np.concatenate(all_labels_1D).flatten(), np.concatenate(all_preds_1D).flatten()), flush=True)
+            print(
+                "Mean r2 score 1D: ",
+                r2_score(
+                    np.concatenate(all_labels_1D).flatten(), np.concatenate(all_preds_1D).flatten()
+                ),
+                flush=True,
+            )
+            print(
+                "Mean RMSE 1D: ",
+                root_mean_squared_error(
+                    np.concatenate(all_labels_1D).flatten(), np.concatenate(all_preds_1D).flatten()
+                ),
+                flush=True,
+            )
 
     @torch.no_grad()
     def _visualize_predictions(
-        self, 
+        self,
         model: EncoderWithHead,
         log_wandb: bool = False,
     ):
@@ -1511,7 +1619,7 @@ class LandsatEval(EvalTask):
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="visualize",
-            data_config=self.data_config
+            data_config=self.data_config,
         )
 
         visualization_folder = DATA_FOLDER / "visualizations"
@@ -1537,7 +1645,9 @@ class LandsatEval(EvalTask):
         )
 
         with torch.no_grad():
-            for masked_output, labels, filename in tqdm(vis_dl, desc="Predicting visualization images"):
+            for masked_output, labels, filename in tqdm(
+                vis_dl, desc="Predicting visualization images"
+            ):
                 (
                     s_t_h_x,
                     s_t_m_x,
@@ -1554,7 +1664,7 @@ class LandsatEval(EvalTask):
                     months,
                 ) = [t.to(device) for t in masked_output]
 
-                #with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                # with torch.cuda.amp.autocast(dtype=torch.bfloat16):
                 logits = model(
                     s_t_h_x,
                     s_t_m_x,
@@ -1578,12 +1688,17 @@ class LandsatEval(EvalTask):
                 assert logits.min() >= 0 and logits.max() <= 1
 
                 spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
-                preds_2D = rearrange(
-                    torch.squeeze(logits),
-                    "(h w) -> h w",
-                    h=spatial_patches_per_dim,
-                    w=spatial_patches_per_dim,
-                ).float().cpu().numpy()
+                preds_2D = (
+                    rearrange(
+                        torch.squeeze(logits),
+                        "(h w) -> h w",
+                        h=spatial_patches_per_dim,
+                        w=spatial_patches_per_dim,
+                    )
+                    .float()
+                    .cpu()
+                    .numpy()
+                )
                 labels = labels.float().cpu().numpy()
                 # squeeze labels if needed
                 if len(labels.shape) == 3:
@@ -1593,8 +1708,8 @@ class LandsatEval(EvalTask):
                 rmse = root_mean_squared_error(labels.flatten(), preds_2D.flatten())
 
                 if log_wandb:
-                    import wandb
                     import matplotlib.pyplot as plt
+                    import wandb
 
                     fig, axs = plt.subplots(1, 3, figsize=(15, 5))
                     axs[0].imshow(preds_2D, cmap="gray", vmin=0, vmax=1)
@@ -1603,8 +1718,8 @@ class LandsatEval(EvalTask):
                     axs[1].set_title("Ground Truth")
                     axs[2].imshow(np.abs(preds_2D - labels), cmap="coolwarm", vmin=0, vmax=1)
                     axs[2].set_title("Absolute Error")
-                    fig.colorbar(axs[2].images[0], ax=axs[2], orientation='vertical')
-                    #plt.savefig(f"visualizations/{filename}_r2_{r2}_rmse_{rmse}.png")
+                    fig.colorbar(axs[2].images[0], ax=axs[2], orientation="vertical")
+                    # plt.savefig(f"visualizations/{filename}_r2_{r2}_rmse_{rmse}.png")
 
                     filename = filename[0].split(".tif")[0]
 
@@ -1624,8 +1739,9 @@ class LandsatEval(EvalTask):
                     visualization_folder / f"{filename}_r2_{r2}_rmse_{rmse}.npy",
                     preds_2D,
                 )
-                print(f"Saved predictions for {filename} with R2: {r2} and RMSE: {rmse}", flush=True)
-
+                print(
+                    f"Saved predictions for {filename} with R2: {r2} and RMSE: {rmse}", flush=True
+                )
 
     def make_weights_for_balanced_classes(self, train_ds, nclasses):
         """
@@ -1638,36 +1754,36 @@ class LandsatEval(EvalTask):
             mean_per_image = np.mean(target)
             # bin the mean value into one of nclasses classes
             # 0.0 will be in class 0, 1.0 in class nclasses-1, 0.99 in class nclasses-2
-            multi_class_bins = np.linspace(0.1, 1, nclasses-1)
+            multi_class_bins = np.linspace(0.1, 1, nclasses - 1)
             binned_targets_np = np.digitize(mean_per_image, bins=multi_class_bins)
             count_per_class[binned_targets_np] += 1
-        weight_per_class = [0.] * nclasses
+        weight_per_class = [0.0] * nclasses
         for i in range(nclasses):
             weight_per_class[i] = float(n_images) / float(count_per_class[i])
         weights = [0] * n_images
         for idx, (_, target, _) in enumerate(train_ds):
             mean_per_image = np.mean(target)
             # bin the mean value into one of nclasses classes
-            multi_class_bins = np.linspace(0.1, 1, nclasses-1)
+            multi_class_bins = np.linspace(0.1, 1, nclasses - 1)
             binned_targets_np = np.digitize(mean_per_image, bins=multi_class_bins)
             weights[idx] = weight_per_class[binned_targets_np]
         return weights
 
-
     def train_and_evaluate_model_on_task(
-        self, 
-        pretrained_model: Encoder, 
-        model_modes: Optional[List[str]] = None, 
-        baseline_galileo: bool = False, 
-        log_wandb: bool = False, 
-        hyperparams_config: Optional[Dict] = None, 
-        initialization_id: Optional[str] = None, 
-        sweep_run = None,
+        self,
+        pretrained_model: Encoder,
+        model_modes: Optional[List[str]] = None,
+        baseline_galileo: bool = False,
+        log_wandb: bool = False,
+        hyperparams_config: Optional[Dict] = None,
+        initialization_id: Optional[str] = None,
+        sweep_run=None,
         save_final_checkpoint: bool = False,
     ) -> Dict:
-        
         # TODO: refine naming of eval config
-        assert self.decoder_mode in ["finetune", "linear_probe", "attention_probe", "sklearn"], f"Unknown evaluation mode: {self.decoder_mode}"
+        assert self.decoder_mode in ["finetune", "linear_probe", "attention_probe", "sklearn"], (
+            f"Unknown evaluation mode: {self.decoder_mode}"
+        )
         if self.decoder_mode == "finetune":
             eval_config = self.eval_config["finetune"]
         elif self.decoder_mode == "linear_probe":
@@ -1687,17 +1803,32 @@ class LandsatEval(EvalTask):
         NUM_WORKERS = hyperparams_config.get("num_workers", 4)
 
         if baseline_galileo:
-            from src.eval.landsat_baselines import LandsatEvalDatasetGalileo, GalileoNormalizer, galileo_config_dir, GALILEO_NORMALIZATION_DICT_FILENAME
+            from src.eval.landsat_baselines import (
+                GALILEO_NORMALIZATION_DICT_FILENAME,
+                GalileoNormalizer,
+                LandsatEvalDatasetGalileo,
+                galileo_config_dir,
+            )
+
             train_ds = LandsatEvalDatasetGalileo(
                 exclude_prediction_date=self.exclude_prediction_date,
                 exclude_prediction_high_res=self.exclude_prediction_high_res,
                 split="train",
             )
             if self.normalization == "std":
-                normalizer=GalileoNormalizer(std=True,
-                                             normalizing_dicts=train_ds.load_normalization_values(galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME), 
-                                             std_multiplier=2)
-                print(train_ds.load_normalization_values(galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME), flush=True)
+                normalizer = GalileoNormalizer(
+                    std=True,
+                    normalizing_dicts=train_ds.load_normalization_values(
+                        galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME
+                    ),
+                    std_multiplier=2,
+                )
+                print(
+                    train_ds.load_normalization_values(
+                        galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME
+                    ),
+                    flush=True,
+                )
             else:
                 normalizer = GalileoNormalizer(std=False)
             train_ds.normalizer = normalizer
@@ -1706,7 +1837,7 @@ class LandsatEval(EvalTask):
                 exclude_prediction_date=self.exclude_prediction_date,
                 exclude_prediction_high_res=self.exclude_prediction_high_res,
                 split="train",
-                data_config=self.data_config
+                data_config=self.data_config,
             )
 
             if self.normalization == "std":
@@ -1718,9 +1849,10 @@ class LandsatEval(EvalTask):
             else:
                 normalizer = Normalizer(std=False)
             train_ds.normalizer = normalizer
-        
+
         if self.resample:
             from torch.utils.data import WeightedRandomSampler
+
             # oversample the dataset to have a uniform distribution of mean class values per image
             weights = self.make_weights_for_balanced_classes(train_ds, nclasses=10)
             weights = torch.DoubleTensor(weights)
@@ -1744,42 +1876,49 @@ class LandsatEval(EvalTask):
                 model_modes = self.all_regression_sklearn_models
             for model_mode in model_modes:
                 assert model_mode in self.all_regression_sklearn_models
-            assert save_final_checkpoint == False, "Cannot save final checkpoint when using sklearn evaluation mode."
-            trained_sklearn_models = self.train_sklearn_model(train_dl, pretrained_model, model_modes, baseline_galileo=baseline_galileo)
-            results = self._evaluate_trained_sklearn_model(pretrained_model, trained_sklearn_models, baseline_galileo=baseline_galileo, hyperparams_config=hyperparams_config)
+            assert not save_final_checkpoint, (
+                "Cannot save final checkpoint when using sklearn evaluation mode."
+            )
+            trained_sklearn_models = self.train_sklearn_model(
+                train_dl, pretrained_model, model_modes, baseline_galileo=baseline_galileo
+            )
+            results = self._evaluate_trained_sklearn_model(
+                pretrained_model,
+                trained_sklearn_models,
+                baseline_galileo=baseline_galileo,
+                hyperparams_config=hyperparams_config,
+            )
 
         elif self.decoder_mode in ["finetune", "linear_probe", "attention_probe"]:
-            test_dl = self.get_test_dl(hyperparams_config=hyperparams_config, baseline_galileo=baseline_galileo)
+            test_dl = self.get_test_dl(
+                hyperparams_config=hyperparams_config, baseline_galileo=baseline_galileo
+            )
             loaders_dict = {"train": train_dl, "test": test_dl}
             results = get_finetune_results(
-                loaders_dict, 
-                pretrained_model, 
-                num_runs=1, 
-                device=device, 
-                identifier=self.name, 
-                eval_config=eval_config, 
-                hyperparams_config=hyperparams_config, 
-                num_finetune_epochs=self.num_finetune_epochs, 
-                baseline_galileo=baseline_galileo, 
-                log_wandb=log_wandb, 
+                loaders_dict,
+                pretrained_model,
+                num_runs=1,
+                device=device,
+                identifier=self.name,
+                eval_config=eval_config,
+                hyperparams_config=hyperparams_config,
+                num_finetune_epochs=self.num_finetune_epochs,
+                baseline_galileo=baseline_galileo,
+                log_wandb=log_wandb,
                 sweep_run=sweep_run,
-                save_final_checkpoint=save_final_checkpoint
+                save_final_checkpoint=save_final_checkpoint,
             )
         else:
             raise ValueError(f"Unknown evaluation mode: {self.decoder_mode}")
 
         return results
-    
+
     def visualize_sample_predictions(
         self,
-        model: EncoderWithHead, 
-        log_wandb: bool = False, 
+        model: EncoderWithHead,
+        log_wandb: bool = False,
     ):
         self._visualize_predictions(model, log_wandb=log_wandb)
 
-    def evaluate_model_on_task(
-        self, 
-        model: EncoderWithHead,  
-        id: str
-    ):
+    def evaluate_model_on_task(self, model: EncoderWithHead, id: str):
         self._evaluate_model(model, id=id)

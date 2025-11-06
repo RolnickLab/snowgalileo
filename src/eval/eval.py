@@ -1,6 +1,5 @@
 import logging
 from abc import ABC
-from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence
 
 import numpy as np
@@ -82,7 +81,7 @@ class EvalTask(ABC):
             p1=self.patch_size_high_res,
             p2=self.patch_size_high_res,
         )
-    
+
     @torch.no_grad()
     def rearrange_token_sequence_into_images(self, sequence: torch.Tensor) -> torch.Tensor:
         # rearrange token sequence into images
@@ -128,7 +127,7 @@ class EvalTask(ABC):
             "b n_t n_f -> (b n_t) n_f",
         )
         return encodings
-    
+
     @torch.no_grad()
     def group_encodings_per_token_galileo_baseline(
         self,
@@ -156,7 +155,6 @@ class EvalTask(ABC):
             "b n_t n_f -> (b n_t) n_f",
         )
         return encodings
-
 
     def reduce_targets_per_token(self, grouped_label: np.ndarray) -> np.ndarray:
         if self.output_mode == "mode":
@@ -337,7 +335,7 @@ class EvalTask(ABC):
                 clone(model_dict[self.regression][model]).fit(encodings_np, targets_np)
             )
         return fit_models
-    
+
     @torch.no_grad()
     def train_sklearn_model_galileo_baseline(
         self,

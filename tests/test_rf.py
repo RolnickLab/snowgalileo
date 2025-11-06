@@ -1,16 +1,16 @@
-import random
+import json
 import unittest
+from pathlib import Path
+
 import torch
 
 from src.eval.landsat_baselines import (
     LandsatEvalRandomForest,
 )
-import json
-from pathlib import Path
+
 
 class TestMasking(unittest.TestCase):
     def test_forward_filling_masked_data_per_channel_else_median(self):
-
         with (Path("src/eval/eval_configs/landsat_eval_5_95.json")).open("r") as f:
             config = json.load(f)
         rf = LandsatEvalRandomForest(
@@ -59,5 +59,6 @@ class TestMasking(unittest.TestCase):
 
         pdb.set_trace()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

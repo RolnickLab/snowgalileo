@@ -4,6 +4,7 @@ import tempfile
 import numpy as np
 import rasterio
 from rasterio.warp import Resampling, calculate_default_transform, reproject
+
 from src.data.config import NO_DATA_VALUE
 
 
@@ -84,7 +85,11 @@ class RunningStats:
     def finalize(self):
         # returns mean and standard deviation as per-channel arrays
         std = np.sqrt(self.M2 / (self.count - 1))
-        assert not np.isnan(std).any(), "Standard deviation has become NaN in finalize step, something went wrong."
-        assert not np.isnan(self.mean).any(), "Mean has become NaN in finalize step, something went wrong."
+        assert not np.isnan(std).any(), (
+            "Standard deviation has become NaN in finalize step, something went wrong."
+        )
+        assert not np.isnan(self.mean).any(), (
+            "Mean has become NaN in finalize step, something went wrong."
+        )
         assert self.count > 0, "Count is not positive in finalize step, something went wrong."
         return self.mean, std

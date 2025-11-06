@@ -207,8 +207,17 @@ class AttentionProbe(nn.Module):
     * attention weight dropout
     * attention weight recording via PyTorch forward hooks
     """
-    
-    def __init__(self, d_in, n_heads, output_dim: int = 100, hidden_dim: int = 0, use_tanh: bool = False, attn_dropout_p: float = 0.0, config: Any = None):
+
+    def __init__(
+        self,
+        d_in,
+        n_heads,
+        output_dim: int = 100,
+        hidden_dim: int = 0,
+        use_tanh: bool = False,
+        attn_dropout_p: float = 0.0,
+        config: Any = None,
+    ):
         """
         Args:
             d_in (int): input dimensionality.
@@ -239,19 +248,23 @@ class AttentionProbe(nn.Module):
             self.o = nn.Linear(hidden_dim, output_dim)
         # hookpoint to record attention probabilities. use register_forward_hook to record
         self.attn_hook = nn.Identity()
-        
+
         self.config = config
 
     def forward(self, x, mask, position):
         # x: (batch_size, seq_len, d_in)
         # mask: (batch_size, seq_len)
         # position: (batch_size, seq_len)
-        
+
         # k: (batch_size, seq_len, n_heads)
         # elements that are masked are set to -infinity
         # position is added to the key weighted by the per-head position_weight
         # NOTE: removed mask inversion here compared to original implementation
-        k = self.q(x) - (mask.float() * 1e9)[..., None] + position[..., None] * self.position_weight
+        k = (
+            self.q(x)
+            - (mask.float() * 1e9)[..., None]
+            + position[..., None] * self.position_weight
+        )
         if self.training:
             # apply dropout to the keys
             k = torch.where(torch.rand_like(k) < self.attn_dropout_p, -1e9, k)
@@ -1333,7 +1346,21 @@ class Encoder(FlexiPrestoBase):
 
     @classmethod
     def preprocess_tokens_for_attention_probe(
-        cls, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, attend_over_spatial: bool=False, med_and_low_res_repeat: bool=True
+        cls,
+        s_t_h_x,
+        s_t_m_x,
+        s_t_l_x,
+        sp_x,
+        t_x,
+        st_x,
+        s_t_h_m,
+        s_t_m_m,
+        s_t_l_m,
+        sp_m,
+        t_m,
+        st_m,
+        attend_over_spatial: bool = False,
+        med_and_low_res_repeat: bool = True,
     ):
         """
         Preprocess tokens for attention probe by collapsing spatial dimensions. Also return position.
@@ -1346,9 +1373,27 @@ class Encoder(FlexiPrestoBase):
         if attend_over_spatial:
             print("Attending over spatial patches.", flush=True)
             x, m = cls.combine_tokens_per_highres_spatial_patch(
-                s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, med_and_low_res_repeat=med_and_low_res_repeat
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+                med_and_low_res_repeat=med_and_low_res_repeat,
             )
-            position = torch.arange(x.shape[2], device=x.device).unsqueeze(0).expand(x.shape[1], -1).unsqueeze(0).expand(x.shape[0], -1, -1)
+            position = (
+                torch.arange(x.shape[2], device=x.device)
+                .unsqueeze(0)
+                .expand(x.shape[1], -1)
+                .unsqueeze(0)
+                .expand(x.shape[0], -1, -1)
+            )
             return x, m, position
 
         print("Attending over all tokens.", flush=True)
@@ -1359,7 +1404,7 @@ class Encoder(FlexiPrestoBase):
         x, _, m = cls.remove_masked_tokens(x, m)
         position = torch.arange(x.shape[1], device=x.device).unsqueeze(0).expand(x.shape[0], -1)
         return x, m, position
-    
+
     @classmethod
     def combine_tokens_per_highres_spatial_patch(
         cls,
@@ -1375,7 +1420,7 @@ class Encoder(FlexiPrestoBase):
         sp_m: torch.Tensor,
         t_m: torch.Tensor,
         st_m: torch.Tensor,
-        med_and_low_res_repeat: bool=True
+        med_and_low_res_repeat: bool = True,
     ):
         # Creates an output of tokens with shape (batch size, high_res_spatial_positions, num_tokens, token_dim), where masked tokens are removed.
         # We upsample med and low resolution tokens, to be able to incorporate them into the high resolution tokens.
@@ -1391,12 +1436,17 @@ class Encoder(FlexiPrestoBase):
 
         # only keep high resolution tokens
         if not med_and_low_res_repeat:
-            print("Removing medium and low resolution tokens instead of repeating them.", flush=True)
+            print(
+                "Removing medium and low resolution tokens instead of repeating them.", flush=True
+            )
             x = torch.cat([s_t_h_x, sp_x], dim=2)  # B, S, N, D
             m = torch.cat([s_t_h_m, sp_m], dim=2)  # B, S, N
             return x, m
 
-        print("Repeating medium and low resolution tokens to match high resolution tokens.", flush=True)
+        print(
+            "Repeating medium and low resolution tokens to match high resolution tokens.",
+            flush=True,
+        )
         # repeat medium and low resolution tokens over high resolution
         s_t_m_x = rearrange(
             repeat(
@@ -1447,22 +1497,22 @@ class Encoder(FlexiPrestoBase):
         sp_m: torch.Tensor,
         t_m: torch.Tensor,
         st_m: torch.Tensor,
-        med_and_low_res_repeat: bool=True
+        med_and_low_res_repeat: bool = True,
     ):
         x, m = cls.combine_tokens_per_highres_spatial_patch(
-            s_t_h_x, 
-            s_t_m_x, 
-            s_t_l_x, 
-            sp_x, 
-            t_x, 
-            st_x, 
-            s_t_h_m, 
-            s_t_m_m, 
-            s_t_l_m, 
-            sp_m, 
-            t_m, 
-            st_m, 
-            med_and_low_res_repeat=med_and_low_res_repeat
+            s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
+            sp_x,
+            t_x,
+            st_x,
+            s_t_h_m,
+            s_t_m_m,
+            s_t_l_m,
+            sp_m,
+            t_m,
+            st_m,
+            med_and_low_res_repeat=med_and_low_res_repeat,
         )
 
         x_for_mean = x * (1 - m.unsqueeze(-1))

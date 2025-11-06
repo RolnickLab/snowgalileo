@@ -1,83 +1,81 @@
 import json
-import re
-import warnings
-from pathlib import Path
-from typing import cast, Optional, Union, Tuple
 import logging
-import torch
+import warnings
+from copy import deepcopy
+from pathlib import Path
+from typing import Any, Dict, NamedTuple, Optional, Tuple, Union, cast
+
+import h5py
+import joblib
 import numpy as np
 import rioxarray
+import torch
 import xarray as xr
-import h5py
-from einops import rearrange, repeat, reduce
-from tqdm import tqdm
-from typing import NamedTuple, Dict
-from copy import deepcopy
-from torch.utils.data import DataLoader
-import joblib
+from einops import rearrange, reduce, repeat
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, root_mean_squared_error
+from torch.utils.data import DataLoader
+from torch.utils.data import Dataset as PyTorchDataset
 
-from src.data.config import (
-    DATA_FOLDER,
-    NO_DATA_VALUE,
-    CHANNEL_WISE_INVALID_DATA_THRESHOLDS,
-    NUM_TIMESTEPS,
-    MODALITIES,
-    NORMALIZATION_DICT_FILENAME,
-)
-from src.utils import config_dir
-from src.eval.landsat_eval import LandsatEvalDataset, masked_output_np_to_tensor, LandsatEval
-from galileo.src.data.dataset import SPACE_BANDS as GALILEO_SPACE_BANDS
-from galileo.src.data.dataset import STATIC_BANDS as GALILEO_STATIC_BANDS
-from galileo.src.data.dataset import TIME_BANDS as GALILEO_TIME_BANDS
-from galileo.src.data.dataset import SPACE_TIME_BANDS as GALILEO_SPACE_TIME_BANDS
+from galileo.src.data.dataset import LANDSCAN_BANDS, SRTM_BANDS
+from galileo.src.data.dataset import NUM_TIMESTEPS as GALILEO_TIMESTEPS
 from galileo.src.data.dataset import SPACE_BAND_GROUPS_IDX as GALILEO_SPACE_BANDS_GROUPS_IDX
-from galileo.src.data.dataset import STATIC_BAND_GROUPS_IDX as GALILEO_STATIC_BANDS_GROUPS_IDX
-from galileo.src.data.dataset import TIME_BAND_GROUPS_IDX as GALILEO_TIME_BANDS_GROUPS_IDX
+from galileo.src.data.dataset import SPACE_BANDS as GALILEO_SPACE_BANDS
+from galileo.src.data.dataset import (
+    SPACE_DIV_VALUES as GALILEO_SPACE_DIV_VALUES,
+)
+from galileo.src.data.dataset import (
+    SPACE_SHIFT_VALUES as GALILEO_SPACE_SHIFT_VALUES,
+)
+from galileo.src.data.dataset import SPACE_TIME_BANDS as GALILEO_SPACE_TIME_BANDS
 from galileo.src.data.dataset import (
     SPACE_TIME_BANDS_GROUPS_IDX as GALILEO_SPACE_TIME_BANDS_GROUPS_IDX,
 )
-from galileo.src.data.dataset import NUM_TIMESTEPS as GALILEO_TIMESTEPS
-from galileo.src.data.dataset import DATASET_OUTPUT_HW as GALILEO_HW
-from galileo.src.data.dataset import SRTM_BANDS, LANDSCAN_BANDS
 from galileo.src.data.dataset import (
-    SPACE_SHIFT_VALUES as GALILEO_SPACE_SHIFT_VALUES,
-    SPACE_DIV_VALUES as GALILEO_SPACE_DIV_VALUES,
-    TIME_SHIFT_VALUES as GALILEO_TIME_SHIFT_VALUES,
-    TIME_DIV_VALUES as GALILEO_TIME_DIV_VALUES,
-    STATIC_SHIFT_VALUES as GALILEO_STATIC_SHIFT_VALUES,
-    STATIC_DIV_VALUES as GALILEO_STATIC_DIV_VALUES,
-    SPACE_TIME_SHIFT_VALUES as GALILEO_SPACE_TIME_SHIFT_VALUES,
     SPACE_TIME_DIV_VALUES as GALILEO_SPACE_TIME_DIV_VALUES,
 )
-from galileo.src.data.config import (
-    NORMALIZATION_DICT_FILENAME as GALILEO_NORMALIZATION_DICT_FILENAME,
+from galileo.src.data.dataset import (
+    SPACE_TIME_SHIFT_VALUES as GALILEO_SPACE_TIME_SHIFT_VALUES,
 )
-from galileo.src.utils import config_dir as galileo_config_dir
-
-from src.eval.landsat_bands import LANDSAT_SPACE_TIME_BANDS, LANDSAT_STATIC_BANDS
-
-from src.data.dataset import Normalizer, to_cartesian
+from galileo.src.data.dataset import STATIC_BAND_GROUPS_IDX as GALILEO_STATIC_BANDS_GROUPS_IDX
+from galileo.src.data.dataset import STATIC_BANDS as GALILEO_STATIC_BANDS
+from galileo.src.data.dataset import (
+    STATIC_DIV_VALUES as GALILEO_STATIC_DIV_VALUES,
+)
+from galileo.src.data.dataset import (
+    STATIC_SHIFT_VALUES as GALILEO_STATIC_SHIFT_VALUES,
+)
+from galileo.src.data.dataset import TIME_BAND_GROUPS_IDX as GALILEO_TIME_BANDS_GROUPS_IDX
+from galileo.src.data.dataset import TIME_BANDS as GALILEO_TIME_BANDS
+from galileo.src.data.dataset import (
+    TIME_DIV_VALUES as GALILEO_TIME_DIV_VALUES,
+)
+from galileo.src.data.dataset import (
+    TIME_SHIFT_VALUES as GALILEO_TIME_SHIFT_VALUES,
+)
+from src.data.config import (
+    CHANNEL_WISE_INVALID_DATA_THRESHOLDS,
+    DATA_FOLDER,
+    MODALITIES,
+    NO_DATA_VALUE,
+    NUM_TIMESTEPS,
+)
+from src.data.dataset import DATASET_OUTPUT_HW_HIGH_RES, Normalizer, to_cartesian
 from src.data.earthengine.eo_eval import (
+    CLOUD_BANDS,
+    EO_ALL_DYNAMIC_IN_TIME_BANDS,
+    EO_ALL_DYNAMIC_IN_TIME_BANDS_NP,
     EO_SPACE_TIME_LOW_RES_BANDS,
     SPACE_BANDS,
     SPACE_TIME_HIGH_RES_BANDS,
     SPACE_TIME_MED_RES_BANDS,
-    SPACE_TIME_LOW_RES_BANDS,
     STATIC_BANDS,
     TIME_BANDS,
-    EO_ALL_DYNAMIC_IN_TIME_BANDS,
-    EO_ALL_DYNAMIC_IN_TIME_BANDS_NP,
-    CLOUD_BANDS,
 )
+from src.eval.landsat_bands import LANDSAT_SPACE_TIME_BANDS, LANDSAT_STATIC_BANDS
+from src.eval.landsat_eval import LandsatEval, LandsatEvalDataset, masked_output_np_to_tensor
 
-from torch.utils.data import Dataset as PyTorchDataset
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.datasets import make_regression
-from typing import Any
-
-# TODO: !!! Change this later because it doesn't match pre-training shape
-GALILEO_HW = 100
+# TODO: !!! HW used is different from pre-training Galileo HW
 
 logger = logging.getLogger("__main__")
 
@@ -277,7 +275,7 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
                 warnings.warn(f"IndexError for input {tif}")
         self.h5pys = []
 
-        self.output_hw_high_res = GALILEO_HW
+        self.output_hw_high_res = DATASET_OUTPUT_HW_HIGH_RES
         self.output_timesteps = GALILEO_TIMESTEPS
 
         self.label_tifs = []
@@ -447,7 +445,7 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
         space_x: np.ndarray,
         time_x: np.ndarray,
         static_x: np.ndarray,
-        size: int = GALILEO_HW,
+        size: int = DATASET_OUTPUT_HW_HIGH_RES,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         space_time_x: array of shape [H, W, T, D]
@@ -571,19 +569,33 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
 
         # NOTE: We initialize with zeros and not with NaNs, because Galileo cannot handle NaNs and we will mask out the invalid data anyway
         galileo_s_t_x = np.zeros(
-            (GALILEO_HW, GALILEO_HW, GALILEO_TIMESTEPS, len(GALILEO_SPACE_TIME_BANDS))
+            (
+                DATASET_OUTPUT_HW_HIGH_RES,
+                DATASET_OUTPUT_HW_HIGH_RES,
+                GALILEO_TIMESTEPS,
+                len(GALILEO_SPACE_TIME_BANDS),
+            )
         )
-        galileo_sp_x = np.zeros((GALILEO_HW, GALILEO_HW, len(GALILEO_SPACE_BANDS)))
+        galileo_sp_x = np.zeros(
+            (DATASET_OUTPUT_HW_HIGH_RES, DATASET_OUTPUT_HW_HIGH_RES, len(GALILEO_SPACE_BANDS))
+        )
         galileo_t_x = np.zeros((GALILEO_TIMESTEPS, len(GALILEO_TIME_BANDS)))
         galileo_st_x = np.zeros((len(GALILEO_STATIC_BANDS),))
 
         galileo_months = cls.month_array_from_file(tif_path, int(GALILEO_TIMESTEPS))
 
         galileo_valid_data_mask_s_t = np.zeros(
-            (GALILEO_HW, GALILEO_HW, GALILEO_TIMESTEPS, len(GALILEO_SPACE_TIME_BANDS))
+            (
+                DATASET_OUTPUT_HW_HIGH_RES,
+                DATASET_OUTPUT_HW_HIGH_RES,
+                GALILEO_TIMESTEPS,
+                len(GALILEO_SPACE_TIME_BANDS),
+            )
         )
         # no matching space data and no matching time data, so we can just fill it with zeros (= all invalid)
-        galileo_valid_data_mask_sp = np.zeros((GALILEO_HW, GALILEO_HW, len(GALILEO_SPACE_BANDS)))
+        galileo_valid_data_mask_sp = np.zeros(
+            (DATASET_OUTPUT_HW_HIGH_RES, DATASET_OUTPUT_HW_HIGH_RES, len(GALILEO_SPACE_BANDS))
+        )
         galileo_valid_data_mask_t = np.zeros((GALILEO_TIMESTEPS, len(GALILEO_TIME_BANDS)))
         galileo_valid_data_mask_st = np.zeros((len(GALILEO_STATIC_BANDS),))
 
@@ -873,10 +885,17 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
 
         # empty bands should have a mask of one
         galileo_s_t_m = torch.ones(
-            (GALILEO_HW, GALILEO_HW, GALILEO_TIMESTEPS, len(GALILEO_SPACE_TIME_BANDS))
+            (
+                DATASET_OUTPUT_HW_HIGH_RES,
+                DATASET_OUTPUT_HW_HIGH_RES,
+                GALILEO_TIMESTEPS,
+                len(GALILEO_SPACE_TIME_BANDS),
+            )
         )
         # no matching space bands between Galileo and SnowGalileo
-        galileo_sp_m = torch.ones((GALILEO_HW, GALILEO_HW, len(GALILEO_SPACE_BANDS)))
+        galileo_sp_m = torch.ones(
+            (DATASET_OUTPUT_HW_HIGH_RES, DATASET_OUTPUT_HW_HIGH_RES, len(GALILEO_SPACE_BANDS))
+        )
         # era5 is matching, but not for entire channel group
         galileo_t_m = torch.ones((GALILEO_TIMESTEPS, len(GALILEO_TIME_BANDS)))
         galileo_st_m = torch.ones((len(GALILEO_STATIC_BANDS),))
@@ -1185,9 +1204,9 @@ class LandsatEvalRandomForest(LandsatEval):
                         else:
                             if torch.isnan(last_valid_value):
                                 # no valid value found yet, replace with median per channel group
-                                channel_data[..., timestep] = torch.nanmedian(x, dim=-1, keepdim=True)[
-                                    ..., i
-                                ]
+                                channel_data[..., timestep] = torch.nanmedian(
+                                    x, dim=-1, keepdim=True
+                                )[..., i]
                             else:
                                 channel_data[..., timestep] = last_valid_value
                                 channel_time_distance[..., timestep] = (

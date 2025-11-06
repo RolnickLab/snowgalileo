@@ -7,11 +7,11 @@ import warnings
 from functools import partial
 from pathlib import Path
 from typing import List, cast
-import torch.nn as nn
 
 import codecarbon
 import psutil
 import torch
+import torch.nn as nn
 import wandb
 from torch.utils.data import BatchSampler, DataLoader, Subset
 from tqdm import tqdm
@@ -19,8 +19,7 @@ from wandb.sdk.wandb_run import Run
 
 from src.collate_fns import mae_collate_fn
 from src.config import DEFAULT_SEED, get_random_config
-from src.data import Dataset
-from src.data import Normalizer
+from src.data import Dataset, Normalizer
 from src.data.config import (
     CONFIG_FILENAME,
     DATA_FOLDER,
@@ -85,7 +84,12 @@ argparser.add_argument(
 )
 argparser.add_argument("--restart", action="store_true", help="If set, will restart the run")
 argparser.add_argument("--path_to_model_checkpoint", type=str, default="")
-argparser.add_argument("--ablate", type=str, choices=["", "time", "space", "high_res", "low_res", "aux", "location", "time", "space"], default="")
+argparser.add_argument(
+    "--ablate",
+    type=str,
+    choices=["", "time", "space", "high_res", "low_res", "aux", "location", "time", "space"],
+    default="",
+)
 
 argparser.set_defaults(download=False)
 argparser.set_defaults(cache_in_ram=False)
