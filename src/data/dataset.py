@@ -1286,7 +1286,6 @@ class Dataset(PyTorchDataset):
         stats_static = RunningStats(shape=(st_x.shape[-1],))
 
         for i in tqdm(range(len(self))):
-            # quit after 50k samples for time efficiency
             if i >= sampled_n:
                 logger.info(f"Reached {sampled_n} samples, stopping computation.")
                 break
@@ -1356,7 +1355,7 @@ class Dataset(PyTorchDataset):
             },
         }
 
-        with open(self.data_folder.parents[1] / "normalizing_dict.json", "w") as f:
+        with open(self.data_folder.parents[1] / "normalizing_dict_updated.json", "w") as f:
             json.dump(norm_dict, f)
 
         return norm_dict
