@@ -83,6 +83,12 @@ class RunningStats:
             assert self.count[c] > 0, "Count is not positive, something went wrong."
 
     def finalize(self):
+        assert (self.count > 1).all(), (
+            "Not enough samples to compute standard deviation. Need at least two samples per channel."
+        )
+        assert (self.M2 >= 0).all(), (
+            "M2 has negative values, something went wrong during the update steps."
+        )
         # returns mean and standard deviation as per-channel arrays
         std = np.sqrt(self.M2 / (self.count - 1))
         assert not np.isnan(std).any(), (
@@ -91,5 +97,4 @@ class RunningStats:
         assert not np.isnan(self.mean).any(), (
             "Mean has become NaN in finalize step, something went wrong."
         )
-        assert self.count > 0, "Count is not positive in finalize step, something went wrong."
         return self.mean, std
