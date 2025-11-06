@@ -64,6 +64,9 @@ class RunningStats:
             assert (new_data[:, c] != NO_DATA_VALUE).all(), f"NO_DATA_VALUE found in channel {c}"
             x = new_data[:, c]
             valid_mask = ~np.isnan(x)
+            # if no valid data, skip
+            if not valid_mask.any():
+                continue
             x_valid = x[valid_mask]
             n = x_valid.size
             if n == 0:
@@ -81,7 +84,7 @@ class RunningStats:
     def finalize(self):
         # returns mean and standard deviation as per-channel arrays
         std = np.sqrt(self.M2 / (self.count - 1))
-        assert not np.isnan(std).any(), "Standard deviation has become NaN, something went wrong."
-        assert not np.isnan(self.mean).any(), "Mean has become NaN, something went wrong."
-        assert self.count > 0, "Count is not positive, something went wrong."
+        assert not np.isnan(std).any(), "Standard deviation has become NaN in finalize step, something went wrong."
+        assert not np.isnan(self.mean).any(), "Mean has become NaN in finalize step, something went wrong."
+        assert self.count > 0, "Count is not positive in finalize step, something went wrong."
         return self.mean, std
