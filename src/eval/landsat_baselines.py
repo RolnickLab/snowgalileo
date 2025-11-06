@@ -1184,14 +1184,14 @@ class LandsatEvalRandomForest(LandsatEval):
                 channel_data = x[..., i]
                 channel_mask = m[..., i]
                 # as we don't have a time dimension here, we take the median over all channels in the same data group
-                x[..., i] = torch.nanmedian(channel_data, dim=-1, keepdim=True)
+                x[..., i] = torch.nanmedian(channel_data, dim=-1, keepdim=True)[0][..., i]
             else:
                 channel_data = x[..., i, :]
                 channel_mask = m[..., i, :]
                 channel_time_distance = t[..., i, :]
                 if torch.all(channel_mask):
                     # all values are masked, replace with median per channel group
-                    x[..., i, :] = torch.nanmedian(x, dim=-1, keepdim=True)[..., i]
+                    x[..., i, :] = torch.nanmedian(x, dim=-1, keepdim=True)[0][..., i, :]
                 else:
                     last_valid_timestep = torch.nan
                     current_timestep = 0
@@ -1206,7 +1206,7 @@ class LandsatEvalRandomForest(LandsatEval):
                                 # no valid value found yet, replace with median per channel group
                                 channel_data[..., timestep] = torch.nanmedian(
                                     x, dim=-1, keepdim=True
-                                )[..., i]
+                                )[0][..., i, :]
                             else:
                                 channel_data[..., timestep] = last_valid_value
                                 channel_time_distance[..., timestep] = (
