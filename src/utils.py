@@ -70,13 +70,15 @@ def masked_output_np_to_tensor(
         torch.as_tensor(month, dtype=torch.long),
     )
 
-def save_checkpoint(model, filename='default.pth'):
+
+def save_checkpoint(model, filename="default.pth"):
     save_dir = checkpoints_dir
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     filename = os.path.join(save_dir, filename)
     torch.save(model.state_dict(), filename)
     print(f"Saved checkpoint to {filename}")
+
 
 class AverageMeter:
     """computes and stores the average and current value"""
