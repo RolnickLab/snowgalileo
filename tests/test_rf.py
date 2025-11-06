@@ -3,12 +3,24 @@ import unittest
 import torch
 
 from src.eval.landsat_baselines import (
-    forward_filling_masked_data_per_channel_else_median,
+    LandsatEvalRandomForest,
 )
-
+import json
+from pathlib import Path
 
 class TestMasking(unittest.TestCase):
     def test_forward_filling_masked_data_per_channel_else_median(self):
+
+        with (Path("src/eval/eval_configs/landsat_eval_5_95.json")).open("r") as f:
+            config = json.load(f)
+        rf = LandsatEvalRandomForest(
+            normalization="std",
+            exclude_prediction_date=False,
+            exclude_prediction_high_res=False,
+            resample=False,
+            eval_config=config,
+        )
+
         # test that filling works correctly
         # four dim data simulates s_t_h_x, s_t_m_x, s_t_l_x, and t_x
         four_dim_data_c1 = torch.tensor(
@@ -37,10 +49,10 @@ class TestMasking(unittest.TestCase):
         three_dim_mask = torch.where(three_dim_data == float("nan"), 1, 0)
         three_dim_time = torch.zeros_like(three_dim_data)
 
-        filled_four_dim_data, _ = forward_filling_masked_data_per_channel_else_median(
+        filled_four_dim_data, _ = rf.forward_filling_masked_data_per_channel_else_median(
             four_dim_data, four_dim_mask, four_dim_time
         )
-        filled_three_dim_data, _ = forward_filling_masked_data_per_channel_else_median(
+        filled_three_dim_data, _ = rf.forward_filling_masked_data_per_channel_else_median(
             three_dim_data, three_dim_mask, three_dim_time
         )
         import pdb
