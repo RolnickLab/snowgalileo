@@ -71,6 +71,9 @@ class RunningStats:
             self.mean[c] += delta.sum() / self.count[c]
             delta2 = x_valid - self.mean[c]
             self.M2[c] += (delta * delta2).sum()
+            assert self.M2[c] is not np.nan, "M2 has become NaN, something went wrong."
+            assert self.mean[c] is not np.nan, "Mean has become NaN, something went wrong."
+            assert self.count[c] > 0, "Count is not positive, something went wrong."
 
     def finalize(self):
         # returns mean and standard deviation as per-channel arrays
