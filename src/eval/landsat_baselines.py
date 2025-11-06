@@ -1199,7 +1199,7 @@ class LandsatEvalRandomForest(LandsatEval):
                     t[..., i, :] = channel_time_distance
 
         # assert there are no NaNs left
-        # assert not torch.isnan(x).any(), "There are still NaNs left after forward filling."
+        assert not torch.isnan(x).any(), "There are still NaNs left after forward filling."
         return x, t
 
     def replace_masked_data_with_median_per_channel(
