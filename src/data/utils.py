@@ -4,6 +4,7 @@ import tempfile
 import numpy as np
 import rasterio
 from rasterio.warp import Resampling, calculate_default_transform, reproject
+from src.data.config import NO_DATA_VALUE
 
 
 def resample_resolution(tif_path):
@@ -59,6 +60,8 @@ class RunningStats:
             "new_data should have the same number of channels as initialized"
         )
         for c in range(new_data.shape[-1]):
+            # assert that there is no NO_DATA_VALUE in new_data[:, c]
+            assert (new_data[:, c] != NO_DATA_VALUE).all(), f"NO_DATA_VALUE found in channel {c}"
             x = new_data[:, c]
             valid_mask = ~np.isnan(x)
             x_valid = x[valid_mask]
@@ -78,4 +81,7 @@ class RunningStats:
     def finalize(self):
         # returns mean and standard deviation as per-channel arrays
         std = np.sqrt(self.M2 / (self.count - 1))
+        assert not np.isnan(std).any(), "Standard deviation has become NaN, something went wrong."
+        assert not np.isnan(self.mean).any(), "Mean has become NaN, something went wrong."
+        assert self.count > 0, "Count is not positive, something went wrong."
         return self.mean, std
