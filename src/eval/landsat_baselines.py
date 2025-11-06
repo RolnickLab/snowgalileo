@@ -1195,9 +1195,12 @@ class LandsatEvalRandomForest(LandsatEval):
                                 )
                             current_timestep += 1
 
+                    x[..., i, :] = channel_data
+                    t[..., i, :] = channel_time_distance
+
         # assert there are no NaNs left
         assert not torch.isnan(x).any(), "There are still NaNs left after forward filling."
-        return x
+        return x, t
 
     def replace_masked_data_with_median_per_channel(
         self,
@@ -1356,32 +1359,32 @@ class LandsatEvalRandomForest(LandsatEval):
                 rearrange(st_x, "b s c -> b s c"), rearrange(st_m, "b s c -> b s c")
             )
         if replace_with == "last":
-            s_t_h_x = self.forward_filling_masked_data_per_channel_else_median(
+            s_t_h_x, s_t_h_t = self.forward_filling_masked_data_per_channel_else_median(
                 rearrange(s_t_h_x, "b s t c -> b s c t"),
                 rearrange(s_t_h_m, "b s t c -> b s c t"),
                 rearrange(s_t_h_t, "b s t c -> b s c t"),
             )
-            s_t_m_x = self.forward_filling_masked_data_per_channel_else_median(
+            s_t_m_x, s_t_m_t = self.forward_filling_masked_data_per_channel_else_median(
                 rearrange(s_t_m_x, "b s t c -> b s c t"),
                 rearrange(s_t_m_m, "b s t c -> b s c t"),
                 rearrange(s_t_m_t, "b s t c -> b s c t"),
             )
-            s_t_l_x = self.forward_filling_masked_data_per_channel_else_median(
+            s_t_l_x, s_t_l_t = self.forward_filling_masked_data_per_channel_else_median(
                 rearrange(s_t_l_x, "b s t c -> b s c t"),
                 rearrange(s_t_l_m, "b s t c -> b s c t"),
                 rearrange(s_t_l_t, "b s t c -> b s c t"),
             )
-            sp_x = self.forward_filling_masked_data_per_channel_else_median(
+            sp_x, sp_t = self.forward_filling_masked_data_per_channel_else_median(
                 rearrange(sp_x, "b s c -> b s c"),
                 rearrange(sp_m, "b s c -> b s c"),
                 rearrange(sp_t, "b s c -> b s c"),
             )
-            t_x = self.forward_filling_masked_data_per_channel_else_median(
+            t_x, t_t = self.forward_filling_masked_data_per_channel_else_median(
                 rearrange(t_x, "b s t c -> b s c t"),
                 rearrange(t_m, "b s t c -> b s c t"),
                 rearrange(t_t, "b s t c -> b s c t"),
             )
-            st_x = self.forward_filling_masked_data_per_channel_else_median(
+            st_x, st_t = self.forward_filling_masked_data_per_channel_else_median(
                 rearrange(st_x, "b s c -> b s c"),
                 rearrange(st_m, "b s c -> b s c"),
                 rearrange(st_t, "b s c -> b s c"),
