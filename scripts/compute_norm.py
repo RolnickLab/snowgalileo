@@ -32,6 +32,11 @@ if args["tifs_folder"] == "":
 else:
     tifs_folder = Path(DATA_FOLDER / args["tifs_folder"])
 
+if args["h5py_folder"] != "":
+    args["h5py_folder"] = Path(DATA_FOLDER / args["h5py_folder"])
+else:
+    args["h5py_folder"] = None
+
 print("Loading dataset and dataloader")
 
 dataset = Dataset(
