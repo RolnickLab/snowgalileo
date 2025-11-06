@@ -34,7 +34,9 @@ from galileo.src.data.dataset import SPACE_TIME_BANDS as GALILEO_SPACE_TIME_BAND
 from galileo.src.data.dataset import SPACE_BAND_GROUPS_IDX as GALILEO_SPACE_BANDS_GROUPS_IDX
 from galileo.src.data.dataset import STATIC_BAND_GROUPS_IDX as GALILEO_STATIC_BANDS_GROUPS_IDX
 from galileo.src.data.dataset import TIME_BAND_GROUPS_IDX as GALILEO_TIME_BANDS_GROUPS_IDX
-from galileo.src.data.dataset import SPACE_TIME_BANDS_GROUPS_IDX as GALILEO_SPACE_TIME_BANDS_GROUPS_IDX
+from galileo.src.data.dataset import (
+    SPACE_TIME_BANDS_GROUPS_IDX as GALILEO_SPACE_TIME_BANDS_GROUPS_IDX,
+)
 from galileo.src.data.dataset import NUM_TIMESTEPS as GALILEO_TIMESTEPS
 from galileo.src.data.dataset import DATASET_OUTPUT_HW as GALILEO_HW
 from galileo.src.data.dataset import SRTM_BANDS, LANDSCAN_BANDS
@@ -48,7 +50,9 @@ from galileo.src.data.dataset import (
     SPACE_TIME_SHIFT_VALUES as GALILEO_SPACE_TIME_SHIFT_VALUES,
     SPACE_TIME_DIV_VALUES as GALILEO_SPACE_TIME_DIV_VALUES,
 )
-from galileo.src.data.config import NORMALIZATION_DICT_FILENAME as GALILEO_NORMALIZATION_DICT_FILENAME
+from galileo.src.data.config import (
+    NORMALIZATION_DICT_FILENAME as GALILEO_NORMALIZATION_DICT_FILENAME,
+)
 from galileo.src.utils import config_dir as galileo_config_dir
 
 from src.eval.landsat_bands import LANDSAT_SPACE_TIME_BANDS, LANDSAT_STATIC_BANDS
@@ -77,15 +81,28 @@ GALILEO_HW = 100
 
 logger = logging.getLogger("__main__")
 
-with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval_1_99_test.json")).open("r") as f:
+with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval_1_99_test.json")).open(
+    "r"
+) as f:
     config = json.load(f)
     data_config = config["data"]
 
-LANDSAT_SPACE_TIME_HIGH_RES_BANDS_TO_GALILEO_SPACE_TIME_BANDS = [LANDSAT_SPACE_TIME_BANDS.index(s) for s in GALILEO_SPACE_TIME_BANDS if s in LANDSAT_SPACE_TIME_BANDS]
-GALILEO_SPACE_TIME_BANDS_TO_LANDSAT_SPACE_TIME_HIGH_RES_BANDS = [idx for idx, s in enumerate(GALILEO_SPACE_TIME_BANDS) if s in LANDSAT_SPACE_TIME_BANDS]
+LANDSAT_SPACE_TIME_HIGH_RES_BANDS_TO_GALILEO_SPACE_TIME_BANDS = [
+    LANDSAT_SPACE_TIME_BANDS.index(s)
+    for s in GALILEO_SPACE_TIME_BANDS
+    if s in LANDSAT_SPACE_TIME_BANDS
+]
+GALILEO_SPACE_TIME_BANDS_TO_LANDSAT_SPACE_TIME_HIGH_RES_BANDS = [
+    idx for idx, s in enumerate(GALILEO_SPACE_TIME_BANDS) if s in LANDSAT_SPACE_TIME_BANDS
+]
 
-LANDSAT_STATIC_BANDS_TO_GALILEO_STATIC_BANDS = [LANDSAT_STATIC_BANDS.index(s) for s in GALILEO_STATIC_BANDS if s in LANDSAT_STATIC_BANDS]
-GALILEO_STATIC_BANDS_TO_LANDSAT_STATIC_BANDS = [idx for idx, s in enumerate(GALILEO_STATIC_BANDS) if s in LANDSAT_STATIC_BANDS]
+LANDSAT_STATIC_BANDS_TO_GALILEO_STATIC_BANDS = [
+    LANDSAT_STATIC_BANDS.index(s) for s in GALILEO_STATIC_BANDS if s in LANDSAT_STATIC_BANDS
+]
+GALILEO_STATIC_BANDS_TO_LANDSAT_STATIC_BANDS = [
+    idx for idx, s in enumerate(GALILEO_STATIC_BANDS) if s in LANDSAT_STATIC_BANDS
+]
+
 
 # TODO:
 # - subset image and label
@@ -97,6 +114,7 @@ class MaskedOutputGalileo(NamedTuple):
     1: not seen by the encoder, and ignored by the decoder
     2: not seen by the encoder, and processed by the decoder (the decoder's query values)
     """
+
     space_time_x: torch.Tensor
     space_x: torch.Tensor
     time_x: torch.Tensor
@@ -106,6 +124,7 @@ class MaskedOutputGalileo(NamedTuple):
     time_mask: torch.Tensor
     static_mask: torch.Tensor
     months: torch.Tensor
+
 
 def masked_output_np_to_tensor_galileo(
     s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, month
@@ -134,7 +153,6 @@ class GalileoDatasetOutput(NamedTuple):
     galileo_valid_data_mask_sp: np.ndarray
     galileo_valid_data_mask_t: np.ndarray
     galileo_valid_data_mask_st: np.ndarray
-
 
 
 class GalileoNormalizer:
@@ -203,6 +221,7 @@ class GalileoNormalizer:
         div_values = self.shift_div_dict[x.shape[-1]]["div"]
         return self._normalize(x, self.shift_div_dict[x.shape[-1]]["shift"], div_values)
 
+
 class LandsatEvalDatasetGalileo(PyTorchDataset):
     def __init__(
         self,
@@ -224,7 +243,11 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
         self.label_folder = DATA_FOLDER / data_config["label_folder"] / self.split
         self.input_tif_folder = DATA_FOLDER / data_config["input_tif_folder"] / self.split
 
-        if (self.split != "visualize") and (self.split != "test") and (data_config.get("input_h5py_folder") != ""):
+        if (
+            (self.split != "visualize")
+            and (self.split != "test")
+            and (data_config.get("input_h5py_folder") != "")
+        ):
             self.h5py_folder = DATA_FOLDER / data_config["input_h5py_folder"] / self.split
         else:
             self.h5py_folder = None
@@ -286,7 +309,7 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
         s_t_m[:, :, -1, :] = 1
         t_m[-1, :] = 1
         return s_t_m, sp_m, t_m, st_m
-    
+
     def mask_prediction_high_res(self, s_t_m, sp_m, t_m, st_m):
         # masks the high resolution, optical data in the prediction timestep
         # high resolution channels are: 3 x s1, s2, landsat, so we retain the first 3 channels
@@ -417,7 +440,7 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
         # - 1 because we want to index from 0
         # TODO: account for the possibility that different timesteps can be in different months
         return np.full(num_timesteps, prediction_month - 1)
-    
+
     @staticmethod
     def subset_image(
         space_time_x: np.ndarray,
@@ -518,9 +541,7 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
 
         # NDVI = (NIR - Red) / (NIR + Red)
         if MODALITIES["ndvi"].get("active"):
-            ndvi = cls.calculate_ndi_high_res(
-                space_time_high_res_x, band_1="B8", band_2="B4"
-            )
+            ndvi = cls.calculate_ndi_high_res(space_time_high_res_x, band_1="B8", band_2="B4")
             space_time_high_res_x = np.concatenate((space_time_high_res_x, ndvi), axis=-1)
 
         space_x = rearrange(
@@ -532,9 +553,9 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
         static_x = to_cartesian(lat, lon)
         static_x = cls._check_and_fillna(static_x, np.array(STATIC_BANDS))
 
-        #space_time_high_res_x, space_x, time_x, static_x = cls.subset_image(
+        # space_time_high_res_x, space_x, time_x, static_x = cls.subset_image(
         #    space_time_high_res_x, space_x, time_x, static_x, size=GALILEO_HW
-        #)
+        # )
 
         (
             valid_data_mask_s_t_h,
@@ -549,14 +570,18 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
         )
 
         # NOTE: We initialize with zeros and not with NaNs, because Galileo cannot handle NaNs and we will mask out the invalid data anyway
-        galileo_s_t_x = np.zeros((GALILEO_HW, GALILEO_HW, GALILEO_TIMESTEPS, len(GALILEO_SPACE_TIME_BANDS)))
+        galileo_s_t_x = np.zeros(
+            (GALILEO_HW, GALILEO_HW, GALILEO_TIMESTEPS, len(GALILEO_SPACE_TIME_BANDS))
+        )
         galileo_sp_x = np.zeros((GALILEO_HW, GALILEO_HW, len(GALILEO_SPACE_BANDS)))
         galileo_t_x = np.zeros((GALILEO_TIMESTEPS, len(GALILEO_TIME_BANDS)))
         galileo_st_x = np.zeros((len(GALILEO_STATIC_BANDS),))
 
         galileo_months = cls.month_array_from_file(tif_path, int(GALILEO_TIMESTEPS))
 
-        galileo_valid_data_mask_s_t = np.zeros((GALILEO_HW, GALILEO_HW, GALILEO_TIMESTEPS, len(GALILEO_SPACE_TIME_BANDS)))
+        galileo_valid_data_mask_s_t = np.zeros(
+            (GALILEO_HW, GALILEO_HW, GALILEO_TIMESTEPS, len(GALILEO_SPACE_TIME_BANDS))
+        )
         # no matching space data and no matching time data, so we can just fill it with zeros (= all invalid)
         galileo_valid_data_mask_sp = np.zeros((GALILEO_HW, GALILEO_HW, len(GALILEO_SPACE_BANDS)))
         galileo_valid_data_mask_t = np.zeros((GALILEO_TIMESTEPS, len(GALILEO_TIME_BANDS)))
@@ -564,11 +589,21 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
 
         # fill galileo bands with matching landsat bands
         # landsat bands have only 8 timesteps, so we need to slice accordingly
-        galileo_s_t_x[:, :, :-4, GALILEO_SPACE_TIME_BANDS_TO_LANDSAT_SPACE_TIME_HIGH_RES_BANDS] = space_time_high_res_x[:, :, :, LANDSAT_SPACE_TIME_HIGH_RES_BANDS_TO_GALILEO_SPACE_TIME_BANDS]
+        galileo_s_t_x[:, :, :-4, GALILEO_SPACE_TIME_BANDS_TO_LANDSAT_SPACE_TIME_HIGH_RES_BANDS] = (
+            space_time_high_res_x[
+                :, :, :, LANDSAT_SPACE_TIME_HIGH_RES_BANDS_TO_GALILEO_SPACE_TIME_BANDS
+            ]
+        )
         galileo_st_x[GALILEO_STATIC_BANDS_TO_LANDSAT_STATIC_BANDS] = static_x
 
-        galileo_valid_data_mask_s_t[:, :, :-4, GALILEO_SPACE_TIME_BANDS_TO_LANDSAT_SPACE_TIME_HIGH_RES_BANDS] = valid_data_mask_s_t_h[:, :, :, LANDSAT_SPACE_TIME_HIGH_RES_BANDS_TO_GALILEO_SPACE_TIME_BANDS]
-        galileo_valid_data_mask_st[GALILEO_STATIC_BANDS_TO_LANDSAT_STATIC_BANDS] = valid_data_mask_st[LANDSAT_STATIC_BANDS_TO_GALILEO_STATIC_BANDS]
+        galileo_valid_data_mask_s_t[
+            :, :, :-4, GALILEO_SPACE_TIME_BANDS_TO_LANDSAT_SPACE_TIME_HIGH_RES_BANDS
+        ] = valid_data_mask_s_t_h[
+            :, :, :, LANDSAT_SPACE_TIME_HIGH_RES_BANDS_TO_GALILEO_SPACE_TIME_BANDS
+        ]
+        galileo_valid_data_mask_st[GALILEO_STATIC_BANDS_TO_LANDSAT_STATIC_BANDS] = (
+            valid_data_mask_st[LANDSAT_STATIC_BANDS_TO_GALILEO_STATIC_BANDS]
+        )
 
         try:
             assert not np.isnan(galileo_s_t_x).any(), f"NaNs in s_t_x for {tif_path}"
@@ -789,7 +824,10 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
                 self.output_hw_high_res,
                 len(GALILEO_SPACE_BANDS),
             )
-            assert hf["galileo_valid_data_mask_t"].shape == (self.output_timesteps, len(GALILEO_TIME_BANDS))
+            assert hf["galileo_valid_data_mask_t"].shape == (
+                self.output_timesteps,
+                len(GALILEO_TIME_BANDS),
+            )
             assert hf["galileo_valid_data_mask_st"].shape == (len(GALILEO_STATIC_BANDS),)
 
             months = self.month_array_from_file(h5py_path, self.output_timesteps)
@@ -805,7 +843,7 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
                 hf["galileo_valid_data_mask_st"][:],
             )
         return output
-    
+
     @staticmethod
     def load_normalization_values(path: Path):
         if not path.exists():
@@ -834,7 +872,9 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
         ) = h5py
 
         # empty bands should have a mask of one
-        galileo_s_t_m = torch.ones((GALILEO_HW, GALILEO_HW, GALILEO_TIMESTEPS, len(GALILEO_SPACE_TIME_BANDS)))
+        galileo_s_t_m = torch.ones(
+            (GALILEO_HW, GALILEO_HW, GALILEO_TIMESTEPS, len(GALILEO_SPACE_TIME_BANDS))
+        )
         # no matching space bands between Galileo and SnowGalileo
         galileo_sp_m = torch.ones((GALILEO_HW, GALILEO_HW, len(GALILEO_SPACE_BANDS)))
         # era5 is matching, but not for entire channel group
@@ -852,8 +892,12 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
         galileo_st_m = np.logical_or(galileo_st_m, np.logical_not(galileo_valid_data_mask_st))
 
         # turn it from band-space into band-group-space
-        galileo_s_t_m = galileo_s_t_m[:, :, :, [g[0] for _, g in GALILEO_SPACE_TIME_BANDS_GROUPS_IDX.items()]]
-        galileo_sp_m = galileo_sp_m[:, :, [g[0] for _, g in GALILEO_SPACE_BANDS_GROUPS_IDX.items()]]
+        galileo_s_t_m = galileo_s_t_m[
+            :, :, :, [g[0] for _, g in GALILEO_SPACE_TIME_BANDS_GROUPS_IDX.items()]
+        ]
+        galileo_sp_m = galileo_sp_m[
+            :, :, [g[0] for _, g in GALILEO_SPACE_BANDS_GROUPS_IDX.items()]
+        ]
         galileo_t_m = galileo_t_m[:, [g[0] for _, g in GALILEO_TIME_BANDS_GROUPS_IDX.items()]]
         galileo_st_m = galileo_st_m[[g[0] for _, g in GALILEO_STATIC_BANDS_GROUPS_IDX.items()]]
 
@@ -867,12 +911,16 @@ class LandsatEvalDatasetGalileo(PyTorchDataset):
 
         # if assertion is triggered, go to the next tif file
         try:
-            assert self.input_tifs[idx].name == self.label_tifs[idx].name, (f"Input path {self.input_tifs[idx].name} and label path {self.label_tifs[idx].name} do not match.")
-        except AssertionError:
-            print(
-                f"Label shape {label.shape} does not match expected shape for {label.name}"
+            assert self.input_tifs[idx].name == self.label_tifs[idx].name, (
+                f"Input path {self.input_tifs[idx].name} and label path {self.label_tifs[idx].name} do not match."
             )
-            self.label_tifs[idx] = self.label_tifs[idx + 1] if idx < len(self.label_tifs) - 1 else self.label_tifs[idx - 1]
+        except AssertionError:
+            print(f"Label shape {label.shape} does not match expected shape for {label.name}")
+            self.label_tifs[idx] = (
+                self.label_tifs[idx + 1]
+                if idx < len(self.label_tifs) - 1
+                else self.label_tifs[idx - 1]
+            )
             return self.__getitem__(idx)
 
         return (
@@ -901,6 +949,7 @@ class LandsatEvalDatasetRandomForest(LandsatEvalDataset):
     but doesn't group channel masks into channel group masks, so that we can directly
     remove masked channels for the Random Forest input.
     """
+
     def __init__(
         self,
         split: str = "train",
@@ -983,12 +1032,18 @@ class LandsatEvalDatasetRandomForest(LandsatEvalDataset):
 
         # if assertion is triggered, go to the next tif file
         try:
-            assert self.input_tifs[idx].name == self.label_tifs[idx].name, (f"Input path {self.input_tifs[idx].name} and label path {self.label_tifs[idx].name} do not match.")
+            assert self.input_tifs[idx].name == self.label_tifs[idx].name, (
+                f"Input path {self.input_tifs[idx].name} and label path {self.label_tifs[idx].name} do not match."
+            )
         except AssertionError:
             print(
                 f"Label shape {label.shape} does not match expected shape ({self.label_height_width}, {self.label_height_width}) for {self.label_tifs[idx].name}"
             )
-            self.label_tifs[idx] = self.label_tifs[idx + 1] if idx < len(self.label_tifs) - 1 else self.label_tifs[idx - 1]
+            self.label_tifs[idx] = (
+                self.label_tifs[idx + 1]
+                if idx < len(self.label_tifs) - 1
+                else self.label_tifs[idx - 1]
+            )
             return self.__getitem__(idx)
 
         return (
@@ -1010,7 +1065,8 @@ class LandsatEvalDatasetRandomForest(LandsatEvalDataset):
             label,
             self.input_tifs[idx].name,  # for logging purposes
         )
-    
+
+
 class LandsatEvalRandomForest(LandsatEval):
     regression = True
     spatial_token_prediction = True
@@ -1039,20 +1095,20 @@ class LandsatEvalRandomForest(LandsatEval):
         )
 
     def remove_masked_data_and_flatten(
-            self,
-            s_t_h_x,
-            s_t_m_x,
-            s_t_l_x,
-            sp_x,
-            t_x,
-            st_x,
-            s_t_h_m,
-            s_t_m_m,
-            s_t_l_m,
-            sp_m,
-            t_m,
-            st_m,
-            month
+        self,
+        s_t_h_x,
+        s_t_m_x,
+        s_t_l_x,
+        sp_x,
+        t_x,
+        st_x,
+        s_t_h_m,
+        s_t_m_m,
+        s_t_l_m,
+        sp_m,
+        t_m,
+        st_m,
+        month,
     ):
         # returns: (N) where N is the number of unmasked values
         assert s_t_h_x.shape == s_t_h_m.shape
@@ -1061,24 +1117,28 @@ class LandsatEvalRandomForest(LandsatEval):
         assert sp_x.shape == sp_m.shape
         assert t_x.shape == t_m.shape
         assert st_x.shape == st_m.shape
-        x = torch.cat([
-            s_t_h_x.flatten(),
-            s_t_m_x.flatten(),
-            s_t_l_x.flatten(),
-            sp_x.flatten(),
-            t_x.flatten(),
-            st_x.flatten(),
-            month.flatten(),
-        ])
-        m = torch.cat([
-            s_t_h_m.flatten(),
-            s_t_m_m.flatten(),
-            s_t_l_m.flatten(),
-            sp_m.flatten(),
-            t_m.flatten(),
-            st_m.flatten(),
-            torch.zeros_like(month).flatten(),  # month is never masked
-        ])
+        x = torch.cat(
+            [
+                s_t_h_x.flatten(),
+                s_t_m_x.flatten(),
+                s_t_l_x.flatten(),
+                sp_x.flatten(),
+                t_x.flatten(),
+                st_x.flatten(),
+                month.flatten(),
+            ]
+        )
+        m = torch.cat(
+            [
+                s_t_h_m.flatten(),
+                s_t_m_m.flatten(),
+                s_t_l_m.flatten(),
+                sp_m.flatten(),
+                t_m.flatten(),
+                st_m.flatten(),
+                torch.zeros_like(month).flatten(),  # month is never masked
+            ]
+        )
         assert x.shape == m.shape
         return x[m == 0]
 
@@ -1097,7 +1157,7 @@ class LandsatEvalRandomForest(LandsatEval):
         # replaces masked values with the last unmasked value over all channels in the same data group
         # perform forward filling per channel
 
-        x = torch.masked_fill(x, m.bool(), float('nan'))
+        x = torch.masked_fill(x, m.bool(), float("nan"))
 
         for i in range(x.shape[-2]):
             if x.dim() == 3:
@@ -1117,31 +1177,34 @@ class LandsatEvalRandomForest(LandsatEval):
                     last_valid_timestep = torch.nan
                     current_timestep = 0
                     last_valid_value = torch.nan
-                    for t in range(channel_data.shape[-1]):
-                        if not channel_mask[..., t]:
-                            last_valid_value = channel_data[..., t]
+                    for timestep in range(channel_data.shape[-1]):
+                        if not channel_mask[..., timestep]:
+                            last_valid_value = channel_data[..., timestep]
                             last_valid_timestep = current_timestep
                             current_timestep += 1
                         else:
                             if torch.isnan(last_valid_value):
                                 # no valid value found yet, replace with median per channel group
-                                channel_data[..., t] = torch.nanmedian(x, dim=-1, keepdim=True)[..., i]
+                                channel_data[..., timestep] = torch.nanmedian(x, dim=-1, keepdim=True)[
+                                    ..., i
+                                ]
                             else:
-                                channel_data[..., t] = last_valid_value
-                                channel_time_distance[..., t] = current_timestep - last_valid_timestep
+                                channel_data[..., timestep] = last_valid_value
+                                channel_time_distance[..., timestep] = (
+                                    current_timestep - last_valid_timestep
+                                )
                             current_timestep += 1
-        
+
         # assert there are no NaNs left
         assert not torch.isnan(x).any(), "There are still NaNs left after forward filling."
         return x
 
-    
     def replace_masked_data_with_median_per_channel(
         self,
         x,
         m,
     ):
-        x = torch.masked_fill(x, m.bool(), float('nan'))
+        x = torch.masked_fill(x, m.bool(), float("nan"))
 
         # for timeseries data:
         # for each channel, replaces NaNs with mean over timestep for this channel
@@ -1149,7 +1212,7 @@ class LandsatEvalRandomForest(LandsatEval):
         # replaces NaNs with mean over all channels in the same data group
         x = torch.where(torch.isnan(x), torch.nanmedian(x, dim=-1, keepdim=True), x)
 
-        # if there are still NaNs (all values in the timeseries (for timeseries) or 
+        # if there are still NaNs (all values in the timeseries (for timeseries) or
         # data group (for space-only and static data) were masked):
         # replace mean over timesteps (all channels in the same data group)
         # or replace with spatial mean (for space-only and static data)
@@ -1176,7 +1239,7 @@ class LandsatEvalRandomForest(LandsatEval):
         t_m,
         st_m,
         month,
-        replace_with="last"
+        replace_with="last",
     ):
         # replace masked data with (A) the last timestep of this sensor, (B) the median over time of this sensor, (C) zeros, (D) NaNs to be handled by RF.
         # RF computes median for missing values (?)
@@ -1206,35 +1269,27 @@ class LandsatEvalRandomForest(LandsatEval):
                 "b (t_h p_h) (t_w p_w) t c -> b t_h t_w t c",
                 p_h=patch_size_high_res,
                 p_w=patch_size_high_res,
-                reduction="max", # if one value is masked, the entire patch is masked
+                reduction="max",  # if one value is masked, the entire patch is masked
             ),
             "b t_h t_w t c -> b (t_h t_w) t c",
         )
 
         # repeat medium and low resolution tokens over high resolution
         s_t_m_x = rearrange(
-            repeat(
-                s_t_m_x, "b t_h t_w t c -> b (t_h p_h) (t_w p_w) t c", p_h=p_m, p_w=p_m
-            ),
+            repeat(s_t_m_x, "b t_h t_w t c -> b (t_h p_h) (t_w p_w) t c", p_h=p_m, p_w=p_m),
             "b t_h t_w t c -> b (t_h t_w) t c",
         )
         s_t_m_m = rearrange(
-            repeat(
-                s_t_m_m, "b t_h t_w t c -> b (t_h p_h) (t_w p_w) t c", p_h=p_m, p_w=p_m
-            ),
+            repeat(s_t_m_m, "b t_h t_w t c -> b (t_h p_h) (t_w p_w) t c", p_h=p_m, p_w=p_m),
             "b t_h t_w t c -> b (t_h t_w) t c",
         )
 
         s_t_l_x = rearrange(
-            repeat(
-                s_t_l_x, "b t_h t_w t c -> b (t_h p_h) (t_w p_w) t c", p_h=p_l, p_w=p_l
-            ),
+            repeat(s_t_l_x, "b t_h t_w t c -> b (t_h p_h) (t_w p_w) t c", p_h=p_l, p_w=p_l),
             "b t_h t_w t c -> b (t_h t_w) t c",
         )
         s_t_l_m = rearrange(
-            repeat(
-                s_t_l_m, "b t_h t_w t c -> b (t_h p_h) (t_w p_w) t c", p_h=p_l, p_w=p_l
-            ),
+            repeat(s_t_l_m, "b t_h t_w t c -> b (t_h p_h) (t_w p_w) t c", p_h=p_l, p_w=p_l),
             "b t_h t_w t c -> b (t_h t_w) t c",
         )
 
@@ -1254,15 +1309,13 @@ class LandsatEvalRandomForest(LandsatEval):
                 "b (t_h p_h) (t_w p_w) c -> b t_h t_w c",
                 p_h=patch_size_high_res,
                 p_w=patch_size_high_res,
-                reduction="max", # if one value is masked, the entire patch is masked
-        ),
+                reduction="max",  # if one value is masked, the entire patch is masked
+            ),
             "b t_h t_w c -> b (t_h t_w) c",
         )
 
         # repeat time tokens over space
-        t_x = repeat(
-            t_x, "b t c -> b s t c", s=sp_x.shape[1]
-        )
+        t_x = repeat(t_x, "b t c -> b s t c", s=sp_x.shape[1])
         t_m = repeat(t_m, "b t c -> b s t c", s=sp_x.shape[1])
 
         st_x = repeat(st_x, "b c -> b s c", s=sp_x.shape[1])
@@ -1284,27 +1337,63 @@ class LandsatEvalRandomForest(LandsatEval):
 
         if replace_with == "median":
             # NOTE: for median replacement, we set the acquisition time to zero, as we lose the temporal information
-            s_t_h_x = self.replace_masked_data_with_median_per_channel(rearrange(s_t_h_x, "b s t c -> b s c t"), rearrange(s_t_h_m, "b s t c -> b s c t"))
-            s_t_m_x = self.replace_masked_data_with_median_per_channel(rearrange(s_t_m_x, "b s t c -> b s c t"), rearrange(s_t_m_m, "b s t c -> b s c t"))
-            s_t_l_x = self.replace_masked_data_with_median_per_channel(rearrange(s_t_l_x, "b s t c -> b s c t"), rearrange(s_t_l_m, "b s t c -> b s c t"))
-            sp_x = self.replace_masked_data_with_median_per_channel(rearrange(sp_x, "b s c -> b s c"), rearrange(sp_m, "b s c -> b s c"))
-            t_x = self.replace_masked_data_with_median_per_channel(rearrange(t_x, "b s t c -> b s c t"), rearrange(t_m, "b s t c -> b s c t"))
-            st_x = self.replace_masked_data_with_median_per_channel(rearrange(st_x, "b s c -> b s c"), rearrange(st_m, "b s c -> b s c"))
+            s_t_h_x = self.replace_masked_data_with_median_per_channel(
+                rearrange(s_t_h_x, "b s t c -> b s c t"), rearrange(s_t_h_m, "b s t c -> b s c t")
+            )
+            s_t_m_x = self.replace_masked_data_with_median_per_channel(
+                rearrange(s_t_m_x, "b s t c -> b s c t"), rearrange(s_t_m_m, "b s t c -> b s c t")
+            )
+            s_t_l_x = self.replace_masked_data_with_median_per_channel(
+                rearrange(s_t_l_x, "b s t c -> b s c t"), rearrange(s_t_l_m, "b s t c -> b s c t")
+            )
+            sp_x = self.replace_masked_data_with_median_per_channel(
+                rearrange(sp_x, "b s c -> b s c"), rearrange(sp_m, "b s c -> b s c")
+            )
+            t_x = self.replace_masked_data_with_median_per_channel(
+                rearrange(t_x, "b s t c -> b s c t"), rearrange(t_m, "b s t c -> b s c t")
+            )
+            st_x = self.replace_masked_data_with_median_per_channel(
+                rearrange(st_x, "b s c -> b s c"), rearrange(st_m, "b s c -> b s c")
+            )
         if replace_with == "last":
-            s_t_h_x = self.forward_filling_masked_data_per_channel_else_median(rearrange(s_t_h_x, "b s t c -> b s c t"), rearrange(s_t_h_m, "b s t c -> b s c t"), rearrange(s_t_h_t, "b s t c -> b s c t"))
-            s_t_m_x = self.forward_filling_masked_data_per_channel_else_median(rearrange(s_t_m_x, "b s t c -> b s c t"), rearrange(s_t_m_m, "b s t c -> b s c t"), rearrange(s_t_m_t, "b s t c -> b s c t"))
-            s_t_l_x = self.forward_filling_masked_data_per_channel_else_median(rearrange(s_t_l_x, "b s t c -> b s c t"), rearrange(s_t_l_m, "b s t c -> b s c t"), rearrange(s_t_l_t, "b s t c -> b s c t"))
-            sp_x = self.forward_filling_masked_data_per_channel_else_median(rearrange(sp_x, "b s c -> b s c"), rearrange(sp_m, "b s c -> b s c"), rearrange(sp_t, "b s c -> b s c"))
-            t_x = self.forward_filling_masked_data_per_channel_else_median(rearrange(t_x, "b s t c -> b s c t"), rearrange(t_m, "b s t c -> b s c t"), rearrange(t_t, "b s t c -> b s c t"))
-            st_x = self.forward_filling_masked_data_per_channel_else_median(rearrange(st_x, "b s c -> b s c"), rearrange(st_m, "b s c -> b s c"), rearrange(st_t, "b s c -> b s c"))
+            s_t_h_x = self.forward_filling_masked_data_per_channel_else_median(
+                rearrange(s_t_h_x, "b s t c -> b s c t"),
+                rearrange(s_t_h_m, "b s t c -> b s c t"),
+                rearrange(s_t_h_t, "b s t c -> b s c t"),
+            )
+            s_t_m_x = self.forward_filling_masked_data_per_channel_else_median(
+                rearrange(s_t_m_x, "b s t c -> b s c t"),
+                rearrange(s_t_m_m, "b s t c -> b s c t"),
+                rearrange(s_t_m_t, "b s t c -> b s c t"),
+            )
+            s_t_l_x = self.forward_filling_masked_data_per_channel_else_median(
+                rearrange(s_t_l_x, "b s t c -> b s c t"),
+                rearrange(s_t_l_m, "b s t c -> b s c t"),
+                rearrange(s_t_l_t, "b s t c -> b s c t"),
+            )
+            sp_x = self.forward_filling_masked_data_per_channel_else_median(
+                rearrange(sp_x, "b s c -> b s c"),
+                rearrange(sp_m, "b s c -> b s c"),
+                rearrange(sp_t, "b s c -> b s c"),
+            )
+            t_x = self.forward_filling_masked_data_per_channel_else_median(
+                rearrange(t_x, "b s t c -> b s c t"),
+                rearrange(t_m, "b s t c -> b s c t"),
+                rearrange(t_t, "b s t c -> b s c t"),
+            )
+            st_x = self.forward_filling_masked_data_per_channel_else_median(
+                rearrange(st_x, "b s c -> b s c"),
+                rearrange(st_m, "b s c -> b s c"),
+                rearrange(st_t, "b s c -> b s c"),
+            )
         elif replace_with == "nan":
             # NOTE: for NaN replacement, we keep the acquisition time as is, as we don't change the data
-            s_t_h_x = s_t_h_x.masked_fill(s_t_h_m.bool(), float('nan'))
-            s_t_m_x = s_t_m_x.masked_fill(s_t_m_m.bool(), float('nan'))
-            s_t_l_x = s_t_l_x.masked_fill(s_t_l_m.bool(), float('nan'))
-            sp_x = sp_x.masked_fill(sp_m.bool(), float('nan'))
-            t_x = t_x.masked_fill(t_m.bool(), float('nan'))
-            st_x = st_x.masked_fill(st_m.bool(), float('nan'))
+            s_t_h_x = s_t_h_x.masked_fill(s_t_h_m.bool(), float("nan"))
+            s_t_m_x = s_t_m_x.masked_fill(s_t_m_m.bool(), float("nan"))
+            s_t_l_x = s_t_l_x.masked_fill(s_t_l_m.bool(), float("nan"))
+            sp_x = sp_x.masked_fill(sp_m.bool(), float("nan"))
+            t_x = t_x.masked_fill(t_m.bool(), float("nan"))
+            st_x = st_x.masked_fill(st_m.bool(), float("nan"))
         elif replace_with == "zeros":
             # NOTE: for zero replacement, we set the acquisition time to zero, as we lose the temporal information
             s_t_h_x = s_t_h_x.masked_fill(s_t_h_m.bool(), 0.0)
@@ -1313,7 +1402,7 @@ class LandsatEvalRandomForest(LandsatEval):
             sp_x = sp_x.masked_fill(sp_m.bool(), 0.0)
             t_x = t_x.masked_fill(t_m.bool(), 0.0)
             st_x = st_x.masked_fill(st_m.bool(), 0.0)
-        
+
         s_t_h_x = rearrange(s_t_h_x, "b s t c -> b s (t c)")
         s_t_h_m = rearrange(s_t_h_m, "b s t c -> b s (t c)")
         s_t_h_t = rearrange(s_t_h_t, "b s t c -> b s (t c)")
@@ -1327,11 +1416,32 @@ class LandsatEvalRandomForest(LandsatEval):
         t_m = rearrange(t_m, "b s t c -> b s (t c)")
         t_t = rearrange(t_t, "b s t c -> b s (t c)")
 
-        x = torch.cat([s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_t, s_t_m_t, s_t_l_t, sp_t, t_t, st_t, month], dim=2)  # B, S, N
-        m = torch.cat([s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, torch.zeros_like(month)], dim=2)  # B, S, N
+        x = torch.cat(
+            [
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_t,
+                s_t_m_t,
+                s_t_l_t,
+                sp_t,
+                t_t,
+                st_t,
+                month,
+            ],
+            dim=2,
+        )  # B, S, N
+        m = torch.cat(
+            [s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, torch.zeros_like(month)], dim=2
+        )  # B, S, N
 
         # check that no no-data values (-9999) are left
-        assert not (x == -9999).any(), "No-data values (-9999) left in input after replacing masked data"
+        assert not (x == -9999).any(), (
+            "No-data values (-9999) left in input after replacing masked data"
+        )
 
         return x, m
 
@@ -1358,9 +1468,9 @@ class LandsatEvalRandomForest(LandsatEval):
         for input, label, _ in train_dl:
             input, _ = torch.squeeze(
                 self.aggregate_per_output_pixel_and_replace_masked_data(
-                    *input,
-                    replace_with="last"
-                ))  # (N, num_features)
+                    *input, replace_with="last"
+                )
+            )  # (N, num_features)
             label = torch.squeeze(label).flatten()  # (N,)
             all_samples.append(input)
             all_labels.append(label)
@@ -1372,7 +1482,7 @@ class LandsatEvalRandomForest(LandsatEval):
         regr.fit(rf_input, rf_labels)
 
         # save the model
-        try: 
+        try:
             model_path = Path(f"./landsat_rf_model_{id}.joblib")
             joblib.dump(regr, model_path)
             print(f"Saved Random Forest model to {model_path}", flush=True)
@@ -1398,9 +1508,9 @@ class LandsatEvalRandomForest(LandsatEval):
         for input, label, _ in test_dl:
             input = torch.squeeze(
                 self.aggregate_per_output_pixel_and_replace_masked_data(
-                    *input,
-                    replace_with="last"
-                )[0])  # (N, num_features)
+                    *input, replace_with="last"
+                )[0]
+            )  # (N, num_features)
             preds = regr.predict(input.numpy())
             all_preds.append(torch.as_tensor(preds))
             all_test_labels.append(torch.squeeze(label).flatten())
@@ -1424,9 +1534,12 @@ class LandsatEvalRandomForest(LandsatEval):
         with results_path.open("w") as f:
             json.dump(results, f)
 
+
 if __name__ == "__main__":
     id = "test"
-    with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval_5_95.json")).open("r") as f:
+    with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval_5_95.json")).open(
+        "r"
+    ) as f:
         config = json.load(f)
     rf = LandsatEvalRandomForest(
         normalization="std",
