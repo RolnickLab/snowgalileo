@@ -73,14 +73,15 @@ class RunningStats:
             if n == 0:
                 continue
 
-            delta = x_valid - self.mean[c]
-            self.count[c] += n
-            self.mean[c] += delta.sum() / self.count[c]
-            delta2 = x_valid - self.mean[c]
-            self.M2[c] += (delta * delta2).sum()
-            assert self.M2[c] is not np.nan, "M2 has become NaN, something went wrong."
-            assert self.mean[c] is not np.nan, "Mean has become NaN, something went wrong."
-            assert self.count[c] > 0, "Count is not positive, something went wrong."
+            for value in x_valid:
+                delta = value - self.mean[c]
+                self.count[c] += 1
+                self.mean[c] += delta / self.count[c]
+                delta2 = value - self.mean[c]
+                self.M2[c] += (delta * delta2)
+                assert self.M2[c] is not np.nan, "M2 has become NaN, something went wrong."
+                assert self.mean[c] is not np.nan, "Mean has become NaN, something went wrong."
+                assert self.count[c] > 0, "Count is not positive, something went wrong."
 
     def finalize(self):
         assert (self.count > 1).all(), (
