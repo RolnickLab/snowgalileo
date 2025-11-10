@@ -1409,22 +1409,22 @@ if __name__ == "__main__":
         stats.append(
             {
                 "tif": i,
-                "s_t_h_x_min": s_t_h_x_valid.min().tolist() if s_t_h_x_valid.size > 0 else None,
-                "s_t_h_x_max": s_t_h_x_valid.max().tolist() if s_t_h_x_valid.size > 0 else None,
-                "s_t_m_x_min": s_t_m_x_valid.min().tolist() if s_t_m_x_valid.size > 0 else None,
-                "s_t_m_x_max": s_t_m_x_valid.max().tolist() if s_t_m_x_valid.size > 0 else None,
-                "s_t_l_x_min": s_t_l_x_valid.min().tolist() if s_t_l_x_valid.size > 0 else None,
-                "s_t_l_x_max": s_t_l_x_valid.max().tolist() if s_t_l_x_valid.size > 0 else None,
-                "sp_x_min": sp_x_valid.min().tolist() if sp_x_valid.size > 0 else None,
-                "sp_x_max": sp_x_valid.max().tolist() if sp_x_valid.size > 0 else None,
-                "t_x_min": t_x_valid.min().tolist() if t_x_valid.size > 0 else None,
-                "t_x_max": t_x_valid.max().tolist() if t_x_valid.size > 0 else None,
-                "st_x_min": st_x_valid.min().tolist() if st_x_valid.size > 0 else None,
-                "st_x_max": st_x_valid.max().tolist() if st_x_valid.size > 0 else None,
+                "s_t_h_x_mean": s_t_h_x_valid.mean().tolist() if s_t_h_x_valid.size > 0 else None,
+                "s_t_m_x_mean": s_t_m_x_valid.mean().tolist() if s_t_m_x_valid.size > 0 else None,
+                "s_t_l_x_mean": s_t_l_x_valid.mean().tolist() if s_t_l_x_valid.size > 0 else None,
+                "sp_x_mean": sp_x_valid.mean().tolist() if sp_x_valid.size > 0 else None,
+                "t_x_mean": t_x_valid.mean().tolist() if t_x_valid.size > 0 else None,
+                "st_x_mean": st_x_valid.mean().tolist() if st_x_valid.size > 0 else None,
+                "s_t_h_x_std": s_t_h_x_valid.std().tolist() if s_t_h_x_valid.size > 0 else None,
+                "s_t_m_x_std": s_t_m_x_valid.std().tolist() if s_t_m_x_valid.size > 0 else None,
+                "s_t_l_x_std": s_t_l_x_valid.std().tolist() if s_t_l_x_valid.size > 0 else None,
+                "sp_x_std": sp_x_valid.std().tolist() if sp_x_valid.size > 0 else None,
+                "t_x_std": t_x_valid.std().tolist() if t_x_valid.size > 0 else None,
+                "st_x_std": st_x_valid.std().tolist() if st_x_valid.size > 0 else None,
             }
         )
 
     import pandas as pd
 
     df = pd.DataFrame(stats)
-    df.to_csv("data_stats.csv", index=False)
+    df.to_csv("data_stats_mean_std.csv", index=False)
