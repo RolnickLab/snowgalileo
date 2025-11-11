@@ -1401,32 +1401,44 @@ if __name__ == "__main__":
             valid_data_mask_st,
         ) = dataset[i]
 
-        s_t_h_x_valid = s_t_h_x[valid_data_mask_s_t_h.astype(bool)]
-        s_t_m_x_valid = s_t_m_x[valid_data_mask_s_t_m.astype(bool)]
-        s_t_l_x_valid = s_t_l_x[valid_data_mask_s_t_l.astype(bool)]
-        sp_x_valid = sp_x[valid_data_mask_sp.astype(bool)]
-        t_x_valid = t_x[valid_data_mask_t.astype(bool)]
-        st_x_valid = st_x[valid_data_mask_st.astype(bool)]
+        s_t_h_x_c0_valid = s_t_h_x[...,0][valid_data_mask_s_t_h[...,0].astype(bool)]
+        s_t_h_x_c1_valid = s_t_h_x[...,1][valid_data_mask_s_t_h[...,1].astype(bool)]
+        s_t_h_x_c2_valid = s_t_h_x[...,2][valid_data_mask_s_t_h[...,2].astype(bool)]
+        s_t_h_x_c3_valid = s_t_h_x[...,3][valid_data_mask_s_t_h[...,3].astype(bool)]
+        s_t_h_x_c4_valid = s_t_h_x[...,4][valid_data_mask_s_t_h[...,4].astype(bool)]
+        s_t_h_x_c5_valid = s_t_h_x[...,5][valid_data_mask_s_t_h[...,5].astype(bool)]
+        s_t_h_x_c6_valid = s_t_h_x[...,6][valid_data_mask_s_t_h[...,6].astype(bool)]
+        s_t_h_x_c7_valid = s_t_h_x[...,7][valid_data_mask_s_t_h[...,7].astype(bool)]
+        s_t_h_x_c8_valid = s_t_h_x[...,8][valid_data_mask_s_t_h[...,8].astype(bool)]
+        s_t_h_x_c9_valid = s_t_h_x[...,9][valid_data_mask_s_t_h[...,9].astype(bool)]
+        s_t_h_x_c10_valid = s_t_h_x[...,10][valid_data_mask_s_t_h[...,10].astype(bool)]
+        s_t_h_x_c11_valid = s_t_h_x[...,11][valid_data_mask_s_t_h[...,11].astype(bool)]
+        s_t_h_x_c12_valid = s_t_h_x[...,12][valid_data_mask_s_t_h[...,12].astype(bool)]
+        s_t_h_x_c13_valid = s_t_h_x[...,13][valid_data_mask_s_t_h[...,13].astype(bool)]
+        s_t_h_x_c14_valid = s_t_h_x[...,14][valid_data_mask_s_t_h[...,14].astype(bool)]
+
 
         stats.append(
             {
                 "tif": i,
-                "s_t_h_x_mean": s_t_h_x_valid.mean().tolist() if s_t_h_x_valid.size > 0 else None,
-                "s_t_m_x_mean": s_t_m_x_valid.mean().tolist() if s_t_m_x_valid.size > 0 else None,
-                "s_t_l_x_mean": s_t_l_x_valid.mean().tolist() if s_t_l_x_valid.size > 0 else None,
-                "sp_x_mean": sp_x_valid.mean().tolist() if sp_x_valid.size > 0 else None,
-                "t_x_mean": t_x_valid.mean().tolist() if t_x_valid.size > 0 else None,
-                "st_x_mean": st_x_valid.mean().tolist() if st_x_valid.size > 0 else None,
-                "s_t_h_x_std": s_t_h_x_valid.std().tolist() if s_t_h_x_valid.size > 0 else None,
-                "s_t_m_x_std": s_t_m_x_valid.std().tolist() if s_t_m_x_valid.size > 0 else None,
-                "s_t_l_x_std": s_t_l_x_valid.std().tolist() if s_t_l_x_valid.size > 0 else None,
-                "sp_x_std": sp_x_valid.std().tolist() if sp_x_valid.size > 0 else None,
-                "t_x_std": t_x_valid.std().tolist() if t_x_valid.size > 0 else None,
-                "st_x_std": st_x_valid.std().tolist() if st_x_valid.size > 0 else None,
+                "s_t_h_x_c1_std": s_t_h_x_c1_valid.std(),
+                "s_t_h_x_c2_std": s_t_h_x_c2_valid.std(),
+                "s_t_h_x_c3_std": s_t_h_x_c3_valid.std(),
+                "s_t_h_x_c4_std": s_t_h_x_c4_valid.std(),
+                "s_t_h_x_c5_std": s_t_h_x_c5_valid.std(),
+                "s_t_h_x_c6_std": s_t_h_x_c6_valid.std(),
+                "s_t_h_x_c7_std": s_t_h_x_c7_valid.std(),
+                "s_t_h_x_c8_std": s_t_h_x_c8_valid.std(),
+                "s_t_h_x_c9_std": s_t_h_x_c9_valid.std(),
+                "s_t_h_x_c10_std": s_t_h_x_c10_valid.std(),
+                "s_t_h_x_c11_std": s_t_h_x_c11_valid.std(),
+                "s_t_h_x_c12_std": s_t_h_x_c12_valid.std(),
+                "s_t_h_x_c13_std": s_t_h_x_c13_valid.std(),
+                "s_t_h_x_c14_std": s_t_h_x_c14_valid.std(),
             }
         )
 
     import pandas as pd
 
     df = pd.DataFrame(stats)
-    df.to_csv("data_stats_mean_std.csv", index=False)
+    df.to_csv("data_stats_mean_std_new.csv", index=False)
