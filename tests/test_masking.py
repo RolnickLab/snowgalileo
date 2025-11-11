@@ -199,10 +199,10 @@ class TestMasking(unittest.TestCase):
 
     # TODO: make this applicable to our data
     def test_mask_by_random(self):
-        b, t, h_h, w_h, h_m, w_m, h_l, w_l, p = 2, 8, 100, 100, 5, 5, 2, 2, 10
-        h_tokens_high, w_tokens_high = h_h / p, w_h / p
-        h_tokens_med, w_tokens_med = h_m, w_m
-        h_tokens_low, w_tokens_low = h_l, w_l
+        b, t, h_h, w_h, h_m, w_m, h_l, w_l, p_h, p_m, p_l = 2, 8, 100, 100, 5, 5, 2, 2, 10, 1, 1
+        h_tokens_high, w_tokens_high = h_h / p_h, w_h / p_h
+        h_tokens_med, w_tokens_med = h_m / p_m, w_m / p_m
+        h_tokens_low, w_tokens_low = h_l / p_l, w_l / p_l
         space_time_high_input = torch.ones((b, h_h, w_h, t, 8))
         space_time_med_input = torch.ones((b, h_m, w_m, t, 8))
         space_time_low_input = torch.ones((b, h_l, w_l, t, 8))
@@ -235,9 +235,9 @@ class TestMasking(unittest.TestCase):
             valid_data_mask_st,
             ratio,
             ratio,
-            p,
-            1,
-            1,
+            p_h,
+            p_m,
+            p_l,
         )
         self.check_all_values_in_masks(
             output.space_time_high_mask,
@@ -268,38 +268,38 @@ class TestMasking(unittest.TestCase):
         for i in range(1, p):
             self.assertTrue(
                 torch.equal(
-                    output.space_time_high_mask[:, i::p, i::p],
-                    output.space_time_high_mask[:, i - 1 :: p, i - 1 :: p],
+                    output.space_time_high_mask[:, i::p_h, i::p_h],
+                    output.space_time_high_mask[:, i - 1 :: p_h, i - 1 :: p_h],
                 )
             )
             self.assertTrue(
                 torch.equal(
-                    output.space_mask[:, i::p, i::p],
-                    output.space_mask[:, i - 1 :: p, i - 1 :: p],
+                    output.space_mask[:, i::p_h, i::p_h],
+                    output.space_mask[:, i - 1 :: p_h, i - 1 :: p_h],
                 )
             )
-        space_time_high_res_per_token = output.space_time_high_mask[:, i::p, i::p]
-        space_time_high_res_masked_per_instance = space_time_high_res_per_token[
-            space_time_high_res_per_token == 1
+        space_time_high_res_per_high_res_token = output.space_time_high_mask[:, i::p_h, i::p_h]
+        space_time_high_res_masked_per_instance = space_time_high_res_per_high_res_token[
+            space_time_high_res_per_high_res_token == 1
         ].sum()
-        space_time_med_res_per_token = output.space_time_med_mask
-        space_time_med_res_masked_per_instance = space_time_med_res_per_token[
-            space_time_med_res_per_token == 1
+        space_time_med_res_per_high_res_token = output.space_time_med_mask[:, ::p_m, ::p_m]
+        space_time_med_res_masked_per_instance = space_time_med_res_per_high_res_token[
+            space_time_med_res_per_high_res_token == 1
         ].sum()
-        space_time_low_res_per_token = output.space_time_low_mask
-        space_time_low_res_masked_per_instance = space_time_low_res_per_token[
-            space_time_low_res_per_token == 1
+        space_time_low_res_per_high_res_token = output.space_time_low_mask[:, ::p_l, ::p_l]
+        space_time_low_res_masked_per_instance = space_time_low_res_per_high_res_token[
+            space_time_low_res_per_high_res_token == 1
         ].sum()
-        space_time_high_res_decode_per_instance = space_time_high_res_per_token[
-            space_time_high_res_per_token == 2
+        space_time_high_res_decode_per_instance = space_time_high_res_per_high_res_token[
+            space_time_high_res_per_high_res_token == 2
         ].sum()
-        space_time_med_res_decode_per_instance = space_time_med_res_per_token[
-            space_time_med_res_per_token == 2
+        space_time_med_res_decode_per_instance = space_time_med_res_per_high_res_token[
+            space_time_med_res_per_high_res_token == 2
         ].sum()
-        space_time_low_res_decode_per_instance = space_time_low_res_per_token[
-            space_time_low_res_per_token == 2
+        space_time_low_res_decode_per_instance = space_time_low_res_per_high_res_token[
+            space_time_low_res_per_high_res_token == 2
         ].sum()
-        space_per_token = output.space_mask[:, i::p, i::p]
+        space_per_token = output.space_mask[:, i::p_h, i::p_h]
         space_masked_per_instance = space_per_token[space_per_token == 1].sum()
         space_decode_per_instance = space_per_token[space_per_token == 2].sum()
         time_per_token = output.time_mask
