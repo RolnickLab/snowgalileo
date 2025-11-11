@@ -15,6 +15,7 @@ from src.masking import (
     TIME_BANDS_GROUPS_IDX,
     batch_mask_space,
     batch_mask_time,
+    batch_mask_random,
     check_modes_for_conflicts,
     weighted_sample_without_replacement,
 )
@@ -197,9 +198,8 @@ class TestMasking(unittest.TestCase):
             self.assertEqual((b, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
 
     # TODO: make this applicable to our data
-    """
     def test_mask_by_random(self):
-        b, t, h_h, w_h, h_m, w_m, h_l, w_l, p = 2, 8, 16, 16, 3, 3, 2, 2, 4
+        b, t, h_h, w_h, h_m, w_m, h_l, w_l, p = 2, 8, 100, 100, 5, 5, 2, 2, 10
         h_tokens_high, w_tokens_high = h_h / p, w_h / p
         h_tokens_med, w_tokens_med = h_m, w_m
         h_tokens_low, w_tokens_low = h_l, w_l
@@ -209,6 +209,7 @@ class TestMasking(unittest.TestCase):
         space_input = torch.ones((b, h_h, w_h, 8))
         time_input = torch.ones((b, t, 8))
         static_input = torch.ones((b, 8))
+        # we simply assume all data is valid for this test
         valid_data_mask_s_t_h = torch.ones_like(space_time_high_input)  # (b, h, w, t, c)
         valid_data_mask_s_t_m = torch.ones_like(space_time_med_input)  # (b, h, w, t, c)
         valid_data_mask_s_t_l = torch.ones_like(space_time_low_input)  # (b, h, w, t, c)
@@ -281,8 +282,22 @@ class TestMasking(unittest.TestCase):
         space_time_high_res_masked_per_instance = space_time_high_res_per_token[
             space_time_high_res_per_token == 1
         ].sum()
+        space_time_med_res_per_token = output.space_time_med_mask
+        space_time_med_res_masked_per_instance = space_time_med_res_per_token[
+            space_time_med_res_per_token == 1
+        ].sum()
+        space_time_low_res_per_token = output.space_time_low_mask
+        space_time_low_res_masked_per_instance = space_time_low_res_per_token[
+            space_time_low_res_per_token == 1
+        ].sum()
         space_time_high_res_decode_per_instance = space_time_high_res_per_token[
             space_time_high_res_per_token == 2
+        ].sum()
+        space_time_med_res_decode_per_instance = space_time_med_res_per_token[
+            space_time_med_res_per_token == 2
+        ].sum()
+        space_time_low_res_decode_per_instance = space_time_low_res_per_token[
+            space_time_low_res_per_token == 2
         ].sum()
         space_per_token = output.space_mask[:, i::p, i::p]
         space_masked_per_instance = space_per_token[space_per_token == 1].sum()
@@ -315,6 +330,8 @@ class TestMasking(unittest.TestCase):
         self.assertTrue(
             (
                 space_time_high_res_decode_per_instance
+                + space_time_med_res_decode_per_instance
+                + space_time_low_res_decode_per_instance
                 + space_decode_per_instance
                 + time_decode_per_instance
                 + static_decode_per_instance
@@ -323,4 +340,6 @@ class TestMasking(unittest.TestCase):
                 == total_tokens * ratio * 2
             ).all()
         )
-    """
+
+if __name__ == "__main__":
+    unittest.main()
