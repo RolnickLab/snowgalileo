@@ -316,29 +316,35 @@ class TestMasking(unittest.TestCase):
             + (t * len(TIME_BANDS_GROUPS_IDX))
             + len(STATIC_BAND_GROUPS_IDX)
         ) * b
-        import pdb; pdb.set_trace()
+        # it's possible that due to rounding we are off by 1 token
         self.assertTrue(
             (
-                space_time_high_res_masked_per_instance
-                + space_time_med_res_masked_per_instance
-                + space_time_low_res_masked_per_instance
-                + space_masked_per_instance
-                + time_masked_per_instance
-                + static_masked_per_instance
-                == total_tokens * (1 - (ratio * 2))
+                torch.abs(
+                    space_time_high_res_masked_per_instance
+                    + space_time_med_res_masked_per_instance
+                    + space_time_low_res_masked_per_instance
+                    + space_masked_per_instance
+                    + time_masked_per_instance
+                    + static_masked_per_instance
+                    - total_tokens * (1 - (ratio * 2))
+                )
+                <= 1
             ).all()
         )
         self.assertTrue(
             (
-                space_time_high_res_decode_per_instance
-                + space_time_med_res_decode_per_instance
-                + space_time_low_res_decode_per_instance
-                + space_decode_per_instance
-                + time_decode_per_instance
-                + static_decode_per_instance
-                # hacky but the *2 lets us easily handle the fact
-                # we are summing over values == 2, not 1
-                == total_tokens * ratio * 2
+                torch.abs(
+                    space_time_high_res_decode_per_instance
+                    + space_time_med_res_decode_per_instance
+                    + space_time_low_res_decode_per_instance
+                    + space_decode_per_instance
+                    + time_decode_per_instance
+                    + static_decode_per_instance
+                    # hacky but the *2 lets us easily handle the fact
+                    # we are summing over values == 2, not 1
+                    - total_tokens * ratio * 2
+                )
+                <= 1
             ).all()
         )
 
