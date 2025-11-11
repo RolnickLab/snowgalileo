@@ -265,7 +265,7 @@ class TestMasking(unittest.TestCase):
         self.assertEqual((b, t, len(TIME_BANDS_GROUPS_IDX)), output.time_mask.shape)
         self.assertEqual((b, len(STATIC_BAND_GROUPS_IDX)), output.static_mask.shape)
 
-        for i in range(1, p):
+        for i in range(1, p_h):
             self.assertTrue(
                 torch.equal(
                     output.space_time_high_mask[:, i::p_h, i::p_h],
