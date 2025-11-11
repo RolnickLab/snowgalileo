@@ -316,6 +316,7 @@ class TestMasking(unittest.TestCase):
             + (t * len(TIME_BANDS_GROUPS_IDX))
             + len(STATIC_BAND_GROUPS_IDX)
         ) * b
+        import pdb; pdb.set_trace()
         self.assertTrue(
             (
                 space_time_high_res_masked_per_instance
