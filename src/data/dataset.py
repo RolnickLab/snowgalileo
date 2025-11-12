@@ -1417,28 +1417,90 @@ if __name__ == "__main__":
         s_t_h_x_c13_valid = s_t_h_x[...,13][valid_data_mask_s_t_h[...,13].astype(bool)]
         s_t_h_x_c14_valid = s_t_h_x[...,14][valid_data_mask_s_t_h[...,14].astype(bool)]
 
+        s_t_m_x_c0_valid = s_t_m_x[...,0][valid_data_mask_s_t_m[...,0].astype(bool)]
+        s_t_m_x_c1_valid = s_t_m_x[...,1][valid_data_mask_s_t_m[...,1].astype(bool)]
+
+        s_t_l_x_c0_valid = s_t_l_x[...,0][valid_data_mask_s_t_l[...,0].astype(bool)]
+        s_t_l_x_c1_valid = s_t_l_x[...,1][valid_data_mask_s_t_l[...,1].astype(bool)]
+        s_t_l_x_c2_valid = s_t_l_x[...,2][valid_data_mask_s_t_l[...,2].astype(bool)]
+        s_t_l_x_c3_valid = s_t_l_x[...,3][valid_data_mask_s_t_l[...,3].astype(bool)]
+        s_t_l_x_c4_valid = s_t_l_x[...,4][valid_data_mask_s_t_l[...,4].astype(bool)]
+        s_t_l_x_c5_valid = s_t_l_x[...,5][valid_data_mask_s_t_l[...,5].astype(bool)]
+        s_t_l_x_c6_valid = s_t_l_x[...,6][valid_data_mask_s_t_l[...,6].astype(bool)]
+        s_t_l_x_c7_valid = s_t_l_x[...,7][valid_data_mask_s_t_l[...,7].astype(bool)]
+        s_t_l_x_c8_valid = s_t_l_x[...,8][valid_data_mask_s_t_l[...,8].astype(bool)]
+        s_t_l_x_c9_valid = s_t_l_x[...,9][valid_data_mask_s_t_l[...,9].astype(bool)]
+        s_t_l_x_c10_valid = s_t_l_x[...,10][valid_data_mask_s_t_l[...,10].astype(bool)]
+
+        sp_x_c0_valid = sp_x[...,0][valid_data_mask_sp[...,0].astype(bool)]
+        sp_x_c1_valid = sp_x[...,1][valid_data_mask_sp[...,1].astype(bool)]
+        sp_x_c2_valid = sp_x[...,2][valid_data_mask_sp[...,2].astype(bool)]
+        sp_x_c3_valid = sp_x[...,3][valid_data_mask_sp[...,3].astype(bool)]
+
+        t_x_c0_valid = t_x[...,0][valid_data_mask_t[...,0].astype(bool)]
+        t_x_c1_valid = t_x[...,1][valid_data_mask_t[...,1].astype(bool)]
+        t_x_c2_valid = t_x[...,2][valid_data_mask_t[...,2].astype(bool)]
+        t_x_c3_valid = t_x[...,3][valid_data_mask_t[...,3].astype(bool)]
+        t_x_c4_valid = t_x[...,4][valid_data_mask_t[...,4].astype(bool)]
+        t_x_c5_valid = t_x[...,5][valid_data_mask_t[...,5].astype(bool)]
+        t_x_c6_valid = t_x[...,6][valid_data_mask_t[...,6].astype(bool)]
+        t_x_c7_valid = t_x[...,7][valid_data_mask_t[...,7].astype(bool)]
+        t_x_c8_valid = t_x[...,8][valid_data_mask_t[...,8].astype(bool)]
+
+        st_x_c0_valid = st_x[...,0][valid_data_mask_st[...,0].astype(bool)]
+        st_x_c1_valid = st_x[...,1][valid_data_mask_st[...,1].astype(bool)]
+        st_x_c2_valid = st_x[...,2][valid_data_mask_st[...,2].astype(bool)]
 
         stats.append(
             {
                 "tif": i,
-                "s_t_h_x_c1_std": s_t_h_x_c1_valid.std(),
-                "s_t_h_x_c2_std": s_t_h_x_c2_valid.std(),
-                "s_t_h_x_c3_std": s_t_h_x_c3_valid.std(),
-                "s_t_h_x_c4_std": s_t_h_x_c4_valid.std(),
-                "s_t_h_x_c5_std": s_t_h_x_c5_valid.std(),
-                "s_t_h_x_c6_std": s_t_h_x_c6_valid.std(),
-                "s_t_h_x_c7_std": s_t_h_x_c7_valid.std(),
-                "s_t_h_x_c8_std": s_t_h_x_c8_valid.std(),
-                "s_t_h_x_c9_std": s_t_h_x_c9_valid.std(),
-                "s_t_h_x_c10_std": s_t_h_x_c10_valid.std(),
-                "s_t_h_x_c11_std": s_t_h_x_c11_valid.std(),
-                "s_t_h_x_c12_std": s_t_h_x_c12_valid.std(),
-                "s_t_h_x_c13_std": s_t_h_x_c13_valid.std(),
-                "s_t_h_x_c14_std": s_t_h_x_c14_valid.std(),
+                "s_t_h_x_c1_std": s_t_h_x_c1_valid.std(dtype=np.float32),
+                "s_t_h_x_c2_std": s_t_h_x_c2_valid.std(dtype=np.float32),
+                "s_t_h_x_c3_std": s_t_h_x_c3_valid.std(dtype=np.float32),
+                "s_t_h_x_c4_std": s_t_h_x_c4_valid.std(dtype=np.float32),
+                "s_t_h_x_c5_std": s_t_h_x_c5_valid.std(dtype=np.float32),
+                "s_t_h_x_c6_std": s_t_h_x_c6_valid.std(dtype=np.float32),
+                "s_t_h_x_c7_std": s_t_h_x_c7_valid.std(dtype=np.float32),
+                "s_t_h_x_c8_std": s_t_h_x_c8_valid.std(dtype=np.float32),
+                "s_t_h_x_c9_std": s_t_h_x_c9_valid.std(dtype=np.float32),
+                "s_t_h_x_c10_std": s_t_h_x_c10_valid.std(dtype=np.float32),
+                "s_t_h_x_c11_std": s_t_h_x_c11_valid.std(dtype=np.float32),
+                "s_t_h_x_c12_std": s_t_h_x_c12_valid.std(dtype=np.float32),
+                "s_t_h_x_c13_std": s_t_h_x_c13_valid.std(dtype=np.float32),
+                "s_t_h_x_c14_std": s_t_h_x_c14_valid.std(dtype=np.float32),
+                "s_t_m_x_c0_std": s_t_m_x_c0_valid.std(dtype=np.float32),
+                "s_t_m_x_c1_std": s_t_m_x_c1_valid.std(dtype=np.float32),
+                "s_t_l_x_c0_std": s_t_l_x_c0_valid.std(dtype=np.float32),
+                "s_t_l_x_c1_std": s_t_l_x_c1_valid.std(dtype=np.float32),
+                "s_t_l_x_c2_std": s_t_l_x_c2_valid.std(dtype=np.float32),
+                "s_t_l_x_c3_std": s_t_l_x_c3_valid.std(dtype=np.float32),
+                "s_t_l_x_c4_std": s_t_l_x_c4_valid.std(dtype=np.float32),
+                "s_t_l_x_c5_std": s_t_l_x_c5_valid.std(dtype=np.float32),
+                "s_t_l_x_c6_std": s_t_l_x_c6_valid.std(dtype=np.float32),
+                "s_t_l_x_c7_std": s_t_l_x_c7_valid.std(dtype=np.float32),
+                "s_t_l_x_c8_std": s_t_l_x_c8_valid.std(dtype=np.float32),
+                "s_t_l_x_c9_std": s_t_l_x_c9_valid.std(dtype=np.float32),
+                "s_t_l_x_c10_std": s_t_l_x_c10_valid.std(dtype=np.float32),
+                "sp_x_c0_std": sp_x_c0_valid.std(dtype=np.float32),
+                "sp_x_c1_std": sp_x_c1_valid.std(dtype=np.float32),
+                "sp_x_c2_std": sp_x_c2_valid.std(dtype=np.float32),
+                "sp_x_c3_std": sp_x_c3_valid.std(dtype=np.float32),
+                "t_x_c0_std": t_x_c0_valid.std(dtype=np.float32),
+                "t_x_c1_std": t_x_c1_valid.std(dtype=np.float32),
+                "t_x_c2_std": t_x_c2_valid.std(dtype=np.float32),
+                "t_x_c3_std": t_x_c3_valid.std(dtype=np.float32),
+                "t_x_c4_std": t_x_c4_valid.std(dtype=np.float32),
+                "t_x_c5_std": t_x_c5_valid.std(dtype=np.float32),
+                "t_x_c6_std": t_x_c6_valid.std(dtype=np.float32),
+                "t_x_c7_std": t_x_c7_valid.std(dtype=np.float32),
+                "t_x_c8_std": t_x_c8_valid.std(dtype=np.float32),
+                "st_x_c0_std": st_x_c0_valid.std(dtype=np.float32),
+                "st_x_c1_std": st_x_c1_valid.std(dtype=np.float32),
+                "st_x_c2_std": st_x_c2_valid.std(dtype=np.float32),
             }
         )
 
     import pandas as pd
 
     df = pd.DataFrame(stats)
-    df.to_csv("data_stats_mean_std_new.csv", index=False)
+    df.to_csv("data_stats_mean_std_float32.csv", index=False)
