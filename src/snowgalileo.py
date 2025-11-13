@@ -1566,12 +1566,11 @@ class GalileoPixelDecoder(SnowGalileoBase):
         use_fast_attn: bool = True,
     ):
         super().__init__(
-            decoder_embedding_size,
-            depth,
-            mlp_ratio,
-            num_heads,
-            max_sequence_length,
-            patch_size_high_res,
+            embedding_size=decoder_embedding_size,
+            depth=depth,
+            mlp_ratio=mlp_ratio,
+            num_heads=num_heads,
+            max_sequence_length=max_sequence_length,
             use_channel_embs=learnable_channel_embeddings,
             drop_path=0.0,
             use_fast_attn=use_fast_attn,
