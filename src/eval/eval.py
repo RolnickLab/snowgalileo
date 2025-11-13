@@ -475,6 +475,13 @@ class EvalTask(ABC):
         return fit_models
 
     def train_and_evaluate_model_on_task(
-        self, pretrained_model: Encoder, model_modes: Optional[List[str]] = None
+        self,
+        pretrained_model: Encoder,
+        model_modes: Optional[List[str]] = None,
+        log_wandb: bool = False,
+        hyperparams_config: Optional[Dict] = None,
+        initialization_id: Optional[str] = None,
+        sweep_run=None,
+        save_final_checkpoint: bool = False,
     ) -> Dict:
         raise NotImplementedError

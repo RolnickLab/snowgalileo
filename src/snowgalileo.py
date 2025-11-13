@@ -1536,16 +1536,16 @@ class Encoder(SnowGalileoBase):
 
     @classmethod
     def load_from_folder(cls, folder: Path):
-        assert (folder / CONFIG_FILENAME).exists(), f"Missing {CONFIG_FILENAME}"
-        assert (folder / ENCODER_FILENAME).exists(), f"Missing {ENCODER_FILENAME}"
+        assert (folder / f"{CONFIG_FILENAME}.json").exists(), f"Missing {CONFIG_FILENAME}.json"
+        assert (folder / f"{ENCODER_FILENAME}.pt").exists(), f"Missing {ENCODER_FILENAME}.pt"
 
-        with (folder / CONFIG_FILENAME).open("r") as f:
+        with (folder / f"{CONFIG_FILENAME}.json").open("r") as f:
             config = json.load(f)
             model_config = config["model"]
             encoder_config = model_config["encoder"]
 
         encoder = cls(**encoder_config)
-        encoder.load_state_dict(torch.load(folder / ENCODER_FILENAME, map_location=device))
+        encoder.load_state_dict(torch.load(folder / f"{ENCODER_FILENAME}.pt", map_location=device))
         return encoder
 
 

@@ -130,7 +130,7 @@ else:
 
     id_dir = matching_dirs[0]
 
-    with (id_dir / CONFIG_FILENAME).open("r") as f:
+    with (id_dir / f"{CONFIG_FILENAME}.json").open("r") as f:
         config = json.load(f)
     run_name = config["run_name"]
     start_epoch = config.get("cur_epoch", 0)
@@ -238,8 +238,8 @@ param_groups.append(
 if args["restart"]:
     assert model_path is not None
     print(f"Loading checkpoint for epoch {start_epoch} from {model_path}", flush=True)
-    encoder.load_state_dict(torch.load(id_dir / ENCODER_FILENAME, map_location=device))
-    predictor.load_state_dict(torch.load(id_dir / DECODER_FILENAME, map_location=device))
+    encoder.load_state_dict(torch.load(id_dir / f"{ENCODER_FILENAME}.pt", map_location=device))
+    predictor.load_state_dict(torch.load(id_dir / f"{DECODER_FILENAME}.pt", map_location=device))
 
 optimizer = torch.optim.AdamW(
     param_groups,
@@ -250,7 +250,7 @@ optimizer = torch.optim.AdamW(
 if args["restart"]:
     assert model_path is not None
     print(f"Loading optimizer state from {model_path}", flush=True)
-    optimizer.load_state_dict(torch.load(id_dir / OPTIMIZER_FILENAME, map_location=device))
+    optimizer.load_state_dict(torch.load(id_dir / f"{OPTIMIZER_FILENAME}.pt", map_location=device))
 
 assert training_config["effective_batch_size"] % training_config["batch_size"] == 0
 iters_to_accumulate = training_config["effective_batch_size"] / training_config["batch_size"]
@@ -409,11 +409,15 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                 id_dir = Path(model_path / id_dir)
                 id_dir.mkdir(parents=True, exist_ok=True)
             print(f"Checkpointing to {model_path}")
-            torch.save(encoder.state_dict(), id_dir / ENCODER_FILENAME)
-            torch.save(predictor.state_dict(), id_dir / DECODER_FILENAME)
-            torch.save(optimizer.state_dict(), id_dir / OPTIMIZER_FILENAME)
+            # store both the latest and epoch-specific checkpoints
+            torch.save(encoder.state_dict(), id_dir / f"{ENCODER_FILENAME}.pt")
+            torch.save(predictor.state_dict(), id_dir / f"{DECODER_FILENAME}.pt")
+            torch.save(optimizer.state_dict(), id_dir / f"{OPTIMIZER_FILENAME}.pt")
+            torch.save(encoder.state_dict(), id_dir / f"{ENCODER_FILENAME}_epoch{e+1}.pt")
+            torch.save(predictor.state_dict(), id_dir / f"{DECODER_FILENAME}_epoch{e+1}.pt")
+            torch.save(optimizer.state_dict(), id_dir / f"{OPTIMIZER_FILENAME}_epoch{e+1}.pt")
             config["cur_epoch"] = e + 1
-            with (id_dir / CONFIG_FILENAME).open("w") as f:
+            with (id_dir / f"{CONFIG_FILENAME}.json").open("w") as f:
                 json.dump(config, f)
 
 
@@ -426,8 +430,8 @@ if model_path is None:
         id_dir = timestamp_dirname(run_id)
         id_dir = Path(model_path / id_dir)
         id_dir.mkdir(parents=True, exist_ok=True)
-torch.save(encoder.state_dict(), id_dir / ENCODER_FILENAME)
-torch.save(predictor.state_dict(), id_dir / DECODER_FILENAME)
-torch.save(optimizer.state_dict(), id_dir / OPTIMIZER_FILENAME)
-with (model_path / CONFIG_FILENAME).open("w") as f:
+torch.save(encoder.state_dict(), id_dir / f"{ENCODER_FILENAME}_final.pt")
+torch.save(predictor.state_dict(), id_dir / f"{DECODER_FILENAME}_final.pt")
+torch.save(optimizer.state_dict(), id_dir / f"{OPTIMIZER_FILENAME}_final.pt")
+with (model_path / f"{CONFIG_FILENAME}.json").open("w") as f:
     json.dump(config, f)
