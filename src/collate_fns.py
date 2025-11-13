@@ -1,13 +1,10 @@
 from typing import NamedTuple, Tuple
 
-import numpy as np
 import torch
 from torch.utils.data import default_collate
 
 from src.masking import (
-    MASKING_MODES,
-    MaskingFunctions,
-    batch_subset_mask_presto,
+    batch_subset_mask_galileo,
 )
 
 
@@ -44,57 +41,14 @@ def collated_batch_to_output(
     valid_data_mask_sp: torch.Tensor,
     valid_data_mask_t: torch.Tensor,
     valid_data_mask_st: torch.Tensor,
-    patch_sizes_high_res,
-    patch_sizes_med_res,
-    patch_sizes_low_res,
-    shape_time_combinations,
+    patch_size_high_res,
+    patch_size_med_res,
+    patch_size_low_res,
     encode_ratio,
     decode_ratio,
-    masking_function: MaskingFunctions,
     augmentation_strategies=None,
-    fixed_patch_size_high_res=None,
-    fixed_patch_size_med_res=1,
-    fixed_patch_size_low_res=1,
-    fixed_space_time_combination=None,
-    masking_probabilities=None,
-    max_unmasking_channels=4,
-    unmasking_channels_combo: str = "shapes",
-    ablate: str = "",
 ) -> CollateFnOutput:
-    if fixed_patch_size_high_res is not None:
-        patch_size_high_res = fixed_patch_size_high_res
-    else:
-        # randomly sample a patch size, and a corresponding image size
-        patch_size_high_res = np.random.choice(patch_sizes_high_res)
-
-    if fixed_patch_size_med_res is not None:
-        patch_size_med_res = fixed_patch_size_med_res
-    else:
-        # randomly sample a patch size
-        patch_size_med_res = np.random.choice(patch_sizes_med_res)
-
-    if fixed_patch_size_low_res is not None:
-        patch_size_low_res = fixed_patch_size_low_res
-    else:
-        # randomly sample a patch size
-        patch_size_low_res = np.random.choice(patch_sizes_low_res)
-
-    if fixed_space_time_combination is not None:
-        space_time_combination = fixed_space_time_combination
-    else:
-        space_time_combination = np.random.choice(shape_time_combinations)
-        spatial_patches_per_dim_high_res = space_time_combination["size"]
-        if int(spatial_patches_per_dim_high_res * patch_size_high_res) > s_t_h_x.shape[1]:
-            spatial_patches_per_dim_high_res = int(s_t_h_x.shape[1] / patch_size_high_res)
-
-    timesteps = space_time_combination["timesteps"]
-
-    image_size = patch_size_high_res * spatial_patches_per_dim_high_res
-    if masking_probabilities is None:
-        masking_probabilities = [1] * len(MASKING_MODES)
-
-    # randomly select a masking strategy
-    masked_output = batch_subset_mask_presto(
+    masked_output = batch_subset_mask_galileo(
         s_t_h_x=s_t_h_x,
         s_t_m_x=s_t_m_x,
         s_t_l_x=s_t_l_x,
@@ -109,18 +63,11 @@ def collated_batch_to_output(
         valid_data_mask_t=valid_data_mask_t,
         valid_data_mask_st=valid_data_mask_st,
         encode_ratio=encode_ratio,
+        decode_ratio=decode_ratio,
         patch_size_high_res=patch_size_high_res,
         patch_size_med_res=patch_size_med_res,
         patch_size_low_res=patch_size_low_res,
-        image_size=image_size,
-        num_timesteps=timesteps,
-        decode_ratio=decode_ratio,
         augmentation_strategies=augmentation_strategies,
-        masking_probabilities=masking_probabilities,
-        masking_function=masking_function,
-        max_unmasking_channels=max_unmasking_channels,
-        unmasking_channels_combo=unmasking_channels_combo,
-        ablate=ablate,
     )
 
     s_t_h_x = masked_output.space_time_high_x
@@ -160,22 +107,12 @@ def collated_batch_to_output(
 @torch.no_grad()
 def mae_collate_fn(
     batch,
-    patch_sizes_high_res,
-    patch_sizes_med_res,
-    patch_sizes_low_res,
-    shape_time_combinations,
+    patch_size_high_res,
+    patch_size_med_res,
+    patch_size_low_res,
     encode_ratio,
     decode_ratio,
     augmentation_strategies=None,
-    fixed_patch_size_high_res=None,
-    fixed_patch_size_med_res=1,
-    fixed_patch_size_low_res=1,
-    fixed_space_time_combination=None,
-    masking_probabilities=None,
-    max_unmasking_channels=4,
-    random_masking: str = "None",
-    unmasking_channels_combo: str = "shapes",
-    ablate: str = "",
 ) -> Tuple[CollateFnOutput, CollateFnOutput, CollateFnOutput, CollateFnOutput]:
     (
         s_t_h_x,
@@ -207,100 +144,24 @@ def mae_collate_fn(
         "valid_data_mask_sp": valid_data_mask_sp,
         "valid_data_mask_t": valid_data_mask_t,
         "valid_data_mask_st": valid_data_mask_st,
-        "patch_sizes_high_res": patch_sizes_high_res,
-        "patch_sizes_med_res": patch_sizes_med_res,
-        "patch_sizes_low_res": patch_sizes_low_res,
+        "patch_size_high_res": patch_size_high_res,
+        "patch_size_med_res": patch_size_med_res,
+        "patch_size_low_res": patch_size_low_res,
         "encode_ratio": encode_ratio,
         "decode_ratio": decode_ratio,
         "augmentation_strategies": augmentation_strategies,
-        "fixed_patch_size_high_res": fixed_patch_size_high_res,
-        "fixed_patch_size_med_res": fixed_patch_size_med_res,
-        "fixed_patch_size_low_res": fixed_patch_size_low_res,
-        "fixed_space_time_combination": fixed_space_time_combination,
-        "masking_probabilities": masking_probabilities,
-        "shape_time_combinations": shape_time_combinations,
-        "max_unmasking_channels": max_unmasking_channels,
-        "unmasking_channels_combo": unmasking_channels_combo,
-        "ablate": ablate,
     }
-    if random_masking == "none":
-        return (
-            collated_batch_to_output(
-                **input_args,
-                masking_function=MaskingFunctions.TIME,
-            ),
-            collated_batch_to_output(
-                **input_args,
-                masking_function=MaskingFunctions.SPACE,
-            ),
-            collated_batch_to_output(
-                **input_args,
-                masking_function=MaskingFunctions.TIME,
-            ),
-            collated_batch_to_output(
-                **input_args,
-                masking_function=MaskingFunctions.SPACE,
-            ),
-        )
-    elif random_masking == "half":
-        return (
-            collated_batch_to_output(
-                **input_args,
-                masking_function=MaskingFunctions.TIME,
-            ),
-            collated_batch_to_output(
-                **input_args,
-                masking_function=MaskingFunctions.SPACE,
-            ),
-            collated_batch_to_output(
-                **input_args,
-                masking_function=MaskingFunctions.RANDOM,
-            ),
-            collated_batch_to_output(
-                **input_args,
-                masking_function=MaskingFunctions.RANDOM,
-            ),
-        )
-    elif random_masking == "time_only":
-        print("only masks over time")
-        return (
-            collated_batch_to_output(
-                **input_args,
-                masking_function=MaskingFunctions.TIME,
-            ),
-            collated_batch_to_output(
-                **input_args,
-                masking_function=MaskingFunctions.TIME,
-            ),
-            collated_batch_to_output(
-                **input_args,
-                masking_function=MaskingFunctions.TIME,
-            ),
-            collated_batch_to_output(
-                **input_args,
-                masking_function=MaskingFunctions.TIME,
-            ),
-        )
-    elif random_masking == "full":
-        return (
-            collated_batch_to_output(
-                **input_args,
-                masking_function=MaskingFunctions.RANDOM,
-            ),
-            collated_batch_to_output(
-                **input_args,
-                masking_function=MaskingFunctions.RANDOM,
-            ),
-            collated_batch_to_output(
-                **input_args,
-                masking_function=MaskingFunctions.RANDOM,
-            ),
-            collated_batch_to_output(
-                **input_args,
-                masking_function=MaskingFunctions.RANDOM,
-            ),
-        )
-    else:
-        raise ValueError(
-            f"Expected random_masking to be one of none, half full, got {random_masking}"
-        )
+    return (
+        collated_batch_to_output(
+            **input_args,
+        ),
+        collated_batch_to_output(
+            **input_args,
+        ),
+        collated_batch_to_output(
+            **input_args,
+        ),
+        collated_batch_to_output(
+            **input_args,
+        ),
+    )

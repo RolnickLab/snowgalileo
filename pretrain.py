@@ -1,19 +1,17 @@
 import argparse
-import copy
 import json
 import os
 import random
 import warnings
 from functools import partial
 from pathlib import Path
-from typing import List, cast
+from typing import cast
 
-import codecarbon
 import psutil
 import torch
 import torch.nn as nn
 import wandb
-from torch.utils.data import BatchSampler, DataLoader, Subset
+from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
@@ -24,22 +22,18 @@ from src.data.config import (
     CONFIG_FILENAME,
     DATA_FOLDER,
     DECODER_FILENAME,
-    EE_BUCKET_TIFS,
     EE_PROJECT,
     ENCODER_FILENAME,
     NORMALIZATION_DICT_FILENAME,
     OPTIMIZER_FILENAME,
     OUTPUT_FOLDER,
-    TARGET_ENCODER_FILENAME,
 )
-from src.eval.eval import EvalTask
-from src.flexipresto import Encoder, PrestoPixelDecoder, adjust_learning_rate
-from src.loss import construct_target_encoder_masks, do_loss
+from src.loss import do_loss
+from src.snowgalileo import Encoder, GalileoPixelDecoder, adjust_learning_rate
 from src.utils import (
     AverageMeter,
     check_config,
     config_dir,
-    data_dir,
     device,
     is_bf16_available,
     load_check_config,
@@ -52,17 +46,8 @@ process = psutil.Process()
 
 os.environ["GOOGLE_CLOUD_PROJECT"] = EE_PROJECT
 
-tracker = codecarbon.EmissionsTracker(
-    project_name="ai4snow",
-    experiment_name="ai4snow.py",
-    save_to_api=False,
-    output_dir=data_dir,
-)
-
 torch.backends.cuda.matmul.allow_tf32 = True
 autocast_device = torch.bfloat16 if is_bf16_available() else torch.float32
-
-# tracker.start()
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--config_file", type=str, default="ai4snow_ps10.json")
@@ -73,7 +58,6 @@ argparser.add_argument("--download", dest="download", action="store_true")
 argparser.add_argument("--h5pys_only", dest="h5pys_only", action="store_true")
 argparser.add_argument("--num_workers", dest="num_workers", default=0)
 argparser.add_argument("--batch_size", dest="batch_size", default="")
-argparser.add_argument("--sync_models_from_service_account", action="store_true")
 argparser.add_argument("--checkpoint_every_epoch", type=int, default=50)
 argparser.add_argument("--tifs_folder", type=str, default="tifs_all_bands_500m")
 argparser.add_argument(
@@ -84,13 +68,6 @@ argparser.add_argument(
 )
 argparser.add_argument("--restart", action="store_true", help="If set, will restart the run")
 argparser.add_argument("--path_to_model_checkpoint", type=str, default="")
-argparser.add_argument(
-    "--ablate",
-    type=str,
-    choices=["", "time", "space", "high_res", "low_res", "aux", "location", "time", "space"],
-    default="",
-)
-
 argparser.set_defaults(download=False)
 argparser.set_defaults(cache_in_ram=False)
 args = argparser.parse_args().__dict__
@@ -222,58 +199,18 @@ dataloader = DataLoader(
     num_workers=int(args["num_workers"]),
     collate_fn=partial(
         mae_collate_fn,
-        patch_sizes_high_res=training_config["patch_sizes_high_res"],
-        patch_sizes_med_res=training_config["patch_sizes_med_res"],
-        patch_sizes_low_res=training_config["patch_sizes_low_res"],
-        shape_time_combinations=training_config["shape_time_combinations"],
+        patch_size_high_res=training_config["patch_size_high_res"],
+        patch_size_med_res=training_config["patch_size_med_res"],
+        patch_size_low_res=training_config["patch_size_low_res"],
         encode_ratio=training_config["encode_ratio"],
         decode_ratio=training_config["decode_ratio"],
         augmentation_strategies=training_config["augmentation"],
-        masking_probabilities=training_config["masking_probabilities"],
-        max_unmasking_channels=training_config["max_unmasking_channels"],
-        random_masking=training_config["random_masking"],
-        unmasking_channels_combo=training_config["unmasking_channels_combo"],
-        ablate=args["ablate"],
     ),
     pin_memory=True,
 )
 
-# prepare random images to plot during training
-if training_config["wandb_plot_every_n_epochs"] > 0:
-    assert training_config["num_images_to_wandb_plot"] > 0
-    assert len(training_config["timesteps_to_wandb_plot"]) > 0
-
-    plot_dataloader = DataLoader(
-        dataset,
-        shuffle=False,
-        batch_sampler=BatchSampler([1, 2, 3], batch_size=1, drop_last=False),
-        collate_fn=partial(
-            mae_collate_fn,
-            patch_sizes_high_res=training_config["patch_sizes_high_res"],
-            patch_sizes_med_res=training_config["patch_sizes_med_res"],
-            patch_sizes_low_res=training_config["patch_sizes_low_res"],
-            shape_time_combinations=training_config["shape_time_combinations"],
-            encode_ratio=training_config["encode_ratio"],
-            decode_ratio=training_config["decode_ratio"],
-            augmentation_strategies=training_config["augmentation"],
-            masking_probabilities=training_config["masking_probabilities"],
-            max_unmasking_channels=training_config["max_unmasking_channels"],
-            random_masking=training_config["random_masking"],
-            unmasking_channels_combo=training_config["unmasking_channels_combo"],
-            ablate=args["ablate"],
-        ),
-    )
-    prepared_image_to_plot = {}
-    for image_id, b in enumerate(plot_dataloader):
-        b = [t.to(device) if isinstance(t, torch.Tensor) else t for t in b]
-        prepared_image_to_plot[image_id] = b
-        if len(prepared_image_to_plot) >= training_config["num_images_to_wandb_plot"]:
-            break
-    print(f"Prepared {len(prepared_image_to_plot)} images")
-
-
 print("Loading models")
-predictor = PrestoPixelDecoder(**config["model"]["decoder"])
+predictor = GalileoPixelDecoder(**config["model"]["decoder"])
 if torch.cuda.device_count() > 1:
     print("Transforming predictor to use multiple GPUs")
     predictor = nn.DataParallel(predictor)
@@ -304,14 +241,6 @@ if args["restart"]:
     encoder.load_state_dict(torch.load(id_dir / ENCODER_FILENAME, map_location=device))
     predictor.load_state_dict(torch.load(id_dir / DECODER_FILENAME, map_location=device))
 
-# print("Loading validation task")
-# val_task_no_latlons = EuroSatEval(
-#    normalization=dataset.normalizer,
-#    geobench=True,
-#    rgb=True,
-#    include_latlons=False,
-# )
-
 optimizer = torch.optim.AdamW(
     param_groups,
     lr=0,
@@ -326,30 +255,8 @@ if args["restart"]:
 assert training_config["effective_batch_size"] % training_config["batch_size"] == 0
 iters_to_accumulate = training_config["effective_batch_size"] / training_config["batch_size"]
 
-# setup target encoder and momentum from: https://github.com/facebookresearch/ijepa/blob/main/src/train.py
 repeat_aug = 4
 steps_per_epoch = len(dataloader) * repeat_aug / iters_to_accumulate
-momentum_scheduler = (
-    training_config["ema"][0]
-    + i
-    * (training_config["ema"][1] - training_config["ema"][0])
-    / (steps_per_epoch * training_config["num_epochs"])
-    for i in range(int(steps_per_epoch * training_config["num_epochs"]) + 1)
-)
-target_encoder = copy.deepcopy(encoder)
-target_encoder.eval()
-if args["restart"]:
-    assert model_path is not None
-    target_encoder.load_state_dict(
-        torch.load(id_dir / TARGET_ENCODER_FILENAME, map_location=device)
-    )
-    # we also want to step through the momentum scheduler since we are going to fast forward training
-    for momentum_epoch in range(start_epoch):
-        for i in range(int(steps_per_epoch)):
-            _ = next(momentum_scheduler)
-
-for p in target_encoder.parameters():
-    p.requires_grad = False
 
 skipped_batches = 0
 for e in tqdm(range(start_epoch, training_config["num_epochs"])):
@@ -433,85 +340,33 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                     warnings.warn(f"Skipping batch with NaNs after processing, {skipped_batches}")
                     continue
 
-                if training_config["loss_type"] != "MAE":
-                    with torch.no_grad():
-                        t_s_t_h, t_s_t_m, t_s_t_l, t_sp, t_t, t_st, _, _, _, _, _ = target_encoder(
-                            s_t_h_x,
-                            s_t_m_x,
-                            s_t_l_x,
-                            sp_x,
-                            t_x,
-                            st_x,
-                            *construct_target_encoder_masks(
-                                s_t_h_m,
-                                s_t_m_m,
-                                s_t_l_m,
-                                sp_m,
-                                t_m,
-                                st_m,
-                                config["training"]["target_masking"],
-                            ),
-                            months.long(),
-                            patch_size_high_res=patch_size_high_res,
-                            patch_size_med_res=patch_size_med_res,
-                            patch_size_low_res=patch_size_low_res,
-                            exit_after=config["training"]["target_exit_after"],
-                            token_exit_cfg=config["training"]["token_exit_cfg"],
-                        )
-
-                    loss = do_loss(
-                        training_config,
-                        (
-                            t_s_t_h,
-                            t_s_t_m,
-                            t_s_t_l,
-                            t_sp,
-                            t_t,
-                            t_st,
-                            p_s_t_h,
-                            p_s_t_m,
-                            p_s_t_l,
-                            p_sp,
-                            p_t,
-                            p_st,
-                            s_t_h_m[:, 0::patch_size_high_res, 0::patch_size_high_res],
-                            s_t_m_m[:, 0::patch_size_med_res, 0::patch_size_med_res],
-                            s_t_l_m[:, 0::patch_size_low_res, 0::patch_size_low_res],
-                            sp_m[:, 0::patch_size_high_res, 0::patch_size_high_res],
-                            t_m,
-                            st_m,
-                        ),
-                    )
-                else:
-                    loss = do_loss(
-                        training_config,
-                        (
-                            p_s_t_h,
-                            p_s_t_m,
-                            p_s_t_l,
-                            p_sp,
-                            p_t,
-                            p_st,
-                            s_t_h_x,
-                            s_t_m_x,
-                            s_t_l_x,
-                            sp_x,
-                            t_x,
-                            st_x,
-                            s_t_h_m,
-                            s_t_m_m,
-                            s_t_l_m,
-                            sp_m,
-                            t_m,
-                            st_m,
-                            patch_size_high_res,
-                            patch_size_med_res,
-                            patch_size_low_res,
-                            max(training_config["patch_sizes_high_res"]),
-                        ),
-                    )
+                loss = do_loss(
+                    training_config,
+                    (
+                        p_s_t_h,
+                        p_s_t_m,
+                        p_s_t_l,
+                        p_sp,
+                        p_t,
+                        p_st,
+                        s_t_h_x,
+                        s_t_m_x,
+                        s_t_l_x,
+                        sp_x,
+                        t_x,
+                        st_x,
+                        s_t_h_m,
+                        s_t_m_m,
+                        s_t_l_m,
+                        sp_m,
+                        t_m,
+                        st_m,
+                        patch_size_high_res,
+                        patch_size_med_res,
+                        patch_size_low_res,
+                    ),
+                )
                 assert not torch.isnan(loss).any(), "NaNs in loss"
-                print("Got through one loss calc w/o assertion error - yay!")
             train_loss.update(loss.item(), n=s_t_h_x.shape[0])
             random_masking_train_loss.update(loss.item(), n=s_t_h_x.shape[0])
 
@@ -533,71 +388,15 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                     min_lr=training_config["final_lr"],
                 )
 
-                with torch.no_grad():
-                    try:
-                        m = next(momentum_scheduler)
-                    except StopIteration:
-                        m = training_config["ema"][1]
-                    for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
-                        param_k.data.mul_(m).add_((1.0 - m) * param_q.detach().data)
-                if wandb_enabled:
-                    to_log = {
-                        "train_loss": train_loss.average,
-                        "random_masking_train_loss": random_masking_train_loss.average,
-                        "task_masking_train_loss": task_masking_train_loss.average,
-                        "epoch": e,
-                        "momentum": m,
-                        "lr": current_lr,
-                    }
-                    # wandb.log(to_log, step=e)
-                    """  
-                    if (training_config["wandb_plot_every_n_epochs"] != 0) and (e % training_config["wandb_plot_every_n_epochs"] == 0):
-                        plot_list_nested = []
-                        for image_id, prepared_image in prepared_image_to_plot.items():
-                            plot_list_nested.append(
-                                plot_space_time_predictions(
-                                    epoch=e,
-                                    encoder=encoder,
-                                    predictor=predictor,
-                                    training_config=training_config,
-                                    prepared_image=prepared_image,
-                                    image_id=image_id,
-                                )
-                            )
-
-                        for plot in [
-                            plot_list
-                            for plot_list in plot_list_nested
-                        ]:
-                            wandb.log({f"plot": plot})
-                    """
-
-    """
     if wandb_enabled:
         to_log = {
             "train_loss": train_loss.average,
             "random_masking_train_loss": random_masking_train_loss.average,
             "task_masking_train_loss": task_masking_train_loss.average,
             "epoch": e,
-            "momentum": m,
             "lr": current_lr,
         }
-    """
-
-    # if (training_config["eval_eurosat_every_n_epochs"] != 0) and (
-    #    e % training_config["eval_eurosat_every_n_epochs"] == 0
-    # ):
-    # to_log.update(
-    #    val_task_no_latlons.evaluate_model_on_task(
-    #        encoder, model_modes=["KNNat5 Classifier", "KNNat20 Classifier"]
-    #    )
-    # )
-    # to_log.update(
-    #    val_task_ts.evaluate_model_on_task(
-    #        encoder, model_modes=["KNNat5 Classifier", "Logistic Regression"]
-    #    )
-    # )
-    wandb.log(to_log, step=e)
+        wandb.log(to_log, step=e)
 
     if args["checkpoint_every_epoch"] > 0:
         if e % args["checkpoint_every_epoch"] == 0:
@@ -612,7 +411,6 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
             print(f"Checkpointing to {model_path}")
             torch.save(encoder.state_dict(), id_dir / ENCODER_FILENAME)
             torch.save(predictor.state_dict(), id_dir / DECODER_FILENAME)
-            torch.save(target_encoder.state_dict(), id_dir / TARGET_ENCODER_FILENAME)
             torch.save(optimizer.state_dict(), id_dir / OPTIMIZER_FILENAME)
             config["cur_epoch"] = e + 1
             with (id_dir / CONFIG_FILENAME).open("w") as f:
@@ -630,23 +428,6 @@ if model_path is None:
         id_dir.mkdir(parents=True, exist_ok=True)
 torch.save(encoder.state_dict(), id_dir / ENCODER_FILENAME)
 torch.save(predictor.state_dict(), id_dir / DECODER_FILENAME)
-torch.save(target_encoder.state_dict(), id_dir / TARGET_ENCODER_FILENAME)
 torch.save(optimizer.state_dict(), id_dir / OPTIMIZER_FILENAME)
 with (model_path / CONFIG_FILENAME).open("w") as f:
     json.dump(config, f)
-
-# upload the model to google cloud
-if args["sync_models_from_service_account"]:
-    # authenticate the service account
-    os.system(
-        "gcloud auth activate-service-account  large-earth-model@appspot.gserviceaccount.com"
-    )
-os.system(f"gcloud storage rsync -r gs://{EE_BUCKET_TIFS}/outputs {model_path}")
-
-eval_tasks: List[EvalTask] = []
-for task in eval_tasks:
-    results = task.train_and_evaluate_model_on_task(encoder)
-    print(json.dumps(results, indent=2), flush=True)
-    if wandb_enabled:
-        wandb.log(results, step=training_config["num_epochs"])
-# tracker.stop()

@@ -17,7 +17,7 @@ from sklearn.metrics import (
 )
 
 from src.eval.metrics import mean_iou
-from src.flexipresto import AttentionProbe, adjust_learning_rate
+from src.snowgalileo import AttentionProbe, adjust_learning_rate
 from src.utils import save_checkpoint
 
 # FT_LRs = [1e-5, 3e-5, 6e-5, 1e-4, 3e-4, 6e-4, 1e-3, 3e-3, 6e-3]
@@ -212,7 +212,6 @@ def finetune_and_eval_seg(
     eval_config,
     hyperparams_config,
     num_finetune_epochs=50,
-    baseline_galileo=False,
     log_wandb=False,
     sweep_run=None,
     save_final_checkpoint=False,
@@ -227,7 +226,6 @@ def finetune_and_eval_seg(
         wandb.config.update(
             {
                 "identifier": identifier,
-                "baseline_galileo": baseline_galileo,
                 "num_finetune_epochs": num_finetune_epochs,
             }
         )
@@ -245,7 +243,6 @@ def finetune_and_eval_seg(
         device=device,
         hyperparams_config=hyperparams_config,
         eval_config=eval_config,
-        baseline_galileo=baseline_galileo,
         log_wandb=log_wandb,
         sweep_run=sweep_run,
     )
@@ -255,14 +252,12 @@ def finetune_and_eval_seg(
     #    num_classes=config["num_classes"],
     #    device=device,
     #    identifier=identifier,
-    #    baseline_galileo=baseline_galileo,
     # )
     test_miou = evaluate_seg(
         data_loader=loaders["test"],
         finetuned_model=finetuned_model,
         device=device,
         identifier=identifier,
-        baseline_galileo=baseline_galileo,
     )
     if save_final_checkpoint:
         filename = f"{identifier}_{hyperparams_config['initialization_id']}_{sweep_name}.pth"
@@ -280,7 +275,6 @@ def get_finetune_results_with_val(
     eval_config,
     hyperparams_config,
     num_finetune_epochs,
-    baseline_galileo=False,
     log_wandb=False,
     sweep_run=None,
     save_final_checkpoint=False,
@@ -297,7 +291,6 @@ def get_finetune_results_with_val(
                 identifier=identifier,
                 eval_config=eval_config,
                 num_finetune_epochs=num_finetune_epochs,
-                baseline_galileo=baseline_galileo,
                 log_wandb=log_wandb,
                 hyperparams_config=hyperparams_config,
                 sweep_run=sweep_run,
@@ -320,7 +313,6 @@ def get_finetune_results(
     eval_config,
     hyperparams_config,
     num_finetune_epochs,
-    baseline_galileo=False,
     log_wandb=False,
     sweep_run=None,
     save_final_checkpoint=False,
@@ -336,7 +328,6 @@ def get_finetune_results(
                 identifier=identifier,
                 eval_config=eval_config,
                 num_finetune_epochs=num_finetune_epochs,
-                baseline_galileo=baseline_galileo,
                 log_wandb=log_wandb,
                 hyperparams_config=hyperparams_config,
                 sweep_run=sweep_run,
@@ -358,7 +349,6 @@ def finetune_seg(
     eval_config,
     patch_size_high_res=10,
     inputs_per_target=10,
-    baseline_galileo=False,
     log_wandb=False,
     sweep_run=None,
 ):
@@ -373,21 +363,13 @@ def finetune_seg(
     train_loader = data_loaders["train"]
     test_loader = data_loaders["test"]
 
-    if baseline_galileo:
-        finetuned_encoder = GalileoEncoderWithHead(
-            encoder=encoder,
-            patch_size_high_res=patch_size_high_res,
-            inputs_per_target=inputs_per_target,
-            sigmoid_slope=sigmoid_slope,
-        ).to(device)
-    else:
-        finetuned_encoder = EncoderWithHead(
-            encoder=encoder,
-            patch_size_high_res=patch_size_high_res,
-            inputs_per_target=inputs_per_target,
-            sigmoid_slope=sigmoid_slope,
-            eval_config=eval_config,
-        ).to(device)
+    finetuned_encoder = EncoderWithHead(
+        encoder=encoder,
+        patch_size_high_res=patch_size_high_res,
+        inputs_per_target=inputs_per_target,
+        sigmoid_slope=sigmoid_slope,
+        eval_config=eval_config,
+    ).to(device)
 
     finetuned_encoder = finetuned_encoder.train()
 
@@ -424,127 +406,71 @@ def finetune_seg(
         raise ValueError(f"Unknown loss function: {loss_fn}")
 
     for epoch in range(epochs):
-        if baseline_galileo:
-            for i, (masked_output, labels, _) in enumerate(train_loader):
-                (
-                    s_t_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                    months,
-                ) = [t.to(device) for t in masked_output]
+        for i, (masked_output, labels, _) in enumerate(train_loader):
+            (
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+                months,
+            ) = [t.to(device) for t in masked_output]
 
-                # with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-                logits = finetuned_encoder(
-                    s_t_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                    months,
-                    patch_size_high_res=patch_size_high_res,
-                )
-                spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
-                logits = rearrange(
-                    torch.squeeze(logits),
-                    "b (h w) -> b h w",
-                    h=spatial_patches_per_dim,
-                    w=spatial_patches_per_dim,
-                )
-                loss = loss_function(logits, labels.to(device))
-                (loss / grad_accum).backward()
+            # with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+            logits = finetuned_encoder(
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+                months,
+                patch_size_high_res=patch_size_high_res,
+                patch_size_med_res=1,
+                patch_size_low_res=1,
+            )
+            spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
+            logits = rearrange(
+                torch.squeeze(logits),
+                "b (h w) -> b h w",
+                h=spatial_patches_per_dim,
+                w=spatial_patches_per_dim,
+            )
+            loss = loss_function(logits, labels.to(device))
 
-                if ((i + 1) % grad_accum == 0) or (i + 1 == len(train_loader)):
-                    if lr_schedule:
-                        epoch_fraction = epoch + (i / len(train_loader))
-                        set_lr = adjust_learning_rate(
-                            optimizer=opt,
-                            epoch=epoch_fraction,
-                            total_epochs=sched_config["epochs"],
-                            warmup_epochs=sched_config["warmup_epochs"],
-                            max_lr=sched_config["lr"],
-                            min_lr=sched_config["min_lr"],
-                        )  # get LR for this epoch
-                        for g in opt.param_groups:
-                            g["lr"] = set_lr  # update
+            (loss / grad_accum).backward()
 
-                    torch.nn.utils.clip_grad_norm_(finetuned_encoder.parameters(), 1.0)
-                    opt.step()
-                    opt.zero_grad()
+            if ((i + 1) % grad_accum == 0) or (i + 1 == len(train_loader)):
+                epoch_fraction = epoch + (i / len(train_loader))
 
-        else:
-            for i, (masked_output, labels, _) in enumerate(train_loader):
-                (
-                    s_t_h_x,
-                    s_t_m_x,
-                    s_t_l_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_h_m,
-                    s_t_m_m,
-                    s_t_l_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                    months,
-                ) = [t.to(device) for t in masked_output]
+                if lr_schedule:
+                    set_lr = adjust_learning_rate(
+                        optimizer=opt,
+                        epoch=epoch_fraction,
+                        total_epochs=sched_config["epochs"],
+                        warmup_epochs=sched_config["warmup_epochs"],
+                        max_lr=sched_config["lr"],
+                        min_lr=sched_config["min_lr"],
+                    )  # get LR for this epoch
+                    for g in opt.param_groups:
+                        g["lr"] = set_lr  # update
 
-                # with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-                logits = finetuned_encoder(
-                    s_t_h_x,
-                    s_t_m_x,
-                    s_t_l_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_h_m,
-                    s_t_m_m,
-                    s_t_l_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                    months,
-                    patch_size_high_res=patch_size_high_res,
-                    patch_size_med_res=1,
-                    patch_size_low_res=1,
-                )
-                spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
-                logits = rearrange(
-                    torch.squeeze(logits),
-                    "b (h w) -> b h w",
-                    h=spatial_patches_per_dim,
-                    w=spatial_patches_per_dim,
-                )
-                loss = loss_function(logits, labels.to(device))
-
-                (loss / grad_accum).backward()
-
-                if ((i + 1) % grad_accum == 0) or (i + 1 == len(train_loader)):
-                    epoch_fraction = epoch + (i / len(train_loader))
-
-                    if lr_schedule:
-                        set_lr = adjust_learning_rate(
-                            optimizer=opt,
-                            epoch=epoch_fraction,
-                            total_epochs=sched_config["epochs"],
-                            warmup_epochs=sched_config["warmup_epochs"],
-                            max_lr=sched_config["lr"],
-                            min_lr=sched_config["min_lr"],
-                        )  # get LR for this epoch
-                        for g in opt.param_groups:
-                            g["lr"] = set_lr  # update
-
-                    torch.nn.utils.clip_grad_norm_(finetuned_encoder.parameters(), 1.0)
-                    opt.step()
-                    opt.zero_grad()
+                torch.nn.utils.clip_grad_norm_(finetuned_encoder.parameters(), 1.0)
+                opt.step()
+                opt.zero_grad()
 
         if log_wandb or sweep_run is not None:
             if epoch % 5 == 0 or epoch == epochs - 1:
@@ -554,7 +480,6 @@ def finetune_seg(
                     device=device,
                     identifier="",
                     patch_size_high_res=patch_size_high_res,
-                    baseline_galileo=baseline_galileo,
                 )
                 to_log = {
                     "train_loss": loss.item(),
@@ -627,7 +552,6 @@ def evaluate_seg(
     device,
     identifier="",
     patch_size_high_res=10,
-    baseline_galileo=False,
 ):
     finetuned_model = finetuned_model.eval()
 
@@ -640,108 +564,61 @@ def evaluate_seg(
     results_dict: Dict[str, float] = {}
 
     with torch.no_grad():
-        if baseline_galileo:
-            for masked_output, labels, _ in data_loader:
-                (
-                    s_t_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                    months,
-                ) = [t.to(device) for t in masked_output]
+        for masked_output, labels, _ in data_loader:
+            (
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+                months,
+            ) = [t.to(device) for t in masked_output]
 
-                # with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-                logits = finetuned_model(
-                    s_t_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                    months,
-                    patch_size_high_res=patch_size_high_res,
-                )
-                # check that all predictions are between 0 and 1
-                assert logits.min() >= 0 and logits.max() <= 1
+            # with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+            logits = finetuned_model(
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+                months,
+                patch_size_high_res=patch_size_high_res,
+                patch_size_med_res=1,
+                patch_size_low_res=1,
+            )
 
-                all_preds_1D.append(
-                    rearrange(torch.squeeze(logits), "b s -> (b s)").float().cpu().numpy()
-                )
-                all_labels_1D.append(rearrange(labels, "b h w -> (b h w)").float().cpu().numpy())
+            # check that all predictions are between 0 and 1
+            assert logits.min() >= 0 and logits.max() <= 1
 
-                spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
-                logits = rearrange(
-                    torch.squeeze(logits),
-                    "b (h w) -> b h w",
-                    h=spatial_patches_per_dim,
-                    w=spatial_patches_per_dim,
-                )
+            all_preds_1D.append(
+                rearrange(torch.squeeze(logits), "b s -> (b s)").float().cpu().numpy()
+            )
+            all_labels_1D.append(rearrange(labels, "b h w -> (b h w)").float().cpu().numpy())
 
-                all_preds_2D.append(logits.float().cpu())
-                all_labels_2D.append(labels.float().cpu())
+            spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
+            logits = rearrange(
+                torch.squeeze(logits),
+                "b (h w) -> b h w",
+                h=spatial_patches_per_dim,
+                w=spatial_patches_per_dim,
+            )
 
-        else:
-            for masked_output, labels, _ in data_loader:
-                (
-                    s_t_h_x,
-                    s_t_m_x,
-                    s_t_l_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_h_m,
-                    s_t_m_m,
-                    s_t_l_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                    months,
-                ) = [t.to(device) for t in masked_output]
-
-                # with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-                logits = finetuned_model(
-                    s_t_h_x,
-                    s_t_m_x,
-                    s_t_l_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_h_m,
-                    s_t_m_m,
-                    s_t_l_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                    months,
-                    patch_size_high_res=patch_size_high_res,
-                    patch_size_med_res=1,
-                    patch_size_low_res=1,
-                )
-
-                # check that all predictions are between 0 and 1
-                assert logits.min() >= 0 and logits.max() <= 1
-
-                all_preds_1D.append(
-                    rearrange(torch.squeeze(logits), "b s -> (b s)").float().cpu().numpy()
-                )
-                all_labels_1D.append(rearrange(labels, "b h w -> (b h w)").float().cpu().numpy())
-
-                spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
-                logits = rearrange(
-                    torch.squeeze(logits),
-                    "b (h w) -> b h w",
-                    h=spatial_patches_per_dim,
-                    w=spatial_patches_per_dim,
-                )
-
-                all_preds_2D.append(logits.float().cpu())
-                all_labels_2D.append(labels.float().cpu())
+            all_preds_2D.append(logits.float().cpu())
+            all_labels_2D.append(labels.float().cpu())
 
     # sequence prediction
     all_preds_1D = np.concatenate(all_preds_1D)

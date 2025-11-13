@@ -5,7 +5,7 @@ from pathlib import Path
 from src.config import get_random_config
 from src.data.config import NORMALIZATION_DICT_FILENAME
 from src.data.dataset import Normalizer
-from src.flexipresto import Encoder
+from src.snowgalileo import Encoder
 from src.utils import check_config, config_dir, load_check_config
 
 

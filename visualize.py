@@ -10,7 +10,7 @@ from src.eval import (
     LandsatEval,
 )
 from src.eval.patch_predict import EncoderWithHead
-from src.flexipresto import Encoder
+from src.snowgalileo import Encoder
 from src.utils import checkpoints_dir, device, load_check_config, seed_everything
 
 seed_everything(DEFAULT_SEED)

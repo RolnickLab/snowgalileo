@@ -428,7 +428,7 @@ def create_ee_image(
                     region=polygon,
                     start_date=cur_date.strftime("%Y-%m-%d"),
                     end_date=cur_end_date.strftime("%Y-%m-%d"),
-                )
+                ).clip(polygon)
             )
 
         image_collection_list.append(ee.Image.cat(image_list))

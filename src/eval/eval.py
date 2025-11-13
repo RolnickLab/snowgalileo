@@ -13,9 +13,7 @@ from sklearn.multioutput import MultiOutputClassifier, MultiOutputRegressor
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from ..flexipresto import Encoder
-from ..utils import DEFAULT_SEED, device
-from .knn import (
+from src.eval.knn import (
     KNNat5Classifier,
     KNNat5Regressor,
     KNNat20Classifier,
@@ -23,6 +21,8 @@ from .knn import (
     KNNat100Classifier,
     KNNat100Regressor,
 )
+from src.snowgalileo import Encoder
+from src.utils import DEFAULT_SEED, device
 
 logger = logging.getLogger("__main__")
 

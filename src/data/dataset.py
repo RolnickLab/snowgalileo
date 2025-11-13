@@ -156,7 +156,9 @@ class Normalizer:
         if array_type not in self.shift_div_dict:
             raise ValueError(f"Unknown array type: {array_type}")
         # TODO: check or remove this long-term
-        assert 1 == 0, "We can not totally rely on pre-defined shift/div values. Please provide normalizing_dicts."
+        assert 1 == 0, (
+            "We can not totally rely on pre-defined shift/div values. Please provide normalizing_dicts."
+        )
         return self._normalize(
             x,
             valid_data_mask,
@@ -1401,55 +1403,55 @@ if __name__ == "__main__":
             valid_data_mask_st,
         ) = dataset[i]
 
-        s_t_h_x_c0_valid = s_t_h_x[...,0][valid_data_mask_s_t_h[...,0].astype(bool)]
-        s_t_h_x_c1_valid = s_t_h_x[...,1][valid_data_mask_s_t_h[...,1].astype(bool)]
-        s_t_h_x_c2_valid = s_t_h_x[...,2][valid_data_mask_s_t_h[...,2].astype(bool)]
-        s_t_h_x_c3_valid = s_t_h_x[...,3][valid_data_mask_s_t_h[...,3].astype(bool)]
-        s_t_h_x_c4_valid = s_t_h_x[...,4][valid_data_mask_s_t_h[...,4].astype(bool)]
-        s_t_h_x_c5_valid = s_t_h_x[...,5][valid_data_mask_s_t_h[...,5].astype(bool)]
-        s_t_h_x_c6_valid = s_t_h_x[...,6][valid_data_mask_s_t_h[...,6].astype(bool)]
-        s_t_h_x_c7_valid = s_t_h_x[...,7][valid_data_mask_s_t_h[...,7].astype(bool)]
-        s_t_h_x_c8_valid = s_t_h_x[...,8][valid_data_mask_s_t_h[...,8].astype(bool)]
-        s_t_h_x_c9_valid = s_t_h_x[...,9][valid_data_mask_s_t_h[...,9].astype(bool)]
-        s_t_h_x_c10_valid = s_t_h_x[...,10][valid_data_mask_s_t_h[...,10].astype(bool)]
-        s_t_h_x_c11_valid = s_t_h_x[...,11][valid_data_mask_s_t_h[...,11].astype(bool)]
-        s_t_h_x_c12_valid = s_t_h_x[...,12][valid_data_mask_s_t_h[...,12].astype(bool)]
-        s_t_h_x_c13_valid = s_t_h_x[...,13][valid_data_mask_s_t_h[...,13].astype(bool)]
-        s_t_h_x_c14_valid = s_t_h_x[...,14][valid_data_mask_s_t_h[...,14].astype(bool)]
+        s_t_h_x_c0_valid = s_t_h_x[..., 0][valid_data_mask_s_t_h[..., 0].astype(bool)]
+        s_t_h_x_c1_valid = s_t_h_x[..., 1][valid_data_mask_s_t_h[..., 1].astype(bool)]
+        s_t_h_x_c2_valid = s_t_h_x[..., 2][valid_data_mask_s_t_h[..., 2].astype(bool)]
+        s_t_h_x_c3_valid = s_t_h_x[..., 3][valid_data_mask_s_t_h[..., 3].astype(bool)]
+        s_t_h_x_c4_valid = s_t_h_x[..., 4][valid_data_mask_s_t_h[..., 4].astype(bool)]
+        s_t_h_x_c5_valid = s_t_h_x[..., 5][valid_data_mask_s_t_h[..., 5].astype(bool)]
+        s_t_h_x_c6_valid = s_t_h_x[..., 6][valid_data_mask_s_t_h[..., 6].astype(bool)]
+        s_t_h_x_c7_valid = s_t_h_x[..., 7][valid_data_mask_s_t_h[..., 7].astype(bool)]
+        s_t_h_x_c8_valid = s_t_h_x[..., 8][valid_data_mask_s_t_h[..., 8].astype(bool)]
+        s_t_h_x_c9_valid = s_t_h_x[..., 9][valid_data_mask_s_t_h[..., 9].astype(bool)]
+        s_t_h_x_c10_valid = s_t_h_x[..., 10][valid_data_mask_s_t_h[..., 10].astype(bool)]
+        s_t_h_x_c11_valid = s_t_h_x[..., 11][valid_data_mask_s_t_h[..., 11].astype(bool)]
+        s_t_h_x_c12_valid = s_t_h_x[..., 12][valid_data_mask_s_t_h[..., 12].astype(bool)]
+        s_t_h_x_c13_valid = s_t_h_x[..., 13][valid_data_mask_s_t_h[..., 13].astype(bool)]
+        s_t_h_x_c14_valid = s_t_h_x[..., 14][valid_data_mask_s_t_h[..., 14].astype(bool)]
 
-        s_t_m_x_c0_valid = s_t_m_x[...,0][valid_data_mask_s_t_m[...,0].astype(bool)]
-        s_t_m_x_c1_valid = s_t_m_x[...,1][valid_data_mask_s_t_m[...,1].astype(bool)]
+        s_t_m_x_c0_valid = s_t_m_x[..., 0][valid_data_mask_s_t_m[..., 0].astype(bool)]
+        s_t_m_x_c1_valid = s_t_m_x[..., 1][valid_data_mask_s_t_m[..., 1].astype(bool)]
 
-        s_t_l_x_c0_valid = s_t_l_x[...,0][valid_data_mask_s_t_l[...,0].astype(bool)]
-        s_t_l_x_c1_valid = s_t_l_x[...,1][valid_data_mask_s_t_l[...,1].astype(bool)]
-        s_t_l_x_c2_valid = s_t_l_x[...,2][valid_data_mask_s_t_l[...,2].astype(bool)]
-        s_t_l_x_c3_valid = s_t_l_x[...,3][valid_data_mask_s_t_l[...,3].astype(bool)]
-        s_t_l_x_c4_valid = s_t_l_x[...,4][valid_data_mask_s_t_l[...,4].astype(bool)]
-        s_t_l_x_c5_valid = s_t_l_x[...,5][valid_data_mask_s_t_l[...,5].astype(bool)]
-        s_t_l_x_c6_valid = s_t_l_x[...,6][valid_data_mask_s_t_l[...,6].astype(bool)]
-        s_t_l_x_c7_valid = s_t_l_x[...,7][valid_data_mask_s_t_l[...,7].astype(bool)]
-        s_t_l_x_c8_valid = s_t_l_x[...,8][valid_data_mask_s_t_l[...,8].astype(bool)]
-        s_t_l_x_c9_valid = s_t_l_x[...,9][valid_data_mask_s_t_l[...,9].astype(bool)]
-        s_t_l_x_c10_valid = s_t_l_x[...,10][valid_data_mask_s_t_l[...,10].astype(bool)]
+        s_t_l_x_c0_valid = s_t_l_x[..., 0][valid_data_mask_s_t_l[..., 0].astype(bool)]
+        s_t_l_x_c1_valid = s_t_l_x[..., 1][valid_data_mask_s_t_l[..., 1].astype(bool)]
+        s_t_l_x_c2_valid = s_t_l_x[..., 2][valid_data_mask_s_t_l[..., 2].astype(bool)]
+        s_t_l_x_c3_valid = s_t_l_x[..., 3][valid_data_mask_s_t_l[..., 3].astype(bool)]
+        s_t_l_x_c4_valid = s_t_l_x[..., 4][valid_data_mask_s_t_l[..., 4].astype(bool)]
+        s_t_l_x_c5_valid = s_t_l_x[..., 5][valid_data_mask_s_t_l[..., 5].astype(bool)]
+        s_t_l_x_c6_valid = s_t_l_x[..., 6][valid_data_mask_s_t_l[..., 6].astype(bool)]
+        s_t_l_x_c7_valid = s_t_l_x[..., 7][valid_data_mask_s_t_l[..., 7].astype(bool)]
+        s_t_l_x_c8_valid = s_t_l_x[..., 8][valid_data_mask_s_t_l[..., 8].astype(bool)]
+        s_t_l_x_c9_valid = s_t_l_x[..., 9][valid_data_mask_s_t_l[..., 9].astype(bool)]
+        s_t_l_x_c10_valid = s_t_l_x[..., 10][valid_data_mask_s_t_l[..., 10].astype(bool)]
 
-        sp_x_c0_valid = sp_x[...,0][valid_data_mask_sp[...,0].astype(bool)]
-        sp_x_c1_valid = sp_x[...,1][valid_data_mask_sp[...,1].astype(bool)]
-        sp_x_c2_valid = sp_x[...,2][valid_data_mask_sp[...,2].astype(bool)]
-        sp_x_c3_valid = sp_x[...,3][valid_data_mask_sp[...,3].astype(bool)]
+        sp_x_c0_valid = sp_x[..., 0][valid_data_mask_sp[..., 0].astype(bool)]
+        sp_x_c1_valid = sp_x[..., 1][valid_data_mask_sp[..., 1].astype(bool)]
+        sp_x_c2_valid = sp_x[..., 2][valid_data_mask_sp[..., 2].astype(bool)]
+        sp_x_c3_valid = sp_x[..., 3][valid_data_mask_sp[..., 3].astype(bool)]
 
-        t_x_c0_valid = t_x[...,0][valid_data_mask_t[...,0].astype(bool)]
-        t_x_c1_valid = t_x[...,1][valid_data_mask_t[...,1].astype(bool)]
-        t_x_c2_valid = t_x[...,2][valid_data_mask_t[...,2].astype(bool)]
-        t_x_c3_valid = t_x[...,3][valid_data_mask_t[...,3].astype(bool)]
-        t_x_c4_valid = t_x[...,4][valid_data_mask_t[...,4].astype(bool)]
-        t_x_c5_valid = t_x[...,5][valid_data_mask_t[...,5].astype(bool)]
-        t_x_c6_valid = t_x[...,6][valid_data_mask_t[...,6].astype(bool)]
-        t_x_c7_valid = t_x[...,7][valid_data_mask_t[...,7].astype(bool)]
-        t_x_c8_valid = t_x[...,8][valid_data_mask_t[...,8].astype(bool)]
+        t_x_c0_valid = t_x[..., 0][valid_data_mask_t[..., 0].astype(bool)]
+        t_x_c1_valid = t_x[..., 1][valid_data_mask_t[..., 1].astype(bool)]
+        t_x_c2_valid = t_x[..., 2][valid_data_mask_t[..., 2].astype(bool)]
+        t_x_c3_valid = t_x[..., 3][valid_data_mask_t[..., 3].astype(bool)]
+        t_x_c4_valid = t_x[..., 4][valid_data_mask_t[..., 4].astype(bool)]
+        t_x_c5_valid = t_x[..., 5][valid_data_mask_t[..., 5].astype(bool)]
+        t_x_c6_valid = t_x[..., 6][valid_data_mask_t[..., 6].astype(bool)]
+        t_x_c7_valid = t_x[..., 7][valid_data_mask_t[..., 7].astype(bool)]
+        t_x_c8_valid = t_x[..., 8][valid_data_mask_t[..., 8].astype(bool)]
 
-        st_x_c0_valid = st_x[...,0][valid_data_mask_st[...,0].astype(bool)]
-        st_x_c1_valid = st_x[...,1][valid_data_mask_st[...,1].astype(bool)]
-        st_x_c2_valid = st_x[...,2][valid_data_mask_st[...,2].astype(bool)]
+        st_x_c0_valid = st_x[..., 0][valid_data_mask_st[..., 0].astype(bool)]
+        st_x_c1_valid = st_x[..., 1][valid_data_mask_st[..., 1].astype(bool)]
+        st_x_c2_valid = st_x[..., 2][valid_data_mask_st[..., 2].astype(bool)]
 
         stats.append(
             {

@@ -9,26 +9,20 @@ NUM_TIMESTEPS = 8
 # time range to sample a random time window from. End year is inclusive (START_YEAR <= N <= END_YEAR)
 # if the season spans two years, the end year will be the following year
 # (i.e., if the end year is 2019, it is possible to get data from early 2020)
-# for the start year, we are limited by Sentinel-3 data availability (starting 2016-10-18)
 # This means effectively, we can sample from (START_YEAR - 1)-12-16 to (END_YEAR + 1)-02-28
-# START_YEAR = 2017
-# END_YEAR = 2020
-
 # Landsat 9 restricts to 2022 - 2023
 START_YEAR = 2022
 END_YEAR = 2023
 
+# TODO: the naming here is confusing
 EXPORTED_HEIGHT_WIDTH_METRES = 1000
-# this is the maximum patch_size * num_patches.
-# we will need to change this if that assumption changes
-# Note: 96 for 1km x 1km and 48 for 500m x 500m
 DATASET_OUTPUT_HW_HIGH_RES = 100
-DATASET_OUTPUT_HW_MED_RES = 100
-DATASET_OUTPUT_HW_LOW_RES = 100
+DATASET_OUTPUT_HW_MED_RES = 200
+DATASET_OUTPUT_HW_LOW_RES = 500
 
 NUM_HIGH_RES_PIXELS_PER_DIM = EXPORTED_HEIGHT_WIDTH_METRES // DATASET_OUTPUT_HW_HIGH_RES
-NUM_MED_RES_PIXELS_PER_DIM = 5
-NUM_LOW_RES_PIXELS_PER_DIM = 2
+NUM_MED_RES_PIXELS_PER_DIM = EXPORTED_HEIGHT_WIDTH_METRES // DATASET_OUTPUT_HW_MED_RES
+NUM_LOW_RES_PIXELS_PER_DIM = EXPORTED_HEIGHT_WIDTH_METRES // DATASET_OUTPUT_HW_LOW_RES
 
 # the idea is that for exporting different data, we will only have to change this dictionary in the end
 # i.e., sort the modalities into different shape_types, add / remove satellite modalities
@@ -310,24 +304,6 @@ CHANNEL_WISE_INVALID_DATA_THRESHOLDS: Dict[str, Dict] = {
         1: -1,  # y
         2: -1,  # z
     },
-    "s_t_h_x_galileo": {
-        0: -50,  # S1 VV
-        1: -50,  # S1 VH
-        2: 0,  # S1 angle
-        3: -2000,  # S2 B2
-        4: -2000,  # S2 B3
-        5: -2000,  # S2 B4
-        6: -2000,  # S2 B8
-        7: -2000,  # S2 B11
-        8: -2000,  # S2 B12
-        9: -2000,  # Landsat B2
-        10: -2000,  # Landsat B3
-        11: -2000,  # Landsat B4
-        12: -2000,  # Landsat B5
-        13: -2000,  # Landsat B6
-        14: -2000,  # Landsat B7
-        15: -5,  # NDVI
-    },
 }
 USE_INDECES = False
 
@@ -360,6 +336,5 @@ OUTPUT_FOLDER = DATA_FOLDER / "outputs"
 MASK_FOLDER = DATA_FOLDER / "landsat_eval_masks/test"
 ENCODER_FILENAME = "encoder.pt"
 OPTIMIZER_FILENAME = "optimizer.pt"
-TARGET_ENCODER_FILENAME = "target_encoder.pt"
 DECODER_FILENAME = "decoder.pt"
 CONFIG_FILENAME = "config.json"

@@ -7,14 +7,13 @@ import psutil
 import torch
 from sklearn.model_selection import train_test_split
 
-from galileo.src.galileo import Encoder as GalileoEncoder
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER
 from src.eval import (
     LandsatEval,
 )
 from src.eval.eval import EvalTask
-from src.flexipresto import Encoder
+from src.snowgalileo import Encoder
 from src.utils import device, load_check_config, seed_everything
 
 seed_everything(DEFAULT_SEED)
@@ -24,9 +23,6 @@ torch.backends.cuda.matmul.allow_tf32 = True
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--output_folder", type=str, default="outputs/checkpoints_ps10_5/epoch_82/")
-argparser.add_argument(
-    "--encoder_type", type=str, default="snowgalileo", choices=["orig_galileo", "snowgalileo"]
-)
 argparser.add_argument(
     "--strategy",
     type=str,
@@ -58,19 +54,16 @@ with (Path(__file__).parents[0] / Path("src/eval/eval_configs") / Path(args["eva
 ) as f:
     eval_config = json.load(f)
 
-if args["encoder_type"] == "orig_galileo":
-    encoder = GalileoEncoder.load_from_folder(Path("galileo/data/models/nano")).to(device)
-    initialization_id = "galileo_pretrained"
+
+if args["output_folder"] != "":
+    # load pretrained snowgalileo encoder
+    encoder = Encoder.load_from_folder(Path(DATA_FOLDER / args["output_folder"])).to(device)
+    initialization_id = "snowgalileo_pretrained"
 else:
-    if args["output_folder"] != "":
-        # load pretrained snowgalileo encoder
-        encoder = Encoder.load_from_folder(Path(DATA_FOLDER / args["output_folder"])).to(device)
-        initialization_id = "snowgalileo_pretrained"
-    else:
-        # randomly initialized snowgalileo encoder
-        config = load_check_config("ai4snow_ps10.json")
-        encoder = Encoder(**config["model"]["encoder"]).to(device)
-        initialization_id = "snowgalileo_random"
+    # randomly initialized snowgalileo encoder
+    config = load_check_config("ai4snow_ps10.json")
+    encoder = Encoder(**config["model"]["encoder"]).to(device)
+    initialization_id = "snowgalileo_random"
 
 # TODO: move this somewhere else
 # create dataset split on the fly, so we don't have to store multiple copies
@@ -131,7 +124,6 @@ for task in eval_tasks:
     results = task.train_and_evaluate_model_on_task(
         pretrained_model=encoder,
         model_modes=["Regression"],
-        baseline_galileo=(args["encoder_type"] == "orig_galileo"),
         log_wandb=True,
         initialization_id=initialization_id,
         save_final_checkpoint=args["save_final_checkpoint"],

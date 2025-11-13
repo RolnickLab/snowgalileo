@@ -1,35 +1,26 @@
 # https://github.com/nasaharvest/openmapflow/blob/main/openmapflow/ee_exporter.py
 import os
 import shutil
-from collections import OrderedDict
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any, List, Optional, Union
-from typing import OrderedDict as OrderedDictType
+from typing import Any, Optional, Union
+from typing import List, OrderedDict as OrderedDictType
+from collections import OrderedDict
 
 import ee
 import numpy as np
 import numpy.typing as npt
 import rasterio
 import requests
-from pandas.compat._optional import import_optional_dependency
-from tqdm import tqdm
 
 from src.data.config import (
     DATA_FOLDER,
-    DAYS_PER_TIMESTEP,
     EE_BUCKET_TIFS,
     EE_DRIVE_FOLDER_NAME,
-    EE_FOLDER_TIFS,
-    EE_PROJECT,
-    END_YEAR,
     EVAL_MODALITIES,
-    EXPORTED_HEIGHT_WIDTH_METRES,
     MASK_FOLDER,
     NO_DATA_VALUE,
     NUM_TIMESTEPS,
-    START_YEAR,
-    TIFS_FOLDER,
 )
 from src.data.earthengine.copernicus_dem import (
     DEM_BANDS,
@@ -38,6 +29,11 @@ from src.data.earthengine.copernicus_dem import (
     get_single_dem_image,
 )
 from src.data.earthengine.ee_bbox import EEGeometry
+from src.data.earthengine.eo import (
+    EarthEngineExporter,
+    create_ee_image,
+    ee_safe_str,
+)
 from src.data.earthengine.era5 import (
     ERA5_BANDS,
     ERA5_DIV_VALUES,
@@ -76,10 +72,6 @@ from src.data.earthengine.s2 import (
     get_single_s2_image,
 )
 from src.data.earthengine.s3 import S3_BANDS, S3_DIV_VALUES, S3_SHIFT_VALUES, get_single_s3_image
-from src.data.earthengine.utils import (
-    get_ee_credentials,
-    get_location_season_identifier,
-)
 from src.data.earthengine.viirs import (
     VIIRS_CLOUD_FLAG_BANDS,
     VIIRS_COARSE_BANDS,
@@ -92,12 +84,6 @@ from src.data.earthengine.viirs import (
     get_single_viirs_fine_image,
     get_viirs_cloud_flag,
 )
-
-# dataframe constants when exporting the labels
-LAT = "Latitude"
-LON = "Longitude"
-START_DATE = date(START_YEAR, 1, 1)
-END_DATE = date(END_YEAR, 12, 31)
 
 # construct time image functions
 TIME_IMAGE_FUNCTIONS = []
@@ -329,137 +315,7 @@ STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
 )
 
 
-def get_ee_task_list(key: str = "description") -> List[str]:
-    """Gets a list of all active tasks in the EE task list."""
-    task_list = ee.data.getTaskList()
-    return [
-        task[key]
-        for task in tqdm(task_list, desc="Loading Earth Engine tasks")
-        if task["state"] in ["READY", "RUNNING", "FAILED"]
-    ]
-
-
-def get_ee_task_amount(prefix: Optional[str] = None) -> int:
-    """
-    Gets amount of active tasks in Earth Engine.
-    Args:
-        prefix: Prefix to filter tasks.
-    Returns:
-        Amount of active tasks.
-    """
-    ee_prefix = None if prefix is None else ee_safe_str(prefix)
-    amount = 0
-    task_list = ee.data.getTaskList()
-    for t in tqdm(task_list):
-        valid_state = t["state"] in ["READY", "RUNNING"]
-        if valid_state and (ee_prefix is None or t["description"].startswith(ee_prefix)):
-            amount += 1
-    return amount
-
-
-def get_cloud_tif_list(
-    dest_bucket: str, prefix: str = EE_FOLDER_TIFS, region: str = "us-central1"
-) -> List[str]:
-    """Gets a list of all cloud-free TIFs in a bucket."""
-    storage = import_optional_dependency("google.cloud.storage")
-    cloud_tif_list_iterator = storage.Client().list_blobs(dest_bucket, prefix=prefix)
-    try:
-        tif_list = [
-            blob.name
-            for blob in tqdm(cloud_tif_list_iterator, desc="Loading tifs already on Google Cloud")
-        ]
-    except Exception as e:
-        raise Exception(
-            f"{e}\nPlease create the Google Cloud bucket: {dest_bucket}"
-            + f"\nCommand: gsutil mb -l {region} gs://{dest_bucket}"
-        )
-    print(f"Found {len(tif_list)} already exported tifs")
-    return tif_list
-
-
-def make_combine_bands_function(bands: List[str]):
-    def combine_bands(current, previous):
-        # Transforms an Image Collection with 1 band per Image into a single
-        # Image with items as bands
-        # Author: Jamie Vleeshouwer
-
-        # Rename the band
-        previous = ee.Image(previous)
-        current = current.select(bands)
-        # Append it to the result (Note: only return current item on first
-        # element/iteration)
-        return ee.Algorithms.If(
-            ee.Algorithms.IsEqual(previous, None),
-            current,
-            previous.addBands(ee.Image(current)),
-        )
-
-    return combine_bands
-
-
-def ee_safe_str(s: str):
-    """Earth Engine descriptions only allow certain characters"""
-    return s.replace(".", "-").replace("=", "-").replace("/", "-")[:100]
-
-
-def create_ee_image(
-    polygon: ee.Geometry,
-    interval_start_date: date,
-    interval_end_date: date,
-    days_per_timestep: int = DAYS_PER_TIMESTEP,
-) -> ee.Image:
-    # TODO: change function header
-    """
-    Returns an ee.Image which we can then export.
-    This image will contain S1, S2, ERA5 and Dynamic World data
-    between start_date and end_date, in intervals of
-    days_per_timestep. Each timestep will be a different channel in the
-    image (e.g. if I have 3 timesteps, then I'll have VV, VV_1, VV_2 for the
-    S1 VV bands). The static in time SRTM bands will also be in the image.
-    """
-    image_collection_list: List[ee.Image] = []
-    cur_date = interval_start_date
-    cur_end_date = cur_date + timedelta(days=days_per_timestep)
-
-    # Note: we add a day to the end date to make sure we get the last day inclusive
-    # (the ee.filterDate function is exclusive)
-    # TODO: check if this makes sense if days_per_timestep is greater than 1
-    while cur_end_date <= interval_end_date + timedelta(days=days_per_timestep):
-        image_list: List[ee.Image] = []
-
-        for image_function in TIME_IMAGE_FUNCTIONS:
-            image_list.append(
-                image_function(
-                    region=polygon,
-                    start_date=cur_date.strftime("%Y-%m-%d"),
-                    end_date=cur_end_date.strftime("%Y-%m-%d"),
-                ).clip(polygon)
-            )
-
-        image_collection_list.append(ee.Image.cat(image_list))
-        cur_date += timedelta(days=days_per_timestep)
-        cur_end_date += timedelta(days=days_per_timestep)
-
-    # now, we want to take our image collection and append the bands into a single image
-    imcoll = ee.ImageCollection(image_collection_list)
-    combine_bands_function = make_combine_bands_function(EO_ALL_DYNAMIC_IN_TIME_BANDS)
-    img = ee.Image(imcoll.iterate(combine_bands_function))
-
-    # we add the static in time images
-    total_image_list: List[ee.Image] = [img]
-    for space_image_function in SPACE_IMAGE_FUNCTIONS:
-        total_image_list.append(
-            space_image_function(
-                region=polygon,
-                start_date=cur_date.strftime("%Y-%m-%d"),
-                end_date=cur_end_date.strftime("%Y-%m-%d"),
-            )
-        )
-
-    return ee.Image.cat(total_image_list)
-
-
-class EarthEngineExporterEval:
+class EarthEngineExporterEval(EarthEngineExporter):
     """
     Export satellite data from Earth engine. It's called using the following
     script:
@@ -486,46 +342,15 @@ class EarthEngineExporterEval:
         no_data_val: int = NO_DATA_VALUE,
         tifs_folder=None,
     ) -> None:
-        assert mode in ["cloud", "drive", "url"]
-        self.mode = mode
-        if tifs_folder is None:
-            self.tifs_folder = Path(TIFS_FOLDER)
-        else:
-            self.tifs_folder = DATA_FOLDER / tifs_folder
-        # create the folder if it does not exist
-        if not self.tifs_folder.exists():
-            os.makedirs(self.tifs_folder, exist_ok=True)
-        if mode == "url":
-            print(
-                f"Mode: url. Files will be saved to {self.tifs_folder} and rsynced to google cloud"
-            )
-        self.surrounding_metres = EXPORTED_HEIGHT_WIDTH_METRES / 2
-        self.dest_bucket = dest_bucket
-        self.dest_drive_folder = dest_drive_folder
-
-        initialize_args = {
-            "credentials": credentials if credentials else get_ee_credentials(),
-            "project": EE_PROJECT,
-        }
-        if mode == "url":
-            initialize_args["opt_url"] = "https://earthengine-highvolume.googleapis.com"
-        ee.Initialize(**initialize_args)
-        self.check_ee = check_ee
-        self.ee_task_list = get_ee_task_list() if self.check_ee else []
-        self.check_gcp = check_gcp
-        self.cloud_tif_list = get_cloud_tif_list(dest_bucket) if self.check_gcp else []
-        self.local_tif_list = [x.name for x in self.tifs_folder.glob("*.tif*")]
-        self.cloud_location_season_tif_list = [
-            get_location_season_identifier(x) for x in self.cloud_tif_list
-        ]
-        self.local_location_season_tif_list = [
-            get_location_season_identifier(x) for x in self.local_tif_list
-        ]
-        self.no_data_val = no_data_val
-
-    def sync_local_and_gcloud(self):
-        os.system(
-            f"gcloud storage rsync -r {self.tifs_folder} gs://{EE_BUCKET_TIFS}/{EE_FOLDER_TIFS}"
+        super().__init__(
+            dest_bucket=dest_bucket,
+            dest_drive_folder=dest_drive_folder,
+            check_ee=check_ee,
+            check_gcp=check_gcp,
+            credentials=credentials,
+            mode=mode,
+            no_data_val=no_data_val,
+            tifs_folder=tifs_folder,
         )
 
     def _export_for_polygon(
@@ -536,7 +361,6 @@ class EarthEngineExporterEval:
         interval_end_date: date,
         file_dimensions: Optional[int] = None,
         crs: Optional[str] = "EPSG:4326",
-        transform: Optional[npt.NDArray[Any]] = None,
     ) -> bool:
         cloud_filename = f"{str(polygon_identifier)}"
         local_filename = f"{str(polygon_identifier).replace('/', '_')}_{crs}.tif"
@@ -668,33 +492,10 @@ class EarthEngineExporterEval:
         for filename in filenames:
             parts = filename.split("_")
 
-            # TODO: make this more efficient
-            # TODO: change the lat and lon names
             with rasterio.open(folder / filename) as src:
                 min_yy, max_yy = src.bounds.bottom, src.bounds.top
                 min_xx, max_xx = src.bounds.left, src.bounds.right
                 crs = src.crs.to_string()
-                transform = src.transform
-                # transform, width, height = calculate_default_transform(
-                # src.crs, dst_crs, src.width, src.height, *src.bounds)
-                # kwargs = src.meta.copy()
-                # kwargs.update({
-                #    'crs': dst_crs,
-                #    'transform': transform,
-                #    'width': width,
-                #    'height': height
-                # })
-
-                # with rasterio.open(folder / f"wgs84_{filename}", 'w', **kwargs) as dst:
-                #    for i in range(1, src.count + 1):
-                #        reproject(
-                #            source=rasterio.band(src, i),
-                #            destination=rasterio.band(dst, i),
-                #            src_transform=src.transform,
-                #            src_crs=src.crs,
-                #            dst_transform=transform,
-                #            dst_crs=dst_crs,
-                #            resampling=Resampling.nearest)
 
                 # reproject to EPSG:4326
                 print(f"Converting {crs} to EPSG:4326")
@@ -704,9 +505,6 @@ class EarthEngineExporterEval:
                 transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
                 min_lon, min_lat = transformer.transform(min_xx, min_yy)
                 max_lon, max_lat = transformer.transform(max_xx, max_yy)
-
-                # min_lon, min_lat = dst.bounds.left, dst.bounds.bottom
-                # max_lon, max_lat = dst.bounds.right, dst.bounds.top
 
             ee_bbox = EEGeometry.from_coord_bounds(
                 min_lat=min_lat,
@@ -725,7 +523,6 @@ class EarthEngineExporterEval:
                 interval_start_date=WINDOW_START_DATE,
                 interval_end_date=WINDOW_END_DATE,
                 crs=crs,
-                transform=transform,
             )
             if export_started:
                 exports_started += 1

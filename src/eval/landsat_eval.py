@@ -59,8 +59,8 @@ from src.data.earthengine.eo_eval import (
 )
 from src.eval.eval import EvalTask, model_class_name
 from src.eval.patch_predict import EncoderWithHead, get_finetune_results
-from src.flexipresto import Encoder
 from src.masking import _aggregate_mask_per_channel_group
+from src.snowgalileo import Encoder
 from src.utils import DEFAULT_SEED, config_dir, device, masked_output_np_to_tensor
 
 logger = logging.getLogger("__main__")
@@ -963,7 +963,8 @@ class LandsatEval(EvalTask):
         self.decoder_mode = decoder_mode
 
         super().__init__(self.patch_size_high_res, seed)
-        self.name = f"{'attn' if self.decoder_mode == 'attention_probe' else 'linear' if self.decoder_mode == 'linear_probe' else 'finetune' if self.decoder_mode == 'finetune' else 'sklearn'}_{'_exclude_prediction_date_' if self.exclude_prediction_date else ''}{'_no_high_res_in_pred_date' if self.exclude_prediction_high_res else ''}{f'{eval_config["name"]}' if eval_config and 'name' in eval_config else ''}"
+        name_id = f"{eval_config['name']}" if eval_config and "name" in eval_config else ""
+        self.name = f"{'attn' if self.decoder_mode == 'attention_probe' else 'linear' if self.decoder_mode == 'linear_probe' else 'finetune' if self.decoder_mode == 'finetune' else 'sklearn'}_{'_exclude_prediction_date_' if self.exclude_prediction_date else ''}{'_no_high_res_in_pred_date' if self.exclude_prediction_high_res else ''}{name_id}"
         self.eval_config = eval_config
         self.data_config = self.eval_config["data"]
 
@@ -1005,54 +1006,23 @@ class LandsatEval(EvalTask):
             f"{bs}{self.name}_{model_name}_f1": f1_score(target, preds, average="weighted"),
         }
 
-    def get_test_dl(self, baseline_galileo=False, hyperparams_config=None, return_ds=False):
-        if baseline_galileo:
-            from src.eval.landsat_baselines import (
-                GALILEO_NORMALIZATION_DICT_FILENAME,
-                GalileoNormalizer,
-                LandsatEvalDatasetGalileo,
-                galileo_config_dir,
-            )
+    def get_test_dl(self, hyperparams_config=None, return_ds=False):
+        test_ds = LandsatEvalDataset(
+            exclude_prediction_date=self.exclude_prediction_date,
+            exclude_prediction_high_res=self.exclude_prediction_high_res,
+            split="test",
+            data_config=self.data_config,
+        )
 
-            test_ds = LandsatEvalDatasetGalileo(
-                exclude_prediction_date=self.exclude_prediction_date,
-                exclude_prediction_high_res=self.exclude_prediction_high_res,
-                split="test",
+        if self.normalization == "std":
+            normalizing_dict = test_ds.load_normalization_values(
+                path=config_dir / NORMALIZATION_DICT_FILENAME
             )
-            if self.normalization == "std":
-                normalizer = GalileoNormalizer(
-                    std=True,
-                    normalizing_dicts=test_ds.load_normalization_values(
-                        galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME
-                    ),
-                    std_multiplier=2,
-                )
-                print(
-                    test_ds.load_normalization_values(
-                        galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME
-                    ),
-                    flush=True,
-                )
-            else:
-                normalizer = GalileoNormalizer(std=False)
-            test_ds.normalizer = normalizer
+            print(normalizing_dict, flush=True)
+            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
         else:
-            test_ds = LandsatEvalDataset(
-                exclude_prediction_date=self.exclude_prediction_date,
-                exclude_prediction_high_res=self.exclude_prediction_high_res,
-                split="test",
-                data_config=self.data_config,
-            )
-
-            if self.normalization == "std":
-                normalizing_dict = test_ds.load_normalization_values(
-                    path=config_dir / NORMALIZATION_DICT_FILENAME
-                )
-                print(normalizing_dict, flush=True)
-                normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
-            else:
-                normalizer = Normalizer(std=False)
-            test_ds.normalizer = normalizer
+            normalizer = Normalizer(std=False)
+        test_ds.normalizer = normalizer
 
         test_dl = DataLoader(
             test_ds,
@@ -1069,16 +1039,13 @@ class LandsatEval(EvalTask):
         self,
         pretrained_model: Encoder,
         sklearn_models: Sequence[BaseEstimator],
-        baseline_galileo=False,
         hyperparams_config=None,
     ) -> Dict:
         prediction_folder = DATA_FOLDER / "predictions"
         if not prediction_folder.exists():
             prediction_folder.mkdir(parents=True, exist_ok=True)
 
-        test_dl = self.get_test_dl(
-            baseline_galileo=baseline_galileo, hyperparams_config=hyperparams_config
-        )
+        test_dl = self.get_test_dl(hyperparams_config=hyperparams_config)
 
         pred_dict: Dict[str, BaseEstimator] = {
             model_class_name(model): [] for model in sklearn_models
@@ -1089,62 +1056,27 @@ class LandsatEval(EvalTask):
         encodings_list = []
         labels_list = []
 
-        if baseline_galileo:
-            for masked_output, label, _ in tqdm(test_dl, desc="Computing test predictions"):
-                (
-                    s_t_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                    months,
-                ) = [t.to(device) for t in masked_output]
+        for masked_output, label, _ in tqdm(test_dl, desc="Computing test predictions"):
+            (
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+                months,
+            ) = [t.to(device) for t in masked_output]
 
-                labels_list.append(self.rearrange_targets_into_token_sequence(label))
+            labels_list.append(self.rearrange_targets_into_token_sequence(label))
 
-                pretrained_model.eval()
-                with torch.no_grad():
-                    (
-                        s_t_x,
-                        sp_x,
-                        t_x,
-                        st_x,
-                        s_t_m,
-                        sp_m,
-                        t_m,
-                        st_m,
-                        _,
-                    ) = pretrained_model(
-                        s_t_x,
-                        sp_x,
-                        t_x,
-                        st_x,
-                        s_t_m,
-                        sp_m,
-                        t_m,
-                        st_m,
-                        months,
-                        patch_size=self.patch_size_high_res,
-                    )
-
-                encodings = self.group_encodings_per_token_galileo_baseline(
-                    pretrained_model,
-                    s_t_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                )
-                encodings_list.append(encodings.cpu().numpy())
-
-        else:
-            for masked_output, label, _ in tqdm(test_dl, desc="Computing test predictions"):
+            pretrained_model.eval()
+            with torch.no_grad():
                 (
                     s_t_h_x,
                     s_t_m_x,
@@ -1158,48 +1090,8 @@ class LandsatEval(EvalTask):
                     sp_m,
                     t_m,
                     st_m,
-                    months,
-                ) = [t.to(device) for t in masked_output]
-
-                labels_list.append(self.rearrange_targets_into_token_sequence(label))
-
-                pretrained_model.eval()
-                with torch.no_grad():
-                    (
-                        s_t_h_x,
-                        s_t_m_x,
-                        s_t_l_x,
-                        sp_x,
-                        t_x,
-                        st_x,
-                        s_t_h_m,
-                        s_t_m_m,
-                        s_t_l_m,
-                        sp_m,
-                        t_m,
-                        st_m,
-                        _,
-                    ) = pretrained_model(
-                        s_t_h_x,
-                        s_t_m_x,
-                        s_t_l_x,
-                        sp_x,
-                        t_x,
-                        st_x,
-                        s_t_h_m,
-                        s_t_m_m,
-                        s_t_l_m,
-                        sp_m,
-                        t_m,
-                        st_m,
-                        months,
-                        patch_size_high_res=self.patch_size_high_res,
-                        patch_size_med_res=1,
-                        patch_size_low_res=1,
-                    )
-
-                encodings = self.group_encodings_per_token(
-                    pretrained_model,
+                    _,
+                ) = pretrained_model(
                     s_t_h_x,
                     s_t_m_x,
                     s_t_l_x,
@@ -1212,8 +1104,28 @@ class LandsatEval(EvalTask):
                     sp_m,
                     t_m,
                     st_m,
+                    months,
+                    patch_size_high_res=self.patch_size_high_res,
+                    patch_size_med_res=1,
+                    patch_size_low_res=1,
                 )
-                encodings_list.append(encodings.cpu().numpy())
+
+            encodings = self.group_encodings_per_token(
+                pretrained_model,
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+            )
+            encodings_list.append(encodings.cpu().numpy())
 
         encodings_np, targets_np = np.concatenate(encodings_list), np.concatenate(labels_list)
 
@@ -1282,7 +1194,6 @@ class LandsatEval(EvalTask):
         sklearn_models: Sequence[BaseEstimator],
         num_images: int = 50,
         sort_for: str = "overall_accuracy",
-        baseline_galileo=False,
         hyperparams_config=None,
     ) -> Dict:
         prediction_folder = DATA_FOLDER / "ascending_accuracy_predictions"
@@ -1290,7 +1201,6 @@ class LandsatEval(EvalTask):
             prediction_folder.mkdir(parents=True, exist_ok=True)
 
         test_ds, test_dl = self.get_test_dl(
-            baseline_galileo=baseline_galileo,
             hyperparams_config=hyperparams_config,
             return_ds=True,
         )
@@ -1773,7 +1683,6 @@ class LandsatEval(EvalTask):
         self,
         pretrained_model: Encoder,
         model_modes: Optional[List[str]] = None,
-        baseline_galileo: bool = False,
         log_wandb: bool = False,
         hyperparams_config: Optional[Dict] = None,
         initialization_id: Optional[str] = None,
@@ -1802,53 +1711,22 @@ class LandsatEval(EvalTask):
         BATCH_SIZE = hyperparams_config.get("batch_size", 16)
         NUM_WORKERS = hyperparams_config.get("num_workers", 4)
 
-        if baseline_galileo:
-            from src.eval.landsat_baselines import (
-                GALILEO_NORMALIZATION_DICT_FILENAME,
-                GalileoNormalizer,
-                LandsatEvalDatasetGalileo,
-                galileo_config_dir,
-            )
+        train_ds = LandsatEvalDataset(
+            exclude_prediction_date=self.exclude_prediction_date,
+            exclude_prediction_high_res=self.exclude_prediction_high_res,
+            split="train",
+            data_config=self.data_config,
+        )
 
-            train_ds = LandsatEvalDatasetGalileo(
-                exclude_prediction_date=self.exclude_prediction_date,
-                exclude_prediction_high_res=self.exclude_prediction_high_res,
-                split="train",
+        if self.normalization == "std":
+            normalizing_dict = train_ds.load_normalization_values(
+                path=config_dir / NORMALIZATION_DICT_FILENAME
             )
-            if self.normalization == "std":
-                normalizer = GalileoNormalizer(
-                    std=True,
-                    normalizing_dicts=train_ds.load_normalization_values(
-                        galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME
-                    ),
-                    std_multiplier=2,
-                )
-                print(
-                    train_ds.load_normalization_values(
-                        galileo_config_dir / GALILEO_NORMALIZATION_DICT_FILENAME
-                    ),
-                    flush=True,
-                )
-            else:
-                normalizer = GalileoNormalizer(std=False)
-            train_ds.normalizer = normalizer
+            print(normalizing_dict, flush=True)
+            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
         else:
-            train_ds = LandsatEvalDataset(
-                exclude_prediction_date=self.exclude_prediction_date,
-                exclude_prediction_high_res=self.exclude_prediction_high_res,
-                split="train",
-                data_config=self.data_config,
-            )
-
-            if self.normalization == "std":
-                normalizing_dict = train_ds.load_normalization_values(
-                    path=config_dir / NORMALIZATION_DICT_FILENAME
-                )
-                print(normalizing_dict, flush=True)
-                normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
-            else:
-                normalizer = Normalizer(std=False)
-            train_ds.normalizer = normalizer
+            normalizer = Normalizer(std=False)
+        train_ds.normalizer = normalizer
 
         if self.resample:
             from torch.utils.data import WeightedRandomSampler
@@ -1880,19 +1758,16 @@ class LandsatEval(EvalTask):
                 "Cannot save final checkpoint when using sklearn evaluation mode."
             )
             trained_sklearn_models = self.train_sklearn_model(
-                train_dl, pretrained_model, model_modes, baseline_galileo=baseline_galileo
+                train_dl, pretrained_model, model_modes
             )
             results = self._evaluate_trained_sklearn_model(
                 pretrained_model,
                 trained_sklearn_models,
-                baseline_galileo=baseline_galileo,
                 hyperparams_config=hyperparams_config,
             )
 
         elif self.decoder_mode in ["finetune", "linear_probe", "attention_probe"]:
-            test_dl = self.get_test_dl(
-                hyperparams_config=hyperparams_config, baseline_galileo=baseline_galileo
-            )
+            test_dl = self.get_test_dl(hyperparams_config=hyperparams_config)
             loaders_dict = {"train": train_dl, "test": test_dl}
             results = get_finetune_results(
                 loaders_dict,
@@ -1903,7 +1778,6 @@ class LandsatEval(EvalTask):
                 eval_config=eval_config,
                 hyperparams_config=hyperparams_config,
                 num_finetune_epochs=self.num_finetune_epochs,
-                baseline_galileo=baseline_galileo,
                 log_wandb=log_wandb,
                 sweep_run=sweep_run,
                 save_final_checkpoint=save_final_checkpoint,

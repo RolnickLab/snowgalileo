@@ -5,18 +5,17 @@ from typing import List
 
 import wandb
 
-from galileo.src.galileo import Encoder as GalileoEncoder
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER
 from src.eval import LandsatEval
 from src.eval.eval import EvalTask
-from src.flexipresto import Encoder
+from src.snowgalileo import Encoder
 from src.utils import device, load_check_config, seed_everything
 
 seed_everything(DEFAULT_SEED)
 
 parser = argparse.ArgumentParser(description="PyTorch Unet Training")
-parser.add_argument("--pretrain", default="none", type=str, choices=["none", "snow", "galileo"])
+parser.add_argument("--pretrain", default="none", type=str, choices=["none", "snow"])
 parser.add_argument("--resample", action="store_true")
 parser.add_argument("--num_finetune_epochs", type=int, default=25)
 parser.add_argument(
@@ -65,10 +64,7 @@ def train_and_validate():
     args = parser.parse_args()
 
     with wandb.init(project="ai4snow_sweeps") as sweep_run:
-        if args.pretrain == "galileo":
-            encoder = GalileoEncoder.load_from_folder(Path("galileo/data/models/nano")).to(device)
-            initialization_id = "galileo_pretrained"
-        elif args.pretrain == "snow":
+        if args.pretrain == "snow":
             # load pretrained snowgalileo encoder
             encoder = Encoder.load_from_folder(
                 Path(DATA_FOLDER / "outputs/checkpoints_ps10_5/epoch_82/")
