@@ -37,9 +37,9 @@ dataloader = DataLoader(
     num_workers=0,
     collate_fn=partial(
         mae_collate_fn,
-        patch_sizes_high_res=training_config["patch_sizes_high_res"],
-        patch_sizes_med_res=training_config["patch_sizes_med_res"],
-        patch_sizes_low_res=training_config["patch_sizes_low_res"],
+        patch_size_high_res=training_config["patch_size_high_res"],
+        patch_size_med_res=training_config["patch_size_med_res"],
+        patch_size_low_res=training_config["patch_size_low_res"],
         encode_ratio=training_config["encode_ratio"],
         decode_ratio=training_config["decode_ratio"],
         augmentation_strategies=training_config["augmentation"],
