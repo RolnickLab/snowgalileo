@@ -102,9 +102,9 @@ def check_config(config):
         "effective_batch_size": int,
         "encode_ratio": float,
         "decode_ratio": float,
-        "patch_sizes_high_res": int,
-        "patch_sizes_med_res": int,
-        "patch_sizes_low_res": int,
+        "patch_size_high_res": int,
+        "patch_size_med_res": int,
+        "patch_size_low_res": int,
         "max_lr": float,
         "final_lr": float,
         "warmup_epochs": (int, float),
@@ -163,7 +163,7 @@ def check_config(config):
     )
 
     if config["training"]["loss_type"] == "MAE":
-        patch_size_high_res = config["training"]["patch_sizes_high_res"]
+        patch_size_high_res = config["training"]["patch_size_high_res"]
         max_group_length = max(
             [
                 max([len(v) for _, v in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.items()]),
