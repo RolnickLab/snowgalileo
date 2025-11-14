@@ -864,7 +864,7 @@ class Encoder(SnowGalileoBase):
 
     def __init__(
         self,
-        patch_size_high_res,
+        patch_size_high_res=10,
         embedding_size: int = 128,
         depth=2,
         mlp_ratio=2,
@@ -1554,7 +1554,7 @@ class GalileoPixelDecoder(SnowGalileoBase):
 
     def __init__(
         self,
-        patch_size_high_res,
+        patch_size_high_res=10,
         encoder_embedding_size: int = 128,
         decoder_embedding_size: int = 128,
         depth=2,
