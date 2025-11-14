@@ -6,28 +6,6 @@ from src.eval.eval import EvalTask
 
 
 class TestEval(unittest.TestCase):
-    def check_remove_void(self, enc_np, tar_np):
-        nr_tokens = tar_np.shape[0]
-
-        # insert void labels
-        tar_np[0][3] = 19
-        tar_np[1][2] = 19
-
-        # insert ones in encodings to check if they are removed
-        enc_np[0] = np.ones(enc_np.shape[1])
-        enc_np[1] = np.ones(enc_np.shape[1])
-
-        # create void mask as in eval.py
-        void_mask = np.any(tar_np == 19, axis=1)
-        tar_np = tar_np[~void_mask]
-        enc_np = enc_np[~void_mask]
-
-        # resulting arrays should have 2 less tokens
-        assert enc_np.shape[0] == nr_tokens - 2
-        assert tar_np.shape[0] == nr_tokens - 2
-        assert np.all(enc_np == 0)
-        assert np.all(enc_np == 0)
-
     def check_reduce_targets_per_token(self, output_mode):
         nr_tokens = 3
         nr_outputs = 10

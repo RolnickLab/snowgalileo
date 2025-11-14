@@ -35,7 +35,7 @@ from src.masking import (
     batch_subset_mask_galileo,
 )
 from src.snowgalileo import Encoder, GalileoPixelDecoder
-from src.utils import config_dir, device, load_check_config
+from src.utils import device, load_check_config
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/tifs"
 
@@ -625,7 +625,8 @@ class TestSnowGalileo(unittest.TestCase):
             self.assertTrue(torch.equal(val, original_encoder.state_dict()[key]))
 
     def test_nans(self):
-        m = Encoder.load_from_folder(config_dir / "ai4snow_ps10.json")
+        config = load_check_config("ai4snow_ps10.json")
+        m = Encoder(**config["model"]["encoder"])
 
         B = 2
         H_H = 100

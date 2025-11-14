@@ -1790,7 +1790,7 @@ class GalileoPixelDecoder(SnowGalileoBase):
         t_m: torch.Tensor,
         st_m: torch.Tensor,
         months: torch.Tensor,
-        patch_size_high_res: Optional[int] = None,
+        patch_size_high_res: Optional[int] = 10,
         patch_size_med_res: Optional[int] = 1,
         patch_size_low_res: Optional[int] = 1,
         input_resolution_m_high_res: Optional[int] = BASE_GSD_HIGH_RES,
