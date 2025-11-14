@@ -2,9 +2,8 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from src.utils import config_dir
-import numpy as np
 
+import numpy as np
 import torch
 from einops import repeat
 
@@ -17,14 +16,6 @@ from src.data import (
     TIME_BANDS_GROUPS_IDX,
     Dataset,
 )
-from src.data.earthengine.eo import (
-    SPACE_TIME_HIGH_RES_BANDS,
-    SPACE_TIME_MED_RES_BANDS,
-    SPACE_TIME_LOW_RES_BANDS,
-    SPACE_BANDS,
-    TIME_BANDS,
-    STATIC_BANDS,
-)
 from src.data.config import (
     CONFIG_FILENAME,
     ENCODER_FILENAME,
@@ -32,12 +23,19 @@ from src.data.config import (
     NUM_MED_RES_PIXELS_PER_DIM,
 )
 from src.data.dataset import DatasetOutput
+from src.data.earthengine.eo import (
+    SPACE_BANDS,
+    SPACE_TIME_HIGH_RES_BANDS,
+    SPACE_TIME_LOW_RES_BANDS,
+    SPACE_TIME_MED_RES_BANDS,
+    STATIC_BANDS,
+    TIME_BANDS,
+)
 from src.masking import (
-    batch_mask_random,
     batch_subset_mask_galileo,
 )
 from src.snowgalileo import Encoder, GalileoPixelDecoder
-from src.utils import device, load_check_config
+from src.utils import config_dir, device, load_check_config
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/tifs"
 
@@ -682,6 +680,7 @@ class TestSnowGalileo(unittest.TestCase):
             assert not m.average_tokens(*(e[:-1])).isnan().any()
             assert not e[0][:1, :, :, 0:3, 0].isnan().any()
             assert not e[0][1:, :, :, 0:4, 0].isnan().any()
+
 
 if __name__ == "__main__":
     unittest.main()
