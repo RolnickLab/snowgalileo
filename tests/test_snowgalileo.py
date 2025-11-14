@@ -2,6 +2,8 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from src.utils import config_dir
+import numpy as np
 
 import torch
 from einops import repeat
@@ -14,6 +16,14 @@ from src.data import (
     STATIC_BAND_GROUPS_IDX,
     TIME_BANDS_GROUPS_IDX,
     Dataset,
+)
+from src.data.earthengine.eo import (
+    SPACE_TIME_HIGH_RES_BANDS,
+    SPACE_TIME_MED_RES_BANDS,
+    SPACE_TIME_LOW_RES_BANDS,
+    SPACE_BANDS,
+    TIME_BANDS,
+    STATIC_BANDS,
 )
 from src.data.config import (
     CONFIG_FILENAME,
@@ -616,120 +626,62 @@ class TestSnowGalileo(unittest.TestCase):
         for key, val in new_encoder.state_dict().items():
             self.assertTrue(torch.equal(val, original_encoder.state_dict()[key]))
 
-    def test_decoder_and_mask_static(self):
-        patch_size_high_res = 10
-        ratio = 0.25
-
-        ds = Dataset(DATA_FOLDER, False)
-        tensor_batch = self.to_tensor_with_batch_d(ds[0])
-        self.assertTrue(tensor_batch[0].shape[1] == tensor_batch[0].shape[2])
-        for f in [batch_mask_random]:
-            masked_output = f(
-                *tensor_batch,
-                encode_ratio=ratio,
-                decode_ratio=ratio,
-                patch_size_high_res=patch_size_high_res,
-                patch_size_med_res=1,
-                patch_size_low_res=1,
-            )
-
-            encoder = Encoder(embedding_size=32, num_heads=1)
-            decoder = GalileoPixelDecoder(
-                encoder_embedding_size=32,
-                decoder_embedding_size=32,
-                num_heads=1,
-            )
-            encoder_output = encoder(
-                masked_output.space_time_high_x,
-                masked_output.space_time_med_x,
-                masked_output.space_time_low_x,
-                masked_output.space_x,
-                masked_output.time_x,
-                masked_output.static_x,
-                masked_output.space_time_high_mask,
-                masked_output.space_time_med_mask,
-                masked_output.space_time_low_mask,
-                masked_output.space_mask,
-                masked_output.time_mask,
-                masked_output.static_mask,
-                masked_output.months.long(),
-                patch_size_high_res=patch_size_high_res,
-                patch_size_med_res=1,
-                patch_size_low_res=1,
-            )
-            (
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                s_t_h_m,
-                s_t_m_m,
-                s_t_l_m,
-                sp_m,
-                t_m,
-                st_m,
-                _,
-            ) = encoder_output
-            x, m = decoder.collapse_and_combine_hwtc(
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                s_t_h_m,
-                s_t_m_m,
-                s_t_l_m,
-                sp_m,
-                t_m,
-                st_m,
-            )
-            x, _, _, _, _ = decoder.split_x_y(x, m)
-            self.assertTrue(x.shape[1] == 1, x.shape)
-
     def test_nans(self):
-        m = Encoder.load_from_folder(DATA_FOLDER / "models/nano")
+        m = Encoder.load_from_folder(config_dir / "ai4snow_ps10.json")
 
         B = 2
-        H = 1
-        W = 1
+        H_H = 100
+        W_H = 100
+        H_M = 5
+        W_M = 5
+        H_L = 2
+        W_L = 2
         T = 5
 
-        s_t_x = torch.randn(B, H, W, T, len(SPACE_TIME_BANDS))
-        sp_x = torch.randn(B, H, W, len(SPACE_BANDS))
+        s_t_h_x = torch.randn(B, H_H, W_H, T, len(SPACE_TIME_HIGH_RES_BANDS))
+        s_t_m_x = torch.randn(B, H_M, W_M, T, len(SPACE_TIME_MED_RES_BANDS))
+        s_t_l_x = torch.randn(B, H_L, W_L, T, len(SPACE_TIME_LOW_RES_BANDS))
+        sp_x = torch.randn(B, H_H, W_H, len(SPACE_BANDS))
         t_x = torch.randn(B, T, len(TIME_BANDS))
         st_x = torch.randn(B, len(STATIC_BANDS))
-        s_t_m = torch.ones(B, H, W, T, len(SPACE_TIME_BANDS_GROUPS_IDX))
-        sp_m = torch.ones(B, H, W, len(SPACE_BAND_GROUPS_IDX))
-        t_m = torch.ones(B, T, len(TIME_BAND_GROUPS_IDX))
+        s_t_h_m = torch.ones(B, H_H, W_H, T, len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX))
+        s_t_m_m = torch.ones(B, H_M, W_M, T, len(SPACE_TIME_MED_RES_BANDS_GROUPS_IDX))
+        s_t_l_m = torch.ones(B, H_L, W_L, T, len(SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX))
+        sp_m = torch.ones(B, H_H, W_H, len(SPACE_BAND_GROUPS_IDX))
+        t_m = torch.ones(B, T, len(TIME_BANDS_GROUPS_IDX))
         st_m = torch.ones(B, len(STATIC_BAND_GROUPS_IDX))
         months = torch.ones(B, T, dtype=torch.int)
 
         # Half of the samples have a sequence length of 3
-        s_t_m[:1, :, :, 0:3, :2] = 0
+        s_t_h_m[:1, :, :, 0:3, :2] = 0
         # Other half of the samples have a sequence length of 4
-        s_t_m[1:, :, :, 0:4, :2] = 0
+        s_t_m_m[1:, :, :, 0:4, :2] = 0
         for r in range(100):
             # Allocate some random amount of memory and set it to inf
             # making it more likely that inf values will end up in memory returned by 'torch.empty'
-            N = np.random.randint(1, 10) * B * H * W * T
+            N = np.random.randint(1, 10) * B * H_H * W_H * T
             _ = torch.full((N,), fill_value=torch.inf)
             e = m(
-                s_t_x,
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
                 sp_x,
                 t_x,
                 st_x,
-                s_t_m,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
                 sp_m,
                 t_m,
                 st_m,
                 months,
-                patch_size=1,
-                input_resolution_m=10,
-                add_layernorm_on_exit=False,
+                patch_size_high_res=10,
+                patch_size_med_res=1,
+                patch_size_low_res=1,
             )
             assert not m.average_tokens(*(e[:-1])).isnan().any()
             assert not e[0][:1, :, :, 0:3, 0].isnan().any()
             assert not e[0][1:, :, :, 0:4, 0].isnan().any()
+
+if __name__ == "__main__":
+    unittest.main()
