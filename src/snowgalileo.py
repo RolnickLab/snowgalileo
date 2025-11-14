@@ -1554,7 +1554,6 @@ class GalileoPixelDecoder(SnowGalileoBase):
 
     def __init__(
         self,
-        patch_size_high_res=10,
         encoder_embedding_size: int = 128,
         decoder_embedding_size: int = 128,
         depth=2,
@@ -1586,7 +1585,6 @@ class GalileoPixelDecoder(SnowGalileoBase):
         self.to_output_embed = nn.Linear(decoder_embedding_size, output_embedding_size, bias=True)
         self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
 
-        self.patch_size_high_res = patch_size_high_res
         self.input_norm = nn.LayerNorm(encoder_embedding_size)
         self.norm = nn.LayerNorm(decoder_embedding_size)
         self.apply(self._init_weights)
