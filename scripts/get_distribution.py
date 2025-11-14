@@ -189,13 +189,13 @@ for i, batch in enumerate(dataloader):
             )
 
             for i, (mean, std) in enumerate(zip(s_t_h_x_mean, s_t_h_x_std)):
-                print(f"s_t_x channel {i}: Mean = {mean.item():.4f}, Std = {std.item():.4f}")
+                print(f"s_t_h_x channel {i}: Mean = {mean.item():.4f}, Std = {std.item():.4f}")
 
             for i, (mean, std) in enumerate(zip(s_t_m_x_mean, s_t_m_x_std)):
-                print(f"s_t_x channel {i}: Mean = {mean.item():.4f}, Std = {std.item():.4f}")
+                print(f"s_t_m_x channel {i}: Mean = {mean.item():.4f}, Std = {std.item():.4f}")
 
             for i, (mean, std) in enumerate(zip(s_t_l_x_mean, s_t_l_x_std)):
-                print(f"s_t_x channel {i}: Mean = {mean.item():.4f}, Std = {std.item():.4f}")
+                print(f"s_t_l_x channel {i}: Mean = {mean.item():.4f}, Std = {std.item():.4f}")
 
             for i, (mean, std) in enumerate(zip(sp_x_mean, sp_x_std)):
                 print(f"sp_x channel {i}: Mean = {mean.item():.4f}, Std = {std.item():.4f}")
