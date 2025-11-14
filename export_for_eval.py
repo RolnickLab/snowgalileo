@@ -6,8 +6,6 @@ import argparse
 
 from src.data import EarthEngineExporterEval
 
-# os.environ["GOOGLE_CLOUD_PROJECT"] = EE_PROJECT
-
 # Parse command line arguments
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--mode", type=str, default="url")

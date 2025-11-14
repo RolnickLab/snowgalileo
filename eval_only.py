@@ -27,13 +27,13 @@ argparser.add_argument(
 argparser.add_argument(
     "--exclude_prediction_high_res",
     action="store_true",
-    help="Whether to exclude high-res in prediction date. Should match checkpoint training.",
+    help="Whether to exclude high-res in prediction date. Should match checkpoint training setup.",
 )
 argparser.add_argument(
-    "--config_name",
+    "--eval_config_name",
     type=str,
     default="landsat_eval_1_99_test.json",
-    help="Config name for evaluation.",
+    help="Config name for evaluation. Options are stored in src/eval/eval_configs/",
 )
 args = argparser.parse_args().__dict__
 
@@ -58,9 +58,9 @@ if args["checkpoint_name"] != "":
 else:
     # randomly initialized snowgalileo encoder
     config = load_check_config("ai4snow_ps10.json")
-    encoder = Encoder(**config["model"]["encoder"])
+    encoder_random_init = Encoder(**config["model"]["encoder"])
     model = EncoderWithHead(
-        encoder, eval_config=default_attn_config, sigmoid_slope=sigmoid_slope
+        encoder_random_init, eval_config=default_attn_config, sigmoid_slope=sigmoid_slope
     ).to(device)
 
 eval_task = LandsatEval(

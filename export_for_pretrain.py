@@ -10,8 +10,6 @@ from src.data import EarthEngineExporter
 from src.data.config import DATA_FOLDER
 from src.data.earthengine.eo import LAT, LON
 
-# os.environ["GOOGLE_CLOUD_PROJECT"] = EE_PROJECT
-
 # Parse command line arguments
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--start_export_from_idx", type=int, default=0)
