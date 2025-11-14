@@ -1,17 +1,17 @@
 # https://github.com/nasaharvest/openmapflow/blob/main/openmapflow/ee_exporter.py
 import os
 import shutil
+from collections import OrderedDict
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Optional, Union
-from typing import List, OrderedDict as OrderedDictType
-from collections import OrderedDict
+from typing import Any, List, Optional, Union
+from typing import OrderedDict as OrderedDictType
 
 import ee
 import numpy as np
 import numpy.typing as npt
 import rasterio
-import requests # type: ignore
+import requests  # type: ignore
 
 from src.data.config import (
     DATA_FOLDER,

@@ -32,7 +32,11 @@ for filename in os.listdir(mask_path):
 print(len(latitudes))
 print(len(longitudes))
 
-np.save(os.path.join(DATA_FOLDER, "landsat_eval_masks", f"latitudes_{mask_folder}.npy"), np.array(latitudes))
 np.save(
-    os.path.join(DATA_FOLDER, "landsat_eval_masks", f"longitudes_{mask_folder}.npy"), np.array(longitudes)
+    os.path.join(DATA_FOLDER, "landsat_eval_masks", f"latitudes_{mask_folder}.npy"),
+    np.array(latitudes),
+)
+np.save(
+    os.path.join(DATA_FOLDER, "landsat_eval_masks", f"longitudes_{mask_folder}.npy"),
+    np.array(longitudes),
 )

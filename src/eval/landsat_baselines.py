@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Any, Dict, Optional, Union, cast
+from typing import Dict, Optional, Union, cast
 
 import joblib
 import numpy as np
@@ -545,23 +545,37 @@ class LandsatEvalRandomForest(LandsatEval):
         all_labels = []
 
         for input, label, _ in train_dl:
-            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, month = input
+            (
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+                month,
+            ) = input
             input, _ = torch.squeeze(
                 self.aggregate_per_output_pixel_and_replace_masked_data(
-                    s_t_h_x, 
-                    s_t_m_x, 
-                    s_t_l_x, 
-                    sp_x, 
-                    t_x, 
-                    st_x, 
-                    s_t_h_m, 
-                    s_t_m_m, 
-                    s_t_l_m, 
-                    sp_m, 
-                    t_m, 
-                    st_m, 
-                    month, 
-                    replace_with="last"
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    month,
+                    replace_with="last",
                 )
             )  # (N, num_features)
             label = torch.squeeze(label).flatten()  # (N,)
@@ -601,23 +615,37 @@ class LandsatEvalRandomForest(LandsatEval):
         all_test_labels = []
 
         for input, label, _ in test_dl:
-            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, month = input
+            (
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+                month,
+            ) = input
             input = torch.squeeze(
                 self.aggregate_per_output_pixel_and_replace_masked_data(
-                    s_t_h_x, 
-                    s_t_m_x, 
-                    s_t_l_x, 
-                    sp_x, 
-                    t_x, 
-                    st_x, 
-                    s_t_h_m, 
-                    s_t_m_m, 
-                    s_t_l_m, 
-                    sp_m, 
-                    t_m, 
-                    st_m, 
-                    month, 
-                    replace_with="last"
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    month,
+                    replace_with="last",
                 )[0]
             )  # (N, num_features)
             preds = regr.predict(input.numpy())

@@ -5,7 +5,7 @@ import random
 import warnings
 from functools import partial
 from pathlib import Path
-from typing import cast, Optional, Union
+from typing import Union, cast
 
 import psutil
 import torch
@@ -212,7 +212,9 @@ dataloader = DataLoader(
 )
 
 print("Loading models")
-predictor: Union[GalileoPixelDecoder, nn.DataParallel] = GalileoPixelDecoder(**config["model"]["decoder"])
+predictor: Union[GalileoPixelDecoder, nn.DataParallel] = GalileoPixelDecoder(
+    **config["model"]["decoder"]
+)
 if torch.cuda.device_count() > 1:
     print("Transforming predictor to use multiple GPUs")
     predictor = nn.DataParallel(predictor)
@@ -240,8 +242,12 @@ param_groups.append(
 if args["restart"]:
     assert model_path != "", "Please provide a path to the model checkpoint"
     print(f"Loading checkpoint for epoch {start_epoch} from {model_path}", flush=True)
-    encoder.load_state_dict(torch.load(Path(id_dir) / f"{ENCODER_FILENAME}.pt", map_location=device))
-    predictor.load_state_dict(torch.load(Path(id_dir) / f"{DECODER_FILENAME}.pt", map_location=device))
+    encoder.load_state_dict(
+        torch.load(Path(id_dir) / f"{ENCODER_FILENAME}.pt", map_location=device)
+    )
+    predictor.load_state_dict(
+        torch.load(Path(id_dir) / f"{DECODER_FILENAME}.pt", map_location=device)
+    )
 
 optimizer = torch.optim.AdamW(
     param_groups,
@@ -252,7 +258,9 @@ optimizer = torch.optim.AdamW(
 if args["restart"]:
     assert model_path != "", "Please provide a path to the model checkpoint"
     print(f"Loading optimizer state from {model_path}", flush=True)
-    optimizer.load_state_dict(torch.load(Path(id_dir) / f"{OPTIMIZER_FILENAME}.pt", map_location=device))
+    optimizer.load_state_dict(
+        torch.load(Path(id_dir) / f"{OPTIMIZER_FILENAME}.pt", map_location=device)
+    )
 
 assert training_config["effective_batch_size"] % training_config["batch_size"] == 0
 iters_to_accumulate = training_config["effective_batch_size"] / training_config["batch_size"]
@@ -415,9 +423,13 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
             torch.save(encoder.state_dict(), Path(id_dir) / f"{ENCODER_FILENAME}.pt")
             torch.save(predictor.state_dict(), Path(id_dir) / f"{DECODER_FILENAME}.pt")
             torch.save(optimizer.state_dict(), Path(id_dir) / f"{OPTIMIZER_FILENAME}.pt")
-            torch.save(encoder.state_dict(), Path(id_dir) / f"{ENCODER_FILENAME}_epoch{e+1}.pt")
-            torch.save(predictor.state_dict(), Path(id_dir) / f"{DECODER_FILENAME}_epoch{e+1}.pt")
-            torch.save(optimizer.state_dict(), Path(id_dir) / f"{OPTIMIZER_FILENAME}_epoch{e+1}.pt")
+            torch.save(encoder.state_dict(), Path(id_dir) / f"{ENCODER_FILENAME}_epoch{e + 1}.pt")
+            torch.save(
+                predictor.state_dict(), Path(id_dir) / f"{DECODER_FILENAME}_epoch{e + 1}.pt"
+            )
+            torch.save(
+                optimizer.state_dict(), Path(id_dir) / f"{OPTIMIZER_FILENAME}_epoch{e + 1}.pt"
+            )
             config["cur_epoch"] = e + 1
             with (Path(id_dir) / f"{CONFIG_FILENAME}.json").open("w") as f:
                 json.dump(config, f)

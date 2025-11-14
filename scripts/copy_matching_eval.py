@@ -25,7 +25,9 @@ output_folder.mkdir(parents=True, exist_ok=True)
 # check the number of tifs and masks
 tif_files = list(exported_tif_path.glob("*.tif")) + list(exported_tif_path.glob("*.tiff"))
 mask_files = list(mask_path.glob("*.tif")) + list(mask_path.glob("*.tiff"))
-output_files: Union[list[Path], list[str]] = list(output_folder.glob("*.tif")) + list(output_folder.glob("*.tiff"))
+output_files: Union[list[Path], list[str]] = list(output_folder.glob("*.tif")) + list(
+    output_folder.glob("*.tiff")
+)
 
 print(f"Number of TIF files: {len(tif_files)}")
 print(f"Number of Mask files: {len(mask_files)}")
