@@ -4,6 +4,7 @@ import gc
 import os
 import re
 from pathlib import Path
+from typing import Union
 
 import rasterio
 
@@ -32,7 +33,7 @@ output_folder = Path(DATA_FOLDER / "landsat_eval_tifs" / "patches_UTM_5_95_cropp
 output_folder.mkdir(parents=True, exist_ok=True)
 
 # check the number of tifs and masks that are left to be processed
-output_files = list(output_folder.glob("*.tif")) + list(output_folder.glob("*.tiff"))
+output_files: Union[list[Path], list[str]] = list(output_folder.glob("*.tif")) + list(output_folder.glob("*.tiff"))
 tif_files = list(exported_tif_path.glob("*.tif")) + list(exported_tif_path.glob("*.tiff"))
 mask_files = [f for f in mask_path.glob("*.tif") if f.name not in output_files] + [
     f for f in mask_path.glob("*.tiff") if f.name not in output_files

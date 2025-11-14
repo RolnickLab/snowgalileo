@@ -114,7 +114,7 @@ class LandsatEvalDataset(PyTorchDataset):
                 self.input_tifs.append(tif)
             except IndexError:
                 warnings.warn(f"IndexError for input {tif}")
-        self.h5pys = []
+        self.h5pys: list = []
 
         self.output_hw_high_res = DATASET_OUTPUT_HW_HIGH_RES
         self.output_hw_med_res = DATASET_OUTPUT_HW_MED_RES
@@ -952,7 +952,7 @@ class LandsatEval(EvalTask):
         resample: bool = False,
         num_finetune_epochs: int = 50,
         decoder_mode: str = "attention_probe",
-        eval_config: Dict = None,
+        eval_config: Dict = {},
     ):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
@@ -1195,7 +1195,7 @@ class LandsatEval(EvalTask):
         num_images: int = 50,
         sort_for: str = "overall_accuracy",
         hyperparams_config=None,
-    ) -> Dict:
+    ):
         prediction_folder = DATA_FOLDER / "ascending_accuracy_predictions"
         if not prediction_folder.exists():
             prediction_folder.mkdir(parents=True, exist_ok=True)
@@ -1278,10 +1278,9 @@ class LandsatEval(EvalTask):
                 t_m,
                 st_m,
             )
-            encodings = encodings.cpu().numpy()
 
             for model in sklearn_models:
-                preds = model.predict(encodings)
+                preds = model.predict(encodings.cpu().numpy())
                 # reshape the predictions to match the label shape
                 pred_reshaped = preds.reshape(label.shape)
 

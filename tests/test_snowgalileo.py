@@ -23,7 +23,7 @@ from src.data.config import (
 )
 from src.data.dataset import DatasetOutput
 from src.masking import (
-    batch_mask_time,
+    batch_mask_random,
     batch_subset_mask_galileo,
 )
 from src.snowgalileo import Encoder, GalileoPixelDecoder
@@ -626,7 +626,7 @@ class TestSnowGalileo(unittest.TestCase):
         ds = Dataset(DATA_FOLDER, False)
         tensor_batch = self.to_tensor_with_batch_d(ds[0])
         self.assertTrue(tensor_batch[0].shape[1] == tensor_batch[0].shape[2])
-        for f in [batch_mask_time]:
+        for f in [batch_mask_random]:
             masked_output = f(
                 *tensor_batch,
                 encode_ratio=ratio,

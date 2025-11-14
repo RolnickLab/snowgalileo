@@ -88,7 +88,7 @@ def _check_and_fillna(data: np.ndarray, bands_np: np.ndarray) -> np.ndarray:
     return data
 
 
-def get_cloud_state_modis(state: int) -> int:
+def get_cloud_state_modis(state: int):
     qa_bin = format(state, ">016b")
 
     # mapping 0: clear, 1: cloudy, 2: mixed

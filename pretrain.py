@@ -5,7 +5,7 @@ import random
 import warnings
 from functools import partial
 from pathlib import Path
-from typing import cast
+from typing import cast, Optional, Union
 
 import psutil
 import torch
@@ -74,10 +74,10 @@ args = argparser.parse_args().__dict__
 
 if args["restart"]:
     assert args["path_to_model_checkpoint"] != "", "Please provide a path to the model checkpoint"
-    model_path = Path(args["path_to_model_checkpoint"])
-    assert model_path.exists(), f"Model path {model_path} does not exist"
+    model_path: Union[Path, str] = Path(args["path_to_model_checkpoint"])
+    assert Path(model_path).exists(), f"Model path {model_path} does not exist"
 else:
-    model_path = None
+    model_path = ""
 
 if args["h5py_folder"] == "":
     cache_folder = None
@@ -101,6 +101,9 @@ wandb_enabled = True
 wandb_org = "sea-ice"
 wandb_output_dir = Path(__file__).parent
 
+# id_dir can either be empty, or the path to the subdirectory
+id_dir: Union[Path, str] = ""
+
 if not args["restart"]:
     if args["config_file"] == "random_tiny":
         config, run_name = get_random_config("tiny")
@@ -118,19 +121,18 @@ if not args["restart"]:
         prefix = args["run_name_prefix"]
         run_name = f"{prefix}_{run_name}"
     config["run_name"] = run_name
-    id_dir = None
 else:
     # if we are restarting, we load the config from the model path
-    assert model_path is not None, "Please provide a path to the model checkpoint"
+    assert model_path != "", "Please provide a path to the model checkpoint"
     # Find the subdirectory ending with run id
-    matching_dirs = list((model_path).glob(f"*{run_id}"))
+    matching_dirs = list((Path(model_path)).glob(f"*{run_id}"))
 
     if not matching_dirs:
         raise FileNotFoundError("No subdirectory ending with run id found in model_path")
 
     id_dir = matching_dirs[0]
 
-    with (id_dir / f"{CONFIG_FILENAME}.json").open("r") as f:
+    with (Path(id_dir) / f"{CONFIG_FILENAME}.json").open("r") as f:
         config = json.load(f)
     run_name = config["run_name"]
     start_epoch = config.get("cur_epoch", 0)
@@ -190,7 +192,7 @@ else:
 if args["dataset_subset_size"] > 0:
     subset_size = args["dataset_subset_size"]
     indices = random.sample(range(len(dataset)), subset_size)
-    dataset = Subset(dataset, indices)  # type: ignore
+    dataset = cast(Dataset, Subset(dataset, indices))
 
 dataloader = DataLoader(
     dataset,
@@ -210,7 +212,7 @@ dataloader = DataLoader(
 )
 
 print("Loading models")
-predictor = GalileoPixelDecoder(**config["model"]["decoder"])
+predictor: Union[GalileoPixelDecoder, nn.DataParallel] = GalileoPixelDecoder(**config["model"]["decoder"])
 if torch.cuda.device_count() > 1:
     print("Transforming predictor to use multiple GPUs")
     predictor = nn.DataParallel(predictor)
@@ -222,7 +224,7 @@ param_groups = [
         "weight_decay": training_config["weight_decay"],
     }
 ]
-encoder = Encoder(**config["model"]["encoder"])
+encoder: Union[Encoder, nn.DataParallel] = Encoder(**config["model"]["encoder"])
 if torch.cuda.device_count() > 1:
     print("Transforming encoder to use multiple GPUs")
     encoder = nn.DataParallel(encoder)
@@ -236,21 +238,21 @@ param_groups.append(
 )
 
 if args["restart"]:
-    assert model_path is not None
+    assert model_path != "", "Please provide a path to the model checkpoint"
     print(f"Loading checkpoint for epoch {start_epoch} from {model_path}", flush=True)
-    encoder.load_state_dict(torch.load(id_dir / f"{ENCODER_FILENAME}.pt", map_location=device))
-    predictor.load_state_dict(torch.load(id_dir / f"{DECODER_FILENAME}.pt", map_location=device))
+    encoder.load_state_dict(torch.load(Path(id_dir) / f"{ENCODER_FILENAME}.pt", map_location=device))
+    predictor.load_state_dict(torch.load(Path(id_dir) / f"{DECODER_FILENAME}.pt", map_location=device))
 
 optimizer = torch.optim.AdamW(
     param_groups,
     lr=0,
     weight_decay=training_config["weight_decay"],
     betas=(training_config["betas"][0], training_config["betas"][1]),
-)  # type: ignore
+)
 if args["restart"]:
-    assert model_path is not None
+    assert model_path != "", "Please provide a path to the model checkpoint"
     print(f"Loading optimizer state from {model_path}", flush=True)
-    optimizer.load_state_dict(torch.load(id_dir / f"{OPTIMIZER_FILENAME}.pt", map_location=device))
+    optimizer.load_state_dict(torch.load(Path(id_dir) / f"{OPTIMIZER_FILENAME}.pt", map_location=device))
 
 assert training_config["effective_batch_size"] % training_config["batch_size"] == 0
 iters_to_accumulate = training_config["effective_batch_size"] / training_config["batch_size"]
@@ -400,24 +402,24 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
 
     if args["checkpoint_every_epoch"] > 0:
         if e % args["checkpoint_every_epoch"] == 0:
-            if model_path is None:
+            if model_path == "":
                 model_path = output_folder
-            if not model_path.exists():
-                model_path.mkdir()
-            if id_dir is None:
+            if not Path(model_path).exists():
+                Path(model_path).mkdir()
+            if id_dir == "":
                 id_dir = timestamp_dirname(run_id)
-                id_dir = Path(model_path / id_dir)
+                id_dir = Path(model_path / Path(id_dir))
                 id_dir.mkdir(parents=True, exist_ok=True)
             print(f"Checkpointing to {model_path}")
             # store both the latest and epoch-specific checkpoints
-            torch.save(encoder.state_dict(), id_dir / f"{ENCODER_FILENAME}.pt")
-            torch.save(predictor.state_dict(), id_dir / f"{DECODER_FILENAME}.pt")
-            torch.save(optimizer.state_dict(), id_dir / f"{OPTIMIZER_FILENAME}.pt")
-            torch.save(encoder.state_dict(), id_dir / f"{ENCODER_FILENAME}_epoch{e+1}.pt")
-            torch.save(predictor.state_dict(), id_dir / f"{DECODER_FILENAME}_epoch{e+1}.pt")
-            torch.save(optimizer.state_dict(), id_dir / f"{OPTIMIZER_FILENAME}_epoch{e+1}.pt")
+            torch.save(encoder.state_dict(), Path(id_dir) / f"{ENCODER_FILENAME}.pt")
+            torch.save(predictor.state_dict(), Path(id_dir) / f"{DECODER_FILENAME}.pt")
+            torch.save(optimizer.state_dict(), Path(id_dir) / f"{OPTIMIZER_FILENAME}.pt")
+            torch.save(encoder.state_dict(), Path(id_dir) / f"{ENCODER_FILENAME}_epoch{e+1}.pt")
+            torch.save(predictor.state_dict(), Path(id_dir) / f"{DECODER_FILENAME}_epoch{e+1}.pt")
+            torch.save(optimizer.state_dict(), Path(id_dir) / f"{OPTIMIZER_FILENAME}_epoch{e+1}.pt")
             config["cur_epoch"] = e + 1
-            with (id_dir / f"{CONFIG_FILENAME}.json").open("w") as f:
+            with (Path(id_dir) / f"{CONFIG_FILENAME}.json").open("w") as f:
                 json.dump(config, f)
 
 
@@ -426,12 +428,12 @@ if model_path is None:
         model_path = output_folder
         if not model_path.exists():
             model_path.mkdir()
-    if id_dir is None:
+    if id_dir == "":
         id_dir = timestamp_dirname(run_id)
-        id_dir = Path(model_path / id_dir)
+        id_dir = Path(model_path / Path(id_dir))
         id_dir.mkdir(parents=True, exist_ok=True)
-torch.save(encoder.state_dict(), id_dir / f"{ENCODER_FILENAME}_final.pt")
-torch.save(predictor.state_dict(), id_dir / f"{DECODER_FILENAME}_final.pt")
-torch.save(optimizer.state_dict(), id_dir / f"{OPTIMIZER_FILENAME}_final.pt")
-with (model_path / f"{CONFIG_FILENAME}.json").open("w") as f:
+torch.save(encoder.state_dict(), Path(id_dir) / f"{ENCODER_FILENAME}_final.pt")
+torch.save(predictor.state_dict(), Path(id_dir) / f"{DECODER_FILENAME}_final.pt")
+torch.save(optimizer.state_dict(), Path(id_dir) / f"{OPTIMIZER_FILENAME}_final.pt")
+with (Path(id_dir) / f"{CONFIG_FILENAME}.json").open("w") as f:
     json.dump(config, f)

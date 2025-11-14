@@ -42,14 +42,14 @@ for file in input_path.glob("*.tif"):
 # count the number of files in the input folder that have the same name as in the output folder
 count = 0
 non_count = 0
-for file in os.listdir(input_path):
-    stem = file
+for file in input_path.glob("*.tif"):
+    stem = file.stem
     # assert that the stem only occurs once in the input folder
-    assert sum(1 for f in os.listdir(input_path) if f.startswith(stem)) == 1, (
+    assert sum(1 for f in input_path.glob("*.tif") if f.stem.startswith(stem)) == 1, (
         f"File {stem} occurs multiple times in input folder"
     )
 
-    if stem in os.listdir(output_path):
+    if stem in [f.stem for f in output_path.glob("*.tif")]:
         count += 1
     else:
         non_count += 1

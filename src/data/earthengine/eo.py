@@ -11,7 +11,7 @@ import ee
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import requests
+import requests # type: ignore
 from pandas.compat._optional import import_optional_dependency
 from tqdm import tqdm
 

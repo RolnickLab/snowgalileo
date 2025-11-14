@@ -32,7 +32,7 @@ class LandsatEvalDatasetRandomForest(LandsatEvalDataset):
         exclude_prediction_date: bool = False,
         exclude_prediction_high_res: bool = False,
         normalizer: Optional[Normalizer] = None,
-        data_config: Optional[Dict[str, Any]] = None,
+        data_config: Dict = {},
     ):
         super().__init__(
             split=split,
@@ -154,7 +154,7 @@ class LandsatEvalRandomForest(LandsatEval):
         exclude_prediction_date: bool = False,
         exclude_prediction_high_res: bool = False,
         resample: bool = False,
-        eval_config: Dict = None,
+        eval_config: Dict = {},
     ):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date

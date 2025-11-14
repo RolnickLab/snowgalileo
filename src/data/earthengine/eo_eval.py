@@ -11,14 +11,13 @@ import ee
 import numpy as np
 import numpy.typing as npt
 import rasterio
-import requests
+import requests # type: ignore
 
 from src.data.config import (
     DATA_FOLDER,
     EE_BUCKET_TIFS,
     EE_DRIVE_FOLDER_NAME,
     EVAL_MODALITIES,
-    MASK_FOLDER,
     NO_DATA_VALUE,
     NUM_TIMESTEPS,
 )
@@ -460,7 +459,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
 
     def export_from_filename_for_folder(
         self,
-        folder: str = MASK_FOLDER,
+        folder,
         start_idx: int = 0,
     ) -> None:
         """
