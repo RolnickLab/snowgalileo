@@ -678,7 +678,7 @@ class TestSnowGalileo(unittest.TestCase):
                 patch_size_med_res=1,
                 patch_size_low_res=1,
             )
-            assert not m.average_tokens(*(e[:-1])).isnan().any()
+            assert not m.apply_mask_and_average_tokens(*(e[:-1])).isnan().any()
             assert not e[0][:1, :, :, 0:3, 0].isnan().any()
             assert not e[0][1:, :, :, 0:4, 0].isnan().any()
 
