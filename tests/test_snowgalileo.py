@@ -606,7 +606,7 @@ class TestSnowGalileo(unittest.TestCase):
         self.assertTrue(torch.equal(tokens, new_tokens))
 
     def test_load_from_device(self):
-        config = load_check_config("ai4snow.json")
+        config = load_check_config("ai4snow_ps10.json")
         original_encoder = Encoder(**config["model"]["encoder"])
 
         with tempfile.TemporaryDirectory() as tempdir:
@@ -631,8 +631,6 @@ class TestSnowGalileo(unittest.TestCase):
                 *tensor_batch,
                 encode_ratio=ratio,
                 decode_ratio=ratio,
-                mode=[("space", "WC")],
-                decoder_mode=[("static", "location")],
                 patch_size_high_res=patch_size_high_res,
                 patch_size_med_res=1,
                 patch_size_low_res=1,
