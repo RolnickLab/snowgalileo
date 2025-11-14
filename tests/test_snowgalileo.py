@@ -654,7 +654,7 @@ class TestSnowGalileo(unittest.TestCase):
         # Half of the samples have a sequence length of 3
         s_t_h_m[:1, :, :, 0:3, :2] = 0
         # Other half of the samples have a sequence length of 4
-        s_t_m_m[1:, :, :, 0:4, :2] = 0
+        s_t_h_m[1:, :, :, 0:4, :2] = 0
         for r in range(100):
             # Allocate some random amount of memory and set it to inf
             # making it more likely that inf values will end up in memory returned by 'torch.empty'
