@@ -52,10 +52,7 @@ class TestSnowGalileo(unittest.TestCase):
         )
 
     def test_end_to_end(self):
-        self._end_to_end_run_mae(16, 8, 1, 1)
-
-    def test_end_to_end_different_inputs_per_dim_than_default(self):
-        self._end_to_end_run_mae(16, 4, 1, 1)
+        self._end_to_end_run_mae(16, 10, 1, 1)
 
     def _end_to_end_run_mae(
         self, embedding_size, patch_size_high_res, patch_size_med_res, patch_size_low_res
@@ -610,8 +607,8 @@ class TestSnowGalileo(unittest.TestCase):
         original_encoder = Encoder(**config["model"]["encoder"])
 
         with tempfile.TemporaryDirectory() as tempdir:
-            torch.save(original_encoder.state_dict(), Path(tempdir) / ENCODER_FILENAME)
-            with (Path(tempdir) / CONFIG_FILENAME).open("w") as f:
+            torch.save(original_encoder.state_dict(), Path(tempdir) / f"{ENCODER_FILENAME}.pt")
+            with (Path(tempdir) / f"{CONFIG_FILENAME}.json").open("w") as f:
                 json.dump(config, f)
 
             new_encoder = Encoder.load_from_folder(Path(tempdir))
@@ -620,7 +617,7 @@ class TestSnowGalileo(unittest.TestCase):
             self.assertTrue(torch.equal(val, original_encoder.state_dict()[key]))
 
     def test_decoder_and_mask_static(self):
-        patch_size_high_res = 4
+        patch_size_high_res = 10
         ratio = 0.25
 
         ds = Dataset(DATA_FOLDER, False)

@@ -29,9 +29,9 @@ class TestEndtoEnd(unittest.TestCase):
             num_workers=0,
             collate_fn=partial(
                 mae_collate_fn,
-                patch_sizes_high_res=8,
-                patch_sizes_med_res=1,
-                patch_sizes_low_res=1,
+                patch_size_high_res=10,
+                patch_size_med_res=1,
+                patch_size_low_res=1,
                 encode_ratio=0.25,
                 decode_ratio=0.25,
             ),
