@@ -408,42 +408,44 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
         }
         wandb.log(to_log, step=e)
 
-    if args["checkpoint_every_epoch"] > 0:
-        if e % args["checkpoint_every_epoch"] == 0:
-            if model_path == "":
-                model_path = output_folder
-            if not Path(model_path).exists():
-                Path(model_path).mkdir()
-            if id_dir == "":
-                id_dir = timestamp_dirname(run_id)
-                id_dir = Path(model_path / Path(id_dir))
-                id_dir.mkdir(parents=True, exist_ok=True)
-            print(f"Checkpointing to {model_path}")
-            # store both the latest and epoch-specific checkpoints
-            torch.save(encoder.state_dict(), Path(id_dir) / f"{ENCODER_FILENAME}.pt")
-            torch.save(predictor.state_dict(), Path(id_dir) / f"{DECODER_FILENAME}.pt")
-            torch.save(optimizer.state_dict(), Path(id_dir) / f"{OPTIMIZER_FILENAME}.pt")
-            torch.save(encoder.state_dict(), Path(id_dir) / f"{ENCODER_FILENAME}_epoch{e + 1}.pt")
-            torch.save(
-                predictor.state_dict(), Path(id_dir) / f"{DECODER_FILENAME}_epoch{e + 1}.pt"
-            )
-            torch.save(
-                optimizer.state_dict(), Path(id_dir) / f"{OPTIMIZER_FILENAME}_epoch{e + 1}.pt"
-            )
-            config["cur_epoch"] = e + 1
-            with (Path(id_dir) / f"{CONFIG_FILENAME}.json").open("w") as f:
-                json.dump(config, f)
-
-
-if model_path is None:
-    if model_path is None:
+    # overwrite current model checkpoint
+    if model_path == "":
         model_path = output_folder
-        if not model_path.exists():
-            model_path.mkdir()
+    if not Path(model_path).exists():
+        Path(model_path).mkdir()
     if id_dir == "":
         id_dir = timestamp_dirname(run_id)
         id_dir = Path(model_path / Path(id_dir))
         id_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Checkpointing to {model_path}")
+    # store both the latest and epoch-specific checkpoints
+    torch.save(encoder.state_dict(), Path(id_dir) / f"{ENCODER_FILENAME}.pt")
+    torch.save(predictor.state_dict(), Path(id_dir) / f"{DECODER_FILENAME}.pt")
+    torch.save(optimizer.state_dict(), Path(id_dir) / f"{OPTIMIZER_FILENAME}.pt")
+    config["cur_epoch"] = e + 1
+    with (Path(id_dir) / f"{CONFIG_FILENAME}.json").open("w") as f:
+        json.dump(config, f)
+
+    # save permanent checkpoint every N epochs
+    if args["checkpoint_every_epoch"] > 0:
+        if e % args["checkpoint_every_epoch"] == 0:
+            torch.save(encoder.state_dict(), Path(id_dir) / f"{ENCODER_FILENAME}_epoch_{e + 1}.pt")
+            torch.save(
+                predictor.state_dict(), Path(id_dir) / f"{DECODER_FILENAME}_epoch_{e + 1}.pt"
+            )
+            torch.save(
+                optimizer.state_dict(), Path(id_dir) / f"{OPTIMIZER_FILENAME}_epoch_{e + 1}.pt"
+            )
+
+# final save at the end of training
+if model_path == "":
+    model_path = output_folder
+    if not model_path.exists():
+        model_path.mkdir()
+if id_dir == "":
+    id_dir = timestamp_dirname(run_id)
+    id_dir = Path(model_path / Path(id_dir))
+    id_dir.mkdir(parents=True, exist_ok=True)
 torch.save(encoder.state_dict(), Path(id_dir) / f"{ENCODER_FILENAME}_final.pt")
 torch.save(predictor.state_dict(), Path(id_dir) / f"{DECODER_FILENAME}_final.pt")
 torch.save(optimizer.state_dict(), Path(id_dir) / f"{OPTIMIZER_FILENAME}_final.pt")
