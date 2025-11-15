@@ -7,8 +7,8 @@ from torch.utils.data import DataLoader
 
 from src.collate_fns import mae_collate_fn
 from src.data import Dataset
-from src.flexipresto import Encoder, PrestoPixelDecoder
 from src.loss import mse_loss
+from src.snowgalileo import Encoder, GalileoPixelDecoder
 from src.utils import device
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/tifs"
@@ -29,21 +29,17 @@ class TestEndtoEnd(unittest.TestCase):
             num_workers=0,
             collate_fn=partial(
                 mae_collate_fn,
-                patch_sizes_high_res=[8],
-                patch_sizes_med_res=[1],
-                patch_sizes_low_res=[1],
-                shape_time_combinations=[
-                    {"size": 12, "timesteps": 8},
-                ],
+                patch_size_high_res=10,
+                patch_size_med_res=1,
+                patch_size_low_res=1,
                 encode_ratio=0.25,
                 decode_ratio=0.25,
-                random_masking="full",
             ),
             pin_memory=True,
         )
 
         encoder = Encoder(embedding_size=embedding_size, num_heads=1).to(device)
-        predictor = PrestoPixelDecoder(
+        predictor = GalileoPixelDecoder(
             encoder_embedding_size=embedding_size,
             decoder_embedding_size=embedding_size,
             num_heads=1,

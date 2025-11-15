@@ -6,26 +6,24 @@ from pathlib import Path
 from typing import Dict, Optional
 
 import dateutil.tz
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import wandb
 
 from src.config import DEFAULT_SEED
 from src.data.earthengine.eo import (
     SPACE_BAND_GROUPS_IDX,
-    SPACE_TIME_HIGH_RES_BANDS,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
     SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX,
     SPACE_TIME_MED_RES_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
     TIME_BANDS_GROUPS_IDX,
 )
-from src.masking import MASKING_MODES, MaskedOutput
+from src.masking import MaskedOutput
 
 data_dir = Path(__file__).parent.parent / "data"
 logging_dir = Path(__file__).parent.parent / "logs"
 config_dir = Path(__file__).parent.parent / "config"
+checkpoints_dir = Path(__file__).parent.parent / "checkpoint_backup"
 
 if not torch.cuda.is_available():
     device = torch.device("cpu")
@@ -70,6 +68,15 @@ def masked_output_np_to_tensor(
     )
 
 
+def save_checkpoint(model, filename="default.pth"):
+    save_dir = checkpoints_dir
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    filename = os.path.join(save_dir, filename)
+    torch.save(model.state_dict(), filename)
+    print(f"Saved checkpoint to {filename}")
+
+
 class AverageMeter:
     """computes and stores the average and current value"""
 
@@ -95,21 +102,16 @@ def check_config(config):
         "effective_batch_size": int,
         "encode_ratio": float,
         "decode_ratio": float,
-        "patch_sizes_high_res": list,
-        "patch_sizes_med_res": list,
-        "patch_sizes_low_res": list,
+        "patch_size_high_res": int,
+        "patch_size_med_res": int,
+        "patch_size_low_res": int,
         "max_lr": float,
         "final_lr": float,
         "warmup_epochs": (int, float),
-        "eval_eurosat_every_n_epochs": int,
-        "shape_time_combinations": list,
         "augmentation": dict,
-        "masking_probabilities": list,
         "grad_clip": bool,
         "normalization": str,
-        "random_masking": str,
     }
-    optional_training_keys_type_default = {"target_masking": (str, "decoder_only")}
     training_dict = config["training"]
 
     for key, val in expected_training_keys_type.items():
@@ -118,26 +120,6 @@ def check_config(config):
             training_dict[key],
             val,  # type: ignore
         ), f"Expected {key} to be {val}, got {type(training_dict[key])}"
-    for key, val in optional_training_keys_type_default.items():
-        if key in training_dict:
-            assert isinstance(training_dict[key], val[0]), (
-                f"Expected {key} to be {val}, got {type(training_dict[key])}"
-            )
-        else:
-            print(f"{key} missing from training dict. Filling with default value {val[1]}")
-            config["training"][key] = val[1]
-
-    assert ("target_exit_after" in training_dict.keys()) or (
-        "token_exit_cfg" in training_dict.keys()
-    )
-    if "target_exit_after" in training_dict.keys():
-        assert isinstance(training_dict["target_exit_after"], int)
-        assert "token_exit_cfg" not in training_dict.keys()
-        training_dict["token_exit_cfg"] = None
-    elif "token_exit_cfg" in training_dict.keys():
-        assert isinstance(training_dict["token_exit_cfg"], dict)
-        assert "target_exit_after" not in training_dict.keys()
-        training_dict["target_exit_after"] = None
 
     if isinstance(training_dict["warmup_epochs"], float):
         training_dict["warmup_epochs"] = int(
@@ -146,16 +128,6 @@ def check_config(config):
     assert isinstance(training_dict["warmup_epochs"], int)
     assert training_dict["num_epochs"] > training_dict["warmup_epochs"]
     assert training_dict["normalization"] in ["std", "scaling"]
-    assert training_dict["random_masking"] in ["half", "full", "none", "time_only"]
-
-    assert len(training_dict["masking_probabilities"]) == len(MASKING_MODES), (
-        f"Expected {len(MASKING_MODES)}, got {len(training_dict['masking_probabilities'])}"
-    )
-
-    for combination in training_dict["shape_time_combinations"]:
-        assert "timesteps" in combination.keys()
-        assert "size" in combination.keys()
-        assert combination["timesteps"] >= 3
 
     expected_encoder_decoder_keys_type = {
         "embedding_size": int,
@@ -183,9 +155,6 @@ def check_config(config):
                 assert key in model_dict[model], f"Expected {key} in {model} dict"
                 assert isinstance(model_dict[model][key], val)
 
-    config["model"]["encoder"]["max_patch_size_high_res"] = max(
-        config["training"]["patch_sizes_high_res"]
-    )
     config["model"]["decoder"]["encoder_embedding_size"] = config["model"]["encoder"][
         "embedding_size"
     ]
@@ -194,7 +163,7 @@ def check_config(config):
     )
 
     if config["training"]["loss_type"] == "MAE":
-        max_patch_size_high_res = max(config["training"]["patch_sizes_high_res"])
+        patch_size_high_res = config["training"]["patch_size_high_res"]
         max_group_length = max(
             [
                 max([len(v) for _, v in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.items()]),
@@ -206,7 +175,7 @@ def check_config(config):
             ]
         )
         config["model"]["decoder"]["output_embedding_size"] = (
-            max_patch_size_high_res**2
+            patch_size_high_res**2
         ) * max_group_length
 
     return config
@@ -218,127 +187,6 @@ def load_check_config(name: str) -> Dict:
     config = check_config(config)
 
     return config
-
-
-@torch.no_grad()
-def plot_space_time_predictions(
-    epoch,
-    encoder,
-    predictor,
-    training_config,
-    prepared_image,
-    image_id,
-):
-    """
-    Plots MAE input images, masks, MAE predictions, and difference of input and predictions.
-    Number of timesteps to plot are defined in the training config.
-    """
-    (
-        s_t_h_x,
-        s_t_m_x,
-        s_t_l_x,
-        sp_x,
-        t_x,
-        st_x,
-        s_t_h_m,
-        s_t_m_m,
-        s_t_l_m,
-        sp_m,
-        t_m,
-        st_m,
-        months,
-        patch_size_high_res,
-        patch_size_med_res,
-        patch_size_low_res,
-        _,
-    ) = prepared_image
-
-    # get predictions with current model
-    (p_s_t_h, _, _, _, _, _) = predictor(
-        *encoder(
-            s_t_h_x.float(),
-            s_t_m_x.float(),
-            s_t_l_x.float(),
-            sp_x.float(),
-            t_x.float(),
-            st_x.float(),
-            s_t_h_m.float(),
-            s_t_m_m.float(),
-            s_t_l_m.float(),
-            sp_m.float(),
-            t_m.float(),
-            st_m.float(),
-            months.long(),
-            patch_size_high_res=patch_size_high_res,
-            patch_size_med_res=patch_size_med_res,
-            patch_size_low_res=patch_size_low_res,
-        ),
-        patch_size_high_res=patch_size_high_res,
-        patch_size_med_res=patch_size_med_res,
-        patch_size_low_res=patch_size_low_res,
-    )
-
-    subplot_titles = []
-
-    for band_list in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.values():
-        for band in band_list:
-            subplot_titles.append(SPACE_TIME_HIGH_RES_BANDS[band])
-
-    plot_list = []
-
-    for t in training_config["timesteps_to_wandb_plot"]:
-        # figure columns: input, mask, prediction, error
-        # figure rows: bands
-        fig, axs = plt.subplots(len(subplot_titles), 4, figsize=(20, 45))
-
-        # get min and max values for the error colorbar independent of the channel
-        error_min = (
-            (abs(s_t_h_x[:, :, :, t, :] - p_s_t_h[:, :, :, t, :])) * s_t_h_m[:, :, :, t, :]
-        ).min()
-        error_max = (
-            (abs(s_t_h_x[:, :, :, t, :] - p_s_t_h[:, :, :, t, :])) * s_t_h_m[:, :, :, t, :]
-        ).max()
-
-        for i, band in enumerate(subplot_titles):
-            x_to_plot = s_t_h_x[0, :, :, t, i].squeeze(0).cpu()
-            pred_to_plot = p_s_t_h[0, :, :, t, i].squeeze(0).cpu()
-            mask_to_plot = s_t_h_m[0, :, :, t, i].squeeze(0).cpu()
-
-            x_plot = axs[i, 0].imshow(
-                x_to_plot.numpy(), cmap="gray", vmin=x_to_plot.min(), vmax=x_to_plot.max()
-            )
-            axs[i, 0].set_title(f"Input {band}")
-            fig.colorbar(x_plot, ax=axs[i, 0])
-            mask_plot = axs[i, 1].imshow(mask_to_plot.numpy(), cmap="gray")
-            axs[i, 1].set_title(f"Mask {band}")
-            fig.colorbar(mask_plot, ax=axs[i, 1])
-            pred_plot = axs[i, 2].imshow(
-                (pred_to_plot * mask_to_plot).numpy(),
-                cmap="gray",
-                vmin=pred_to_plot.min(),
-                vmax=pred_to_plot.max(),
-            )
-            axs[i, 2].set_title(f"Output {band}")
-            fig.colorbar(pred_plot, ax=axs[i, 2])
-            error = axs[i, 3].imshow(
-                (abs(x_to_plot.numpy() - pred_to_plot.numpy())) * mask_to_plot.numpy(),
-                cmap="coolwarm",
-                vmin=error_min,
-                vmax=error_max,
-            )
-            axs[i, 3].set_title(f"Input - Output {band}")
-            fig.colorbar(error, ax=axs[i, 3])
-
-        fig.suptitle(
-            f"Plot image: {image_id}, epoch: {epoch}, timestep: {t}",
-            fontsize=20,
-            y=1.0001,
-        )
-        fig.tight_layout()
-
-        plot = wandb.Image(fig, caption=f"plot_image{image_id}_epoch{epoch}_timestep{t}")
-        plot_list.append(plot)
-    return plot_list
 
 
 def timestamp_dirname(suffix: Optional[str] = None) -> str:

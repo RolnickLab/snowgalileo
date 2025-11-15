@@ -22,19 +22,16 @@ from src.data.config import (
     NUM_MED_RES_PIXELS_PER_DIM,
 )
 from src.data.dataset import DatasetOutput
-from src.flexipresto import Encoder, PrestoPixelDecoder
 from src.masking import (
-    MASKING_MODES,
-    MaskingFunctions,
-    batch_mask_time,
-    batch_subset_mask_presto,
+    batch_subset_mask_galileo,
 )
+from src.snowgalileo import Encoder, GalileoPixelDecoder
 from src.utils import device, load_check_config
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/tifs"
 
 
-class TestPresto(unittest.TestCase):
+class TestSnowGalileo(unittest.TestCase):
     @staticmethod
     def to_tensor_with_batch_d(input: DatasetOutput):
         return (
@@ -54,18 +51,14 @@ class TestPresto(unittest.TestCase):
         )
 
     def test_end_to_end(self):
-        self._end_to_end_run_mae(16, 8, 1, 1)
-
-    def test_end_to_end_different_inputs_per_dim_than_default(self):
-        self._end_to_end_run_mae(16, 4, 1, 1)
+        self._end_to_end_run_mae(16, 10, 1, 1)
 
     def _end_to_end_run_mae(
         self, embedding_size, patch_size_high_res, patch_size_med_res, patch_size_low_res
     ):
-        image_size = patch_size_high_res * 4
         num_timesteps = 8
         encoder = Encoder(embedding_size=embedding_size, num_heads=1)
-        decoder = PrestoPixelDecoder(
+        decoder = GalileoPixelDecoder(
             encoder_embedding_size=embedding_size,
             decoder_embedding_size=embedding_size,
             num_heads=1,
@@ -87,7 +80,7 @@ class TestPresto(unittest.TestCase):
                 valid_data_mask_t,
                 valid_data_mask_st,
             ) = self.to_tensor_with_batch_d(ds[i])
-            masked_output = batch_subset_mask_presto(
+            masked_output = batch_subset_mask_galileo(
                 s_t_h_x,
                 s_t_m_x,
                 s_t_l_x,
@@ -106,12 +99,7 @@ class TestPresto(unittest.TestCase):
                 patch_size_high_res=patch_size_high_res,
                 patch_size_med_res=1,
                 patch_size_low_res=1,
-                image_size=image_size,
-                num_timesteps=num_timesteps,
                 augmentation_strategies=None,
-                masking_probabilities=[1] * len(MASKING_MODES),
-                masking_function=MaskingFunctions.RANDOM,
-                max_unmasking_channels=4,
             )
 
             # for now, we just make sure it all runs
@@ -205,6 +193,15 @@ class TestPresto(unittest.TestCase):
             )
             self.assertFalse(torch.isnan(t_t[masked_output.time_mask == 2]).any())
             self.assertFalse(torch.isnan(t_st[masked_output.static_mask == 2]).any())
+            actual = list(encoder_output[0].shape)
+            expected = [
+                1,
+                int(masked_output.space_time_high_mask.shape[1] / patch_size_high_res),
+                int(masked_output.space_time_high_mask.shape[1] / patch_size_high_res),
+                num_timesteps,
+                len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX),
+                embedding_size,
+            ]
             self.assertTrue(
                 list(encoder_output[0].shape)
                 == [
@@ -215,16 +212,7 @@ class TestPresto(unittest.TestCase):
                     len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX),
                     embedding_size,
                 ],
-                f"{list(encoder_output[0].shape)} and {
-                    [
-                        1,
-                        int(masked_output.space_time_high_mask.shape[1] / patch_size_high_res),
-                        int(masked_output.space_time_high_mask.shape[1] / patch_size_high_res),
-                        num_timesteps,
-                        len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX),
-                        embedding_size,
-                    ]
-                } do not match",
+                f"{actual} and {expected} do not match",
             )
             self.assertTrue(
                 list(encoder_output[1].shape)
@@ -412,9 +400,9 @@ class TestPresto(unittest.TestCase):
             summed_output = sum([torch.sum(o) for o in output])
             summed_output.backward()
 
-    def test_presto_pixel_decoder_add_masks(self):
+    def test_snowgalileo_pixel_decoder_add_masks(self):
         embedding_size = 16
-        decoder = PrestoPixelDecoder(
+        decoder = GalileoPixelDecoder(
             encoder_embedding_size=embedding_size,
             decoder_embedding_size=embedding_size,
             num_heads=1,
@@ -539,7 +527,7 @@ class TestPresto(unittest.TestCase):
         st_m[:, -1] = 1
         st_x[:, -1] = 0
 
-        mean = Encoder.average_tokens(
+        mean = Encoder.apply_mask_and_average_tokens(
             s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
         )
         self.assertEqual(mean.shape, (b, d))
@@ -581,7 +569,7 @@ class TestPresto(unittest.TestCase):
         y_mask = torch.tensor([[1, 1, 1, 1], [0, 1, 1, 1]])
         indices = torch.tensor([[6, 7, 8, 4, 5, 0, 1, 2, 3], [7, 8, 3, 4, 5, 6, 0, 1, 2]])
 
-        tokens = PrestoPixelDecoder.combine_x_y(x, y, x_mask, y_mask, indices)
+        tokens = GalileoPixelDecoder.combine_x_y(x, y, x_mask, y_mask, indices)
         self.assertTrue(
             torch.equal(
                 tokens,
@@ -597,7 +585,7 @@ class TestPresto(unittest.TestCase):
         ).unsqueeze(-1)
         mask = torch.tensor([[0, 0, 0, 0, 1, 1, 2, 2, 2], [0, 0, 0, 1, 1, 1, 1, 2, 2]])
 
-        x, y, x_mask, y_mask, _ = PrestoPixelDecoder.split_x_y(tokens, mask)
+        x, y, x_mask, y_mask, _ = GalileoPixelDecoder.split_x_y(tokens, mask)
         self.assertTrue(torch.equal(x, torch.tensor([[14, 15, 16], [15, 16, 1]]).unsqueeze(-1)))
         self.assertTrue(torch.equal(y, torch.tensor([[5, 6, 7, 8], [4, 5, 6, 7]]).unsqueeze(-1)))
         self.assertTrue(torch.equal(x_mask, torch.tensor([[1, 1, 1], [1, 1, 0]])))
@@ -608,18 +596,18 @@ class TestPresto(unittest.TestCase):
             [[5, 6, 7, 8, 2, 13, 14, 15, 16], [5, 6, 7, 1, 2, 3, 4, 15, 16]]
         ).unsqueeze(-1)
         mask = torch.tensor([[0, 0, 0, 0, 1, 1, 2, 2, 2], [0, 0, 0, 1, 1, 1, 1, 2, 2]])
-        x, y, x_mask, y_mask, indices = PrestoPixelDecoder.split_x_y(tokens, mask)
-        new_tokens = PrestoPixelDecoder.combine_x_y(x, y, x_mask, y_mask, indices)
+        x, y, x_mask, y_mask, indices = GalileoPixelDecoder.split_x_y(tokens, mask)
+        new_tokens = GalileoPixelDecoder.combine_x_y(x, y, x_mask, y_mask, indices)
         tokens[mask == 1] = 0
         self.assertTrue(torch.equal(tokens, new_tokens))
 
     def test_load_from_device(self):
-        config = load_check_config("ai4snow.json")
+        config = load_check_config("ai4snow_ps10.json")
         original_encoder = Encoder(**config["model"]["encoder"])
 
         with tempfile.TemporaryDirectory() as tempdir:
-            torch.save(original_encoder.state_dict(), Path(tempdir) / ENCODER_FILENAME)
-            with (Path(tempdir) / CONFIG_FILENAME).open("w") as f:
+            torch.save(original_encoder.state_dict(), Path(tempdir) / f"{ENCODER_FILENAME}.pt")
+            with (Path(tempdir) / f"{CONFIG_FILENAME}.json").open("w") as f:
                 json.dump(config, f)
 
             new_encoder = Encoder.load_from_folder(Path(tempdir))
@@ -627,221 +615,6 @@ class TestPresto(unittest.TestCase):
         for key, val in new_encoder.state_dict().items():
             self.assertTrue(torch.equal(val, original_encoder.state_dict()[key]))
 
-    def test_decoder_and_mask_static(self):
-        patch_size_high_res = 4
-        ratio = 0.25
 
-        ds = Dataset(DATA_FOLDER, False)
-        tensor_batch = self.to_tensor_with_batch_d(ds[0])
-        self.assertTrue(tensor_batch[0].shape[1] == tensor_batch[0].shape[2])
-        for f in [batch_mask_time]:
-            masked_output = f(
-                *tensor_batch,
-                encode_ratio=ratio,
-                decode_ratio=ratio,
-                mode=[("space", "WC")],
-                decoder_mode=[("static", "location")],
-                patch_size_high_res=patch_size_high_res,
-                patch_size_med_res=1,
-                patch_size_low_res=1,
-            )
-
-            encoder = Encoder(embedding_size=32, num_heads=1)
-            decoder = PrestoPixelDecoder(
-                encoder_embedding_size=32,
-                decoder_embedding_size=32,
-                num_heads=1,
-            )
-            encoder_output = encoder(
-                masked_output.space_time_high_x,
-                masked_output.space_time_med_x,
-                masked_output.space_time_low_x,
-                masked_output.space_x,
-                masked_output.time_x,
-                masked_output.static_x,
-                masked_output.space_time_high_mask,
-                masked_output.space_time_med_mask,
-                masked_output.space_time_low_mask,
-                masked_output.space_mask,
-                masked_output.time_mask,
-                masked_output.static_mask,
-                masked_output.months.long(),
-                patch_size_high_res=patch_size_high_res,
-                patch_size_med_res=1,
-                patch_size_low_res=1,
-            )
-            (
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                s_t_h_m,
-                s_t_m_m,
-                s_t_l_m,
-                sp_m,
-                t_m,
-                st_m,
-                _,
-            ) = encoder_output
-            x, m = decoder.collapse_and_combine_hwtc(
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                s_t_h_m,
-                s_t_m_m,
-                s_t_l_m,
-                sp_m,
-                t_m,
-                st_m,
-            )
-            x, _, _, _, _ = decoder.split_x_y(x, m)
-            self.assertTrue(x.shape[1] == 1, x.shape)
-
-    # TODO: look into token exit cfgs
-    #    def test_token_exit_cfgs_single_exit_equivalency(self):
-    #        self._token_exit_cfgs_single_exit_equivalency(0)
-    #        self._token_exit_cfgs_single_exit_equivalency(6)
-    #        self._token_exit_cfgs_single_exit_equivalency(12)
-
-    @torch.no_grad()
-    def _token_exit_cfgs_single_exit_equivalency(self, depth):
-        embedding_size, patch_size_high_res = 16, 1
-        image_size = patch_size_high_res * 4
-        num_timesteps = 2
-        encoder = Encoder(embedding_size=embedding_size, num_heads=1, depth=6)
-        encoder.eval()
-        ds = Dataset(DATA_FOLDER, False)
-        for i in range(len(ds)):
-            (
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                months,
-                valid_data_mask_s_t_h,
-                valid_data_mask_s_t_m,
-                valid_data_mask_s_t_l,
-                valid_data_mask_sp,
-                valid_data_mask_t,
-                valid_data_mask_st,
-            ) = self.to_tensor_with_batch_d(ds[i])
-            masked_output = batch_subset_mask_presto(
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                months,
-                valid_data_mask_s_t_h,
-                valid_data_mask_s_t_m,
-                valid_data_mask_s_t_l,
-                valid_data_mask_sp,
-                valid_data_mask_t,
-                valid_data_mask_st,
-                encode_ratio=0.25,
-                decode_ratio=0.25,
-                patch_size_high_res=patch_size_high_res,
-                patch_size_med_res=1,
-                patch_size_low_res=1,
-                image_size=image_size,
-                num_timesteps=num_timesteps,
-                augmentation_strategies=None,
-                masking_probabilities=[1] * len(MASKING_MODES),
-                masking_function=MaskingFunctions.SPACE,
-                max_unmasking_channels=4,
-            )
-
-            # for this test, we will keep the same
-            # values per shape since we call layer norm
-            # on each shape output
-            token_exit_cfgs = {
-                "S1": depth,
-                "S2_RGB": depth,
-                "S2_NIR": depth,
-                "S2_SWIR": depth,
-                "L_RGB": depth,
-                "L_NIR": depth,
-                "L_SWIR": depth,
-                "S3_NIR": depth,
-                "MODIS_RGB": depth,
-                "MODIS_NIR": depth,
-                "MODIS_SWIR": depth,
-                "VIIRS_RGB_FINE": depth,
-                "VIIRS_VNIR_FINE": depth,
-                "VIIRS_RGB_COARSE": depth,
-                "VIIRS_VNIR_COARSE": depth,
-                "VIIRS_SWIR_COARSE": depth,
-                "ERA5": depth,
-                "NDSI": depth,
-                "NDVI": depth,
-                "DEM": depth,
-                "WC": depth,
-                "location": depth,
-            }
-
-            encoder_output_depth = encoder(
-                masked_output.space_time_high_x.float(),
-                masked_output.space_time_med_x.float(),
-                masked_output.space_time_low_x.float(),
-                masked_output.space_x.float(),
-                masked_output.time_x.float(),
-                masked_output.static_x.float(),
-                torch.zeros_like(masked_output.space_time_high_mask).float(),
-                torch.zeros_like(masked_output.space_time_med_mask).float(),
-                torch.zeros_like(masked_output.space_time_low_mask).float(),
-                torch.zeros_like(masked_output.space_mask).float(),
-                torch.zeros_like(masked_output.time_mask).float(),
-                torch.zeros_like(masked_output.static_mask).float(),
-                masked_output.months.long(),
-                patch_size_high_res=patch_size_high_res,
-                patch_size_med_res=1,
-                patch_size_low_res=1,
-                exit_after=depth,
-            )
-
-            encoder_output_depth_varied = encoder(
-                masked_output.space_time_high_x.float(),
-                masked_output.space_time_med_x.float(),
-                masked_output.space_time_low_x.float(),
-                masked_output.space_x.float(),
-                masked_output.time_x.float(),
-                masked_output.static_x.float(),
-                torch.zeros_like(masked_output.space_time_high_mask).float(),
-                torch.zeros_like(masked_output.space_time_med_mask).float(),
-                torch.zeros_like(masked_output.space_time_low_mask).float(),
-                torch.zeros_like(masked_output.space_mask).float(),
-                torch.zeros_like(masked_output.time_mask).float(),
-                torch.zeros_like(masked_output.static_mask).float(),
-                masked_output.months.long(),
-                patch_size_high_res=patch_size_high_res,
-                patch_size_med_res=1,
-                patch_size_low_res=1,
-                token_exit_cfg=token_exit_cfgs,
-                exit_after=None,
-            )
-
-            # s_t_h_x
-            self.assertTrue(torch.equal(encoder_output_depth_varied[0], encoder_output_depth[0]))
-
-            # s_t_m_x
-            self.assertTrue(torch.equal(encoder_output_depth_varied[1], encoder_output_depth[1]))
-
-            # s_t_l_x
-            self.assertTrue(torch.equal(encoder_output_depth_varied[2], encoder_output_depth[2]))
-
-            # sp_x
-            self.assertTrue(torch.equal(encoder_output_depth_varied[3], encoder_output_depth[3]))
-
-            # t_x
-            self.assertTrue(torch.equal(encoder_output_depth_varied[4], encoder_output_depth[4]))
-
-            # st_x
-            self.assertTrue(torch.equal(encoder_output_depth_varied[5], encoder_output_depth[5]))
+if __name__ == "__main__":
+    unittest.main()

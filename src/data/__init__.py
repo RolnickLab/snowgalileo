@@ -8,9 +8,11 @@ from src.data.earthengine.eo import (
     TIME_BANDS_GROUPS_IDX,
     EarthEngineExporter,
 )
+from src.data.earthengine.eo_eval import EarthEngineExporterEval
 
 __all__ = [
     "EarthEngineExporter",
+    "EarthEngineExporterEval",
     "Dataset",
     "Normalizer",
     "SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX",

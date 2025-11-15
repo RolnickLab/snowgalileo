@@ -11,7 +11,7 @@ import ee
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import requests
+import requests  # type: ignore
 from pandas.compat._optional import import_optional_dependency
 from tqdm import tqdm
 
@@ -428,7 +428,7 @@ def create_ee_image(
                     region=polygon,
                     start_date=cur_date.strftime("%Y-%m-%d"),
                     end_date=cur_end_date.strftime("%Y-%m-%d"),
-                )
+                ).clip(polygon)
             )
 
         image_collection_list.append(ee.Image.cat(image_list))

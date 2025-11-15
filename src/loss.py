@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
@@ -14,42 +12,6 @@ from src.data.earthengine.eo import (
     STATIC_BAND_GROUPS_IDX,
     TIME_BANDS_GROUPS_IDX,
 )
-
-
-def construct_target_encoder_masks(
-    s_t_h_m: torch.Tensor,
-    s_t_m_m: torch.Tensor,
-    s_t_l_m: torch.Tensor,
-    sp_m: torch.Tensor,
-    t_m: torch.Tensor,
-    st_m: torch.Tensor,
-    method: str,
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    if method == "decoder_only":
-        # we want 0s where the mask == 2
-        return (
-            ~(s_t_h_m == 2),
-            ~(s_t_m_m == 2),
-            ~(s_t_l_m == 2),
-            ~(sp_m == 2),
-            ~(t_m == 2),
-            ~(st_m == 2),
-        )
-    elif method == "all":
-        # we want all zeros
-        return (
-            torch.zeros_like(s_t_h_m),
-            torch.zeros_like(s_t_m_m),
-            torch.zeros_like(s_t_l_m),
-            torch.zeros_like(sp_m),
-            torch.zeros_like(t_m),
-            torch.zeros_like(st_m),
-        )
-    elif method == "decoder_and_encoder":
-        # we want 0s where the mask is not equal to 1
-        return s_t_h_m == 1, s_t_m_m == 1, s_t_l_m == 1, sp_m == 1, t_m == 1, st_m == 1
-    else:
-        raise ValueError(f"Unexpected method {method}")
 
 
 def mse_loss(
@@ -104,93 +66,6 @@ def mse_loss(
     )
 
 
-def seq_and_cat(s_t_h, s_t_m, s_t_l, sp, t, st):
-    s_t_h = rearrange(s_t_h, "b h w t c_g d -> b (h w t c_g) d")
-    s_t_m = rearrange(s_t_m, "b h w t c_g d -> b (h w t c_g) d")
-    s_t_l = rearrange(s_t_l, "b h w t c_g d -> b (h w t c_g) d")
-    sp = rearrange(sp, "b h w c_g d -> b (h w c_g) d")
-    t = rearrange(t, "b t c_g d -> b (t c_g) d")
-    # st is already a sequence
-    return torch.cat([s_t_h, s_t_m, s_t_l, sp, t, st], dim=1)
-
-
-def expand_and_reciprocate(t):
-    reciprocals = torch.reciprocal(t.float())
-    return torch.repeat_interleave(reciprocals, t)
-
-
-def patch_disc_loss(
-    t_s_t_h,
-    t_s_t_m,
-    t_s_t_l,
-    t_sp,
-    t_t,
-    t_st,
-    p_s_t_h,
-    p_s_t_m,
-    p_s_t_l,
-    p_sp,
-    p_t,
-    p_st,
-    s_t_h_m,
-    s_t_m_m,
-    s_t_l_m,
-    sp_m,
-    t_m,
-    st_m,
-    mask_other_samples: bool,
-    pred2unit: bool = True,
-    tau: float = 0.2,
-):
-    # create tensors of shape (bsz, seq_len, dim)
-    all_masks = seq_and_cat(
-        s_t_h_m.unsqueeze(dim=-1),
-        s_t_m_m.unsqueeze(dim=-1),
-        s_t_l_m.unsqueeze(dim=-1),
-        sp_m.unsqueeze(dim=-1),
-        t_m.unsqueeze(dim=-1),
-        st_m.unsqueeze(dim=-1),
-    ).squeeze(-1)
-    all_preds = seq_and_cat(p_s_t_h, p_s_t_m, p_s_t_l, p_sp, p_t, p_st)
-    all_targets = seq_and_cat(t_s_t_h, t_s_t_m, t_s_t_l, t_sp, t_t, t_st)
-
-    pred = all_preds[all_masks == 2].unsqueeze(dim=0)
-    target = all_targets[all_masks == 2].unsqueeze(dim=0)
-
-    bs, nt, d = pred.shape
-
-    if pred2unit:
-        pred_mu = pred.mean(1, keepdims=True)
-        pred_std = pred.std(1, keepdims=True)
-        pred = (pred - pred_mu) / (pred_std + 1e-4)
-
-    pred = F.normalize(pred, p=2, dim=-1)
-    target = F.normalize(target, p=2, dim=-1)
-
-    scores = torch.einsum("npd,nqd->npq", pred, target) / tau
-    count = (all_masks == 2).sum(dim=-1)
-
-    if mask_other_samples:
-        logit_mask = torch.full_like(scores, -torch.finfo(scores.dtype).max)
-        start = 0
-        for c in count:
-            end = start + c
-            logit_mask[:, start:end, start:end] = 0
-            start += c
-
-        scores = scores + logit_mask
-
-    labels = torch.arange(nt, dtype=torch.long, device=pred.device)[None].repeat(bs, 1)
-    loss = F.cross_entropy(scores.flatten(0, 1), labels.flatten(0, 1), reduction="none") * (
-        tau * 2
-    )
-
-    # emulate averaging across the batch dimension
-    loss_multiplier = expand_and_reciprocate(count)
-    loss = (loss * loss_multiplier).sum() / t_s_t_h.shape[0]
-    return loss
-
-
 def mae_loss(
     p_s_t_h,
     p_s_t_m,
@@ -213,7 +88,6 @@ def mae_loss(
     patch_size_high_res,
     patch_size_med_res,
     patch_size_low_res,
-    max_patch_size_high_res,
 ):
     assert not torch.isnan(p_s_t_h).any(), "p_s_t_h contains NaN!"
     assert not torch.isnan(s_t_h_x).any(), "s_t_h_x contains NaN!"
@@ -268,17 +142,15 @@ def mae_loss(
 
     output_p_s_t_h = []
     for idx, (_, c_g) in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.items()):
-        channel_group_p_s_t_h = p_s_t_h[
-            :, :, :, :, idx, : ((max_patch_size_high_res**2) * len(c_g))
-        ]
+        channel_group_p_s_t_h = p_s_t_h[:, :, :, :, idx, : ((patch_size_high_res**2) * len(c_g))]
         channel_group_p_s_t_h = rearrange(
             channel_group_p_s_t_h,
             "b t_h t_w t (c_g p_h p_w) -> b (t_h p_h) (t_w p_w) t c_g",
             c_g=len(c_g),
-            p_w=max_patch_size_high_res,
-            p_h=max_patch_size_high_res,
+            p_w=patch_size_high_res,
+            p_h=patch_size_high_res,
         )
-        if patch_size_high_res < max_patch_size_high_res:
+        if patch_size_high_res < patch_size_high_res:
             assert s_t_h_x.shape[1] > 0 and s_t_h_x.shape[2] > 0, "s_t_h_x h and w are not > 0!"
             channel_group_p_s_t_h = rearrange(
                 resize(
@@ -295,34 +167,27 @@ def mae_loss(
     # TODO: change here if patch size changes
     output_p_s_t_m = []
     for idx, (_, c_g) in enumerate(SPACE_TIME_MED_RES_BANDS_GROUPS_IDX.items()):
+        assert patch_size_med_res == 1, "patch_size_med_res != 1 not implemented yet"
         channel_group_p_s_t_m = p_s_t_m[:, :, :, :, idx, : len(c_g)]
         output_p_s_t_m.append(channel_group_p_s_t_m)
 
     # TODO: change here if patch size changes
     output_p_s_t_l = []
     for idx, (_, c_g) in enumerate(SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX.items()):
+        assert patch_size_low_res == 1, "patch_size_low_res != 1 not implemented yet"
         channel_group_p_s_t_l = p_s_t_l[:, :, :, :, idx, : len(c_g)]
         output_p_s_t_l.append(channel_group_p_s_t_l)
 
     output_p_sp = []
     for idx, (_, c_g) in enumerate(SPACE_BAND_GROUPS_IDX.items()):
-        channel_group_p_sp = p_sp[:, :, :, idx, : ((max_patch_size_high_res**2) * len(c_g))]
+        channel_group_p_sp = p_sp[:, :, :, idx, : ((patch_size_high_res**2) * len(c_g))]
         channel_group_p_sp = rearrange(
             channel_group_p_sp,
             "b t_h t_w (c_g p_h p_w) -> b (t_h p_h) (t_w p_w) c_g",
             c_g=len(c_g),
-            p_w=max_patch_size_high_res,
-            p_h=max_patch_size_high_res,
+            p_w=patch_size_high_res,
+            p_h=patch_size_high_res,
         )
-        if patch_size_high_res < max_patch_size_high_res:
-            channel_group_p_sp = rearrange(
-                resize(
-                    rearrange(channel_group_p_sp, "b h w d -> b d h w"),
-                    size=(s_t_h_x.shape[1], s_t_h_x.shape[2]),
-                ),
-                "b d h w -> b h w d",
-                d=len(c_g),
-            )
         output_p_sp.append(channel_group_p_sp)
 
     output_p_t = []
@@ -408,18 +273,11 @@ def mae_loss(
 
 
 def do_loss(config, loss_inputs):
-    if config["loss_type"] == "patch_disc":
-        loss = patch_disc_loss(
-            *loss_inputs,
-            mask_other_samples=config["loss_mask_other_samples"],
-            pred2unit=config["pred2unit"],
-            tau=config["tau"],
-        )
-    elif config["loss_type"] == "mse":
+    if config["loss_type"] == "mse":
         loss = mse_loss(*loss_inputs)
     elif config["loss_type"] == "MAE":
         loss = mae_loss(*loss_inputs)
     else:
-        raise f"loss_type must be patch_disc, MAE or mse, not {config['loss_type']}"
+        raise f"loss_type must be MAE or mse, not {config['loss_type']}"
 
     return loss

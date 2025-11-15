@@ -9,14 +9,14 @@ from src.data.config import DATA_FOLDER, NO_DATA_VALUE, NORMALIZATION_DICT_FILEN
 from src.data.dataset import Dataset, Normalizer
 from src.utils import config_dir, load_check_config
 
-config = load_check_config("ai4snow.json")
+config = load_check_config("ai4snow_ps10.json")
 training_config = config["training"]
 
 dataset = Dataset(
-    Path(DATA_FOLDER / "tifs_all_bands_1km"),
+    data_folder=DATA_FOLDER / "tifs_all_bands",
     download=False,
-    h5py_folder=None,
-    h5pys_only=False,
+    h5py_folder=Path("data/h5pys_ps10_5"),
+    h5pys_only=True,
 )
 
 if training_config["normalization"] == "std":
@@ -24,7 +24,6 @@ if training_config["normalization"] == "std":
         path=config_dir / NORMALIZATION_DICT_FILENAME
     )
     print(NORMALIZATION_DICT_FILENAME)
-    print(normalizing_dict, flush=True)
     normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
     dataset.normalizer = normalizer
 else:
@@ -38,17 +37,12 @@ dataloader = DataLoader(
     num_workers=0,
     collate_fn=partial(
         mae_collate_fn,
-        patch_sizes_high_res=training_config["patch_sizes_high_res"],
-        patch_sizes_med_res=training_config["patch_sizes_med_res"],
-        patch_sizes_low_res=training_config["patch_sizes_low_res"],
-        shape_time_combinations=training_config["shape_time_combinations"],
+        patch_size_high_res=training_config["patch_size_high_res"],
+        patch_size_med_res=training_config["patch_size_med_res"],
+        patch_size_low_res=training_config["patch_size_low_res"],
         encode_ratio=training_config["encode_ratio"],
         decode_ratio=training_config["decode_ratio"],
         augmentation_strategies=training_config["augmentation"],
-        masking_probabilities=training_config["masking_probabilities"],
-        max_unmasking_channels=training_config["max_unmasking_channels"],
-        random_masking=training_config["random_masking"],
-        unmasking_channels_combo=training_config["unmasking_channels_combo"],
     ),
     pin_memory=True,
 )
@@ -90,8 +84,6 @@ for i, batch in enumerate(dataloader):
             assert sp_x.shape == valid_mask_sp.shape
             assert t_x.shape == valid_mask_t.shape
             assert st_x.shape == valid_mask_st.shape
-
-            # import pdb; pdb.set_trace()
 
             # Compute mean and std per channel, excluding NO_DATA_VALUE
             s_t_h_x_mean = torch.tensor(
@@ -197,13 +189,13 @@ for i, batch in enumerate(dataloader):
             )
 
             for i, (mean, std) in enumerate(zip(s_t_h_x_mean, s_t_h_x_std)):
-                print(f"s_t_x channel {i}: Mean = {mean.item():.4f}, Std = {std.item():.4f}")
+                print(f"s_t_h_x channel {i}: Mean = {mean.item():.4f}, Std = {std.item():.4f}")
 
             for i, (mean, std) in enumerate(zip(s_t_m_x_mean, s_t_m_x_std)):
-                print(f"s_t_x channel {i}: Mean = {mean.item():.4f}, Std = {std.item():.4f}")
+                print(f"s_t_m_x channel {i}: Mean = {mean.item():.4f}, Std = {std.item():.4f}")
 
             for i, (mean, std) in enumerate(zip(s_t_l_x_mean, s_t_l_x_std)):
-                print(f"s_t_x channel {i}: Mean = {mean.item():.4f}, Std = {std.item():.4f}")
+                print(f"s_t_l_x channel {i}: Mean = {mean.item():.4f}, Std = {std.item():.4f}")
 
             for i, (mean, std) in enumerate(zip(sp_x_mean, sp_x_std)):
                 print(f"sp_x channel {i}: Mean = {mean.item():.4f}, Std = {std.item():.4f}")

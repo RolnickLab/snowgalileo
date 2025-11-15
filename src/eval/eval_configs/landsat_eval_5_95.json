@@ -1,0 +1,44 @@
+{
+    "name": "landsat_eval_5_95",
+    "data": {
+        "label_folder": "landsat_eval_masks/all/patches_UTM_5_95_subset/",
+        "input_tif_folder": "landsat_eval_tifs/patches_UTM_5_95_cropped/",
+        "input_h5py_folder": "landsat_eval_h5pys_5_95/",
+        "label_resolution": 100,
+        "num_timesteps": 8,
+        "input_height_width": 100,
+        "num_classes": 1,
+        "split_type": "train_test_random"
+    },
+    "finetune": {
+        "freeze_encoder": false,
+        "token_mapping": "spatial_mean",
+        "med_and_low_res_repeat": false
+    },
+    "linear_probe": {
+        "freeze_encoder": true,
+        "token_mapping": "spatial_mean",
+        "med_and_low_res_repeat": true
+    },
+    "attention_probe": {
+        "freeze_encoder": false,
+        "token_mapping": "attention_probe",
+        "n_heads": 2,
+        "attn_dropout_p": 0.0,
+        "use_tanh": false,
+        "hidden_dim": 0,
+        "attend_over_spatial": true,
+        "med_and_low_res_repeat": true
+    },
+    "hyperparams": {
+        "batch_size": 4,
+        "num_workers": 0,
+        "weight_decay": 1e-5,
+        "sigmoid_slope": 1.0,
+        "lr_schedule": false,
+        "learning_rate": 3e-4,
+        "optimizer": "Adam",
+        "warmup_fraction": 0.1,
+        "loss_fn": "MSE"
+    }
+}

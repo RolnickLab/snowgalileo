@@ -53,34 +53,3 @@ def get_modis_cloud_flag(region: ee.Geometry, start_date: date, end_date: date) 
         return create_placeholder(region, MODIS_CLOUD_FLAG_BANDS).toDouble()
 
     return cloud_bitflag
-
-    """
-    cloud_bitflag = ee.Number(cloud_bitflag)
-    cloud_state = bitwiseExtract(cloud_bitflag, 0, 1)
-
-    # mapping from https://developers.google.com/earth-engine/datasets/catalog/MODIS_061_MOD09GA#bands
-    if cloud_state.eq(0):
-        state = "clear"
-    elif cloud_state.eq(1):
-        state = "cloudy"
-    elif cloud_state.eq(2):
-        state = "mixed"
-    elif cloud_state.eq(3):
-        state = "clear"
-    else:
-        raise ValueError("Invalid cloud state value")
-
-    return state
-    """
-
-
-def bitwiseExtract(value, fromBit, toBit):
-    """
-    Modified from https://gis.stackexchange.com/questions/349371/creating-cloud-free-images-out-of-a-mod09a1-modis-image-in-gee/349401#349401
-
-    Utility to extract bitmask values.
-    Look up the bit-ranges in the catalog.
-    """
-    maskSize = ee.Number(1).add(toBit).subtract(fromBit)
-    mask = ee.Number(1).leftShift(maskSize).subtract(1)
-    return value.rightShift(fromBit).bitwiseAnd(mask)

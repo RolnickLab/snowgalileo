@@ -61,6 +61,7 @@ from src.data.earthengine.eo import (
     TIME_DIV_VALUES_NP,
     TIME_SHIFT_VALUES_NP,
 )
+from src.data.utils import RunningStats
 
 logger = logging.getLogger("__main__")
 
@@ -145,8 +146,19 @@ class Normalizer:
         return x_normalized
 
     def __call__(self, x: np.ndarray, array_type: str, valid_data_mask: np.ndarray):
+        if self.normalizing_dicts is not None:
+            if array_type not in self.normalizing_dicts:
+                raise ValueError(f"Unknown array type: {array_type}")
+            shift_values = self.normalizing_dicts[array_type]["mean"]
+            div_values = self.normalizing_dicts[array_type]["std"]
+            return self._normalize(x, valid_data_mask, shift_values, div_values)
+
         if array_type not in self.shift_div_dict:
             raise ValueError(f"Unknown array type: {array_type}")
+        # TODO: check or remove this long-term
+        assert 1 == 0, (
+            "We can not totally rely on pre-defined shift/div values. Please provide normalizing_dicts."
+        )
         return self._normalize(
             x,
             valid_data_mask,
@@ -791,6 +803,7 @@ class Dataset(PyTorchDataset):
         )
 
         # for downsampling, the arrays need to be in divisible shape so we do it after cropping
+        # this is also why we use target shape (5, 5) for medium resolution
         space_time_med_res_x, valid_data_mask_s_t_m = cls.downsample_dynamic_in_time_with_mean(
             space_time_med_res_x,
             valid_data_mask_s_t_m,
@@ -816,12 +829,12 @@ class Dataset(PyTorchDataset):
             assert not np.isinf(time_x).any(), f"Infs in t_x for {tif_path}"
             assert not np.isinf(static_x).any(), f"Infs in st_x for {tif_path}"
             return DatasetOutput(
-                space_time_high_res_x,
-                space_time_med_res_x,
-                space_time_low_res_x,
-                space_x,
-                time_x,
-                static_x,
+                space_time_high_res_x.astype(np.half),
+                space_time_med_res_x.astype(np.half),
+                space_time_low_res_x.astype(np.half),
+                space_x.astype(np.half),
+                time_x.astype(np.half),
+                static_x.astype(np.half),
                 months,
                 valid_data_mask_s_t_h,
                 valid_data_mask_s_t_m,
@@ -1248,3 +1261,248 @@ class Dataset(PyTorchDataset):
             json.dump(norm_dict, f)
 
         return norm_dict
+
+    def compute_running_stats(self, sampled_n=50000):
+        """
+        Compute running statistics for the entire dataset.
+        """
+        (
+            s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
+            sp_x,
+            t_x,
+            st_x,
+            _,
+            _,
+            _,
+            _,
+            _,
+            _,
+            _,
+        ) = self[0]
+
+        stats_high_res = RunningStats(shape=(s_t_h_x.shape[-1],))
+        stats_med_res = RunningStats(shape=(s_t_m_x.shape[-1],))
+        stats_low_res = RunningStats(shape=(s_t_l_x.shape[-1],))
+        stats_space = RunningStats(shape=(sp_x.shape[-1],))
+        stats_time = RunningStats(shape=(t_x.shape[-1],))
+        stats_static = RunningStats(shape=(st_x.shape[-1],))
+
+        for i in tqdm(range(len(self))):
+            if i >= sampled_n:
+                logger.info(f"Reached {sampled_n} samples, stopping computation.")
+                break
+            (
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                _,
+                valid_data_mask_s_t_h,
+                valid_data_mask_s_t_m,
+                valid_data_mask_s_t_l,
+                valid_data_mask_sp,
+                valid_data_mask_t,
+                valid_data_mask_st,
+            ) = self[i]
+            s_t_h_x = np.where(valid_data_mask_s_t_h, s_t_h_x, np.nan)
+            s_t_m_x = np.where(valid_data_mask_s_t_m, s_t_m_x, np.nan)
+            s_t_l_x = np.where(valid_data_mask_s_t_l, s_t_l_x, np.nan)
+            sp_x = np.where(valid_data_mask_sp, sp_x, np.nan)
+            t_x = np.where(valid_data_mask_t, t_x, np.nan)
+            st_x = np.where(valid_data_mask_st, st_x, np.nan)
+
+            # Collapse dimensions if needed, e.g., s_t_h_x.shape = (T, H, W, C) --> reshape to (-1, C)
+            stats_high_res.update(s_t_h_x.reshape(-1, s_t_h_x.shape[-1]))
+            stats_med_res.update(s_t_m_x.reshape(-1, s_t_m_x.shape[-1]))
+            stats_low_res.update(s_t_l_x.reshape(-1, s_t_l_x.shape[-1]))
+            stats_space.update(sp_x.reshape(-1, sp_x.shape[-1]))
+            stats_time.update(t_x.reshape(-1, t_x.shape[-1]))
+            stats_static.update(st_x.reshape(-1, st_x.shape[-1]))
+
+        s_t_h_x_mean, s_t_h_x_std = stats_high_res.finalize()
+        s_t_m_x_mean, s_t_m_x_std = stats_med_res.finalize()
+        s_t_l_x_mean, s_t_l_x_std = stats_low_res.finalize()
+        sp_x_mean, sp_x_std = stats_space.finalize()
+        t_x_mean, t_x_std = stats_time.finalize()
+        st_x_mean, st_x_std = stats_static.finalize()
+
+        norm_dict = {
+            "total_n": len(self),
+            "sampled_n": sampled_n,
+            "space_time_high_res": {
+                "mean": s_t_h_x_mean.tolist(),
+                "std": s_t_h_x_std.tolist(),
+            },
+            "space_time_med_res": {
+                "mean": s_t_m_x_mean.tolist(),
+                "std": s_t_m_x_std.tolist(),
+            },
+            "space_time_low_res": {
+                "mean": s_t_l_x_mean.tolist(),
+                "std": s_t_l_x_std.tolist(),
+            },
+            "space": {
+                "mean": sp_x_mean.tolist(),
+                "std": sp_x_std.tolist(),
+            },
+            "time": {
+                "mean": t_x_mean.tolist(),
+                "std": t_x_std.tolist(),
+            },
+            "static": {
+                "mean": st_x_mean.tolist(),
+                "std": st_x_std.tolist(),
+            },
+        }
+
+        with open(self.data_folder.parents[1] / "normalizing_dict_updated.json", "w") as f:
+            json.dump(norm_dict, f)
+
+        return norm_dict
+
+
+if __name__ == "__main__":
+    from src.data.config import DATA_FOLDER, NORMALIZATION_DICT_FILENAME
+    from src.utils import config_dir
+
+    dataset = Dataset(
+        data_folder=DATA_FOLDER / "tifs_all_bands",
+        download=False,
+        h5py_folder=Path("data/h5pys_ps10_5"),
+        h5pys_only=True,
+    )
+
+    normalizing_dict = dataset.load_normalization_values(
+        path=config_dir / NORMALIZATION_DICT_FILENAME
+    )
+    print(normalizing_dict, flush=True)
+    normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+    dataset.normalizer = normalizer
+
+    stats = []
+
+    # create a csv that stores the min and max values for each channel
+    for i in range(len(dataset)):
+        (
+            s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
+            sp_x,
+            t_x,
+            st_x,
+            months,
+            valid_data_mask_s_t_h,
+            valid_data_mask_s_t_m,
+            valid_data_mask_s_t_l,
+            valid_data_mask_sp,
+            valid_data_mask_t,
+            valid_data_mask_st,
+        ) = dataset[i]
+
+        s_t_h_x_c0_valid = s_t_h_x[..., 0][valid_data_mask_s_t_h[..., 0].astype(bool)]
+        s_t_h_x_c1_valid = s_t_h_x[..., 1][valid_data_mask_s_t_h[..., 1].astype(bool)]
+        s_t_h_x_c2_valid = s_t_h_x[..., 2][valid_data_mask_s_t_h[..., 2].astype(bool)]
+        s_t_h_x_c3_valid = s_t_h_x[..., 3][valid_data_mask_s_t_h[..., 3].astype(bool)]
+        s_t_h_x_c4_valid = s_t_h_x[..., 4][valid_data_mask_s_t_h[..., 4].astype(bool)]
+        s_t_h_x_c5_valid = s_t_h_x[..., 5][valid_data_mask_s_t_h[..., 5].astype(bool)]
+        s_t_h_x_c6_valid = s_t_h_x[..., 6][valid_data_mask_s_t_h[..., 6].astype(bool)]
+        s_t_h_x_c7_valid = s_t_h_x[..., 7][valid_data_mask_s_t_h[..., 7].astype(bool)]
+        s_t_h_x_c8_valid = s_t_h_x[..., 8][valid_data_mask_s_t_h[..., 8].astype(bool)]
+        s_t_h_x_c9_valid = s_t_h_x[..., 9][valid_data_mask_s_t_h[..., 9].astype(bool)]
+        s_t_h_x_c10_valid = s_t_h_x[..., 10][valid_data_mask_s_t_h[..., 10].astype(bool)]
+        s_t_h_x_c11_valid = s_t_h_x[..., 11][valid_data_mask_s_t_h[..., 11].astype(bool)]
+        s_t_h_x_c12_valid = s_t_h_x[..., 12][valid_data_mask_s_t_h[..., 12].astype(bool)]
+        s_t_h_x_c13_valid = s_t_h_x[..., 13][valid_data_mask_s_t_h[..., 13].astype(bool)]
+        s_t_h_x_c14_valid = s_t_h_x[..., 14][valid_data_mask_s_t_h[..., 14].astype(bool)]
+
+        s_t_m_x_c0_valid = s_t_m_x[..., 0][valid_data_mask_s_t_m[..., 0].astype(bool)]
+        s_t_m_x_c1_valid = s_t_m_x[..., 1][valid_data_mask_s_t_m[..., 1].astype(bool)]
+
+        s_t_l_x_c0_valid = s_t_l_x[..., 0][valid_data_mask_s_t_l[..., 0].astype(bool)]
+        s_t_l_x_c1_valid = s_t_l_x[..., 1][valid_data_mask_s_t_l[..., 1].astype(bool)]
+        s_t_l_x_c2_valid = s_t_l_x[..., 2][valid_data_mask_s_t_l[..., 2].astype(bool)]
+        s_t_l_x_c3_valid = s_t_l_x[..., 3][valid_data_mask_s_t_l[..., 3].astype(bool)]
+        s_t_l_x_c4_valid = s_t_l_x[..., 4][valid_data_mask_s_t_l[..., 4].astype(bool)]
+        s_t_l_x_c5_valid = s_t_l_x[..., 5][valid_data_mask_s_t_l[..., 5].astype(bool)]
+        s_t_l_x_c6_valid = s_t_l_x[..., 6][valid_data_mask_s_t_l[..., 6].astype(bool)]
+        s_t_l_x_c7_valid = s_t_l_x[..., 7][valid_data_mask_s_t_l[..., 7].astype(bool)]
+        s_t_l_x_c8_valid = s_t_l_x[..., 8][valid_data_mask_s_t_l[..., 8].astype(bool)]
+        s_t_l_x_c9_valid = s_t_l_x[..., 9][valid_data_mask_s_t_l[..., 9].astype(bool)]
+        s_t_l_x_c10_valid = s_t_l_x[..., 10][valid_data_mask_s_t_l[..., 10].astype(bool)]
+
+        sp_x_c0_valid = sp_x[..., 0][valid_data_mask_sp[..., 0].astype(bool)]
+        sp_x_c1_valid = sp_x[..., 1][valid_data_mask_sp[..., 1].astype(bool)]
+        sp_x_c2_valid = sp_x[..., 2][valid_data_mask_sp[..., 2].astype(bool)]
+        sp_x_c3_valid = sp_x[..., 3][valid_data_mask_sp[..., 3].astype(bool)]
+
+        t_x_c0_valid = t_x[..., 0][valid_data_mask_t[..., 0].astype(bool)]
+        t_x_c1_valid = t_x[..., 1][valid_data_mask_t[..., 1].astype(bool)]
+        t_x_c2_valid = t_x[..., 2][valid_data_mask_t[..., 2].astype(bool)]
+        t_x_c3_valid = t_x[..., 3][valid_data_mask_t[..., 3].astype(bool)]
+        t_x_c4_valid = t_x[..., 4][valid_data_mask_t[..., 4].astype(bool)]
+        t_x_c5_valid = t_x[..., 5][valid_data_mask_t[..., 5].astype(bool)]
+        t_x_c6_valid = t_x[..., 6][valid_data_mask_t[..., 6].astype(bool)]
+        t_x_c7_valid = t_x[..., 7][valid_data_mask_t[..., 7].astype(bool)]
+        t_x_c8_valid = t_x[..., 8][valid_data_mask_t[..., 8].astype(bool)]
+
+        st_x_c0_valid = st_x[..., 0][valid_data_mask_st[..., 0].astype(bool)]
+        st_x_c1_valid = st_x[..., 1][valid_data_mask_st[..., 1].astype(bool)]
+        st_x_c2_valid = st_x[..., 2][valid_data_mask_st[..., 2].astype(bool)]
+
+        stats.append(
+            {
+                "tif": i,
+                "s_t_h_x_c1_std": s_t_h_x_c1_valid.std(dtype=np.float32),
+                "s_t_h_x_c2_std": s_t_h_x_c2_valid.std(dtype=np.float32),
+                "s_t_h_x_c3_std": s_t_h_x_c3_valid.std(dtype=np.float32),
+                "s_t_h_x_c4_std": s_t_h_x_c4_valid.std(dtype=np.float32),
+                "s_t_h_x_c5_std": s_t_h_x_c5_valid.std(dtype=np.float32),
+                "s_t_h_x_c6_std": s_t_h_x_c6_valid.std(dtype=np.float32),
+                "s_t_h_x_c7_std": s_t_h_x_c7_valid.std(dtype=np.float32),
+                "s_t_h_x_c8_std": s_t_h_x_c8_valid.std(dtype=np.float32),
+                "s_t_h_x_c9_std": s_t_h_x_c9_valid.std(dtype=np.float32),
+                "s_t_h_x_c10_std": s_t_h_x_c10_valid.std(dtype=np.float32),
+                "s_t_h_x_c11_std": s_t_h_x_c11_valid.std(dtype=np.float32),
+                "s_t_h_x_c12_std": s_t_h_x_c12_valid.std(dtype=np.float32),
+                "s_t_h_x_c13_std": s_t_h_x_c13_valid.std(dtype=np.float32),
+                "s_t_h_x_c14_std": s_t_h_x_c14_valid.std(dtype=np.float32),
+                "s_t_m_x_c0_std": s_t_m_x_c0_valid.std(dtype=np.float32),
+                "s_t_m_x_c1_std": s_t_m_x_c1_valid.std(dtype=np.float32),
+                "s_t_l_x_c0_std": s_t_l_x_c0_valid.std(dtype=np.float32),
+                "s_t_l_x_c1_std": s_t_l_x_c1_valid.std(dtype=np.float32),
+                "s_t_l_x_c2_std": s_t_l_x_c2_valid.std(dtype=np.float32),
+                "s_t_l_x_c3_std": s_t_l_x_c3_valid.std(dtype=np.float32),
+                "s_t_l_x_c4_std": s_t_l_x_c4_valid.std(dtype=np.float32),
+                "s_t_l_x_c5_std": s_t_l_x_c5_valid.std(dtype=np.float32),
+                "s_t_l_x_c6_std": s_t_l_x_c6_valid.std(dtype=np.float32),
+                "s_t_l_x_c7_std": s_t_l_x_c7_valid.std(dtype=np.float32),
+                "s_t_l_x_c8_std": s_t_l_x_c8_valid.std(dtype=np.float32),
+                "s_t_l_x_c9_std": s_t_l_x_c9_valid.std(dtype=np.float32),
+                "s_t_l_x_c10_std": s_t_l_x_c10_valid.std(dtype=np.float32),
+                "sp_x_c0_std": sp_x_c0_valid.std(dtype=np.float32),
+                "sp_x_c1_std": sp_x_c1_valid.std(dtype=np.float32),
+                "sp_x_c2_std": sp_x_c2_valid.std(dtype=np.float32),
+                "sp_x_c3_std": sp_x_c3_valid.std(dtype=np.float32),
+                "t_x_c0_std": t_x_c0_valid.std(dtype=np.float32),
+                "t_x_c1_std": t_x_c1_valid.std(dtype=np.float32),
+                "t_x_c2_std": t_x_c2_valid.std(dtype=np.float32),
+                "t_x_c3_std": t_x_c3_valid.std(dtype=np.float32),
+                "t_x_c4_std": t_x_c4_valid.std(dtype=np.float32),
+                "t_x_c5_std": t_x_c5_valid.std(dtype=np.float32),
+                "t_x_c6_std": t_x_c6_valid.std(dtype=np.float32),
+                "t_x_c7_std": t_x_c7_valid.std(dtype=np.float32),
+                "t_x_c8_std": t_x_c8_valid.std(dtype=np.float32),
+                "st_x_c0_std": st_x_c0_valid.std(dtype=np.float32),
+                "st_x_c1_std": st_x_c1_valid.std(dtype=np.float32),
+                "st_x_c2_std": st_x_c2_valid.std(dtype=np.float32),
+            }
+        )
+
+    import pandas as pd
+
+    df = pd.DataFrame(stats)
+    df.to_csv("data_stats_mean_std_float32.csv", index=False)

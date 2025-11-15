@@ -3,7 +3,7 @@ import itertools
 import json
 import math
 from pathlib import Path
-from typing import Any, Dict, Optional, Sequence, Tuple, Union
+from typing import Any, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
@@ -13,16 +13,8 @@ from einops import rearrange, repeat
 from torch import Tensor, vmap
 from torch.jit import Final
 
-from src.data.config import CONFIG_FILENAME, ENCODER_FILENAME
-from src.embeddings import (
-    get_1d_sincos_pos_embed_from_grid_torch,
-    get_2d_sincos_pos_embed_with_resolution,
-    get_month_encoding_table,
-)
-from src.utils import device
-
-from .config import BASE_GSD_HIGH_RES, BASE_GSD_LOW_RES, BASE_GSD_MED_RES
-from .data import (
+from src.config import BASE_GSD_HIGH_RES, BASE_GSD_LOW_RES, BASE_GSD_MED_RES
+from src.data import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
     SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX,
@@ -30,6 +22,13 @@ from .data import (
     STATIC_BAND_GROUPS_IDX,
     TIME_BANDS_GROUPS_IDX,
 )
+from src.data.config import CONFIG_FILENAME, ENCODER_FILENAME
+from src.embeddings import (
+    get_1d_sincos_pos_embed_from_grid_torch,
+    get_2d_sincos_pos_embed_with_resolution,
+    get_month_encoding_table,
+)
+from src.utils import device
 
 
 def adjust_learning_rate(
@@ -192,6 +191,100 @@ class FlexiPatchEmbed(nn.Module):
         x = self.norm(x)
 
         return x
+
+
+class AttentionProbe(nn.Module):
+    # Credits to: https://github.com/EleutherAI/attention-probes
+    # Modified to invert meaning of masks (1 = masked, 0 = unmasked)
+    # Also changed default output_dim to 100 since this is the number of patches we want to predict.
+    """
+    Torch module for attention probes.
+    Supports:
+    * multiple heads
+    * relative position bias
+    * post-attention MLP
+    * attention weight dropout
+    * attention weight recording via PyTorch forward hooks
+    """
+
+    def __init__(
+        self,
+        d_in,
+        n_heads,
+        output_dim: int = 100,
+        hidden_dim: int = 0,
+        use_tanh: bool = False,
+        attn_dropout_p: float = 0.0,
+        config: Any = None,
+    ):
+        """
+        Args:
+            d_in (int): input dimensionality.
+            n_heads (int): number of attention heads.
+            output_dim (int): output dimension (default: 100).
+            Returns logits, needs to be passed through an activation function.
+            hidden_dim (int): hidden dimension for post-attention MLP (default: 0, no MLP).
+            use_tanh (bool): use tanh activation for attention weights (default: False).
+            attn_dropout_p (float): dropout probability for attention weights (default: 0.0).
+            config (Any): additional configuration parameters to store in the model.
+        """
+        super().__init__()
+        # projection from inputs to attention logits
+        self.q = nn.Linear(d_in, n_heads, bias=False)
+        self.q.weight.data.zero_()
+        # projection to per-head output logits (or pre-MLP intermediate states)
+        self.v = nn.Linear(d_in, n_heads * (hidden_dim or output_dim))
+
+        self.n_heads = n_heads
+        self.output_dim = output_dim
+        self.use_tanh = use_tanh
+        self.attn_dropout_p = attn_dropout_p
+        # alibi-like relative (to the beginning/end of the sequence) position bias
+        self.position_weight = nn.Parameter(torch.zeros((n_heads,), dtype=torch.float32))
+        # MLP after the attention
+        self.hidden_dim = hidden_dim
+        if hidden_dim:
+            self.o = nn.Linear(hidden_dim, output_dim)
+        # hookpoint to record attention probabilities. use register_forward_hook to record
+        self.attn_hook = nn.Identity()
+
+        self.config = config
+
+    def forward(self, x, mask, position):
+        # x: (batch_size, seq_len, d_in)
+        # mask: (batch_size, seq_len)
+        # position: (batch_size, seq_len)
+
+        # k: (batch_size, seq_len, n_heads)
+        # elements that are masked are set to -infinity
+        # position is added to the key weighted by the per-head position_weight
+        # NOTE: removed mask inversion here compared to original implementation
+        k = (
+            self.q(x)
+            - (mask.float() * 1e9)[..., None]
+            + position[..., None] * self.position_weight
+        )
+        if self.training:
+            # apply dropout to the keys
+            k = torch.where(torch.rand_like(k) < self.attn_dropout_p, -1e9, k)
+        # p: (batch_size, seq_len, n_heads)
+        # probability of each element after softmax, with masked elements set to 0
+        # dim=-2 is the sequence length dimension
+        if self.use_tanh:
+            p = torch.tanh(k)
+        else:
+            p = torch.nn.functional.softmax(k, dim=-2)
+        # record attention probabilities if necessary
+        self.attn_hook(p)
+        # v: (batch_size, seq_len, n_heads, output_dim)
+        v = self.v(x).unflatten(-1, (self.n_heads, -1))
+        # o: (batch_size, output_dim)
+        # weight v by the attention probabilities and sum over the sequence length and head dimensions
+        o = (p[..., None] * v).sum((-2, -3))
+        # if we have an MLP after the attention, apply it
+        if self.hidden_dim:
+            o = self.o(o.relu())
+        return o
 
 
 class Attention(nn.Module):
@@ -399,7 +492,7 @@ class ModuleListWithInit(nn.ModuleList):
                 nn.init.constant_(m.bias, 0)
 
 
-class FlexiPrestoBase(nn.Module):
+class SnowGalileoBase(nn.Module):
     cross_attn: bool
 
     def __init__(
@@ -409,9 +502,6 @@ class FlexiPrestoBase(nn.Module):
         mlp_ratio=2,
         num_heads=8,
         max_sequence_length=24,
-        base_patch_size_high_res: int = 4,
-        base_patch_size_med_res: int = 1,
-        base_patch_size_low_res: int = 1,
         use_channel_embs: bool = True,
         drop_path: float = 0.0,
         use_fast_attn=True,
@@ -425,9 +515,6 @@ class FlexiPrestoBase(nn.Module):
         self.time_groups = TIME_BANDS_GROUPS_IDX
         self.static_groups = STATIC_BAND_GROUPS_IDX
         self.embedding_size = embedding_size
-        self.base_patch_size_high_res = base_patch_size_high_res
-        self.base_patch_size_med_res = base_patch_size_med_res
-        self.base_patch_size_low_res = base_patch_size_low_res
         self.use_fast_attn = use_fast_attn
 
         self.blocks = ModuleListWithInit(
@@ -670,20 +757,20 @@ class FlexiPrestoBase(nn.Module):
 
         # find the resolution that each token represents, which will be
         # the number of pixels in a patch * the resolution of each pixel
-        if patch_size_high_res is None:
-            patch_size_high_res = self.base_patch_size_high_res
         token_res_high = input_res_high_res * patch_size_high_res
         gsd_ratio_high_res = token_res_high / BASE_GSD_HIGH_RES
+        # TODO: remove later
+        assert gsd_ratio_high_res == 10, f"gsd_ratio_high_res is {gsd_ratio_high_res}, expected 10"
 
-        if patch_size_med_res is None:
-            patch_size_med_res = self.base_patch_size_med_res
         token_res_med = input_res_med_res * patch_size_med_res
         gsd_ratio_med_res = token_res_med / BASE_GSD_MED_RES
+        # TODO: remove later
+        assert gsd_ratio_med_res == 1, f"gsd_ratio_med_res is {gsd_ratio_med_res}, expected 1"
 
-        if patch_size_low_res is None:
-            patch_size_low_res = self.base_patch_size_low_res
         token_res_low = input_res_low_res * patch_size_low_res
         gsd_ratio_low_res = token_res_low / BASE_GSD_LOW_RES
+        # TODO: remove later
+        assert gsd_ratio_low_res == 1, f"gsd_ratio_low_res is {gsd_ratio_low_res}, expected 1"
 
         assert h_s_t_h == w_s_t_h, (
             "get_2d_sincos_pos_embed_with_resolution currently requires that h_s_t_h==w_s_t_h"
@@ -772,12 +859,12 @@ class FlexiPrestoBase(nn.Module):
         )
 
 
-class Encoder(FlexiPrestoBase):
+class Encoder(SnowGalileoBase):
     cross_attn = False
 
     def __init__(
         self,
-        max_patch_size_high_res: int = 8,
+        patch_size_high_res=10,
         embedding_size: int = 128,
         depth=2,
         mlp_ratio=2,
@@ -792,7 +879,6 @@ class Encoder(FlexiPrestoBase):
             mlp_ratio=mlp_ratio,
             num_heads=num_heads,
             max_sequence_length=max_sequence_length,
-            base_patch_size_high_res=max_patch_size_high_res,
             use_channel_embs=True,
             drop_path=drop_path,
         )
@@ -802,7 +888,7 @@ class Encoder(FlexiPrestoBase):
                 group_name: FlexiPatchEmbed(
                     in_chans=len(group),
                     embed_dim=embedding_size,
-                    patch_size=max_patch_size_high_res,
+                    patch_size=patch_size_high_res,
                 )
                 for group_name, group in self.space_time_high_res_groups.items()
             }
@@ -828,7 +914,7 @@ class Encoder(FlexiPrestoBase):
                 group_name: FlexiPatchEmbed(
                     in_chans=len(group),
                     embed_dim=embedding_size,
-                    patch_size=max_patch_size_high_res,
+                    patch_size=patch_size_high_res,
                 )
                 for group_name, group in self.space_groups.items()
             }
@@ -1095,49 +1181,7 @@ class Encoder(FlexiPrestoBase):
         input_res_high_res,
         input_res_med_res,
         input_res_low_res,
-        exit_after,
-        token_exit_cfg,
-        c_i_token: Optional[torch.Tensor] = None,
     ):
-        if token_exit_cfg:
-            exit_s_t_h, exit_s_t_m, exit_s_t_l, exit_sp, exit_t, exit_st = (
-                self.create_token_exit_ids(
-                    s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, token_exit_cfg
-                )
-            )
-            exit_ids_seq, _ = self.collapse_and_combine_hwtc(
-                exit_s_t_h,
-                exit_s_t_m,
-                exit_s_t_l,
-                exit_sp,
-                exit_t,
-                exit_st,
-                s_t_h_m,
-                s_t_m_m,
-                s_t_l_m,
-                sp_m,
-                t_m,
-                st_m,
-            )
-            # exited_tokens starts as linear projections!
-            exited_tokens, _ = self.collapse_and_combine_hwtc(
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                s_t_h_m,
-                s_t_m_m,
-                s_t_l_m,
-                sp_m,
-                t_m,
-                st_m,
-            )
-        else:
-            exit_ids_seq = None
-            exited_tokens = None
-
         _, h_s_t_h, w_s_t_h, t, s_t_h_c_g, _ = s_t_h_x.shape
         _, h_s_t_m, w_s_t_m, _, s_t_m_c_g, _ = s_t_m_x.shape
         _, h_s_t_l, w_s_t_l, _, s_t_l_c_g, _ = s_t_l_x.shape
@@ -1165,52 +1209,13 @@ class Encoder(FlexiPrestoBase):
         # since they both represent masked values
         new_m = m >= 1
         x, indices, new_m = self.remove_masked_tokens(x, new_m)  # new_m is shape (bsz, seq_len)
-        if exit_ids_seq is not None:
-            exit_ids_seq, _, _ = self.remove_masked_tokens(exit_ids_seq, m >= 1)
-            # still linear projections
-            exited_tokens, _, _ = self.remove_masked_tokens(exited_tokens, m >= 1)
 
-        if c_i_token is not None:
-            c_i_as_batch = repeat(c_i_token, "d -> b s d", s=1, b=x.shape[0])
-            x = torch.cat((x, c_i_as_batch), dim=1)
-            new_m = torch.cat((new_m, torch.zeros_like(new_m)[:, 0:1]), dim=1)
-
-        for i_blk, blk in enumerate(self.blocks):
-            if (exit_after is not None) and ((i_blk + 1) > exit_after):
-                # if exit_after is N, then we exit after the Nth layer
-                # if exit_after is 0, then all layers are skipped
-                break
-
-            # skip the 0th block since this is just the linear
-            # projection
-            if (exit_ids_seq is not None) and (i_blk > 0):
-                assert exited_tokens is not None
-                # half depth
-                exited_tokens = torch.where(
-                    condition=(exit_ids_seq == i_blk),
-                    input=x.detach(),
-                    other=exited_tokens.detach(),
-                )
-
+        for _, blk in enumerate(self.blocks):
             # we take the inverse of the mask because a value
             # of True indicates the value *should* take part in
             # attention
             x = blk(x=x, y=None, attn_mask=~new_m.bool())
 
-        if exit_ids_seq is not None:
-            assert exited_tokens is not None
-            # full depth
-            # IMPORTANT: write this to x
-            x = torch.where(
-                condition=(exit_ids_seq == (i_blk + 1)),  # 2 for full depth
-                input=x.detach(),
-                other=exited_tokens.detach(),
-            )
-
-        if c_i_token is not None:
-            # remove the c_i_token
-            x = x[:, :-1, :]
-            new_m = new_m[:, :-1]
         # we don't care about the mask returned by add_removed_tokens, since we will
         # just use the original, unclipped mask here
         x, _ = self.add_removed_tokens(x, indices, new_m)
@@ -1240,7 +1245,7 @@ class Encoder(FlexiPrestoBase):
         )
 
     @classmethod
-    def average_tokens(
+    def apply_mask_and_average_tokens(
         cls, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
     ):
         x, m = cls.collapse_and_combine_hwtc(
@@ -1251,7 +1256,68 @@ class Encoder(FlexiPrestoBase):
         return x_for_mean.sum(dim=1) / torch.sum(1 - m, -1, keepdim=True)
 
     @classmethod
-    def apply_mask_and_average_tokens_per_patch(
+    def preprocess_tokens_for_attention_probe(
+        cls,
+        s_t_h_x,
+        s_t_m_x,
+        s_t_l_x,
+        sp_x,
+        t_x,
+        st_x,
+        s_t_h_m,
+        s_t_m_m,
+        s_t_l_m,
+        sp_m,
+        t_m,
+        st_m,
+        attend_over_spatial: bool = False,
+        med_and_low_res_repeat: bool = True,
+    ):
+        """
+        Preprocess tokens for attention probe by collapsing spatial dimensions. Also return position.
+
+        Output shapes:
+        - x: (batch size, num tokens, token_dim) or (batch size, high_res_spatial_positions, num tokens, token_dim) if attend_over_spatial is True
+        - m: (batch size, num tokens) with 1 for masked tokens and 0 for unmasked tokens
+        - position: (batch size, num tokens) with position indices
+        """
+        if attend_over_spatial:
+            print("Attending over spatial patches.", flush=True)
+            x, m = cls.combine_tokens_per_highres_spatial_patch(
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+                med_and_low_res_repeat=med_and_low_res_repeat,
+            )
+            position = (
+                torch.arange(x.shape[2], device=x.device)
+                .unsqueeze(0)
+                .expand(x.shape[1], -1)
+                .unsqueeze(0)
+                .expand(x.shape[0], -1, -1)
+            )
+            return x, m, position
+
+        print("Attending over all tokens.", flush=True)
+        x, m = cls.collapse_and_combine_hwtc(
+            s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
+        )
+        # to accelerate attention probing, we remove masked tokens here
+        x, _, m = cls.remove_masked_tokens(x, m)
+        position = torch.arange(x.shape[1], device=x.device).unsqueeze(0).expand(x.shape[0], -1)
+        return x, m, position
+
+    @classmethod
+    def combine_tokens_per_highres_spatial_patch(
         cls,
         s_t_h_x: torch.Tensor,
         s_t_m_x: torch.Tensor,
@@ -1265,56 +1331,104 @@ class Encoder(FlexiPrestoBase):
         sp_m: torch.Tensor,
         t_m: torch.Tensor,
         st_m: torch.Tensor,
+        med_and_low_res_repeat: bool = True,
     ):
+        # Creates an output of tokens with shape (batch size, high_res_spatial_positions, num_tokens, token_dim), where masked tokens are removed.
+        # We upsample med and low resolution tokens, to be able to incorporate them into the high resolution tokens.
+        # If med_and_low_res_repeat is False, we remove med and low resolution tokens instead of repeating them.
+
+        p_m = s_t_h_x.shape[1] // s_t_m_x.shape[1]
+        p_l = s_t_h_x.shape[1] // s_t_l_x.shape[1]
+
         s_t_h_x = rearrange(s_t_h_x, "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d")
-        s_t_m_x = rearrange(s_t_m_x, "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d")
-        s_t_l_x = rearrange(s_t_l_x, "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d")
         sp_x = rearrange(sp_x, "b t_h t_w c_g d -> b (t_h t_w) c_g d")
+        s_t_h_m = rearrange(s_t_h_m, "b t_h t_w t c_g-> b (t_h t_w) (t c_g)")
+        sp_m = rearrange(sp_m, "b t_h t_w c_g-> b (t_h t_w) c_g")
+
+        # only keep high resolution tokens
+        if not med_and_low_res_repeat:
+            print(
+                "Removing medium and low resolution tokens instead of repeating them.", flush=True
+            )
+            x = torch.cat([s_t_h_x, sp_x], dim=2)  # B, S, N, D
+            m = torch.cat([s_t_h_m, sp_m], dim=2)  # B, S, N
+            return x, m
+
+        print(
+            "Repeating medium and low resolution tokens to match high resolution tokens.",
+            flush=True,
+        )
+        # repeat medium and low resolution tokens over high resolution
+        s_t_m_x = rearrange(
+            repeat(
+                s_t_m_x, "b t_h t_w t c_g d -> b (t_h p_h) (t_w p_w) t c_g d", p_h=p_m, p_w=p_m
+            ),
+            "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d",
+        )
+        s_t_l_x = rearrange(
+            repeat(
+                s_t_l_x, "b t_h t_w t c_g d -> b (t_h p_h) (t_w p_w) t c_g d", p_h=p_l, p_w=p_l
+            ),
+            "b t_h t_w t c_g d -> b (t_h t_w) (t c_g) d",
+        )
         # repeat time tokens over space
         t_x = repeat(
             rearrange(t_x, "b t c_g d -> b (t c_g) d"), "b n d -> b s n d", s=sp_x.shape[1]
         )
         st_x = repeat(st_x, "b c_g d -> b s c_g d", s=sp_x.shape[1])
-        s_t_h_m = rearrange(s_t_h_m, "b t_h t_w t c_g-> b (t_h t_w) (t c_g)")
-        s_t_m_m = rearrange(s_t_m_m, "b t_h t_w t c_g-> b (t_h t_w) (t c_g)")
-        s_t_l_m = rearrange(s_t_l_m, "b t_h t_w t c_g-> b (t_h t_w) (t c_g)")
-        sp_m = rearrange(sp_m, "b t_h t_w c_g-> b (t_h t_w) c_g")
+
+        s_t_m_m = rearrange(
+            repeat(s_t_m_m, "b t_h t_w t c_g -> b (t_h p_h) (t_w p_w) t c_g", p_h=p_m, p_w=p_m),
+            "b t_h t_w t c_g -> b (t_h t_w) (t c_g)",
+        )
+        s_t_l_m = rearrange(
+            repeat(s_t_l_m, "b t_h t_w t c_g -> b (t_h p_h) (t_w p_w) t c_g", p_h=p_l, p_w=p_l),
+            "b t_h t_w t c_g -> b (t_h t_w) (t c_g)",
+        )
         t_m = repeat(rearrange(t_m, "b t c_g -> b (t c_g)"), "b n -> b s n", s=sp_x.shape[1])
         st_m = repeat(st_m, "b c_g -> b s c_g", s=sp_x.shape[1])
 
         x = torch.cat([s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x], dim=2)  # B, S, N, D
         m = torch.cat([s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m], dim=2)  # B, S, N
 
+        return x, m
+
+    @classmethod
+    def apply_mask_and_average_tokens_per_highres_spatial_patch(
+        cls,
+        s_t_h_x: torch.Tensor,
+        s_t_m_x: torch.Tensor,
+        s_t_l_x: torch.Tensor,
+        sp_x: torch.Tensor,
+        t_x: torch.Tensor,
+        st_x: torch.Tensor,
+        s_t_h_m: torch.Tensor,
+        s_t_m_m: torch.Tensor,
+        s_t_l_m: torch.Tensor,
+        sp_m: torch.Tensor,
+        t_m: torch.Tensor,
+        st_m: torch.Tensor,
+        med_and_low_res_repeat: bool = True,
+    ):
+        x, m = cls.combine_tokens_per_highres_spatial_patch(
+            s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
+            sp_x,
+            t_x,
+            st_x,
+            s_t_h_m,
+            s_t_m_m,
+            s_t_l_m,
+            sp_m,
+            t_m,
+            st_m,
+            med_and_low_res_repeat=med_and_low_res_repeat,
+        )
+
         x_for_mean = x * (1 - m.unsqueeze(-1))
 
         return x_for_mean.sum(dim=2) / torch.sum(1 - m, -1, keepdim=True)
-
-    def create_token_exit_ids(self, s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, token_exit_cfg):
-        exit_s_t_h = torch.zeros_like(s_t_h_x)
-        exit_s_t_m = torch.zeros_like(s_t_m_x)
-        exit_s_t_l = torch.zeros_like(s_t_l_x)
-        exit_sp = torch.zeros_like(sp_x)
-        exit_t = torch.zeros_like(t_x)
-        exit_st = torch.zeros_like(st_x)
-
-        for idx, (key, _) in enumerate(self.space_time_high_res_groups.items()):
-            exit_s_t_h[:, :, :, :, idx, :] = token_exit_cfg[key]
-
-        for idx, (key, _) in enumerate(self.space_time_med_res_groups.items()):
-            exit_s_t_m[:, :, :, :, idx, :] = token_exit_cfg[key]
-
-        for idx, (key, _) in enumerate(self.space_time_low_res_groups.items()):
-            exit_s_t_l[:, :, :, :, idx, :] = token_exit_cfg[key]
-
-        for idx, (key, _) in enumerate(self.space_groups.items()):
-            exit_sp[:, :, :, idx, :] = token_exit_cfg[key]
-
-        for idx, (key, _) in enumerate(self.time_groups.items()):
-            exit_t[:, :, idx, :] = token_exit_cfg[key]
-
-        for idx, (key, _) in enumerate(self.static_groups.items()):
-            exit_st[:, idx, :] = token_exit_cfg[key]
-        return exit_s_t_h, exit_s_t_m, exit_s_t_l, exit_sp, exit_t, exit_st
 
     def forward(
         self,
@@ -1334,12 +1448,9 @@ class Encoder(FlexiPrestoBase):
         patch_size_high_res: int,
         patch_size_med_res: int,
         patch_size_low_res: int,
-        c_i=None,
         input_resolution_m_high_res: Optional[int] = BASE_GSD_HIGH_RES,
         input_resolution_m_med_res: Optional[int] = BASE_GSD_MED_RES,
         input_resolution_m_low_res: Optional[int] = BASE_GSD_LOW_RES,
-        exit_after: Optional[int] = None,
-        token_exit_cfg: Optional[Dict] = None,
     ):
         (
             s_t_h_x,
@@ -1372,43 +1483,40 @@ class Encoder(FlexiPrestoBase):
             patch_size_low_res,
         )
 
-        if (exit_after is None) or (exit_after > 0):
-            (
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                s_t_h_m,
-                s_t_m_m,
-                s_t_l_m,
-                st_m,
-                t_m,
-                st_m,
-            ) = self.apply_attn(
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                s_t_h_m,
-                s_t_m_m,
-                s_t_l_m,
-                sp_m,
-                t_m,
-                st_m,
-                months,
-                patch_size_high_res,
-                patch_size_med_res,
-                patch_size_low_res,
-                input_resolution_m_high_res,
-                input_resolution_m_med_res,
-                input_resolution_m_low_res,
-                exit_after=exit_after,
-                token_exit_cfg=token_exit_cfg,
-            )
+        (
+            s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
+            sp_x,
+            t_x,
+            st_x,
+            s_t_h_m,
+            s_t_m_m,
+            s_t_l_m,
+            st_m,
+            t_m,
+            st_m,
+        ) = self.apply_attn(
+            s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
+            sp_x,
+            t_x,
+            st_x,
+            s_t_h_m,
+            s_t_m_m,
+            s_t_l_m,
+            sp_m,
+            t_m,
+            st_m,
+            months,
+            patch_size_high_res,
+            patch_size_med_res,
+            patch_size_low_res,
+            input_resolution_m_high_res,
+            input_resolution_m_med_res,
+            input_resolution_m_low_res,
+        )
 
         return (
             self.norm(s_t_h_x),
@@ -1428,20 +1536,20 @@ class Encoder(FlexiPrestoBase):
 
     @classmethod
     def load_from_folder(cls, folder: Path):
-        assert (folder / CONFIG_FILENAME).exists(), f"Missing {CONFIG_FILENAME}"
-        assert (folder / ENCODER_FILENAME).exists(), f"Missing {ENCODER_FILENAME}"
+        assert (folder / f"{CONFIG_FILENAME}.json").exists(), f"Missing {CONFIG_FILENAME}.json"
+        assert (folder / f"{ENCODER_FILENAME}.pt").exists(), f"Missing {ENCODER_FILENAME}.pt"
 
-        with (folder / CONFIG_FILENAME).open("r") as f:
+        with (folder / f"{CONFIG_FILENAME}.json").open("r") as f:
             config = json.load(f)
             model_config = config["model"]
             encoder_config = model_config["encoder"]
 
         encoder = cls(**encoder_config)
-        encoder.load_state_dict(torch.load(folder / ENCODER_FILENAME, map_location=device))
+        encoder.load_state_dict(torch.load(folder / f"{ENCODER_FILENAME}.pt", map_location=device))
         return encoder
 
 
-class PrestoPixelDecoder(FlexiPrestoBase):
+class GalileoPixelDecoder(SnowGalileoBase):
     cross_attn = True
 
     def __init__(
@@ -1452,18 +1560,16 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         mlp_ratio=2,
         num_heads=8,
         max_sequence_length=24,
-        max_patch_size_high_res: int = 8,
         learnable_channel_embeddings: bool = False,
         output_embedding_size: Optional[int] = None,
         use_fast_attn: bool = True,
     ):
         super().__init__(
-            decoder_embedding_size,
-            depth,
-            mlp_ratio,
-            num_heads,
-            max_sequence_length,
-            max_patch_size_high_res,
+            embedding_size=decoder_embedding_size,
+            depth=depth,
+            mlp_ratio=mlp_ratio,
+            num_heads=num_heads,
+            max_sequence_length=max_sequence_length,
             use_channel_embs=learnable_channel_embeddings,
             drop_path=0.0,
             use_fast_attn=use_fast_attn,
@@ -1479,7 +1585,6 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         self.to_output_embed = nn.Linear(decoder_embedding_size, output_embedding_size, bias=True)
         self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
 
-        self.max_patch_size_high_res = max_patch_size_high_res
         self.input_norm = nn.LayerNorm(encoder_embedding_size)
         self.norm = nn.LayerNorm(decoder_embedding_size)
         self.apply(self._init_weights)
@@ -1685,7 +1790,7 @@ class PrestoPixelDecoder(FlexiPrestoBase):
         t_m: torch.Tensor,
         st_m: torch.Tensor,
         months: torch.Tensor,
-        patch_size_high_res: Optional[int] = None,
+        patch_size_high_res: Optional[int] = 10,
         patch_size_med_res: Optional[int] = 1,
         patch_size_low_res: Optional[int] = 1,
         input_resolution_m_high_res: Optional[int] = BASE_GSD_HIGH_RES,

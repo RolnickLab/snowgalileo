@@ -57,12 +57,19 @@ class BBox:
         else:
             return lat, lon
 
-    def get_identifier(self, season, start_date, end_date) -> str:
+    def get_identifier(
+        self, season, start_date, end_date, original_filename=None, for_eval=False
+    ) -> str:
         # Identifier is rounded to the nearest ~10m
         min_lon = round(self.min_lon, 4)
         min_lat = round(self.min_lat, 4)
         max_lon = round(self.max_lon, 4)
         max_lat = round(self.max_lat, 4)
+        if for_eval:
+            assert original_filename is not None
+            parts = original_filename.split("_")
+            return f"{parts[0]}_{start_date}_{end_date}_{min_lat}_{min_lon}_{max_lat}_{max_lon}"
+
         return (
             f"min_lat={min_lat}_min_lon={min_lon}_max_lat={max_lat}_max_lon={max_lon}_"
             f"season={season}_dates={start_date}_{end_date}"

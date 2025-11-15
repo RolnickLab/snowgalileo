@@ -1,5 +1,5 @@
-from src.eval.eurosat_eval import EuroSatEval
+from src.eval.landsat_eval import LandsatEval
 
 __all__ = [
-    "EuroSatEval",
+    "LandsatEval",
 ]

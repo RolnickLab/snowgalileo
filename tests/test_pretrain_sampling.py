@@ -81,6 +81,6 @@ class TestPretrainTemporalSampling(unittest.TestCase):
             # if the start date is in the end of december, the end date will be in the next year
             if WINDOW_START_DATE.month == 12 and WINDOW_START_DATE.day > 31 - (NUM_TIMESTEPS - 1):
                 self.assertTrue(
-                    WINDOW_END_DATE.year == SEASON_END_DATE.year + 1,
-                    f"End year {WINDOW_END_DATE.year} is not equal to {SEASON_END_DATE.year + 1}",
+                    WINDOW_END_DATE.year == WINDOW_START_DATE.year + 1,
+                    f"End year {WINDOW_END_DATE.year} is not equal to {WINDOW_START_DATE.year + 1} for start day {WINDOW_START_DATE.day}",
                 )
