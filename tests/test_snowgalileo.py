@@ -3,7 +3,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import numpy as np
 import torch
 from einops import repeat
 
@@ -23,14 +22,6 @@ from src.data.config import (
     NUM_MED_RES_PIXELS_PER_DIM,
 )
 from src.data.dataset import DatasetOutput
-from src.data.earthengine.eo import (
-    SPACE_BANDS,
-    SPACE_TIME_HIGH_RES_BANDS,
-    SPACE_TIME_LOW_RES_BANDS,
-    SPACE_TIME_MED_RES_BANDS,
-    STATIC_BANDS,
-    TIME_BANDS,
-)
 from src.masking import (
     batch_subset_mask_galileo,
 )
@@ -623,6 +614,7 @@ class TestSnowGalileo(unittest.TestCase):
 
         for key, val in new_encoder.state_dict().items():
             self.assertTrue(torch.equal(val, original_encoder.state_dict()[key]))
+
 
 if __name__ == "__main__":
     unittest.main()
