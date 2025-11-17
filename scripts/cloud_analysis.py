@@ -89,20 +89,46 @@ def _check_and_fillna(data: np.ndarray, bands_np: np.ndarray) -> np.ndarray:
 
 
 def get_cloud_state_modis(state: int):
+    # qa state translation from: https://lpdaac.usgs.gov/documents/306/MOD09_User_Guide_V6.pdf
     qa_bin = format(state, ">016b")
 
     # mapping 0: clear, 1: cloudy, 2: mixed
     # 00 clear, 01 cloudy, 10 mixed, 11 clear
     cloud_state = qa_bin[:2]  # first two bits
     if cloud_state == "00":
-        return 0
+        cloud_state = 0
     elif cloud_state == "01":
-        return 1
+        cloud_state = 1
     elif cloud_state == "10":
-        return 2
+        cloud_state = 1
     elif cloud_state == "11":
-        return 3
+        cloud_state = 1
 
+    # 0: no cloud shadow, 1: cloud shadow
+    cloud_shadow = qa_bin[2]
+    if cloud_shadow == "0":
+        cloud_shadow = 0
+    else:
+        cloud_shadow = 1
+
+    # 00: none, 01: small, 10: average, 11: high
+    cirrus_detected = qa_bin[8:10]
+    if cirrus_detected == "00":
+        cirrus_detected = 0
+    if cirrus_detected == "01":
+        cirrus_detected = 0
+    if cirrus_detected == "10":
+        cirrus_detected = 0
+    if cirrus_detected == "11":
+        cirrus_detected = 1
+
+    internal_cloud_flag = qa_bin[10]
+    if internal_cloud_flag == "0":
+        internal_cloud_flag = 0
+    else:
+        internal_cloud_flag = 1
+
+    return qa_bin, (cloud_state or cloud_shadow or cirrus_detected or internal_cloud_flag)
 
 def get_cloud_state_landsat_bit(state: int, cloud_dict: dict) -> dict:
     qa_bin = format(state, ">016b")
