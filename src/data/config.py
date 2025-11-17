@@ -14,6 +14,21 @@ NUM_TIMESTEPS = 8
 START_YEAR = 2022
 END_YEAR = 2023
 
+# inclusive (i.e., the end date of a season is included in the season)
+NORTH_HEM_SEASONS = {
+    "early": ("10-01", "12-15"),
+    "mid": ("12-16", "02-28"),
+    "late": ("03-01", "06-30"),
+}
+
+SOUTH_HEM_SEASONS = {
+    "early": ("04-01", "06-15"),
+    "mid": ("06-16", "08-28"),
+    "late": ("09-01", "12-30"),
+}
+
+NO_DATA_VALUE = -9999
+
 # TODO: the naming here is confusing
 EXPORTED_HEIGHT_WIDTH_METRES = 1000
 DATASET_OUTPUT_HW_HIGH_RES = 100
@@ -231,21 +246,6 @@ EVAL_MODALITIES: Dict[str, Dict[str, Any]] = {
     },
 }
 
-# inclusive (i.e., the end date of a season is included in the season)
-NORTH_HEM_SEASONS = {
-    "early": ("10-01", "12-15"),
-    "mid": ("12-16", "02-28"),
-    "late": ("03-01", "06-30"),
-}
-
-SOUTH_HEM_SEASONS = {
-    "early": ("04-01", "06-15"),
-    "mid": ("06-16", "08-28"),
-    "late": ("09-01", "12-30"),
-}
-
-NO_DATA_VALUE = -9999
-
 # TODO: this is a bit hard-coded; empirically identified lower bound thresholds (inclusive) to avoid outliers in the input data
 CHANNEL_WISE_INVALID_DATA_THRESHOLDS: Dict[str, Dict] = {
     "s_t_h_x": {
@@ -319,17 +319,6 @@ RESULTS_FOLDER = Path(__file__).parents[2] / "results"
 
 # when in this repo, uncomment the following line
 DATA_FOLDER = Path(__file__).parents[2] / "data"
-# for storing files on archive,
-# DATA_FOLDER = (
-#    Path(__file__).parents[9]
-#    / "network"
-#    / "data"
-#    / "archive"
-#    / "m"
-#    / "marlena.reil"
-#    / "snowgalileo"
-#    / "data"
-# )
 TIFS_FOLDER = DATA_FOLDER / "tifs_all_bands"
 NORMALIZATION_DICT_FILENAME = "normalizing_dict_updated.json"
 OUTPUT_FOLDER = DATA_FOLDER / "outputs"
