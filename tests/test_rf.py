@@ -10,54 +10,447 @@ from src.eval.landsat_baselines import (
 
 
 class TestMasking(unittest.TestCase):
-    def test_forward_filling_masked_data_per_channel_else_median(self):
-        with (Path("src/eval/eval_configs/landsat_eval_5_95.json")).open("r") as f:
+    def test_median_replace(self):
+        # create data with NaNs
+        data_test1 = torch.tensor(
+            [
+                [
+                    [float("nan"), 1.0, 2.0],
+                    [3.0, float("nan"), 5.0],
+                    [6.0, 7.0, float("nan")],
+                    [float("nan"), float("nan"), float("nan")],
+                ]
+            ]
+        )
+
+        # expected result after median replacement: if same number of values below and above median,
+        # the lower of the two is chosen
+        expected_test1 = torch.tensor(
+            [[[1.0, 1.0, 2.0], [3.0, 3.0, 5.0], [6.0, 7.0, 6.0], [3.0, 3.0, 5.0]]]
+        )
+
+        result_test1 = LandsatEvalRandomForest.replace_masked_data_with_median_per_channel(
+            data_test1, torch.where(torch.isnan(data_test1), 1, 0)
+        )
+
+        self.assertTrue(torch.equal(result_test1, expected_test1))
+
+        data_test2 = torch.tensor(
+            [
+                [
+                    [[float("nan"), float("nan")], [float("nan"), float("nan")]],
+                    [[float("nan"), float("nan")], [float("nan"), float("nan")]],
+                    [[1.0, 2.0], [3.0, 4.0]],
+                ]
+            ]
+        )
+
+        expected_test2 = torch.tensor(
+            [[[[1.0, 2.0], [1.0, 2.0]], [[1.0, 2.0], [1.0, 2.0]], [[1.0, 2.0], [3.0, 4.0]]]]
+        )
+
+        result_test2 = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
+            data_test2, torch.where(torch.isnan(data_test2), 1, 0)
+        )
+
+        self.assertTrue(torch.equal(result_test2, expected_test2))
+
+        data_test3 = torch.tensor(
+            [
+                [
+                    [[float("nan"), 3.0, float("nan")], [1.0, 8.0, 10.0]],
+                    [
+                        [float("nan"), float("nan"), float("nan")],
+                        [float("nan"), float("nan"), float("nan")],
+                    ],
+                    [[1.0, 6.0, 6.0], [3.0, 2.0, 4.0]],
+                ],
+                [
+                    [[7.0, 3.0, float("nan")], [1.0, 8.0, 10.0]],
+                    [
+                        [7.0, float("nan"), float("nan")],
+                        [float("nan"), float("nan"), float("nan")],
+                    ],
+                    [[1.0, 2.0, float("nan")], [3.0, float("nan"), 4.0]],
+                ],
+            ]
+        )
+
+        expected_test3 = torch.tensor(
+            [
+                [
+                    [[3.0, 3.0, 3.0], [1.0, 8.0, 10.0]],
+                    [[7.0, 3.0, 6.0], [1.0, 2.0, 4.0]],
+                    [[1.0, 6.0, 6.0], [3.0, 2.0, 4.0]],
+                ],
+                [
+                    [[7.0, 3.0, 3.0], [1.0, 8.0, 10.0]],
+                    [[7.0, 7.0, 7.0], [7.0, 7.0, 7.0]],
+                    [[1.0, 2.0, 1.0], [3.0, 3.0, 4.0]],
+                ],
+            ]
+        )
+
+        result_test3 = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
+            data_test3, torch.where(torch.isnan(data_test3), 1, 0)
+        )
+
+        self.assertTrue(torch.equal(result_test3, expected_test3))
+
+    def test_forward_filling(self):
+        data_test1 = torch.tensor(
+            [
+                [
+                    [[float("nan"), 3.0, float("nan")], [1.0, 8.0, 10.0]],
+                    [
+                        [float("nan"), float("nan"), float("nan")],
+                        [float("nan"), float("nan"), float("nan")],
+                    ],
+                    [[1.0, 6.0, 6.0], [3.0, 2.0, 4.0]],
+                ],
+                [
+                    [[7.0, 3.0, float("nan")], [1.0, 8.0, 10.0]],
+                    [
+                        [7.0, float("nan"), float("nan")],
+                        [float("nan"), float("nan"), float("nan")],
+                    ],
+                    [[1.0, 2.0, float("nan")], [10.0, float("nan"), 1.0]],
+                ],
+            ]
+        )
+
+        expected_test1 = torch.tensor(
+            [
+                [
+                    [[3.0, 3.0, 3.0], [1.0, 8.0, 10.0]],
+                    [[7.0, 3.0, 6.0], [1.0, 2.0, 4.0]],
+                    [[1.0, 6.0, 6.0], [3.0, 2.0, 4.0]],
+                ],
+                [
+                    [[7.0, 3.0, 3.0], [1.0, 8.0, 10.0]],
+                    [[7.0, 7.0, 7.0], [7.0, 7.0, 7.0]],
+                    [[1.0, 2.0, 2.0], [10.0, 10.0, 1.0]],
+                ],
+            ]
+        )
+
+        result_test3 = LandsatEvalRandomForest.replace_masked_data_with_median_per_channel(
+            data_test1, torch.where(torch.isnan(data_test1), 1, 0)
+        )
+
+        self.assertTrue(torch.equal(result_test3, expected_test1))
+
+    def _test_aggregation_patch_size_2(
+        self,
+        s_t_h_x,
+        s_t_m_x,
+        s_t_l_x,
+        sp_x,
+        t_x,
+        st_x,
+        s_t_h_m,
+        s_t_m_m,
+        s_t_l_m,
+        sp_m,
+        t_m,
+        st_m,
+        month,
+    ):
+        with (
+            Path(__file__).parents[0]
+            / Path("src/eval/eval_configs")
+            / Path("landsat_eval_5_95.json")
+        ).open("r") as f:
             config = json.load(f)
-        rf = LandsatEvalRandomForest(
-            normalization="std",
-            exclude_prediction_date=False,
-            exclude_prediction_high_res=False,
-            resample=False,
+
+        Eval = LandsatEvalRandomForest(
+            patch_size_high_res=2,
             eval_config=config,
         )
-
-        # test that filling works correctly
-        # four dim data simulates s_t_h_x, s_t_m_x, s_t_l_x, and t_x
-        four_dim_data_c1 = torch.tensor(
-            [[[[1.0, float("nan"), float("nan"), 4.0, 5.0]]]]
-        )  # shape (B=1, S=1, C=1, T=5)
-        four_dim_data_c2 = torch.tensor([[[[float("nan"), float("nan"), 3.0, float("nan"), 5.0]]]])
-        four_dim_data_c3 = torch.tensor(
-            [[[[float("nan"), float("nan"), float("nan"), float("nan"), float("nan")]]]]
+        expected = (
+            torch.tensor([[[3.5, 5.5], [11.5, 13.5]]]),
+            torch.tensor([[[1.0, 2.0], [3.0, 4.0]]]),
+            torch.tensor([[[6.0, 6.0], [6.0, 6.0]]]),
+            torch.tensor([[[4.5, 6.5], [12.5, 14.5]]]),
+            torch.tensor([[[9.0, 9.0], [9.0, 9.0]]]),
+            torch.tensor([[[19.0, 19.0], [19.0, 19.0]]]),
+            torch.tensor([[[1.0, 0.0], [0.0, 1.0]]]),
+            torch.tensor([[[0.0, 0.0], [0.0, 1.0]]]),
+            torch.tensor([[[0.0, 0.0], [0.0, 0.0]]]),
+            torch.tensor([[[1.0, 1.0], [0.0, 1.0]]]),
+            torch.tensor([[[0.0, 0.0], [0.0, 0.0]]]),
+            torch.tensor([[[1.0, 1.0], [1.0, 1.0]]]),
         )
 
-        # three dim data simulates sp_x and st_x
-        three_dim_data_c1 = torch.tensor([[[4.0]]])  # shape (B=1, S=1, C=1)
-        three_dim_data_c2 = torch.tensor([[[3.0]]])
-        three_dim_data_c3 = torch.tensor([[[2.0]]])
-
-        # stack into a single tensor
-        four_dim_data = torch.cat(
-            [four_dim_data_c1, four_dim_data_c2, four_dim_data_c3], dim=2
-        )  # shape (B=1, S=1, C=3, T=5)
-        four_dim_mask = torch.where(four_dim_data == float("nan"), 1, 0)
-        four_dim_time = torch.zeros_like(four_dim_data)
-
-        three_dim_data = torch.cat(
-            [three_dim_data_c1, three_dim_data_c2, three_dim_data_c3], dim=2
-        )  # shape (B=1, S=1, C=3)
-        three_dim_mask = torch.where(three_dim_data == float("nan"), 1, 0)
-        three_dim_time = torch.zeros_like(three_dim_data)
-
-        filled_four_dim_data, _ = rf.forward_filling_masked_data_per_channel_else_median(
-            four_dim_data, four_dim_mask, four_dim_time
+        results = Eval.aggregate_data_per_output_pixel(
+            s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
+            sp_x,
+            t_x,
+            st_x,
+            s_t_h_m,
+            s_t_m_m,
+            s_t_l_m,
+            sp_m,
+            t_m,
+            st_m,
+            month,
         )
-        filled_three_dim_data, _ = rf.forward_filling_masked_data_per_channel_else_median(
-            three_dim_data, three_dim_mask, three_dim_time
-        )
-        import pdb
+        return expected, results
 
-        pdb.set_trace()
+    def _test_aggregation_patch_size_4(
+        self,
+        s_t_h_x,
+        s_t_m_x,
+        s_t_l_x,
+        sp_x,
+        t_x,
+        st_x,
+        s_t_h_m,
+        s_t_m_m,
+        s_t_l_m,
+        sp_m,
+        t_m,
+        st_m,
+        month,
+    ):
+        with (
+            Path(__file__).parents[0]
+            / Path("src/eval/eval_configs")
+            / Path("landsat_eval_5_95.json")
+        ).open("r") as f:
+            config = json.load(f)
+
+        Eval = LandsatEvalRandomForest(
+            patch_size_high_res=4,
+            eval_config=config,
+        )
+        expected = (
+            torch.tensor(
+                [
+                    [
+                        [1.0, 2.0, 3.0, 4.0],
+                        [5.0, 6.0, 7.0, 8.0],
+                        [9.0, 10.0, 11.0, 12.0],
+                        [13.0, 14.0, 15.0, 16.0],
+                    ]
+                ]
+            ),
+            torch.tensor(
+                [
+                    [
+                        [1.0, 1.0, 2.0, 2.0],
+                        [1.0, 1.0, 2.0, 2.0],
+                        [3.0, 3.0, 4.0, 4.0],
+                        [3.0, 3.0, 4.0, 4.0],
+                    ]
+                ]
+            ),
+            torch.tensor(
+                [
+                    [
+                        [6.0, 6.0, 6.0, 6.0],
+                        [6.0, 6.0, 6.0, 6.0],
+                        [6.0, 6.0, 6.0, 6.0],
+                        [6.0, 6.0, 6.0, 6.0],
+                    ]
+                ]
+            ),
+            torch.tensor(
+                [
+                    [
+                        [2.0, 3.0, 4.0, 5.0],
+                        [6.0, 7.0, 8.0, 9.0],
+                        [9.0, 10.0, 11.0, 12.0],
+                        [13.0, 14.0, 15.0, 16.0],
+                    ]
+                ]
+            ),
+            torch.tensor(
+                [
+                    [
+                        [9.0, 9.0, 9.0, 9.0],
+                        [9.0, 9.0, 9.0, 9.0],
+                        [9.0, 9.0, 9.0, 9.0],
+                        [9.0, 9.0, 9.0, 9.0],
+                    ]
+                ]
+            ),
+            torch.tensor(
+                [
+                    [
+                        [19.0, 19.0, 19.0, 19.0],
+                        [19.0, 19.0, 19.0, 19.0],
+                        [19.0, 19.0, 19.0, 19.0],
+                        [19.0, 19.0, 19.0, 19.0],
+                    ]
+                ]
+            ),
+            torch.tensor(
+                [
+                    [
+                        [1.0, 0.0, 0.0, 0.0],
+                        [0.0, 0.0, 0.0, 1.0],
+                        [1.0, 1.0, 0.0, 0.0],
+                        [0.0, 0.0, 0.0, 0.0],
+                    ]
+                ]
+            ),
+            torch.tensor(
+                [
+                    [
+                        [0.0, 0.0, 0.0, 0.0],
+                        [0.0, 0.0, 0.0, 0.0],
+                        [0.0, 0.0, 1.0, 1.0],
+                        [0.0, 0.0, 1.0, 1.0],
+                    ]
+                ]
+            ),
+            torch.tensor(
+                [
+                    [
+                        [0.0, 0.0, 0.0, 0.0],
+                        [0.0, 0.0, 0.0, 0.0],
+                        [0.0, 0.0, 0.0, 0.0],
+                        [0.0, 0.0, 0.0, 0.0],
+                    ]
+                ]
+            ),
+            torch.tensor(
+                [
+                    [
+                        [1.0, 0.0, 0.0, 0.0],
+                        [0.0, 0.0, 0.0, 1.0],
+                        [0.0, 0.0, 0.0, 0.0],
+                        [0.0, 0.0, 0.0, 1.0],
+                    ]
+                ]
+            ),
+            torch.tensor(
+                [
+                    [
+                        [0.0, 0.0, 0.0, 0.0],
+                        [0.0, 0.0, 0.0, 0.0],
+                        [0.0, 0.0, 0.0, 0.0],
+                        [0.0, 0.0, 0.0, 0.0],
+                    ]
+                ]
+            ),
+            torch.tensor(
+                [
+                    [
+                        [1.0, 1.0, 1.0, 1.0],
+                        [1.0, 1.0, 1.0, 1.0],
+                        [1.0, 1.0, 1.0, 1.0],
+                        [1.0, 1.0, 1.0, 1.0],
+                    ]
+                ]
+            ),
+        )
+
+        results = Eval.aggregate_data_per_output_pixel(
+            s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
+            sp_x,
+            t_x,
+            st_x,
+            s_t_h_m,
+            s_t_m_m,
+            s_t_l_m,
+            sp_m,
+            t_m,
+            st_m,
+            month,
+        )
+        return expected, results
+
+    def test_aggregation(self):
+        s_t_h_x = torch.tensor(
+            [
+                [
+                    [1.0, 2.0, 3.0, 4.0],
+                    [5.0, 6.0, 7.0, 8.0],
+                    [9.0, 10.0, 11.0, 12.0],
+                    [13.0, 14.0, 15.0, 16.0],
+                ]
+            ]
+        )
+        s_t_m_x = torch.tensor([[[1.0, 2.0], [3.0, 4.0]]])
+        s_t_l_x = torch.tensor([[[6.0]]])
+        sp_x = torch.tensor(
+            [
+                [
+                    [2.0, 3.0, 4.0, 5.0],
+                    [6.0, 7.0, 8.0, 9.0],
+                    [9.0, 10.0, 11.0, 12.0],
+                    [13.0, 14.0, 15.0, 16.0],
+                ]
+            ]
+        )
+        t_x = torch.tensor([[[9.0]]])
+        st_x = torch.tensor([[[19.0]]])
+
+        s_t_h_m = torch.tensor(
+            [
+                [
+                    [1.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0],
+                    [1.0, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 0.0],
+                ]
+            ]
+        )
+        s_t_m_m = torch.tensor([[[0.0, 0.0], [0.0, 1.0]]])
+        s_t_l_m = torch.tensor([[[0.0]]])
+        sp_m = torch.tensor(
+            [
+                [
+                    [1.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0],
+                    [0.0, 0.0, 0.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0],
+                ]
+            ]
+        )
+        t_m = torch.tensor([[[0.0]]])
+        st_m = torch.tensor([[[1.0]]])
+        month = 6
+
+        expected_ps_2, results_ps_2 = self._test_aggregation_patch_size_2(
+            s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
+            sp_x,
+            t_x,
+            st_x,
+            s_t_h_m,
+            s_t_m_m,
+            s_t_l_m,
+            sp_m,
+            t_m,
+            st_m,
+            month,
+        )
+        self.assertTrue(torch.equal(expected_ps_2, results_ps_2))
+
+        expected_ps_4, results_ps_4 = self._test_aggregation_patch_size_4(
+            s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
+            sp_x,
+            t_x,
+            st_x,
+            s_t_h_m,
+            s_t_m_m,
+            s_t_l_m,
+            sp_m,
+            t_m,
+            st_m,
+            month,
+        )
+        self.assertTrue(torch.equal(expected_ps_4, results_ps_4))
 
 
 if __name__ == "__main__":

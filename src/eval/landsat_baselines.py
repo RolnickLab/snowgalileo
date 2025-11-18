@@ -17,7 +17,6 @@ from src.data.earthengine.eo_eval import (
     SPACE_TIME_HIGH_RES_BANDS,
 )
 from src.eval.landsat_eval import LandsatEval, LandsatEvalDataset, masked_output_np_to_tensor
-from src.data.config import DATASET_OUTPUT_HW_HIGH_RES
 
 
 class LandsatEvalDatasetRandomForest(LandsatEvalDataset):
@@ -154,12 +153,14 @@ class LandsatEvalRandomForest(LandsatEval):
         normalization: Union[str, Normalizer] = "std",  # or "scaling"
         exclude_prediction_date: bool = False,
         exclude_prediction_high_res: bool = False,
+        patch_size_high_res: int = 10,
         resample: bool = False,
         eval_config: Dict = {},
     ):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
         self.exclude_prediction_high_res = exclude_prediction_high_res
+        self.patch_size_high_res = patch_size_high_res
         self.resample = resample
         self.name = "ls_rf"
 
@@ -167,162 +168,88 @@ class LandsatEvalRandomForest(LandsatEval):
             normalization=normalization,
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
+            patch_size_high_res=patch_size_high_res,
             resample=resample,
             eval_config=eval_config,
         )
 
-    def remove_masked_data_and_flatten(
-        self,
-        s_t_h_x,
-        s_t_m_x,
-        s_t_l_x,
-        sp_x,
-        t_x,
-        st_x,
-        s_t_h_m,
-        s_t_m_m,
-        s_t_l_m,
-        sp_m,
-        t_m,
-        st_m,
-        month,
-    ):
-        # returns: (N) where N is the number of unmasked values
-        assert s_t_h_x.shape == s_t_h_m.shape
-        assert s_t_m_x.shape == s_t_m_m.shape
-        assert s_t_l_x.shape == s_t_l_m.shape
-        assert sp_x.shape == sp_m.shape
-        assert t_x.shape == t_m.shape
-        assert st_x.shape == st_m.shape
-        x = torch.cat(
-            [
-                s_t_h_x.flatten(),
-                s_t_m_x.flatten(),
-                s_t_l_x.flatten(),
-                sp_x.flatten(),
-                t_x.flatten(),
-                st_x.flatten(),
-                month.flatten(),
-            ]
+    @staticmethod
+    def forward_filling_masked_data_per_channel_else_median(x, m, t):
+        """Fills masked values in x by forward-filling along the time dimension per channel.
+        Remaining NaNs will fall back to median replacement."""
+
+        assert x.dim() == 4, f"Expected 4D tensor, got shape {x.shape}"
+
+        x = x.clone()
+        m = m.bool()
+        t = t.clone()
+
+        x = torch.masked_fill(x, m, float("nan"))
+        valid_mask = ~torch.isnan(x)
+
+        # accumulate last valid value along time axis
+        # use "expanding max index" trick
+        timestep_idx = torch.arange(x.size(-1), device=x.device)
+        timestep_idx = timestep_idx.view(1, 1, 1, -1).expand_as(x)
+
+        # invalid positions get -1 index, so they don't contribute to cummax
+        idx_masked = torch.where(valid_mask, timestep_idx, torch.full_like(timestep_idx, -1))
+
+        # get index of last valid timestep
+        last_idx = torch.cummax(idx_masked, dim=-1).values
+
+        # gather forward-filled values, replace with NaN where no valid value has occurred yet (index == -1, after clamp: 0)
+        ff = torch.gather(x, dim=-1, index=last_idx.clamp(min=0))
+        ff = torch.where(last_idx == -1, torch.tensor(float("nan"), device=x.device), ff)
+        x = ff
+
+        # fill remaining NaNs with medians
+        x = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(x, m)
+
+        # update time distance: last_idx already encodes last-valid timestep index
+        timestep_grid = timestep_idx
+        dist = timestep_grid - last_idx
+        # TODO: change value if we decide for another placeholder
+        dist[last_idx == -1] = 0
+        t = dist
+
+        assert not torch.isnan(x).any(), (
+            "Still NaNs left after forward filling and median replacement."
         )
-        m = torch.cat(
-            [
-                s_t_h_m.flatten(),
-                s_t_m_m.flatten(),
-                s_t_l_m.flatten(),
-                sp_m.flatten(),
-                t_m.flatten(),
-                st_m.flatten(),
-                torch.zeros_like(month).flatten(),  # month is never masked
-            ]
-        )
-        assert x.shape == m.shape
-        return x[m == 0]
 
-    # TODO: TEST THIS FUNCTION!
-    # TODO: what to do if the first value is masked?
-    def forward_filling_masked_data_per_channel_else_median(
-        self,
-        x,
-        m,
-        t,
-    ):
-        # shape: (B, S, C, (T))
-        # for timeseries data:
-        # for each channel, replaces masked values with the last unmasked value over timestep for this channel
-        # for space-only and static data:
-        # replaces masked values with the last unmasked value over all channels in the same data group
-        # perform forward filling per channel
-
-        x = torch.masked_fill(x, m.bool(), float("nan"))
-
-        if x.dim() == 3:
-            # TODO: check that median is computed per channel
-            # space-only or static data
-            # as we don't have a time dimension here, we replace NaNs with median over the spatial dimension
-            x[..., i] = torch.where(
-                torch.isnan(x[..., i]),
-                torch.nanmedian(x, dim=1, keepdim=True),
-                x[..., i],
-            )
-            # in the case that all values were masked, replace with median over batch dimension
-            if torch.isnan(x).any():
-                x = torch.where(
-                    torch.isnan(x),
-                    torch.nanmedian(x, dim=0, keepdim=True),
-                    x,
-                )
-
-        else:
-            # else, loop through channel dimension and perform forward filling per channel
-            for i in range(x.shape[-2]):
-                channel_data = x[..., i, :]
-                channel_mask = m[..., i, :]
-                channel_time_distance = t[..., i, :]
-                if torch.all(channel_mask):
-                    # all values are masked, replace with median over entire timeseries for this channel
-                    x[..., i, :] = torch.nanmedian(x, dim=-1, keepdim=True)[0][..., i, :]
-
-                    if torch.isnan(x[..., i, :]).any():
-                        # still NaNs left, replace with median over batch and spatial dimension
-                        x = torch.where(
-                            torch.isnan(x),
-                            torch.nanmedian(x, dim=(0, 1), keepdim=True),
-                            x,
-                        )
-                else:
-                    last_valid_timestep = torch.nan
-                    current_timestep = 0
-                    last_valid_value = torch.nan
-                    for timestep in range(channel_data.shape[-1]):
-                        if not channel_mask[..., timestep]:
-                            last_valid_value = channel_data[..., timestep]
-                            last_valid_timestep = current_timestep
-                            current_timestep += 1
-                        else:
-                            if torch.isnan(last_valid_value):
-                                # no valid value found yet, replace with median per channel group
-                                channel_data[..., timestep] = torch.nanmedian(
-                                    x, dim=-1, keepdim=True
-                                )[0][..., i, :]
-                            else:
-                                channel_data[..., timestep] = last_valid_value
-                                channel_time_distance[..., timestep] = (
-                                    current_timestep - last_valid_timestep
-                                )
-                            current_timestep += 1
-
-                    x[..., i, :] = channel_data
-                    t[..., i, :] = channel_time_distance
-
-        # assert there are no NaNs left
-        assert not torch.isnan(x).any(), "There are still NaNs left after forward filling."
         return x, t
 
-    def replace_masked_data_with_median_per_channel(
-        self,
-        x,
-        m,
-    ):
+    @staticmethod
+    def median_replace(x, m, dims):
+        """Replaces masked values in x with the median over the specified dims.
+        Breaks early if no NaNs are left after a replacement step."""
         x = torch.masked_fill(x, m.bool(), float("nan"))
+        for d in dims:
+            x = torch.where(torch.isnan(x), torch.nanmedian(x, dim=d, keepdim=True).values, x)
+            if not torch.isnan(x).any():
+                break
 
-        # for timeseries data:
-        # for each channel, replaces NaNs with mean over timestep for this channel
-        # for space-only and static data:
-        # replaces NaNs with mean over all channels in the same data group
-        x = torch.where(torch.isnan(x), torch.nanmedian(x, dim=-1, keepdim=True), x)
-
-        # if there are still NaNs (all values in the timeseries (for timeseries) or
-        # data group (for space-only and static data) were masked):
-        # replace mean over timesteps (all channels in the same data group)
-        # or replace with spatial mean (for space-only and static data)
-        x = torch.where(torch.isnan(x), torch.nanmedian(x, dim=-2, keepdim=True), x)
-
+        # TODO: handle this case, if a problem arises
+        assert not torch.isnan(x).any(), "There are still NaNs left after median replacement."
         return x
 
-    # Concatenates all data of a single image into shapes of [B, S, N], where for RF, S is n_samples and N is n_features.
-    # The dimension of N is (C * T) for space-time tokens, C for space tokens, (C * T) for time tokens, and C for static tokens
-    def aggregate_per_output_pixel_and_replace_masked_data(
+    @staticmethod
+    def replace_masked_data_with_median_per_dimension(x, m):
+        """Replaces masked values in x with the median per dimension.
+        Prioritizes replacing over the time dimension first for timeseries data,
+        then over channel, space, and batch dimensions. For space-only and static data,
+        replaces over channel, then space and batch dimensions."""
+        # timeseries data with shape (B, S, C, T)
+        if x.dim() == 4:
+            dims = [-1, -2, -3, -4]
+        # space-only or static data with shape (B, S, C)
+        elif x.dim() == 3:
+            dims = [-1, -2, -3]
+        else:
+            raise ValueError(f"Unexpected shape {x.shape}")
+        return LandsatEvalRandomForest.median_replace(x, m, dims)
+
+    def aggregate_data_per_output_pixel(
         self,
         s_t_h_x,
         s_t_m_x,
@@ -337,17 +264,15 @@ class LandsatEvalRandomForest(LandsatEval):
         t_m,
         st_m,
         month,
-        replace_with="last",
     ):
-        # replace masked data with (A) the last timestep of this sensor, (B) the median over time of this sensor, (C) zeros, (D) NaNs to be handled by RF.
-        # RF computes median for missing values (?)
-        # TODO: replace all invalid with mean per timestep
-        assert replace_with in ["last", "median", "zeros", "nan"]
-
-        # TODO: make this more dynamic
-        patch_size_high_res = 10
-        p_m = patch_size_high_res // s_t_m_x.shape[1]
-        p_l = patch_size_high_res // s_t_l_x.shape[1]
+        """
+        Aggregates input data per output pixel by bringing all data to the output resolution.
+        This means upsampling medium and low resolution data,
+        and aggregating high resolution data to output pixel resolution.
+        """
+        # determine upsampling factors for medium and low resolution data
+        p_m = self.patch_size_high_res // s_t_m_x.shape[1]
+        p_l = self.patch_size_high_res // s_t_l_x.shape[1]
 
         # first, bring all data into token resolution (the output resolution)
         # t_h = token height, t_w = token width
@@ -355,9 +280,9 @@ class LandsatEvalRandomForest(LandsatEval):
             reduce(
                 s_t_h_x,
                 "b (t_h p_h) (t_w p_w) t c -> b t_h t_w t c",
-                p_h=patch_size_high_res,
-                p_w=patch_size_high_res,
-                reduction="mean",
+                p_h=self.patch_size_high_res,
+                p_w=self.patch_size_high_res,
+                reduction="mean",  # average pooling for input data
             ),
             "b t_h t_w t c -> b (t_h t_w) t c",
         )
@@ -365,9 +290,9 @@ class LandsatEvalRandomForest(LandsatEval):
             reduce(
                 s_t_h_m,
                 "b (t_h p_h) (t_w p_w) t c -> b t_h t_w t c",
-                p_h=patch_size_high_res,
-                p_w=patch_size_high_res,
-                reduction="max",  # if one value is masked, the entire patch is masked
+                p_h=self.patch_size_high_res,
+                p_w=self.patch_size_high_res,
+                reduction="max",  # if one value is masked, the entire patch should be masked
             ),
             "b t_h t_w t c -> b (t_h t_w) t c",
         )
@@ -391,12 +316,13 @@ class LandsatEvalRandomForest(LandsatEval):
             "b t_h t_w t c -> b (t_h t_w) t c",
         )
 
+        # space-only tokens
         sp_x = rearrange(
             reduce(
                 sp_x,
                 "b (t_h p_h) (t_w p_w) c -> b t_h t_w c",
-                p_h=patch_size_high_res,
-                p_w=patch_size_high_res,
+                p_h=self.patch_size_high_res,
+                p_w=self.patch_size_high_res,
                 reduction="mean",
             ),
             "b t_h t_w c -> b (t_h t_w) c",
@@ -405,14 +331,14 @@ class LandsatEvalRandomForest(LandsatEval):
             reduce(
                 sp_m,
                 "b (t_h p_h) (t_w p_w) c -> b t_h t_w c",
-                p_h=patch_size_high_res,
-                p_w=patch_size_high_res,
-                reduction="max",  # if one value is masked, the entire patch is masked
+                p_h=self.patch_size_high_res,
+                p_w=self.patch_size_high_res,
+                reduction="max",
             ),
             "b t_h t_w c -> b (t_h t_w) c",
         )
 
-        # repeat time tokens over space
+        # repeat time-only and static tokens over space
         t_x = repeat(t_x, "b t c -> b s t c", s=sp_x.shape[1])
         t_m = repeat(t_m, "b t c -> b s t c", s=sp_x.shape[1])
 
@@ -424,8 +350,45 @@ class LandsatEvalRandomForest(LandsatEval):
 
         assert s_t_h_x.shape[1] == 100
 
+        return (
+            s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
+            sp_x,
+            t_x,
+            st_x,
+            s_t_h_m,
+            s_t_m_m,
+            s_t_l_m,
+            sp_m,
+            t_m,
+            st_m,
+            month,
+        )
+
+    @classmethod
+    def replace_masked_data(
+        cls,
+        s_t_h_x,
+        s_t_m_x,
+        s_t_l_x,
+        sp_x,
+        t_x,
+        st_x,
+        s_t_h_m,
+        s_t_m_m,
+        s_t_l_m,
+        sp_m,
+        t_m,
+        st_m,
+        month,
+        replace_with="last",
+    ):
+        assert replace_with in ["last", "median", "zeros", "nan"]
+
         # create an extra variable for each channel that indicates when the data was acquired
         # per default, everything is from the same timestep, so filled with zeros
+        # TODO: Decide if we want to use zeros or placeholder values if data is replaced by an aggregate or fill value
         s_t_h_t = torch.zeros_like(s_t_h_x)
         s_t_m_t = torch.zeros_like(s_t_m_x)
         s_t_l_t = torch.zeros_like(s_t_l_x)
@@ -434,58 +397,59 @@ class LandsatEvalRandomForest(LandsatEval):
         st_t = torch.zeros_like(st_x)
 
         if replace_with == "median":
-            # NOTE: for median replacement, we set the acquisition time to zero, as we lose the temporal information
-            s_t_h_x = self.replace_masked_data_with_median_per_channel(
+            # NOTE: for median replacement, we keep the acquisition time variable at zero, as we loose the temporal information
+            s_t_h_x = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
                 rearrange(s_t_h_x, "b s t c -> b s c t"), rearrange(s_t_h_m, "b s t c -> b s c t")
             )
-            s_t_m_x = self.replace_masked_data_with_median_per_channel(
+            s_t_m_x = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
                 rearrange(s_t_m_x, "b s t c -> b s c t"), rearrange(s_t_m_m, "b s t c -> b s c t")
             )
-            s_t_l_x = self.replace_masked_data_with_median_per_channel(
+            s_t_l_x = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
                 rearrange(s_t_l_x, "b s t c -> b s c t"), rearrange(s_t_l_m, "b s t c -> b s c t")
             )
-            sp_x = self.replace_masked_data_with_median_per_channel(
+            sp_x = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
                 rearrange(sp_x, "b s c -> b s c"), rearrange(sp_m, "b s c -> b s c")
             )
-            t_x = self.replace_masked_data_with_median_per_channel(
+            t_x = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
                 rearrange(t_x, "b s t c -> b s c t"), rearrange(t_m, "b s t c -> b s c t")
             )
-            st_x = self.replace_masked_data_with_median_per_channel(
+            st_x = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
                 rearrange(st_x, "b s c -> b s c"), rearrange(st_m, "b s c -> b s c")
             )
         if replace_with == "last":
-            s_t_h_x, s_t_h_t = self.forward_filling_masked_data_per_channel_else_median(
+            s_t_h_x, s_t_h_t = cls.forward_filling_masked_data_per_channel_else_median(
                 rearrange(s_t_h_x, "b s t c -> b s c t"),
                 rearrange(s_t_h_m, "b s t c -> b s c t"),
                 rearrange(s_t_h_t, "b s t c -> b s c t"),
             )
-            s_t_m_x, s_t_m_t = self.forward_filling_masked_data_per_channel_else_median(
+            s_t_m_x, s_t_m_t = cls.forward_filling_masked_data_per_channel_else_median(
                 rearrange(s_t_m_x, "b s t c -> b s c t"),
                 rearrange(s_t_m_m, "b s t c -> b s c t"),
                 rearrange(s_t_m_t, "b s t c -> b s c t"),
             )
-            s_t_l_x, s_t_l_t = self.forward_filling_masked_data_per_channel_else_median(
+            s_t_l_x, s_t_l_t = cls.forward_filling_masked_data_per_channel_else_median(
                 rearrange(s_t_l_x, "b s t c -> b s c t"),
                 rearrange(s_t_l_m, "b s t c -> b s c t"),
                 rearrange(s_t_l_t, "b s t c -> b s c t"),
             )
-            sp_x, sp_t = self.forward_filling_masked_data_per_channel_else_median(
-                rearrange(sp_x, "b s c -> b s c"),
-                rearrange(sp_m, "b s c -> b s c"),
-                rearrange(sp_t, "b s c -> b s c"),
-            )
-            t_x, t_t = self.forward_filling_masked_data_per_channel_else_median(
+            t_x, t_t = cls.forward_filling_masked_data_per_channel_else_median(
                 rearrange(t_x, "b s t c -> b s c t"),
                 rearrange(t_m, "b s t c -> b s c t"),
                 rearrange(t_t, "b s t c -> b s c t"),
             )
-            st_x, st_t = self.forward_filling_masked_data_per_channel_else_median(
+            # NOTE: for space-only and static data, we fall back to median replacement
+            sp_x, sp_t = cls.replace_masked_data_with_median_per_dimension(
+                rearrange(sp_x, "b s c -> b s c"),
+                rearrange(sp_m, "b s c -> b s c"),
+                rearrange(sp_t, "b s c -> b s c"),
+            )
+            st_x, st_t = cls.replace_masked_data_with_median_per_dimension(
                 rearrange(st_x, "b s c -> b s c"),
                 rearrange(st_m, "b s c -> b s c"),
                 rearrange(st_t, "b s c -> b s c"),
             )
         elif replace_with == "nan":
-            # NOTE: for NaN replacement, we keep the acquisition time as is, as we don't change the data
+            # NOTE: for NaN replacement, we keep the acquisition time variable at zero, as we don't replace any data
             s_t_h_x = s_t_h_x.masked_fill(s_t_h_m.bool(), float("nan"))
             s_t_m_x = s_t_m_x.masked_fill(s_t_m_m.bool(), float("nan"))
             s_t_l_x = s_t_l_x.masked_fill(s_t_l_m.bool(), float("nan"))
@@ -493,7 +457,7 @@ class LandsatEvalRandomForest(LandsatEval):
             t_x = t_x.masked_fill(t_m.bool(), float("nan"))
             st_x = st_x.masked_fill(st_m.bool(), float("nan"))
         elif replace_with == "zeros":
-            # NOTE: for zero replacement, we set the acquisition time to zero, as we lose the temporal information
+            # NOTE: for zero replacement, we keep the acquisition time variable at zero, as we don't replace any data
             s_t_h_x = s_t_h_x.masked_fill(s_t_h_m.bool(), 0.0)
             s_t_m_x = s_t_m_x.masked_fill(s_t_m_m.bool(), 0.0)
             s_t_l_x = s_t_l_x.masked_fill(s_t_l_m.bool(), 0.0)
@@ -501,6 +465,54 @@ class LandsatEvalRandomForest(LandsatEval):
             t_x = t_x.masked_fill(t_m.bool(), 0.0)
             st_x = st_x.masked_fill(st_m.bool(), 0.0)
 
+        return (
+            s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
+            sp_x,
+            t_x,
+            st_x,
+            s_t_h_m,
+            s_t_m_m,
+            s_t_l_m,
+            sp_m,
+            t_m,
+            st_m,
+            s_t_h_t,
+            s_t_m_t,
+            s_t_l_t,
+            sp_t,
+            t_t,
+            st_t,
+            month,
+        )
+
+    @staticmethod
+    def concatenate_features_per_output_pixel(
+        s_t_h_x,
+        s_t_m_x,
+        s_t_l_x,
+        sp_x,
+        t_x,
+        st_x,
+        s_t_h_m,
+        s_t_m_m,
+        s_t_l_m,
+        sp_m,
+        t_m,
+        st_m,
+        s_t_h_t,
+        s_t_m_t,
+        s_t_l_t,
+        sp_t,
+        t_t,
+        st_t,
+        month,
+    ):
+        """
+        Concatenates all data of a single image into shapes of [B, S, N], where for RF, S is n_samples and N is n_features.
+        """
+        # for timeseries data, flatten time and channel dimension
         s_t_h_x = rearrange(s_t_h_x, "b s t c -> b s (t c)")
         s_t_h_m = rearrange(s_t_h_m, "b s t c -> b s (t c)")
         s_t_h_t = rearrange(s_t_h_t, "b s t c -> b s (t c)")
@@ -514,6 +526,7 @@ class LandsatEvalRandomForest(LandsatEval):
         t_m = rearrange(t_m, "b s t c -> b s (t c)")
         t_t = rearrange(t_t, "b s t c -> b s (t c)")
 
+        # concatenate all data along feature dimension
         x = torch.cat(
             [
                 s_t_h_x,
@@ -537,10 +550,7 @@ class LandsatEvalRandomForest(LandsatEval):
         )  # B, S, N
 
         # check that no no-data values (-9999) are left
-        assert not (x == -9999).any(), (
-            "No-data values (-9999) left in input after replacing masked data"
-        )
-
+        assert not (x == -9999).any(), "No-data values (-9999) left in input."
         return x, m
 
     def fit_random_forest(self, id: str):
@@ -580,22 +590,28 @@ class LandsatEvalRandomForest(LandsatEval):
                 st_m,
                 month,
             ) = input
+
+            # NOTE: This is very nested - is there a better way to do this?
+            # The reason for the nesting is that we want to be able to test each step individually.
             input, _ = torch.squeeze(
-                self.aggregate_per_output_pixel_and_replace_masked_data(
-                    s_t_h_x,
-                    s_t_m_x,
-                    s_t_l_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_h_m,
-                    s_t_m_m,
-                    s_t_l_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                    month,
-                    replace_with="last",
+                self.concatenate_features_per_output_pixel(
+                    *self.replace_masked_data(
+                        *self.aggregate_data_per_output_pixel(
+                            s_t_h_x=s_t_h_x,
+                            s_t_m_x=s_t_m_x,
+                            s_t_l_x=s_t_l_x,
+                            sp_x=sp_x,
+                            t_x=t_x,
+                            st_x=st_x,
+                            s_t_h_m=s_t_h_m,
+                            s_t_m_m=s_t_m_m,
+                            s_t_l_m=s_t_l_m,
+                            sp_m=sp_m,
+                            t_m=t_m,
+                            st_m=st_m,
+                            month=month,
+                        )
+                    )
                 )
             )  # (N, num_features)
             label = torch.squeeze(label).flatten()  # (N,)
@@ -648,23 +664,26 @@ class LandsatEvalRandomForest(LandsatEval):
                 st_m,
                 month,
             ) = input
-            input = torch.squeeze(
-                self.aggregate_per_output_pixel_and_replace_masked_data(
-                    s_t_h_x,
-                    s_t_m_x,
-                    s_t_l_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_h_m,
-                    s_t_m_m,
-                    s_t_l_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                    month,
-                    replace_with="last",
-                )[0]
+            input, _ = torch.squeeze(
+                self.concatenate_features_per_output_pixel(
+                    *self.replace_masked_data(
+                        *self.aggregate_data_per_output_pixel(
+                            s_t_h_x=s_t_h_x,
+                            s_t_m_x=s_t_m_x,
+                            s_t_l_x=s_t_l_x,
+                            sp_x=sp_x,
+                            t_x=t_x,
+                            st_x=st_x,
+                            s_t_h_m=s_t_h_m,
+                            s_t_m_m=s_t_m_m,
+                            s_t_l_m=s_t_l_m,
+                            sp_m=sp_m,
+                            t_m=t_m,
+                            st_m=st_m,
+                            month=month,
+                        )
+                    )
+                )
             )  # (N, num_features)
             preds = regr.predict(input.numpy())
             all_preds.append(torch.as_tensor(preds))
