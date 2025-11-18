@@ -29,7 +29,7 @@ class TestMasking(unittest.TestCase):
             [[[1.0, 1.0, 2.0], [3.0, 3.0, 5.0], [6.0, 7.0, 6.0], [3.0, 3.0, 5.0]]]
         )
 
-        result_test1 = LandsatEvalRandomForest.replace_masked_data_with_median_per_channel(
+        result_test1 = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
             data_test1, torch.where(torch.isnan(data_test1), 1, 0)
         )
 
@@ -134,7 +134,7 @@ class TestMasking(unittest.TestCase):
             ]
         )
 
-        result_test3 = LandsatEvalRandomForest.replace_masked_data_with_median_per_channel(
+        result_test3 = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
             data_test1, torch.where(torch.isnan(data_test1), 1, 0)
         )
 
@@ -157,7 +157,7 @@ class TestMasking(unittest.TestCase):
         month,
     ):
         with (
-            Path(__file__).parents[0]
+            Path(__file__).parents[1]
             / Path("src/eval/eval_configs")
             / Path("landsat_eval_5_95.json")
         ).open("r") as f:
@@ -216,7 +216,7 @@ class TestMasking(unittest.TestCase):
         month,
     ):
         with (
-            Path(__file__).parents[0]
+            Path(__file__).parents[1]
             / Path("src/eval/eval_configs")
             / Path("landsat_eval_5_95.json")
         ).open("r") as f:
