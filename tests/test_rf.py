@@ -199,7 +199,7 @@ class TestMasking(unittest.TestCase):
         )
         return expected, results
 
-    def _test_aggregation_patch_size_4(
+    def _test_aggregation_patch_size_1(
         self,
         s_t_h_x,
         s_t_m_x,
@@ -223,7 +223,7 @@ class TestMasking(unittest.TestCase):
             config = json.load(f)
 
         Eval = LandsatEvalRandomForest(
-            patch_size_high_res=4,
+            patch_size_high_res=1,
             eval_config=config,
         )
         expected = (
@@ -436,7 +436,7 @@ class TestMasking(unittest.TestCase):
         for expected_ps_2, results_ps_2 in zip(expected_ps_2, results_ps_2):
             self.assertTrue(torch.equal(expected_ps_2, results_ps_2))
 
-        expected_ps_4, results_ps_4 = self._test_aggregation_patch_size_4(
+        expected_ps_1, results_ps_1 = self._test_aggregation_patch_size_1(
             s_t_h_x,
             s_t_m_x,
             s_t_l_x,
@@ -451,8 +451,8 @@ class TestMasking(unittest.TestCase):
             st_m,
             month,
         )
-        for expected_ps_4, results_ps_4 in zip(expected_ps_4, results_ps_4):
-            self.assertTrue(torch.equal(expected_ps_4, results_ps_4))
+        for expected_ps_1, results_ps_1 in zip(expected_ps_1, results_ps_1):
+            self.assertTrue(torch.equal(expected_ps_1, results_ps_1))
 
 
 if __name__ == "__main__":
