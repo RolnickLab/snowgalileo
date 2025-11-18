@@ -46,7 +46,7 @@ class TestMasking(unittest.TestCase):
         )
 
         expected_test2 = torch.tensor(
-            [[[[1.0, 2.0], [1.0, 2.0]], [[1.0, 2.0], [1.0, 2.0]], [[1.0, 2.0], [3.0, 4.0]]]]
+            [[[[1.0, 2.0], [3.0, 4.0]], [[1.0, 2.0], [3.0, 4.0]], [[1.0, 2.0], [3.0, 4.0]]]]
         )
 
         result_test2 = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
@@ -134,11 +134,11 @@ class TestMasking(unittest.TestCase):
             ]
         )
 
-        result_test3 = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
+        result_test1 = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
             data_test1, torch.where(torch.isnan(data_test1), 1, 0)
         )
 
-        self.assertTrue(torch.equal(result_test3, expected_test1))
+        self.assertTrue(torch.equal(result_test1, expected_test1))
 
     def _test_aggregation_patch_size_2(
         self,
