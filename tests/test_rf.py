@@ -416,7 +416,7 @@ class TestMasking(unittest.TestCase):
         ).view(1, 4, 4, 1)
         t_m = torch.tensor([[[0.0]]]).view(1, 1, 1)
         st_m = torch.tensor([[[1.0]]]).view(1, 1)
-        month = torch.tensor(6)
+        month = torch.tensor(6).view(1, 1)
 
         expected_ps_2, results_ps_2 = self._test_aggregation_patch_size_2(
             s_t_h_x,
