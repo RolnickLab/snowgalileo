@@ -153,14 +153,14 @@ class LandsatEvalRandomForest(LandsatEval):
         normalization: Union[str, Normalizer] = "std",  # or "scaling"
         exclude_prediction_date: bool = False,
         exclude_prediction_high_res: bool = False,
-        num_high_res_tokens_per_dim: int = 10,
+        num_tokens_per_dim: int = 10,
         resample: bool = False,
         eval_config: Dict = {},
     ):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
         self.exclude_prediction_high_res = exclude_prediction_high_res
-        self.num_high_res_tokens_per_dim = num_high_res_tokens_per_dim
+        self.num_tokens_per_dim = num_tokens_per_dim
         self.resample = resample
         self.name = "ls_rf"
 
@@ -270,8 +270,8 @@ class LandsatEvalRandomForest(LandsatEval):
         and aggregating high resolution data to output pixel resolution.
         """
         # determine upsampling factors for medium and low resolution data
-        p_m = self.num_high_res_tokens_per_dim // s_t_m_x.shape[1]
-        p_l = self.num_high_res_tokens_per_dim // s_t_l_x.shape[1]
+        p_m = self.num_tokens_per_dim // s_t_m_x.shape[1]
+        p_l = self.num_tokens_per_dim // s_t_l_x.shape[1]
 
         # first, bring all data into token resolution (the output resolution)
         # t_h = token height, t_w = token width
@@ -279,8 +279,8 @@ class LandsatEvalRandomForest(LandsatEval):
             reduce(
                 s_t_h_x,
                 "b (t_h p_h) (t_w p_w) t c -> b t_h t_w t c",
-                t_h=self.num_high_res_tokens_per_dim,
-                t_w=self.num_high_res_tokens_per_dim,
+                t_h=self.num_tokens_per_dim,
+                t_w=self.num_tokens_per_dim,
                 reduction="mean",  # average pooling for input data
             ),
             "b t_h t_w t c -> b (t_h t_w) t c",
@@ -289,8 +289,8 @@ class LandsatEvalRandomForest(LandsatEval):
             reduce(
                 s_t_h_m,
                 "b (t_h p_h) (t_w p_w) t c -> b t_h t_w t c",
-                t_h=self.num_high_res_tokens_per_dim,
-                t_w=self.num_high_res_tokens_per_dim,
+                t_h=self.num_tokens_per_dim,
+                t_w=self.num_tokens_per_dim,
                 reduction="max",  # if one value is masked, the entire patch should be masked
             ),
             "b t_h t_w t c -> b (t_h t_w) t c",
@@ -320,8 +320,8 @@ class LandsatEvalRandomForest(LandsatEval):
             reduce(
                 sp_x,
                 "b (t_h p_h) (t_w p_w) c -> b t_h t_w c",
-                t_h=self.num_high_res_tokens_per_dim,
-                t_w=self.num_high_res_tokens_per_dim,
+                t_h=self.num_tokens_per_dim,
+                t_w=self.num_tokens_per_dim,
                 reduction="mean",
             ),
             "b t_h t_w c -> b (t_h t_w) c",
@@ -330,8 +330,8 @@ class LandsatEvalRandomForest(LandsatEval):
             reduce(
                 sp_m,
                 "b (t_h p_h) (t_w p_w) c -> b t_h t_w c",
-                t_h=self.num_high_res_tokens_per_dim,
-                t_w=self.num_high_res_tokens_per_dim,
+                t_h=self.num_tokens_per_dim,
+                t_w=self.num_tokens_per_dim,
                 reduction="max",
             ),
             "b t_h t_w c -> b (t_h t_w) c",

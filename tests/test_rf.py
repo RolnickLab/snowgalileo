@@ -140,7 +140,7 @@ class TestMasking(unittest.TestCase):
 
         self.assertTrue(torch.equal(result_test1, expected_test1))
 
-    def _test_aggregation_patch_size_2(
+    def _test_aggregation_num_tokens_2(
         self,
         s_t_h_x,
         s_t_m_x,
@@ -164,7 +164,7 @@ class TestMasking(unittest.TestCase):
             config = json.load(f)
 
         Eval = LandsatEvalRandomForest(
-            patch_size_high_res=2,
+            num_tokens_per_dim=2,
             eval_config=config,
         )
         expected = (
@@ -199,7 +199,7 @@ class TestMasking(unittest.TestCase):
         )
         return expected, results
 
-    def _test_aggregation_patch_size_1(
+    def _test_aggregation_num_tokens_4(
         self,
         s_t_h_x,
         s_t_m_x,
@@ -223,7 +223,7 @@ class TestMasking(unittest.TestCase):
             config = json.load(f)
 
         Eval = LandsatEvalRandomForest(
-            patch_size_high_res=1,
+            num_tokens_per_dim=4,
             eval_config=config,
         )
         expected = (
@@ -562,7 +562,7 @@ class TestMasking(unittest.TestCase):
         st_m = torch.tensor([[[1.0]]]).view(1, 1)
         month = torch.tensor(6).view(1, 1)
 
-        expected_ps_2, results_ps_2 = self._test_aggregation_patch_size_2(
+        expected_ps_2, results_ps_2 = self._test_aggregation_num_tokens_2(
             s_t_h_x,
             s_t_m_x,
             s_t_l_x,
@@ -580,7 +580,7 @@ class TestMasking(unittest.TestCase):
         for expected_ps_2, results_ps_2 in zip(expected_ps_2, results_ps_2):
             self.assertTrue(torch.equal(expected_ps_2, results_ps_2))
 
-        expected_ps_1, results_ps_1 = self._test_aggregation_patch_size_1(
+        expected_ps_4, results_ps_4 = self._test_aggregation_num_tokens_4(
             s_t_h_x,
             s_t_m_x,
             s_t_l_x,
@@ -595,8 +595,8 @@ class TestMasking(unittest.TestCase):
             st_m,
             month,
         )
-        for expected_ps_1, results_ps_1 in zip(expected_ps_1, results_ps_1):
-            self.assertTrue(torch.equal(expected_ps_1, results_ps_1))
+        for expected_ps_4, results_ps_4 in zip(expected_ps_4, results_ps_4):
+            self.assertTrue(torch.equal(expected_ps_4, results_ps_4))
 
 
 if __name__ == "__main__":
