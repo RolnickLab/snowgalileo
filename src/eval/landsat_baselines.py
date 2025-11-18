@@ -17,6 +17,7 @@ from src.data.earthengine.eo_eval import (
     SPACE_TIME_HIGH_RES_BANDS,
 )
 from src.eval.landsat_eval import LandsatEval, LandsatEvalDataset, masked_output_np_to_tensor
+from src.data.config import DATASET_OUTPUT_HW_HIGH_RES
 
 
 class LandsatEvalDatasetRandomForest(LandsatEvalDataset):
@@ -226,7 +227,7 @@ class LandsatEvalRandomForest(LandsatEval):
         m,
         t,
     ):
-        # shape: (B, (S), C, (T))
+        # shape: (B, S, C, (T))
         # for timeseries data:
         # for each channel, replaces masked values with the last unmasked value over timestep for this channel
         # for space-only and static data:
@@ -235,20 +236,40 @@ class LandsatEvalRandomForest(LandsatEval):
 
         x = torch.masked_fill(x, m.bool(), float("nan"))
 
-        for i in range(x.shape[-2]):
-            if x.dim() == 3:
-                # space-only or static data
-                channel_data = x[..., i]
-                channel_mask = m[..., i]
-                # as we don't have a time dimension here, we take the median over all channels in the same data group
-                x[..., i] = torch.nanmedian(channel_data, dim=-1, keepdim=True)[0][..., i]
-            else:
+        if x.dim() == 3:
+            # TODO: check that median is computed per channel
+            # space-only or static data
+            # as we don't have a time dimension here, we replace NaNs with median over the spatial dimension
+            x[..., i] = torch.where(
+                torch.isnan(x[..., i]),
+                torch.nanmedian(x, dim=1, keepdim=True),
+                x[..., i],
+            )
+            # in the case that all values were masked, replace with median over batch dimension
+            if torch.isnan(x).any():
+                x = torch.where(
+                    torch.isnan(x),
+                    torch.nanmedian(x, dim=0, keepdim=True),
+                    x,
+                )
+
+        else:
+            # else, loop through channel dimension and perform forward filling per channel
+            for i in range(x.shape[-2]):
                 channel_data = x[..., i, :]
                 channel_mask = m[..., i, :]
                 channel_time_distance = t[..., i, :]
                 if torch.all(channel_mask):
-                    # all values are masked, replace with median per channel group
+                    # all values are masked, replace with median over entire timeseries for this channel
                     x[..., i, :] = torch.nanmedian(x, dim=-1, keepdim=True)[0][..., i, :]
+
+                    if torch.isnan(x[..., i, :]).any():
+                        # still NaNs left, replace with median over batch and spatial dimension
+                        x = torch.where(
+                            torch.isnan(x),
+                            torch.nanmedian(x, dim=(0, 1), keepdim=True),
+                            x,
+                        )
                 else:
                     last_valid_timestep = torch.nan
                     current_timestep = 0
@@ -299,10 +320,8 @@ class LandsatEvalRandomForest(LandsatEval):
 
         return x
 
-    # this option ends up in shapes of [B, S, N] where for RF, S is n_samples and n_features.
-    # the dimension of N is (C * T) for space-time tokens, C for space tokens, (C * T) for time tokens, and C for static tokens
-    # concatenated
-    # Next step would we to concatenate along S
+    # Concatenates all data of a single image into shapes of [B, S, N], where for RF, S is n_samples and N is n_features.
+    # The dimension of N is (C * T) for space-time tokens, C for space tokens, (C * T) for time tokens, and C for static tokens
     def aggregate_per_output_pixel_and_replace_masked_data(
         self,
         s_t_h_x,
@@ -533,6 +552,7 @@ class LandsatEvalRandomForest(LandsatEval):
         )
         # NOTE: no normalization here, since RF works better without normalization!
         # NOTE (Update): our experiments show that normalization helps RF as well
+        # TODO: make sure that really no normalization takes place.
 
         train_dl = DataLoader(
             train_ds,
@@ -602,8 +622,6 @@ class LandsatEvalRandomForest(LandsatEval):
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             data_config=self.data_config,
         )
-
-        # TODO: make sure that really no normalization takes place.
 
         test_dl = DataLoader(
             test_ds,
