@@ -348,8 +348,6 @@ class LandsatEvalRandomForest(LandsatEval):
         # also include month as a feature, repeat over space
         month = repeat(month, "b c -> b s c", s=sp_x.shape[1])
 
-        assert s_t_h_x.shape[1] == 100
-
         return (
             s_t_h_x,
             s_t_m_x,
