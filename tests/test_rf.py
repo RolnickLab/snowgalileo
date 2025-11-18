@@ -433,7 +433,8 @@ class TestMasking(unittest.TestCase):
             st_m,
             month,
         )
-        self.assertTrue(torch.equal(expected_ps_2, results_ps_2))
+        for expected_ps_2, results_ps_2 in zip(expected_ps_2, results_ps_2):
+            self.assertTrue(torch.equal(expected_ps_2, results_ps_2))
 
         expected_ps_4, results_ps_4 = self._test_aggregation_patch_size_4(
             s_t_h_x,
@@ -450,7 +451,8 @@ class TestMasking(unittest.TestCase):
             st_m,
             month,
         )
-        self.assertTrue(torch.equal(expected_ps_4, results_ps_4))
+        for expected_ps_4, results_ps_4 in zip(expected_ps_4, results_ps_4):
+            self.assertTrue(torch.equal(expected_ps_4, results_ps_4))
 
 
 if __name__ == "__main__":
