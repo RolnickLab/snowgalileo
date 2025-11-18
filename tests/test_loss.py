@@ -143,6 +143,5 @@ class TestLoss(unittest.TestCase):
             patch_size_high_res,
             patch_size_med_res,
             patch_size_low_res,
-            max_patch_size,
         )
         self.assertFalse(torch.isnan(loss))

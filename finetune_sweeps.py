@@ -14,23 +14,23 @@ from src.utils import device, load_check_config, seed_everything
 
 seed_everything(DEFAULT_SEED)
 
-parser = argparse.ArgumentParser(description="PyTorch Unet Training")
+parser = argparse.ArgumentParser()
 parser.add_argument("--pretrain", default="none", type=str, choices=["none", "snow"])
 parser.add_argument("--resample", action="store_true")
 parser.add_argument("--num_finetune_epochs", type=int, default=25)
+# TODO: make the choices of naming more descriptive
 parser.add_argument(
-    "--strategy",
+    "--decoding_strategy",
     type=str,
-    default="finetune",
+    default="attention_probe",
     choices=["finetune", "linear_probe", "attention_probe", "sklearn"],
-    help="Whether to finetune the model, else probe.",
+    help="Decoding strategy to use. 'Finetune' uses a linear decoder and finetunes the entire model. 'Linear_probe' uses a linear decoder and only trains the decoder. 'Attention_probe' uses an attention-based decoder and fine-tunes the entire model. 'sklearn' uses the frozen encoder features for a sklearn model.",
 )
 
 args = parser.parse_args()
 pretrain = args.pretrain
 
-# TODO: potentially change from balanced accuracy to OA
-# TODO: do something against class imbalance?
+# TODO: discuss which metric to optimize
 sweep_configuration = {
     "name": f"sweep_pretrain_{args.pretrain}_resample_{args.resample}",
     "method": "random",
@@ -102,6 +102,7 @@ def train_and_validate():
                 save_final_checkpoint=False,
             )
         # log metric to sweep run
+        # TODO: change the metric names based on eval config
         sweep_run.log(
             {
                 "r2": results[0][0].get("landsat_s42_ps10_8_r2", -1),

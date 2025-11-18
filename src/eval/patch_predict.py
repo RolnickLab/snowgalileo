@@ -20,46 +20,6 @@ from src.eval.metrics import mean_iou
 from src.snowgalileo import AttentionProbe, adjust_learning_rate
 from src.utils import save_checkpoint
 
-# FT_LRs = [1e-5, 3e-5, 6e-5, 1e-4, 3e-4, 6e-4, 1e-3, 3e-3, 6e-3]
-FT_LRs = [0.1]
-
-
-class GalileoEncoderWithHead(nn.Module):
-    def __init__(self, encoder, patch_size_high_res=10, inputs_per_target=10, sigmoid_slope=1.0):
-        super(GalileoEncoderWithHead, self).__init__()
-        self.encoder = deepcopy(encoder)  # just in case
-        # for segmentation
-        # since our patch size is 10x10 and targets 100m resolution, each patch predicts 1 x 1 of 100m
-        # since we do regression, we predict one value per patch
-        logits_per_patch = int(
-            (patch_size_high_res / inputs_per_target) * (patch_size_high_res / inputs_per_target)
-        )
-        self.head = nn.Linear(encoder.embedding_size, logits_per_patch)
-        # attach a sigmoid to squeeze outputs to [0, 1]
-        self.sigmoid = nn.Sigmoid()
-        self.sigmoid_slope = sigmoid_slope
-
-    def forward(
-        self, s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size_high_res=10
-    ):
-        encodings = self.encoder(
-            s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, months, patch_size=patch_size_high_res
-        )
-        s_t_x, sp_x, t_x, st_x, s_t_m, sp_m, t_m, st_m, _ = encodings
-        encodings = self.encoder.apply_mask_and_average_tokens_per_highres_spatial_patch(
-            s_t_x,
-            sp_x,
-            t_x,
-            st_x,
-            s_t_m,
-            sp_m,
-            t_m,
-            st_m,
-            med_and_low_res_repeat=self.eval_config.get("med_and_low_res_repeat", True),
-        )
-        output = self.sigmoid(self.head(encodings) * self.sigmoid_slope)
-        return output
-
 
 class EncoderWithHead(nn.Module):
     def __init__(
@@ -246,6 +206,7 @@ def finetune_and_eval_seg(
         log_wandb=log_wandb,
         sweep_run=sweep_run,
     )
+    # TODO: clean this up depending on whether we want val metrics
     # val_miou = evaluate_seg(
     #    data_loader=loaders["valid"],
     #    finetuned_encoder=finetuned_encoder,
@@ -283,21 +244,20 @@ def get_finetune_results_with_val(
     for _ in range(num_runs):
         vals = []
         tests = []
-        for lr in FT_LRs:
-            val, test = finetune_and_eval_seg(
-                loaders=loaders,
-                encoder=encoder,
-                device=device,
-                identifier=identifier,
-                eval_config=eval_config,
-                num_finetune_epochs=num_finetune_epochs,
-                log_wandb=log_wandb,
-                hyperparams_config=hyperparams_config,
-                sweep_run=sweep_run,
-                save_final_checkpoint=save_final_checkpoint,
-            )
-            vals.append(val)
-            tests.append(test)
+        val, test = finetune_and_eval_seg(
+            loaders=loaders,
+            encoder=encoder,
+            device=device,
+            identifier=identifier,
+            eval_config=eval_config,
+            num_finetune_epochs=num_finetune_epochs,
+            log_wandb=log_wandb,
+            hyperparams_config=hyperparams_config,
+            sweep_run=sweep_run,
+            save_final_checkpoint=save_final_checkpoint,
+        )
+        vals.append(val)
+        tests.append(test)
 
         final_tests.append(tests[vals.index(max(vals))])
 
@@ -320,20 +280,19 @@ def get_finetune_results(
     final_tests = []  # chosen using LR with best val, for each run
     for _ in range(num_runs):
         tests = []
-        for lr in FT_LRs:
-            test = finetune_and_eval_seg(
-                loaders=loaders,
-                encoder=encoder,
-                device=device,
-                identifier=identifier,
-                eval_config=eval_config,
-                num_finetune_epochs=num_finetune_epochs,
-                log_wandb=log_wandb,
-                hyperparams_config=hyperparams_config,
-                sweep_run=sweep_run,
-                save_final_checkpoint=save_final_checkpoint,
-            )
-            tests.append(test)
+        test = finetune_and_eval_seg(
+            loaders=loaders,
+            encoder=encoder,
+            device=device,
+            identifier=identifier,
+            eval_config=eval_config,
+            num_finetune_epochs=num_finetune_epochs,
+            log_wandb=log_wandb,
+            hyperparams_config=hyperparams_config,
+            sweep_run=sweep_run,
+            save_final_checkpoint=save_final_checkpoint,
+        )
+        tests.append(test)
 
         final_tests.append(tests)
 

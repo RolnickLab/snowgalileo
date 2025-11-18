@@ -1,6 +1,6 @@
 ## A Pretrained Remote Sensing model
 
-Disclaimer about Definitions:
+### Disclaimer about Definitions
 
 To be able to perform sensor fusion of remote sensing data of different spatial and temporal resolutions, this project lives from grouping data with similar resolutions into distinct data types, and processing these as individual variables throughout the different stages of the algorithm. To increase readability, we use shortcuts as identifier for these data types, and define them in this section:
 
@@ -13,55 +13,54 @@ To be able to perform sensor fusion of remote sensing data of different spatial 
 
 Throughout the processing, the spatial (pixel) dimension gets reduced to a token dimension, and channels (referring to satellite bands, or distinct variables of auxiliary data, e.g. topography elevation and slope are distinct channels) are grouped into channel groups that include data with similar characteristics. For example, all Sentinel-2 RGB channels are grouped in one channel group.
 
-### 0. Structure
+### File Structure
 
-Functionalities:
-- Download pre-training data from Google Cloud (likely to be changed) to local dir: run ```train_flexipresto_mae.py``` with args.download == true
-- Pre-train model: run ```train_flexipresto_mae.py```
+Data Export:
+- ```src/data/earthengine/```
+    - contains all code specific to Google Earthengine: sensor-specific export scripts, as well as export files
+- ```src/data/dataset.py```
+    - contains the pre-training dataset class
 
-Execution files:
-- ```train_flexipresto_mae.py```: Presto pre-training
+Snowgalileo Model:
+- ```src/snowgalileo.py```
+    - Encoder: 
+        - divides images into patches
+        - projects patches to per-channel-group tokens
+        - adds embeddings (e.g., where is space is the token, or where in time)
+        - removes masked tokens
+        - Applies attention
+        - adds masked tokens
+    - Pixel Decoder (used for pre-training):
+        - gets embedded images
+        - Applies attention
+        - bring back into pixel space
+- ```src/masking.py```
+    - creates token masks for pre-training
+- ```src/embedding.py```
+    - the embeddings that add contextual information to tokens
+
+Finetuning/ Evaluation Setup:
+- ```src/eval/patch_predict.py```
+    - contains the Finetuning head and functions for finetuning and evaluating the model
+- ```src/eval/landsat_eval.py```
+    - prepares the Landsat evaluation dataset, and wraps the Landsat-specific evaluation process
+
+Pre-training Execution:
+- ```export_for_pretrain.py```: Export pre-training data from Google Earth Engine based on specified sampling points (stored in ```data/pretraining_points```).
+- ```pretrain.py```: Snowgalileo pre-training
     - Setup (wandb, hyperparameters, etc.)
-    - Download Dataset if necessary (needs to be executed once per collaborator to make pre-training possible)
     - Dataloader collate function: creates masks for pre-training
     - Pre-train model for e epochs
     - Evaluate model pre-training on validation task (encoder, with KNN)
 
-- ```export.py```: Export data from Google Earth Engine to Google Cloud (likely to be changed)
+Finetuning/ Evaluation Execution:
+- ```export_for_eval.py```: Export data from Google Earth Engine for evaluation purposes. More post-processing is necessary (TODO: document what exactly)
+- ```finetune.py```: Main entrypoint for finetuning
+- ```finetune_sweeps.py```: Hyperparameter sweeps for finetuning
+- ```eval_only.py```: Evaluates finetuned model from checkpoint. Will be main entrypoint for analyzes experiments
+- ```visualize.py```: Used to plot qualitative predictions
 
-Presto Model:
-- ```src/flexipresto.py```
-    - Encoder: 
-        - divides images into patches
-        - Projects patches to per-channel-group tokens
-        - Adds embeddings (e.g., where is space is the token, or where in time)
-        - removes masked tokens
-        - Applies attention
-        - adds masked tokens
-    - Pixel Decoder:
-        - gets embedded images
-        - Applies attention
-        - bring back into pixel space
-
-### 1. Training the model from scratch
-
-The main entrypoint to training a model from scratch is `train_flexipresto_mae.py`.
-The hyperparameters of a training run are controlled by the configs in `config`.
-For example, the following command trains a [medium](config/mae/medium.json) sized model:
-
-```bash
-python train_flexipresto_mae.py --config medium.json
-```
-
-Another option is to randomly select hyperparameters to train from, given a fixed encoder size.
-Two encoder sizes are available - `tiny` (which has the same encoder size as `medium.json`) and `base`, which mirrors a ViT-B:
-
-```bash
-python train_flexipresto_mae.py --config random_tiny
-```
-
-Raw data is exported from EarthEngine as `.tif` files. This takes some processing to turn into an ML-ready format, so we save an interim data type (`.h5`). The `.h5` files are stored on WEKA under `/skylight-default/presto-h5pys`.
-
-If you are only using the `.h5` files, then use the flag `--h5pys_only` - otherwise, the script will look for `tif` files as well. Use the `--h5py_folder` command to tell the script where the `.h5` files were mounted (by default, it will look at `data/h5pys`).
+### Experiment Execution is currently bottlenecked by data download
+TODO: create detailed documentation about how to access data from Google Earth Engine.
 
 ESA contract number: ...

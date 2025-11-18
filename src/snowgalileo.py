@@ -864,7 +864,7 @@ class Encoder(SnowGalileoBase):
 
     def __init__(
         self,
-        patch_size_high_res,
+        patch_size_high_res=10,
         embedding_size: int = 128,
         depth=2,
         mlp_ratio=2,
@@ -1012,7 +1012,7 @@ class Encoder(SnowGalileoBase):
                 )
             else:
                 s_t_h_l.append(
-                    torch.empty(
+                    torch.zeros(
                         b,
                         new_h_s_t_h,
                         new_w_s_t_h,
@@ -1034,7 +1034,7 @@ class Encoder(SnowGalileoBase):
                 )
             else:
                 s_t_m_l.append(
-                    torch.empty(
+                    torch.zeros(
                         b,
                         new_h_s_t_m,
                         new_w_s_t_m,
@@ -1056,7 +1056,7 @@ class Encoder(SnowGalileoBase):
                 )
             else:
                 s_t_l_l.append(
-                    torch.empty(
+                    torch.zeros(
                         b,
                         new_h_s_t_l,
                         new_w_s_t_l,
@@ -1076,7 +1076,7 @@ class Encoder(SnowGalileoBase):
                 )
             else:
                 sp_l.append(
-                    torch.empty(
+                    torch.zeros(
                         b,
                         new_h_s_t_h,
                         new_w_s_t_h,
@@ -1092,7 +1092,7 @@ class Encoder(SnowGalileoBase):
                 t_l.append(self.time_embed[channel_group](t_x[:, :, channel_idxs]))
             else:
                 t_l.append(
-                    torch.empty(b, t, self.embedding_size, dtype=t_x.dtype, device=t_x.device)
+                    torch.zeros(b, t, self.embedding_size, dtype=t_x.dtype, device=t_x.device)
                 )
 
         for idx, (channel_group, channel_idxs) in enumerate(self.static_groups.items()):
@@ -1101,7 +1101,7 @@ class Encoder(SnowGalileoBase):
                 st_l.append(self.static_embed[channel_group](st_x[:, channel_idxs]))
             else:
                 st_l.append(
-                    torch.empty(b, self.embedding_size, dtype=st_x.dtype, device=st_x.device)
+                    torch.zeros(b, self.embedding_size, dtype=st_x.dtype, device=st_x.device)
                 )
 
         return (
@@ -1554,7 +1554,6 @@ class GalileoPixelDecoder(SnowGalileoBase):
 
     def __init__(
         self,
-        patch_size_high_res,
         encoder_embedding_size: int = 128,
         decoder_embedding_size: int = 128,
         depth=2,
@@ -1586,7 +1585,6 @@ class GalileoPixelDecoder(SnowGalileoBase):
         self.to_output_embed = nn.Linear(decoder_embedding_size, output_embedding_size, bias=True)
         self.mask_token = nn.Parameter(torch.zeros(decoder_embedding_size))
 
-        self.patch_size_high_res = patch_size_high_res
         self.input_norm = nn.LayerNorm(encoder_embedding_size)
         self.norm = nn.LayerNorm(decoder_embedding_size)
         self.apply(self._init_weights)
@@ -1792,7 +1790,7 @@ class GalileoPixelDecoder(SnowGalileoBase):
         t_m: torch.Tensor,
         st_m: torch.Tensor,
         months: torch.Tensor,
-        patch_size_high_res: Optional[int] = None,
+        patch_size_high_res: Optional[int] = 10,
         patch_size_med_res: Optional[int] = 1,
         patch_size_low_res: Optional[int] = 1,
         input_resolution_m_high_res: Optional[int] = BASE_GSD_HIGH_RES,

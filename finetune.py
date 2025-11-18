@@ -5,7 +5,6 @@ from typing import List
 
 import psutil
 import torch
-from sklearn.model_selection import train_test_split
 
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER
@@ -22,13 +21,19 @@ process = psutil.Process()
 torch.backends.cuda.matmul.allow_tf32 = True
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument("--output_folder", type=str, default="outputs/checkpoints_ps10_5/epoch_82/")
 argparser.add_argument(
-    "--strategy",
+    "--pretraining_checkpoint_folder",
+    type=str,
+    default="outputs/checkpoints_ps10_5/epoch_82/",
+    help="Path to folder containing pretrained checkpoint.",
+)
+# TODO: make the choices of naming more descriptive
+argparser.add_argument(
+    "--decoding_strategy",
     type=str,
     default="attention_probe",
     choices=["finetune", "linear_probe", "attention_probe", "sklearn"],
-    help="Whether to finetune the model, else probe.",
+    help="Decoding strategy to use. 'Finetune' uses a linear decoder and finetunes the entire model. 'Linear_probe' uses a linear decoder and only trains the decoder. 'Attention_probe' uses an attention-based decoder and fine-tunes the entire model. 'sklearn' uses the frozen encoder features for a sklearn model.",
 )
 argparser.add_argument("--resample", action="store_true", help="Whether to use oversampling.")
 argparser.add_argument(
@@ -45,7 +50,10 @@ argparser.add_argument(
     help="Whether to exclude high-res in prediction date.",
 )
 argparser.add_argument(
-    "--eval_config", type=str, default="landsat_eval_5_95.json", help="Which eval config to use."
+    "--eval_config",
+    type=str,
+    default="landsat_eval_5_95.json",
+    help="Which eval config to use. Options are stored in src/eval/eval_configs/",
 )
 args = argparser.parse_args().__dict__
 
@@ -55,9 +63,11 @@ with (Path(__file__).parents[0] / Path("src/eval/eval_configs") / Path(args["eva
     eval_config = json.load(f)
 
 
-if args["output_folder"] != "":
+if args["pretraining_checkpoint_folder"] != "":
     # load pretrained snowgalileo encoder
-    encoder = Encoder.load_from_folder(Path(DATA_FOLDER / args["output_folder"])).to(device)
+    encoder = Encoder.load_from_folder(
+        Path(DATA_FOLDER / args["pretraining_checkpoint_folder"])
+    ).to(device)
     initialization_id = "snowgalileo_pretrained"
 else:
     # randomly initialized snowgalileo encoder
@@ -65,61 +75,20 @@ else:
     encoder = Encoder(**config["model"]["encoder"]).to(device)
     initialization_id = "snowgalileo_random"
 
-# TODO: move this somewhere else
-# create dataset split on the fly, so we don't have to store multiple copies
-# NOTE: assumes that all input files are in h5py folder
-if (
-    eval_config["data"]["split_type"] in eval_config
-    and eval_config["data"]["split_type"] == "train_val_test_random"
-):
-    eval_config["data"]["train_val_test_split"] = [0.7, 0.15, 0.15]
-    input_path = Path(DATA_FOLDER / eval_config["data"]["input_tif_folder"])
-    mask_path = Path(DATA_FOLDER / eval_config["data"]["label_folder"])
-    h5pys_path = Path(DATA_FOLDER / eval_config["data"]["input_h5py_folder"])
-
-    assert (
-        len(list(input_path.glob("*.tif")))
-        == len(list(mask_path.glob("*.tif")))
-        == len(list(h5pys_path.glob("*.h5py")))
-    )
-
-    # Make sure input_files and mask_files are properly matched
-    # both should contain the same filenames in corresponding order
-    input_files = sorted(Path(input_path).glob("*.h5py"))
-    mask_files = sorted(Path(mask_path).glob("*.tif"))
-
-    assert all(f.stem == m.stem for f, m in zip(input_files, mask_files)), (
-        "Input and mask files not aligned!"
-    )
-
-    # Pair them together before splitting
-    pairs = list(zip(input_files, mask_files))
-
-    X_train, X_temp, y_train, y_temp = train_test_split(
-        pairs, test_size=0.3, random_state=DEFAULT_SEED
-    )
-    X_val, X_test, y_val, y_test = train_test_split(
-        X_temp, y_temp, test_size=0.5, random_state=DEFAULT_SEED
-    )
-
-    # zip back to pairs
-    train_pairs = list(zip(X_train, y_train))
-    val_pairs = list(zip(X_val, y_val))
-    test_pairs = list(zip(X_test, y_test))
-
-
 eval_tasks: List[EvalTask] = [
     # geobench EuroSat only works without latlons
     *[
         LandsatEval(
             exclude_prediction_high_res=args["exclude_prediction_high_res"],
             resample=args["resample"],
-            decoder_mode=args["strategy"],
+            decoder_mode=args["decoding_strategy"],
             num_finetune_epochs=args["num_finetune_epochs"],
             eval_config=eval_config,
         )
     ],
 ]
+# TODO: remove the model_mode argument since it is sklearn-specific
+# TODO: eventually remove sklearn from eval tasks altogether if we don't use it
 for task in eval_tasks:
     results = task.train_and_evaluate_model_on_task(
         pretrained_model=encoder,

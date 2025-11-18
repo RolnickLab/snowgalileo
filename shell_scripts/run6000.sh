@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH -p long
 #SBATCH --time=2-00:00:00
 #SBATCH --error=error6000.txt
+#SBATCH --partition=long-cpu
 
 module load anaconda/3
 
@@ -12,7 +12,8 @@ if [ -f '/home/mila/m/marlena.reil/google-cloud-sdk/path.bash.inc' ]; then . '/h
 if [ -f '/home/mila/m/marlena.reil/google-cloud-sdk/completion.bash.inc' ]; then . '/home/mila/m/marlena.reil/google-cloud-sdk/completion.bash.inc'; fi
 
 conda activate presto-v3
+export GOOGLE_APPLICATION_CREDENTIALS="/home/mila/m/marlena.reil/scratch/ai4snow/presto-v3/ee-marlena-credentials.json"
 
-python export.py --mode "url" --start_export_from_idx 3000 --tifs_folder "tifs6000"
-#python export.py --mode "url" --start_export_from_idx 4000 --tifs_folder "tifs6000"
-#python export.py --mode "url" --start_export_from_idx 5000 --tifs_folder "tifs6000"
+python export.py --mode "url" --start_export_from_idx 6000 --tifs_folder "tifs6000"
+#python export.py --mode "url" --start_export_from_idx 7000 --tifs_folder "tifs6000"
+#python export.py --mode "url" --start_export_from_idx 8000 --tifs_folder "tifs6000"

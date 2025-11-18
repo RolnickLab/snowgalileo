@@ -6,6 +6,7 @@ import h5py
 import numpy as np
 
 from src.data.config import (
+    NORMALIZATION_DICT_FILENAME,
     NUM_HIGH_RES_PIXELS_PER_DIM,
     NUM_LOW_RES_PIXELS_PER_DIM,
     NUM_MED_RES_PIXELS_PER_DIM,
@@ -22,6 +23,7 @@ from src.data.dataset import (
     Normalizer,
     to_cartesian,
 )
+from src.utils import config_dir
 
 TIFS_FOLDER = Path(__file__).parents[1] / "data/tifs"
 BROKEN_TIFS_FOLDER = Path(__file__).parents[1] / "data/tifs_broken"
@@ -122,7 +124,7 @@ class TestDataset(unittest.TestCase):
 
     def test_normalization(self):
         ds = Dataset(TIFS_FOLDER, download=False)
-        o = ds.load_normalization_values(path=Path("normalizing_dict.json"))
+        o = ds.load_normalization_values(path=Path(config_dir / NORMALIZATION_DICT_FILENAME))
         for t in [
             "space_time_high_res",
             "space_time_med_res",
