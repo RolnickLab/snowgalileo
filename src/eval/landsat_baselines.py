@@ -209,7 +209,7 @@ class LandsatEvalRandomForest(LandsatEval):
         timestep_grid = timestep_idx
         dist = timestep_grid - last_idx
         # TODO: change value if we decide for another placeholder
-        dist[last_idx == -1] = 0
+        dist[last_idx == -1] = -1
         t = dist
 
         assert not torch.isnan(x).any(), (
