@@ -134,7 +134,7 @@ class TestMasking(unittest.TestCase):
             ]
         )
 
-        result_test1 = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
+        result_test1 = LandsatEvalRandomForest.forward_filling_masked_data_per_channel_else_median(
             data_test1, torch.where(torch.isnan(data_test1), 1, 0)
         )
 
