@@ -22,7 +22,6 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
-pretrain = args.pretrain
 
 # TODO: discuss which metric to optimize
 rf_sweep_configuration = {
