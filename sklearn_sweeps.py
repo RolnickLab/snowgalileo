@@ -20,6 +20,17 @@ parser.add_argument(
     choices=["rf", "svr", "mlp"],
     help="Type of sklearn model to use: rf (Random Forest), svr (Support Vector Regressor), or mlp (Multi-layer Perceptron).",
 )
+parser.add_argument(
+    "--exclude_prediction_high_res",
+    action="store_true",
+    help="Whether to exclude high-res in prediction date.",
+)
+parser.add_argument(
+    "--eval_config_name",
+    type=str,
+    default="landsat_eval_1_99_test.json",
+    help="Config name for evaluation. Options are stored in src/eval/eval_configs/",
+)
 
 args = parser.parse_args()
 
