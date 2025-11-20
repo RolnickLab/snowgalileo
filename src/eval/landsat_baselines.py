@@ -202,6 +202,9 @@ class LandsatEvalRandomForest(LandsatEval):
         ff = torch.where(last_idx == -1, torch.tensor(float("nan"), device=x.device), ff)
         x = ff
 
+        # update mask too
+        m = torch.where(torch.isnan(x), 1, 0)
+
         # fill remaining NaNs with medians
         x = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(x, m)
 
