@@ -5,7 +5,7 @@
     "timesteps": 8,
     "max_lr": 0.0001,
     "num_epochs": 200,
-    "batch_size": 128,
+    "batch_size": 32,
     "effective_batch_size": 512,
     "warmup_epochs": 30,
     "final_lr": 1e-06,
