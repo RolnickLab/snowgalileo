@@ -2,6 +2,7 @@ import unittest
 
 from scripts.cloud_analysis import get_cloud_state_modis
 
+
 # TODO: catch fill value (= 0)
 class TestRetrieveCloudState(unittest.TestCase):
     def test_get_cloud_state_modis(self):

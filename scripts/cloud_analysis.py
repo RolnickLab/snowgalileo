@@ -13,7 +13,7 @@ from einops import rearrange, repeat
 from scipy import stats
 
 from src.config import DEFAULT_SEED
-from src.data.config import DATA_FOLDER, NO_DATA_VALUE
+from src.data.config import DATA_FOLDER
 from src.data.dataset import to_cartesian
 from src.data.earthengine.eo import (
     EO_ALL_DYNAMIC_IN_TIME_BANDS,
@@ -29,7 +29,6 @@ process = psutil.Process()
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--tifs_folder", type=str, default="")
-argparser.add_argument("--satellite", type=str, default="modis", choices=["modis", "landsat"])
 args = argparser.parse_args().__dict__
 
 tifs_folder = DATA_FOLDER / args["tifs_folder"]
@@ -114,13 +113,13 @@ def get_cloud_state_modis(state: int):
     # 00: none, 01: small, 10: average, 11: high
     cirrus_detected = qa_bin[8:10]
     if cirrus_detected == "00":
-        cirrus_detected = 0
+        cirrus = 0
     if cirrus_detected == "01":
-        cirrus_detected = 0
+        cirrus = 0
     if cirrus_detected == "10":
-        cirrus_detected = 0
+        cirrus = 0
     if cirrus_detected == "11":
-        cirrus_detected = 1
+        cirrus = 1
 
     internal_cloud_flag = qa_bin[10]
     if internal_cloud_flag == "0":
@@ -128,7 +127,7 @@ def get_cloud_state_modis(state: int):
     else:
         internal_cloud_flag = 1
 
-    return qa_bin, (cloud_state or cloud_shadow or cirrus_detected or internal_cloud_flag)
+    return qa_bin, (cloud_state or internal_cloud_flag), cloud_shadow, cirrus
 
 
 def _get_cloud_bands(tif_path: Path):
@@ -177,7 +176,7 @@ def _get_cloud_bands(tif_path: Path):
 
 
 def main():
-    modis_cloud_counts = {"clear": 0, "cloudy": 0, "mixed": 0, "assumed_clear": 0}
+    modis_cloud_counts = {"num_samples": 0, "cloud": 0, "cloud_shadow": 0, "cirrus": 0}
     num_samples = 3000
 
     all_files = [f for f in os.listdir(tifs_folder) if f.endswith(".tif")]
@@ -189,36 +188,27 @@ def main():
         print(f"Processing {tif_path} - {len(os.listdir(tifs_folder))} files in folder")
         if tif_path.suffix == ".tif":
             try:
-                modis_state, latlon = _get_cloud_bands(tif_path)
+                modis_state, _ = _get_cloud_bands(tif_path)
 
                 for timestep in range(NUM_TIMESTEPS):
-                    modis_cloud_map = get_cloud_state_modis(
+                    cloud, cloud_shadow, cirrus = get_cloud_state_modis(
                         modis_state[timestep].astype(int).item(0)
                     )
-                    if modis_cloud_map == 0:
-                        modis_cloud_counts["clear"] += 1
-                    elif modis_cloud_map == 1:
-                        modis_cloud_counts["cloudy"] += 1
-                    elif modis_cloud_map == 2:
-                        modis_cloud_counts["mixed"] += 1
-                    elif modis_cloud_map == 3:
-                        modis_cloud_counts["assumed_clear"] += 1
+                    modis_cloud_counts["num_samples"] += 1
+                    modis_cloud_counts["cloud"] += cloud
+                    modis_cloud_counts["cloud_shadow"] += cloud_shadow
+                    modis_cloud_counts["cirrus"] += cirrus
 
                 print(f"Processed {tif_path}")
             except Exception as e:
                 print(f"Error processing {tif_path}: {e}")
                 continue
 
-    print(f"Modis cloud counts: {modis_cloud_counts}")
-    modis_cloud_map = np.array(
-        [
-            modis_cloud_counts["clear"],
-            modis_cloud_counts["cloudy"],
-            modis_cloud_counts["mixed"],
-            modis_cloud_counts["assumed_clear"],
-        ]
+    assert modis_cloud_counts["num_samples"] == num_samples * NUM_TIMESTEPS, (
+        f"Expected {num_samples * NUM_TIMESTEPS} samples, got {modis_cloud_counts['num_samples']}"
     )
-    print(f"Modis cloud map: {modis_cloud_map}")
+
+    print(f"Modis cloud counts: {modis_cloud_counts}")
 
 
 if __name__ == "__main__":
