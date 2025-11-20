@@ -84,7 +84,7 @@ def reset_wandb_env():
 def train_and_validate():
     args = parser.parse_args()
 
-    with wandb.init(project="ai4snow_sweeps") as sweep_run:
+    with wandb.init(project="ai4snow_sweeps_sklearn") as sweep_run:
         with (
             Path("src") / Path("eval") / Path("eval_configs") / Path(args.eval_config_name)
         ).open("r") as f:
