@@ -660,7 +660,7 @@ class LandsatEvalRandomForest(LandsatEval):
                 st_m,
                 month,
             ) = input
-            input, _ = torch.squeeze(
+            input = torch.squeeze(
                 self.concatenate_features_per_output_pixel(
                     *self.replace_masked_data(
                         *self.aggregate_data_per_output_pixel(
