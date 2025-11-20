@@ -1,4 +1,5 @@
 import json
+import math
 from pathlib import Path
 from typing import Dict, Optional, Union, cast
 
@@ -14,6 +15,7 @@ from sklearn.neural_network import MLPRegressor
 from sklearn.svm import SVR
 from torch.utils.data import DataLoader
 
+from src.config import DEFAULT_SEED
 from src.data.dataset import Normalizer
 from src.data.earthengine.eo_eval import (
     SPACE_TIME_HIGH_RES_BANDS,
@@ -21,7 +23,7 @@ from src.data.earthengine.eo_eval import (
 from src.eval.landsat_eval import LandsatEval, LandsatEvalDataset, masked_output_np_to_tensor
 
 
-class LandsatEvalDatasetRandomForest(LandsatEvalDataset):
+class LandsatEvalDatasetSklearn(LandsatEvalDataset):
     """
     The Random Forest baseline uses the same dataset as the main LandsatEvalDataset,
     but doesn't group channel masks into channel group masks, so that we can directly
@@ -145,7 +147,7 @@ class LandsatEvalDatasetRandomForest(LandsatEvalDataset):
         )
 
 
-class LandsatEvalRandomForest(LandsatEval):
+class LandsatEvalSklearn(LandsatEval):
     regression = True
     spatial_token_prediction = True
     multilabel = False
@@ -212,7 +214,7 @@ class LandsatEvalRandomForest(LandsatEval):
         m = torch.where(torch.isnan(x), 1, 0)
 
         # fill remaining NaNs with medians
-        x = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(x, m)
+        x = LandsatEvalSklearn.replace_masked_data_with_median_per_dimension(x, m)
 
         # update time distance: last_idx already encodes last-valid timestep index
         timestep_grid = timestep_idx
@@ -249,7 +251,7 @@ class LandsatEvalRandomForest(LandsatEval):
             dims = [-1, -2, -3]
         else:
             raise ValueError(f"Unexpected shape {x.shape}")
-        return LandsatEvalRandomForest.median_replace(x, m, dims)
+        return LandsatEvalSklearn.median_replace(x, m, dims)
 
     def aggregate_data_per_output_pixel(
         self,
@@ -398,22 +400,22 @@ class LandsatEvalRandomForest(LandsatEval):
 
         if replace_with == "median":
             # NOTE: for median replacement, we keep the acquisition time variable at zero, as we loose the temporal information
-            s_t_h_x = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
+            s_t_h_x = LandsatEvalSklearn.replace_masked_data_with_median_per_dimension(
                 rearrange(s_t_h_x, "b s t c -> b s c t"), rearrange(s_t_h_m, "b s t c -> b s c t")
             )
-            s_t_m_x = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
+            s_t_m_x = LandsatEvalSklearn.replace_masked_data_with_median_per_dimension(
                 rearrange(s_t_m_x, "b s t c -> b s c t"), rearrange(s_t_m_m, "b s t c -> b s c t")
             )
-            s_t_l_x = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
+            s_t_l_x = LandsatEvalSklearn.replace_masked_data_with_median_per_dimension(
                 rearrange(s_t_l_x, "b s t c -> b s c t"), rearrange(s_t_l_m, "b s t c -> b s c t")
             )
-            sp_x = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
+            sp_x = LandsatEvalSklearn.replace_masked_data_with_median_per_dimension(
                 rearrange(sp_x, "b s c -> b s c"), rearrange(sp_m, "b s c -> b s c")
             )
-            t_x = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
+            t_x = LandsatEvalSklearn.replace_masked_data_with_median_per_dimension(
                 rearrange(t_x, "b s t c -> b s c t"), rearrange(t_m, "b s t c -> b s c t")
             )
-            st_x = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
+            st_x = LandsatEvalSklearn.replace_masked_data_with_median_per_dimension(
                 rearrange(st_x, "b s c -> b s c"), rearrange(st_m, "b s c -> b s c")
             )
         if replace_with == "last":
@@ -555,8 +557,16 @@ class LandsatEvalRandomForest(LandsatEval):
         assert not (x == -9999).any(), "No-data values (-9999) left in input."
         return x, m
 
-    def fit_sklearn(self, id: str):
-        train_ds = LandsatEvalDatasetRandomForest(
+    def fit_sklearn(
+        self,
+        id: str = "",
+        hyperparameters: Dict = {},
+        save_results: bool = False,
+    ) -> Dict[str, float]:
+        if hyperparameters == {}:
+            hyperparameters = self.eval_config[f"hyperparameters_{self.model_type}"]
+
+        train_ds = LandsatEvalDatasetSklearn(
             split="train",
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
@@ -572,16 +582,6 @@ class LandsatEvalRandomForest(LandsatEval):
             shuffle=True,
             num_workers=0,
         )
-
-        if self.model_type == "rf":
-            print("Training Random Forest Regressor...", flush=True)
-            model = RandomForestRegressor(max_depth=2, random_state=0)
-        elif self.model_type == "svr":
-            print("Training Support Vector Regressor...", flush=True)
-            model = SVR()
-        elif self.model_type == "mlp":
-            print("Training Multi-layer Perceptron Regressor...", flush=True)
-            model = MLPRegressor()
 
         all_samples = []
         all_labels = []
@@ -633,17 +633,38 @@ class LandsatEvalRandomForest(LandsatEval):
         model_input = torch.cat(all_samples, dim=0).numpy()
         model_labels = torch.cat(all_labels, dim=0).numpy()
 
+        if self.model_type == "rf":
+            print("Training Random Forest Regressor...", flush=True)
+            model = RandomForestRegressor(
+                n_estimators=hyperparameters["n_estimators"],
+                min_samples_leaf=hyperparameters["min_samples_leaf"],
+                max_features=math.ceil(
+                    model_input.shape[-1] / 3
+                ),  # fixed here, since depends on input shape
+                random_state=DEFAULT_SEED,
+            )
+
+        elif self.model_type == "svr":
+            print("Training Support Vector Regressor...", flush=True)
+            gamma = hyperparameters["gamma_base"] ** hyperparameters["gamma_exponent"]
+            degree = hyperparameters["degree_base"] ** hyperparameters["degree_exponent"]
+            print(f"Using gamma={gamma}, degree={degree}", flush=True)
+            model = SVR(kernel=hyperparameters["kernel"], gamma=gamma, degree=degree)
+
+        elif self.model_type == "mlp":
+            print("Training Multi-layer Perceptron Regressor...", flush=True)
+            model = MLPRegressor(
+                hidden_layer_sizes=(model_input.shape[-1],),
+                random_state=DEFAULT_SEED,
+                learning_rate_init=hyperparameters["learning_rate_init"],
+            )
+
+        else:
+            raise ValueError(f"Unknown model type {self.model_type}")
+
         model.fit(model_input, model_labels)
 
-        # save the model
-        try:
-            model_path = Path(f"./landsat_{self.model_type}_model_{id}.joblib")
-            joblib.dump(model, model_path)
-            print(f"Saved {self.model_type} model to {model_path}", flush=True)
-        except Exception as e:
-            print(f"Could not save {self.model_type} model due to {e}", flush=True)
-
-        test_ds = LandsatEvalDatasetRandomForest(
+        test_ds = LandsatEvalDatasetSklearn(
             split="test",
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
@@ -704,20 +725,28 @@ class LandsatEvalRandomForest(LandsatEval):
         test_labels = torch.cat(all_test_labels, dim=0).numpy()
 
         rmse = root_mean_squared_error(test_labels, test_preds)
-        print(f"Test RMSE: {rmse}", flush=True)
         r2 = r2_score(test_labels, test_preds)
-        print(f"Test R2: {r2}", flush=True)
 
-        print("Training pipeline complete.", flush=True)
-
-        # store results as json
         results = {
-            "test_rmse": float(rmse),
-            "test_r2": float(r2),
+            "rmse": float(rmse),
+            "r2": float(r2),
         }
-        results_path = Path(f"./landsat_{self.model_type}_results_{id}.json")
-        with results_path.open("w") as f:
-            json.dump(results, f)
+
+        if save_results:
+            # model checkpoint
+            try:
+                model_path = Path(f"./landsat_{self.model_type}_model_{id}.joblib")
+                joblib.dump(model, model_path)
+                print(f"Saved {self.model_type} model to {model_path}", flush=True)
+            except Exception as e:
+                print(f"Could not save {self.model_type} model due to {e}", flush=True)
+
+            # results
+            results_path = Path(f"./landsat_{self.model_type}_results_{id}.json")
+            with results_path.open("w") as f:
+                json.dump(results, f)
+
+        return results
 
 
 if __name__ == "__main__":
@@ -726,7 +755,7 @@ if __name__ == "__main__":
         "r"
     ) as f:
         config = json.load(f)
-    rf = LandsatEvalRandomForest(
+    rf = LandsatEvalSklearn(
         normalization="std",
         exclude_prediction_date=False,
         exclude_prediction_high_res=False,

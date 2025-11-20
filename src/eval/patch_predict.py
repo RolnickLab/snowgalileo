@@ -170,7 +170,7 @@ def finetune_and_eval_seg(
     device,
     identifier,
     eval_config,
-    hyperparams_config,
+    hyperparameter_config,
     num_finetune_epochs=50,
     log_wandb=False,
     sweep_run=None,
@@ -180,9 +180,9 @@ def finetune_and_eval_seg(
         wandb.init(
             entity="sea-ice",
             project="ai4snow-finetune",
-            name=f"{identifier}-lr{hyperparams_config.get('learning_rate')}",
+            name=f"{identifier}-lr{hyperparameter_config.get('learning_rate')}",
         )
-        wandb.config.update(hyperparams_config)
+        wandb.config.update(hyperparameter_config)
         wandb.config.update(
             {
                 "identifier": identifier,
@@ -201,7 +201,7 @@ def finetune_and_eval_seg(
         epochs=num_finetune_epochs,
         encoder=encoder,
         device=device,
-        hyperparams_config=hyperparams_config,
+        hyperparameter_config=hyperparameter_config,
         eval_config=eval_config,
         log_wandb=log_wandb,
         sweep_run=sweep_run,
@@ -214,16 +214,16 @@ def finetune_and_eval_seg(
     #    device=device,
     #    identifier=identifier,
     # )
-    test_miou = evaluate_seg(
+    results = evaluate_seg(
         data_loader=loaders["test"],
         finetuned_model=finetuned_model,
         device=device,
         identifier=identifier,
     )
     if save_final_checkpoint:
-        filename = f"{identifier}_{hyperparams_config['initialization_id']}_{sweep_name}.pth"
+        filename = f"{identifier}_{hyperparameter_config['initialization_id']}_{sweep_name}.pth"
         save_checkpoint(finetuned_model, filename)
-    return test_miou
+    return results
 
 
 # TODO: implement validation too
@@ -234,7 +234,7 @@ def get_finetune_results_with_val(
     device,
     identifier,
     eval_config,
-    hyperparams_config,
+    hyperparameter_config,
     num_finetune_epochs,
     log_wandb=False,
     sweep_run=None,
@@ -252,7 +252,7 @@ def get_finetune_results_with_val(
             eval_config=eval_config,
             num_finetune_epochs=num_finetune_epochs,
             log_wandb=log_wandb,
-            hyperparams_config=hyperparams_config,
+            hyperparameter_config=hyperparameter_config,
             sweep_run=sweep_run,
             save_final_checkpoint=save_final_checkpoint,
         )
@@ -271,7 +271,7 @@ def get_finetune_results(
     device,
     identifier,
     eval_config,
-    hyperparams_config,
+    hyperparameter_config,
     num_finetune_epochs,
     log_wandb=False,
     sweep_run=None,
@@ -288,7 +288,7 @@ def get_finetune_results(
             eval_config=eval_config,
             num_finetune_epochs=num_finetune_epochs,
             log_wandb=log_wandb,
-            hyperparams_config=hyperparams_config,
+            hyperparameter_config=hyperparameter_config,
             sweep_run=sweep_run,
             save_final_checkpoint=save_final_checkpoint,
         )
@@ -304,20 +304,20 @@ def finetune_seg(
     epochs,
     encoder,
     device,
-    hyperparams_config,
+    hyperparameter_config,
     eval_config,
     patch_size_high_res=10,
     inputs_per_target=10,
     log_wandb=False,
     sweep_run=None,
 ):
-    lr = hyperparams_config.get("learning_rate", 0.1)
-    weight_decay = hyperparams_config.get("weight_decay", 0.0)
-    lr_schedule = hyperparams_config.get("lr_schedule", True)
-    optimizer = hyperparams_config.get("optimizer", "Adam")
-    sigmoid_slope = hyperparams_config.get("sigmoid_slope", 1.0)
-    loss_fn = hyperparams_config.get("loss_fn", "MSE")
-    warmup_fraction = hyperparams_config.get("warmup_fraction", 0.1)
+    lr = hyperparameter_config.get("learning_rate", 0.1)
+    weight_decay = hyperparameter_config.get("weight_decay", 0.0)
+    lr_schedule = hyperparameter_config.get("lr_schedule", True)
+    optimizer = hyperparameter_config.get("optimizer", "Adam")
+    sigmoid_slope = hyperparameter_config.get("sigmoid_slope", 1.0)
+    loss_fn = hyperparameter_config.get("loss_fn", "MSE")
+    warmup_fraction = hyperparameter_config.get("warmup_fraction", 0.1)
 
     train_loader = data_loaders["train"]
     test_loader = data_loaders["test"]

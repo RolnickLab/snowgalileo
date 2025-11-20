@@ -999,7 +999,7 @@ class LandsatEval(EvalTask):
             f"{bs}{self.name}_{model_name}_f1": f1_score(target, preds, average="weighted"),
         }
 
-    def get_test_dl(self, hyperparams_config=None, return_ds=False):
+    def get_test_dl(self, hyperparameter_config=None, return_ds=False):
         test_ds = LandsatEvalDataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
@@ -1019,9 +1019,9 @@ class LandsatEval(EvalTask):
 
         test_dl = DataLoader(
             test_ds,
-            batch_size=hyperparams_config["batch_size"],
+            batch_size=hyperparameter_config["batch_size"],
             shuffle=False,
-            num_workers=hyperparams_config["num_workers"],
+            num_workers=hyperparameter_config["num_workers"],
         )
         if return_ds:
             return test_ds, test_dl
@@ -1032,13 +1032,13 @@ class LandsatEval(EvalTask):
         self,
         pretrained_model: Encoder,
         sklearn_models: Sequence[BaseEstimator],
-        hyperparams_config=None,
+        hyperparameter_config=None,
     ) -> Dict:
         prediction_folder = DATA_FOLDER / "predictions"
         if not prediction_folder.exists():
             prediction_folder.mkdir(parents=True, exist_ok=True)
 
-        test_dl = self.get_test_dl(hyperparams_config=hyperparams_config)
+        test_dl = self.get_test_dl(hyperparameter_config=hyperparameter_config)
 
         pred_dict: Dict[str, BaseEstimator] = {
             model_class_name(model): [] for model in sklearn_models
@@ -1187,14 +1187,14 @@ class LandsatEval(EvalTask):
         sklearn_models: Sequence[BaseEstimator],
         num_images: int = 50,
         sort_for: str = "overall_accuracy",
-        hyperparams_config=None,
+        hyperparameter_config=None,
     ):
         prediction_folder = DATA_FOLDER / "ascending_accuracy_predictions"
         if not prediction_folder.exists():
             prediction_folder.mkdir(parents=True, exist_ok=True)
 
         test_ds, test_dl = self.get_test_dl(
-            hyperparams_config=hyperparams_config,
+            hyperparameter_config=hyperparameter_config,
             return_ds=True,
         )
 
@@ -1676,7 +1676,7 @@ class LandsatEval(EvalTask):
         pretrained_model: Encoder,
         model_modes: Optional[List[str]] = None,
         log_wandb: bool = False,
-        hyperparams_config: Optional[Dict] = None,
+        hyperparameter_config: Optional[Dict] = None,
         initialization_id: Optional[str] = None,
         sweep_run=None,
         save_final_checkpoint: bool = False,
@@ -1694,14 +1694,13 @@ class LandsatEval(EvalTask):
         elif self.decoder_mode == "sklearn":
             eval_config = None
 
-        if hyperparams_config is None:
-            hyperparams_config = self.eval_config["hyperparams"]
+        if hyperparameter_config is None:
+            hyperparameter_config = self.eval_config["hyperparameters_snowgalileo"]
 
         if initialization_id is not None:
-            hyperparams_config["initialization_id"] = initialization_id
-
-        BATCH_SIZE = hyperparams_config.get("batch_size", 16)
-        NUM_WORKERS = hyperparams_config.get("num_workers", 4)
+            hyperparameter_config["initialization_id"] = initialization_id
+        BATCH_SIZE = hyperparameter_config.get("batch_size", 16)
+        NUM_WORKERS = hyperparameter_config.get("num_workers", 4)
 
         train_ds = LandsatEvalDataset(
             exclude_prediction_date=self.exclude_prediction_date,
@@ -1755,11 +1754,11 @@ class LandsatEval(EvalTask):
             results = self._evaluate_trained_sklearn_model(
                 pretrained_model,
                 trained_sklearn_models,
-                hyperparams_config=hyperparams_config,
+                hyperparameter_config=hyperparameter_config,
             )
 
         elif self.decoder_mode in ["finetune", "linear_probe", "attention_probe"]:
-            test_dl = self.get_test_dl(hyperparams_config=hyperparams_config)
+            test_dl = self.get_test_dl(hyperparameter_config=hyperparameter_config)
             loaders_dict = {"train": train_dl, "test": test_dl}
             results = get_finetune_results(
                 loaders_dict,
@@ -1768,7 +1767,7 @@ class LandsatEval(EvalTask):
                 device=device,
                 identifier=self.name,
                 eval_config=eval_config,
-                hyperparams_config=hyperparams_config,
+                hyperparameter_config=hyperparameter_config,
                 num_finetune_epochs=self.num_finetune_epochs,
                 log_wandb=log_wandb,
                 sweep_run=sweep_run,

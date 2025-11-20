@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 from src.config import DEFAULT_SEED
-from src.eval.landsat_baselines import LandsatEvalRandomForest
+from src.eval.landsat_baselines import LandsatEvalSklearn
 from src.utils import seed_everything
 
 seed_everything(DEFAULT_SEED)
@@ -43,7 +43,7 @@ with (Path("src") / Path("eval") / Path("eval_configs") / Path(args["eval_config
 ) as f:
     config = json.load(f)
 
-rf = LandsatEvalRandomForest(
+rf = LandsatEvalSklearn(
     normalization="std",
     exclude_prediction_date=False,
     exclude_prediction_high_res=args["exclude_prediction_high_res"],
@@ -51,4 +51,4 @@ rf = LandsatEvalRandomForest(
     eval_config=config,
     model_type=args["model_type"],
 )
-rf.fit_sklearn(args["run_id"])
+rf.fit_sklearn(id=args["run_id"], save_results=True)

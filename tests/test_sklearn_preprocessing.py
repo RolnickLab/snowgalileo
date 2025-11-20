@@ -5,7 +5,7 @@ from pathlib import Path
 import torch
 
 from src.eval.landsat_baselines import (
-    LandsatEvalRandomForest,
+    LandsatEvalSklearn,
 )
 
 
@@ -29,7 +29,7 @@ class TestMasking(unittest.TestCase):
             [[[1.0, 1.0, 2.0], [3.0, 3.0, 5.0], [6.0, 7.0, 6.0], [3.0, 3.0, 5.0]]]
         )
 
-        result_test1 = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
+        result_test1 = LandsatEvalSklearn.replace_masked_data_with_median_per_dimension(
             data_test1, torch.where(torch.isnan(data_test1), 1, 0)
         )
 
@@ -49,7 +49,7 @@ class TestMasking(unittest.TestCase):
             [[[[1.0, 2.0], [3.0, 4.0]], [[1.0, 2.0], [3.0, 4.0]], [[1.0, 2.0], [3.0, 4.0]]]]
         )
 
-        result_test2 = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
+        result_test2 = LandsatEvalSklearn.replace_masked_data_with_median_per_dimension(
             data_test2, torch.where(torch.isnan(data_test2), 1, 0)
         )
 
@@ -91,7 +91,7 @@ class TestMasking(unittest.TestCase):
             ]
         )
 
-        result_test3 = LandsatEvalRandomForest.replace_masked_data_with_median_per_dimension(
+        result_test3 = LandsatEvalSklearn.replace_masked_data_with_median_per_dimension(
             data_test3, torch.where(torch.isnan(data_test3), 1, 0)
         )
 
@@ -152,7 +152,7 @@ class TestMasking(unittest.TestCase):
         )
 
         resulting_data_test1, resulting_timesteps_test1 = (
-            LandsatEvalRandomForest.forward_filling_masked_data_per_channel_else_median(
+            LandsatEvalSklearn.forward_filling_masked_data_per_channel_else_median(
                 data_test1,
                 torch.where(torch.isnan(data_test1), 1, 0),
                 timesteps_test1,
@@ -216,7 +216,7 @@ class TestMasking(unittest.TestCase):
         )
 
         resulting_data_test2, resulting_timesteps_test2 = (
-            LandsatEvalRandomForest.forward_filling_masked_data_per_channel_else_median(
+            LandsatEvalSklearn.forward_filling_masked_data_per_channel_else_median(
                 data_test2,
                 torch.where(torch.isnan(data_test2), 1, 0),
                 timesteps_test2,
@@ -252,7 +252,7 @@ class TestMasking(unittest.TestCase):
         ).open("r") as f:
             config = json.load(f)
 
-        Eval = LandsatEvalRandomForest(
+        Eval = LandsatEvalSklearn(
             num_tokens_per_dim=2,
             eval_config=config,
         )
@@ -311,7 +311,7 @@ class TestMasking(unittest.TestCase):
         ).open("r") as f:
             config = json.load(f)
 
-        Eval = LandsatEvalRandomForest(
+        Eval = LandsatEvalSklearn(
             num_tokens_per_dim=4,
             eval_config=config,
         )

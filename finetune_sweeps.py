@@ -1,7 +1,6 @@
 import argparse
 import os
 from pathlib import Path
-from typing import List
 
 import wandb
 
@@ -79,40 +78,35 @@ def train_and_validate():
         sweep_run.config.update(args)
         sweep_run.config.update({"initialization_id": initialization_id})
 
-        eval_tasks: List[EvalTask] = [
-            *[
-                LandsatEval(
-                    exclude_prediction_high_res=False,
-                    resample=args.resample,
-                    num_finetune_epochs=args.num_finetune_epochs,
-                    decoder_mode=args.strategy,
-                )
-                for _ in [0]
-            ],
-        ]
-        for task in eval_tasks:
-            results = task.train_and_evaluate_model_on_task(
-                pretrained_model=encoder,
-                model_modes=["Regression"],
-                baseline_galileo=(args.pretrain == "galileo"),
-                hyperparams_config=sweep_run.config,
-                log_wandb=False,
-                initialization_id=initialization_id,
-                sweep_run=sweep_run,
-                save_final_checkpoint=False,
-            )
+        eval_task: EvalTask = LandsatEval(
+            exclude_prediction_high_res=False,
+            resample=args.resample,
+            num_finetune_epochs=args.num_finetune_epochs,
+            decoder_mode=args.strategy,
+        )
+
+        results = eval_task.train_and_evaluate_model_on_task(
+            pretrained_model=encoder,
+            model_modes=["Regression"],
+            baseline_galileo=(args.pretrain == "galileo"),
+            hyperparams_config=sweep_run.config,
+            log_wandb=False,
+            initialization_id=initialization_id,
+            sweep_run=sweep_run,
+            save_final_checkpoint=False,
+        )
         # log metric to sweep run
         # TODO: change the metric names based on eval config
         sweep_run.log(
             {
-                "r2": results[0][0].get("landsat_s42_ps10_8_r2", -1),
-                "rmse": results[0][0].get("landsat_s42_ps10_8_rmse", -1),
-                "overall_accuracy": results[0][0].get("landsat_s42_ps10_8_overall_accuracy", -1),
-                "balanced_accuracy": results[0][0].get("landsat_s42_ps10_8_balanced_accuracy", -1),
-                "recall": results[0][0].get("landsat_s42_ps10_8_recall", -1),
-                "precision": results[0][0].get("landsat_s42_ps10_8_precision", -1),
-                "f1": results[0][0].get("landsat_s42_ps10_8_f1", -1),
-                "miou": results[0][0].get("landsat_s42_ps10_8_miou", -1),
+                "r2": results[0].get("landsat_s42_ps10_8_r2", -1),
+                "rmse": results[0].get("landsat_s42_ps10_8_rmse", -1),
+                "overall_accuracy": results[0].get("landsat_s42_ps10_8_overall_accuracy", -1),
+                "balanced_accuracy": results[0].get("landsat_s42_ps10_8_balanced_accuracy", -1),
+                "recall": results[0].get("landsat_s42_ps10_8_recall", -1),
+                "precision": results[0].get("landsat_s42_ps10_8_precision", -1),
+                "f1": results[0].get("landsat_s42_ps10_8_f1", -1),
+                "miou": results[0].get("landsat_s42_ps10_8_miou", -1),
             }
         )
         sweep_run.finish()

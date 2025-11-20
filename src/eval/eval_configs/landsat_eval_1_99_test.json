@@ -29,7 +29,7 @@
         "attend_over_spatial": true,
         "med_and_low_res_repeat": true
     },
-    "hyperparams": {
+    "hyperparameters": {
         "batch_size": 16,
         "num_workers": 4,
         "weight_decay": 1e-5,
@@ -39,5 +39,20 @@
         "optimizer": "Adam",
         "warmup_fraction": 0.1,
         "loss_fn": "MSE"
+    },
+    "hyperparameters_rf": {
+        "n_estimators": 300,
+        "min_samples_leaf": 5
+    },
+    "hyperparameters_svr": {
+        "kernel": "rbf",
+        "C_base": 2,
+        "C_exponent": -15,
+        "degree": 2,
+        "gamma_base": 2,
+        "gamma_exponent": -5
+    },
+    "hyperparameters_mlp": {
+        "learning_rate_init": 0.001
     }
 }
