@@ -92,12 +92,10 @@ class LandsatEvalDataset(PyTorchDataset):
         else:
             self.h5py_folder = None
 
-        # print the number of label tifs
         print(
             f"Number of label tifs: {len(list(self.label_folder.glob('*.tif')) + list(self.label_folder.glob('*.tiff')))}"
         )
 
-        # print the number of input tifs
         print(
             f"Number of input tifs: {len(list(self.input_tif_folder.glob('*.tif')) + list(self.input_tif_folder.glob('*.tiff')))}"
         )
@@ -120,11 +118,6 @@ class LandsatEvalDataset(PyTorchDataset):
         self.output_hw_med_res = DATASET_OUTPUT_HW_MED_RES
         self.output_hw_low_res = DATASET_OUTPUT_HW_LOW_RES
         self.output_timesteps = NUM_TIMESTEPS
-
-        assert self.output_hw_high_res == 100
-        assert self.output_hw_med_res == 100
-        assert self.output_hw_low_res == 100
-        ###
 
         self.label_height_width = data_config["input_height_width"]
 
