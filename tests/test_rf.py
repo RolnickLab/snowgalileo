@@ -151,14 +151,83 @@ class TestMasking(unittest.TestCase):
             ]
         )
 
-        resulting_data_test1, resulting_timesteps_test1 = LandsatEvalRandomForest.forward_filling_masked_data_per_channel_else_median(
-            data_test1, 
-            torch.where(torch.isnan(data_test1), 1, 0),
-            timesteps_test1,
+        resulting_data_test1, resulting_timesteps_test1 = (
+            LandsatEvalRandomForest.forward_filling_masked_data_per_channel_else_median(
+                data_test1,
+                torch.where(torch.isnan(data_test1), 1, 0),
+                timesteps_test1,
+            )
+        )
+
+        data_test2 = torch.tensor(
+            [
+                [
+                    [[6.0, 3.0, float("nan"), float("nan")], [1.0, 8.0, float("nan"), 5.0]],
+                    [
+                        [2.0, float("nan"), float("nan"), 9.0],
+                        [9.0, float("nan"), float("nan"), 9.0],
+                    ],
+                    [[1.0, 6.0, float("nan"), 6.0], [float("nan"), 1.0, 2.0, 4.0]],
+                ],
+                [
+                    [[7.0, 3.0, float("nan"), float("nan")], [1.0, 8.0, float("nan"), 10.0]],
+                    [
+                        [7.0, float("nan"), float("nan"), float("nan")],
+                        [float("nan"), float("nan"), float("nan"), float("nan")],
+                    ],
+                    [
+                        [1.0, 2.0, float("nan"), float("nan")],
+                        [10.0, float("nan"), 1.0, float("nan")],
+                    ],
+                ],
+            ]
+        )
+
+        timesteps_test2 = torch.zeros(data_test2.shape)
+
+        expected_data_test2 = torch.tensor(
+            [
+                [
+                    [[6.0, 3.0, 3.0, 3.0], [1.0, 8.0, 8.0, 5.0]],
+                    [[2.0, 2.0, 2.0, 9.0], [9.0, 9.0, 9.0, 9.0]],
+                    [[1.0, 6.0, 6.0, 6.0], [1.0, 3.0, 2.0, 4.0]],
+                ],
+                [
+                    [[7.0, 3.0, 3.0, 3.0], [1.0, 8.0, 8.0, 10.0]],
+                    [[7.0, 7.0, 7.0, 7.0], [7.0, 7.0, 7.0, 7.0]],
+                    [[1.0, 2.0, 2.0, 2.0], [10.0, 10.0, 1.0, 1.0]],
+                ],
+            ]
+        )
+
+        expected_timesteps_test2 = torch.tensor(
+            [
+                [
+                    [[0, 0, 1, 2], [0, 0, 1, 0]],
+                    [[0, 1, 2, 0], [0, 1, 2, 0]],
+                    [[0, 0, 1, 0], [-1, 0, 0, 0]],
+                ],
+                [
+                    [[0, 0, 1, 2], [0, 0, 1, 0]],
+                    [[0, 1, 2, 3], [-1, -1, -1, -1]],
+                    [[0, 0, 1, 2], [0, 1, 0, 1]],
+                ],
+            ]
+        )
+
+        resulting_data_test2, resulting_timesteps_test2 = (
+            LandsatEvalRandomForest.forward_filling_masked_data_per_channel_else_median(
+                data_test2,
+                torch.where(torch.isnan(data_test2), 1, 0),
+                timesteps_test2,
+            )
         )
 
         self.assertTrue(torch.equal(resulting_data_test1, expected_data_test1))
         self.assertTrue(torch.equal(resulting_timesteps_test1, expected_timesteps_test1))
+
+        self.assertTrue(torch.equal(resulting_data_test2, expected_data_test2))
+        self.assertTrue(torch.equal(resulting_timesteps_test2, expected_timesteps_test2))
 
     def _test_aggregation_num_tokens_2(
         self,
