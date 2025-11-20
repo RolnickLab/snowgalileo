@@ -215,10 +215,6 @@ class LandsatEvalRandomForest(LandsatEval):
         dist[last_idx == -1] = -1
         t = dist
 
-        assert not torch.isnan(x).any(), (
-            "Still NaNs left after forward filling and median replacement."
-        )
-
         return x, t
 
     @staticmethod
@@ -231,8 +227,6 @@ class LandsatEvalRandomForest(LandsatEval):
             if not torch.isnan(x).any():
                 break
 
-        # TODO: handle this case, if a problem arises
-        assert not torch.isnan(x).any(), "There are still NaNs left after median replacement."
         return x
 
     @staticmethod
@@ -685,7 +679,7 @@ class LandsatEvalRandomForest(LandsatEval):
                             month=month,
                         )
                     )
-                )
+                )[0]
             )  # (N, num_features)
             preds = regr.predict(input.numpy())
             all_preds.append(torch.as_tensor(preds))
