@@ -595,7 +595,7 @@ class LandsatEvalRandomForest(LandsatEval):
 
             # NOTE: This is very nested - is there a better way to do this?
             # The reason for the nesting is that we want to be able to test each step individually.
-            input, _ = torch.squeeze(
+            input = torch.squeeze(
                 self.concatenate_features_per_output_pixel(
                     *self.replace_masked_data(
                         *self.aggregate_data_per_output_pixel(
@@ -614,7 +614,7 @@ class LandsatEvalRandomForest(LandsatEval):
                             month=month,
                         )
                     )
-                )
+                )[0]
             )  # (N, num_features)
             label = torch.squeeze(label).flatten()  # (N,)
             all_samples.append(input)
