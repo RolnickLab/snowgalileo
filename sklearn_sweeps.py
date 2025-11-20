@@ -86,17 +86,17 @@ def train_and_validate():
 
     with wandb.init(project="ai4snow_sweeps") as sweep_run:
         with (
-            Path("src") / Path("eval") / Path("eval_configs") / Path(args["eval_config_name"])
+            Path("src") / Path("eval") / Path("eval_configs") / Path(args.eval_config_name)
         ).open("r") as f:
             config = json.load(f)
 
         eval_task = LandsatEvalSklearn(
             normalization="std",
             exclude_prediction_date=False,
-            exclude_prediction_high_res=args["exclude_prediction_high_res"],
+            exclude_prediction_high_res=args.exclude_prediction_high_res,
             resample=False,
             eval_config=config,
-            model_type=args["model_type"],
+            model_type=args.model_type,
         )
 
         sweep_run.config.update(args)
