@@ -438,16 +438,18 @@ class LandsatEvalRandomForest(LandsatEval):
                 rearrange(t_t, "b s t c -> b s c t"),
             )
             # NOTE: for space-only and static data, we fall back to median replacement
-            sp_x, sp_t = cls.replace_masked_data_with_median_per_dimension(
+            sp_x = cls.replace_masked_data_with_median_per_dimension(
                 rearrange(sp_x, "b s c -> b s c"),
                 rearrange(sp_m, "b s c -> b s c"),
-                rearrange(sp_t, "b s c -> b s c"),
             )
-            st_x, st_t = cls.replace_masked_data_with_median_per_dimension(
+            # set all masked timestamps to -1
+            sp_t = sp_t.masked_fill(sp_m.bool(), -1)
+            st_x = cls.replace_masked_data_with_median_per_dimension(
                 rearrange(st_x, "b s c -> b s c"),
                 rearrange(st_m, "b s c -> b s c"),
-                rearrange(st_t, "b s c -> b s c"),
             )
+            st_t = st_t.masked_fill(st_m.bool(), -1)
+
         elif replace_with == "nan":
             # NOTE: for NaN replacement, we keep the acquisition time variable at zero, as we don't replace any data
             s_t_h_x = s_t_h_x.masked_fill(s_t_h_m.bool(), float("nan"))
