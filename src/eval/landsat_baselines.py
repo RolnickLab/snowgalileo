@@ -10,6 +10,8 @@ import xarray as xr
 from einops import rearrange, reduce, repeat
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, root_mean_squared_error
+from sklearn.neural_network import MLPRegressor
+from sklearn.svm import SVR
 from torch.utils.data import DataLoader
 
 from src.data.dataset import Normalizer
@@ -156,6 +158,7 @@ class LandsatEvalRandomForest(LandsatEval):
         num_tokens_per_dim: int = 10,
         resample: bool = False,
         eval_config: Dict = {},
+        model_type: str = "rf",
     ):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
@@ -163,6 +166,9 @@ class LandsatEvalRandomForest(LandsatEval):
         self.num_tokens_per_dim = num_tokens_per_dim
         self.resample = resample
         self.name = "ls_rf"
+        self.model_type = model_type
+
+        assert model_type in ["rf", "svr", "mlp"], f"Unknown model type {model_type}"
 
         super().__init__(
             normalization=normalization,
@@ -549,7 +555,7 @@ class LandsatEvalRandomForest(LandsatEval):
         assert not (x == -9999).any(), "No-data values (-9999) left in input."
         return x, m
 
-    def fit_random_forest(self, id: str):
+    def fit_sklearn(self, id: str):
         train_ds = LandsatEvalDatasetRandomForest(
             split="train",
             exclude_prediction_date=self.exclude_prediction_date,
@@ -566,6 +572,16 @@ class LandsatEvalRandomForest(LandsatEval):
             shuffle=True,
             num_workers=0,
         )
+
+        if self.model_type == "rf":
+            print("Training Random Forest Regressor...", flush=True)
+            model = RandomForestRegressor(max_depth=2, random_state=0)
+        elif self.model_type == "svr":
+            print("Training Support Vector Regressor...", flush=True)
+            model = SVR()
+        elif self.model_type == "mlp":
+            print("Training Multi-layer Perceptron Regressor...", flush=True)
+            model = MLPRegressor()
 
         all_samples = []
         all_labels = []
@@ -614,19 +630,18 @@ class LandsatEvalRandomForest(LandsatEval):
             all_samples.append(input)
             all_labels.append(label)
 
-        rf_input = torch.cat(all_samples, dim=0).numpy()
-        rf_labels = torch.cat(all_labels, dim=0).numpy()
+        model_input = torch.cat(all_samples, dim=0).numpy()
+        model_labels = torch.cat(all_labels, dim=0).numpy()
 
-        regr = RandomForestRegressor(max_depth=2, random_state=0)
-        regr.fit(rf_input, rf_labels)
+        model.fit(model_input, model_labels)
 
         # save the model
         try:
-            model_path = Path(f"./landsat_rf_model_{id}.joblib")
-            joblib.dump(regr, model_path)
-            print(f"Saved Random Forest model to {model_path}", flush=True)
+            model_path = Path(f"./landsat_{self.model_type}_model_{id}.joblib")
+            joblib.dump(model, model_path)
+            print(f"Saved {self.model_type} model to {model_path}", flush=True)
         except Exception as e:
-            print(f"Could not save Random Forest model due to {e}", flush=True)
+            print(f"Could not save {self.model_type} model due to {e}", flush=True)
 
         test_ds = LandsatEvalDatasetRandomForest(
             split="test",
@@ -681,7 +696,7 @@ class LandsatEvalRandomForest(LandsatEval):
                     )
                 )[0]
             )  # (N, num_features)
-            preds = regr.predict(input.numpy())
+            preds = model.predict(input.numpy())
             all_preds.append(torch.as_tensor(preds))
             all_test_labels.append(torch.squeeze(label).flatten())
 
@@ -700,7 +715,7 @@ class LandsatEvalRandomForest(LandsatEval):
             "test_rmse": float(rmse),
             "test_r2": float(r2),
         }
-        results_path = Path(f"./landsat_rf_results_{id}.json")
+        results_path = Path(f"./landsat_{self.model_type}_results_{id}.json")
         with results_path.open("w") as f:
             json.dump(results, f)
 
@@ -717,5 +732,6 @@ if __name__ == "__main__":
         exclude_prediction_high_res=False,
         resample=False,
         eval_config=config,
+        model_type="rf",
     )
-    rf.fit_random_forest(id)
+    rf.fit_sklearn(id)

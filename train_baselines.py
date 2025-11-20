@@ -26,6 +26,14 @@ argparser.add_argument(
     default="default_run",
     help="Identifier used to store results and model checkpoint.",
 )
+argparser.add_argument(
+    "--model_type",
+    type=str,
+    default="rf",
+    choices=["rf", "svr", "mlp"],
+    help="Type of model to train: rf, svr, or mlp.",
+)
+
 args = argparser.parse_args().__dict__
 
 
@@ -41,5 +49,6 @@ rf = LandsatEvalRandomForest(
     exclude_prediction_high_res=args["exclude_prediction_high_res"],
     resample=False,
     eval_config=config,
+    model_type=args["model_type"],
 )
-rf.fit_random_forest(args["run_id"])
+rf.fit_sklearn(args["run_id"])
