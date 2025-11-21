@@ -51,7 +51,7 @@ from src.data.earthengine.esa_worldcover import (
     WC_BANDS_NAMES,
     WC_DIV_VALUES,
     WC_SHIFT_VALUES,
-    get_single_wc_image,
+    get_single_ee_wc_image,
 )
 from src.data.earthengine.landsat import (
     LANDSAT_BANDS,
@@ -201,7 +201,7 @@ assert TIME_IMAGE_FUNCTIONS == [
     get_s2_cloud_flag,
     get_landsat_cloud_flag,
 ]
-assert SPACE_IMAGE_FUNCTIONS == [get_single_dem_image, get_single_wc_image]
+assert SPACE_IMAGE_FUNCTIONS == [get_single_dem_image, get_single_ee_wc_image]
 assert SPACE_TIME_HIGH_RES_BANDS == S1_BANDS + S2_BANDS + LANDSAT_BANDS
 assert SPACE_TIME_HIGH_RES_SHIFT_VALUES == S1_SHIFT_VALUES + S2_SHIFT_VALUES + LANDSAT_SHIFT_VALUES
 assert SPACE_TIME_HIGH_RES_DIV_VALUES == S1_DIV_VALUES + S2_DIV_VALUES + LANDSAT_DIV_VALUES
