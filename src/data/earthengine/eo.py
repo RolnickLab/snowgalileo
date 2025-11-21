@@ -130,7 +130,6 @@ CLOUD_BANDS = []
 
 for modality in MODALITIES:
     if MODALITIES[modality].get("active") and MODALITIES[modality].get("export"):
-        print(MODALITIES[modality])
         try:
             band_list = globals()[f"{modality.upper()}_BANDS"]
             shift_values = globals()[f"{modality.upper()}_SHIFT_VALUES"]

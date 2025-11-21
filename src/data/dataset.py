@@ -767,11 +767,15 @@ class Dataset(PyTorchDataset):
         )
         space_x = cls._check_and_fillna(space_x, np.array(EE_SPACE_BANDS))
 
+        import pdb; pdb.set_trace()
+
         # one-hot encode ESA Worldcover band
         esa_wc = cls.one_hot_encode_esa_worldcover(
             space_x[:, :, ESA_WORLDCOVER_BAND_INDEX]
         )
+        import pdb; pdb.set_trace()
         space_x = np.concatenate((space_x[:, :, ], esa_wc), axis=-1)
+        import pdb; pdb.set_trace()
 
         static_x = to_cartesian(lat, lon)
         static_x = cls._check_and_fillna(static_x, np.array(STATIC_BANDS))
