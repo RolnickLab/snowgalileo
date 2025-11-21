@@ -659,10 +659,11 @@ class LandsatEvalSklearn(LandsatEval):
 
         elif self.model_type == "svr":
             print("Training Support Vector Regressor...", flush=True)
-            gamma = hyperparameters["gamma_base"] ** hyperparameters["gamma_exponent"]
+            gamma = hyperparameters["gamma"]
             degree = hyperparameters["degree_base"] ** hyperparameters["degree_exponent"]
+            C = hyperparameters["C_base"] ** hyperparameters["C_exponent"]
             print(f"Using gamma={gamma}, degree={degree}", flush=True)
-            model = SVR(kernel=hyperparameters["kernel"], gamma=gamma, degree=degree)
+            model = SVR(kernel=hyperparameters["kernel"], gamma=gamma, degree=degree, C=C)
 
         elif self.model_type == "mlp":
             print("Training Multi-layer Perceptron Regressor...", flush=True)
