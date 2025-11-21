@@ -115,7 +115,7 @@ MODALITIES: Dict[str, Dict[str, Any]] = {
         "active": True,
         "export": True,
     },
-    "wc": {
+    "ee_wc": {
         "original_resolution": 10,
         "shape_type": "sp_x",
         "active": True,
