@@ -42,8 +42,8 @@ from src.data.earthengine.era5 import (
 from src.data.earthengine.esa_worldcover import (
     WC_BANDS_NAMES,
     EE_WC_BANDS,
-    WC_DIV_VALUES,
-    WC_SHIFT_VALUES,
+    EE_WC_DIV_VALUES,
+    EE_WC_SHIFT_VALUES,
     get_single_ee_wc_image,
 )
 from src.data.earthengine.landsat import (
@@ -199,8 +199,8 @@ assert TIME_BANDS == VIIRS_COARSE_BANDS + ERA5_BANDS
 assert TIME_SHIFT_VALUES == VIIRS_COARSE_SHIFT_VALUES + ERA5_SHIFT_VALUES
 assert TIME_DIV_VALUES == VIIRS_COARSE_DIV_VALUES + ERA5_DIV_VALUES
 assert EE_SPACE_BANDS == DEM_BANDS + EE_WC_BANDS
-assert SPACE_SHIFT_VALUES == DEM_SHIFT_VALUES + WC_SHIFT_VALUES
-assert SPACE_DIV_VALUES == DEM_DIV_VALUES + WC_DIV_VALUES
+assert SPACE_SHIFT_VALUES == DEM_SHIFT_VALUES + EE_WC_SHIFT_VALUES
+assert SPACE_DIV_VALUES == DEM_DIV_VALUES + EE_WC_DIV_VALUES
 assert (
     CLOUD_BANDS
     == MODIS_CLOUD_FLAG_BANDS
@@ -217,8 +217,8 @@ SPACE_TIME_LOW_RES_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(SPACE_TIME_LOW_R
 SPACE_TIME_LOW_RES_DIV_VALUES_NP: npt.NDArray[Any] = np.array(SPACE_TIME_LOW_RES_DIV_VALUES)
 TIME_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(TIME_SHIFT_VALUES)
 TIME_DIV_VALUES_NP: npt.NDArray[Any] = np.array(TIME_DIV_VALUES)
-SPACE_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(DEM_SHIFT_VALUES + WC_SHIFT_VALUES)
-SPACE_DIV_VALUES_NP: npt.NDArray[Any] = np.array(DEM_DIV_VALUES + WC_DIV_VALUES)
+SPACE_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(DEM_SHIFT_VALUES + EE_WC_SHIFT_VALUES)
+SPACE_DIV_VALUES_NP: npt.NDArray[Any] = np.array(DEM_DIV_VALUES + EE_WC_DIV_VALUES)
 
 # we will add latlons in dataset.py function
 LOCATION_BANDS = ["x", "y", "z"]
@@ -250,6 +250,10 @@ EO_ALL_DYNAMIC_IN_TIME_BANDS_NP = np.array(EO_ALL_DYNAMIC_IN_TIME_BANDS)
 
 # we create a new list for one-hot encoded space bands
 SPACE_BANDS = DEM_BANDS + WC_BANDS_NAMES
+
+# hacky, but we need to reduce one shift/div value because we already had one for the "Map" band
+SPACE_SHIFT_VALUES_NP = np.append(SPACE_SHIFT_VALUES_NP, [0] * (len(WC_BANDS_NAMES) -1))
+SPACE_DIV_VALUES_NP = np.append(SPACE_DIV_VALUES_NP, [1] * (len(WC_BANDS_NAMES) -1))
 
 # index of the ESA Worldcover band in the SPACE_BANDS list, needed for one-hot encoding
 ESA_WORLDCOVER_BAND_INDEX = EE_SPACE_BANDS.index("Map")

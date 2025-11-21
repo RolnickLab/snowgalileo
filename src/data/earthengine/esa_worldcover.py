@@ -19,8 +19,8 @@ WC_BANDS_NAMES = [
     "WC_mangroves",
     "WC_moss_and_lichen",
 ]
-WC_SHIFT_VALUES = [0] * NUM_WC_CLASSES
-WC_DIV_VALUES = [1] * NUM_WC_CLASSES
+EE_WC_SHIFT_VALUES = [0]
+EE_WC_DIV_VALUES = [1]
 
 
 def get_single_ee_wc_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
