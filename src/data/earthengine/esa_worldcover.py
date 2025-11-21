@@ -23,7 +23,7 @@ WC_SHIFT_VALUES = [0] * NUM_WC_CLASSES
 WC_DIV_VALUES = [1] * NUM_WC_CLASSES
 
 
-def get_single_wc_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
+def get_single_ee_wc_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:
     wc = ee.ImageCollection("ESA/WorldCover/v200").filterBounds(region).select(EE_WC_BANDS).first()
 
     return wc
