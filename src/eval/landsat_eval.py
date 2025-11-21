@@ -56,6 +56,8 @@ from src.data.earthengine.eo_eval import (
     STATIC_BANDS,
     TIME_BANDS,
     TIME_BANDS_GROUPS_IDX,
+    ESA_WORLDCOVER_BAND_INDEX,
+    EE_SPACE_BANDS
 )
 from src.eval.eval import EvalTask, model_class_name
 from src.eval.patch_predict import EncoderWithHead, get_finetune_results
@@ -404,10 +406,16 @@ class LandsatEvalDataset(PyTorchDataset):
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndvi), axis=-1)
 
         space_x = rearrange(
-            values[-len(SPACE_BANDS) :],
+            values[-len(EE_SPACE_BANDS) :],
             "c h w -> h w c",
         )
-        space_x = cls._check_and_fillna(space_x, np.array(SPACE_BANDS))
+        space_x = cls._check_and_fillna(space_x, np.array(EE_SPACE_BANDS))
+
+        # one-hot encode ESA Worldcover band
+        esa_wc = cls.one_hot_encode_esa_worldcover(
+            space_x[:, :, ESA_WORLDCOVER_BAND_INDEX]
+        )
+        space_x = np.concatenate((space_x[:, :, ], esa_wc), axis=-1)
 
         static_x = to_cartesian(lat, lon)
         static_x = cls._check_and_fillna(static_x, np.array(STATIC_BANDS))

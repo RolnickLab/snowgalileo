@@ -51,6 +51,7 @@ class RunningStats:
             "M2 has negative values, something went wrong during the update steps."
         )
         # returns mean and standard deviation as per-channel arrays
+        # we use the sample standard deviation (n-1 in denominator)
         std = np.sqrt(self.M2 / (self.count - 1))
         assert not np.isnan(std).any(), (
             "Standard deviation has become NaN in finalize step, something went wrong."

@@ -40,7 +40,8 @@ from src.data.earthengine.era5 import (
     get_single_era5_image,
 )
 from src.data.earthengine.esa_worldcover import (
-    WC_BANDS,
+    WC_BANDS_NAMES,
+    EE_WC_BANDS,
     WC_DIV_VALUES,
     WC_SHIFT_VALUES,
     get_single_wc_image,
@@ -104,7 +105,7 @@ TIME_BANDS = []
 TIME_SHIFT_VALUES = []
 TIME_DIV_VALUES = []
 
-SPACE_BANDS = []
+EE_SPACE_BANDS = []
 SPACE_SHIFT_VALUES = []
 SPACE_DIV_VALUES = []
 
@@ -151,7 +152,7 @@ for modality in EVAL_MODALITIES:
                 TIME_IMAGE_FUNCTIONS.append(function)
 
             elif EVAL_MODALITIES[modality].get("shape_type") == "sp_x":
-                SPACE_BANDS.extend(band_list)
+                EE_SPACE_BANDS.extend(band_list)
                 SPACE_SHIFT_VALUES.extend(shift_values)
                 SPACE_DIV_VALUES.extend(div_values)
 
@@ -197,7 +198,7 @@ assert SPACE_TIME_LOW_RES_DIV_VALUES == MODIS_DIV_VALUES + VIIRS_FINE_DIV_VALUES
 assert TIME_BANDS == VIIRS_COARSE_BANDS + ERA5_BANDS
 assert TIME_SHIFT_VALUES == VIIRS_COARSE_SHIFT_VALUES + ERA5_SHIFT_VALUES
 assert TIME_DIV_VALUES == VIIRS_COARSE_DIV_VALUES + ERA5_DIV_VALUES
-assert SPACE_BANDS == DEM_BANDS + WC_BANDS
+assert EE_SPACE_BANDS == DEM_BANDS + EE_WC_BANDS
 assert SPACE_SHIFT_VALUES == DEM_SHIFT_VALUES + WC_SHIFT_VALUES
 assert SPACE_DIV_VALUES == DEM_DIV_VALUES + WC_DIV_VALUES
 assert (
@@ -246,6 +247,12 @@ EO_ALL_DYNAMIC_IN_TIME_BANDS = (
 )
 
 EO_ALL_DYNAMIC_IN_TIME_BANDS_NP = np.array(EO_ALL_DYNAMIC_IN_TIME_BANDS)
+
+# we create a new list for one-hot encoded space bands
+SPACE_BANDS = DEM_BANDS + WC_BANDS_NAMES
+
+# index of the ESA Worldcover band in the SPACE_BANDS list, needed for one-hot encoding
+ESA_WORLDCOVER_BAND_INDEX = EE_SPACE_BANDS.index("Map")
 
 # spatial resolution per pixel: 10m, 20m, or 30m
 SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
@@ -303,7 +310,7 @@ TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
 SPACE_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
         "DEM": [SPACE_BANDS.index(b) for b in DEM_BANDS],
-        "WC": [SPACE_BANDS.index(b) for b in WC_BANDS],
+        "WC": [SPACE_BANDS.index(b) for b in WC_BANDS_NAMES],
     }
 )
 

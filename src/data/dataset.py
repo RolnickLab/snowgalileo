@@ -42,6 +42,7 @@ from src.data.earthengine.eo import (
     EO_ALL_DYNAMIC_IN_TIME_BANDS,
     EO_ALL_DYNAMIC_IN_TIME_BANDS_NP,
     EO_SPACE_TIME_LOW_RES_BANDS,
+    EE_SPACE_BANDS,
     SPACE_BANDS,
     SPACE_DIV_VALUES_NP,
     SPACE_SHIFT_VALUES_NP,
@@ -60,8 +61,10 @@ from src.data.earthengine.eo import (
     TIME_BANDS,
     TIME_DIV_VALUES_NP,
     TIME_SHIFT_VALUES_NP,
-    DEM_BANDS
+    DEM_BANDS,
+    ESA_WORLDCOVER_BAND_INDEX,
 )
+from src.data.earthengine.esa_worldcover import WC_CLASS_VALUES, NUM_WC_CLASSES
 from src.data.utils import RunningStats
 
 logger = logging.getLogger("__main__")
@@ -506,6 +509,18 @@ class Dataset(PyTorchDataset):
             static_x,
             months[start_t : start_t + num_timesteps],
         )
+    
+    @staticmethod
+    def one_hot_encode_esa_worldcover(data: np.ndarray) -> np.ndarray:
+        """One-hot encode the ESA Worldcover band, so that each class has its own channel."""
+        assert all(np.isin(data, WC_CLASS_VALUES)), "ESA Worldcover data contains unexpected class values."
+        # Map class values to indices 0-10
+        data = np.array([WC_CLASS_VALUES.index(val) for val in data.flatten()]).reshape(data.shape)
+        h, w = data.shape
+        one_hot_encoded = np.zeros((h, w, NUM_WC_CLASSES), dtype=data.dtype)
+        for class_idx in range(NUM_WC_CLASSES):
+            one_hot_encoded[:, :, class_idx] = (data == class_idx).astype(data.dtype)
+        return one_hot_encoded
 
     @staticmethod
     def _check_and_fillna(data: np.ndarray, bands_np: np.ndarray) -> np.ndarray:
@@ -685,11 +700,11 @@ class Dataset(PyTorchDataset):
                 np.mean([float(value) for value in re.findall(lon_pattern, str(tif_path))])
             )
 
-        num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(EO_ALL_DYNAMIC_IN_TIME_BANDS)
+        num_timesteps = (values.shape[0] - len(EE_SPACE_BANDS)) / len(EO_ALL_DYNAMIC_IN_TIME_BANDS)
         assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
         assert num_timesteps == NUM_TIMESTEPS, f"{tif_path} has incorrect number of timesteps"
         dynamic_in_time_x = rearrange(
-            values[: -(len(SPACE_BANDS))],
+            values[: -(len(EE_SPACE_BANDS))],
             "(t c) h w -> h w t c",
             c=len(EO_ALL_DYNAMIC_IN_TIME_BANDS),
             t=int(num_timesteps),
@@ -747,10 +762,16 @@ class Dataset(PyTorchDataset):
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndvi), axis=-1)
 
         space_x = rearrange(
-            values[-len(SPACE_BANDS) :],
+            values[-len(EE_SPACE_BANDS) :],
             "c h w -> h w c",
         )
-        space_x = cls._check_and_fillna(space_x, np.array(SPACE_BANDS))
+        space_x = cls._check_and_fillna(space_x, np.array(EE_SPACE_BANDS))
+
+        # one-hot encode ESA Worldcover band
+        esa_wc = cls.one_hot_encode_esa_worldcover(
+            space_x[:, :, ESA_WORLDCOVER_BAND_INDEX]
+        )
+        space_x = np.concatenate((space_x[:, :, ], esa_wc), axis=-1)
 
         static_x = to_cartesian(lat, lon)
         static_x = cls._check_and_fillna(static_x, np.array(STATIC_BANDS))
