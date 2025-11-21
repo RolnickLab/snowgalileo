@@ -112,12 +112,12 @@ class Normalizer:
         self.normalizing_dicts = normalizing_dicts
         if std:
             name_to_bands = {
-                len(SPACE_TIME_HIGH_RES_BANDS): SPACE_TIME_HIGH_RES_BANDS,
-                len(SPACE_TIME_MED_RES_BANDS): SPACE_TIME_MED_RES_BANDS,
-                len(SPACE_TIME_LOW_RES_BANDS): SPACE_TIME_LOW_RES_BANDS,
-                len(SPACE_BANDS): SPACE_BANDS,
-                len(TIME_BANDS): TIME_BANDS,
-                len(STATIC_BANDS): STATIC_BANDS,
+                "space_time_high_res": SPACE_TIME_HIGH_RES_BANDS,
+                "space_time_med_res": SPACE_TIME_MED_RES_BANDS,
+                "space_time_low_res": SPACE_TIME_LOW_RES_BANDS,
+                "space": DEM_BANDS,
+                "time": TIME_BANDS,
+                "static": STATIC_BANDS,
             }
             assert normalizing_dicts is not None
             for key, val in normalizing_dicts.items():
