@@ -156,9 +156,7 @@ class Normalizer:
         if array_type not in self.shift_div_dict:
             raise ValueError(f"Unknown array type: {array_type}")
         # TODO: check or remove this long-term
-        assert 1 == 0, (
-            "We can not totally rely on pre-defined shift/div values. Please provide normalizing_dicts."
-        )
+        raise NotImplementedError("Fix this later")
         return self._normalize(
             x,
             valid_data_mask,

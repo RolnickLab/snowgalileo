@@ -1375,10 +1375,9 @@ class LandsatEval(EvalTask):
             )
             print(normalizing_dict, flush=True)
             normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
-            test_ds.normalizer = normalizer
         else:
             normalizer = Normalizer(std=False)
-            test_ds.normalizer = normalizer
+        test_ds.normalizer = normalizer
 
         test_dl = DataLoader(
             test_ds,

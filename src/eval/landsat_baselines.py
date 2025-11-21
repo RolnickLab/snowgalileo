@@ -14,6 +14,8 @@ from sklearn.metrics import r2_score, root_mean_squared_error
 from sklearn.neural_network import MLPRegressor
 from sklearn.svm import SVR
 from torch.utils.data import DataLoader
+from src.utils import config_dir
+from src.data.config import NORMALIZATION_DICT_FILENAME
 
 from src.config import DEFAULT_SEED
 from src.data.dataset import Normalizer
@@ -562,7 +564,11 @@ class LandsatEvalSklearn(LandsatEval):
         id: str = "",
         hyperparameters: Dict = {},
         save_results: bool = False,
+        normalization: str = "std",
     ) -> Dict[str, float]:
+        
+        assert normalization in ["std", ""], f"Unknown normalization {normalization}"
+
         if hyperparameters == {}:
             hyperparameters = self.eval_config[f"hyperparameters_{self.model_type}"]
 
@@ -572,9 +578,16 @@ class LandsatEvalSklearn(LandsatEval):
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             data_config=self.data_config,
         )
-        # NOTE: no normalization here, since RF works better without normalization!
-        # NOTE (Update): our experiments show that normalization helps RF as well
-        # TODO: make sure that really no normalization takes place.
+
+        if normalization == "std":
+            normalizing_dict = train_ds.load_normalization_values(
+                path=config_dir / NORMALIZATION_DICT_FILENAME
+            )
+            print(normalizing_dict, flush=True)
+            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+        else:
+            normalizer = Normalizer(std=False)
+        train_ds.normalizer = normalizer
 
         train_dl = DataLoader(
             train_ds,
