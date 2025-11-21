@@ -3,8 +3,10 @@ from datetime import date
 import ee
 
 WC_BANDS = ["Map"]
-WC_SHIFT_VALUES = [0] * len(WC_BANDS)
-WC_DIV_VALUES = [1] * len(WC_BANDS)
+# NOTE: from earthengine: https://developers.google.com/earth-engine/datasets/catalog/ESA_WorldCover_v200
+NUMBER_OF_WC_BANDS = 11
+WC_SHIFT_VALUES = [0] * NUMBER_OF_WC_BANDS
+WC_DIV_VALUES = [1] * NUMBER_OF_WC_BANDS
 
 
 def get_single_wc_image(region: ee.Geometry, start_date: date, end_date: date) -> ee.Image:

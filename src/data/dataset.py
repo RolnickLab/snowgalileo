@@ -60,6 +60,7 @@ from src.data.earthengine.eo import (
     TIME_BANDS,
     TIME_DIV_VALUES_NP,
     TIME_SHIFT_VALUES_NP,
+    DEM_BANDS
 )
 from src.data.utils import RunningStats
 
@@ -69,13 +70,15 @@ logger = logging.getLogger("__main__")
 class Normalizer:
     # these are the bands we will replace with the 2*std computation
     # if std = True
+    # using the pre-training population statistics
+    # for NDVI, NDSI, ESA Worldcover, and Location bands, we use pre-defined values
     std_bands: Dict[str, list] = {
         "space_time_high_res": SPACE_TIME_HIGH_RES_BANDS,
         "space_time_med_res": SPACE_TIME_MED_RES_BANDS,
-        "space_time_low_res": SPACE_TIME_LOW_RES_BANDS,
-        "space": SPACE_BANDS,
+        "space_time_low_res": [b for b in SPACE_TIME_LOW_RES_BANDS if b != "NDVI" and b != "NDSI"],
+        "space": DEM_BANDS,
         "time": TIME_BANDS,
-        "static": STATIC_BANDS,
+        "static": [],
     }
 
     def __init__(self, std: bool = True, normalizing_dicts: Optional[Dict] = None):
@@ -149,20 +152,9 @@ class Normalizer:
         if self.normalizing_dicts is not None:
             if array_type not in self.normalizing_dicts:
                 raise ValueError(f"Unknown array type: {array_type}")
-            shift_values = self.normalizing_dicts[array_type]["mean"]
-            div_values = self.normalizing_dicts[array_type]["std"]
-            return self._normalize(x, valid_data_mask, shift_values, div_values)
-
-        if array_type not in self.shift_div_dict:
-            raise ValueError(f"Unknown array type: {array_type}")
-        # TODO: check or remove this long-term
-        raise NotImplementedError("Fix this later")
-        return self._normalize(
-            x,
-            valid_data_mask,
-            self.shift_div_dict[array_type]["shift"],
-            self.shift_div_dict[array_type]["div"],
-        )
+            return self._normalize(x, valid_data_mask, self.shift_div_dict[array_type]["shift"], self.shift_div_dict[array_type]["div"])
+        else:
+            raise NotImplementedError("Only normalization with precomputed mean/std is implemented.")
 
 
 class StackedDatasetOutput(NamedTuple):
@@ -1313,7 +1305,7 @@ class Dataset(PyTorchDataset):
             t_x = np.where(valid_data_mask_t, t_x, np.nan)
             st_x = np.where(valid_data_mask_st, st_x, np.nan)
 
-            # Collapse dimensions if needed, e.g., s_t_h_x.shape = (T, H, W, C) --> reshape to (-1, C)
+            # Collapse dimensions if needed, e.g., s_t_h_x.shape = (H, W, T, C) --> reshape to (-1, C)
             stats_high_res.update(s_t_h_x.reshape(-1, s_t_h_x.shape[-1]))
             stats_med_res.update(s_t_m_x.reshape(-1, s_t_m_x.shape[-1]))
             stats_low_res.update(s_t_l_x.reshape(-1, s_t_l_x.shape[-1]))
