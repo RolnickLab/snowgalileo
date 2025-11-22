@@ -513,7 +513,7 @@ class Dataset(PyTorchDataset):
     @staticmethod
     def one_hot_encode_esa_worldcover(data: np.ndarray) -> np.ndarray:
         """One-hot encode the ESA Worldcover band, so that each class has its own channel."""
-        assert all(np.isin(data, WC_CLASS_VALUES)), "ESA Worldcover data contains unexpected class values."
+        assert np.all(np.isin(data, WC_CLASS_VALUES)), "ESA Worldcover data contains unexpected class values."
         # Map class values to indices 0-10
         data = np.array([WC_CLASS_VALUES.index(val) for val in data.flatten()]).reshape(data.shape)
         h, w = data.shape
@@ -766,8 +766,6 @@ class Dataset(PyTorchDataset):
             "c h w -> h w c",
         )
         space_x = cls._check_and_fillna(space_x, np.array(EE_SPACE_BANDS))
-
-        import pdb; pdb.set_trace()
 
         # one-hot encode ESA Worldcover band
         esa_wc = cls.one_hot_encode_esa_worldcover(
