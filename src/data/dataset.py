@@ -62,7 +62,9 @@ from src.data.earthengine.eo import (
     TIME_DIV_VALUES_NP,
     TIME_SHIFT_VALUES_NP,
     DEM_BANDS,
+    EE_WC_BANDS,
     ESA_WORLDCOVER_BAND_INDEX,
+    
 )
 from src.data.earthengine.esa_worldcover import WC_CLASS_VALUES, NUM_WC_CLASSES
 from src.data.utils import RunningStats
@@ -771,8 +773,7 @@ class Dataset(PyTorchDataset):
         esa_wc = cls.one_hot_encode_esa_worldcover(
             space_x[:, :, ESA_WORLDCOVER_BAND_INDEX]
         )
-        import pdb; pdb.set_trace()
-        space_x = np.concatenate((space_x[:, :, ], esa_wc), axis=-1)
+        space_x = np.concatenate((space_x[:, :, :(-len(EE_WC_BANDS))], esa_wc), axis=-1)
         import pdb; pdb.set_trace()
 
         static_x = to_cartesian(lat, lon)
