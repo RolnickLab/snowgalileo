@@ -769,6 +769,12 @@ class Dataset(PyTorchDataset):
         )
         space_x = cls._check_and_fillna(space_x, np.array(EE_SPACE_BANDS))
 
+        # one-hot encode ESA Worldcover band
+        esa_wc = cls.one_hot_encode_esa_worldcover(
+            space_x[:, :, ESA_WORLDCOVER_BAND_INDEX]
+        )
+        space_x = np.concatenate((space_x[:, :, :(-len(EE_WC_BANDS))], esa_wc), axis=-1)
+        
         static_x = to_cartesian(lat, lon)
         static_x = cls._check_and_fillna(static_x, np.array(STATIC_BANDS))
 
@@ -821,12 +827,6 @@ class Dataset(PyTorchDataset):
             valid_data_mask_s_t_l,
             target_shape=(NUM_LOW_RES_PIXELS_PER_DIM, NUM_LOW_RES_PIXELS_PER_DIM),
         )
-
-        # one-hot encode ESA Worldcover band
-        esa_wc = cls.one_hot_encode_esa_worldcover(
-            space_x[:, :, ESA_WORLDCOVER_BAND_INDEX]
-        )
-        space_x = np.concatenate((space_x[:, :, :(-len(EE_WC_BANDS))], esa_wc), axis=-1)
 
         try:
             assert not np.isnan(space_time_high_res_x).any(), f"NaNs in s_t_h_x for {tif_path}"
