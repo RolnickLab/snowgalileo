@@ -64,7 +64,7 @@ for i, batch in enumerate(dataloader):
         patch_size_high_res,
         patch_size_med_res,
         patch_size_low_res,
-    ) = batch
+    ) = batch[0] # collate returns 4 views of the same batch, so we take the first one
 
     valid_mask_s_t_h = s_t_h_x != NO_DATA_VALUE
     valid_mask_s_t_m = s_t_m_x != NO_DATA_VALUE
