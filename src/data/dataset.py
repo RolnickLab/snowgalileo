@@ -774,7 +774,6 @@ class Dataset(PyTorchDataset):
             space_x[:, :, ESA_WORLDCOVER_BAND_INDEX]
         )
         space_x = np.concatenate((space_x[:, :, :(-len(EE_WC_BANDS))], esa_wc), axis=-1)
-        import pdb; pdb.set_trace()
 
         static_x = to_cartesian(lat, lon)
         static_x = cls._check_and_fillna(static_x, np.array(STATIC_BANDS))
