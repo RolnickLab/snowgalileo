@@ -141,7 +141,7 @@ else:
 run = wandb.init(
     name=run_name,
     entity=wandb_org,
-    project="ai4snow",
+    project="ai4snow_cryosphere",
     dir=wandb_output_dir,
     id=run_id,
     resume="allow",
