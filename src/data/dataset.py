@@ -151,6 +151,16 @@ class Normalizer:
         # we don't want to normalize the no data values to be able to identify them later
         assert np.all(x[valid_data_mask] != NO_DATA_VALUE)
         x_normalized = np.where(valid_data_mask, (x - shift_values) / div_values, NO_DATA_VALUE)
+
+        try:
+            if x_normalized.shape[-1] == 11:
+                print("Checking NDVI", flush=True) 
+                if x_normalized[...,-1][valid_data_mask[...,-1].astype(bool)].min() < -1:
+                    print("minimum is smaller than -1")
+                    import pdb; pdb.set_trace()
+        except Exception:
+            print("Skipping")
+
         return x_normalized
 
     def __call__(self, x: np.ndarray, array_type: str, valid_data_mask: np.ndarray):
