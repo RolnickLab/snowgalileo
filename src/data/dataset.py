@@ -1385,7 +1385,7 @@ if __name__ == "__main__":
     dataset = Dataset(
         data_folder=DATA_FOLDER / "tifs_all_bands",
         download=False,
-        h5py_folder=Path("data/h5pys_ps10_5"),
+        h5py_folder=Path("data/h5pys_pretrain"),
         h5pys_only=True,
     )
 
@@ -1557,8 +1557,32 @@ if __name__ == "__main__":
                 "st_x_c2_max": st_x_c2_valid.max() if len(st_x_c2_valid) > 0 else np.nan,
             }
         )
+        if s_t_h_x_c2_valid.min() < -1:
+            print(f"Found value less than -1 in tif {i}: {s_t_h_x_c2_valid.min()}", flush=True)
+            import pdb; pdb.set_trace()
+        if s_t_l_x_c9_valid.min() < -1:
+            print(f"Found value less than -1 in tif {i}: {s_t_l_x_c9_valid.min()}", flush=True)
+            import pdb; pdb.set_trace()
+        if s_t_l_x_c10_valid.min() < -1:
+            print(f"Found value less than -1 in tif {i}: {s_t_l_x_c10_valid.min()}", flush=True)
+            import pdb; pdb.set_trace()
+        if t_x_c7_valid.min() < -1:
+            print(f"Found value less than -1 in tif {i}: {t_x_c8_valid.min()}", flush=True)
+            import pdb; pdb.set_trace()
+        if t_x_c8_valid.min() < -1:
+            print(f"Found value less than -1 in tif {i}: {t_x_c8_valid.min()}", flush=True)
+            import pdb; pdb.set_trace()
+        if s_t_h_x_c2_valid.max() > 2:
+            print(f"Found value greater than 2 in tif {i}: {s_t_h_x_c2_valid.max()}", flush=True)
+            import pdb; pdb.set_trace()
+        if s_t_l_x_c9_valid.max() > 2:
+            print(f"Found value greater than 2 in tif {i}: {s_t_l_x_c9_valid.max()}", flush=True)
+            import pdb; pdb.set_trace()
+        if s_t_l_x_c10_valid.max() > 2:
+            print(f"Found value greater than 2 in tif {i}: {s_t_l_x_c10_valid.max()}", flush=True)
+            import pdb; pdb.set_trace()
 
     import pandas as pd
 
     df = pd.DataFrame(stats)
-    df.to_csv("data_stats_min_max.csv", index=False)
+    df.to_csv("data_stats_min_max_new.csv", index=False)
