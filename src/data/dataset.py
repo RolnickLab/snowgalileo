@@ -1581,7 +1581,7 @@ if __name__ == "__main__":
                 print(f"Found value less than -1 in tif {i}: {s_t_l_x_c9_valid.min()}", flush=True)
                 import pdb; pdb.set_trace()
             if len(s_t_l_x_c10_valid) > 0 and s_t_l_x_c10_valid.min() < -1:
-                print(f"Found value less than -1 in tif {i}: {s_t_l_x_c10_valid.min()}", flush=True)
+                print("min:", s_t_l_x_c10_valid.min(), "dtype:", s_t_l_x_c10_valid.dtype, "id:", id(s_t_l_x_c10_valid))
                 import pdb; pdb.set_trace()
             if len(t_x_c7_valid) > 0 and t_x_c7_valid.min() < -1:
                 print(f"Found value less than -1 in tif {i}: {t_x_c7_valid.min()}", flush=True)
