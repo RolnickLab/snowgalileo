@@ -778,6 +778,9 @@ class Dataset(PyTorchDataset):
             )
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndvi), axis=-1)
 
+        assert space_time_low_res_x[...,-2].min() >= -1 and space_time_low_res_x[...,-2].max() <= 1, f"NDSI values out of range for {tif_path} after ndi calculation"
+        assert space_time_low_res_x[...,-1].min() >= -1 and space_time_low_res_x[...,-1].max() <= 1, f"NDVI values out of range for {tif_path} after ndi calculation"
+
         space_x = rearrange(
             values[-len(EE_SPACE_BANDS) :],
             "c h w -> h w c",
@@ -794,7 +797,6 @@ class Dataset(PyTorchDataset):
         static_x = cls._check_and_fillna(static_x, np.array(STATIC_BANDS))
 
         months = cls.month_array_from_file(tif_path, int(num_timesteps))
-
         (
             space_time_high_res_x,
             space_time_med_res_x,
@@ -842,6 +844,9 @@ class Dataset(PyTorchDataset):
             valid_data_mask_s_t_l,
             target_shape=(NUM_LOW_RES_PIXELS_PER_DIM, NUM_LOW_RES_PIXELS_PER_DIM),
         )
+
+        assert space_time_low_res_x[...,-2].min() >= -1 and space_time_low_res_x[...,-2].max() <= 1, f"NDSI values out of range for {tif_path} after downsampling"
+        assert space_time_low_res_x[...,-1].min() >= -1 and space_time_low_res_x[...,-1].max() <= 1, f"NDVI values out of range for {tif_path} after downsampling"
 
         try:
             assert not np.isnan(space_time_high_res_x).any(), f"NaNs in s_t_h_x for {tif_path}"
