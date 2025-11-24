@@ -4,6 +4,7 @@ from src.data.dataset import Dataset, Normalizer
 import numpy as np
 from pathlib import Path
 import argparse
+from torch.utils.data import DataLoader
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument(
@@ -23,17 +24,13 @@ if __name__ == "__main__":
         h5pys_only=False,
     )
 
-    normalizing_dict = dataset.load_normalization_values(
-        path=config_dir / NORMALIZATION_DICT_FILENAME
-    )
-    print(normalizing_dict, flush=True)
-    normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
-    dataset.normalizer = normalizer
+    dataloader = DataLoader(dataset, 
+                            batch_size=1, 
+                            shuffle=False, 
+                            num_workers=4)
 
-    stats = []
 
-    # create a csv that stores the min and max values for each channel
-    for i in range(len(dataset)):
+    for i, batch in enumerate(dataloader):
         (
             s_t_h_x,
             s_t_m_x,
@@ -41,11 +38,10 @@ if __name__ == "__main__":
             sp_x,
             t_x,
             st_x,
-            months,
-            valid_data_mask_s_t_h,
-            valid_data_mask_s_t_m,
-            valid_data_mask_s_t_l,
-            valid_data_mask_sp,
-            valid_data_mask_t,
-            valid_data_mask_st,
-        ) = dataset[i]
+            s_t_h_m,
+            s_t_m_m,
+            s_t_l_m,
+            sp_m,
+            t_m,
+            st_m,
+        ) = batch
