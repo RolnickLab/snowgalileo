@@ -154,6 +154,11 @@ class Normalizer:
 
         try:
             if x_normalized.shape[-1] == 11:
+                print("Checking NDSI", flush=True) 
+                if x_normalized[...,-2][valid_data_mask[...,-2].astype(bool)].min() < -1:
+                    print("minimum is smaller than -1")
+                    import pdb; pdb.set_trace()
+            if x_normalized.shape[-1] == 11:
                 print("Checking NDVI", flush=True) 
                 if x_normalized[...,-1][valid_data_mask[...,-1].astype(bool)].min() < -1:
                     print("minimum is smaller than -1")
