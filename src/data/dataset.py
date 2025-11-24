@@ -1557,33 +1557,42 @@ if __name__ == "__main__":
                 "st_x_c2_max": st_x_c2_valid.max() if len(st_x_c2_valid) > 0 else np.nan,
             }
         )
-        if s_t_h_x_c2_valid.min() < -1 and len(s_t_h_x_c2_valid) > 0:
-            print(f"Found value less than -1 in tif {i}: {s_t_h_x_c2_valid.min()}", flush=True)
-            import pdb; pdb.set_trace()
-        if s_t_l_x_c9_valid.min() < -1 and len(s_t_l_x_c9_valid) > 0:
-            print(f"Found value less than -1 in tif {i}: {s_t_l_x_c9_valid.min()}", flush=True)
-            import pdb; pdb.set_trace()
-        if s_t_l_x_c10_valid.min() < -1 and len(s_t_l_x_c10_valid) > 0:
-            print(f"Found value less than -1 in tif {i}: {s_t_l_x_c10_valid.min()}", flush=True)
-            import pdb; pdb.set_trace()
-        if t_x_c7_valid.min() < -1 and len(t_x_c7_valid) > 0:
-            print(f"Found value less than -1 in tif {i}: {t_x_c7_valid.min()}", flush=True)
-            import pdb; pdb.set_trace()
-        if t_x_c8_valid.min() < -1 and len(t_x_c8_valid) > 0:
-            print(f"Found value less than -1 in tif {i}: {t_x_c8_valid.min()}", flush=True)
-            import pdb; pdb.set_trace()
-        if t_x_c8_valid.min() < -1 and len(t_x_c8_valid) > 0:
-            print(f"Found value less than -1 in tif {i}: {t_x_c8_valid.min()}", flush=True)
-            import pdb; pdb.set_trace()
-        if s_t_h_x_c2_valid.max() > 2 and len(s_t_h_x_c2_valid) > 0:
-            print(f"Found value greater than 2 in tif {i}: {s_t_h_x_c2_valid.max()}", flush=True)
-            import pdb; pdb.set_trace()
-        if s_t_l_x_c9_valid.max() > 2 and len(s_t_l_x_c9_valid) > 0:
-            print(f"Found value greater than 2 in tif {i}: {s_t_l_x_c9_valid.max()}", flush=True)
-            import pdb; pdb.set_trace()
-        if s_t_l_x_c10_valid.max() > 2 and len(s_t_l_x_c10_valid) > 0:
-            print(f"Found value greater than 2 in tif {i}: {s_t_l_x_c10_valid.max()}", flush=True)
-            import pdb; pdb.set_trace()
+        try:
+            assert len(s_t_h_x_c2_valid) > 0
+            assert len(s_t_l_x_c9_valid) > 0
+            assert len(s_t_l_x_c10_valid) > 0
+            assert len(t_x_c7_valid) > 0
+            assert len(t_x_c8_valid) > 0
+        
+            if len(s_t_h_x_c2_valid) > 0 and s_t_h_x_c2_valid.min() < -1:
+                print(f"Found value less than -1 in tif {i}: {s_t_h_x_c2_valid.min()}", flush=True)
+                import pdb; pdb.set_trace()
+            if len(s_t_l_x_c9_valid) > 0 and s_t_l_x_c9_valid.min() < -1:
+                print(f"Found value less than -1 in tif {i}: {s_t_l_x_c9_valid.min()}", flush=True)
+                import pdb; pdb.set_trace()
+            if len(s_t_l_x_c10_valid) > 0 and s_t_l_x_c10_valid.min() < -1:
+                print(f"Found value less than -1 in tif {i}: {s_t_l_x_c10_valid.min()}", flush=True)
+                import pdb; pdb.set_trace()
+            if len(t_x_c7_valid) > 0 and t_x_c7_valid.min() < -1:
+                print(f"Found value less than -1 in tif {i}: {t_x_c7_valid.min()}", flush=True)
+                import pdb; pdb.set_trace()
+            if len(t_x_c8_valid) > 0 and t_x_c8_valid.min() < -1:
+                print(f"Found value less than -1 in tif {i}: {t_x_c8_valid.min()}", flush=True)
+                import pdb; pdb.set_trace()
+            if len(t_x_c8_valid) > 0 and t_x_c8_valid.min() < -1:
+                print(f"Found value less than -1 in tif {i}: {t_x_c8_valid.min()}", flush=True)
+                import pdb; pdb.set_trace()
+            if len(s_t_h_x_c2_valid) > 0 and s_t_h_x_c2_valid.max() > 2:
+                print(f"Found value greater than 2 in tif {i}: {s_t_h_x_c2_valid.max()}", flush=True)
+                import pdb; pdb.set_trace()
+            if len(s_t_l_x_c9_valid) > 0 and s_t_l_x_c9_valid.max() > 2:
+                print(f"Found value greater than 2 in tif {i}: {s_t_l_x_c9_valid.max()}", flush=True)
+                import pdb; pdb.set_trace()
+            if len(s_t_l_x_c10_valid) > 0 and s_t_l_x_c10_valid.max() > 2:
+                print(f"Found value greater than 2 in tif {i}: {s_t_l_x_c10_valid.max()}", flush=True)
+                import pdb; pdb.set_trace()
+        except AssertionError:
+            print(f"No valid data found for some channels in tif {i}", flush=True)
 
     import pandas as pd
 
