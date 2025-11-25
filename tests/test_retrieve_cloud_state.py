@@ -15,11 +15,13 @@ class TestRetrieveCloudState(unittest.TestCase):
         # Using https://blog.ronnyale.com/posts/2023-12-25-modis-bitstring/ for validation
 
         # TODO: add more test cases
-        test_cases = [(1131675649,"0000000000000001", (0, 0, 0))]
+        test_cases = [(1131675649, "0000000000000001", (0, 0, 0))]
 
         for integer, expected_bit, expected_state in test_cases:
             with self.subTest(state=integer):
-                bit, cloud_state, shadow_state, cirrus_state = CloudMetaDataset.map_int_to_cloud_states(integer)
+                bit, cloud_state, shadow_state, cirrus_state = (
+                    CloudMetaDataset.map_int_to_cloud_states(integer)
+                )
                 self.assertEqual((cloud_state, shadow_state, cirrus_state), expected_state)
                 self.assertEqual(bit, expected_bit)  # just to verify bit string matches
 
