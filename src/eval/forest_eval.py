@@ -36,13 +36,13 @@ class ForestMetaDataset(BaseDataset):
     @staticmethod
     def retrieve_fractional_forest_cover(worldcover_map: np.ndarray) -> float:
         """Retrieve fractional forest cover from ESA WorldCover map
-        Forest classes are 40 (Tree cover) and 50 (Shrubland)
+        Forest classes are 10 (Tree cover) and 20 (Shrubland)
         """
         total_pixels = worldcover_map.size
         # TODO: remove check later
         assert total_pixels == 100*100, "Expected worldcover map to be 100x100 pixels"
         forest_pixels = np.sum(
-            (worldcover_map == 40) | (worldcover_map == 50)
+            (worldcover_map == 10) | (worldcover_map == 20)
         )
         fractional_forest_cover = forest_pixels / total_pixels
         return fractional_forest_cover
