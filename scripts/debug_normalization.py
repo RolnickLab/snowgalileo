@@ -90,6 +90,101 @@ if __name__ == "__main__":
         st_x_c1_valid = st_x[..., 1][valid_data_mask_st[..., 1].astype(bool)]
         st_x_c2_valid = st_x[..., 2][valid_data_mask_st[..., 2].astype(bool)]
 
+        # collect per-channel values to plot distributions later
+        stats.append(
+            {
+                "tif": i,
+                "s_t_h_x_c1_mean": s_t_h_x_c1_valid.mean() if len(s_t_h_x_c1_valid) > 0 else np.nan,
+                "s_t_h_x_c2_mean": s_t_h_x_c2_valid.mean() if len(s_t_h_x_c2_valid) > 0 else np.nan,
+                "s_t_h_x_c3_mean": s_t_h_x_c3_valid.mean() if len(s_t_h_x_c3_valid) > 0 else np.nan,
+                "s_t_h_x_c4_mean": s_t_h_x_c4_valid.mean() if len(s_t_h_x_c4_valid) > 0 else np.nan,
+                "s_t_h_x_c5_mean": s_t_h_x_c5_valid.mean() if len(s_t_h_x_c5_valid) > 0 else np.nan,
+                "s_t_h_x_c6_mean": s_t_h_x_c6_valid.mean() if len(s_t_h_x_c6_valid) > 0 else np.nan,
+                "s_t_h_x_c7_mean": s_t_h_x_c7_valid.mean() if len(s_t_h_x_c7_valid) > 0 else np.nan,
+                "s_t_h_x_c8_mean": s_t_h_x_c8_valid.mean() if len(s_t_h_x_c8_valid) > 0 else np.nan,
+                "s_t_h_x_c9_mean": s_t_h_x_c9_valid.mean() if len(s_t_h_x_c9_valid) > 0 else np.nan,
+                "s_t_h_x_c10_mean": s_t_h_x_c10_valid.mean() if len(s_t_h_x_c10_valid) > 0 else np.nan,
+                "s_t_h_x_c11_mean": s_t_h_x_c11_valid.mean() if len(s_t_h_x_c11_valid) > 0 else np.nan,
+                "s_t_h_x_c12_mean": s_t_h_x_c12_valid.mean() if len(s_t_h_x_c12_valid) > 0 else np.nan,
+                "s_t_h_x_c13_mean": s_t_h_x_c13_valid.mean() if len(s_t_h_x_c13_valid) > 0 else np.nan,
+                "s_t_h_x_c14_mean": s_t_h_x_c14_valid.mean() if len(s_t_h_x_c14_valid) > 0 else np.nan,
+                "s_t_m_x_c0_mean": s_t_m_x_c0_valid.mean() if len(s_t_m_x_c0_valid) > 0 else np.nan,
+                "s_t_m_x_c1_mean": s_t_m_x_c1_valid.mean() if len(s_t_m_x_c1_valid) > 0 else np.nan,
+                "s_t_l_x_c0_mean": s_t_l_x_c0_valid.mean() if len(s_t_l_x_c0_valid) > 0 else np.nan,
+                "s_t_l_x_c1_mean": s_t_l_x_c1_valid.mean() if len(s_t_l_x_c1_valid) > 0 else np.nan,
+                "s_t_l_x_c2_mean": s_t_l_x_c2_valid.mean() if len(s_t_l_x_c2_valid) > 0 else np.nan,
+                "s_t_l_x_c3_mean": s_t_l_x_c3_valid.mean() if len(s_t_l_x_c3_valid) > 0 else np.nan,
+                "s_t_l_x_c4_mean": s_t_l_x_c4_valid.mean() if len(s_t_l_x_c4_valid) > 0 else np.nan,
+                "s_t_l_x_c5_mean": s_t_l_x_c5_valid.mean() if len(s_t_l_x_c5_valid) > 0 else np.nan,
+                "s_t_l_x_c6_mean": s_t_l_x_c6_valid.mean() if len(s_t_l_x_c6_valid) > 0 else np.nan,
+                "s_t_l_x_c7_mean": s_t_l_x_c7_valid.mean() if len(s_t_l_x_c7_valid) > 0 else np.nan,
+                "s_t_l_x_c8_mean": s_t_l_x_c8_valid.mean() if len(s_t_l_x_c8_valid) > 0 else np.nan,
+                "s_t_l_x_c9_mean": s_t_l_x_c9_valid.mean() if len(s_t_l_x_c9_valid) > 0 else np.nan,
+                "s_t_l_x_c10_mean": s_t_l_x_c10_valid.mean() if len(s_t_l_x_c10_valid) > 0 else np.nan,
+                "sp_x_c0_mean": sp_x_c0_valid.mean() if len(sp_x_c0_valid) > 0 else np.nan,
+                "sp_x_c1_mean": sp_x_c1_valid.mean() if len(sp_x_c1_valid) > 0 else np.nan,
+                "sp_x_c2_mean": sp_x_c2_valid.mean() if len(sp_x_c2_valid) > 0 else np.nan,
+                "sp_x_c3_mean": sp_x_c3_valid.mean() if len(sp_x_c3_valid) > 0 else np.nan,
+                "t_x_c0_mean": t_x_c0_valid.mean() if len(t_x_c0_valid) > 0 else np.nan,
+                "t_x_c1_mean": t_x_c1_valid.mean() if len(t_x_c1_valid) > 0 else np.nan,
+                "t_x_c2_mean": t_x_c2_valid.mean() if len(t_x_c2_valid) > 0 else np.nan,
+                "t_x_c3_mean": t_x_c3_valid.mean() if len(t_x_c3_valid) > 0 else np.nan,
+                "t_x_c4_mean": t_x_c4_valid.mean() if len(t_x_c4_valid) > 0 else np.nan,
+                "t_x_c5_mean": t_x_c5_valid.mean() if len(t_x_c5_valid) > 0 else np.nan,
+                "t_x_c6_mean": t_x_c6_valid.mean() if len(t_x_c6_valid) > 0 else np.nan,
+                "t_x_c7_mean": t_x_c7_valid.mean() if len(t_x_c7_valid) > 0 else np.nan,
+                "t_x_c8_mean": t_x_c8_valid.mean() if len(t_x_c8_valid) > 0 else np.nan,
+                "st_x_c0_mean": st_x_c0_valid.mean() if len(st_x_c0_valid) > 0 else np.nan,
+                "st_x_c1_mean": st_x_c1_valid.mean() if len(st_x_c1_valid) > 0 else np.nan,
+                "st_x_c2_mean": st_x_c2_valid.mean() if len(st_x_c2_valid) > 0 else np.nan,
+                "s_t_h_x_c1_std": s_t_h_x_c1_valid.std() if len(s_t_h_x_c1_valid) > 0 else np.nan,
+                "s_t_h_x_c2_std": s_t_h_x_c2_valid.std() if len(s_t_h_x_c2_valid) > 0 else np.nan,
+                "s_t_h_x_c3_std": s_t_h_x_c3_valid.std() if len(s_t_h_x_c3_valid) > 0 else np.nan,
+                "s_t_h_x_c4_std": s_t_h_x_c4_valid.std() if len(s_t_h_x_c4_valid) > 0 else np.nan,
+                "s_t_h_x_c5_std": s_t_h_x_c5_valid.std() if len(s_t_h_x_c5_valid) > 0 else np.nan,
+                "s_t_h_x_c6_std": s_t_h_x_c6_valid.std() if len(s_t_h_x_c6_valid) > 0 else np.nan,
+                "s_t_h_x_c7_std": s_t_h_x_c7_valid.std() if len(s_t_h_x_c7_valid) > 0 else np.nan,
+                "s_t_h_x_c8_std": s_t_h_x_c8_valid.std() if len(s_t_h_x_c8_valid) > 0 else np.nan,
+                "s_t_h_x_c9_std": s_t_h_x_c9_valid.std() if len(s_t_h_x_c9_valid) > 0 else np.nan,
+                "s_t_h_x_c10_std": s_t_h_x_c10_valid.std() if len(s_t_h_x_c10_valid) > 0 else np.nan,
+                "s_t_h_x_c11_std": s_t_h_x_c11_valid.std() if len(s_t_h_x_c11_valid) > 0 else np.nan,
+                "s_t_h_x_c12_std": s_t_h_x_c12_valid.std() if len(s_t_h_x_c12_valid) > 0 else np.nan,
+                "s_t_h_x_c13_std": s_t_h_x_c13_valid.std() if len(s_t_h_x_c13_valid) > 0 else np.nan,
+                "s_t_h_x_c14_std": s_t_h_x_c14_valid.std() if len(s_t_h_x_c14_valid) > 0 else np.nan,
+                "s_t_m_x_c0_std": s_t_m_x_c0_valid.std() if len(s_t_m_x_c0_valid) > 0 else np.nan,
+                "s_t_m_x_c1_std": s_t_m_x_c1_valid.std() if len(s_t_m_x_c1_valid) > 0 else np.nan,
+                "s_t_l_x_c0_std": s_t_l_x_c0_valid.std() if len(s_t_l_x_c0_valid) > 0 else np.nan,
+                "s_t_l_x_c1_std": s_t_l_x_c1_valid.std() if len(s_t_l_x_c1_valid) > 0 else np.nan,
+                "s_t_l_x_c2_std": s_t_l_x_c2_valid.std() if len(s_t_l_x_c2_valid) > 0 else np.nan,
+                "s_t_l_x_c3_std": s_t_l_x_c3_valid.std() if len(s_t_l_x_c3_valid) > 0 else np.nan,
+                "s_t_l_x_c4_std": s_t_l_x_c4_valid.std() if len(s_t_l_x_c4_valid) > 0 else np.nan,
+                "s_t_l_x_c5_std": s_t_l_x_c5_valid.std() if len(s_t_l_x_c5_valid) > 0 else np.nan,
+                "s_t_l_x_c6_std": s_t_l_x_c6_valid.std() if len(s_t_l_x_c6_valid) > 0 else np.nan,
+                "s_t_l_x_c7_std": s_t_l_x_c7_valid.std() if len(s_t_l_x_c7_valid) > 0 else np.nan,
+                "s_t_l_x_c8_std": s_t_l_x_c8_valid.std() if len(s_t_l_x_c8_valid) > 0 else np.nan,
+                "s_t_l_x_c9_std": s_t_l_x_c9_valid.std() if len(s_t_l_x_c9_valid) > 0 else np.nan,
+                "s_t_l_x_c10_std": s_t_l_x_c10_valid.std() if len(s_t_l_x_c10_valid) > 0 else np.nan,
+                "sp_x_c0_std": sp_x_c0_valid.std() if len(sp_x_c0_valid) > 0 else np.nan,
+                "sp_x_c1_std": sp_x_c1_valid.std() if len(sp_x_c1_valid) > 0 else np.nan,
+                "sp_x_c2_std": sp_x_c2_valid.std() if len(sp_x_c2_valid) > 0 else np.nan,
+                "sp_x_c3_std": sp_x_c3_valid.std() if len(sp_x_c3_valid) > 0 else np.nan,
+                "t_x_c0_std": t_x_c0_valid.std() if len(t_x_c0_valid) > 0 else np.nan,
+                "t_x_c1_std": t_x_c1_valid.std() if len(t_x_c1_valid) > 0 else np.nan,
+                "t_x_c2_std": t_x_c2_valid.std() if len(t_x_c2_valid) > 0 else np.nan,
+                "t_x_c3_std": t_x_c3_valid.std() if len(t_x_c3_valid) > 0 else np.nan,
+                "t_x_c4_std": t_x_c4_valid.std() if len(t_x_c4_valid) > 0 else np.nan,
+                "t_x_c5_std": t_x_c5_valid.std() if len(t_x_c5_valid) > 0 else np.nan,
+                "t_x_c6_std": t_x_c6_valid.std() if len(t_x_c6_valid) > 0 else np.nan,
+                "t_x_c7_std": t_x_c7_valid.std() if len(t_x_c7_valid) > 0 else np.nan,
+                "t_x_c8_std": t_x_c8_valid.std() if len(t_x_c8_valid) > 0 else np.nan,
+                "st_x_c0_std": st_x_c0_valid.std() if len(st_x_c0_valid) > 0 else np.nan,
+                "st_x_c1_std": st_x_c1_valid.std() if len(st_x_c1_valid) > 0 else np.nan,
+                "st_x_c2_std": st_x_c2_valid.std() if len(st_x_c2_valid) > 0 else np.nan,
+            }
+        )
+
+
+        """
         stats.append(
             {
                 "tif": i,
@@ -217,8 +312,9 @@ if __name__ == "__main__":
                 import pdb; pdb.set_trace()
         except AssertionError:
             print(f"No valid data found for some channels in tif {i}", flush=True)
-
+    """
+            
     import pandas as pd
 
     df = pd.DataFrame(stats)
-    df.to_csv("data_stats_min_max_new.csv", index=False)
+    df.to_csv("data_stats_mean_std_new.csv", index=False)
