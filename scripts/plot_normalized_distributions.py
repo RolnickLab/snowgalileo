@@ -50,6 +50,8 @@ if __name__ == "__main__":
 
 
     for i, batch in enumerate(dataloader):
+        if i == 10:
+            break
         (
             s_t_h_x,
             s_t_m_x,
