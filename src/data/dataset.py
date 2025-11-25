@@ -36,6 +36,8 @@ from src.data.config import (
     NUM_MED_RES_PIXELS_PER_DIM,
     NUM_TIMESTEPS,
     TIFS_FOLDER,
+    NDSI_VALID_DATA_BOUNDS,
+    NDVI_VALID_DATA_BOUNDS,
 )
 from src.data.earthengine.eo import (
     CLOUD_BANDS,
@@ -151,20 +153,6 @@ class Normalizer:
         # we don't want to normalize the no data values to be able to identify them later
         assert np.all(x[valid_data_mask] != NO_DATA_VALUE)
         x_normalized = np.where(valid_data_mask, (x - shift_values) / div_values, NO_DATA_VALUE)
-
-        try:
-            if x_normalized.shape[-1] == 15:
-                print("Checking HR", flush=True) 
-                if x_normalized[...,6][valid_data_mask[...,6].astype(bool)].max() > 3:
-                    print("maximum is greater than 3")
-                    import pdb; pdb.set_trace()
-            if x_normalized.shape[-1] == 15:
-                print("Checking HR", flush=True) 
-                if x_normalized[...,7][valid_data_mask[...,7].astype(bool)].max() > 3:
-                    print("minimum is greater than 3")
-                    import pdb; pdb.set_trace()
-        except Exception:
-            print("Skipping")
 
         return x_normalized
 
@@ -842,9 +830,16 @@ class Dataset(PyTorchDataset):
             target_shape=(NUM_LOW_RES_PIXELS_PER_DIM, NUM_LOW_RES_PIXELS_PER_DIM),
         )
 
+        # workaround: mask NDSI and NDVI where values are out of bounds
+        # TODO: fix a better way (e.g., clipping) and find the root cause
+        valid_data_mask_s_t_l[..., -2] &= (
+            space_time_low_res_x[..., -2] >= NDSI_VALID_DATA_BOUNDS[0]
+        ) & (space_time_low_res_x[..., -2] <= NDSI_VALID_DATA_BOUNDS[1])
+        valid_data_mask_s_t_l[..., -1] &= (
+            space_time_low_res_x[..., -1] >= NDVI_VALID_DATA_BOUNDS[0]
+        ) & (space_time_low_res_x[..., -1] <= NDVI_VALID_DATA_BOUNDS[1])
+
         try:
-            assert space_time_low_res_x[...,-2].min() >= -1 and space_time_low_res_x[...,-2].max() <= 1, f"NDSI values out of range for {tif_path}"
-            assert space_time_low_res_x[...,-1].min() >= -1 and space_time_low_res_x[...,-1].max() <= 1, f"NDVI values out of range for {tif_path}"
             assert not np.isnan(space_time_high_res_x).any(), f"NaNs in s_t_h_x for {tif_path}"
             assert not np.isnan(space_time_med_res_x).any(), f"NaNs in s_t_m_x for {tif_path}"
             assert not np.isnan(space_time_low_res_x).any(), f"NaNs in s_t_l_x for {tif_path}"

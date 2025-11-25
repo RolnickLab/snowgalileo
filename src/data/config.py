@@ -39,6 +39,9 @@ NUM_HIGH_RES_PIXELS_PER_DIM = EXPORTED_HEIGHT_WIDTH_METRES // DATASET_OUTPUT_HW_
 NUM_MED_RES_PIXELS_PER_DIM = EXPORTED_HEIGHT_WIDTH_METRES // DATASET_OUTPUT_HW_MED_RES
 NUM_LOW_RES_PIXELS_PER_DIM = EXPORTED_HEIGHT_WIDTH_METRES // DATASET_OUTPUT_HW_LOW_RES
 
+NDSI_VALID_DATA_BOUNDS = (-1, 1)
+NDVI_VALID_DATA_BOUNDS = (-1, 1)
+
 # the idea is that for exporting different data, we will only have to change this dictionary in the end
 # i.e., sort the modalities into different shape_types, add / remove satellite modalities
 # for using / not using modalities, the "active" flag should get used
@@ -279,8 +282,8 @@ CHANNEL_WISE_INVALID_DATA_THRESHOLDS: Dict[str, Dict] = {
         6: -100,  # MODIS
         7: -0.01,  # VIIRS
         8: -0.01,  # VIIRS
-        9: -5,  # NDSI
-        10: -5,  # NDVI
+        9: -1,  # NDSI
+        10: -1,  # NDVI
     },
     "sp_x": {
         0: -500,  # elevation
