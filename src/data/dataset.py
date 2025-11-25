@@ -153,15 +153,15 @@ class Normalizer:
         x_normalized = np.where(valid_data_mask, (x - shift_values) / div_values, NO_DATA_VALUE)
 
         try:
-            if x_normalized.shape[-1] == 11:
-                print("Checking NDSI", flush=True) 
-                if x_normalized[...,-2][valid_data_mask[...,-2].astype(bool)].min() < -1:
-                    print("minimum is smaller than -1")
+            if x_normalized.shape[-1] == 15:
+                print("Checking HR", flush=True) 
+                if x_normalized[...,6][valid_data_mask[...,6].astype(bool)].max() > 3:
+                    print("maximum is greater than 3")
                     import pdb; pdb.set_trace()
-            if x_normalized.shape[-1] == 11:
-                print("Checking NDVI", flush=True) 
-                if x_normalized[...,-1][valid_data_mask[...,-1].astype(bool)].min() < -1:
-                    print("minimum is smaller than -1")
+            if x_normalized.shape[-1] == 15:
+                print("Checking HR", flush=True) 
+                if x_normalized[...,7][valid_data_mask[...,7].astype(bool)].max() > 3:
+                    print("minimum is greater than 3")
                     import pdb; pdb.set_trace()
         except Exception:
             print("Skipping")
