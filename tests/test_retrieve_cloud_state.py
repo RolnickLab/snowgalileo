@@ -12,16 +12,16 @@ class TestRetrieveCloudState(unittest.TestCase):
     def test_map_int_to_cloud_states(self):
         # Test cases: (input_integer_state, qa_bit_state, expected_output)
         # Output mapping: 0 -> clear, 1 -> cloudy
-        # Expected values are retrieved with https://gis.stackexchange.com/questions/349371/creating-cloud-free-images-out-of-a-mod09a1-modis-image-in-gee/349401#349401
+        # Using https://blog.ronnyale.com/posts/2023-12-25-modis-bitstring/ for validation
 
-        # TODO: add more test cases and test the binary string as well
-        test_cases = [(8210, (1, 0, 0)), (1048, (0, 0, 0))]
+        # TODO: add more test cases
+        test_cases = [(1131675649,"0000000000000001", (0, 0, 0))]
 
-        for integer, expected_state in test_cases:
+        for integer, expected_bit, expected_state in test_cases:
             with self.subTest(state=integer):
-                _, state = CloudMetaDataset.map_int_to_cloud_states(integer)
-                self.assertEqual(state, expected_state)
-                # self.assertEqual(bit, expected_bit)  # just to verify bit string matches
+                bit, cloud_state, shadow_state, cirrus_state = CloudMetaDataset.map_int_to_cloud_states(integer)
+                self.assertEqual((cloud_state, shadow_state, cirrus_state), expected_state)
+                self.assertEqual(bit, expected_bit)  # just to verify bit string matches
 
     def test_end_to_end(self):
         # checks that the number of clear days matches the inverse of cloud + shadow + cirrus days
