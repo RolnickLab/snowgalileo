@@ -13,7 +13,7 @@ from scipy import stats
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER
 from src.data.dataset import Dataset as BaseDataset
-from src.data.earthengine.eo import (
+from src.data.earthengine.eo_eval import (
     EO_ALL_DYNAMIC_IN_TIME_BANDS,
     EO_ALL_DYNAMIC_IN_TIME_BANDS_NP,
     NUM_TIMESTEPS,
