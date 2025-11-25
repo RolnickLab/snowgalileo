@@ -1,7 +1,6 @@
 import os
-import re
 from pathlib import Path
-from typing import Dict, cast
+from typing import Dict, Union, cast
 
 import numpy as np
 import psutil
@@ -48,7 +47,7 @@ class CloudMetaDataset(BaseDataset):
 
         # mapping 0: clear, 1: cloudy, 2: mixed
         # 00 clear, 01 cloudy, 10 mixed, 11 clear
-        cloud_state = qa_bin[:2]  # first two bits
+        cloud_state: Union[bool, str] = qa_bin[:2]  # first two bits
         if cloud_state == "00":
             cloud_state = False
         elif cloud_state == "01":
@@ -59,14 +58,14 @@ class CloudMetaDataset(BaseDataset):
             cloud_state = False
 
         # 0: no cloud shadow, 1: cloud shadow
-        cloud_shadow = qa_bin[2]
+        cloud_shadow: Union[bool, str] = qa_bin[2]
         if cloud_shadow == "0":
             cloud_shadow = False
         else:
             cloud_shadow = True
 
         # 00: none, 01: small, 10: average, 11: high
-        cirrus_detected = qa_bin[8:10]
+        cirrus_detected: Union[bool, str] = qa_bin[8:10]
         if cirrus_detected == "00":
             cirrus = False
         if cirrus_detected == "01":
@@ -76,7 +75,7 @@ class CloudMetaDataset(BaseDataset):
         if cirrus_detected == "11":
             cirrus = True
 
-        internal_cloud_flag = qa_bin[10]
+        internal_cloud_flag: Union[bool, str] = qa_bin[10]
         if internal_cloud_flag == "0":
             internal_cloud_flag = False
         else:
@@ -133,7 +132,7 @@ class CloudMetaDataset(BaseDataset):
 
     def _get_cloud_states(
         self, modis_cloud_x: np.ndarray, lat: float, lon: float, cloud_state_dict: dict
-    ) -> Dict[str, int]:
+    ) -> Dict[str, Union[int, str, float]]:
         """Get the last day with cloud and total number of cloudy days from modis cloud data"""
         last_clear_day = -1
         total_clear_days = 0
@@ -144,29 +143,26 @@ class CloudMetaDataset(BaseDataset):
 
         # check if any fill values (0) are present
         if (modis_cloud_x == 0).any():
-            return cloud_state_dict.update(
+            cloud_state_dict.update(
                 {
                     "last_clear_day": -1,
                     "total_clear_days": -1,
                     "total_cloudy_days": -1,
                     "total_cloud_shadow_days": -1,
                     "total_cirrus_days": -1,
-                    "lat": np.nan,
-                    "lon": np.nan,
+                    "lat": "nan",
+                    "lon": "nan",
                     "total_days": -1,
                 }
             )
+            return cloud_state_dict
 
         # loops from beginning to end of time series, so last_clear_day is the last occurrence
         for t in range(NUM_TIMESTEPS):
             _, cloud, cloud_shadow, cirrus = self.map_int_to_cloud_states(
                 modis_cloud_x[t].astype(int).item(0)
             )
-            if (
-                not cloud
-                and not cloud_shadow
-                and not cirrus
-            ):
+            if not cloud and not cloud_shadow and not cirrus:
                 last_clear_day = t
                 total_clear_days += 1
             if cloud:
@@ -192,14 +188,15 @@ class CloudMetaDataset(BaseDataset):
         return cloud_state_dict
 
     def return_cloud_state_from_filename(self, filename: str):
-        cloud_state_dict = {"filename": filename}
+        cloud_state_dict: dict[str, Union[int, str, float]] = {"filename": filename}
 
         tif_path = Path(self.data_folder / filename)
         assert tif_path.exists(), f"File {tif_path} does not exist"
         if tif_path.suffix == ".tif":
             try:
+                modis_cloud_x, lat, lon = self._get_cloud_band_and_location(tif_path)
                 cloud_state_dict = self._get_cloud_states(
-                    *self._get_cloud_band_and_location(tif_path), cloud_state_dict
+                    modis_cloud_x, lat, lon, cloud_state_dict
                 )
                 print(f"Processed {tif_path}")
             except Exception as e:
@@ -211,8 +208,8 @@ class CloudMetaDataset(BaseDataset):
                         "total_cloudy_days": -1,
                         "total_cloud_shadow_days": -1,
                         "total_cirrus_days": -1,
-                        "lat": np.nan,
-                        "lon": np.nan,
+                        "lat": "nan",
+                        "lon": "nan",
                         "total_days": -1,
                     }
                 )

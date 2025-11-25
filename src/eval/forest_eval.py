@@ -1,22 +1,17 @@
 import os
-import re
 from pathlib import Path
-from typing import Dict, cast
+from typing import Union, cast
 
 import numpy as np
 import psutil
 import rioxarray
 import xarray as xr
 from einops import rearrange
-from scipy import stats
 
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER
 from src.data.dataset import Dataset as BaseDataset
 from src.data.earthengine.eo_eval import (
-    EO_ALL_DYNAMIC_IN_TIME_BANDS,
-    EO_ALL_DYNAMIC_IN_TIME_BANDS_NP,
-    NUM_TIMESTEPS,
     SPACE_BANDS,
 )
 from src.utils import seed_everything
@@ -40,10 +35,8 @@ class ForestMetaDataset(BaseDataset):
         """
         total_pixels = worldcover_map.size
         # TODO: remove check later
-        assert total_pixels == 100*100, "Expected worldcover map to be 100x100 pixels"
-        forest_pixels = np.sum(
-            (worldcover_map == 10) | (worldcover_map == 20)
-        )
+        assert total_pixels == 100 * 100, "Expected worldcover map to be 100x100 pixels"
+        forest_pixels = np.sum((worldcover_map == 10) | (worldcover_map == 20))
         fractional_forest_cover = forest_pixels / total_pixels
         return fractional_forest_cover
 
@@ -70,7 +63,7 @@ class ForestMetaDataset(BaseDataset):
         )
         space_x = cls._check_and_fillna(space_x, np.array(SPACE_BANDS))
 
-        worldcover_map = space_x[:, :, -1] # TODO: make this dynamic once baselines is merged
+        worldcover_map = space_x[:, :, -1]  # TODO: make this dynamic once baselines is merged
         ffc = cls.retrieve_fractional_forest_cover(worldcover_map)
 
         try:
@@ -80,9 +73,8 @@ class ForestMetaDataset(BaseDataset):
         except AssertionError as e:
             raise e
 
-
     def return_fractional_forest_cover_from_filename(self, filename: str):
-        fractional_forest_cover_dict = {"filename": filename}
+        fractional_forest_cover_dict: dict[str, Union[int, str, float]] = {"filename": filename}
 
         tif_path = Path(self.data_folder / filename)
         assert tif_path.exists(), f"File {tif_path} does not exist"
@@ -102,8 +94,8 @@ class ForestMetaDataset(BaseDataset):
                 fractional_forest_cover_dict.update(
                     {
                         "fractional_forest_cover": -1,
-                        "lat": np.nan,
-                        "lon": np.nan,
+                        "lat": "nan",
+                        "lon": "nan",
                     }
                 )
             return fractional_forest_cover_dict
