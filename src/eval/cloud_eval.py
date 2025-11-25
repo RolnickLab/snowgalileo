@@ -45,37 +45,37 @@ class CloudMetaDataset(BaseDataset):
         # 00 clear, 01 cloudy, 10 mixed, 11 clear
         cloud_state = qa_bin[:2]  # first two bits
         if cloud_state == "00":
-            cloud_state = 0
+            cloud_state = False
         elif cloud_state == "01":
-            cloud_state = 1
+            cloud_state = True
         elif cloud_state == "10":
-            cloud_state = 1
+            cloud_state = True
         elif cloud_state == "11":
-            cloud_state = 1
+            cloud_state = True
 
         # 0: no cloud shadow, 1: cloud shadow
         cloud_shadow = qa_bin[2]
         if cloud_shadow == "0":
-            cloud_shadow = 0
+            cloud_shadow = False
         else:
-            cloud_shadow = 1
+            cloud_shadow = True
 
         # 00: none, 01: small, 10: average, 11: high
         cirrus_detected = qa_bin[8:10]
         if cirrus_detected == "00":
-            cirrus = 0
+            cirrus = False
         if cirrus_detected == "01":
-            cirrus = 0
+            cirrus = False
         if cirrus_detected == "10":
-            cirrus = 0
+            cirrus = False
         if cirrus_detected == "11":
-            cirrus = 1
+            cirrus = True
 
         internal_cloud_flag = qa_bin[10]
         if internal_cloud_flag == "0":
-            internal_cloud_flag = 0
+            internal_cloud_flag = False
         else:
-            internal_cloud_flag = 1
+            internal_cloud_flag = True
 
         return qa_bin, (cloud_state or internal_cloud_flag), cloud_shadow, cirrus
 
@@ -142,17 +142,17 @@ class CloudMetaDataset(BaseDataset):
                 modis_cloud_x[t].astype(int).item(0)
             )
             if (
-                not cloud.astype(bool)
-                and not cloud_shadow.astype(bool)
-                and not cirrus.astype(bool)
+                not cloud
+                and not cloud_shadow
+                and not cirrus
             ):
                 last_clear_day = t
                 total_clear_days += 1
-            if cloud.astype(bool) == 1:
+            if cloud:
                 total_cloudy_days += 1
-            if cloud_shadow.astype(bool) == 1:
+            if cloud_shadow:
                 total_cloud_shadow_days += 1
-            if cirrus.astype(bool) == 1:
+            if cirrus:
                 total_cirrus_days += 1
 
         cloud_state_dict.update(
