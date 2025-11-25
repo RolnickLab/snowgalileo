@@ -137,6 +137,7 @@ class CloudMetaDataset(BaseDataset):
         total_cloudy_days = 0
         total_cloud_shadow_days = 0
         total_cirrus_days = 0
+        total_days = 0
         for t in range(NUM_TIMESTEPS):
             _, cloud, cloud_shadow, cirrus = self.map_int_to_cloud_states(
                 modis_cloud_x[t].astype(int).item(0)
@@ -154,6 +155,7 @@ class CloudMetaDataset(BaseDataset):
                 total_cloud_shadow_days += 1
             if cirrus:
                 total_cirrus_days += 1
+            total_days += 1
 
         cloud_state_dict.update(
             {
@@ -164,6 +166,7 @@ class CloudMetaDataset(BaseDataset):
                 "total_cirrus_days": total_cirrus_days,
                 "lat": lat,
                 "lon": lon,
+                "total_days": total_days,
             }
         )
         return cloud_state_dict
@@ -190,6 +193,7 @@ class CloudMetaDataset(BaseDataset):
                         "total_cirrus_days": -1,
                         "lat": np.nan,
                         "lon": np.nan,
+                        "total_days": -1,
                     }
                 )
             return cloud_state_dict
