@@ -99,7 +99,7 @@ class CloudMetaDataset(BaseDataset):
             lat = float(parts[3])
             lon = float(parts[4])
 
-        # hacky assert that will get triggered once the baselines branch is merged
+        # NOTE: hacky assert that will get triggered once the baselines branch is merged
         assert len(SPACE_BANDS) == 4, "Expected 4 space bands for space bands"
 
         num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(EO_ALL_DYNAMIC_IN_TIME_BANDS)
@@ -222,6 +222,8 @@ class CloudMetaDataset(BaseDataset):
 
 
 if __name__ == "__main__":
+    # NOTE: for testing purposes, remove later
+
     # test by getting cloud states for 1000 samples in tif folder
     tifs_folder = DATA_FOLDER / "landsat_eval_tifs/patches_UTM_5_95_cropped/test"
     cloud_dataset = CloudMetaDataset(data_folder=tifs_folder)
