@@ -38,7 +38,12 @@ class CloudMetaDataset(BaseDataset):
         """Retrieve cloud state from MODIS QA state integer
         Returns if there is cloud, cloud shadow, cirrus detected
         """
-        # qa state translation from: https://lpdaac.usgs.gov/documents/306/MOD09_User_Guide_V6.pdf
+        # fill value by MODIS is 0
+        if state == 0:
+            assert False, "Fill value encountered in MODIS QA state"
+
+        # qa state translation from Table 13 in https://lpdaac.usgs.gov/documents/306/MOD09_User_Guide_V6.pdf
+        # 16-bit unsigned integer, bit 0 is LSB
         qa_bin = format(state, ">016b")
 
         # mapping 0: clear, 1: cloudy, 2: mixed
@@ -51,7 +56,7 @@ class CloudMetaDataset(BaseDataset):
         elif cloud_state == "10":
             cloud_state = True
         elif cloud_state == "11":
-            cloud_state = True
+            cloud_state = False
 
         # 0: no cloud shadow, 1: cloud shadow
         cloud_shadow = qa_bin[2]
@@ -65,9 +70,9 @@ class CloudMetaDataset(BaseDataset):
         if cirrus_detected == "00":
             cirrus = False
         if cirrus_detected == "01":
-            cirrus = False
+            cirrus = True
         if cirrus_detected == "10":
-            cirrus = False
+            cirrus = True
         if cirrus_detected == "11":
             cirrus = True
 
@@ -90,14 +95,12 @@ class CloudMetaDataset(BaseDataset):
             values = cast(np.ndarray, data.values)
 
             # extract lat, lon in EPSG:4326 from tif_path
-            lat_pattern = r"lat=(.*?)_"
-            lon_pattern = r"lon=(.*?)_"
-            lat = float(
-                np.mean([float(value) for value in re.findall(lat_pattern, str(tif_path))])
-            )
-            lon = float(
-                np.mean([float(value) for value in re.findall(lon_pattern, str(tif_path))])
-            )
+            parts = tif_path.stem.split("_")
+            lat = float(parts[3])
+            lon = float(parts[4])
+
+        # hacky assert that will get triggered once the baselines branch is merged
+        assert len(SPACE_BANDS) == 4, "Expected 4 space bands for space bands"
 
         num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(EO_ALL_DYNAMIC_IN_TIME_BANDS)
         assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
@@ -116,7 +119,7 @@ class CloudMetaDataset(BaseDataset):
             :,
             :,
             :,
-            -3:-2,
+            -4:-3,
         ]
         # get the mode cloud value for each image
         modis_cloud_x = stats.mode(modis_cloud_x, axis=(0, 1))[0]
@@ -138,6 +141,23 @@ class CloudMetaDataset(BaseDataset):
         total_cloud_shadow_days = 0
         total_cirrus_days = 0
         total_days = 0
+
+        # check if any fill values (0) are present
+        if (modis_cloud_x == 0).any():
+            return cloud_state_dict.update(
+                {
+                    "last_clear_day": -1,
+                    "total_clear_days": -1,
+                    "total_cloudy_days": -1,
+                    "total_cloud_shadow_days": -1,
+                    "total_cirrus_days": -1,
+                    "lat": np.nan,
+                    "lon": np.nan,
+                    "total_days": -1,
+                }
+            )
+
+        # loops from beginning to end of time series, so last_clear_day is the last occurrence
         for t in range(NUM_TIMESTEPS):
             _, cloud, cloud_shadow, cirrus = self.map_int_to_cloud_states(
                 modis_cloud_x[t].astype(int).item(0)
@@ -203,7 +223,7 @@ class CloudMetaDataset(BaseDataset):
 
 if __name__ == "__main__":
     # test by getting cloud states for 1000 samples in tif folder
-    tifs_folder = DATA_FOLDER / "tifs_all_bands"
+    tifs_folder = DATA_FOLDER / "landsat_eval_tifs/patches_UTM_5_95_cropped/test"
     cloud_dataset = CloudMetaDataset(data_folder=tifs_folder)
     num_samples = 1000
 

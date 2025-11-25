@@ -13,7 +13,6 @@ from src.utils import device
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/tifs"
 
-
 class TestEndtoEnd(unittest.TestCase):
     def test_end_to_end(self):
         self._test_end_to_end()
