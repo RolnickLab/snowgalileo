@@ -38,10 +38,11 @@ if __name__ == "__main__":
             sp_x,
             t_x,
             st_x,
+            months,
             s_t_h_m,
             s_t_m_m,
             s_t_l_m,
             sp_m,
             t_m,
-            st_m,
+            st_m
         ) = batch
