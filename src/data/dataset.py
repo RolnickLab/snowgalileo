@@ -1065,9 +1065,9 @@ class Dataset(PyTorchDataset):
         band_1_np = input_array[:, :, :, SPACE_TIME_LOW_RES_BANDS.index(band_1)]
         band_2_np = input_array[:, :, :, SPACE_TIME_LOW_RES_BANDS.index(band_2)]
 
-        if (band_1_np == -9999.0.any()) | (band_2_np == -9999.0.any()):
+        if (band_1_np == -9999.0).any() | (band_2_np == -9999.0).any():
             raise ValueError("Input array contains no data values (-9999.0)")
-        if (band_1_np == -28672.0.any()) | (band_2_np == -28672.0.any()):
+        if (band_1_np == -28672.0).any() | (band_2_np == -28672.0).any():
             raise ValueError("Input array contains no fill values (-28672.0)")
 
         with warnings.catch_warnings():
