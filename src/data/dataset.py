@@ -1092,7 +1092,7 @@ class Dataset(PyTorchDataset):
             # since this is handled in the where condition
             return np.expand_dims(
                 np.where(
-                    (band_1_np + band_2_np) > 0 and not invalid,
+                    ((band_1_np + band_2_np) > 0) & (~invalid),
                     (band_1_np - band_2_np) / (band_1_np + band_2_np),
                     NO_DATA_VALUE,
                 ),
