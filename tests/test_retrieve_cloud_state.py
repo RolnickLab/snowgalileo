@@ -43,4 +43,4 @@ class TestRetrieveCloudState(unittest.TestCase):
                 total_clear,
                 total_days - (total_cloudy + total_shadow + total_cirrus),
             )
-            self.assertEqual(total_days, NUM_TIMESTEPS)
+            self.assertEqual(total_days, NUM_TIMESTEPS-1)  # last timestep excluded

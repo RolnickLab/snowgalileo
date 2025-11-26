@@ -157,8 +157,9 @@ class CloudMetaDataset(BaseDataset):
             )
             return cloud_state_dict
 
-        # loops from beginning to end of time series, so last_clear_day is the last occurrence
-        for t in range(NUM_TIMESTEPS):
+        # loops through time series, so last_clear_day is the last occurrence
+        # we exclude the last timestep from the analysis as in the case of Landsat, it will always be clear
+        for t in range(NUM_TIMESTEPS - 1):
             _, cloud, cloud_shadow, cirrus = self.map_int_to_cloud_states(
                 modis_cloud_x[t].astype(int).item(0)
             )
