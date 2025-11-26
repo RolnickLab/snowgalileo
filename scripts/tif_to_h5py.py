@@ -1,18 +1,13 @@
-from src.data.config import DATA_FOLDER, NORMALIZATION_DICT_FILENAME
-from src.utils import config_dir
-from src.data.dataset import Dataset, Normalizer
-import numpy as np
-from pathlib import Path
 import argparse
-from torch.utils.data import DataLoader
+from pathlib import Path
+
+import numpy as np
+
+from src.data.dataset import Dataset
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument(
-    "--h5py_folder", type=str, default="data/h5pys_pretrain"
-)
-argparser.add_argument(
-    "--tif_folder", type=str, default="data/tifs_all_bands"
-)
+argparser.add_argument("--h5py_folder", type=str, default="data/h5pys_pretrain")
+argparser.add_argument("--tif_folder", type=str, default="data/tifs_all_bands")
 
 args = argparser.parse_args().__dict__
 
@@ -41,7 +36,7 @@ if __name__ == "__main__":
             s_t_l_m,
             sp_m,
             t_m,
-            st_m
+            st_m,
         ) = dataset[i]
 
         ndvi = s_t_l_x[..., -1][s_t_l_m[..., -1].astype(bool)]
@@ -52,4 +47,4 @@ if __name__ == "__main__":
 
     print(f"Total NDVI out of bounds count: {ndvi_out_of_bounds_count}")
     print(f"Total NDSI out of bounds count: {ndsi_out_of_bounds_count}")
-    print(f"Total possible NDSI / NDVI values: {len(dataset)*4*8}")
+    print(f"Total possible NDSI / NDVI values: {len(dataset) * 4 * 8}")

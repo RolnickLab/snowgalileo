@@ -1,30 +1,28 @@
-from src.data.config import DATA_FOLDER, NORMALIZATION_DICT_FILENAME
-from src.utils import config_dir
-from src.data.dataset import Dataset, Normalizer
-import numpy as np
-from pathlib import Path
 import argparse
-from torch.utils.data import DataLoader
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import seaborn as sns
-import pandas as pd
+from torch.utils.data import DataLoader
+
+from src.data.config import NORMALIZATION_DICT_FILENAME
+from src.data.dataset import Dataset, Normalizer
+from src.utils import config_dir
+
 
 def plot_distribution(data, channel_idx, channel_name, filename):
     plt.figure(figsize=(10, 6))
     sns.histplot(data.numpy().flatten(), bins=100, kde=True)
-    plt.title(f'Distribution of {channel_name} (Channel {channel_idx})')
-    plt.xlabel('Value')
-    plt.ylabel('Frequency')
+    plt.title(f"Distribution of {channel_name} (Channel {channel_idx})")
+    plt.xlabel("Value")
+    plt.ylabel("Frequency")
     plt.savefig(Path("assets") / filename)
     plt.close()
 
+
 argparser = argparse.ArgumentParser()
-argparser.add_argument(
-    "--h5py_folder", type=str, default="data/h5pys_pretrain"
-)
-argparser.add_argument(
-    "--tif_folder", type=str, default="data/tifs_all_bands"
-)
+argparser.add_argument("--h5py_folder", type=str, default="data/h5pys_pretrain")
+argparser.add_argument("--tif_folder", type=str, default="data/tifs_all_bands")
 
 args = argparser.parse_args().__dict__
 
@@ -43,11 +41,7 @@ if __name__ == "__main__":
     normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
     dataset.normalizer = normalizer
 
-    dataloader = DataLoader(dataset, 
-                            batch_size=1000, 
-                            shuffle=False, 
-                            num_workers=4)
-
+    dataloader = DataLoader(dataset, batch_size=1000, shuffle=False, num_workers=4)
 
     for i, batch in enumerate(dataloader):
         if i == 10:
@@ -65,9 +59,8 @@ if __name__ == "__main__":
             valid_data_mask_s_t_l,
             valid_data_mask_sp,
             valid_data_mask_t,
-            valid_data_mask_st
+            valid_data_mask_st,
         ) = batch
-
 
         s_t_h_x_c0_valid = s_t_h_x[..., 0][valid_data_mask_s_t_h[..., 0].bool()]
         s_t_h_x_c1_valid = s_t_h_x[..., 1][valid_data_mask_s_t_h[..., 1].bool()]
@@ -131,40 +124,150 @@ if __name__ == "__main__":
 
         # plot per channel distribution and save to file
         channel_names = {
-            "s_t_h_x": ["S1 VV", "S1 VH", "S1 angle", "S2 B2", "S2 B3", "S2 B4", "S2 B8", "S2 B11", "S2 B12", "Landsat B2", "Landsat B3", "Landsat B4", "Landsat B5", "Landsat B6", "Landsat B7"],
+            "s_t_h_x": [
+                "S1 VV",
+                "S1 VH",
+                "S1 angle",
+                "S2 B2",
+                "S2 B3",
+                "S2 B4",
+                "S2 B8",
+                "S2 B11",
+                "S2 B12",
+                "Landsat B2",
+                "Landsat B3",
+                "Landsat B4",
+                "Landsat B5",
+                "Landsat B6",
+                "Landsat B7",
+            ],
             "s_t_m_x": ["S3 Band 1", "S3 Band 2"],
-            "s_t_l_x": ["MODIS Band 1", "MODIS Band 2", "MODIS Band 3", "MODIS Band 4", "MODIS Band 5", "MODIS Band 6", "MODIS Band 7", "VIIRS Band 1", "VIIRS Band 2", "NDSI", "NDVI"]
+            "s_t_l_x": [
+                "MODIS Band 1",
+                "MODIS Band 2",
+                "MODIS Band 3",
+                "MODIS Band 4",
+                "MODIS Band 5",
+                "MODIS Band 6",
+                "MODIS Band 7",
+                "VIIRS Band 1",
+                "VIIRS Band 2",
+                "NDSI",
+                "NDVI",
+            ],
         }
-        for idx, (data, channel_name) in enumerate(zip(
-            [s_t_h_x_c0_valid, s_t_h_x_c1_valid, s_t_h_x_c2_valid, s_t_h_x_c3_valid, s_t_h_x_c4_valid,
-             s_t_h_x_c5_valid, s_t_h_x_c6_valid, s_t_h_x_c7_valid, s_t_h_x_c8_valid, s_t_h_x_c9_valid,
-             s_t_h_x_c10_valid, s_t_h_x_c11_valid, s_t_h_x_c12_valid, s_t_h_x_c13_valid, s_t_h_x_c14_valid,
-             s_t_m_x_c0_valid, s_t_m_x_c1_valid,
-             s_t_l_x_c0_valid, s_t_l_x_c1_valid, s_t_l_x_c2_valid, s_t_l_x_c3_valid, s_t_l_x_c4_valid,
-             s_t_l_x_c5_valid, s_t_l_x_c6_valid, s_t_l_x_c7_valid, s_t_l_x_c8_valid, s_t_l_x_c9_valid,
-             s_t_l_x_c10_valid],
-            channel_names["s_t_h_x"] + channel_names["s_t_m_x"] + channel_names["s_t_l_x"]
-        )):
-            plot_distribution(data, idx, channel_name, f"{channel_name.replace(' ', '_')}_distribution.png")
+        for idx, (data, channel_name) in enumerate(
+            zip(
+                [
+                    s_t_h_x_c0_valid,
+                    s_t_h_x_c1_valid,
+                    s_t_h_x_c2_valid,
+                    s_t_h_x_c3_valid,
+                    s_t_h_x_c4_valid,
+                    s_t_h_x_c5_valid,
+                    s_t_h_x_c6_valid,
+                    s_t_h_x_c7_valid,
+                    s_t_h_x_c8_valid,
+                    s_t_h_x_c9_valid,
+                    s_t_h_x_c10_valid,
+                    s_t_h_x_c11_valid,
+                    s_t_h_x_c12_valid,
+                    s_t_h_x_c13_valid,
+                    s_t_h_x_c14_valid,
+                    s_t_m_x_c0_valid,
+                    s_t_m_x_c1_valid,
+                    s_t_l_x_c0_valid,
+                    s_t_l_x_c1_valid,
+                    s_t_l_x_c2_valid,
+                    s_t_l_x_c3_valid,
+                    s_t_l_x_c4_valid,
+                    s_t_l_x_c5_valid,
+                    s_t_l_x_c6_valid,
+                    s_t_l_x_c7_valid,
+                    s_t_l_x_c8_valid,
+                    s_t_l_x_c9_valid,
+                    s_t_l_x_c10_valid,
+                ],
+                channel_names["s_t_h_x"] + channel_names["s_t_m_x"] + channel_names["s_t_l_x"],
+            )
+        ):
+            plot_distribution(
+                data, idx, channel_name, f"{channel_name.replace(' ', '_')}_distribution.png"
+            )
 
-        for idx, (data, channel_name) in enumerate(zip(
-            [sp_x_c0_valid, sp_x_c1_valid, sp_x_c2_valid, sp_x_c3_valid, sp_x_c4_valid,
-             sp_x_c5_valid, sp_x_c6_valid, sp_x_c7_valid, sp_x_c8_valid, sp_x_c9_valid,
-             sp_x_c10_valid, sp_x_c11_valid, sp_x_c12_valid, sp_x_c13_valid],
-            ["elevation", "slope", "aspect", "WC Var 1", "WC Var 2", "WC Var 3", "WC Var 4", "WC Var 5", "WC Var 6", "WC Var 7", "WC Var 8", "WC Var 9", "WC Var 10", "WC Var 11"]
-        )):
-            plot_distribution(data, idx, channel_name, f"{channel_name.replace(' ', '_')}_distribution.png")
+        for idx, (data, channel_name) in enumerate(
+            zip(
+                [
+                    sp_x_c0_valid,
+                    sp_x_c1_valid,
+                    sp_x_c2_valid,
+                    sp_x_c3_valid,
+                    sp_x_c4_valid,
+                    sp_x_c5_valid,
+                    sp_x_c6_valid,
+                    sp_x_c7_valid,
+                    sp_x_c8_valid,
+                    sp_x_c9_valid,
+                    sp_x_c10_valid,
+                    sp_x_c11_valid,
+                    sp_x_c12_valid,
+                    sp_x_c13_valid,
+                ],
+                [
+                    "elevation",
+                    "slope",
+                    "aspect",
+                    "WC Var 1",
+                    "WC Var 2",
+                    "WC Var 3",
+                    "WC Var 4",
+                    "WC Var 5",
+                    "WC Var 6",
+                    "WC Var 7",
+                    "WC Var 8",
+                    "WC Var 9",
+                    "WC Var 10",
+                    "WC Var 11",
+                ],
+            )
+        ):
+            plot_distribution(
+                data, idx, channel_name, f"{channel_name.replace(' ', '_')}_distribution.png"
+            )
 
-        for idx, (data, channel_name) in enumerate(zip(
-            [t_x_c0_valid, t_x_c1_valid, t_x_c2_valid, t_x_c3_valid,
-             t_x_c4_valid, t_x_c5_valid, t_x_c6_valid, t_x_c7_valid, t_x_c8_valid],
-            ["VIIRS Band 3", "VIIRS Band 4", "VIIRS Band 5", "VIIRS Band 6",
-             "ERA5 Var 1", "ERA5 Var 2", "ERA5 Var 3", "ERA5 Var 4", "ERA5 Var 5"]
-        )):
-            plot_distribution(data, idx, channel_name, f"{channel_name.replace(' ', '_')}_distribution.png")
+        for idx, (data, channel_name) in enumerate(
+            zip(
+                [
+                    t_x_c0_valid,
+                    t_x_c1_valid,
+                    t_x_c2_valid,
+                    t_x_c3_valid,
+                    t_x_c4_valid,
+                    t_x_c5_valid,
+                    t_x_c6_valid,
+                    t_x_c7_valid,
+                    t_x_c8_valid,
+                ],
+                [
+                    "VIIRS Band 3",
+                    "VIIRS Band 4",
+                    "VIIRS Band 5",
+                    "VIIRS Band 6",
+                    "ERA5 Var 1",
+                    "ERA5 Var 2",
+                    "ERA5 Var 3",
+                    "ERA5 Var 4",
+                    "ERA5 Var 5",
+                ],
+            )
+        ):
+            plot_distribution(
+                data, idx, channel_name, f"{channel_name.replace(' ', '_')}_distribution.png"
+            )
 
-        for idx, (data, channel_name) in enumerate(zip(
-            [st_x_c0_valid, st_x_c1_valid, st_x_c2_valid],
-            ["x", "y", "z"]
-        )):
-            plot_distribution(data, idx, channel_name, f"{channel_name.replace(' ', '_')}_distribution.png")
+        for idx, (data, channel_name) in enumerate(
+            zip([st_x_c0_valid, st_x_c1_valid, st_x_c2_valid], ["x", "y", "z"])
+        ):
+            plot_distribution(
+                data, idx, channel_name, f"{channel_name.replace(' ', '_')}_distribution.png"
+            )

@@ -31,21 +31,24 @@ from src.data.config import (
     EE_FOLDER_H5PYS,
     EE_FOLDER_TIFS,
     MODALITIES,
+    MODIS_FILL_VALUE,
+    NDSI_VALID_DATA_BOUNDS,
+    NDVI_VALID_DATA_BOUNDS,
     NO_DATA_VALUE,
     NUM_LOW_RES_PIXELS_PER_DIM,
     NUM_MED_RES_PIXELS_PER_DIM,
     NUM_TIMESTEPS,
     TIFS_FOLDER,
-    NDSI_VALID_DATA_BOUNDS,
-    NDVI_VALID_DATA_BOUNDS,
-    MODIS_FILL_VALUE,
 )
 from src.data.earthengine.eo import (
     CLOUD_BANDS,
+    DEM_BANDS,
+    EE_SPACE_BANDS,
+    EE_WC_BANDS,
     EO_ALL_DYNAMIC_IN_TIME_BANDS,
     EO_ALL_DYNAMIC_IN_TIME_BANDS_NP,
     EO_SPACE_TIME_LOW_RES_BANDS,
-    EE_SPACE_BANDS,
+    ESA_WORLDCOVER_BAND_INDEX,
     SPACE_BANDS,
     SPACE_DIV_VALUES_NP,
     SPACE_SHIFT_VALUES_NP,
@@ -64,12 +67,8 @@ from src.data.earthengine.eo import (
     TIME_BANDS,
     TIME_DIV_VALUES_NP,
     TIME_SHIFT_VALUES_NP,
-    DEM_BANDS,
-    EE_WC_BANDS,
-    ESA_WORLDCOVER_BAND_INDEX,
-    
 )
-from src.data.earthengine.esa_worldcover import WC_CLASS_VALUES, NUM_WC_CLASSES
+from src.data.earthengine.esa_worldcover import NUM_WC_CLASSES, WC_CLASS_VALUES
 from src.data.utils import RunningStats
 
 logger = logging.getLogger("__main__")
@@ -161,9 +160,16 @@ class Normalizer:
         if self.normalizing_dicts is not None:
             if array_type not in self.normalizing_dicts:
                 raise ValueError(f"Unknown array type: {array_type}")
-            return self._normalize(x, valid_data_mask, self.shift_div_dict[array_type]["shift"], self.shift_div_dict[array_type]["div"])
+            return self._normalize(
+                x,
+                valid_data_mask,
+                self.shift_div_dict[array_type]["shift"],
+                self.shift_div_dict[array_type]["div"],
+            )
         else:
-            raise NotImplementedError("Only normalization with precomputed mean/std is implemented.")
+            raise NotImplementedError(
+                "Only normalization with precomputed mean/std is implemented."
+            )
 
 
 class StackedDatasetOutput(NamedTuple):
@@ -515,11 +521,13 @@ class Dataset(PyTorchDataset):
             static_x,
             months[start_t : start_t + num_timesteps],
         )
-    
+
     @staticmethod
     def one_hot_encode_esa_worldcover(data: np.ndarray) -> np.ndarray:
         """One-hot encode the ESA Worldcover band, so that each class has its own channel."""
-        assert np.all(np.isin(data, WC_CLASS_VALUES)), "ESA Worldcover data contains unexpected class values."
+        assert np.all(np.isin(data, WC_CLASS_VALUES)), (
+            "ESA Worldcover data contains unexpected class values."
+        )
         # Map class values to indices 0-10
         data = np.array([WC_CLASS_VALUES.index(val) for val in data.flatten()]).reshape(data.shape)
         h, w = data.shape
@@ -759,6 +767,9 @@ class Dataset(PyTorchDataset):
                 space_time_low_res_x, band_1="sur_refl_b04", band_2="sur_refl_b06"
             )
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndsi), axis=-1)
+            assert (ndsi != MODIS_FILL_VALUE).any(), (
+                f"MODIS fill values encountered in NDSI for {tif_path}"
+            )
 
         # NDVI = (NIR - Red) / (NIR + Red)
         if MODALITIES["ndvi"].get("active"):
@@ -766,7 +777,10 @@ class Dataset(PyTorchDataset):
                 space_time_low_res_x, band_1="sur_refl_b02", band_2="sur_refl_b01"
             )
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndvi), axis=-1)
-        
+            assert (ndvi != MODIS_FILL_VALUE).any(), (
+                f"MODIS fill values encountered in NDVI for {tif_path}"
+            )
+
         space_x = rearrange(
             values[-len(EE_SPACE_BANDS) :],
             "c h w -> h w c",
@@ -774,11 +788,9 @@ class Dataset(PyTorchDataset):
         space_x = cls._check_and_fillna(space_x, np.array(EE_SPACE_BANDS))
 
         # one-hot encode ESA Worldcover band
-        esa_wc = cls.one_hot_encode_esa_worldcover(
-            space_x[:, :, ESA_WORLDCOVER_BAND_INDEX]
-        )
-        space_x = np.concatenate((space_x[:, :, :(-len(EE_WC_BANDS))], esa_wc), axis=-1)
-        
+        esa_wc = cls.one_hot_encode_esa_worldcover(space_x[:, :, ESA_WORLDCOVER_BAND_INDEX])
+        space_x = np.concatenate((space_x[:, :, : (-len(EE_WC_BANDS))], esa_wc), axis=-1)
+
         static_x = to_cartesian(lat, lon)
         static_x = cls._check_and_fillna(static_x, np.array(STATIC_BANDS))
 
@@ -1065,7 +1077,12 @@ class Dataset(PyTorchDataset):
         band_1_np = input_array[:, :, :, SPACE_TIME_LOW_RES_BANDS.index(band_1)]
         band_2_np = input_array[:, :, :, SPACE_TIME_LOW_RES_BANDS.index(band_2)]
 
-        invalid = (band_1_np == NO_DATA_VALUE) | (band_1_np == MODIS_FILL_VALUE) | (band_2_np == NO_DATA_VALUE) | (band_2_np == MODIS_FILL_VALUE)
+        invalid = (
+            (band_1_np == NO_DATA_VALUE)
+            | (band_1_np == MODIS_FILL_VALUE)
+            | (band_2_np == NO_DATA_VALUE)
+            | (band_2_np == MODIS_FILL_VALUE)
+        )
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message="invalid value encountered in divide")

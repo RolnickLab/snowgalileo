@@ -40,10 +40,10 @@ from src.data.earthengine.era5 import (
     get_single_era5_image,
 )
 from src.data.earthengine.esa_worldcover import (
-    WC_BANDS_NAMES,
     EE_WC_BANDS,
     EE_WC_DIV_VALUES,
     EE_WC_SHIFT_VALUES,
+    WC_BANDS_NAMES,
     get_single_ee_wc_image,
 )
 from src.data.earthengine.landsat import (
@@ -251,8 +251,8 @@ EO_ALL_DYNAMIC_IN_TIME_BANDS_NP = np.array(EO_ALL_DYNAMIC_IN_TIME_BANDS)
 SPACE_BANDS = DEM_BANDS + WC_BANDS_NAMES
 
 # hacky, but we need to reduce one shift/div value because we already had one for the "Map" band
-SPACE_SHIFT_VALUES_NP = np.append(SPACE_SHIFT_VALUES_NP, [0] * (len(WC_BANDS_NAMES) -1))
-SPACE_DIV_VALUES_NP = np.append(SPACE_DIV_VALUES_NP, [1] * (len(WC_BANDS_NAMES) -1))
+SPACE_SHIFT_VALUES_NP = np.append(SPACE_SHIFT_VALUES_NP, [0] * (len(WC_BANDS_NAMES) - 1))
+SPACE_DIV_VALUES_NP = np.append(SPACE_DIV_VALUES_NP, [1] * (len(WC_BANDS_NAMES) - 1))
 
 # index of the ESA Worldcover band in the SPACE_BANDS list, needed for one-hot encoding
 ESA_WORLDCOVER_BAND_INDEX = EE_SPACE_BANDS.index("Map")

@@ -41,9 +41,12 @@ from src.data.config import (
 from src.data.dataset import DatasetOutput, Normalizer, to_cartesian
 from src.data.earthengine.eo_eval import (
     CLOUD_BANDS,
+    EE_SPACE_BANDS,
+    EE_WC_BANDS,
     EO_ALL_DYNAMIC_IN_TIME_BANDS,
     EO_ALL_DYNAMIC_IN_TIME_BANDS_NP,
     EO_SPACE_TIME_LOW_RES_BANDS,
+    ESA_WORLDCOVER_BAND_INDEX,
     SPACE_BAND_GROUPS_IDX,
     SPACE_BANDS,
     SPACE_TIME_HIGH_RES_BANDS,
@@ -56,12 +59,8 @@ from src.data.earthengine.eo_eval import (
     STATIC_BANDS,
     TIME_BANDS,
     TIME_BANDS_GROUPS_IDX,
-    ESA_WORLDCOVER_BAND_INDEX,
-    EE_SPACE_BANDS,
-    EE_WC_BANDS,
-    ESA_WORLDCOVER_BAND_INDEX,
 )
-from src.data.earthengine.esa_worldcover import WC_CLASS_VALUES, NUM_WC_CLASSES
+from src.data.earthengine.esa_worldcover import NUM_WC_CLASSES, WC_CLASS_VALUES
 from src.eval.eval import EvalTask, model_class_name
 from src.eval.patch_predict import EncoderWithHead, get_finetune_results
 from src.masking import _aggregate_mask_per_channel_group
@@ -225,18 +224,20 @@ class LandsatEvalDataset(PyTorchDataset):
             valid_mask_t,
             valid_mask_st,
         )
-    
+
     @staticmethod
     def one_hot_encode_esa_worldcover(data: np.ndarray) -> np.ndarray:
         """One-hot encode the ESA Worldcover band, so that each class has its own channel."""
-        assert np.all(np.isin(data, WC_CLASS_VALUES)), "ESA Worldcover data contains unexpected class values."
+        assert np.all(np.isin(data, WC_CLASS_VALUES)), (
+            "ESA Worldcover data contains unexpected class values."
+        )
         # Map class values to indices 0-10
         data = np.array([WC_CLASS_VALUES.index(val) for val in data.flatten()]).reshape(data.shape)
         h, w = data.shape
         one_hot_encoded = np.zeros((h, w, NUM_WC_CLASSES), dtype=data.dtype)
         for class_idx in range(NUM_WC_CLASSES):
             one_hot_encoded[:, :, class_idx] = (data == class_idx).astype(data.dtype)
-        return one_hot_encoded    
+        return one_hot_encoded
 
     @staticmethod
     def _check_and_fillna(data: np.ndarray, bands_np: np.ndarray) -> np.ndarray:
@@ -427,10 +428,8 @@ class LandsatEvalDataset(PyTorchDataset):
         space_x = cls._check_and_fillna(space_x, np.array(EE_SPACE_BANDS))
 
         # one-hot encode ESA Worldcover band
-        esa_wc = cls.one_hot_encode_esa_worldcover(
-            space_x[:, :, ESA_WORLDCOVER_BAND_INDEX]
-        )
-        space_x = np.concatenate((space_x[:, :, :(-len(EE_WC_BANDS))], esa_wc), axis=-1)
+        esa_wc = cls.one_hot_encode_esa_worldcover(space_x[:, :, ESA_WORLDCOVER_BAND_INDEX])
+        space_x = np.concatenate((space_x[:, :, : (-len(EE_WC_BANDS))], esa_wc), axis=-1)
 
         static_x = to_cartesian(lat, lon)
         static_x = cls._check_and_fillna(static_x, np.array(STATIC_BANDS))

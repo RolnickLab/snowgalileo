@@ -14,15 +14,15 @@ from sklearn.metrics import r2_score, root_mean_squared_error
 from sklearn.neural_network import MLPRegressor
 from sklearn.svm import SVR
 from torch.utils.data import DataLoader
-from src.utils import config_dir
-from src.data.config import NORMALIZATION_DICT_FILENAME
 
 from src.config import DEFAULT_SEED
+from src.data.config import NORMALIZATION_DICT_FILENAME
 from src.data.dataset import Normalizer
 from src.data.earthengine.eo_eval import (
     SPACE_TIME_HIGH_RES_BANDS,
 )
 from src.eval.landsat_eval import LandsatEval, LandsatEvalDataset, masked_output_np_to_tensor
+from src.utils import config_dir
 
 
 class LandsatEvalDatasetSklearn(LandsatEvalDataset):
@@ -566,7 +566,6 @@ class LandsatEvalSklearn(LandsatEval):
         save_results: bool = False,
         normalization: str = "std",
     ) -> Dict[str, float]:
-        
         assert normalization in ["std", ""], f"Unknown normalization {normalization}"
 
         if hyperparameters == {}:
