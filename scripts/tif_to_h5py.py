@@ -24,13 +24,10 @@ if __name__ == "__main__":
         h5pys_only=False,
     )
 
-    dataloader = DataLoader(dataset, 
-                            batch_size=1, 
-                            shuffle=False, 
-                            num_workers=4)
+    ndvi_out_of_bounds_count = 0
+    ndsi_out_of_bounds_count = 0
 
-
-    for i, batch in enumerate(dataloader):
+    for i in range(len(dataset)):
         (
             s_t_h_x,
             s_t_m_x,
@@ -45,4 +42,14 @@ if __name__ == "__main__":
             sp_m,
             t_m,
             st_m
-        ) = batch
+        ) = dataset[i]
+
+        ndvi = s_t_l_x[..., -1][s_t_l_m[..., -1].astype(bool)]
+        ndsi = s_t_l_x[..., -2][s_t_l_m[..., -2].astype(bool)]
+
+        ndvi_out_of_bounds_count += np.sum((ndvi < -1) | (ndvi > 1))
+        ndsi_out_of_bounds_count += np.sum((ndsi < -1) | (ndsi > 1))
+
+    print(f"Total NDVI out of bounds count: {ndvi_out_of_bounds_count}")
+    print(f"Total NDSI out of bounds count: {ndsi_out_of_bounds_count}")
+    print(f"Total possible NDSI / NDVI values: {len(dataset)*4*8}")

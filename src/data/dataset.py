@@ -38,6 +38,7 @@ from src.data.config import (
     TIFS_FOLDER,
     NDSI_VALID_DATA_BOUNDS,
     NDVI_VALID_DATA_BOUNDS,
+    MODIS_FILL_VALUE,
 )
 from src.data.earthengine.eo import (
     CLOUD_BANDS,
@@ -1058,17 +1059,13 @@ class Dataset(PyTorchDataset):
         (band_1 - band_2) / (band_1 + band_2)
         """
 
-        # TODO: make this dynamic instead
-        assert band_1 in SPACE_TIME_LOW_RES_BANDS
-        assert band_2 in SPACE_TIME_LOW_RES_BANDS
+        for b in [band_1, band_2]:
+            assert b in SPACE_TIME_LOW_RES_BANDS
 
         band_1_np = input_array[:, :, :, SPACE_TIME_LOW_RES_BANDS.index(band_1)]
         band_2_np = input_array[:, :, :, SPACE_TIME_LOW_RES_BANDS.index(band_2)]
 
-        if (band_1_np == -9999.0).any() | (band_2_np == -9999.0).any():
-            raise ValueError("Input array contains no data values (-9999.0)")
-        if (band_1_np == -28672.0).any() | (band_2_np == -28672.0).any():
-            raise ValueError("Input array contains no fill values (-28672.0)")
+        invalid = (band_1_np == NO_DATA_VALUE) | (band_1_np == MODIS_FILL_VALUE) | (band_2_np == NO_DATA_VALUE) | (band_2_np == MODIS_FILL_VALUE)
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message="invalid value encountered in divide")
@@ -1078,9 +1075,9 @@ class Dataset(PyTorchDataset):
             # since this is handled in the where condition
             return np.expand_dims(
                 np.where(
-                    (band_1_np + band_2_np) > 0,
+                    (band_1_np + band_2_np) > 0 and not invalid,
                     (band_1_np - band_2_np) / (band_1_np + band_2_np),
-                    0,
+                    NO_DATA_VALUE,
                 ),
                 -1,
             )
