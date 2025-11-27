@@ -831,7 +831,6 @@ class Dataset(PyTorchDataset):
         )
 
         # for downsampling, the arrays need to be in divisible shape so we do it after cropping
-        # this is also why we use target shape (5, 5) for medium resolution
         space_time_med_res_x, valid_data_mask_s_t_m = cls.downsample_dynamic_in_time_with_mean(
             space_time_med_res_x,
             valid_data_mask_s_t_m,
@@ -842,15 +841,6 @@ class Dataset(PyTorchDataset):
             valid_data_mask_s_t_l,
             target_shape=(NUM_LOW_RES_PIXELS_PER_DIM, NUM_LOW_RES_PIXELS_PER_DIM),
         )
-
-        # workaround: mask NDSI and NDVI where values are out of bounds
-        # TODO: fix a better way (e.g., clipping) and find the root cause
-        valid_data_mask_s_t_l[..., -2] &= (
-            space_time_low_res_x[..., -2] >= NDSI_VALID_DATA_BOUNDS[0]
-        ) & (space_time_low_res_x[..., -2] <= NDSI_VALID_DATA_BOUNDS[1])
-        valid_data_mask_s_t_l[..., -1] &= (
-            space_time_low_res_x[..., -1] >= NDVI_VALID_DATA_BOUNDS[0]
-        ) & (space_time_low_res_x[..., -1] <= NDVI_VALID_DATA_BOUNDS[1])
 
         try:
             assert not np.isnan(space_time_high_res_x).any(), f"NaNs in s_t_h_x for {tif_path}"
