@@ -22,7 +22,7 @@ def plot_distribution(data, channel_idx, channel_name, filename):
 
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument("--h5py_folder", type=str, default="data/h5pys_pretrain")
+argparser.add_argument("--h5py_folder", type=str, default="data/h5pys_pretrain_new_new")
 argparser.add_argument("--tif_folder", type=str, default="data/tifs_all_bands")
 
 args = argparser.parse_args().__dict__
@@ -32,7 +32,7 @@ if __name__ == "__main__":
         data_folder=Path(args["tif_folder"]),
         download=False,
         h5py_folder=Path(args["h5py_folder"]),
-        h5pys_only=True,
+        h5pys_only=False,
     )
 
     normalizing_dict = dataset.load_normalization_values(
@@ -195,6 +195,13 @@ if __name__ == "__main__":
             plot_distribution(
                 data, idx, channel_name, f"{channel_name.replace(' ', '_')}_distribution.png"
             )
+
+        # print the number of values that are below -1 or above 1 for NDSI and NDVI
+        ndsi_out_of_bounds = torch.sum((s_t_l_x_c9_valid < -1) | (s_t_l_x_c9_valid > 1)).item()
+        ndvi_out_of_bounds = torch.sum((s_t_l_x_c10_valid < -1) | (s_t_l_x_c10_valid > 1)).item()
+        print(f"NDSI out of bounds count: {ndsi_out_of_bounds}")
+        print(f"NDVI out of bounds count: {ndvi_out_of_bounds}")
+        print(f"Total possible NDSI / NDVI values in this batch: {s_t_l_x_c9_valid.numel()}")
 
         for idx, (data, channel_name) in enumerate(
             zip(
