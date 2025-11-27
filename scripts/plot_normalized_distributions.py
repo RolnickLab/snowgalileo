@@ -1,5 +1,6 @@
 import argparse
 from pathlib import Path
+import torch
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -234,6 +235,11 @@ if __name__ == "__main__":
             plot_distribution(
                 data, idx, channel_name, f"{channel_name.replace(' ', '_')}_distribution.png"
             )
+        
+        # print unique values count for aspect channel
+        aspect_unique_values = torch.unique(sp_x_c2_valid, return_counts=True)
+        print(f"Aspect unique values and counts: {aspect_unique_values}")
+
 
         for idx, (data, channel_name) in enumerate(
             zip(
