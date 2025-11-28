@@ -770,6 +770,9 @@ class Dataset(PyTorchDataset):
             assert (ndsi != MODIS_FILL_VALUE).any(), (
                 f"MODIS fill values encountered in NDSI for {tif_path}"
             )
+            assert ((ndsi >= -1) & (ndsi <= 1)).all(), (
+                f"NDSI values out of bounds [-1, 1] for {tif_path}"
+            )
 
         # NDVI = (NIR - Red) / (NIR + Red)
         if MODALITIES["ndvi"].get("active"):
@@ -779,6 +782,9 @@ class Dataset(PyTorchDataset):
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndvi), axis=-1)
             assert (ndvi != MODIS_FILL_VALUE).any(), (
                 f"MODIS fill values encountered in NDVI for {tif_path}"
+            )
+            assert ((ndvi >= -1) & (ndvi <= 1)).all(), (
+                f"NDVI values out of bounds [-1, 1] for {tif_path}"
             )
 
         space_x = rearrange(
@@ -1080,7 +1086,7 @@ class Dataset(PyTorchDataset):
             # RuntimeWarning: invalid value encountered in divide
             # for cases where near_infrared + red == 0
             # since this is handled in the where condition
-            return np.expand_dims(
+            ndi = np.expand_dims(
                 np.where(
                     ((band_1_np + band_2_np) > 0) & (~invalid),
                     (band_1_np - band_2_np) / (band_1_np + band_2_np),
@@ -1088,6 +1094,10 @@ class Dataset(PyTorchDataset):
                 ),
                 -1,
             )
+        # when the input bands have different signs, NDI can be outside [-1, 1]
+        # set values outside valid range to NO_DATA_VALUE (will be masked out later)
+        ndi[(ndi < -1) | (ndi > 1)] = NO_DATA_VALUE
+        return ndi
 
     def read_and_slice_h5py_file(self, h5py_path: Path):
         with h5py.File(h5py_path, "r") as hf:

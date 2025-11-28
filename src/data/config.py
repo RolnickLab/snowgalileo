@@ -253,9 +253,9 @@ EVAL_MODALITIES: Dict[str, Dict[str, Any]] = {
 # TODO: this is a bit hard-coded; empirically identified lower bound thresholds (inclusive) to avoid outliers in the input data
 CHANNEL_WISE_INVALID_DATA_THRESHOLDS: Dict[str, Dict] = {
     "s_t_h_x": {
-        0: -50,  # S1 VV
-        1: -50,  # S1 VH
-        2: 0,  # S1 angle
+        0: -50,  # S1 VV: expected min as specific by GEE band ranges
+        1: -50,  # S1 VH: expected min as specific by GEE band ranges
+        2: 0,  # S1 angle: expected min as specific by GEE band ranges
         3: -2000,  # S2 B2
         4: -2000,  # S2 B3
         5: -2000,  # S2 B4
@@ -270,27 +270,27 @@ CHANNEL_WISE_INVALID_DATA_THRESHOLDS: Dict[str, Dict] = {
         14: -2000,  # Landsat B7
     },
     "s_t_m_x": {
-        0: -1000,  # S3
-        1: -1000,  # S3
+        0: -1000,  # S3 (empirically identified)
+        1: -1000,  # S3 (empirically identified)
     },
     "s_t_l_x": {
-        0: -100,  # MODIS
+        0: -100,  # MODIS: min as specific by GEE band ranges, masks out fill value -28672
         1: -100,  # MODIS
         2: -100,  # MODIS
         3: -100,  # MODIS
         4: -100,  # MODIS
         5: -100,  # MODIS
         6: -100,  # MODIS
-        7: -0.01,  # VIIRS
+        7: -0.01,  # VIIRS: min as specific by GEE band ranges, masks out fill value -28672
         8: -0.01,  # VIIRS
-        9: -1,  # NDSI
-        10: -1,  # NDVI
+        9: -1,  # NDSI lower bound
+        10: -1,  # NDVI lower bound
     },
     "sp_x": {
         0: -500,  # elevation
         1: 0,  # slope
         2: 0,  # aspect
-        3: 0,  # WC Map
+        3: 0,  # WC Map (one-hot encoded channels below)
         4: 0,
         5: 0,
         6: 0,
@@ -303,15 +303,15 @@ CHANNEL_WISE_INVALID_DATA_THRESHOLDS: Dict[str, Dict] = {
         13: 0,
     },
     "t_x": {
-        0: -0.01,  # VIIRS
+        0: -0.01,  # VIIRS: min as specific by GEE band ranges, masks out fill value -28672
         1: -0.01,  # VIIRS
         2: -0.01,  # VIIRS
         3: -0.01,  # VIIRS
-        4: 200,  # ERA5 temperature in Kelvin
-        5: 200,  # ERA5 temperature in Kelvin
-        6: -10,  # ERA5
-        7: -10,  # ERA5
-        8: -10,  # ERA5
+        4: 0,  # ERA5 temperature in Kelvin
+        5: 0,  # ERA5 temperature in Kelvin
+        6: -10,  # ERA5 precipitation
+        7: -53,  # ERA5 wind component u https://confluence.ecmwf.int/display/CKB/ERA5%3A+large+10m+winds
+        8: -53,  # ERA5 wind component v
     },
     "st_x": {
         0: -1,  # x
