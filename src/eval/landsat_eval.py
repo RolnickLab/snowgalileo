@@ -127,7 +127,7 @@ class LandsatEvalDataset(BaseDataset):
             except IndexError:
                 warnings.warn(f"IndexError for label {tif}")
 
-        assert len(self.input_tifs) == len(self.label_tifs), (
+        assert len(self.tifs) == len(self.label_tifs), (
             "Number of input tifs and label tifs do not match."
         )
 
@@ -523,8 +523,8 @@ class LandsatEvalDataset(BaseDataset):
 
         # if assertion is triggered, go to the next tif file
         try:
-            assert self.input_tifs[idx].name == self.label_tifs[idx].name, (
-                f"Input path {self.input_tifs[idx].name} and label path {self.label_tifs[idx].name} do not match."
+            assert self.tifs[idx].name == self.label_tifs[idx].name, (
+                f"Input path {self.tifs[idx].name} and label path {self.label_tifs[idx].name} do not match."
             )
         except AssertionError:
             print(
