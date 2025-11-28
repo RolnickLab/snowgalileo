@@ -44,7 +44,7 @@ class TestMasking(unittest.TestCase):
         )
         # we assume this is space_time_med_res (i.e., three channels, no time dimension)
         result_test1 = LandsatEvalSklearn.replace_masked_data_with_aggregate(
-            data_test1, torch.where(torch.isnan(data_test1), 1, 0), array_type="space_time_med_res"
+            data_test1, torch.where(torch.isnan(data_test1), 1, 0), array_type="space_time_med_res", normalizing_dict=self.normalizing_dict
         )
 
         self.assertTrue(torch.equal(result_test1, expected_test1))
