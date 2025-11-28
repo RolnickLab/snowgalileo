@@ -57,13 +57,13 @@ class PlottingDataset(BaseDataset):
         if self.h5pys_only:
             h5pys = self.read_and_slice_h5py_file(self.h5pys[idx])
             if self.normalizer is None:
-                return h5pys, self.input_tifs[idx].name
-            return h5pys.normalize(self.normalizer), self.input_tifs[idx].name
+                return h5pys, self.tifs[idx].name
+            return h5pys.normalize(self.normalizer), self.tifs[idx].name
         else:
             h5py = self.load_tif(idx)
             if self.normalizer is None:
-                return h5py, self.input_tifs[idx].name
-            return h5py.normalize(self.normalizer), self.input_tifs[idx].name
+                return h5py, self.tifs[idx].name
+            return h5py.normalize(self.normalizer), self.tifs[idx].name
 
 
 argparser = argparse.ArgumentParser()
