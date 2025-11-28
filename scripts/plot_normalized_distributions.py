@@ -7,9 +7,16 @@ import seaborn as sns
 from torch.utils.data import DataLoader
 
 from src.data.config import NORMALIZATION_DICT_FILENAME
-from src.data.dataset import Dataset, Normalizer
+from src.data.dataset import Dataset as BaseDataset
+from src.data.dataset import Normalizer
 from src.utils import config_dir
-
+from typing import Optional
+from src.data.config import (
+    DATASET_OUTPUT_HW_HIGH_RES,
+    DATASET_OUTPUT_HW_MED_RES,
+    DATASET_OUTPUT_HW_LOW_RES,
+    NUM_TIMESTEPS,
+)
 
 def plot_distribution(data, channel_idx, channel_name, filename):
     plt.figure(figsize=(10, 6))
@@ -21,31 +28,71 @@ def plot_distribution(data, channel_idx, channel_name, filename):
     plt.close()
 
 
+class PlottingDataset(BaseDataset):
+    def __init__(
+        self,
+        data_folder: Path,
+        download: bool = True,
+        h5py_folder: Optional[Path] = None,
+        h5pys_only: bool = False,
+        output_hw_high_res: int = DATASET_OUTPUT_HW_HIGH_RES,
+        output_hw_med_res: int = DATASET_OUTPUT_HW_MED_RES,
+        output_hw_low_res: int = DATASET_OUTPUT_HW_LOW_RES,
+        output_timesteps: int = NUM_TIMESTEPS,
+        normalizer: Optional[Normalizer] = None,
+    ):
+        super().__init__(
+            data_folder,
+            download,
+            h5py_folder,
+            h5pys_only,
+            output_hw_high_res,
+            output_hw_med_res,
+            output_hw_low_res,
+            output_timesteps,
+            normalizer,
+        )
+
+    def __getitem__(self, idx):
+        if self.h5pys_only:
+            h5pys = self.read_and_slice_h5py_file(self.h5pys[idx])
+            if self.normalizer is None:
+                return h5pys, self.input_tifs[idx].name
+            return h5pys.normalize(self.normalizer), self.input_tifs[idx].name
+        else:
+            h5py = self.load_tif(idx)
+            if self.normalizer is None:
+                return h5py, self.input_tifs[idx].name
+            return h5py.normalize(self.normalizer), self.input_tifs[idx].name
+
+
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--h5py_folder", type=str, default="data/h5pys_pretrain_new_new")
 argparser.add_argument("--tif_folder", type=str, default="data/tifs_all_bands")
+argparser.add_argument("--normalize", action="store_true", help="Whether to normalize the data")
 
 args = argparser.parse_args().__dict__
 
 if __name__ == "__main__":
-    dataset = Dataset(
+    dataset = PlottingDataset(
         data_folder=Path(args["tif_folder"]),
         download=False,
         h5py_folder=Path(args["h5py_folder"]),
         h5pys_only=False,
     )
 
-    normalizing_dict = dataset.load_normalization_values(
-        path=config_dir / NORMALIZATION_DICT_FILENAME
-    )
-    print(normalizing_dict, flush=True)
-    normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
-    dataset.normalizer = normalizer
+    if args["normalize"]:
+        normalizing_dict = dataset.load_normalization_values(
+                path=config_dir / NORMALIZATION_DICT_FILENAME
+            )
+        print(normalizing_dict, flush=True)
+        normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+        dataset.normalizer = normalizer
 
     dataloader = DataLoader(dataset, batch_size=1000, shuffle=False, num_workers=4)
 
     for i, batch in enumerate(dataloader):
-        if i == 10:
+        if i == 2:
             break
         (
             s_t_h_x,
@@ -61,7 +108,7 @@ if __name__ == "__main__":
             valid_data_mask_sp,
             valid_data_mask_t,
             valid_data_mask_st,
-        ) = batch
+        ), name = batch
 
         s_t_h_x_c0_valid = s_t_h_x[..., 0][valid_data_mask_s_t_h[..., 0].bool()]
         s_t_h_x_c1_valid = s_t_h_x[..., 1][valid_data_mask_s_t_h[..., 1].bool()]
@@ -196,6 +243,18 @@ if __name__ == "__main__":
                 data, idx, channel_name, f"{channel_name.replace(' ', '_')}_distribution.png"
             )
 
+        # for debugging purposes, if S1 VH contains zero values, print how many
+        s1_vh_zero_count = torch.sum(s_t_h_x_c1_valid == 0).item()
+        print(f"S1 VH zero count: {s1_vh_zero_count} in tif {name} in batch {i}")
+
+        # for debugging purposes, if S1 VH contains zero values, print how many
+        s2_b11_zero_count = torch.sum(s_t_h_x_c7_valid == 0).item()
+        print(f"S2 B11 zero count: {s2_b11_zero_count} in tif {name} in batch {i}")
+
+        # for debugging purposes, if S1 VH contains zero values, print how many
+        landsat_b6_zero_count = torch.sum(s_t_h_x_c13_valid == 0).item()
+        print(f"Landsat B6 zero count: {landsat_b6_zero_count} in tif {name} in batch {i}")
+
         # print the number of values that are below -1 or above 1 for NDSI and NDVI
         ndsi_out_of_bounds = torch.sum((s_t_l_x_c9_valid < -1) | (s_t_l_x_c9_valid > 1)).item()
         ndvi_out_of_bounds = torch.sum((s_t_l_x_c10_valid < -1) | (s_t_l_x_c10_valid > 1)).item()
@@ -247,6 +306,13 @@ if __name__ == "__main__":
         aspect_unique_values = torch.unique(sp_x_c2_valid, return_counts=True)
         print(f"Aspect unique values and counts: {aspect_unique_values}")
 
+        # for debugging purposes, if S1 VH contains zero values, print how many
+        aspect_zero_count = torch.sum(sp_x_c2_valid == 0).item()
+        print(f"Aspect zero count: {aspect_zero_count} in tif {name} in batch {i}")
+
+        # for debugging purposes, if S1 VH contains zero values, print how many
+        slope_zero_count = torch.sum(s_t_h_x_c1_valid == 0).item()
+        print(f"Slope zero count: {slope_zero_count} in tif {name} in batch {i}")
 
         for idx, (data, channel_name) in enumerate(
             zip(
