@@ -23,6 +23,7 @@ from src.data.earthengine.eo_eval import (
 )
 from src.eval.landsat_eval import LandsatEval, LandsatEvalDataset, masked_output_np_to_tensor
 from src.utils import config_dir
+from src.data.config import NORMALIZATION_DICT_FILENAME
 
 
 class LandsatEvalDatasetSklearn(LandsatEvalDataset):
@@ -163,6 +164,7 @@ class LandsatEvalSklearn(LandsatEval):
         resample: bool = False,
         eval_config: Dict = {},
         model_type: str = "rf",
+        normalizing_dict: Optional[Dict] = None,
     ):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
@@ -171,6 +173,7 @@ class LandsatEvalSklearn(LandsatEval):
         self.resample = resample
         self.name = "ls_rf"
         self.model_type = model_type
+        self.normalizing_dict = normalizing_dict
 
         assert model_type in ["rf", "svr", "mlp"], f"Unknown model type {model_type}"
 
@@ -183,9 +186,9 @@ class LandsatEvalSklearn(LandsatEval):
         )
 
     @staticmethod
-    def forward_filling_masked_data_per_channel_else_median(x, m, t):
+    def forward_filling_masked_data_per_channel_else_aggregate(x, m, t, array_type: str, normalizing_dict=None):
         """Fills masked values in x by forward-filling along the time dimension per channel.
-        Remaining NaNs will fall back to median replacement."""
+        Remaining NaNs will fall back to aggregation replacement."""
 
         assert x.dim() == 4, f"Expected 4D tensor, got shape {x.shape}"
 
@@ -216,7 +219,7 @@ class LandsatEvalSklearn(LandsatEval):
         m = torch.where(torch.isnan(x), 1, 0)
 
         # fill remaining NaNs with medians
-        x = LandsatEvalSklearn.replace_masked_data_with_median_per_dimension(x, m)
+        x = LandsatEvalSklearn.replace_masked_data_with_aggregate(x, m, array_type=array_type, normalizing_dict=normalizing_dict)
 
         # update time distance: last_idx already encodes last-valid timestep index
         timestep_grid = timestep_idx
@@ -240,20 +243,35 @@ class LandsatEvalSklearn(LandsatEval):
         return x
 
     @staticmethod
-    def replace_masked_data_with_median_per_dimension(x, m):
-        """Replaces masked values in x with the median per dimension.
-        Prioritizes replacing over the time dimension first for timeseries data,
-        then over channel, space, and batch dimensions. For space-only and static data,
-        replaces over channel, then space and batch dimensions."""
+    def replace_masked_data_with_aggregate(x, m, array_type: str, normalizing_dict=None):
+        """Replaces masked values in x with an aggregate.
+        First, tries to replace over the time dimension for timeseries data,
+        then over the space dimension. For space-only and static data, replaces over space dimension.
+        If no replacement is possible, fill with the per-channel mean of the pre-training data."""
         # timeseries data with shape (B, S, C, T)
         if x.dim() == 4:
-            dims = [-1, -2, -3, -4]
+            dims = [-1, -3]
         # space-only or static data with shape (B, S, C)
         elif x.dim() == 3:
-            dims = [-1, -2, -3]
+            dims = [-2]
         else:
             raise ValueError(f"Unexpected shape {x.shape}")
-        return LandsatEvalSklearn.median_replace(x, m, dims)
+        LandsatEvalSklearn.median_replace(x, m, dims)
+
+        if torch.isnan(x).any():
+            assert normalizing_dict is not None, "normalizing_dict must be provided for final fill value replacement."
+            # fill remaining NaNs with per-channel mean from normalizing_dict
+            if array_type not in normalizing_dict:
+                raise ValueError(f"Unknown array type: {array_type}")
+            channel_means = torch.tensor(normalizing_dict[array_type]["mean"], device=x.device)
+            assert channel_means.size(0) == x.size(2)
+            for c in range(x.size(2)):
+                x[:, :, c] = torch.where(
+                    torch.isnan(x[:, :, c]),
+                    channel_means[c],
+                    x[:, :, c],
+                )
+        return x
 
     def aggregate_data_per_output_pixel(
         self,
@@ -387,6 +405,7 @@ class LandsatEvalSklearn(LandsatEval):
         st_m,
         month,
         replace_with="last",
+        normalizing_dict=None,
     ):
         assert replace_with in ["last", "median", "zeros", "nan"]
 
@@ -402,55 +421,67 @@ class LandsatEvalSklearn(LandsatEval):
 
         if replace_with == "median":
             # NOTE: for median replacement, we keep the acquisition time variable at zero, as we loose the temporal information
-            s_t_h_x = LandsatEvalSklearn.replace_masked_data_with_median_per_dimension(
-                rearrange(s_t_h_x, "b s t c -> b s c t"), rearrange(s_t_h_m, "b s t c -> b s c t")
+            s_t_h_x = LandsatEvalSklearn.replace_masked_data_with_aggregate(
+                rearrange(s_t_h_x, "b s t c -> b s c t"), rearrange(s_t_h_m, "b s t c -> b s c t"), array_type="space_time_high_res", normalizing_dict=normalizing_dict
             )
-            s_t_m_x = LandsatEvalSklearn.replace_masked_data_with_median_per_dimension(
-                rearrange(s_t_m_x, "b s t c -> b s c t"), rearrange(s_t_m_m, "b s t c -> b s c t")
+            s_t_m_x = LandsatEvalSklearn.replace_masked_data_with_aggregate(
+                rearrange(s_t_m_x, "b s t c -> b s c t"), rearrange(s_t_m_m, "b s t c -> b s c t"), array_type="space_time_med_res", normalizing_dict=normalizing_dict
             )
-            s_t_l_x = LandsatEvalSklearn.replace_masked_data_with_median_per_dimension(
-                rearrange(s_t_l_x, "b s t c -> b s c t"), rearrange(s_t_l_m, "b s t c -> b s c t")
+            s_t_l_x = LandsatEvalSklearn.replace_masked_data_with_aggregate(
+                rearrange(s_t_l_x, "b s t c -> b s c t"), rearrange(s_t_l_m, "b s t c -> b s c t"), array_type="space_time_low_res", normalizing_dict=normalizing_dict
             )
-            sp_x = LandsatEvalSklearn.replace_masked_data_with_median_per_dimension(
-                rearrange(sp_x, "b s c -> b s c"), rearrange(sp_m, "b s c -> b s c")
+            sp_x = LandsatEvalSklearn.replace_masked_data_with_aggregate(
+                rearrange(sp_x, "b s c -> b s c"), rearrange(sp_m, "b s c -> b s c"), array_type="space", normalizing_dict=normalizing_dict
             )
-            t_x = LandsatEvalSklearn.replace_masked_data_with_median_per_dimension(
-                rearrange(t_x, "b s t c -> b s c t"), rearrange(t_m, "b s t c -> b s c t")
+            t_x = LandsatEvalSklearn.replace_masked_data_with_aggregate(
+                rearrange(t_x, "b s t c -> b s c t"), rearrange(t_m, "b s t c -> b s c t"), array_type="time", normalizing_dict=normalizing_dict
             )
-            st_x = LandsatEvalSklearn.replace_masked_data_with_median_per_dimension(
-                rearrange(st_x, "b s c -> b s c"), rearrange(st_m, "b s c -> b s c")
+            st_x = LandsatEvalSklearn.replace_masked_data_with_aggregate(
+                rearrange(st_x, "b s c -> b s c"), rearrange(st_m, "b s c -> b s c"), array_type="static", normalizing_dict=normalizing_dict
             )
         if replace_with == "last":
-            s_t_h_x, s_t_h_t = cls.forward_filling_masked_data_per_channel_else_median(
+            s_t_h_x, s_t_h_t = cls.forward_filling_masked_data_per_channel_else_aggregate(
                 rearrange(s_t_h_x, "b s t c -> b s c t"),
                 rearrange(s_t_h_m, "b s t c -> b s c t"),
                 rearrange(s_t_h_t, "b s t c -> b s c t"),
+                array_type="space_time_high_res",
+                normalizing_dict=normalizing_dict,
             )
-            s_t_m_x, s_t_m_t = cls.forward_filling_masked_data_per_channel_else_median(
+            s_t_m_x, s_t_m_t = cls.forward_filling_masked_data_per_channel_else_aggregate(
                 rearrange(s_t_m_x, "b s t c -> b s c t"),
                 rearrange(s_t_m_m, "b s t c -> b s c t"),
                 rearrange(s_t_m_t, "b s t c -> b s c t"),
+                array_type="space_time_med_res",
+                normalizing_dict=normalizing_dict,
             )
-            s_t_l_x, s_t_l_t = cls.forward_filling_masked_data_per_channel_else_median(
+            s_t_l_x, s_t_l_t = cls.forward_filling_masked_data_per_channel_else_aggregate(
                 rearrange(s_t_l_x, "b s t c -> b s c t"),
                 rearrange(s_t_l_m, "b s t c -> b s c t"),
                 rearrange(s_t_l_t, "b s t c -> b s c t"),
+                array_type="space_time_low_res",
+                normalizing_dict=normalizing_dict,
             )
-            t_x, t_t = cls.forward_filling_masked_data_per_channel_else_median(
+            t_x, t_t = cls.forward_filling_masked_data_per_channel_else_aggregate(
                 rearrange(t_x, "b s t c -> b s c t"),
                 rearrange(t_m, "b s t c -> b s c t"),
                 rearrange(t_t, "b s t c -> b s c t"),
+                array_type="time",
+                normalizing_dict=normalizing_dict,    
             )
             # NOTE: for space-only and static data, we fall back to median replacement
-            sp_x = cls.replace_masked_data_with_median_per_dimension(
+            sp_x = cls.replace_masked_data_with_aggregate(
                 rearrange(sp_x, "b s c -> b s c"),
                 rearrange(sp_m, "b s c -> b s c"),
+                array_type="space",
+                normalizing_dict=normalizing_dict,
             )
             # set all masked timestamps to -1
             sp_t = sp_t.masked_fill(sp_m.bool(), -1)
-            st_x = cls.replace_masked_data_with_median_per_dimension(
+            st_x = cls.replace_masked_data_with_aggregate(
                 rearrange(st_x, "b s c -> b s c"),
                 rearrange(st_m, "b s c -> b s c"),
+                array_type="static",
+                normalizing_dict=normalizing_dict,
             )
             st_t = st_t.masked_fill(st_m.bool(), -1)
 
@@ -578,15 +609,14 @@ class LandsatEvalSklearn(LandsatEval):
             data_config=self.data_config,
         )
 
-        if normalization == "std":
-            normalizing_dict = train_ds.load_normalization_values(
+        # we use the normalization values for missing data imputation so we load it independently
+        normalizing_dict = train_ds.load_normalization_values(
                 path=config_dir / NORMALIZATION_DICT_FILENAME
-            )
-            print(normalizing_dict, flush=True)
+        )
+
+        if normalization == "std":
             normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
-        else:
-            normalizer = Normalizer(std=False)
-        train_ds.normalizer = normalizer
+            train_ds.normalizer = normalizer
 
         train_dl = DataLoader(
             train_ds,
@@ -615,8 +645,6 @@ class LandsatEvalSklearn(LandsatEval):
                 month,
             ) = input
 
-            # NOTE: This is very nested - is there a better way to do this?
-            # The reason for the nesting is that we want to be able to test each step individually.
             input = torch.squeeze(
                 self.concatenate_features_per_output_pixel(
                     *self.replace_masked_data(
@@ -634,7 +662,8 @@ class LandsatEvalSklearn(LandsatEval):
                             t_m=t_m,
                             st_m=st_m,
                             month=month,
-                        )
+                        ),
+                        normalizing_dict=normalizing_dict,
                     )
                 )[0]
             )  # (N, num_features)
@@ -684,6 +713,10 @@ class LandsatEvalSklearn(LandsatEval):
             data_config=self.data_config,
         )
 
+        if normalization == "std":
+            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+            test_ds.normalizer = normalizer
+
         test_dl = DataLoader(
             test_ds,
             batch_size=1,
@@ -726,7 +759,8 @@ class LandsatEvalSklearn(LandsatEval):
                             t_m=t_m,
                             st_m=st_m,
                             month=month,
-                        )
+                        ),
+                        normalizing_dict=normalizing_dict,
                     )
                 )[0]
             )  # (N, num_features)
@@ -768,6 +802,7 @@ if __name__ == "__main__":
         "r"
     ) as f:
         config = json.load(f)
+
     rf = LandsatEvalSklearn(
         normalization="std",
         exclude_prediction_date=False,

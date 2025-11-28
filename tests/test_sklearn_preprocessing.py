@@ -6,18 +6,27 @@ import torch
 
 from src.eval.landsat_baselines import (
     LandsatEvalSklearn,
+    LandsatEvalDatasetSklearn,
 )
+from src.data.config import (
+    NORMALIZATION_DICT_FILENAME,
+)
+from src.utils import config_dir
 
 
 class TestMasking(unittest.TestCase):
+
+    ds = LandsatEvalDatasetSklearn()
+    normalizing_dict = ds.load_normalization_values(
+            path=config_dir / NORMALIZATION_DICT_FILENAME
+    )
+
     def test_median_replace(self):
         # create data with NaNs
         data_test1 = torch.tensor(
             [
                 [
-                    [float("nan"), 1.0, 2.0],
                     [3.0, float("nan"), 5.0],
-                    [6.0, 7.0, float("nan")],
                     [float("nan"), float("nan"), float("nan")],
                 ]
             ]
@@ -26,31 +35,30 @@ class TestMasking(unittest.TestCase):
         # expected result after median replacement: if same number of values below and above median,
         # the lower of the two is chosen
         expected_test1 = torch.tensor(
-            [[[1.0, 1.0, 2.0], [3.0, 3.0, 5.0], [6.0, 7.0, 6.0], [3.0, 3.0, 5.0]]]
+            [[[3.0, 3.0, 5.0], [35.04930787547541, 35.04930787547541, 35.04930787547541]]]
         )
-
-        result_test1 = LandsatEvalSklearn.replace_masked_data_with_median_per_dimension(
-            data_test1, torch.where(torch.isnan(data_test1), 1, 0)
+        # we assume this is space_time_med_res (i.e., three channels, no time dimension)
+        result_test1 = LandsatEvalSklearn.replace_masked_data_with_aggregate(
+            data_test1, torch.where(torch.isnan(data_test1), 1, 0), array_type="space_time_med_res"
         )
 
         self.assertTrue(torch.equal(result_test1, expected_test1))
 
         data_test2 = torch.tensor(
             [
-                [
-                    [[float("nan"), float("nan")], [float("nan"), float("nan")]],
-                    [[float("nan"), float("nan")], [float("nan"), float("nan")]],
-                    [[1.0, 2.0], [3.0, 4.0]],
-                ]
+                [[float("nan"), float("nan"), float("nan")], [float("nan"), float("nan"), float("nan")]],
+                [[float("nan"), float("nan"), float("nan")], [float("nan"), float("nan"), float("nan")]],
+                [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
             ]
         )
 
         expected_test2 = torch.tensor(
-            [[[[1.0, 2.0], [3.0, 4.0]], [[1.0, 2.0], [3.0, 4.0]], [[1.0, 2.0], [3.0, 4.0]]]]
+            [[[-0.12257198951852927, 0.12766952357764316, 0.7630238491490606], [-0.12257198951852927, 0.12766952357764316, 0.7630238491490606]], [[-0.12257198951852927, 0.12766952357764316, 0.7630238491490606], [-0.12257198951852927, 0.12766952357764316, 0.7630238491490606]], [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]]
         )
 
-        result_test2 = LandsatEvalSklearn.replace_masked_data_with_median_per_dimension(
-            data_test2, torch.where(torch.isnan(data_test2), 1, 0)
+        # we assume this is static data (i.e., three channels, no time dimension)
+        result_test2 = LandsatEvalSklearn.replace_masked_data_with_aggregate(
+            data_test2, torch.where(torch.isnan(data_test2), 1, 0), array_type="static", normalizing_dict=self.normalizing_dict
         )
 
         self.assertTrue(torch.equal(result_test2, expected_test2))
@@ -58,20 +66,20 @@ class TestMasking(unittest.TestCase):
         data_test3 = torch.tensor(
             [
                 [
-                    [[float("nan"), 3.0, float("nan")], [1.0, 8.0, 10.0]],
+                    [[float("nan"), 3.0], [1.0, 8.0]],
                     [
-                        [float("nan"), float("nan"), float("nan")],
-                        [float("nan"), float("nan"), float("nan")],
+                        [float("nan"), float("nan")],
+                        [float("nan"), float("nan")],
                     ],
-                    [[float("nan"), 6.0, 6.0], [3.0, 2.0, 4.0]],
+                    [[float("nan"), 6.0], [3.0, 2.0]],
                 ],
                 [
-                    [[7.0, 3.0, float("nan")], [1.0, 8.0, 10.0]],
+                    [[7.0, 3.0], [1.0, 8.0]],
                     [
-                        [7.0, float("nan"), float("nan")],
-                        [float("nan"), float("nan"), float("nan")],
+                        [7.0, float("nan")],
+                        [float("nan"), float("nan")],
                     ],
-                    [[1.0, 2.0, float("nan")], [3.0, float("nan"), 4.0]],
+                    [[1.0, 2.0], [3.0, float("nan")]],
                 ],
             ]
         )
@@ -79,20 +87,21 @@ class TestMasking(unittest.TestCase):
         expected_test3 = torch.tensor(
             [
                 [
-                    [[3.0, 3.0, 3.0], [1.0, 8.0, 10.0]],
-                    [[3.0, 3.0, 3.0], [1.0, 2.0, 4.0]],
-                    [[6.0, 6.0, 6.0], [3.0, 2.0, 4.0]],
+                    [[3.0, 3.0], [1.0, 8.0]],
+                    [[3.0, 3.0], [1.0, 2.0]],
+                    [[6.0, 6.0], [3.0, 2.0]],
                 ],
                 [
-                    [[7.0, 3.0, 3.0], [1.0, 8.0, 10.0]],
-                    [[7.0, 7.0, 7.0], [7.0, 7.0, 7.0]],
-                    [[1.0, 2.0, 1.0], [3.0, 3.0, 4.0]],
+                    [[7.0, 3.0], [1.0, 8.0]],
+                    [[7.0, 7.0], [1.0, 3.0]],
+                    [[1.0, 2.0], [3.0, 3.0]],
                 ],
             ]
         )
 
-        result_test3 = LandsatEvalSklearn.replace_masked_data_with_median_per_dimension(
-            data_test3, torch.where(torch.isnan(data_test3), 1, 0)
+        # we assume this is space_time_med_res data (i.e., three channels, time dimension)
+        result_test3 = LandsatEvalSklearn.replace_masked_data_with_aggregate(
+            data_test3, torch.where(torch.isnan(data_test3), 1, 0), array_type="space_time_med_res", normalizing_dict=self.normalizing_dict
         )
 
         self.assertTrue(torch.equal(result_test3, expected_test3))
@@ -101,20 +110,20 @@ class TestMasking(unittest.TestCase):
         data_test1 = torch.tensor(
             [
                 [
-                    [[float("nan"), 3.0, float("nan")], [1.0, 8.0, 10.0]],
+                    [[3.0, float("nan")], [8.0, 10.0]],
                     [
-                        [float("nan"), float("nan"), float("nan")],
-                        [float("nan"), float("nan"), float("nan")],
+                        [float("nan"), float("nan")],
+                        [float("nan"), float("nan")],
                     ],
-                    [[1.0, 6.0, 6.0], [3.0, 2.0, 4.0]],
+                    [[1.0, 6.0], [3.0, 2.0]],
                 ],
                 [
-                    [[7.0, 3.0, float("nan")], [1.0, 8.0, 10.0]],
+                    [[7.0, float("nan")], [1.0, 10.0]],
                     [
-                        [7.0, float("nan"), float("nan")],
-                        [float("nan"), float("nan"), float("nan")],
+                        [7.0, float("nan")],
+                        [float("nan"), float("nan")],
                     ],
-                    [[1.0, 2.0, float("nan")], [10.0, float("nan"), 1.0]],
+                    [[1.0, 2.0], [10.0, float("nan")]],
                 ],
             ]
         )
@@ -124,14 +133,14 @@ class TestMasking(unittest.TestCase):
         expected_data_test1 = torch.tensor(
             [
                 [
-                    [[3.0, 3.0, 3.0], [1.0, 8.0, 10.0]],
-                    [[1.0, 3.0, 3.0], [1.0, 2.0, 4.0]],
-                    [[1.0, 6.0, 6.0], [3.0, 2.0, 4.0]],
+                    [[3.0, 3.0], [8.0, 10.0]],
+                    [[87.457754562646, 3.0], [3.0, 2.0]],
+                    [[1.0, 6.0], [3.0, 2.0]],
                 ],
                 [
-                    [[7.0, 3.0, 3.0], [1.0, 8.0, 10.0]],
-                    [[7.0, 7.0, 7.0], [7.0, 7.0, 7.0]],
-                    [[1.0, 2.0, 2.0], [10.0, 10.0, 1.0]],
+                    [[7.0, 7.0], [1.0, 10.0]],
+                    [[7.0, 7.0], [1.0, 10.0]],
+                    [[1.0, 2.0], [10.0, 10.0]],
                 ],
             ]
         )
@@ -139,45 +148,47 @@ class TestMasking(unittest.TestCase):
         expected_timesteps_test1 = torch.tensor(
             [
                 [
-                    [[-1, 0, 1], [0, 0, 0]],
-                    [[-1, -1, -1], [-1, -1, -1]],
-                    [[0, 0, 0], [0, 0, 0]],
+                    [[0, 1], [0, 0]],
+                    [[-1, -1], [-1, -1]],
+                    [[0, 0], [0, 0]],
                 ],
                 [
-                    [[0, 0, 1], [0, 0, 0]],
-                    [[0, 1, 2], [-1, -1, -1]],
-                    [[0, 0, 1], [0, 1, 0]],
+                    [[0, 1], [0, 0]],
+                    [[0, 1], [-1, -1]],
+                    [[0, 0], [0, 1]],
                 ],
             ]
         )
 
         resulting_data_test1, resulting_timesteps_test1 = (
-            LandsatEvalSklearn.forward_filling_masked_data_per_channel_else_median(
+            LandsatEvalSklearn.forward_filling_masked_data_per_channel_else_aggregate(
                 data_test1,
                 torch.where(torch.isnan(data_test1), 1, 0),
                 timesteps_test1,
+                array_type="space_time_med_res",
+                normalizing_dict=self.normalizing_dict,
             )
         )
 
         data_test2 = torch.tensor(
             [
                 [
-                    [[6.0, 3.0, float("nan"), float("nan")], [1.0, 8.0, float("nan"), 5.0]],
+                    [[float("nan"), float("nan")], [float("nan"), 5.0]],
                     [
-                        [2.0, float("nan"), float("nan"), 9.0],
-                        [9.0, float("nan"), float("nan"), 9.0],
+                        [float("nan"), 9.0],
+                        [float("nan"), 9.0],
                     ],
-                    [[1.0, 6.0, float("nan"), 6.0], [float("nan"), 1.0, 2.0, 4.0]],
+                    [[float("nan"), 6.0], [2.0, 4.0]],
                 ],
                 [
-                    [[7.0, 3.0, float("nan"), float("nan")], [1.0, 8.0, float("nan"), 10.0]],
+                    [[float("nan"), float("nan")], [float("nan"), 10.0]],
                     [
-                        [7.0, float("nan"), float("nan"), float("nan")],
-                        [float("nan"), float("nan"), float("nan"), float("nan")],
+                        [float("nan"), float("nan")],
+                        [float("nan"), float("nan")],
                     ],
                     [
-                        [1.0, 2.0, float("nan"), float("nan")],
-                        [10.0, float("nan"), 1.0, float("nan")],
+                        [float("nan"), float("nan")],
+                        [1.0, float("nan")],
                     ],
                 ],
             ]
@@ -188,14 +199,14 @@ class TestMasking(unittest.TestCase):
         expected_data_test2 = torch.tensor(
             [
                 [
-                    [[6.0, 3.0, 3.0, 3.0], [1.0, 8.0, 8.0, 5.0]],
-                    [[2.0, 2.0, 2.0, 9.0], [9.0, 9.0, 9.0, 9.0]],
-                    [[1.0, 6.0, 6.0, 6.0], [2.0, 1.0, 2.0, 4.0]],
+                    [[3.0, 6.0], [2.0, 5.0]],
+                    [[2.0, 9.0], [9.0, 9.0]],
+                    [[6.0, 6.0], [2.0, 4.0]],
                 ],
                 [
-                    [[7.0, 3.0, 3.0, 3.0], [1.0, 8.0, 8.0, 10.0]],
-                    [[7.0, 7.0, 7.0, 7.0], [7.0, 7.0, 7.0, 7.0]],
-                    [[1.0, 2.0, 2.0, 2.0], [10.0, 10.0, 1.0, 1.0]],
+                    [[3.0, 3.0], [8.0, 10.0]],
+                    [[7.0, 7.0], [7.0, 7.0]],
+                    [[2.0, 2.0], [1.0, 1.0]],
                 ],
             ]
         )
@@ -203,23 +214,25 @@ class TestMasking(unittest.TestCase):
         expected_timesteps_test2 = torch.tensor(
             [
                 [
-                    [[0, 0, 1, 2], [0, 0, 1, 0]],
-                    [[0, 1, 2, 0], [0, 1, 2, 0]],
-                    [[0, 0, 1, 0], [-1, 0, 0, 0]],
+                    [[1, 2], [1, 0]],
+                    [[2, 0], [2, 0]],
+                    [[1, 0], [0, 0]],
                 ],
                 [
-                    [[0, 0, 1, 2], [0, 0, 1, 0]],
-                    [[0, 1, 2, 3], [-1, -1, -1, -1]],
-                    [[0, 0, 1, 2], [0, 1, 0, 1]],
+                    [[1, 2], [1, 0]],
+                    [[2, 3], [-1, -1]],
+                    [[1, 2], [0, 1]],
                 ],
             ]
         )
 
         resulting_data_test2, resulting_timesteps_test2 = (
-            LandsatEvalSklearn.forward_filling_masked_data_per_channel_else_median(
+            LandsatEvalSklearn.forward_filling_masked_data_per_channel_else_aggregate(
                 data_test2,
                 torch.where(torch.isnan(data_test2), 1, 0),
                 timesteps_test2,
+                array_type="space_time_med_res",
+                normalizing_dict=self.normalizing_dict,
             )
         )
 
