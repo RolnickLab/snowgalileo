@@ -40,8 +40,7 @@ NUM_HIGH_RES_PIXELS_PER_DIM = EXPORTED_HEIGHT_WIDTH_METRES // DATASET_OUTPUT_HW_
 NUM_MED_RES_PIXELS_PER_DIM = EXPORTED_HEIGHT_WIDTH_METRES // DATASET_OUTPUT_HW_MED_RES
 NUM_LOW_RES_PIXELS_PER_DIM = EXPORTED_HEIGHT_WIDTH_METRES // DATASET_OUTPUT_HW_LOW_RES
 
-NDSI_VALID_DATA_BOUNDS = (-1, 1)
-NDVI_VALID_DATA_BOUNDS = (-1, 1)
+NDI_VALID_DATA_BOUNDS = (-1, 1)
 
 # the idea is that for exporting different data, we will only have to change this dictionary in the end
 # i.e., sort the modalities into different shape_types, add / remove satellite modalities
