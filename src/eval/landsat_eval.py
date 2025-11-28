@@ -35,6 +35,7 @@ from src.data.config import (
     NUM_MED_RES_PIXELS_PER_DIM,
     NUM_TIMESTEPS,
     RESULTS_FOLDER,
+    NDI_VALID_DATA_BOUNDS,
 )
 from src.data.dataset import DatasetOutput, Normalizer, to_cartesian
 from src.data.earthengine.eo_eval import (
@@ -306,8 +307,8 @@ class LandsatEvalDataset(BaseDataset):
             assert (ndsi != MODIS_FILL_VALUE).any(), (
                 f"MODIS fill values encountered in NDSI for {tif_path}"
             )
-            assert ((ndsi >= -1) & (ndsi <= 1) | (ndsi == NO_DATA_VALUE)).all(), (
-                f"NDSI values out of bounds [-1, 1] for {tif_path}"
+            assert ((ndsi >= NDI_VALID_DATA_BOUNDS[0]) & (ndsi <= NDI_VALID_DATA_BOUNDS[1]) | (ndsi == NO_DATA_VALUE)).all(), (
+                f"NDI values out of bounds {NDI_VALID_DATA_BOUNDS} for {tif_path}"
             )
 
         # NDVI = (NIR - Red) / (NIR + Red)
@@ -319,8 +320,8 @@ class LandsatEvalDataset(BaseDataset):
             assert (ndvi != MODIS_FILL_VALUE).any(), (
                 f"MODIS fill values encountered in NDVI for {tif_path}"
             )
-            assert ((ndvi >= -1) & (ndvi <= 1) | (ndvi == NO_DATA_VALUE)).all(), (
-                f"NDVI values out of bounds [-1, 1] for {tif_path}"
+            assert ((ndvi >= NDI_VALID_DATA_BOUNDS[0]) & (ndvi <= NDI_VALID_DATA_BOUNDS[1]) | (ndvi == NO_DATA_VALUE)).all(), (
+                f"NDI values out of bounds {NDI_VALID_DATA_BOUNDS} for {tif_path}"
             )
 
         space_x = rearrange(
