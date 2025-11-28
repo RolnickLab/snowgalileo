@@ -27,9 +27,7 @@ from tqdm import tqdm
 from src.data.config import (
     CHANNEL_WISE_INVALID_DATA_THRESHOLDS,
     DATA_FOLDER,
-    DATASET_OUTPUT_HW_HIGH_RES,
-    DATASET_OUTPUT_HW_LOW_RES,
-    DATASET_OUTPUT_HW_MED_RES,
+    MODIS_FILL_VALUE,
     MODALITIES,
     NO_DATA_VALUE,
     NORMALIZATION_DICT_FILENAME,
@@ -66,11 +64,12 @@ from src.eval.patch_predict import EncoderWithHead, get_finetune_results
 from src.masking import _aggregate_mask_per_channel_group
 from src.snowgalileo import Encoder
 from src.utils import DEFAULT_SEED, config_dir, device, masked_output_np_to_tensor
+from src.data.dataset import Dataset as BaseDataset
 
 logger = logging.getLogger("__main__")
 
 
-class LandsatEvalDataset(PyTorchDataset):
+class LandsatEvalDataset(BaseDataset):
     def __init__(
         self,
         split: str = "train",
@@ -79,12 +78,19 @@ class LandsatEvalDataset(PyTorchDataset):
         normalizer: Optional[Normalizer] = None,
         data_config: Dict = {},
     ):
+        super().__init__(
+            data_folder=DATA_FOLDER / data_config["input_tif_folder"] / split,
+            download=False,
+            h5py_folder=DATA_FOLDER / data_config["input_h5py_folder"] / split,
+            h5pys_only=False,
+            normalizer=normalizer,
+        )
+
         self.split = split
         # whether to exclude the prediction date from the input timesteps
         # if True, the prediction date will be masked out in the input
         self.exclude_prediction_date = exclude_prediction_date
         self.exclude_prediction_high_res = exclude_prediction_high_res
-        self.normalizer = normalizer
 
         assert self.split in ["train", "test", "visualize"]
 
@@ -96,32 +102,18 @@ class LandsatEvalDataset(PyTorchDataset):
         else:
             self.h5py_folder = None
 
-        print(
-            f"Number of label tifs: {len(list(self.label_folder.glob('*.tif')) + list(self.label_folder.glob('*.tiff')))}"
-        )
-
-        print(
-            f"Number of input tifs: {len(list(self.input_tif_folder.glob('*.tif')) + list(self.input_tif_folder.glob('*.tiff')))}"
-        )
-
-        ### TODO: replace this by parent class init
         self.cache = True
-        self.input_tifs = []
+        self.tifs = []
         input_tifs = list(self.input_tif_folder.glob("*.tif")) + list(
             self.input_tif_folder.glob("*.tiff")
         )
         for tif in input_tifs:
             try:
                 _ = self.prediction_month_from_file(tif)
-                self.input_tifs.append(tif)
+                self.tifs.append(tif)
             except IndexError:
                 warnings.warn(f"IndexError for input {tif}")
         self.h5pys: list = []
-
-        self.output_hw_high_res = DATASET_OUTPUT_HW_HIGH_RES
-        self.output_hw_med_res = DATASET_OUTPUT_HW_MED_RES
-        self.output_hw_low_res = DATASET_OUTPUT_HW_LOW_RES
-        self.output_timesteps = NUM_TIMESTEPS
 
         self.label_height_width = data_config["input_height_width"]
 
@@ -137,8 +129,6 @@ class LandsatEvalDataset(PyTorchDataset):
         assert len(self.input_tifs) == len(self.label_tifs), (
             "Number of input tifs and label tifs do not match."
         )
-        print(f"Number of input tifs: {len(self.input_tifs)}")
-        print(f"Number of label tifs: {len(self.label_tifs)}")
 
     # NOTE: overwritten from TifDataset since the eval tif files have different naming conventions
     @classmethod
@@ -179,7 +169,6 @@ class LandsatEvalDataset(PyTorchDataset):
         0: invalid data
         1: valid data
         """
-        print("Creating valid mask for LandsatEvalDataset", flush=True)
         assert s_t_h_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_h_x"])
         assert s_t_m_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_m_x"])
         assert s_t_l_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_l_x"])
@@ -187,20 +176,14 @@ class LandsatEvalDataset(PyTorchDataset):
         assert t_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["t_x"])
         assert st_x.shape[-1] == len(CHANNEL_WISE_INVALID_DATA_THRESHOLDS["st_x"])
 
-        # TODO: assert the amount of 0 values in the input data, to check if they are int or float
-        print("Amount of 0 values in s_t_h_x:", np.sum(s_t_h_x == 0), flush=True)
-        print("Amount of 0.0 values in s_t_h_x:", np.sum(s_t_h_x == 0.0), flush=True)
-        print("Amount of NO_DATA values in s_t_h_x:", np.sum(s_t_h_x == NO_DATA_VALUE), flush=True)
-
         # start by unmasking invalid data that is characterized by universal no data value
+        assert 1 == 0, "Why the hack are we masking out zeros here?"
         valid_mask_s_t_h = (s_t_h_x != NO_DATA_VALUE) & (s_t_h_x != 0)
         valid_mask_s_t_m = (s_t_m_x != NO_DATA_VALUE) & (s_t_m_x != 0)
         valid_mask_s_t_l = (s_t_l_x != NO_DATA_VALUE) & (s_t_l_x != 0)
         valid_mask_sp = (sp_x != NO_DATA_VALUE) & (sp_x != 0)
         valid_mask_t = (t_x != NO_DATA_VALUE) & (t_x != 0)
         valid_mask_st = (st_x != NO_DATA_VALUE) & (st_x != 0)
-
-        print("Amount of invalid data in s_t_h_x:", np.sum(~valid_mask_s_t_h), flush=True)
 
         # apply the channel-specific no-data bounds
         for ch, lower_bound in CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_h_x"].items():
@@ -224,99 +207,6 @@ class LandsatEvalDataset(PyTorchDataset):
             valid_mask_t,
             valid_mask_st,
         )
-
-    @staticmethod
-    def one_hot_encode_esa_worldcover(data: np.ndarray) -> np.ndarray:
-        """One-hot encode the ESA Worldcover band, so that each class has its own channel."""
-        assert np.all(np.isin(data, WC_CLASS_VALUES)), (
-            "ESA Worldcover data contains unexpected class values."
-        )
-        # Map class values to indices 0-10
-        data = np.array([WC_CLASS_VALUES.index(val) for val in data.flatten()]).reshape(data.shape)
-        h, w = data.shape
-        one_hot_encoded = np.zeros((h, w, NUM_WC_CLASSES), dtype=data.dtype)
-        for class_idx in range(NUM_WC_CLASSES):
-            one_hot_encoded[:, :, class_idx] = (data == class_idx).astype(data.dtype)
-        return one_hot_encoded
-
-    @staticmethod
-    def _check_and_fillna(data: np.ndarray, bands_np: np.ndarray) -> np.ndarray:
-        """Fill in the missing values in the data array"""
-
-        if data.shape[-1] != len(bands_np):
-            raise ValueError(f"Expected data to have {len(bands_np)} bands - got {data.shape[-1]}")
-        is_nan_inf = np.isnan(data) | np.isinf(data)
-
-        if not is_nan_inf.any():
-            return data
-
-        if len(data.shape) <= 2:
-            return np.nan_to_num(data, nan=0)
-        if len(data.shape) == 3:
-            has_time = False
-        elif len(data.shape) == 4:
-            has_time = True
-        else:
-            raise ValueError(
-                f"Expected data to be 3D or 4D (x, y, (time), band) - got {data.shape}"
-            )
-
-        # treat infinities as NaNs
-        data = np.nan_to_num(data, nan=np.nan, posinf=np.nan, neginf=np.nan)
-
-        # if any of the bands has only nan values, array should be markes as invalid
-        # assert np.isnan(data).all(axis=tuple(range(data.ndim - 1))).any()
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=RuntimeWarning)
-            mean_per_time_band = np.nanmean(data, axis=(0, 1))  # t, b or b
-
-        mean_per_time_band = np.nan_to_num(mean_per_time_band, nan=0, posinf=0, neginf=0)
-        assert not (np.isnan(mean_per_time_band).any() | np.isinf(mean_per_time_band).any())
-
-        if is_nan_inf.any():
-            if has_time:
-                means_to_fill = (
-                    repeat(
-                        np.nanmean(mean_per_time_band, axis=0),
-                        "b -> h w t b",
-                        h=data.shape[0],
-                        w=data.shape[1],
-                        t=data.shape[2],
-                    )
-                    * is_nan_inf
-                )
-            else:
-                means_to_fill = (
-                    repeat(mean_per_time_band, "b -> h w b", h=data.shape[0], w=data.shape[1])
-                    * is_nan_inf
-                )
-            data = np.nan_to_num(data, nan=0, posinf=0, neginf=0) + means_to_fill
-        return data
-
-    def tif_to_h5py_path(self, tif_path: Path) -> Path:
-        assert self.h5py_folder is not None
-        tif_name = tif_path.stem
-        return self.h5py_folder / f"{tif_name}.h5"
-
-    @staticmethod
-    def downsample_dynamic_in_time_with_mean(data, mask, target_shape=(2, 2)):
-        H, W, T, C = data.shape
-        new_H, new_W = target_shape
-
-        # make sure that we are processing dynamic-in-time array
-        assert data.ndim == 4
-        assert H % new_H == 0 and W % new_W == 0, "H and W must be divisible by target dimensions"
-
-        # Compute block sizes
-        h_block = H // new_H
-        w_block = W // new_W
-
-        # reshape
-        # for data, take the mean over blocks, for the mask take the min (we want the block mask to be invalid where at least one value is invalid)
-        return data.reshape(new_H, h_block, new_W, w_block, T, C).mean(axis=(1, 3)), mask.reshape(
-            new_H, h_block, new_W, w_block, T, C
-        ).min(axis=(1, 3))
 
     @classmethod
     def month_array_from_file(cls, tif_path: Path, num_timesteps: int) -> np.ndarray:
@@ -360,11 +250,11 @@ class LandsatEvalDataset(PyTorchDataset):
             lat = float(parts[3])
             lon = float(parts[4])
 
-        num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(EO_ALL_DYNAMIC_IN_TIME_BANDS)
+        num_timesteps = (values.shape[0] - len(EE_SPACE_BANDS)) / len(EO_ALL_DYNAMIC_IN_TIME_BANDS)
         assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
         assert num_timesteps == NUM_TIMESTEPS, f"{tif_path} has incorrect number of timesteps"
         dynamic_in_time_x = rearrange(
-            values[: -(len(SPACE_BANDS))],
+            values[: -(len(EE_SPACE_BANDS))],
             "(t c) h w -> h w t c",
             c=len(EO_ALL_DYNAMIC_IN_TIME_BANDS),
             t=int(num_timesteps),
@@ -413,6 +303,12 @@ class LandsatEvalDataset(PyTorchDataset):
                 space_time_low_res_x, band_1="sur_refl_b04", band_2="sur_refl_b06"
             )
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndsi), axis=-1)
+            assert (ndsi != MODIS_FILL_VALUE).any(), (
+                f"MODIS fill values encountered in NDSI for {tif_path}"
+            )
+            assert ((ndsi >= -1) & (ndsi <= 1) | (ndsi == NO_DATA_VALUE)).all(), (
+                f"NDSI values out of bounds [-1, 1] for {tif_path}"
+            )
 
         # NDVI = (NIR - Red) / (NIR + Red)
         if MODALITIES["ndvi"].get("active"):
@@ -420,6 +316,12 @@ class LandsatEvalDataset(PyTorchDataset):
                 space_time_low_res_x, band_1="sur_refl_b02", band_2="sur_refl_b01"
             )
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndvi), axis=-1)
+            assert (ndvi != MODIS_FILL_VALUE).any(), (
+                f"MODIS fill values encountered in NDVI for {tif_path}"
+            )
+            assert ((ndvi >= -1) & (ndvi <= 1) | (ndvi == NO_DATA_VALUE)).all(), (
+                f"NDVI values out of bounds [-1, 1] for {tif_path}"
+            )
 
         space_x = rearrange(
             values[-len(EE_SPACE_BANDS) :],
@@ -494,300 +396,6 @@ class LandsatEvalDataset(PyTorchDataset):
             )
         except AssertionError as e:
             raise e
-
-    def _tif_to_array_with_checks(self, idx):
-        tif_path = self.input_tifs[idx]
-        try:
-            dataset = self._tif_to_array(tif_path)
-            return dataset
-        except Exception as e:
-            print(f"Replacing tif {tif_path} due to {e}")
-            if idx == 0:
-                new_idx = idx + 1
-            else:
-                new_idx = idx - 1
-            self.input_tifs[idx] = self.input_tifs[new_idx]
-            tif_path = self.input_tifs[idx]
-        dataset = self._tif_to_array(tif_path)
-        return dataset
-
-    def load_tif(self, idx: int) -> DatasetOutput:
-        if self.h5py_folder is None:
-            (
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                months,
-                valid_data_mask_s_t_h,
-                valid_data_mask_s_t_m,
-                valid_data_mask_s_t_l,
-                valid_data_mask_sp,
-                valid_data_mask_t,
-                valid_data_mask_st,
-            ) = self._tif_to_array_with_checks(idx)
-            return DatasetOutput(
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                months,
-                valid_data_mask_s_t_h,
-                valid_data_mask_s_t_m,
-                valid_data_mask_s_t_l,
-                valid_data_mask_sp,
-                valid_data_mask_t,
-                valid_data_mask_st,
-            )
-        else:
-            h5py_path = self.tif_to_h5py_path(self.input_tifs[idx])
-            if h5py_path.exists():
-                try:
-                    return self.read_and_slice_h5py_file(h5py_path)
-                except Exception as e:
-                    logger.warn(f"Exception {e} for {self.input_tifs[idx]}")
-                    h5py_path.unlink()
-                    (
-                        s_t_h_x,
-                        s_t_m_x,
-                        s_t_l_x,
-                        sp_x,
-                        t_x,
-                        st_x,
-                        months,
-                        valid_data_mask_s_t_h,
-                        valid_data_mask_s_t_m,
-                        valid_data_mask_s_t_l,
-                        valid_data_mask_sp,
-                        valid_data_mask_t,
-                        valid_data_mask_st,
-                    ) = self._tif_to_array_with_checks(idx)
-                    self.save_h5py(
-                        s_t_h_x,
-                        s_t_m_x,
-                        s_t_l_x,
-                        sp_x,
-                        t_x,
-                        st_x,
-                        valid_data_mask_s_t_h,
-                        valid_data_mask_s_t_m,
-                        valid_data_mask_s_t_l,
-                        valid_data_mask_sp,
-                        valid_data_mask_t,
-                        valid_data_mask_st,
-                        self.input_tifs[idx].stem,
-                    )
-                    return DatasetOutput(
-                        s_t_h_x,
-                        s_t_m_x,
-                        s_t_l_x,
-                        sp_x,
-                        t_x,
-                        st_x,
-                        months,
-                        valid_data_mask_s_t_h,
-                        valid_data_mask_s_t_m,
-                        valid_data_mask_s_t_l,
-                        valid_data_mask_sp,
-                        valid_data_mask_t,
-                        valid_data_mask_st,
-                    )
-            else:
-                (
-                    s_t_h_x,
-                    s_t_m_x,
-                    s_t_l_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    months,
-                    valid_data_mask_s_t_h,
-                    valid_data_mask_s_t_m,
-                    valid_data_mask_s_t_l,
-                    valid_data_mask_sp,
-                    valid_data_mask_t,
-                    valid_data_mask_st,
-                ) = self._tif_to_array_with_checks(idx)
-                self.save_h5py(
-                    s_t_h_x,
-                    s_t_m_x,
-                    s_t_l_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    valid_data_mask_s_t_h,
-                    valid_data_mask_s_t_m,
-                    valid_data_mask_s_t_l,
-                    valid_data_mask_sp,
-                    valid_data_mask_t,
-                    valid_data_mask_st,
-                    self.input_tifs[idx].stem,
-                )
-                return DatasetOutput(
-                    s_t_h_x,
-                    s_t_m_x,
-                    s_t_l_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    months,
-                    valid_data_mask_s_t_h,
-                    valid_data_mask_s_t_m,
-                    valid_data_mask_s_t_l,
-                    valid_data_mask_sp,
-                    valid_data_mask_t,
-                    valid_data_mask_st,
-                )
-
-    def save_h5py(
-        self,
-        s_t_h_x,
-        s_t_m_x,
-        s_t_l_x,
-        sp_x,
-        t_x,
-        st_x,
-        valid_data_mask_s_t_h,
-        valid_data_mask_s_t_m,
-        valid_data_mask_s_t_l,
-        valid_data_mask_sp,
-        valid_data_mask_t,
-        valid_data_mask_st,
-        tif_stem,
-    ):
-        assert self.h5py_folder is not None
-        with h5py.File(self.h5py_folder / f"{tif_stem}.h5", "w") as hf:
-            hf.create_dataset("s_t_h_x", data=s_t_h_x)
-            hf.create_dataset("s_t_m_x", data=s_t_m_x)
-            hf.create_dataset("s_t_l_x", data=s_t_l_x)
-            hf.create_dataset("sp_x", data=sp_x)
-            hf.create_dataset("t_x", data=t_x)
-            hf.create_dataset("st_x", data=st_x)
-            hf.create_dataset("valid_data_mask_s_t_h", data=valid_data_mask_s_t_h)
-            hf.create_dataset("valid_data_mask_s_t_m", data=valid_data_mask_s_t_m)
-            hf.create_dataset("valid_data_mask_s_t_l", data=valid_data_mask_s_t_l)
-            hf.create_dataset("valid_data_mask_sp", data=valid_data_mask_sp)
-            hf.create_dataset("valid_data_mask_t", data=valid_data_mask_t)
-            hf.create_dataset("valid_data_mask_st", data=valid_data_mask_st)
-
-    @staticmethod
-    def calculate_ndi(input_array: np.ndarray, band_1: str, band_2: str) -> np.ndarray:
-        r"""
-        Given an input array of shape [h, w, t, bands]
-        where bands == len(EO_DYNAMIC_IN_TIME_BANDS_NP), returns an array of shape
-        [h, w, t, 1] representing NDI,
-        (band_1 - band_2) / (band_1 + band_2)
-        """
-
-        # TODO: make this dynamic instead
-        assert band_1 in SPACE_TIME_LOW_RES_BANDS
-        assert band_2 in SPACE_TIME_LOW_RES_BANDS
-
-        band_1_np = input_array[:, :, :, SPACE_TIME_LOW_RES_BANDS.index(band_1)]
-        band_2_np = input_array[:, :, :, SPACE_TIME_LOW_RES_BANDS.index(band_2)]
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", message="invalid value encountered in divide")
-            # suppress the following warning
-            # RuntimeWarning: invalid value encountered in divide
-            # for cases where near_infrared + red == 0
-            # since this is handled in the where condition
-            return np.expand_dims(
-                np.where(
-                    (band_1_np + band_2_np) > 0,
-                    (band_1_np - band_2_np) / (band_1_np + band_2_np),
-                    0,
-                ),
-                -1,
-            )
-
-    def read_and_slice_h5py_file(self, h5py_path: Path):
-        with h5py.File(h5py_path, "r") as hf:
-            print(f"Reading h5py file {h5py_path}", flush=True)
-            assert hf["s_t_h_x"].shape == (
-                self.output_hw_high_res,
-                self.output_hw_high_res,
-                self.output_timesteps,
-                len(SPACE_TIME_HIGH_RES_BANDS),
-            )
-            assert hf["s_t_m_x"].shape == (
-                NUM_MED_RES_PIXELS_PER_DIM,
-                NUM_MED_RES_PIXELS_PER_DIM,
-                self.output_timesteps,
-                len(SPACE_TIME_MED_RES_BANDS),
-            )
-            assert hf["s_t_l_x"].shape == (
-                NUM_LOW_RES_PIXELS_PER_DIM,
-                NUM_LOW_RES_PIXELS_PER_DIM,
-                self.output_timesteps,
-                len(SPACE_TIME_LOW_RES_BANDS),
-            )
-            assert hf["sp_x"].shape == (
-                self.output_hw_high_res,
-                self.output_hw_high_res,
-                len(SPACE_BANDS),
-            )
-            assert hf["t_x"].shape == (self.output_timesteps, len(TIME_BANDS))
-            assert hf["st_x"].shape == (len(STATIC_BANDS),)
-            assert hf["valid_data_mask_s_t_h"].shape == (
-                self.output_hw_high_res,
-                self.output_hw_high_res,
-                self.output_timesteps,
-                len(SPACE_TIME_HIGH_RES_BANDS),
-            )
-            assert hf["valid_data_mask_s_t_m"].shape == (
-                NUM_MED_RES_PIXELS_PER_DIM,
-                NUM_MED_RES_PIXELS_PER_DIM,
-                self.output_timesteps,
-                len(SPACE_TIME_MED_RES_BANDS),
-            )
-            assert hf["valid_data_mask_s_t_l"].shape == (
-                NUM_LOW_RES_PIXELS_PER_DIM,
-                NUM_LOW_RES_PIXELS_PER_DIM,
-                self.output_timesteps,
-                len(SPACE_TIME_LOW_RES_BANDS),
-            )
-            assert hf["valid_data_mask_sp"].shape == (
-                self.output_hw_high_res,
-                self.output_hw_high_res,
-                len(SPACE_BANDS),
-            )
-            assert hf["valid_data_mask_t"].shape == (self.output_timesteps, len(TIME_BANDS))
-            assert hf["valid_data_mask_st"].shape == (len(STATIC_BANDS),)
-
-            months = self.month_array_from_file(h5py_path, self.output_timesteps)
-            output = DatasetOutput(
-                hf["s_t_h_x"][:],
-                hf["s_t_m_x"][:],
-                hf["s_t_l_x"][:],
-                hf["sp_x"][:],
-                hf["t_x"][:],
-                hf["st_x"][:],
-                months,
-                hf["valid_data_mask_s_t_h"][:],
-                hf["valid_data_mask_s_t_m"][:],
-                hf["valid_data_mask_s_t_l"][:],
-                hf["valid_data_mask_sp"][:],
-                hf["valid_data_mask_t"][:],
-                hf["valid_data_mask_st"][:],
-            )
-        return output
-
-    @staticmethod
-    def load_normalization_values(path: Path):
-        if not path.exists():
-            raise ValueError(f"No file found at path {path}")
-        with path.open("r") as f:
-            norm_dict = json.load(f)
-        # we computed the normalizing dict using the same datset
-        output_dict = {}
-        for key, val in norm_dict.items():
-            output_dict[key] = val
-        return output_dict
 
     def __getitem__(self, idx):
         # NOTE: input will be a DatasetOutput object

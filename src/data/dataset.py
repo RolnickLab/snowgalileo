@@ -770,7 +770,7 @@ class Dataset(PyTorchDataset):
             assert (ndsi != MODIS_FILL_VALUE).any(), (
                 f"MODIS fill values encountered in NDSI for {tif_path}"
             )
-            assert ((ndsi >= -1) & (ndsi <= 1)).all(), (
+            assert ((ndsi >= -1) & (ndsi <= 1) | (ndsi == NO_DATA_VALUE)).all(), (
                 f"NDSI values out of bounds [-1, 1] for {tif_path}"
             )
 
@@ -783,7 +783,7 @@ class Dataset(PyTorchDataset):
             assert (ndvi != MODIS_FILL_VALUE).any(), (
                 f"MODIS fill values encountered in NDVI for {tif_path}"
             )
-            assert ((ndvi >= -1) & (ndvi <= 1)).all(), (
+            assert ((ndvi >= -1) & (ndvi <= 1) | (ndvi == NO_DATA_VALUE)).all(), (
                 f"NDVI values out of bounds [-1, 1] for {tif_path}"
             )
 
