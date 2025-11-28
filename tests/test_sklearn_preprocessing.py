@@ -16,7 +16,12 @@ from src.utils import config_dir
 
 class TestMasking(unittest.TestCase):
 
-    ds = LandsatEvalDatasetSklearn()
+    with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval_5_95.json")).open(
+        "r"
+    ) as f:
+        config = json.load(f)
+
+    ds = LandsatEvalDatasetSklearn(data_config=config["data"])
     normalizing_dict = ds.load_normalization_values(
             path=config_dir / NORMALIZATION_DICT_FILENAME
     )
