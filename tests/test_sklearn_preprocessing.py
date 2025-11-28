@@ -16,7 +16,7 @@ from src.utils import config_dir
 
 class TestMasking(unittest.TestCase):
 
-    with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval_5_95.json")).open(
+    with (Path("src/eval/eval_configs/landsat_eval_5_95.json")).open(
         "r"
     ) as f:
         config = json.load(f)
