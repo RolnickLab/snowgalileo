@@ -32,8 +32,7 @@ from src.data.config import (
     EE_FOLDER_TIFS,
     MODALITIES,
     MODIS_FILL_VALUE,
-    NDSI_VALID_DATA_BOUNDS,
-    NDVI_VALID_DATA_BOUNDS,
+    NDI_VALID_DATA_BOUNDS,
     NO_DATA_VALUE,
     NUM_LOW_RES_PIXELS_PER_DIM,
     NUM_MED_RES_PIXELS_PER_DIM,
@@ -770,8 +769,8 @@ class Dataset(PyTorchDataset):
             assert (ndsi != MODIS_FILL_VALUE).any(), (
                 f"MODIS fill values encountered in NDSI for {tif_path}"
             )
-            assert ((ndsi >= -1) & (ndsi <= 1) | (ndsi == NO_DATA_VALUE)).all(), (
-                f"NDSI values out of bounds [-1, 1] for {tif_path}"
+            assert ((ndsi >= NDI_VALID_DATA_BOUNDS[0]) & (ndsi <= NDI_VALID_DATA_BOUNDS[1]) | (ndsi == NO_DATA_VALUE)).all(), (
+                f"NDSI values out of bounds {NDI_VALID_DATA_BOUNDS} for {tif_path}"
             )
 
         # NDVI = (NIR - Red) / (NIR + Red)
@@ -783,8 +782,8 @@ class Dataset(PyTorchDataset):
             assert (ndvi != MODIS_FILL_VALUE).any(), (
                 f"MODIS fill values encountered in NDVI for {tif_path}"
             )
-            assert ((ndvi >= -1) & (ndvi <= 1) | (ndvi == NO_DATA_VALUE)).all(), (
-                f"NDVI values out of bounds [-1, 1] for {tif_path}"
+            assert ((ndvi >= NDI_VALID_DATA_BOUNDS[0]) & (ndvi <= NDI_VALID_DATA_BOUNDS[1]) | (ndvi == NO_DATA_VALUE)).all(), (
+                f"NDVI values out of bounds {NDI_VALID_DATA_BOUNDS} for {tif_path}"
             )
 
         space_x = rearrange(
@@ -1096,7 +1095,7 @@ class Dataset(PyTorchDataset):
             )
         # when the input bands have different signs, NDI can be outside [-1, 1]
         # set values outside valid range to NO_DATA_VALUE (will be masked out later)
-        ndi[(ndi < -1) | (ndi > 1)] = NO_DATA_VALUE
+        ndi[(ndi < NDI_VALID_DATA_BOUNDS[0]) | (ndi > NDI_VALID_DATA_BOUNDS[1])] = NO_DATA_VALUE
         return ndi
 
     def read_and_slice_h5py_file(self, h5py_path: Path):
