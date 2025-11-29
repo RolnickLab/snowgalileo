@@ -136,7 +136,6 @@ class LandsatEvalDataset(BaseDataset):
     def prediction_month_from_file(cls, tif_path: Path) -> int:
         # assumes the tif file name is in the format "LC09_YYYYMMDD_[FSC]_[lat]_[lon].tif"
         prediction_month = int(tif_path.name.split("_")[1][4:6])
-        print(f"Start month: {prediction_month}", flush=True)
         return prediction_month
 
     def mask_prediction_timestep(self, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m):
@@ -519,7 +518,6 @@ class LandsatEvalDataset(BaseDataset):
             label = cast(np.ndarray, data.values)
             # remove first dimension
             label = np.squeeze(label, axis=0)
-            print(f"Label shape: {label.shape}", flush=True)
 
         # if assertion is triggered, go to the next tif file
         try:
@@ -642,7 +640,6 @@ class LandsatEval(EvalTask):
             normalizing_dict = test_ds.load_normalization_values(
                 path=config_dir / NORMALIZATION_DICT_FILENAME
             )
-            print(normalizing_dict, flush=True)
             normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
         else:
             normalizer = Normalizer(std=False)
@@ -752,9 +749,6 @@ class LandsatEval(EvalTask):
             encodings_list.append(encodings.cpu().numpy())
 
         encodings_np, targets_np = np.concatenate(encodings_list), np.concatenate(labels_list)
-
-        print(f"Shape of encodings: {encodings_np.shape}", flush=True)
-        print(f"Shape of targets: {targets_np.shape}", flush=True)
 
         for model in sklearn_models:
             preds = model.predict(encodings_np)
