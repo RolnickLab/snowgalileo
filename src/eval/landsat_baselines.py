@@ -115,8 +115,8 @@ class LandsatEvalDatasetSklearn(LandsatEvalDataset):
 
         # if assertion is triggered, go to the next tif file
         try:
-            assert self.input_tifs[idx].name == self.label_tifs[idx].name, (
-                f"Input path {self.input_tifs[idx].name} and label path {self.label_tifs[idx].name} do not match."
+            assert self.tifs[idx].name == self.label_tifs[idx].name, (
+                f"Input path {self.tifs[idx].name} and label path {self.label_tifs[idx].name} do not match."
             )
         except AssertionError:
             print(
