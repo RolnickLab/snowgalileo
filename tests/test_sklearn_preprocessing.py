@@ -42,7 +42,7 @@ class TestMasking(unittest.TestCase):
         # expected result after median replacement: if same number of values below and above median,
         # the lower of the two is chosen
         expected_test1 = torch.tensor(
-            [[[[3.0, 3.0], [35.0493, 35.0493]]]]
+            [[[[3.0, 3.0], [35.04930787547541, 35.04930787547541]]]]
         )
         # we assume this is space_time_med_res (i.e., three channels, no time dimension)
         result_test1 = LandsatEvalSklearn.replace_masked_data_with_aggregate(
@@ -60,7 +60,7 @@ class TestMasking(unittest.TestCase):
         )
 
         expected_test2 = torch.tensor(
-            [[[-0.1226, 0.1277, 0.7630], [-0.1226, 0.1277, 0.7630]], [[-0.1226, 0.1277, 0.7630], [-0.1226, 0.1277, 0.7630]], [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]]
+            [[[0.36394006998487605, 0.5007256248945473, 0.05739324402519956], [0.36394006998487605, 0.5007256248945473, 0.05739324402519956]], [[0.36394006998487605, 0.5007256248945473, 0.05739324402519956], [0.36394006998487605, 0.5007256248945473, 0.05739324402519956]], [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]]
         )
 
         # we assume this is static data (i.e., three channels, no time dimension)
@@ -211,13 +211,12 @@ class TestMasking(unittest.TestCase):
                     [[6.0, 6.0], [2.0, 4.0]],
                 ],
                 [
-                    [[87.4578, 87.4578], [10.0, 10.0]],
-                    [[87.4578, 87.4578], [1.0, 1.0]],
-                    [[87.4578, 87.4578], [1.0, 1.0]],
+                    [[87.457754562646, 87.457754562646], [10.0, 10.0]],
+                    [[87.457754562646, 87.457754562646], [1.0, 1.0]],
+                    [[87.457754562646, 87.457754562646], [1.0, 1.0]],
                 ],
             ]
         )
-
         expected_timesteps_test2 = torch.tensor(
             [
                 [
