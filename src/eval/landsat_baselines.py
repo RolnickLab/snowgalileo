@@ -146,7 +146,7 @@ class LandsatEvalDatasetSklearn(LandsatEvalDataset):
                 month,
             ),
             label,
-            self.input_tifs[idx].name,  # for logging purposes
+            self.tifs[idx].name,  # for logging purposes
         )
 
 
