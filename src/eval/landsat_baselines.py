@@ -256,7 +256,7 @@ class LandsatEvalSklearn(LandsatEval):
             dims = [-2]
         else:
             raise ValueError(f"Unexpected shape {x.shape}")
-        LandsatEvalSklearn.median_replace(x, m, dims)
+        x = LandsatEvalSklearn.median_replace(x, m, dims)
 
         if torch.isnan(x).any():
             assert normalizing_dict is not None, "normalizing_dict must be provided for final fill value replacement."
