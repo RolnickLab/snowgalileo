@@ -536,10 +536,10 @@ class Dataset(PyTorchDataset):
             mapped[data == class_value] = idx
 
         h, w = data.shape
-        one_hot = np.zeros((h, w, NUM_WC_CLASSES), dtype=np.int16)
+        one_hot = np.zeros((h, w, NUM_WC_CLASSES), dtype=data.dtype)
 
         # Standard one-hot encoding
-        one_hot[np.arange(h)[:, None], np.arange(w), mapped] = 1
+        one_hot[np.arange(h)[:, None], np.arange(w), mapped.astype(int)] = 1
 
         # Set all channels to NO_DATA_VALUE where original class was 0
         one_hot[nodata_mask] = NO_DATA_VALUE
