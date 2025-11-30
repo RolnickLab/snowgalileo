@@ -27,5 +27,7 @@ def extract_season_from_filename(filename: str) -> str:
                 # Season wraps around the year (e.g., winter)
                 if month_day_date >= start_date or month_day_date <= end_date:
                     return season
-    except (ValueError, IndexError):
+        # If no season matched, return out_of_range
         return "out_of_range"
+    except (ValueError, IndexError):
+        raise ValueError(f"Filename '{filename}' does not match expected format.")
