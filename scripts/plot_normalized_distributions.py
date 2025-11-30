@@ -67,7 +67,7 @@ class PlottingDataset(BaseDataset):
 
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument("--h5py_folder", type=str, default="data/h5pys_pretrain_new_new")
+argparser.add_argument("--h5py_folder", type=str, default="none")
 argparser.add_argument("--tif_folder", type=str, default="data/tifs_all_bands")
 argparser.add_argument("--normalize", action="store_true", help="Whether to normalize the data")
 
@@ -77,7 +77,7 @@ if __name__ == "__main__":
     dataset = PlottingDataset(
         data_folder=Path(args["tif_folder"]),
         download=False,
-        h5py_folder=Path(args["h5py_folder"]),
+        h5py_folder=None if args["h5py_folder"].lower() == "none" else Path(args["h5py_folder"]),
         h5pys_only=False,
     )
 
