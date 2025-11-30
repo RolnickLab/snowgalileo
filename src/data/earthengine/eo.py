@@ -575,6 +575,9 @@ class EarthEngineExporter:
 
         img = create_ee_image(polygon, interval_start_date, interval_end_date)
 
+        # important so we control the no data value
+        img = img.unmask(self.no_data_val)
+
         if self.mode == "cloud":
             try:
                 ee.batch.Export.image.toCloudStorage(

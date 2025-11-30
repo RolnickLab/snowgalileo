@@ -249,7 +249,8 @@ EVAL_MODALITIES: Dict[str, Dict[str, Any]] = {
     },
 }
 
-# TODO: this is a bit hard-coded; empirically identified lower bound thresholds (inclusive) to avoid outliers in the input data
+# Empirically identified lower bound thresholds (inclusive) to avoid outliers and fill values in the input data
+# Mostly identified based on GEE band value ranges, or by visual inspection of histograms of the data
 CHANNEL_WISE_INVALID_DATA_THRESHOLDS: Dict[str, Dict] = {
     "s_t_h_x": {
         0: -50,  # S1 VV: expected min as specific by GEE band ranges
@@ -286,7 +287,7 @@ CHANNEL_WISE_INVALID_DATA_THRESHOLDS: Dict[str, Dict] = {
         10: -1,  # NDVI lower bound
     },
     "sp_x": {
-        0: -500,  # elevation
+        0: 0.0000001,  # elevation: invalid values are set to zero according to https://documentation.dataspace.copernicus.eu/APIs/SentinelHub/Data/DEM.html
         1: 0,  # slope
         2: 0,  # aspect
         3: 0,  # WC Map (one-hot encoded channels below)
