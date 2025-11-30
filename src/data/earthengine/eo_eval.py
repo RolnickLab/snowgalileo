@@ -404,6 +404,9 @@ class EarthEngineExporterEval(EarthEngineExporter):
 
         img = create_ee_image(polygon, interval_start_date, interval_end_date)
 
+        # important so we control the no data value
+        img = img.unmask(self.no_data_val)
+
         print("Exporting image in crs", crs, flush=True)
 
         if self.mode == "cloud":
