@@ -27,8 +27,5 @@ def extract_season_from_filename(filename: str) -> str:
                 # Season wraps around the year (e.g., winter)
                 if month_day_date >= start_date or month_day_date <= end_date:
                     return season
-        raise ValueError(
-            f"Date {month_day} in filename {filename} does not fall within any defined season"
-        )
     except (ValueError, IndexError):
-        raise ValueError(f"Filename {filename} does not contain a valid season segment")
+        return "out_of_range"
