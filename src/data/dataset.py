@@ -521,20 +521,31 @@ class Dataset(PyTorchDataset):
             static_x,
             months[start_t : start_t + num_timesteps],
         )
-
+    
     @staticmethod
     def one_hot_encode_esa_worldcover(data: np.ndarray) -> np.ndarray:
-        """One-hot encode the ESA Worldcover band, so that each class has its own channel."""
-        assert np.all(np.isin(data, WC_CLASS_VALUES)), (
+        """One-hot encode the ESA Worldcover band, setting all channels to NO_DATA_VALUE where class=0."""
+        
+        assert np.all(np.isin(data, WC_CLASS_VALUES + [0])), (
             "ESA Worldcover data contains unexpected class values."
         )
-        # Map class values to indices 0-10
-        data = np.array([WC_CLASS_VALUES.index(val) for val in data.flatten()]).reshape(data.shape)
+        nodata_mask = (data == 0)
+
+        # Map class values to indices 0..NUM_WC_CLASSES-1
+        mapped = np.zeros_like(data)
+        for idx, class_value in enumerate(WC_CLASS_VALUES):
+            mapped[data == class_value] = idx
+
         h, w = data.shape
-        one_hot_encoded = np.zeros((h, w, NUM_WC_CLASSES), dtype=data.dtype)
-        for class_idx in range(NUM_WC_CLASSES):
-            one_hot_encoded[:, :, class_idx] = (data == class_idx).astype(data.dtype)
-        return one_hot_encoded
+        one_hot = np.zeros((h, w, NUM_WC_CLASSES), dtype=np.int16)
+
+        # Standard one-hot encoding
+        one_hot[np.arange(h)[:, None], np.arange(w), mapped] = 1
+
+        # Set all channels to NO_DATA_VALUE where original class was 0
+        one_hot[nodata_mask] = NO_DATA_VALUE
+        return one_hot
+
 
     @staticmethod
     def _check_and_fillna(data: np.ndarray, bands_np: np.ndarray) -> np.ndarray:

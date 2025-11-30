@@ -11,6 +11,7 @@ from src.data.config import (
     NUM_LOW_RES_PIXELS_PER_DIM,
     NUM_MED_RES_PIXELS_PER_DIM,
     NUM_TIMESTEPS,
+    NO_DATA_VALUE,
 )
 from src.data.dataset import (
     SPACE_BANDS,
@@ -210,6 +211,32 @@ class TestDataset(unittest.TestCase):
                     # mostly checking it can be read
                     self.assertEqual(f["t_x"].shape[0], NUM_TIMESTEPS)
 
+    def test_one_hot_encoding(self):
+        ds = Dataset(TIFS_FOLDER, download=False)
+        for b in ds:
+            sp_x = b["space"]
+            self.assertEqual(sp_x.shape[-1], len(SPACE_BANDS))
+            # check one hot encoding of categorical variables
+            # landcover (11 classes + 1 no data)
+            # starting from 3rd index
+            self.assertTrue(np.all(np.isin(sp_x[:, 3:14], [0, 1, NO_DATA_VALUE])))
+
+        no_data_test = np.array(
+            [
+                [NO_DATA_VALUE],
+                [30],
+                [90]
+            ]
+        )
+        expected_output = np.array(
+            [
+                [NO_DATA_VALUE]*11,
+                [0,0,1,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,1,0,0],
+            ]
+        )
+        output = Dataset.one_hot_encode_esa_worldcover(no_data_test)
+        self.assertTrue(np.array_equal(output, expected_output))
 
 if __name__ == "__main__":
     unittest.main()
