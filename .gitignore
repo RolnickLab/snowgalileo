@@ -1,10 +1,10 @@
 __pycache__
 # data needs to be explicitly added
-data/*
-!data/pretraining_points/
-!data/eval_tifs/
-!data/tifs/
-!data/tifs_broken/
+#data/*
+#!data/pretraining_points/
+#!data/eval_tifs/
+#!data/tifs/
+#!data/tifs_broken/
 .ipynb_checkpoints
 baseline_weights
 models
