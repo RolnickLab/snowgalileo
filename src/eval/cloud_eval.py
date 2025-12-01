@@ -33,55 +33,62 @@ class CloudMetaDataset(BaseDataset):
         )
 
     @staticmethod
+    def bitwise_extract(value: int, from_bit: int, to_bit: int = None) -> int:
+        # python equivalent of https://gis.stackexchange.com/questions/349371/creating-cloud-free-images-out-of-a-mod09a1-modis-image-in-gee/349401#349401
+        if to_bit is None:
+            to_bit = from_bit
+        mask_size = (to_bit - from_bit) + 1
+        mask = (1 << mask_size) - 1
+        return (value >> from_bit) & mask
+
+    @staticmethod
     def map_int_to_cloud_states(state: int):
         """Retrieve cloud state from MODIS QA state integer
+        QA state translation from Table 13 in https://lpdaac.usgs.gov/documents/306/MOD09_User_Guide_V6.pdf
+        16-bit unsigned integer, bit 0 is LSB
         Returns if there is cloud, cloud shadow, cirrus detected
         """
         # fill value by MODIS is 0
         if state == 0:
             assert False, "Fill value encountered in MODIS QA state"
 
-        # qa state translation from Table 13 in https://lpdaac.usgs.gov/documents/306/MOD09_User_Guide_V6.pdf
-        # 16-bit unsigned integer, bit 0 is LSB
-        qa_bin = format(state, ">016b")
-
         # mapping 0: clear, 1: cloudy, 2: mixed
         # 00 clear, 01 cloudy, 10 mixed, 11 clear
-        cloud_state: Union[bool, str] = qa_bin[:2]  # first two bits
-        if cloud_state == "00":
+        cloud_state: Union[bool, str] = CloudMetaDataset.bitwise_extract(state, 0, 1)  # first two bits
+        if cloud_state == 0:
             cloud_state = False
-        elif cloud_state == "01":
+        elif cloud_state == 1:
             cloud_state = True
-        elif cloud_state == "10":
+        elif cloud_state == 2:
             cloud_state = True
-        elif cloud_state == "11":
+        elif cloud_state == 3:
             cloud_state = False
 
         # 0: no cloud shadow, 1: cloud shadow
-        cloud_shadow: Union[bool, str] = qa_bin[2]
-        if cloud_shadow == "0":
+        cloud_shadow: Union[bool, str] = CloudMetaDataset.bitwise_extract(state, 2)
+        if cloud_shadow == 0:
             cloud_shadow = False
         else:
             cloud_shadow = True
 
         # 00: none, 01: small, 10: average, 11: high
-        cirrus_detected: Union[bool, str] = qa_bin[8:10]
-        if cirrus_detected == "00":
+        cirrus_detected: Union[bool, str] = CloudMetaDataset.bitwise_extract(state, 8, 9)
+        if cirrus_detected == 0:
             cirrus = False
-        if cirrus_detected == "01":
+        if cirrus_detected == 1:
             cirrus = True
-        if cirrus_detected == "10":
+        if cirrus_detected == 2:
             cirrus = True
-        if cirrus_detected == "11":
+        if cirrus_detected == 3:
             cirrus = True
 
-        internal_cloud_flag: Union[bool, str] = qa_bin[10]
-        if internal_cloud_flag == "0":
+        internal_cloud_flag: Union[bool, str] = CloudMetaDataset.bitwise_extract(state, 10)
+        if internal_cloud_flag == 0:
             internal_cloud_flag = False
         else:
             internal_cloud_flag = True
 
-        return qa_bin, (cloud_state or internal_cloud_flag), cloud_shadow, cirrus
+        return (cloud_state or internal_cloud_flag), cloud_shadow, cirrus
 
     @classmethod
     def _get_cloud_band_and_location(cls, tif_path: Path):
@@ -160,7 +167,7 @@ class CloudMetaDataset(BaseDataset):
         # loops through time series, so last_clear_day is the last occurrence
         # we exclude the last timestep from the analysis as in the case of Landsat, it will always be clear
         for t in range(NUM_TIMESTEPS - 1):
-            _, cloud, cloud_shadow, cirrus = self.map_int_to_cloud_states(
+            cloud, cloud_shadow, cirrus = self.map_int_to_cloud_states(
                 modis_cloud_x[t].astype(int).item(0)
             )
             if not cloud and not cloud_shadow and not cirrus:
