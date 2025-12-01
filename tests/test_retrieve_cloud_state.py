@@ -22,8 +22,8 @@ class TestRetrieveCloudState(unittest.TestCase):
         ]
         for integer, expected_state in test_cases_without_bit:
             with self.subTest(state=integer):
-                cloud_state, shadow_state, cirrus_state = (
-                    CloudMetaDataset.map_int_to_cloud_states(integer)
+                cloud_state, shadow_state, cirrus_state = CloudMetaDataset.map_int_to_cloud_states(
+                    integer
                 )
                 self.assertEqual((cloud_state, shadow_state, cirrus_state), expected_state)
 
@@ -45,7 +45,8 @@ class TestRetrieveCloudState(unittest.TestCase):
                 total_clear,
                 total_days - (total_cloudy + total_shadow + total_cirrus),
             )
-            self.assertEqual(total_days, NUM_TIMESTEPS-1)  # last timestep excluded
+            self.assertEqual(total_days, NUM_TIMESTEPS - 1)  # last timestep excluded
+
 
 if __name__ == "__main__":
     unittest.main()

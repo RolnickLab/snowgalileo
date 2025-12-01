@@ -7,7 +7,6 @@ import psutil
 import rioxarray
 import xarray as xr
 from einops import rearrange
-from scipy import stats
 
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER
@@ -54,7 +53,9 @@ class CloudMetaDataset(BaseDataset):
 
         # mapping 0: clear, 1: cloudy, 2: mixed
         # 00 clear, 01 cloudy, 10 mixed, 11 clear
-        cloud_state: Union[bool, str] = CloudMetaDataset.bitwise_extract(state, 0, 1)  # first two bits
+        cloud_state: Union[bool, str] = CloudMetaDataset.bitwise_extract(
+            state, 0, 1
+        )  # first two bits
         if cloud_state == 0:
             cloud_state = False
         elif cloud_state == 1:
@@ -164,13 +165,13 @@ class CloudMetaDataset(BaseDataset):
 
         # loops through time series, so last_clear_day is the last occurrence
         # we exclude the last timestep from the analysis as in the case of Landsat, it will always be clear
-        for t in range(NUM_TIMESTEPS - 1):  
+        for t in range(NUM_TIMESTEPS - 1):
             states = [self.map_int_to_cloud_states(int(v)) for v in np.unique(modis_cloud_x[t])]
 
             # aggregate states for this day
-            is_cloud        = any(s[0] for s in states)
+            is_cloud = any(s[0] for s in states)
             is_cloud_shadow = any(s[1] for s in states)
-            is_cirrus       = any(s[2] for s in states)
+            is_cirrus = any(s[2] for s in states)
 
             if not (is_cloud or is_cloud_shadow or is_cirrus):
                 last_clear_day = t
