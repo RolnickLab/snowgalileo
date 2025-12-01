@@ -14,10 +14,11 @@ class TestRetrieveCloudState(unittest.TestCase):
         # https://gis.stackexchange.com/questions/349371/creating-cloud-free-images-out-of-a-mod09a1-modis-image-in-gee/349401#349401)
         test_cases_without_bit = [
             (1048, (1, 0, 0)),
-            (8202, (0, 0, 0)),
+            (8208, (0, 0, 0)),
             (8210, (1, 0, 0)),
             (1041, (1, 0, 0)),
             (40981, (1, 1, 0)),
+            (1049, (1, 0, 0)),
         ]
         for integer, expected_state in test_cases_without_bit:
             with self.subTest(state=integer):
