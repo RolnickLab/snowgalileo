@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Dict, Union, cast
+from typing import Dict, Optional, Union, cast
 
 import numpy as np
 import psutil
@@ -32,7 +32,7 @@ class CloudMetaDataset(BaseDataset):
         )
 
     @staticmethod
-    def bitwise_extract(value: int, from_bit: int, to_bit: int = None) -> int:
+    def bitwise_extract(value: int, from_bit: int, to_bit: Optional[int] = None) -> int:
         # python equivalent of https://gis.stackexchange.com/questions/349371/creating-cloud-free-images-out-of-a-mod09a1-modis-image-in-gee/349401#349401
         if to_bit is None:
             to_bit = from_bit
@@ -53,9 +53,7 @@ class CloudMetaDataset(BaseDataset):
 
         # mapping 0: clear, 1: cloudy, 2: mixed
         # 00 clear, 01 cloudy, 10 mixed, 11 clear
-        cloud_state: Union[bool, str] = CloudMetaDataset.bitwise_extract(
-            state, 0, 1
-        )  # first two bits
+        cloud_state: int = CloudMetaDataset.bitwise_extract(state, 0, 1)  # first two bits
         if cloud_state == 0:
             cloud_state = False
         elif cloud_state == 1:
@@ -66,14 +64,14 @@ class CloudMetaDataset(BaseDataset):
             cloud_state = False
 
         # 0: no cloud shadow, 1: cloud shadow
-        cloud_shadow: Union[bool, str] = CloudMetaDataset.bitwise_extract(state, 2)
+        cloud_shadow: int = CloudMetaDataset.bitwise_extract(state, 2)
         if cloud_shadow == 0:
             cloud_shadow = False
         else:
             cloud_shadow = True
 
         # 00: none, 01: small, 10: average, 11: high
-        cirrus_detected: Union[bool, str] = CloudMetaDataset.bitwise_extract(state, 8, 9)
+        cirrus_detected: int = CloudMetaDataset.bitwise_extract(state, 8, 9)
         if cirrus_detected == 0:
             cirrus = False
         if cirrus_detected == 1:
@@ -83,7 +81,7 @@ class CloudMetaDataset(BaseDataset):
         if cirrus_detected == 3:
             cirrus = True
 
-        internal_cloud_flag: Union[bool, str] = CloudMetaDataset.bitwise_extract(state, 10)
+        internal_cloud_flag: int = CloudMetaDataset.bitwise_extract(state, 10)
         if internal_cloud_flag == 0:
             internal_cloud_flag = False
         else:
