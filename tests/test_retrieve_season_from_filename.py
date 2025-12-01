@@ -26,6 +26,9 @@ class TestRetrieveSeasonFromFilename(unittest.TestCase):
 
         expected_test_seasons = ["mid", "late"]
 
-        for idx, filename in enumerate(os.listdir(DATA_FOLDER)):
+        for idx, filename in enumerate(sorted(os.listdir(DATA_FOLDER))):
             season = extract_season_from_filename(filename)
             self.assertEqual(season, expected_test_seasons[idx])
+
+if __name__ == "__main__":
+    unittest.main()
