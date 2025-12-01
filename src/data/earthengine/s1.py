@@ -11,12 +11,6 @@ S1_SHIFT_VALUES = [25.0, 25.0, 0.0]
 S1_DIV_VALUES = [25.0, 25.0, 90.0]
 
 
-def mask_edge(image):
-    edge = image.lt(-30.0)
-    masked_image = image.mask().And(edge.Not())
-    return image.updateMask(masked_image)
-
-
 def get_single_s1_image(
     region: ee.Geometry,
     start_date: date,
@@ -30,7 +24,6 @@ def get_single_s1_image(
         .filterDate(startDate, endDate)
         .filterBounds(region)
         .filter(ee.Filter.eq("instrumentMode", "IW"))
-        .map(mask_edge)
     )
 
     if s1.size().getInfo() == 0:
