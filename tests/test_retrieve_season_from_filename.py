@@ -30,5 +30,6 @@ class TestRetrieveSeasonFromFilename(unittest.TestCase):
             season = extract_season_from_filename(filename)
             self.assertEqual(season, expected_test_seasons[idx])
 
+
 if __name__ == "__main__":
     unittest.main()
