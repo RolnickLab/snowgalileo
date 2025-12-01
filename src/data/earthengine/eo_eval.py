@@ -405,6 +405,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
         img = create_ee_image(polygon, interval_start_date, interval_end_date)
 
         # important so we control the no data value
+        # NOTE: in reality, GEE might still write values to zero with URL downloads
         img = img.unmask(self.no_data_val)
 
         print("Exporting image in crs", crs, flush=True)

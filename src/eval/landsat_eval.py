@@ -1,15 +1,13 @@
-import json
 import logging
 import warnings
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, Union, cast
 
-import h5py
 import numpy as np
 import rioxarray
 import torch
 import xarray as xr
-from einops import rearrange, repeat
+from einops import rearrange
 from sklearn.base import BaseEstimator
 from sklearn.metrics import (
     accuracy_score,
@@ -21,22 +19,22 @@ from sklearn.metrics import (
     root_mean_squared_error,
 )
 from torch.utils.data import DataLoader
-from torch.utils.data import Dataset as PyTorchDataset
 from tqdm import tqdm
 
 from src.data.config import (
     CHANNEL_WISE_INVALID_DATA_THRESHOLDS,
     DATA_FOLDER,
-    MODIS_FILL_VALUE,
     MODALITIES,
+    MODIS_FILL_VALUE,
+    NDI_VALID_DATA_BOUNDS,
     NO_DATA_VALUE,
     NORMALIZATION_DICT_FILENAME,
     NUM_LOW_RES_PIXELS_PER_DIM,
     NUM_MED_RES_PIXELS_PER_DIM,
     NUM_TIMESTEPS,
     RESULTS_FOLDER,
-    NDI_VALID_DATA_BOUNDS,
 )
+from src.data.dataset import Dataset as BaseDataset
 from src.data.dataset import DatasetOutput, Normalizer, to_cartesian
 from src.data.earthengine.eo_eval import (
     CLOUD_BANDS,
@@ -47,10 +45,7 @@ from src.data.earthengine.eo_eval import (
     EO_SPACE_TIME_LOW_RES_BANDS,
     ESA_WORLDCOVER_BAND_INDEX,
     SPACE_BAND_GROUPS_IDX,
-    SPACE_BANDS,
-    SPACE_TIME_HIGH_RES_BANDS,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
-    SPACE_TIME_LOW_RES_BANDS,
     SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX,
     SPACE_TIME_MED_RES_BANDS,
     SPACE_TIME_MED_RES_BANDS_GROUPS_IDX,
@@ -59,13 +54,11 @@ from src.data.earthengine.eo_eval import (
     TIME_BANDS,
     TIME_BANDS_GROUPS_IDX,
 )
-from src.data.earthengine.esa_worldcover import NUM_WC_CLASSES, WC_CLASS_VALUES
 from src.eval.eval import EvalTask, model_class_name
 from src.eval.patch_predict import EncoderWithHead, get_finetune_results
 from src.masking import _aggregate_mask_per_channel_group
 from src.snowgalileo import Encoder
 from src.utils import DEFAULT_SEED, config_dir, device, masked_output_np_to_tensor
-from src.data.dataset import Dataset as BaseDataset
 
 logger = logging.getLogger("__main__")
 
@@ -306,9 +299,10 @@ class LandsatEvalDataset(BaseDataset):
             assert (ndsi != MODIS_FILL_VALUE).any(), (
                 f"MODIS fill values encountered in NDSI for {tif_path}"
             )
-            assert ((ndsi >= NDI_VALID_DATA_BOUNDS[0]) & (ndsi <= NDI_VALID_DATA_BOUNDS[1]) | (ndsi == NO_DATA_VALUE)).all(), (
-                f"NDI values out of bounds {NDI_VALID_DATA_BOUNDS} for {tif_path}"
-            )
+            assert (
+                (ndsi >= NDI_VALID_DATA_BOUNDS[0]) & (ndsi <= NDI_VALID_DATA_BOUNDS[1])
+                | (ndsi == NO_DATA_VALUE)
+            ).all(), f"NDI values out of bounds {NDI_VALID_DATA_BOUNDS} for {tif_path}"
 
         # NDVI = (NIR - Red) / (NIR + Red)
         if MODALITIES["ndvi"].get("active"):
@@ -319,9 +313,10 @@ class LandsatEvalDataset(BaseDataset):
             assert (ndvi != MODIS_FILL_VALUE).any(), (
                 f"MODIS fill values encountered in NDVI for {tif_path}"
             )
-            assert ((ndvi >= NDI_VALID_DATA_BOUNDS[0]) & (ndvi <= NDI_VALID_DATA_BOUNDS[1]) | (ndvi == NO_DATA_VALUE)).all(), (
-                f"NDI values out of bounds {NDI_VALID_DATA_BOUNDS} for {tif_path}"
-            )
+            assert (
+                (ndvi >= NDI_VALID_DATA_BOUNDS[0]) & (ndvi <= NDI_VALID_DATA_BOUNDS[1])
+                | (ndvi == NO_DATA_VALUE)
+            ).all(), f"NDI values out of bounds {NDI_VALID_DATA_BOUNDS} for {tif_path}"
 
         space_x = rearrange(
             values[-len(EE_SPACE_BANDS) :],
@@ -331,6 +326,9 @@ class LandsatEvalDataset(BaseDataset):
 
         # one-hot encode ESA Worldcover band
         esa_wc = cls.one_hot_encode_esa_worldcover(space_x[:, :, ESA_WORLDCOVER_BAND_INDEX])
+        assert esa_wc.all() in [0, 1, NO_DATA_VALUE], (
+            f"Unexpected values in ESA Worldcover for {tif_path}"
+        )
         space_x = np.concatenate((space_x[:, :, : (-len(EE_WC_BANDS))], esa_wc), axis=-1)
 
         static_x = to_cartesian(lat, lon)

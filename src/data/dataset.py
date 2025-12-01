@@ -520,15 +520,15 @@ class Dataset(PyTorchDataset):
             static_x,
             months[start_t : start_t + num_timesteps],
         )
-    
+
     @staticmethod
     def one_hot_encode_esa_worldcover(data: np.ndarray) -> np.ndarray:
         """One-hot encode the ESA Worldcover band, setting all channels to NO_DATA_VALUE where class=0."""
-        
+
         assert np.all(np.isin(data, WC_CLASS_VALUES + [0])), (
             "ESA Worldcover data contains unexpected class values."
         )
-        nodata_mask = (data == 0)
+        nodata_mask = data == 0
 
         # Map class values to indices 0..NUM_WC_CLASSES-1
         mapped = np.zeros_like(data)
@@ -544,7 +544,6 @@ class Dataset(PyTorchDataset):
         # Set all channels to NO_DATA_VALUE where original class was 0
         one_hot[nodata_mask] = NO_DATA_VALUE
         return one_hot
-
 
     @staticmethod
     def _check_and_fillna(data: np.ndarray, bands_np: np.ndarray) -> np.ndarray:
@@ -780,9 +779,10 @@ class Dataset(PyTorchDataset):
             assert (ndsi != MODIS_FILL_VALUE).any(), (
                 f"MODIS fill values encountered in NDSI for {tif_path}"
             )
-            assert ((ndsi >= NDI_VALID_DATA_BOUNDS[0]) & (ndsi <= NDI_VALID_DATA_BOUNDS[1]) | (ndsi == NO_DATA_VALUE)).all(), (
-                f"NDSI values out of bounds {NDI_VALID_DATA_BOUNDS} for {tif_path}"
-            )
+            assert (
+                (ndsi >= NDI_VALID_DATA_BOUNDS[0]) & (ndsi <= NDI_VALID_DATA_BOUNDS[1])
+                | (ndsi == NO_DATA_VALUE)
+            ).all(), f"NDSI values out of bounds {NDI_VALID_DATA_BOUNDS} for {tif_path}"
 
         # NDVI = (NIR - Red) / (NIR + Red)
         if MODALITIES["ndvi"].get("active"):
@@ -793,9 +793,10 @@ class Dataset(PyTorchDataset):
             assert (ndvi != MODIS_FILL_VALUE).any(), (
                 f"MODIS fill values encountered in NDVI for {tif_path}"
             )
-            assert ((ndvi >= NDI_VALID_DATA_BOUNDS[0]) & (ndvi <= NDI_VALID_DATA_BOUNDS[1]) | (ndvi == NO_DATA_VALUE)).all(), (
-                f"NDVI values out of bounds {NDI_VALID_DATA_BOUNDS} for {tif_path}"
-            )
+            assert (
+                (ndvi >= NDI_VALID_DATA_BOUNDS[0]) & (ndvi <= NDI_VALID_DATA_BOUNDS[1])
+                | (ndvi == NO_DATA_VALUE)
+            ).all(), f"NDVI values out of bounds {NDI_VALID_DATA_BOUNDS} for {tif_path}"
 
         space_x = rearrange(
             values[-len(EE_SPACE_BANDS) :],
@@ -805,6 +806,9 @@ class Dataset(PyTorchDataset):
 
         # one-hot encode ESA Worldcover band
         esa_wc = cls.one_hot_encode_esa_worldcover(space_x[:, :, ESA_WORLDCOVER_BAND_INDEX])
+        assert esa_wc.all() in [0, 1, NO_DATA_VALUE], (
+            f"Unexpected values in ESA Worldcover for {tif_path}"
+        )
         space_x = np.concatenate((space_x[:, :, : (-len(EE_WC_BANDS))], esa_wc), axis=-1)
 
         static_x = to_cartesian(lat, lon)

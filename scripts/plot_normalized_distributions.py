@@ -1,22 +1,23 @@
 import argparse
 from pathlib import Path
-import torch
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import seaborn as sns
+import torch
 from torch.utils.data import DataLoader
 
-from src.data.config import NORMALIZATION_DICT_FILENAME
+from src.data.config import (
+    DATASET_OUTPUT_HW_HIGH_RES,
+    DATASET_OUTPUT_HW_LOW_RES,
+    DATASET_OUTPUT_HW_MED_RES,
+    NORMALIZATION_DICT_FILENAME,
+    NUM_TIMESTEPS,
+)
 from src.data.dataset import Dataset as BaseDataset
 from src.data.dataset import Normalizer
 from src.utils import config_dir
-from typing import Optional
-from src.data.config import (
-    DATASET_OUTPUT_HW_HIGH_RES,
-    DATASET_OUTPUT_HW_MED_RES,
-    DATASET_OUTPUT_HW_LOW_RES,
-    NUM_TIMESTEPS,
-)
+
 
 def plot_distribution(data, channel_idx, channel_name, filename):
     plt.figure(figsize=(10, 6))
@@ -83,8 +84,8 @@ if __name__ == "__main__":
 
     if args["normalize"]:
         normalizing_dict = dataset.load_normalization_values(
-                path=config_dir / NORMALIZATION_DICT_FILENAME
-            )
+            path=config_dir / NORMALIZATION_DICT_FILENAME
+        )
         print(normalizing_dict, flush=True)
         normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
         dataset.normalizer = normalizer
@@ -95,20 +96,23 @@ if __name__ == "__main__":
         if i == 2:
             break
         (
-            s_t_h_x,
-            s_t_m_x,
-            s_t_l_x,
-            sp_x,
-            t_x,
-            st_x,
-            months,
-            valid_data_mask_s_t_h,
-            valid_data_mask_s_t_m,
-            valid_data_mask_s_t_l,
-            valid_data_mask_sp,
-            valid_data_mask_t,
-            valid_data_mask_st,
-        ), name = batch
+            (
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                months,
+                valid_data_mask_s_t_h,
+                valid_data_mask_s_t_m,
+                valid_data_mask_s_t_l,
+                valid_data_mask_sp,
+                valid_data_mask_t,
+                valid_data_mask_st,
+            ),
+            name,
+        ) = batch
 
         s_t_h_x_c0_valid = s_t_h_x[..., 0][valid_data_mask_s_t_h[..., 0].bool()]
         s_t_h_x_c1_valid = s_t_h_x[..., 1][valid_data_mask_s_t_h[..., 1].bool()]
@@ -301,7 +305,7 @@ if __name__ == "__main__":
             plot_distribution(
                 data, idx, channel_name, f"{channel_name.replace(' ', '_')}_distribution.png"
             )
-        
+
         # print unique values count for aspect channel
         aspect_unique_values = torch.unique(sp_x_c2_valid, return_counts=True)
         print(f"Aspect unique values and counts: {aspect_unique_values}")

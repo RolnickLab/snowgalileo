@@ -6,12 +6,12 @@ import h5py
 import numpy as np
 
 from src.data.config import (
+    NO_DATA_VALUE,
     NORMALIZATION_DICT_FILENAME,
     NUM_HIGH_RES_PIXELS_PER_DIM,
     NUM_LOW_RES_PIXELS_PER_DIM,
     NUM_MED_RES_PIXELS_PER_DIM,
     NUM_TIMESTEPS,
-    NO_DATA_VALUE,
 )
 from src.data.dataset import (
     SPACE_BANDS,
@@ -221,22 +221,17 @@ class TestDataset(unittest.TestCase):
             # starting from 3rd index
             self.assertTrue(np.all(np.isin(sp_x[:, 3:14], [0, 1, NO_DATA_VALUE])))
 
-        no_data_test = np.array(
-            [
-                [NO_DATA_VALUE],
-                [30],
-                [90]
-            ]
-        )
+        no_data_test = np.array([[NO_DATA_VALUE], [30], [90]])
         expected_output = np.array(
             [
-                [NO_DATA_VALUE]*11,
-                [0,0,1,0,0,0,0,0,0,0,0],
-                [0,0,0,0,0,0,0,0,1,0,0],
+                [NO_DATA_VALUE] * 11,
+                [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
             ]
         )
         output = Dataset.one_hot_encode_esa_worldcover(no_data_test)
         self.assertTrue(np.array_equal(output, expected_output))
+
 
 if __name__ == "__main__":
     unittest.main()

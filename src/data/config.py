@@ -250,28 +250,28 @@ EVAL_MODALITIES: Dict[str, Dict[str, Any]] = {
 }
 
 # Empirically identified lower bound thresholds (inclusive) to avoid outliers and fill values in the input data
-# Mostly identified based on GEE band value ranges, or by visual inspection of histograms of the data
+# Identified based on expected value ranges as stated by documentations, or by visual inspection of histograms of the data
 CHANNEL_WISE_INVALID_DATA_THRESHOLDS: Dict[str, Dict] = {
     "s_t_h_x": {
         0: -50,  # S1 VV: expected min as specific by GEE band ranges
         1: -50,  # S1 VH: expected min as specific by GEE band ranges
         2: 0,  # S1 angle: expected min as specific by GEE band ranges
-        3: -2000,  # S2 B2
-        4: -2000,  # S2 B3
-        5: -2000,  # S2 B4
-        6: -2000,  # S2 B8
-        7: -2000,  # S2 B11
-        8: -2000,  # S2 B12
-        9: -2000,  # Landsat B2
-        10: -2000,  # Landsat B3
-        11: -2000,  # Landsat B4
-        12: -2000,  # Landsat B5
-        13: -2000,  # Landsat B6
-        14: -2000,  # Landsat B7
+        3: -1,  # S2 B2: Sentinel-2 lower bound is 0 according to https://docs.sentinel-hub.com/api/latest/data/sentinel-2-l1c/#units
+        4: -1,  # S2 B3
+        5: -1,  # S2 B4
+        6: -1,  # S2 B8
+        7: -1,  # S2 B11
+        8: -1,  # S2 B12
+        9: 0.0000001,  # Landsat B2: Landsat Collection 2 uses 0 for no data
+        10: 0.0000001,  # Landsat B3
+        11: 0.0000001,  # Landsat B4
+        12: 0.0000001,  # Landsat B5
+        13: 0.0000001,  # Landsat B6
+        14: 0.0000001,  # Landsat B7
     },
     "s_t_m_x": {
-        0: -1000,  # S3 (empirically identified)
-        1: -1000,  # S3 (empirically identified)
+        0: -1,  # S3 (empirically identified)
+        1: -1,  # S3 (empirically identified)
     },
     "s_t_l_x": {
         0: -100,  # MODIS: min as specific by GEE band ranges, masks out fill value -28672
@@ -307,9 +307,9 @@ CHANNEL_WISE_INVALID_DATA_THRESHOLDS: Dict[str, Dict] = {
         1: -0.01,  # VIIRS
         2: -0.01,  # VIIRS
         3: -0.01,  # VIIRS
-        4: 0,  # ERA5 temperature in Kelvin
-        5: 0,  # ERA5 temperature in Kelvin
-        6: -10,  # ERA5 precipitation
+        4: 184,  # ERA5 temperature in Kelvin: lower bound is min temperature recorded on Earth
+        5: 184,  # ERA5 temperature in Kelvin
+        6: -1,  # ERA5 precipitation
         7: -53,  # ERA5 wind component u https://confluence.ecmwf.int/display/CKB/ERA5%3A+large+10m+winds
         8: -53,  # ERA5 wind component v
     },
