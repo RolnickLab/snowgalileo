@@ -132,7 +132,8 @@ class LandsatEvalDataset(BaseDataset):
         return prediction_month
 
     def mask_prediction_timestep(self, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m):
-        # NOTE: 0 = valid, 1 = masked
+        # NOTE: space-only and static data are kept as is
+        # 0 = valid, 1 = masked
         assert self.exclude_prediction_date
         s_t_h_m[:, :, -1, :] = 1
         s_t_m_m[:, :, -1, :] = 1
@@ -141,12 +142,13 @@ class LandsatEvalDataset(BaseDataset):
         return s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
 
     def mask_prediction_high_res(self, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m):
-        # masks the high resolution, optical data in the prediction timestep
-        # high resolution channel groups are: s1, s2, landsat, so we retain the first channel
+        # Masks the high resolution, optical channel groups in the prediction timestep
+        # This includes all Sentinel-2 and Landsat bands
         # NOTE: 0 = valid, 1 = masked
         print("Masking high resolution data in prediction timestep", flush=True)
         assert self.exclude_prediction_high_res
         assert s_t_h_m.shape[-1] == len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX)
+        # Keep the first channel group (Sentinel-1)
         s_t_h_m[:, :, -1, 1:] = 1
         return s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
 
@@ -434,6 +436,7 @@ class LandsatEvalDataset(BaseDataset):
             ) = h5py.normalize(self.normalizer)
 
         # unmask everything per default, then mask invalid data
+        # 0 = valid data, 1 = masked
         s_t_h_m = torch.zeros(
             (
                 self.output_hw_high_res,
@@ -482,7 +485,7 @@ class LandsatEvalDataset(BaseDataset):
             )
         )
 
-        # since we mask out the same values within each channel we can assume that the mask is the same for each channel group
+        # Apply the invalid data masks
         s_t_h_m[cg_mask_s_t_h.bool()] = 1
         s_t_m_m[cg_mask_s_t_m.bool()] = 1
         s_t_l_m[cg_mask_s_t_l.bool()] = 1
