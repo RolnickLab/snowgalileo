@@ -14,7 +14,7 @@ from src.eval.landsat_baselines import (
 from src.utils import config_dir
 
 
-class TestMasking(unittest.TestCase):
+class TestSklearn(unittest.TestCase):
     with (Path("src/eval/eval_configs/landsat_eval_5_95.json")).open("r") as f:
         config = json.load(f)
 

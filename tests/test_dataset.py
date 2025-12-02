@@ -26,8 +26,8 @@ from src.data.dataset import (
 )
 from src.utils import config_dir
 
-TIFS_FOLDER = Path(__file__).parents[1] / "data/tifs"
-BROKEN_TIFS_FOLDER = Path(__file__).parents[1] / "data/tifs_broken"
+TIFS_FOLDER = Path(__file__).parents[1] / "data/tifs_test"
+BROKEN_TIFS_FOLDER = Path(__file__).parents[1] / "data/tifs_broken_test"
 UNBROKEN_TEST_FILES = [TIFS_FOLDER / x for x in TIFS_FOLDER.glob("*.tif")]
 BROKEN_TEST_FILE = list(BROKEN_TIFS_FOLDER.glob("*.tif"))
 
