@@ -1,6 +1,6 @@
 # Data Retrieval
 
-## How to export pre-training data
+## How to Export Pre-training Data
 
 The export of pre-training data from Google Earth Engine can be kicked off with the script `export_for_pretrain.py` based on coordinates listed in a CSV file (stored in `pretraining_points/`). Exports are run locally via a download URL using the earthengine CLI and require authentication via a Google account.
 
@@ -27,6 +27,11 @@ We provide the shell scripts that we used for export kick-off in the `shell_scri
 Note: The export workflow allows export through Cloud Storage or Google Drive as alternative to the URL-Download option (not tested).
 
 This results in ~149,496 files being stored in `data/tifs_all_bands/`.
+
+## Computation of Normalization Values
+The normalization values provided with this repository are computed using the entire pre-training dataset and can be used as is for downstream purposes.
+
+We apply per-channel 2*std normalization based on the procedure in related work (Galileo, CROMA, and SatMAE). We don't apply normalization to naturally scaled variables (NDVI, NDSI, and one-hot encoded ESA Worldcover Map), or location. All normalization values were computed using the `scripts/compute_normalization.py` script, which computes running statistics over a given dataset using Welford's algorithm.
 
 ## Landsat Evaluation Data
 1) run `run_eval_export.sh` (all possible input tifs are exported, the resulting number of files will be smaller than the number of masks bacause of export fails)

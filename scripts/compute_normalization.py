@@ -19,12 +19,7 @@ seed_everything(DEFAULT_SEED)
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--h5py_folder", type=str, default="")
 argparser.add_argument("--tifs_folder", type=str, default="")
-argparser.add_argument("--download", dest="download", action="store_true")
 argparser.add_argument("--h5pys_only", dest="h5pys_only", action="store_true")
-argparser.add_argument("--plot_distributions", action="store_true")
-argparser.add_argument("--assets_folder_name", type=str, default="assets")
-argparser.set_defaults(download=False)
-argparser.set_defaults(cache_in_ram=False)
 args = argparser.parse_args().__dict__
 
 if args["tifs_folder"] == "":
@@ -41,7 +36,7 @@ print("Loading dataset and dataloader")
 
 dataset = Dataset(
     data_folder=tifs_folder,
-    download=args["download"],
+    download=False,
     h5py_folder=args["h5py_folder"],
     h5pys_only=args["h5pys_only"],
 )
