@@ -71,24 +71,28 @@ class TestEval(unittest.TestCase):
         assert t_m.shape == (3, len(TIME_BANDS_GROUPS_IDX))
         assert st_m.shape == (len(STATIC_BAND_GROUPS_IDX),)
 
-        s_t_h_m_valid = s_t_h_m[6:9, 6:9, 2, 2] # expected valid data in group 3
+        s_t_h_m_valid = torch.zeros_like(s_t_h_m, dtype=torch.bool)
+        s_t_h_m_valid[6:9, 6:9, 2, 2] = True
         assert s_t_h_m_valid.all() == 0  # group 3 should be valid
         assert s_t_h_m[~s_t_h_m_valid].all() == 1  # other groups should be invalid
 
-        s_t_m_m_valid = s_t_m_m[1:4, 1:4, 1, 0]
+        s_t_m_m_valid = torch.zeros_like(s_t_m_m, dtype=torch.bool)
+        s_t_m_m_valid[1:4, 1:4, 1, 0] = True
         assert s_t_m_m_valid.all() == 0
         assert s_t_m_m[~s_t_m_m_valid].all() == 1
 
-        s_t_l_m_valid = s_t_l_m[8:10, 8:10, 2, 0]
+        s_t_l_m_valid = torch.zeros_like(s_t_l_m, dtype=torch.bool)
+        s_t_l_m_valid[8:10, 8:10, 2, 0] = True
         assert s_t_l_m_valid.all() == 0
         assert s_t_l_m[~s_t_l_m_valid].all() == 1
 
-        sp_m_valid = sp_m[5:7, 5:7, 0]
+        sp_m_valid = torch.zeros_like(sp_m, dtype=torch.bool)
+        sp_m_valid[5:7, 5:7, 0] = True
         assert sp_m_valid.all() == 0
         assert sp_m[~sp_m_valid].all() == 1
 
         assert t_m.all() == 1  # all time groups should be invalid since valid data comes from different channel groups
-        assert st_m.all() == 1  # static bands should remain unchanged
+        assert st_m.all() == 1  # static bands should remain unchanged        
 
 if __name__ == "__main__":
     unittest.main()
