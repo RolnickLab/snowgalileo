@@ -69,7 +69,6 @@ from src.data.earthengine.eo import (
 )
 from src.data.earthengine.esa_worldcover import NUM_WC_CLASSES, WC_CLASS_VALUES
 from src.data.utils import RunningStats
-from src.utils import config_dir
 
 logger = logging.getLogger("__main__")
 
@@ -1417,7 +1416,7 @@ class Dataset(PyTorchDataset):
             },
         }
 
-        with open(config_dir / normalization_dict_filename, "w") as f:
+        with open(normalization_dict_filename, "w") as f:
             json.dump(norm_dict, f)
 
         return norm_dict
