@@ -334,7 +334,7 @@ RESULTS_FOLDER = Path(__file__).parents[2] / "results"
 # when in this repo, uncomment the following line
 DATA_FOLDER = Path(__file__).parents[2] / "data"
 TIFS_FOLDER = DATA_FOLDER / "tifs_all_bands"
-NORMALIZATION_DICT_FILENAME = "normalizing_dict_updated.json"
+NORMALIZATION_DICT_FILENAME = "normalizing_dict_december.json"
 OUTPUT_FOLDER = DATA_FOLDER / "outputs"
 ENCODER_FILENAME = "encoder"
 OPTIMIZER_FILENAME = "optimizer"
