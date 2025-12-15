@@ -214,7 +214,7 @@ class TestDataset(unittest.TestCase):
     def test_one_hot_encoding(self):
         ds = Dataset(TIFS_FOLDER, download=False)
         for b in ds:
-            sp_x = b["space"]
+            sp_x = b[3]
             self.assertEqual(sp_x.shape[-1], len(SPACE_BANDS))
             # check one hot encoding of categorical variables
             # landcover (11 classes + 1 no data)
@@ -299,17 +299,17 @@ class TestDataset(unittest.TestCase):
         # test if all invalid positions have value 0, and all others a value of 1
         self.assertTrue(np.all(valid_data_sth[invalid_sth] == 0))
         self.assertTrue(np.all(valid_data_stm[invalid_stm] == 0))
-        self.assertEqual(np.all(valid_data_stl[invalid_stl] == 0))
-        self.assertEqual(np.all(valid_data_sp[invalid_sp] == 0))
-        self.assertEqual(np.all(valid_data_t[invalid_t] == 0))
-        self.assertEqual(np.all(valid_data_st[invalid_st] == 0))
+        self.assertTrue(np.all(valid_data_stl[invalid_stl] == 0))
+        self.assertTrue(np.all(valid_data_sp[invalid_sp] == 0))
+        self.assertTrue(np.all(valid_data_t[invalid_t] == 0))
+        self.assertTrue(np.all(valid_data_st[invalid_st] == 0))
 
-        self.assertEqual(np.all(valid_data_sth[~invalid_sth] == 1))
-        self.assertEqual(np.all(valid_data_stm[~invalid_stm] == 1))
-        self.assertEqual(np.all(valid_data_stl[~invalid_stl] == 1))
-        self.assertEqual(np.all(valid_data_sp[~invalid_sp] == 1))
-        self.assertEqual(np.all(valid_data_t[~invalid_t] == 1))
-        self.assertEqual(np.all(valid_data_st[~invalid_st] == 1))
+        self.assertTrue(np.all(valid_data_sth[~invalid_sth] == 1))
+        self.assertTrue(np.all(valid_data_stm[~invalid_stm] == 1))
+        self.assertTrue(np.all(valid_data_stl[~invalid_stl] == 1))
+        self.assertTrue(np.all(valid_data_sp[~invalid_sp] == 1))
+        self.assertTrue(np.all(valid_data_t[~invalid_t] == 1))
+        self.assertTrue(np.all(valid_data_st[~invalid_st] == 1))
 
 
 if __name__ == "__main__":
