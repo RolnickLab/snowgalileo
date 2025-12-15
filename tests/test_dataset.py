@@ -224,9 +224,9 @@ class TestDataset(unittest.TestCase):
         no_data_test = np.array([[0], [30], [90]])
         expected_output = np.array(
             [
-                [NO_DATA_VALUE] * 11,
-                [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+                [[NO_DATA_VALUE] * 11],
+                [[0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]],
+                [[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0]],
             ]
         )
         output = Dataset.one_hot_encode_esa_worldcover(no_data_test)
