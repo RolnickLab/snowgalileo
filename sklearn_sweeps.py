@@ -6,8 +6,10 @@ from pathlib import Path
 import wandb
 
 from src.config import DEFAULT_SEED
+from src.data.config import NORMALIZATION_DICT_FILENAME
+from src.data.dataset import Dataset
 from src.eval.landsat_baselines import LandsatEvalSklearn
-from src.utils import seed_everything
+from src.utils import config_dir, seed_everything
 
 seed_everything(DEFAULT_SEED)
 
@@ -31,21 +33,31 @@ parser.add_argument(
     default="landsat_eval_1_99_test.json",
     help="Config name for evaluation. Options are stored in src/eval/eval_configs/",
 )
-
+parser.add_argument(
+    "--h5pys_only",
+    action="store_true",
+    help="Where to only use h5pys (faster, but need to be already stored in this format)",
+)
 args = parser.parse_args()
 
-# TODO: discuss which metric to optimize
+# Rittger et al.: https://www.sciencedirect.com/science/article/pii/S003442572100328X#s0010 tested n_estimators from 100 - 500 in increments of 100
+# Sklearn definitions:
+# n_estimators == number of trees
+# max_features == mtry = [p / 3], where p==total number of predictor variables (following Kuter et al.)
+# min_samples_leaf = 5 (following Kuter et al. & Rittger et al.)
 rf_sweep_configuration = {
     "name": "sweep_sklearn_rf",
     "method": "random",
     "metric": {"goal": "maximize", "name": "r2"},
     "parameters": {
-        "n_estimators": {"values": [50, 100, 200, 300, 350, 400, 450, 500]},
-        "max_depth": {"values": [None, 10, 20, 30, 40, 50]},
+        "n_estimators": {"values": [50, 100, 200, 300, 400, 500]},
         "normalization": {"values": [None, "std"]},
     },
 }
 
+# Following Kuter et al.: https://www.sciencedirect.com/science/article/pii/S0034425721000122#bb0360
+# kernel function and regularization parameter C are the sensitive hyperparameters.
+# Polynomial kernel depends on degree d. RBF depends on kernel width gamma.
 svr_sweep_configuration = {
     "name": "sweep_sklearn_svr",
     "method": "random",
@@ -59,12 +71,14 @@ svr_sweep_configuration = {
     },
 }
 
+# Following Kuter et al. (2018)
 mlp_sweep_configuration = {
     "name": "sweep_sklearn_mlp",
     "method": "random",
     "metric": {"goal": "maximize", "name": "r2"},
     "parameters": {
         "learning_rate_init": {"values": [0.0001, 0.001, 0.01, 0.1]},
+        "activation": {"values": ["logistic", "tanh", "relu"]},
         "normalization": {"values": [None, "std"]},
     },
 }
@@ -90,6 +104,11 @@ def train_and_validate():
         ).open("r") as f:
             config = json.load(f)
 
+        # we use the normalization values for missing data imputation so we load it independently
+        normalizing_dict = Dataset.load_normalization_values(
+            path=config_dir / NORMALIZATION_DICT_FILENAME
+        )
+
         eval_task = LandsatEvalSklearn(
             normalization="std",
             exclude_prediction_date=False,
@@ -97,6 +116,8 @@ def train_and_validate():
             resample=False,
             eval_config=config,
             model_type=args.model_type,
+            h5pys_only=args.h5pys_only,
+            normalizing_dict=normalizing_dict,
         )
 
         sweep_run.config.update(args)

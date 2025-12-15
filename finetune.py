@@ -55,6 +55,11 @@ argparser.add_argument(
     default="landsat_eval_5_95.json",
     help="Which eval config to use. Options are stored in src/eval/eval_configs/",
 )
+argparser.add_argument(
+    "--h5pys_only",
+    action="store_true",
+    help="Where to only use h5pys (faster, but need to be already stored in this format)",
+)
 args = argparser.parse_args().__dict__
 
 with (Path(__file__).parents[0] / Path("src/eval/eval_configs") / Path(args["eval_config"])).open(
@@ -84,6 +89,7 @@ eval_tasks: List[EvalTask] = [
             decoder_mode=args["decoding_strategy"],
             num_finetune_epochs=args["num_finetune_epochs"],
             eval_config=eval_config,
+            h5pys_only=args["h5pys_only"],
         )
     ],
 ]

@@ -25,7 +25,11 @@ parser.add_argument(
     choices=["finetune", "linear_probe", "attention_probe", "sklearn"],
     help="Decoding strategy to use. 'Finetune' uses a linear decoder and finetunes the entire model. 'Linear_probe' uses a linear decoder and only trains the decoder. 'Attention_probe' uses an attention-based decoder and fine-tunes the entire model. 'sklearn' uses the frozen encoder features for a sklearn model.",
 )
-
+parser.add_argument(
+    "--h5pys_only",
+    action="store_true",
+    help="Where to only use h5pys (faster, but need to be already stored in this format)",
+)
 args = parser.parse_args()
 pretrain = args.pretrain
 
@@ -83,6 +87,7 @@ def train_and_validate():
             resample=args.resample,
             num_finetune_epochs=args.num_finetune_epochs,
             decoder_mode=args.strategy,
+            h5pys_only=args.h5pys_only,
         )
 
         results = eval_task.train_and_evaluate_model_on_task(
@@ -99,14 +104,14 @@ def train_and_validate():
         # TODO: change the metric names based on eval config
         sweep_run.log(
             {
-                "r2": results[0].get("landsat_s42_ps10_8_r2", -1),
-                "rmse": results[0].get("landsat_s42_ps10_8_rmse", -1),
-                "overall_accuracy": results[0].get("landsat_s42_ps10_8_overall_accuracy", -1),
-                "balanced_accuracy": results[0].get("landsat_s42_ps10_8_balanced_accuracy", -1),
-                "recall": results[0].get("landsat_s42_ps10_8_recall", -1),
-                "precision": results[0].get("landsat_s42_ps10_8_precision", -1),
-                "f1": results[0].get("landsat_s42_ps10_8_f1", -1),
-                "miou": results[0].get("landsat_s42_ps10_8_miou", -1),
+                "r2": results.get("landsat_s42_ps10_8_r2", -1),
+                "rmse": results.get("landsat_s42_ps10_8_rmse", -1),
+                "overall_accuracy": results.get("landsat_s42_ps10_8_overall_accuracy", -1),
+                "balanced_accuracy": results.get("landsat_s42_ps10_8_balanced_accuracy", -1),
+                "recall": results.get("landsat_s42_ps10_8_recall", -1),
+                "precision": results.get("landsat_s42_ps10_8_precision", -1),
+                "f1": results.get("landsat_s42_ps10_8_f1", -1),
+                "miou": results.get("landsat_s42_ps10_8_miou", -1),
             }
         )
         sweep_run.finish()

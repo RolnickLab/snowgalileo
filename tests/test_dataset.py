@@ -232,6 +232,85 @@ class TestDataset(unittest.TestCase):
         output = Dataset.one_hot_encode_esa_worldcover(no_data_test)
         self.assertTrue(np.array_equal(output, expected_output))
 
+    def test_create_valid_masks(self):
+        ds = Dataset(TIFS_FOLDER, download=False)
+
+        NO_DATA_VALUE = -9999
+        rng = np.random.default_rng(42)
+
+        def insert_invalid(x, frac=0.1):
+            mask = rng.random(x.shape) < frac
+            x = x.copy()
+            x[mask] = NO_DATA_VALUE
+            return x, mask
+
+        h, w, t, c_sth, c_stm, c_stl, c_sp, c_t, c_st = 10, 10, 8, 15, 3, 11, 17, 9, 3
+
+        s_t_h_x = np.random.randint(0, 1000, size=(h, w, t, c_sth))
+        s_t_m_x = np.random.randint(0, 1000, size=(h, w, t, c_stm))
+        s_t_l_x = np.random.randint(0, 1000, size=(h, w, t, c_stl))
+        sp_x = np.random.randint(0, 1000, size=(h, w, c_sp))
+        t_x = np.random.randint(0, 1000, size=(t, c_t))
+        st_x = np.random.randint(0, 1000, size=(c_st,))
+
+        # insert invalid data values at random positions
+        s_t_h_x, invalid_sth = insert_invalid(s_t_h_x)
+        s_t_m_x, invalid_stm = insert_invalid(s_t_m_x)
+        s_t_l_x, invalid_stl = insert_invalid(s_t_l_x)
+        sp_x, invalid_sp = insert_invalid(sp_x)
+        t_x, invalid_t = insert_invalid(t_x)
+        st_x, invalid_st = insert_invalid(st_x)
+
+        (
+            valid_data_sth,
+            valid_data_stm,
+            valid_data_stl,
+            valid_data_sp,
+            valid_data_t,
+            valid_data_st,
+        ) = ds.create_valid_mask(
+            s_t_h_x=s_t_h_x, s_t_m_x=s_t_m_x, s_t_l_x=s_t_l_x, sp_x=sp_x, t_x=t_x, st_x=st_x
+        )
+
+        self.assertEqual(valid_data_sth.shape, s_t_h_x.shape)
+        self.assertEqual(valid_data_stm.shape, s_t_m_x.shape)
+        self.assertEqual(valid_data_stl.shape, s_t_l_x.shape)
+        self.assertEqual(valid_data_sp.shape, sp_x.shape)
+        self.assertEqual(valid_data_t.shape, t_x.shape)
+        self.assertEqual(valid_data_st.shape, st_x.shape)
+
+        np.testing.assert_array_equal(valid_data_sth, (~invalid_sth).astype(int))
+        np.testing.assert_array_equal(valid_data_stm, (~invalid_stm).astype(int))
+        np.testing.assert_array_equal(valid_data_stl, (~invalid_stl).astype(int))
+        np.testing.assert_array_equal(valid_data_sp, (~invalid_sp).astype(int))
+        np.testing.assert_array_equal(valid_data_t, (~invalid_t).astype(int))
+        np.testing.assert_array_equal(valid_data_st, (~invalid_st).astype(int))
+
+        for mask in [
+            valid_data_sth,
+            valid_data_stm,
+            valid_data_stl,
+            valid_data_sp,
+            valid_data_t,
+            valid_data_st,
+        ]:
+            assert set(np.unique(mask)).issubset({0, 1})
+
+        # test if all invalid positions have value 0, and all others a value of 1
+        self.assertEqual(valid_data_sth[invalid_sth], 0)
+        self.assertEqual(valid_data_stm[invalid_stm], 0)
+        self.assertEqual(valid_data_stl[invalid_stl], 0)
+        self.assertEqual(valid_data_sp[invalid_sp], 0)
+        self.assertEqual(valid_data_t[invalid_t], 0)
+        self.assertEqual(valid_data_st[invalid_st], 0)
+
+        self.assertEqual(valid_data_sth[~invalid_sth], 1)
+        self.assertEqual(valid_data_stm[~invalid_stm], 1)
+        self.assertEqual(valid_data_stl[~invalid_stl], 1)
+        self.assertEqual(valid_data_sp[~invalid_sp], 1)
+        self.assertEqual(valid_data_t[~invalid_t], 1)
+        self.assertEqual(valid_data_st[~invalid_st], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

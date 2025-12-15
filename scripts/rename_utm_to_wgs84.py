@@ -7,9 +7,7 @@ from pyproj import Transformer
 from src.data.config import DATA_FOLDER
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument(
-    "--folder", type=str, default="landsat_eval_tifs/patches_UTM_1_99_test_cropped"
-)
+argparser.add_argument("--folder", type=str, default="landsat_eval_masks/patches_UTM_5_95")
 
 args = argparser.parse_args().__dict__
 

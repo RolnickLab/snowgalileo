@@ -1,8 +1,8 @@
 # Data Retrieval
 
-## How to Export Pre-training Data
+## Pre-training Data
 
-The export of pre-training data from Google Earth Engine can be kicked off with the script `export_for_pretrain.py` based on coordinates listed in a CSV file (stored in `pretraining_points/`). Exports are run locally via a download URL using the earthengine CLI and require authentication via a Google account.
+The export of pre-training data from Google Earth Engine can be started using the script `export_for_pretrain.py` based on coordinates listed in a CSV file (stored in `pretraining_points/`). Exports are run locally via a download URL using the earthengine CLI and require authentication via a Google account.
 
 Google Earth Engine authentication tokens expire after a limited time. The export workflow therefore supports restartable exports using a starting index.
 
@@ -33,8 +33,16 @@ The normalization values provided with this repository are computed using the en
 
 We apply per-channel 2*std normalization based on the procedure in related work (Galileo, CROMA, and SatMAE). We don't apply normalization to naturally scaled variables (NDVI, NDSI, and one-hot encoded ESA Worldcover Map), or location. All normalization values were computed using the `scripts/compute_normalization.py` script, which computes running statistics over a given dataset using Welford's algorithm.
 
+## Evaluation Data
+
+The evaluation data consists of two parts: labels that are provided via... and need to be stored at the right location, and input data, which should be exported via Google Earth Engine based on the time and location identifier of the labels.
+
+First, the labels need to be unzipped into `./data/landsat_eval_masks/`. To do so, for example, store the .zip file in the root directory, then run `unzip [file] -d "data/landsat_eval_masks/"`. All masks will now be stored in `./data/landsat_eval_masks/patches_UTM_5_95/`.
+
+Since the coordinates will be processed in EPGS4326 format, the filenames need to be renamed from UTM to EPGS4326. To do so, run the script `scripts/rename_utm_to_wgs84.py`. This will modify the filenames of all files in `./data/landsat_eval_masks/patches_UTM_5_95/`.
+
 ## Landsat Evaluation Data
-1) run `run_eval_export.sh` (all possible input tifs are exported, the resulting number of files will be smaller than the number of masks bacause of export fails)
+1) run `run_eval_export.sh` (all possible input tifs are exported, the resulting number of files will be smaller than the number of masks bacause of export fails). The same GEE procedure as for the pre-training files needs to be followed. To handle the large number of files to be exported, follow the recommended procedure above.
 2) run `run_copy_eval.sh` (all masks that have a matching input will be copied into a new folder)
 3) run `run_crop_eval.sh` (all inputs will be cropped to the shape of the masks)
 4) run `scripts.train_test_split.py` to split the data into train and test

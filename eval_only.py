@@ -35,6 +35,11 @@ argparser.add_argument(
     default="landsat_eval_1_99_test.json",
     help="Config name for evaluation. Options are stored in src/eval/eval_configs/",
 )
+argparser.add_argument(
+    "--h5pys_only",
+    action="store_true",
+    help="Where to only use h5pys (faster, but need to be already stored in this format)",
+)
 args = argparser.parse_args().__dict__
 
 # TODO: fix the EncoderWithHead loading pipeline
@@ -64,7 +69,9 @@ else:
     ).to(device)
 
 eval_task = LandsatEval(
-    exclude_prediction_high_res=args["exclude_prediction_high_res"], eval_config=eval_config
+    exclude_prediction_high_res=args["exclude_prediction_high_res"],
+    eval_config=eval_config,
+    h5pys_only=args["h5pys_only"],
 )
 
 eval_task.evaluate_model_on_task(model=model, id=args["checkpoint_name"])

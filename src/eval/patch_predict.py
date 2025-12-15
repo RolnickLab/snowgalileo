@@ -6,17 +6,12 @@ import torch
 import torch.nn as nn
 import wandb
 from einops import rearrange
-from sklearn.metrics import (
-    accuracy_score,
-    balanced_accuracy_score,
-    f1_score,
-    precision_score,
-    r2_score,
-    recall_score,
-    root_mean_squared_error,
-)
 
-from src.eval.metrics import mean_iou
+from src.eval.metrics import (
+    compute_classification_metrics,
+    compute_regression_metrics,
+    compute_segmentation_metrics,
+)
 from src.snowgalileo import AttentionProbe, adjust_learning_rate
 from src.utils import save_checkpoint
 
@@ -38,7 +33,6 @@ class EncoderWithHead(nn.Module):
         self.logits_per_patch = int(
             (patch_size_high_res / inputs_per_target) * (patch_size_high_res / inputs_per_target)
         )
-        # TODO: make this more dynamic
         self.number_of_patches = int(inputs_per_target * inputs_per_target)
         self.token_mapping = eval_config["token_mapping"]
         self.eval_config = eval_config
@@ -139,8 +133,8 @@ class EncoderWithHead(nn.Module):
             )
             output = self.sigmoid(self.head(encodings) * self.sigmoid_slope)
         # map token sequence to patch output using attention probes.
-        # maps from [batch, all_tokens, embedding_dim] to [batch, spatial_patches * logits_per_patch].
-        # TODO: alternatively, map from [batch, spatial_patches, tokens_per_patch, embedding_dim] to [batch, spatial_patches, logits_per_patch]?
+        # maps from [batch, spatial_patches, tokens_per_patch, embedding_dim] to [batch, spatial_patches, logits_per_patch]
+        # when attend_over_spatial=True
         elif self.token_mapping == "attention_probe":
             x, m, pos = self.encoder.preprocess_tokens_for_attention_probe(
                 s_t_h_x,
@@ -155,7 +149,7 @@ class EncoderWithHead(nn.Module):
                 sp_m,
                 t_m,
                 st_m,
-                attend_over_spatial=self.eval_config.get("attend_over_spatial", False),
+                attend_over_spatial=self.eval_config.get("attend_over_spatial", True),
                 med_and_low_res_repeat=self.eval_config.get("med_and_low_res_repeat", True),
             )
             output = self.sigmoid(self.head(x, m, pos) * self.sigmoid_slope)
@@ -206,14 +200,6 @@ def finetune_and_eval_seg(
         log_wandb=log_wandb,
         sweep_run=sweep_run,
     )
-    # TODO: clean this up depending on whether we want val metrics
-    # val_miou = evaluate_seg(
-    #    data_loader=loaders["valid"],
-    #    finetuned_encoder=finetuned_encoder,
-    #    num_classes=config["num_classes"],
-    #    device=device,
-    #    identifier=identifier,
-    # )
     results = evaluate_seg(
         data_loader=loaders["test"],
         finetuned_model=finetuned_model,
@@ -226,8 +212,7 @@ def finetune_and_eval_seg(
     return results
 
 
-# TODO: implement validation too
-def get_finetune_results_with_val(
+def get_finetune_results_on_val_set(
     loaders,
     encoder,
     num_runs,
@@ -240,11 +225,9 @@ def get_finetune_results_with_val(
     sweep_run=None,
     save_final_checkpoint=False,
 ):
-    final_tests = []  # chosen using LR with best val, for each run
+    final_vals = []
     for _ in range(num_runs):
-        vals = []
-        tests = []
-        val, test = finetune_and_eval_seg(
+        val = finetune_and_eval_seg(
             loaders=loaders,
             encoder=encoder,
             device=device,
@@ -256,47 +239,9 @@ def get_finetune_results_with_val(
             sweep_run=sweep_run,
             save_final_checkpoint=save_final_checkpoint,
         )
-        vals.append(val)
-        tests.append(test)
+        final_vals.append(val)
 
-        final_tests.append(tests[vals.index(max(vals))])
-
-    return final_tests
-
-
-def get_finetune_results(
-    loaders,
-    encoder,
-    num_runs,
-    device,
-    identifier,
-    eval_config,
-    hyperparameter_config,
-    num_finetune_epochs,
-    log_wandb=False,
-    sweep_run=None,
-    save_final_checkpoint=False,
-):
-    final_tests = []  # chosen using LR with best val, for each run
-    for _ in range(num_runs):
-        tests = []
-        test = finetune_and_eval_seg(
-            loaders=loaders,
-            encoder=encoder,
-            device=device,
-            identifier=identifier,
-            eval_config=eval_config,
-            num_finetune_epochs=num_finetune_epochs,
-            log_wandb=log_wandb,
-            hyperparameter_config=hyperparameter_config,
-            sweep_run=sweep_run,
-            save_final_checkpoint=save_final_checkpoint,
-        )
-        tests.append(test)
-
-        final_tests.append(tests)
-
-    return final_tests
+    return final_vals
 
 
 def finetune_seg(
@@ -320,7 +265,7 @@ def finetune_seg(
     warmup_fraction = hyperparameter_config.get("warmup_fraction", 0.1)
 
     train_loader = data_loaders["train"]
-    test_loader = data_loaders["test"]
+    val_loader = data_loaders["test"]
 
     finetuned_encoder = EncoderWithHead(
         encoder=encoder,
@@ -434,7 +379,7 @@ def finetune_seg(
         if log_wandb or sweep_run is not None:
             if epoch % 5 == 0 or epoch == epochs - 1:
                 results = evaluate_seg(
-                    data_loader=test_loader,
+                    data_loader=val_loader,
                     finetuned_model=finetuned_encoder,
                     device=device,
                     identifier="",
@@ -459,50 +404,6 @@ def finetune_seg(
                 print(f"Finished epoch {epoch + 1}/{epochs}")
 
     return finetuned_encoder
-
-
-def compute_regression_metrics(
-    identifier: str, preds: np.ndarray, target: np.ndarray, baseline=False
-) -> Dict[str, float]:
-    if baseline:
-        bs = "baseline_"
-    else:
-        bs = ""
-
-    return {
-        f"{bs}{identifier}rmse": root_mean_squared_error(target, preds),
-        f"{bs}{identifier}r2": r2_score(target, preds),
-    }
-
-
-def compute_classification_metrics(
-    identifier: str, preds: np.ndarray, target: np.ndarray, baseline=False
-) -> Dict[str, float]:
-    if baseline:
-        bs = "baseline_"
-    else:
-        bs = ""
-
-    return {
-        f"{bs}{identifier}overall_accuracy": accuracy_score(target, preds),
-        f"{bs}{identifier}balanced_accuracy": balanced_accuracy_score(target, preds),
-        f"{bs}{identifier}recall": recall_score(target, preds, average="weighted"),
-        f"{bs}{identifier}precision": precision_score(target, preds, average="weighted"),
-        f"{bs}{identifier}f1": f1_score(target, preds, average="weighted"),
-    }
-
-
-def compute_segmentation_metrics(
-    identifier: str, preds: np.ndarray, target: np.ndarray, baseline=False
-) -> Dict[str, float]:
-    if baseline:
-        bs = "baseline_"
-    else:
-        bs = ""
-
-    return {
-        f"{bs}{identifier}miou": mean_iou(preds, target, num_classes=10),
-    }
 
 
 def evaluate_seg(
@@ -581,7 +482,7 @@ def evaluate_seg(
 
     # sequence prediction
     all_preds_1D = np.concatenate(all_preds_1D)
-    baseline_preds_1D = np.zeros_like(all_preds_1D)
+    majority_baseline_preds_1D = np.zeros_like(all_preds_1D)
     all_labels_1D = np.concatenate(all_labels_1D)
 
     # create 10 bins for multi-class classification
@@ -591,11 +492,15 @@ def evaluate_seg(
 
     # sequence regression
     results_dict.update(
-        compute_regression_metrics(identifier, all_preds_1D, all_labels_1D, baseline=False)
+        compute_regression_metrics(
+            identifier, all_preds_1D, all_labels_1D, majority_baseline=False
+        )
     )
-    # sequence regression (baseline)
+    # sequence regression (majority baseline)
     results_dict.update(
-        compute_regression_metrics(identifier, baseline_preds_1D, all_labels_1D, baseline=True)
+        compute_regression_metrics(
+            identifier, majority_baseline_preds_1D, all_labels_1D, majority_baseline=True
+        )
     )
     # sequence classification
     results_dict.update(
@@ -603,22 +508,22 @@ def evaluate_seg(
             identifier,
             binned_preds_np,
             binned_targets_np,
-            baseline=False,
+            majority_baseline=False,
         )
     )
-    # sequence classification (baseline)
+    # sequence classification (majority baseline)
     results_dict.update(
         compute_classification_metrics(
             identifier,
-            baseline_preds_1D,
+            majority_baseline_preds_1D,
             binned_targets_np,
-            baseline=True,
+            majority_baseline=True,
         )
     )
 
     # spatial prediction
     all_preds_2D = torch.cat(all_preds_2D)
-    baseline_preds_2D = torch.zeros_like(all_preds_2D)
+    majority_baseline_preds_2D = torch.zeros_like(all_preds_2D)
     all_labels_2D = torch.cat(all_labels_2D)
 
     # create 10 bins for multi-class segmentation
@@ -628,12 +533,12 @@ def evaluate_seg(
 
     results_dict.update(
         compute_segmentation_metrics(
-            identifier, binned_preds_np, binned_targets_np, baseline=False
+            identifier, binned_preds_np, binned_targets_np, majority_baseline=False
         )
     )
     results_dict.update(
         compute_segmentation_metrics(
-            identifier, baseline_preds_2D, binned_targets_np, baseline=True
+            identifier, majority_baseline_preds_2D, binned_targets_np, majority_baseline=True
         )
     )
 

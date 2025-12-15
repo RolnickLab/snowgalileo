@@ -58,7 +58,9 @@ else:
     ).to(device)
 
 eval_task = LandsatEval(
-    exclude_prediction_high_res=args["exclude_prediction_high_res"], eval_config=eval_config
+    exclude_prediction_high_res=args["exclude_prediction_high_res"],
+    eval_config=eval_config,
+    h5pys_only=False,
 )
 
 eval_task.visualize_sample_predictions(model=model, log_wandb=True)

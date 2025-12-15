@@ -284,7 +284,7 @@ class Dataset(PyTorchDataset):
     def __init__(
         self,
         data_folder: Path,
-        download: bool = True,
+        download: bool = False,
         h5py_folder: Optional[Path] = None,
         h5pys_only: bool = False,
         output_hw_high_res: int = DATASET_OUTPUT_HW_HIGH_RES,
@@ -610,8 +610,12 @@ class Dataset(PyTorchDataset):
         new_H, new_W = target_shape
 
         # make sure that we are processing dynamic-in-time array
-        assert data.ndim == 4
-        assert H % new_H == 0 and W % new_W == 0, "H and W must be divisible by target dimensions"
+        if data.ndim != 4:
+            raise ValueError(f"Expected data with 4 dims (H, W, T, C), got {data.ndim}")
+        if mask.shape != data.shape:
+            raise ValueError(f"Mask shape {mask.shape} does not match data shape {data.shape}")
+        if H % new_H != 0 or W % new_W != 0:
+            raise ValueError("H and W must be divisible by target dimensions")
 
         # Compute block sizes
         h_block = H // new_H
@@ -619,9 +623,9 @@ class Dataset(PyTorchDataset):
 
         # reshape
         # for data, take the mean over blocks, for the mask take the min (we want the block mask to be invalid where at least one value is invalid)
-        return data.reshape(new_H, h_block, new_W, w_block, T, C).mean(axis=(1, 3)), mask.reshape(
-            new_H, h_block, new_W, w_block, T, C
-        ).min(axis=(1, 3))
+        return data.reshape(new_H, h_block, new_W, w_block, T, C).mean(
+            axis=(1, 3), dtype=data.dtype
+        ), mask.reshape(new_H, h_block, new_W, w_block, T, C).min(axis=(1, 3), dtype=data.dtype)
 
     @classmethod
     def start_month_from_file(cls, tif_path: Path) -> int:
@@ -1319,7 +1323,9 @@ class Dataset(PyTorchDataset):
 
         return norm_dict
 
-    def compute_running_stats(self, sampled_n=50000, normalization_dict_filename: str = "normalizing_dict.json"):
+    def compute_running_stats(
+        self, sampled_n=50000, normalization_dict_filename: str = "normalizing_dict.json"
+    ):
         """
         Compute running statistics for the entire dataset.
         """

@@ -3,8 +3,10 @@ import json
 from pathlib import Path
 
 from src.config import DEFAULT_SEED
+from src.data.config import NORMALIZATION_DICT_FILENAME
+from src.data.dataset import Dataset
 from src.eval.landsat_baselines import LandsatEvalSklearn
-from src.utils import seed_everything
+from src.utils import config_dir, seed_everything
 
 seed_everything(DEFAULT_SEED)
 
@@ -33,7 +35,11 @@ argparser.add_argument(
     choices=["rf", "svr", "mlp"],
     help="Type of model to train: rf, svr, or mlp.",
 )
-
+argparser.add_argument(
+    "--h5pys_only",
+    action="store_true",
+    help="Where to only use h5pys (faster, but need to be already stored in this format)",
+)
 args = argparser.parse_args().__dict__
 
 
@@ -43,6 +49,9 @@ with (Path("src") / Path("eval") / Path("eval_configs") / Path(args["eval_config
 ) as f:
     config = json.load(f)
 
+# we use the normalization values for missing data imputation so we load it independently
+normalizing_dict = Dataset.load_normalization_values(path=config_dir / NORMALIZATION_DICT_FILENAME)
+
 rf = LandsatEvalSklearn(
     normalization="std",
     exclude_prediction_date=False,
@@ -50,5 +59,7 @@ rf = LandsatEvalSklearn(
     resample=False,
     eval_config=config,
     model_type=args["model_type"],
+    h5pys_only=args["h5pys_only"],
+    normalizing_dict=normalizing_dict,
 )
 rf.fit_sklearn(id=args["run_id"], save_results=True)

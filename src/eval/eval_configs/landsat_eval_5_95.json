@@ -54,6 +54,7 @@
         "gamma_exponent": -5
     },
     "hyperparameters_mlp": {
-        "learning_rate_init": 0.001
+        "learning_rate_init": 0.001,
+        "activation": "relu"
     }
 }

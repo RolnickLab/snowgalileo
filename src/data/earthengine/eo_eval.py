@@ -406,7 +406,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
 
         # important so we control the no data value
         # NOTE: in reality, GEE might still write values to zero with URL downloads
-        img = img.unmask(self.no_data_val)        
+        img = img.unmask(self.no_data_val)
 
         print("Exporting image in crs", crs, flush=True)
 
@@ -481,7 +481,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
         for the latlons specified in the filename of each file in the given folder.
         """
 
-        # check that each file in the folder has a filename with the format L9_YYYYMMDD_LAT_LON_SC[a number between 0 and 100]
+        # check that each file in the folder has a filename with the format L0*_YYYYMMDD_LAT_LON_SC[a number between 0 and 100]
         # and that the lat and lon are in the format of a string
         # e.g. LC09_20220101_FSC0_50.1234_8.1234.tif
         # also, create a pandas dataframe with all filenames in the format of a string

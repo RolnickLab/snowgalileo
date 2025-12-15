@@ -1,5 +1,63 @@
+from typing import Dict
+
 import numpy as np
-from sklearn.metrics import f1_score
+from sklearn.metrics import (
+    accuracy_score,
+    balanced_accuracy_score,
+    f1_score,
+    mean_absolute_error,
+    median_absolute_error,
+    precision_score,
+    r2_score,
+    recall_score,
+    root_mean_squared_error,
+)
+
+
+def compute_regression_metrics(
+    identifier: str, preds: np.ndarray, target: np.ndarray, majority_baseline=False
+) -> Dict[str, float]:
+    if majority_baseline:
+        bs = "majority_baseline_"
+    else:
+        bs = ""
+
+    return {
+        f"{bs}{identifier}rmse": root_mean_squared_error(target, preds),
+        f"{bs}{identifier}r2": r2_score(target, preds),
+        f"{bs}{identifier}mean_absolute_error": mean_absolute_error(target, preds),
+        f"{bs}{identifier}median_absolute_error": median_absolute_error(target, preds),
+    }
+
+
+def compute_classification_metrics(
+    identifier: str, preds: np.ndarray, target: np.ndarray, majority_baseline=False
+) -> Dict[str, float]:
+    if majority_baseline:
+        bs = "majority_baseline_"
+    else:
+        bs = ""
+
+    return {
+        f"{bs}{identifier}overall_accuracy": accuracy_score(target, preds),
+        f"{bs}{identifier}balanced_accuracy": balanced_accuracy_score(target, preds),
+        f"{bs}{identifier}recall": recall_score(target, preds, average="weighted"),
+        f"{bs}{identifier}precision": precision_score(target, preds, average="weighted"),
+        f"{bs}{identifier}f1": f1_score(target, preds, average="weighted"),
+    }
+
+
+def compute_segmentation_metrics(
+    identifier: str, preds: np.ndarray, target: np.ndarray, majority_baseline=False
+) -> Dict[str, float]:
+    if majority_baseline:
+        bs = "majority_baseline_"
+    else:
+        bs = ""
+
+    return {
+        f"{bs}{identifier}miou": mean_iou(preds, target, num_classes=10),
+    }
 
 
 def class_wise_f1(y_pred, y_true, num_classes):

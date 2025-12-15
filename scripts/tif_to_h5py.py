@@ -2,9 +2,9 @@ import argparse
 from pathlib import Path
 
 import numpy as np
+from torch.utils.data import DataLoader
 
 from src.data.dataset import Dataset
-from torch.utils.data import DataLoader
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--h5py_folder", type=str, default="data/h5pys_pretrain")

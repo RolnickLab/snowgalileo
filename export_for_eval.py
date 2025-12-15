@@ -10,10 +10,8 @@ from src.data import EarthEngineExporterEval
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--mode", type=str, default="url")
 argparser.add_argument("--check_gcp", type=bool, default=False)
-argparser.add_argument("--tifs_folder", type=str, default="landsat_eval_tifs/100m_tif_global")
-argparser.add_argument(
-    "--mask_folder", type=str, default="landsat_eval_masks/all/100m_mask_global"
-)
+argparser.add_argument("--tifs_folder", type=str, default="landsat_eval_tifs/patches_UTM_5_95")
+argparser.add_argument("--mask_folder", type=str, default="landsat_eval_masks/patches_UTM_5_95")
 argparser.add_argument("--start_idx", type=int, default=0)
 args = argparser.parse_args().__dict__
 

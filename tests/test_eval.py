@@ -1,29 +1,23 @@
-import json
 import unittest
-from pathlib import Path
 
 import torch
 
-from src.data.config import (
-    NORMALIZATION_DICT_FILENAME,
-)
 from src.data.earthengine.eo import (
-    SPACE_TIME_HIGH_RES_BANDS,
-    SPACE_TIME_MED_RES_BANDS,
-    SPACE_TIME_LOW_RES_BANDS,
-    SPACE_BANDS,
-    TIME_BANDS,
-    STATIC_BANDS,
-    SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
-    SPACE_TIME_MED_RES_BANDS_GROUPS_IDX,
-    SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX,
     SPACE_BAND_GROUPS_IDX,
-    TIME_BANDS_GROUPS_IDX,
+    SPACE_BANDS,
+    SPACE_TIME_HIGH_RES_BANDS,
+    SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
+    SPACE_TIME_LOW_RES_BANDS,
+    SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX,
+    SPACE_TIME_MED_RES_BANDS,
+    SPACE_TIME_MED_RES_BANDS_GROUPS_IDX,
     STATIC_BAND_GROUPS_IDX,
+    STATIC_BANDS,
+    TIME_BANDS,
+    TIME_BANDS_GROUPS_IDX,
 )
-from src.eval.landsat_eval import LandsatEvalDataset
-from src.utils import config_dir
 from src.masking import _aggregate_mask_per_channel_group
+
 
 class TestEval(unittest.TestCase):
     def test_create_masks(self):
@@ -91,8 +85,11 @@ class TestEval(unittest.TestCase):
         assert sp_m_valid.all() == 0
         assert sp_m[~sp_m_valid].all() == 1
 
-        assert t_m.all() == 1  # all time groups should be invalid since valid data comes from different channel groups
-        assert st_m.all() == 1  # static bands should remain unchanged        
+        assert (
+            t_m.all() == 1
+        )  # all time groups should be invalid since valid data comes from different channel groups
+        assert st_m.all() == 1  # static bands should remain unchanged
+
 
 if __name__ == "__main__":
     unittest.main()
