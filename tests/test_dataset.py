@@ -244,7 +244,7 @@ class TestDataset(unittest.TestCase):
             x[mask] = NO_DATA_VALUE
             return x, mask
 
-        h, w, t, c_sth, c_stm, c_stl, c_sp, c_t, c_st = 10, 10, 8, 15, 3, 11, 17, 9, 3
+        h, w, t, c_sth, c_stm, c_stl, c_sp, c_t, c_st = 10, 10, 8, 15, 2, 11, 14, 9, 3
 
         s_t_h_x = np.random.randint(0, 1000, size=(h, w, t, c_sth))
         s_t_m_x = np.random.randint(0, 1000, size=(h, w, t, c_stm))
