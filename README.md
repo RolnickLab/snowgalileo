@@ -61,6 +61,7 @@ Finetuning/ Evaluation Execution:
 - ```visualize.py```: Used to plot qualitative predictions
 
 ### Experiment Execution is currently bottlenecked by data download
+
 TODO: create detailed documentation about how to access data from Google Earth Engine.
 
 ESA contract number: ...
