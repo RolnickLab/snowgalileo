@@ -219,7 +219,7 @@ class TestDataset(unittest.TestCase):
             # check one hot encoding of categorical variables
             # landcover (11 classes + 1 no data)
             # starting from 3rd index
-            self.assertTrue(np.all(np.isin(sp_x[:, 3:14], [0, 1, NO_DATA_VALUE])))
+            self.assertTrue(np.all(np.isin(sp_x[..., 3:14], [0, 1, NO_DATA_VALUE])))
 
         no_data_test = np.array([[NO_DATA_VALUE], [30], [90]])
         expected_output = np.array(
