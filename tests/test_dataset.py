@@ -246,12 +246,12 @@ class TestDataset(unittest.TestCase):
 
         h, w, t, c_sth, c_stm, c_stl, c_sp, c_t, c_st = 10, 10, 8, 15, 2, 11, 14, 9, 3
 
-        s_t_h_x = np.random.randint(1, 1000, size=(h, w, t, c_sth))
-        s_t_m_x = np.random.randint(0, 1000, size=(h, w, t, c_stm))
-        s_t_l_x = np.random.randint(0, 1000, size=(h, w, t, c_stl))
-        sp_x = np.random.randint(1, 1000, size=(h, w, c_sp))
-        t_x = np.random.randint(200, 1000, size=(t, c_t))
-        st_x = np.random.randint(0, 1000, size=(c_st,))
+        s_t_h_x = np.random.randint(1, 1000, size=(h, w, t, c_sth)).astype(float)
+        s_t_m_x = np.random.randint(0, 1000, size=(h, w, t, c_stm)).astype(float)
+        s_t_l_x = np.random.randint(0, 1000, size=(h, w, t, c_stl)).astype(float)
+        sp_x = np.random.randint(1, 1000, size=(h, w, c_sp)).astype(float)
+        t_x = np.random.randint(200, 1000, size=(t, c_t)).astype(float)
+        st_x = np.random.randint(0, 1000, size=(c_st,)).astype(float)
 
         # insert invalid data values at random positions
         s_t_h_x, invalid_sth = insert_invalid(s_t_h_x)
