@@ -221,7 +221,7 @@ class TestDataset(unittest.TestCase):
             # starting from 3rd index
             self.assertTrue(np.all(np.isin(sp_x[..., 3:14], [0, 1, NO_DATA_VALUE])))
 
-        no_data_test = np.array([[NO_DATA_VALUE], [30], [90]])
+        no_data_test = np.array([[0], [30], [90]])
         expected_output = np.array(
             [
                 [NO_DATA_VALUE] * 11,
