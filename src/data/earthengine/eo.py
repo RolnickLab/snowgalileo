@@ -577,7 +577,7 @@ class EarthEngineExporter:
 
         # important so we control the no data value
         # NOTE: in reality, GEE might still write values to zero with URL downloads
-        img = img.unmask(self.no_data_val)
+        img = img.unmask(self.no_data_val)  # type: ignore[attr-defined]
 
         if self.mode == "cloud":
             try:
