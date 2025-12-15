@@ -297,19 +297,19 @@ class TestDataset(unittest.TestCase):
             assert set(np.unique(mask)).issubset({0, 1})
 
         # test if all invalid positions have value 0, and all others a value of 1
-        self.assertEqual(valid_data_sth[invalid_sth], 0)
-        self.assertEqual(valid_data_stm[invalid_stm], 0)
-        self.assertEqual(valid_data_stl[invalid_stl], 0)
-        self.assertEqual(valid_data_sp[invalid_sp], 0)
-        self.assertEqual(valid_data_t[invalid_t], 0)
-        self.assertEqual(valid_data_st[invalid_st], 0)
+        self.assertTrue(np.all(valid_data_sth[invalid_sth] == 0))
+        self.assertTrue(np.all(valid_data_stm[invalid_stm] == 0))
+        self.assertEqual(np.all(valid_data_stl[invalid_stl] == 0))
+        self.assertEqual(np.all(valid_data_sp[invalid_sp] == 0))
+        self.assertEqual(np.all(valid_data_t[invalid_t] == 0))
+        self.assertEqual(np.all(valid_data_st[invalid_st] == 0))
 
-        self.assertEqual(valid_data_sth[~invalid_sth], 1)
-        self.assertEqual(valid_data_stm[~invalid_stm], 1)
-        self.assertEqual(valid_data_stl[~invalid_stl], 1)
-        self.assertEqual(valid_data_sp[~invalid_sp], 1)
-        self.assertEqual(valid_data_t[~invalid_t], 1)
-        self.assertEqual(valid_data_st[~invalid_st], 1)
+        self.assertEqual(np.all(valid_data_sth[~invalid_sth] == 1))
+        self.assertEqual(np.all(valid_data_stm[~invalid_stm] == 1))
+        self.assertEqual(np.all(valid_data_stl[~invalid_stl] == 1))
+        self.assertEqual(np.all(valid_data_sp[~invalid_sp] == 1))
+        self.assertEqual(np.all(valid_data_t[~invalid_t] == 1))
+        self.assertEqual(np.all(valid_data_st[~invalid_st] == 1))
 
 
 if __name__ == "__main__":

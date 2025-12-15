@@ -625,7 +625,7 @@ class Dataset(PyTorchDataset):
         # for data, take the mean over blocks, for the mask take the min (we want the block mask to be invalid where at least one value is invalid)
         return data.reshape(new_H, h_block, new_W, w_block, T, C).mean(
             axis=(1, 3), dtype=data.dtype
-        ), mask.reshape(new_H, h_block, new_W, w_block, T, C).min(axis=(1, 3), dtype=data.dtype)
+        ), mask.reshape(new_H, h_block, new_W, w_block, T, C).min(axis=(1, 3))
 
     @classmethod
     def start_month_from_file(cls, tif_path: Path) -> int:
