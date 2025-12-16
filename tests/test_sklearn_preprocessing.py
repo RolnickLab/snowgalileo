@@ -15,15 +15,6 @@ from src.utils import config_dir
 
 
 class TestSklearn(unittest.TestCase):
-    with (Path("src/eval/eval_configs/landsat_eval_5_95.json")).open("r") as f:
-        config = json.load(f)
-
-    ds = LandsatEvalDatasetSklearn(data_config=config["data"])
-    normalizing_dict = ds.load_normalization_values(path=config_dir / NORMALIZATION_DICT_FILENAME)
-
-    ls_eval = LandsatEvalSklearn
-    ls_eval.normalizing_dict = normalizing_dict
-
     def test_median_replace(self):
         # create data with NaNs
         data_test1 = torch.tensor(
@@ -37,11 +28,20 @@ class TestSklearn(unittest.TestCase):
             ]
         )
 
+        with (Path("src/eval/eval_configs/landsat_eval_5_95.json")).open("r") as f:
+            config = json.load(f)
+        ds = LandsatEvalDatasetSklearn(data_config=config["data"])
+        normalizing_dict = ds.load_normalization_values(
+            path=config_dir / NORMALIZATION_DICT_FILENAME
+        )
+        ls_eval = LandsatEvalSklearn
+        ls_eval.normalizing_dict = normalizing_dict
+
         # expected result after median replacement: if same number of values below and above median,
         # the lower of the two is chosen
         expected_test1 = torch.tensor([[[[3.0, 3.0], [35.04930787547541, 35.04930787547541]]]])
         # we assume this is space_time_med_res (i.e., three channels, no time dimension)
-        result_test1 = self.ls_eval.replace_masked_data_with_aggregate(
+        result_test1 = ls_eval.replace_masked_data_with_aggregate(
             data_test1,
             torch.where(torch.isnan(data_test1), 1, 0),
             array_type="space_time_med_res",
@@ -77,8 +77,17 @@ class TestSklearn(unittest.TestCase):
             ]
         )
 
+        with (Path("src/eval/eval_configs/landsat_eval_5_95.json")).open("r") as f:
+            config = json.load(f)
+        ds = LandsatEvalDatasetSklearn(data_config=config["data"])
+        normalizing_dict = ds.load_normalization_values(
+            path=config_dir / NORMALIZATION_DICT_FILENAME
+        )
+        ls_eval = LandsatEvalSklearn
+        ls_eval.normalizing_dict = normalizing_dict
+
         # we assume this is static data (i.e., three channels, no time dimension)
-        result_test2 = self.ls_eval.replace_masked_data_with_aggregate(
+        result_test2 = ls_eval.replace_masked_data_with_aggregate(
             data_test2,
             torch.where(torch.isnan(data_test2), 1, 0),
             array_type="static",
@@ -122,8 +131,17 @@ class TestSklearn(unittest.TestCase):
             ]
         )
 
+        with (Path("src/eval/eval_configs/landsat_eval_5_95.json")).open("r") as f:
+            config = json.load(f)
+        ds = LandsatEvalDatasetSklearn(data_config=config["data"])
+        normalizing_dict = ds.load_normalization_values(
+            path=config_dir / NORMALIZATION_DICT_FILENAME
+        )
+        ls_eval = LandsatEvalSklearn
+        ls_eval.normalizing_dict = normalizing_dict
+
         # we assume this is space_time_med_res data (i.e., three channels, time dimension)
-        result_test3 = self.ls_eval.replace_masked_data_with_aggregate(
+        result_test3 = ls_eval.replace_masked_data_with_aggregate(
             data_test3,
             torch.where(torch.isnan(data_test3), 1, 0),
             array_type="space_time_med_res",
@@ -185,8 +203,17 @@ class TestSklearn(unittest.TestCase):
             ]
         )
 
+        with (Path("src/eval/eval_configs/landsat_eval_5_95.json")).open("r") as f:
+            config = json.load(f)
+        ds = LandsatEvalDatasetSklearn(data_config=config["data"])
+        normalizing_dict = ds.load_normalization_values(
+            path=config_dir / NORMALIZATION_DICT_FILENAME
+        )
+        ls_eval = LandsatEvalSklearn
+        ls_eval.normalizing_dict = normalizing_dict
+
         resulting_data_test1, resulting_timesteps_test1 = (
-            self.ls_eval.forward_filling_masked_data_per_channel_else_aggregate(
+            ls_eval.forward_filling_masked_data_per_channel_else_aggregate(
                 data_test1,
                 torch.where(torch.isnan(data_test1), 1, 0),
                 timesteps_test1,
@@ -249,8 +276,17 @@ class TestSklearn(unittest.TestCase):
             ]
         )
 
+        with (Path("src/eval/eval_configs/landsat_eval_5_95.json")).open("r") as f:
+            config = json.load(f)
+        ds = LandsatEvalDatasetSklearn(data_config=config["data"])
+        normalizing_dict = ds.load_normalization_values(
+            path=config_dir / NORMALIZATION_DICT_FILENAME
+        )
+        ls_eval = LandsatEvalSklearn
+        ls_eval.normalizing_dict = normalizing_dict
+
         resulting_data_test2, resulting_timesteps_test2 = (
-            self.ls_eval.forward_filling_masked_data_per_channel_else_aggregate(
+            ls_eval.forward_filling_masked_data_per_channel_else_aggregate(
                 data_test2,
                 torch.where(torch.isnan(data_test2), 1, 0),
                 timesteps_test2,
