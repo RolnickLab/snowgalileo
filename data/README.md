@@ -47,3 +47,16 @@ Since the coordinates will be processed in EPGS4326 format, the filenames need t
 3) run `run_crop_eval.sh` (all inputs will be cropped to the shape of the masks)
 4) run `scripts.train_test_split.py` to split the data into train and test
 5) create a folder `landsat_eval_h5pys` and subfolders `train` and `test` within DATA_FOLDER
+
+### FSC Training Distribution
+<img width="850" height="470" alt="fsc_train_mean" src="https://github.com/user-attachments/assets/9081bf2a-52db-438c-8919-8bb91a2b199f" />
+<img width="857" height="451" alt="fsc_train_unique" src="https://github.com/user-attachments/assets/9a2a9c4c-67b0-49f3-9dd0-22195fe365e0" />
+
+### FSC Test Distribution Rockies
+<img width="850" height="470" alt="fsc_test_rockies_mean" src="https://github.com/user-attachments/assets/3f49d62c-a951-4d4b-b840-05dbcebb0500" />
+<img width="848" height="451" alt="fsc_test_rockies_unique" src="https://github.com/user-attachments/assets/a382aaab-3883-4184-a932-5bd767b935a7" />
+
+### FSC Test Distribution Switzerland
+<img width="850" height="470" alt="fsc_test_switzerland_mean" src="https://github.com/user-attachments/assets/ede36ed8-a415-450c-867d-166fa76c6bfc" />
+<img width="848" height="451" alt="fsc_test_switzerland_unique" src="https://github.com/user-attachments/assets/dbad80db-e7d4-473e-b8ea-fd1b3093bfc9" />
+
