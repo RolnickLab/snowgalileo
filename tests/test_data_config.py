@@ -5,9 +5,9 @@ from src.data.earthengine.eo import (
     CLOUD_BANDS,
     SPACE_BAND_GROUPS_IDX,
     SPACE_BANDS,
-    SPACE_DIV_VALUES,
+    SPACE_DIV_VALUES_NP,
     SPACE_IMAGE_FUNCTIONS,
-    SPACE_SHIFT_VALUES,
+    SPACE_SHIFT_VALUES_NP,
     SPACE_TIME_HIGH_RES_BANDS,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
     SPACE_TIME_HIGH_RES_DIV_VALUES,
@@ -102,8 +102,8 @@ class TestConfig(unittest.TestCase):
         )
         assert (
             len(SPACE_BANDS)
-            == len(SPACE_SHIFT_VALUES)
-            == len(SPACE_DIV_VALUES)
+            == len(SPACE_SHIFT_VALUES_NP)
+            == len(SPACE_DIV_VALUES_NP)
             == space_bands_from_idx
         )
         assert (
