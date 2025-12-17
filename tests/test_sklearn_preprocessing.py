@@ -34,7 +34,7 @@ class TestSklearn(unittest.TestCase):
         normalizing_dict = ds.load_normalization_values(
             path=config_dir / NORMALIZATION_DICT_FILENAME
         )
-        ls_eval = LandsatEvalSklearn()
+        ls_eval = LandsatEvalSklearn(eval_config=config)
         ls_eval.normalizing_dict = normalizing_dict
 
         # expected result after median replacement: if same number of values below and above median,
@@ -83,7 +83,7 @@ class TestSklearn(unittest.TestCase):
         normalizing_dict = ds.load_normalization_values(
             path=config_dir / NORMALIZATION_DICT_FILENAME
         )
-        ls_eval = LandsatEvalSklearn()
+        ls_eval = LandsatEvalSklearn(eval_config=config)
         ls_eval.normalizing_dict = normalizing_dict
 
         # we assume this is static data (i.e., three channels, no time dimension)
@@ -137,7 +137,7 @@ class TestSklearn(unittest.TestCase):
         normalizing_dict = ds.load_normalization_values(
             path=config_dir / NORMALIZATION_DICT_FILENAME
         )
-        ls_eval = LandsatEvalSklearn()
+        ls_eval = LandsatEvalSklearn(eval_config=config)
         ls_eval.normalizing_dict = normalizing_dict
 
         # we assume this is space_time_med_res data (i.e., three channels, time dimension)
@@ -209,7 +209,7 @@ class TestSklearn(unittest.TestCase):
         normalizing_dict = ds.load_normalization_values(
             path=config_dir / NORMALIZATION_DICT_FILENAME
         )
-        ls_eval = LandsatEvalSklearn()
+        ls_eval = LandsatEvalSklearn(eval_config=config)
         ls_eval.normalizing_dict = normalizing_dict
 
         resulting_data_test1, resulting_timesteps_test1 = (
@@ -282,7 +282,7 @@ class TestSklearn(unittest.TestCase):
         normalizing_dict = ds.load_normalization_values(
             path=config_dir / NORMALIZATION_DICT_FILENAME
         )
-        ls_eval = LandsatEvalSklearn()
+        ls_eval = LandsatEvalSklearn(eval_config=config)
         ls_eval.normalizing_dict = normalizing_dict
 
         resulting_data_test2, resulting_timesteps_test2 = (
