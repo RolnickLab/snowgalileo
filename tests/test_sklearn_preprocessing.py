@@ -42,8 +42,8 @@ class TestSklearn(unittest.TestCase):
         expected_test1 = torch.tensor([[[[3.0, 3.0], [35.04930787547541, 35.04930787547541]]]])
         # we assume this is space_time_med_res (i.e., three channels, no time dimension)
         result_test1 = ls_eval.replace_masked_data_with_aggregate(
-            data_test1,
-            torch.where(torch.isnan(data_test1), 1, 0),
+            x=data_test1,
+            m=torch.where(torch.isnan(data_test1), 1, 0),
             array_type="space_time_med_res",
         )
 
@@ -214,9 +214,9 @@ class TestSklearn(unittest.TestCase):
 
         resulting_data_test1, resulting_timesteps_test1 = (
             ls_eval.forward_filling_masked_data_per_channel_else_aggregate(
-                data_test1,
-                torch.where(torch.isnan(data_test1), 1, 0),
-                timesteps_test1,
+                x=data_test1,
+                m=torch.where(torch.isnan(data_test1), 1, 0),
+                t=timesteps_test1,
                 array_type="space_time_med_res",
             )
         )
