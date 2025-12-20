@@ -1,5 +1,6 @@
 # TODO: integrate this more beautifully with the rest of the codebase!
 
+import argparse
 import gc
 import os
 import re
@@ -26,9 +27,16 @@ def get_filename_without_epsg_extension(x):
     return re.sub(r"_EPSG:\d+\.tif{1,2}f?$", "", x)
 
 
-exported_tif_path = Path(DATA_FOLDER / "landsat_eval_tifs" / "patches_UTM_5_95_sorted")
-mask_path = Path(DATA_FOLDER / "landsat_eval_masks" / "all" / "patches_UTM_5_95_subset")
-output_folder = Path(DATA_FOLDER / "landsat_eval_tifs" / "patches_UTM_5_95_cropped")
+argparser = argparse.ArgumentParser()
+argparser.add_argument("--exported_tif_path", type=str, default="fsc_train_100m_tifs/all_tifs")
+argparser.add_argument("--mask_path", type=str, default="fsc_train_100m_masks")
+argparser.add_argument("--cropped_path", type=str, default="fsc_train_100m_cropped")
+
+args = argparser.parse_args()
+
+exported_tif_path = Path(DATA_FOLDER / args.exported_tif_path)
+mask_path = Path(DATA_FOLDER / args.mask_path)
+output_folder = Path(DATA_FOLDER / args.cropped_path)
 
 output_folder.mkdir(parents=True, exist_ok=True)
 
