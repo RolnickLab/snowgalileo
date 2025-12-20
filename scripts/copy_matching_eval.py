@@ -11,7 +11,7 @@ from src.data.config import DATA_FOLDER
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--exported_tif_path", type=str, default="fsc_train_100m_tifs/all_tifs")
-argparser.add_argument("--dest_folder", type=str, default="fsc_train_100m_patches")
+argparser.add_argument("--mask_path", type=str, default="fsc_train_100m_patches")
 argparser.add_argument("--output_folder", type=str, default="fsc_train_100m_masks")
 
 
