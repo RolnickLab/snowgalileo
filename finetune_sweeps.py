@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 from pathlib import Path
 
@@ -26,6 +27,12 @@ parser.add_argument(
     help="Decoding strategy to use. 'Finetune' uses a linear decoder and finetunes the entire model. 'Linear_probe' uses a linear decoder and only trains the decoder. 'Attention_probe' uses an attention-based decoder and fine-tunes the entire model. 'sklearn' uses the frozen encoder features for a sklearn model.",
 )
 parser.add_argument(
+    "--eval_config",
+    type=str,
+    default="fsc_train_100m.json",
+    help="Which eval config to use. Options are stored in src/eval/eval_configs/",
+)
+parser.add_argument(
     "--h5pys_only",
     action="store_true",
     help="Where to only use h5pys (faster, but need to be already stored in this format)",
@@ -50,6 +57,11 @@ sweep_configuration = {
         "loss_fn": {"values": ["MSE"]},
     },
 }
+
+with (Path(__file__).parents[0] / Path("src/eval/eval_configs") / Path(args["eval_config"])).open(
+    "r"
+) as f:
+    eval_config = json.load(f)
 
 
 def reset_wandb_env():
@@ -88,6 +100,7 @@ def train_and_validate():
             num_finetune_epochs=args.num_finetune_epochs,
             decoder_mode=args.decoding_strategy,
             h5pys_only=args.h5pys_only,
+            eval_config=eval_config,
         )
 
         results = eval_task.train_and_evaluate_model_on_task(
