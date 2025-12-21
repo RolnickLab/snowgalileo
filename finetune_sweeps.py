@@ -86,7 +86,7 @@ def train_and_validate():
             exclude_prediction_high_res=False,
             resample=args.resample,
             num_finetune_epochs=args.num_finetune_epochs,
-            decoder_mode=args.strategy,
+            decoder_mode=args.decoding_strategy,
             h5pys_only=args.h5pys_only,
         )
 
