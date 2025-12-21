@@ -24,7 +24,7 @@ argparser = argparse.ArgumentParser()
 argparser.add_argument(
     "--pretraining_checkpoint_folder",
     type=str,
-    default="outputs/checkpoints_ps10_5/epoch_82/",
+    default="outputs/checkpoints_tiny/epoch_80",
     help="Path to folder containing pretrained checkpoint.",
 )
 # TODO: make the choices of naming more descriptive
