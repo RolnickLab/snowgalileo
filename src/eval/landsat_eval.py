@@ -663,7 +663,7 @@ class LandsatEvalDataset(BaseDataset):
                 month,
             ),
             label,
-            self.input_tifs[idx].name,  # for logging purposes
+            self.tifs[idx].name,  # for logging purposes
         )
 
     def __len__(self) -> int:
