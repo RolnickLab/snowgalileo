@@ -106,7 +106,6 @@ def train_and_validate():
         results = eval_task.train_and_evaluate_model_on_task(
             pretrained_model=encoder,
             model_modes=["Regression"],
-            baseline_galileo=(args.pretrain == "galileo"),
             hyperparams_config=sweep_run.config,
             log_wandb=False,
             initialization_id=initialization_id,
