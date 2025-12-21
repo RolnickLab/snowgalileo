@@ -49,7 +49,7 @@ sweep_configuration = {
         "learning_rate": {"values": [1e-5, 3e-5, 6e-5, 1e-4, 3e-4, 6e-4, 1e-3, 3e-3, 6e-3]},
         "lr_schedule": {"values": [True, False]},
         "warmup_fraction": {"values": [0.0, 0.05, 0.1, 0.2]},
-        "batch_size": {"values": [16]},
+        "batch_size": {"values": [4]},
         "optimizer": {"values": ["Adam", "SGD"]},
         "weight_decay": {"values": [0, 1e-5, 1e-3]},
         "num_workers": {"values": [4]},
