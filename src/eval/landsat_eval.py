@@ -370,7 +370,7 @@ class LandsatEvalDataset(BaseDataset):
             self.tifs[idx] = self.tifs[new_idx]
             tif_path = self.tifs[idx]
         dataset = self._tif_to_array(tif_path)
-        return dataset, idx
+        return (dataset, idx)
 
     def load_tif_with_idx(self, idx: int) -> tuple[DatasetOutput, int]:
         if self.h5py_folder is None:
