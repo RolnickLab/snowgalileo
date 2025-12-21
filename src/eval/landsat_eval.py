@@ -411,7 +411,7 @@ class LandsatEvalDataset(BaseDataset):
             h5py_path = self.tif_to_h5py_path(self.tifs[idx])
             if h5py_path.exists():
                 try:
-                    return self.read_and_slice_h5py_file(h5py_path)
+                    return self.read_and_slice_h5py_file(h5py_path), idx
                 except Exception as e:
                     logger.warn(f"Exception {e} for {self.tifs[idx]}")
                     h5py_path.unlink()
