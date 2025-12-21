@@ -70,7 +70,7 @@ def train_and_validate():
         if args.pretrain == "snow":
             # load pretrained snowgalileo encoder
             encoder = Encoder.load_from_folder(
-                Path(DATA_FOLDER / "outputs/checkpoints_ps10_5/epoch_82/")
+                Path(DATA_FOLDER / "outputs/checkpoints_tiny/epoch_80")
             ).to(device)
             initialization_id = "snowgalileo_pretrained"
         else:
