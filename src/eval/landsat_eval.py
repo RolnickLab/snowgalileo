@@ -95,6 +95,7 @@ class LandsatEvalDataset(BaseDataset):
         # hacky to make sure that visualization mode uses manually defined data
         if self.split != "visualize" and self.split != "":
             self.h5py_folder = DATA_FOLDER / data_config["input_h5py_folder"] / self.split
+            self.h5py_folder.mkdir(parents=True, exist_ok=True)
         else:
             self.h5py_folder = None
 

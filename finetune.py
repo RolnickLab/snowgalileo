@@ -52,7 +52,7 @@ argparser.add_argument(
 argparser.add_argument(
     "--eval_config",
     type=str,
-    default="landsat_eval_5_95.json",
+    default="fsc_train_100m.json",
     help="Which eval config to use. Options are stored in src/eval/eval_configs/",
 )
 argparser.add_argument(
