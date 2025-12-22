@@ -60,6 +60,11 @@ argparser.add_argument(
     action="store_true",
     help="Where to only use h5pys (faster, but need to be already stored in this format)",
 )
+argparser.add_argument(
+    "--model_config",
+    default="ai4snow_tiny.json",
+    help="Model config file to use. Should match the pretraining checkpoint configuration.",
+)
 args = argparser.parse_args().__dict__
 
 with (Path(__file__).parents[0] / Path("src/eval/eval_configs") / Path(args["eval_config"])).open(
@@ -76,7 +81,7 @@ if args["pretraining_checkpoint_folder"] != "":
     initialization_id = "snowgalileo_pretrained"
 else:
     # randomly initialized snowgalileo encoder
-    config = load_check_config("ai4snow_ps10.json")
+    config = load_check_config(args["model_config"])
     encoder = Encoder(**config["model"]["encoder"]).to(device)
     initialization_id = "snowgalileo_random"
 
