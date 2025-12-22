@@ -56,11 +56,8 @@ raw_filename = args["eval_config"].split(".")[0]
 model_size_from_config = raw_filename.split("_")[2]
 
 if args["checkpoint_name"] != "":
-    checkpoint_folder = args["pretraining_checkpoint_folder"].split("/")[1]
-    model_size_from_checkpoint_folder = checkpoint_folder.split("_")[1]
-    assert model_size_from_checkpoint_folder == model_size_from_config
     # load pretrained snowgalileo encoder
-    config = load_check_config("ai4snow_ps10.json")
+    config = load_check_config(f"ai4snow_{model_size_from_config}.json")
     encoder_random_init = Encoder(**config["model"]["encoder"])
     model = EncoderWithHead(
         encoder_random_init, eval_config=default_attn_config, sigmoid_slope=sigmoid_slope
