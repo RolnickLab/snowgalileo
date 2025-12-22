@@ -53,7 +53,7 @@ with (Path("src") / Path("eval") / Path("eval_configs") / Path(args["eval_config
 
 # retrieve model size from config filename
 raw_filename = args["eval_config_name"].split(".")[0]
-model_size_from_config = raw_filename.split("_")[2]
+model_size_from_config = raw_filename.split("_")[-1]
 
 if args["checkpoint_name"] != "":
     # load pretrained snowgalileo encoder
