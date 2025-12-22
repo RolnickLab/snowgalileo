@@ -52,18 +52,13 @@ argparser.add_argument(
 argparser.add_argument(
     "--eval_config",
     type=str,
-    default="fsc_train_100m.json",
+    default="fsc_train_tiny.json",
     help="Which eval config to use. Options are stored in src/eval/eval_configs/",
 )
 argparser.add_argument(
     "--h5pys_only",
     action="store_true",
     help="Where to only use h5pys (faster, but need to be already stored in this format)",
-)
-argparser.add_argument(
-    "--model_config",
-    default="ai4snow_tiny.json",
-    help="Model config file to use. Should match the pretraining checkpoint configuration.",
 )
 args = argparser.parse_args().__dict__
 
@@ -72,8 +67,14 @@ with (Path(__file__).parents[0] / Path("src/eval/eval_configs") / Path(args["eva
 ) as f:
     eval_config = json.load(f)
 
+# retrieve model size from config filename
+raw_filename = args["eval_config"].split(".")[0]
+model_size_from_config = raw_filename.split("_")[2]
 
 if args["pretraining_checkpoint_folder"] != "":
+    checkpoint_folder = args["pretraining_checkpoint_folder"].split("/")[1]
+    model_size_from_checkpoint_folder = checkpoint_folder.split("_")[1]
+    assert model_size_from_checkpoint_folder == model_size_from_config
     # load pretrained snowgalileo encoder
     encoder = Encoder.load_from_folder(
         Path(DATA_FOLDER / args["pretraining_checkpoint_folder"])
@@ -81,7 +82,7 @@ if args["pretraining_checkpoint_folder"] != "":
     initialization_id = "snowgalileo_pretrained"
 else:
     # randomly initialized snowgalileo encoder
-    config = load_check_config(args["model_config"])
+    config = load_check_config(f"ai4snow_{model_size_from_config}.json")
     encoder = Encoder(**config["model"]["encoder"]).to(device)
     initialization_id = "snowgalileo_random"
 

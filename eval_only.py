@@ -32,7 +32,7 @@ argparser.add_argument(
 argparser.add_argument(
     "--eval_config_name",
     type=str,
-    default="fsc_train_100m.json",
+    default="fsc_train_tiny.json",
     help="Config name for evaluation. Options are stored in src/eval/eval_configs/",
 )
 argparser.add_argument(
@@ -51,7 +51,14 @@ with (Path("src") / Path("eval") / Path("eval_configs") / Path(args["config_name
     default_attn_config = eval_config["attention_probe"]
     sigmoid_slope = eval_config["hyperparams"]["sigmoid_slope"]
 
+# retrieve model size from config filename
+raw_filename = args["eval_config"].split(".")[0]
+model_size_from_config = raw_filename.split("_")[2]
+
 if args["checkpoint_name"] != "":
+    checkpoint_folder = args["pretraining_checkpoint_folder"].split("/")[1]
+    model_size_from_checkpoint_folder = checkpoint_folder.split("_")[1]
+    assert model_size_from_checkpoint_folder == model_size_from_config
     # load pretrained snowgalileo encoder
     config = load_check_config("ai4snow_ps10.json")
     encoder_random_init = Encoder(**config["model"]["encoder"])
@@ -62,7 +69,7 @@ if args["checkpoint_name"] != "":
     model.load_state_dict(checkpoint)
 else:
     # randomly initialized snowgalileo encoder
-    config = load_check_config("ai4snow_ps10.json")
+    config = load_check_config(f"ai4snow_{model_size_from_config}.json")
     encoder_random_init = Encoder(**config["model"]["encoder"])
     model = EncoderWithHead(
         encoder_random_init, eval_config=default_attn_config, sigmoid_slope=sigmoid_slope

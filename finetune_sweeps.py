@@ -29,7 +29,7 @@ parser.add_argument(
 parser.add_argument(
     "--eval_config",
     type=str,
-    default="fsc_train_100m.json",
+    default="fsc_train_tiny.json",
     help="Which eval config to use. Options are stored in src/eval/eval_configs/",
 )
 parser.add_argument(
@@ -40,6 +40,10 @@ parser.add_argument(
 args = parser.parse_args()
 pretrain = args.pretrain
 
+# retrieve model size from config filename
+raw_filename = args.eval_config.split(".")[0]
+model_size_from_config = raw_filename.split("_")[2]
+
 # TODO: discuss which metric to optimize
 sweep_configuration = {
     "name": f"sweep_pretrain_{args.pretrain}_resample_{args.resample}",
@@ -49,7 +53,7 @@ sweep_configuration = {
         "learning_rate": {"values": [1e-5, 3e-5, 6e-5, 1e-4, 3e-4, 6e-4, 1e-3, 3e-3, 6e-3]},
         "lr_schedule": {"values": [True, False]},
         "warmup_fraction": {"values": [0.0, 0.05, 0.1, 0.2]},
-        "batch_size": {"values": [4]},
+        "batch_size": {"values": [4, 2]},
         "optimizer": {"values": ["Adam", "SGD"]},
         "weight_decay": {"values": [0, 1e-5, 1e-3]},
         "num_workers": {"values": [4]},
@@ -82,12 +86,12 @@ def train_and_validate():
         if args.pretrain == "snow":
             # load pretrained snowgalileo encoder
             encoder = Encoder.load_from_folder(
-                Path(DATA_FOLDER / "outputs/checkpoints_tiny/epoch_80")
+                Path(DATA_FOLDER / f"outputs/checkpoints_{model_size_from_config}/epoch_80")
             ).to(device)
             initialization_id = "snowgalileo_pretrained"
         else:
             # randomly initialized snowgalileo encoder
-            config = load_check_config("ai4snow_ps10.json")
+            config = load_check_config(f"ai4snow_{model_size_from_config}.json")
             encoder = Encoder(**config["model"]["encoder"]).to(device)
             initialization_id = "snowgalileo_random"
 
