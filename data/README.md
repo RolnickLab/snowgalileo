@@ -45,7 +45,9 @@ Since the coordinates will be processed in EPGS4326 format, the filenames need t
 1) run `run_eval_export.sh` (all possible input tifs are exported, the resulting number of files will be smaller than the number of masks bacause of export fails). The same GEE procedure as for the pre-training files needs to be followed. To handle the large number of files to be exported, follow the recommended procedure above.
 2) run `run_copy_eval.sh` (all masks that have a matching input will be copied into a new folder)
 3) run `run_crop_eval.sh` (all inputs will be cropped to the shape of the masks)
-4) run `scripts.train_test_split.py` to split the data into train and test (skip this step if the data is used for evaluation only)
+4) Depending on the purpose of the data, follow one of the following steps:
+- (for train/test data) run `scripts.train_test_split.py` to split the data into train and test 
+- (if data is used for evaluation only) move all files into a new subfolder called `test`
 
 ### FSC Training Distribution
 <img width="850" height="470" alt="fsc_train_mean" src="https://github.com/user-attachments/assets/9081bf2a-52db-438c-8919-8bb91a2b199f" />
