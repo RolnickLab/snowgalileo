@@ -49,7 +49,7 @@ with (Path("src") / Path("eval") / Path("eval_configs") / Path(args["eval_config
 ) as f:
     eval_config = json.load(f)
     default_attn_config = eval_config["attention_probe"]
-    sigmoid_slope = eval_config["hyperparameters"]["sigmoid_slope"]
+    sigmoid_slope = eval_config["hyperparameters_snowgalileo"]["sigmoid_slope"]
 
 # retrieve model size from config filename
 raw_filename = args["eval_config_name"].split(".")[0]
