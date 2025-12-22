@@ -44,7 +44,7 @@ args = argparser.parse_args().__dict__
 
 # TODO: fix the EncoderWithHead loading pipeline
 # TODO: make sure the eval config matches the training config
-with (Path("src") / Path("eval") / Path("eval_configs") / Path(args["config_name"])).open(
+with (Path("src") / Path("eval") / Path("eval_configs") / Path(args["eval_config_name"])).open(
     "r"
 ) as f:
     eval_config = json.load(f)
@@ -52,7 +52,7 @@ with (Path("src") / Path("eval") / Path("eval_configs") / Path(args["config_name
     sigmoid_slope = eval_config["hyperparams"]["sigmoid_slope"]
 
 # retrieve model size from config filename
-raw_filename = args["eval_config"].split(".")[0]
+raw_filename = args["eval_config_name"].split(".")[0]
 model_size_from_config = raw_filename.split("_")[2]
 
 if args["checkpoint_name"] != "":
