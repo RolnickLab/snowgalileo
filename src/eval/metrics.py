@@ -34,10 +34,10 @@ def compute_classification_metrics(preds: np.ndarray, target: np.ndarray) -> Dic
 
 
 def compute_segmentation_metrics(
-    identifier: str, preds: np.ndarray, target: np.ndarray, pre_str=""
+    preds: np.ndarray, target: np.ndarray
 ) -> Dict[str, float]:
     return {
-        f"{pre_str}{identifier}miou": mean_iou(preds, target, num_classes=10),
+        f"miou": mean_iou(preds, target, num_classes=10),
     }
 
 
