@@ -788,9 +788,7 @@ class LandsatEvalSklearn(LandsatEval):
         test_preds = torch.cat(all_preds, dim=0).numpy()
         test_labels = torch.cat(all_test_labels, dim=0).numpy()
 
-        results = compute_regression_metrics(
-            identifier=self.model_type, preds=test_preds, target=test_labels
-        )
+        results = compute_regression_metrics(preds=test_preds, target=test_labels)
 
         if save_results:
             # model checkpoint

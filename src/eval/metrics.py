@@ -14,26 +14,22 @@ from sklearn.metrics import (
 )
 
 
-def compute_regression_metrics(
-    identifier: str, preds: np.ndarray, target: np.ndarray, pre_str=""
-) -> Dict[str, float]:
+def compute_regression_metrics(preds: np.ndarray, target: np.ndarray) -> Dict[str, float]:
     return {
-        f"{pre_str}{identifier}rmse": root_mean_squared_error(target, preds),
-        f"{pre_str}{identifier}r2": r2_score(target, preds),
-        f"{pre_str}{identifier}mean_absolute_error": mean_absolute_error(target, preds),
-        f"{pre_str}{identifier}median_absolute_error": median_absolute_error(target, preds),
+        "rmse": root_mean_squared_error(target, preds),
+        "r2": r2_score(target, preds),
+        "mean_absolute_error": mean_absolute_error(target, preds),
+        "median_absolute_error": median_absolute_error(target, preds),
     }
 
 
-def compute_classification_metrics(
-    identifier: str, preds: np.ndarray, target: np.ndarray, pre_str=""
-) -> Dict[str, float]:
+def compute_classification_metrics(preds: np.ndarray, target: np.ndarray) -> Dict[str, float]:
     return {
-        f"{pre_str}{identifier}overall_accuracy": accuracy_score(target, preds),
-        f"{pre_str}{identifier}balanced_accuracy": balanced_accuracy_score(target, preds),
-        f"{pre_str}{identifier}recall": recall_score(target, preds, average="weighted"),
-        f"{pre_str}{identifier}precision": precision_score(target, preds, average="weighted"),
-        f"{pre_str}{identifier}f1": f1_score(target, preds, average="weighted"),
+        "overall_accuracy": accuracy_score(target, preds),
+        "balanced_accuracy": balanced_accuracy_score(target, preds),
+        "recall": recall_score(target, preds, average="weighted"),
+        "precision": precision_score(target, preds, average="weighted"),
+        "f1": f1_score(target, preds, average="weighted"),
     }
 
 
