@@ -466,6 +466,8 @@ def evaluate_seg(
 
             if logits.dim() == 3:
                 logits = torch.squeeze(logits)
+            elif logits.dim() == 1:
+                logits = torch.unsqueeze(logits, 0)
 
             all_preds_1D.append(
                 rearrange(logits, "b s -> (b s)").float().cpu().numpy()
