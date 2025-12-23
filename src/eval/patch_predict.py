@@ -499,11 +499,7 @@ def evaluate_seg(
     binned_targets_np_f = np.digitize(all_labels_1D_f, bins=multi_class_bins)
 
     # sequence regression
-    results_dict.update(
-        compute_regression_metrics(
-            identifier, all_preds_1D, all_labels_1D
-        )
-    )
+    results_dict.update(compute_regression_metrics(identifier, all_preds_1D, all_labels_1D))
     # sequence regression (majority baseline)
     results_dict.update(
         compute_regression_metrics(
@@ -527,19 +523,13 @@ def evaluate_seg(
     # sequence classification (majority baseline)
     results_dict.update(
         compute_classification_metrics(
-            identifier,
-            majority_baseline_preds_1D,
-            binned_targets_np,
-            pre_str="majority_baseline_"
+            identifier, majority_baseline_preds_1D, binned_targets_np, pre_str="majority_baseline_"
         )
     )
     # sequence classification (majority baseline)
     results_dict.update(
         compute_classification_metrics(
-            identifier,
-            binned_preds_np_f,
-            binned_targets_np_f,
-            pre_str="balanced_"
+            identifier, binned_preds_np_f, binned_targets_np_f, pre_str="balanced_"
         )
     )
 
@@ -554,9 +544,7 @@ def evaluate_seg(
     binned_targets_np = np.digitize(all_labels_2D, bins=multi_class_bins)
 
     results_dict.update(
-        compute_segmentation_metrics(
-            identifier, binned_preds_np, binned_targets_np
-        )
+        compute_segmentation_metrics(identifier, binned_preds_np, binned_targets_np)
     )
     results_dict.update(
         compute_segmentation_metrics(

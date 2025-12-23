@@ -17,7 +17,6 @@ from sklearn.metrics import (
 def compute_regression_metrics(
     identifier: str, preds: np.ndarray, target: np.ndarray, pre_str=""
 ) -> Dict[str, float]:
-
     return {
         f"{pre_str}{identifier}rmse": root_mean_squared_error(target, preds),
         f"{pre_str}{identifier}r2": r2_score(target, preds),
@@ -29,7 +28,6 @@ def compute_regression_metrics(
 def compute_classification_metrics(
     identifier: str, preds: np.ndarray, target: np.ndarray, pre_str=""
 ) -> Dict[str, float]:
-    
     return {
         f"{pre_str}{identifier}overall_accuracy": accuracy_score(target, preds),
         f"{pre_str}{identifier}balanced_accuracy": balanced_accuracy_score(target, preds),
@@ -42,7 +40,6 @@ def compute_classification_metrics(
 def compute_segmentation_metrics(
     identifier: str, preds: np.ndarray, target: np.ndarray, pre_str=""
 ) -> Dict[str, float]:
-
     return {
         f"{pre_str}{identifier}miou": mean_iou(preds, target, num_classes=10),
     }
