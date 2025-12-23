@@ -1090,6 +1090,18 @@ class LandsatEval(EvalTask):
         )
 
         if log_wandb:
+            def flatten_for_summary(d, prefix=""):
+                out = {}
+                for k, v in d.items():
+                    key = f"{prefix}/{k}" if prefix else k
+                    if isinstance(v, dict):
+                        out.update(flatten_for_summary(v, key))
+                    else:
+                        out[key] = v
+                return out
+
+            for k, v in flatten_for_summary(results).items():
+                wandb.summary[k] = v
             import wandb
 
             wandb.init(entity="sea-ice", project="ai4snow-finetune")

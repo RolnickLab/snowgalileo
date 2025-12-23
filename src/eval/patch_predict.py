@@ -421,8 +421,6 @@ def evaluate_seg(
     all_preds_2D = []
     all_labels_2D = []
 
-    results_dict: Dict[str, float] = {}
-
     with torch.no_grad():
         for masked_output, labels, _ in data_loader:
             (
@@ -546,4 +544,4 @@ def evaluate_seg(
         majority_baseline_preds_2D, binned_targets_np
     )
 
-    return results_dict
+    return results
