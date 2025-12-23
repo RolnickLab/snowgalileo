@@ -55,7 +55,7 @@ from src.data.earthengine.eo_eval import (
 )
 from src.eval.eval import EvalTask, model_class_name
 from src.eval.metrics import compute_classification_metrics, compute_regression_metrics
-from src.eval.patch_predict import EncoderWithHead, get_finetune_results_on_val_set
+from src.eval.patch_predict import EncoderWithHead, evaluate_seg, get_finetune_results_on_val_set
 from src.masking import _aggregate_mask_per_channel_group
 from src.snowgalileo import Encoder
 from src.utils import DEFAULT_SEED, config_dir, device, masked_output_np_to_tensor
@@ -842,7 +842,6 @@ class LandsatEval(EvalTask):
                     model_name_str,
                     preds_np,
                     targets_np,
-                    majority_baseline=False,
                 )
             )
             results_dict.update(
@@ -850,7 +849,7 @@ class LandsatEval(EvalTask):
                     model_name_str,
                     majority_baseline_np,
                     targets_np,
-                    majority_baseline=True,
+                    pre_str="majority_baseline_",
                 )
             )
             results_dict.update(
@@ -858,7 +857,6 @@ class LandsatEval(EvalTask):
                     model_name_str,
                     binned_preds_np,
                     binned_targets_np,
-                    majority_baseline=False,
                 )
             )
             results_dict.update(
@@ -866,7 +864,7 @@ class LandsatEval(EvalTask):
                     model_name_str,
                     majority_baseline_np,
                     binned_targets_np,
-                    majority_baseline=True,
+                    pre_str="majority_baseline_",
                 )
             )
         np.save(
@@ -1054,7 +1052,53 @@ class LandsatEval(EvalTask):
             print(f"Saved predictions for {filename} with overall accuracy: {acc}", flush=True)
 
     @torch.no_grad()
-    def _evaluate_model(
+    def _evaluate_model(self, model: EncoderWithHead, id: str, log_wandb: bool = True):
+        test_ds = LandsatEvalDataset(
+            exclude_prediction_date=self.exclude_prediction_date,
+            exclude_prediction_high_res=self.exclude_prediction_high_res,
+            split="test",
+            data_config=self.data_config,
+            h5pys_only=self.h5pys_only,
+        )
+
+        if self.normalization == "std":
+            normalizing_dict = test_ds.load_normalization_values(
+                path=config_dir / NORMALIZATION_DICT_FILENAME
+            )
+            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+        else:
+            normalizer = Normalizer(std=False)
+        test_ds.normalizer = normalizer
+
+        test_dl = DataLoader(
+            test_ds,
+            batch_size=1,
+            shuffle=False,
+            num_workers=0,
+        )
+
+        results = evaluate_seg(
+            data_loader=test_dl, finetuned_model=model, device=device, identifier=id
+        )
+
+        to_log = {
+            "r2": results.get("r2", -1),
+            "rmse": results.get("rmse", -1),
+            "overall_accuracy": results.get("overall_accuracy", -1),
+            "balanced_accuracy": results.get("balanced_accuracy", -1),
+            "recall": results.get("recall", -1),
+            "precision": results.get("precision", -1),
+            "f1": results.get("f1", -1),
+            "miou": results.get("miou", -1),
+        }
+        if log_wandb:
+            import wandb
+
+            wandb.init(entity="sea-ice", project="ai4snow-finetune")
+            wandb.log(to_log)
+
+    @torch.no_grad()
+    def _evaluate_individual_samples(
         self,
         model: EncoderWithHead,
         id: str,

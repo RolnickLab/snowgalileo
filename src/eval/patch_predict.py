@@ -485,21 +485,35 @@ def evaluate_seg(
     majority_baseline_preds_1D = np.zeros_like(all_preds_1D)
     all_labels_1D = np.concatenate(all_labels_1D)
 
+    # mask for computing metrics without boundary values
+    mask = (all_labels_1D > 0) & (all_labels_1D < 1)
+    all_labels_1D_f = all_labels_1D[mask]
+    all_preds_1D_f = all_preds_1D[mask]
+
     # create 10 bins for multi-class classification
     multi_class_bins = np.linspace(0.1, 1, 9)
     binned_preds_np = np.digitize(all_preds_1D, bins=multi_class_bins)
     binned_targets_np = np.digitize(all_labels_1D, bins=multi_class_bins)
 
+    binned_preds_np_f = np.digitize(all_preds_1D_f, bins=multi_class_bins)
+    binned_targets_np_f = np.digitize(all_labels_1D_f, bins=multi_class_bins)
+
     # sequence regression
     results_dict.update(
         compute_regression_metrics(
-            identifier, all_preds_1D, all_labels_1D, majority_baseline=False
+            identifier, all_preds_1D, all_labels_1D
         )
     )
     # sequence regression (majority baseline)
     results_dict.update(
         compute_regression_metrics(
-            identifier, majority_baseline_preds_1D, all_labels_1D, majority_baseline=True
+            identifier, majority_baseline_preds_1D, all_labels_1D, pre_str="majority_baseline_"
+        )
+    )
+    # sequence regression (peaks excluded)
+    results_dict.update(
+        compute_regression_metrics(
+            identifier, all_preds_1D_f, all_labels_1D_f, pre_str="balanced_"
         )
     )
     # sequence classification
@@ -508,7 +522,6 @@ def evaluate_seg(
             identifier,
             binned_preds_np,
             binned_targets_np,
-            majority_baseline=False,
         )
     )
     # sequence classification (majority baseline)
@@ -517,7 +530,16 @@ def evaluate_seg(
             identifier,
             majority_baseline_preds_1D,
             binned_targets_np,
-            majority_baseline=True,
+            pre_str="majority_baseline_"
+        )
+    )
+    # sequence classification (majority baseline)
+    results_dict.update(
+        compute_classification_metrics(
+            identifier,
+            binned_preds_np_f,
+            binned_targets_np_f,
+            pre_str="balanced_"
         )
     )
 
@@ -533,12 +555,12 @@ def evaluate_seg(
 
     results_dict.update(
         compute_segmentation_metrics(
-            identifier, binned_preds_np, binned_targets_np, majority_baseline=False
+            identifier, binned_preds_np, binned_targets_np
         )
     )
     results_dict.update(
         compute_segmentation_metrics(
-            identifier, majority_baseline_preds_2D, binned_targets_np, majority_baseline=True
+            identifier, majority_baseline_preds_2D, binned_targets_np, pre_str="majority_baseline_"
         )
     )
 
