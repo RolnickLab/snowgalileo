@@ -464,8 +464,11 @@ def evaluate_seg(
             # check that all predictions are between 0 and 1
             assert logits.min() >= 0 and logits.max() <= 1
 
+            if logits.dim() == 3:
+                logits = torch.squeeze(logits)
+
             all_preds_1D.append(
-                rearrange(torch.squeeze(logits), "b s -> (b s)").float().cpu().numpy()
+                rearrange(logits, "b s -> (b s)").float().cpu().numpy()
             )
             all_labels_1D.append(rearrange(labels, "b h w -> (b h w)").float().cpu().numpy())
 
