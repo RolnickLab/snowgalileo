@@ -385,22 +385,10 @@ def finetune_seg(
                     identifier="",
                     patch_size_high_res=patch_size_high_res,
                 )
-                to_log = {
-                    "train_loss": loss.item(),
-                    "r2": results.get("r2", -1),
-                    "rmse": results.get("rmse", -1),
-                    "overall_accuracy": results.get("overall_accuracy", -1),
-                    "balanced_accuracy": results.get("balanced_accuracy", -1),
-                    "recall": results.get("recall", -1),
-                    "precision": results.get("precision", -1),
-                    "f1": results.get("f1", -1),
-                    "miou": results.get("miou", -1),
-                    "epoch": epoch,
-                }
                 if log_wandb:
-                    wandb.log(to_log, step=epoch)
+                    wandb.log(results, step=epoch)
                 if sweep_run is not None:
-                    sweep_run.log(to_log, step=epoch)
+                    sweep_run.log(results, step=epoch)
                 print(f"Finished epoch {epoch + 1}/{epochs}")
 
     return finetuned_encoder
