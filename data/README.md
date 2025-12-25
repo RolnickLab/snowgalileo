@@ -49,7 +49,11 @@ Since the coordinates will be processed in EPGS4326 format, the filenames need t
 - (for train/test data) run `scripts.train_test_split.py` to split the data into train and test 
 - (if data is used for evaluation only) move all files into a new subfolder called `test`
 
-### FSC Training Distribution
+### FSC Training Distribution Full Set
+<img width="859" height="470" alt="fsc_train_new_mean" src="https://github.com/user-attachments/assets/86edba8d-46bf-43ba-aa0c-6574851e5720" />
+<img width="826" height="451" alt="fsc_train_new_unique" src="https://github.com/user-attachments/assets/38830850-42be-45ae-af6f-dc3c4fa27860" />
+
+### FSC Training Distribution Subset
 <img width="850" height="470" alt="fsc_train_mean" src="https://github.com/user-attachments/assets/9081bf2a-52db-438c-8919-8bb91a2b199f" />
 <img width="857" height="451" alt="fsc_train_unique" src="https://github.com/user-attachments/assets/9a2a9c4c-67b0-49f3-9dd0-22195fe365e0" />
 
