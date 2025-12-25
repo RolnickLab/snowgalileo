@@ -1091,9 +1091,10 @@ class LandsatEval(EvalTask):
 
         if log_wandb:
             import wandb
+
             wandb.init(entity="sea-ice", project="ai4snow-finetune")
             wandb.log(results)
-            
+
             def flatten_for_summary(d, prefix=""):
                 out = {}
                 for k, v in d.items():

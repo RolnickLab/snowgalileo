@@ -48,7 +48,7 @@ model_size_from_config = raw_filename.split("_")[2]
 sweep_configuration = {
     "name": f"sweep_pretrain_{args.pretrain}_resample_{args.resample}",
     "method": "random",
-    "metric": {"goal": "maximize", "name": "r2"},
+    "metric": {"goal": "maximize", "name": "model.regression.r2"},
     "parameters": {
         "learning_rate": {"values": [1e-5, 3e-5, 6e-5, 1e-4, 3e-4, 6e-4, 1e-3, 3e-3, 6e-3]},
         "lr_schedule": {"values": [True, False]},
@@ -86,7 +86,7 @@ def train_and_validate():
         if args.pretrain == "snow":
             # load pretrained snowgalileo encoder
             encoder = Encoder.load_from_folder(
-                Path(DATA_FOLDER / f"outputs/checkpoints_{model_size_from_config}/epoch_80")
+                Path(DATA_FOLDER / f"outputs/checkpoints_{model_size_from_config}/epoch_100")
             ).to(device)
             initialization_id = "snowgalileo_pretrained"
         else:
@@ -118,18 +118,7 @@ def train_and_validate():
         )
         # log metric to sweep run
         # TODO: change the metric names based on eval config
-        sweep_run.log(
-            {
-                "r2": results.get("landsat_s42_ps10_8_r2", -1),
-                "rmse": results.get("landsat_s42_ps10_8_rmse", -1),
-                "overall_accuracy": results.get("landsat_s42_ps10_8_overall_accuracy", -1),
-                "balanced_accuracy": results.get("landsat_s42_ps10_8_balanced_accuracy", -1),
-                "recall": results.get("landsat_s42_ps10_8_recall", -1),
-                "precision": results.get("landsat_s42_ps10_8_precision", -1),
-                "f1": results.get("landsat_s42_ps10_8_f1", -1),
-                "miou": results.get("landsat_s42_ps10_8_miou", -1),
-            }
-        )
+        sweep_run.log(results)
         sweep_run.finish()
 
 
