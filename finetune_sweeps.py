@@ -118,7 +118,7 @@ def train_and_validate():
         )
         # log metric to sweep run
         # TODO: change the metric names based on eval config
-        sweep_run.log(results)
+        sweep_run.log(results[0])
         sweep_run.finish()
 
 
