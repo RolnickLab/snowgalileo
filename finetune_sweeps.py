@@ -42,7 +42,7 @@ pretrain = args.pretrain
 
 # retrieve model size from config filename
 raw_filename = args.eval_config.split(".")[0]
-model_size_from_config = raw_filename.split("_")[2]
+model_size_from_config = raw_filename.split("_")[-1]
 
 # TODO: discuss which metric to optimize
 sweep_configuration = {

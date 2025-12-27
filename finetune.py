@@ -69,7 +69,7 @@ with (Path(__file__).parents[0] / Path("src/eval/eval_configs") / Path(args["eva
 
 # retrieve model size from config filename
 raw_filename = args["eval_config"].split(".")[0]
-model_size_from_config = raw_filename.split("_")[2]
+model_size_from_config = raw_filename.split("_")[-1]
 
 if args["pretraining_checkpoint_folder"] != "":
     checkpoint_folder = args["pretraining_checkpoint_folder"].split("/")[1]
