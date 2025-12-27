@@ -123,6 +123,9 @@ class LandsatEvalDataset(BaseDataset):
                 self.label_tifs.append(tif)
             except IndexError:
                 warnings.warn(f"IndexError for label {tif}")
+        
+        self.tifs.sort(key=lambda p: p.name)
+        self.label_tifs.sort(key=lambda p: p.name)
 
         assert len(self.tifs) == len(self.label_tifs), (
             "Number of input tifs and label tifs do not match."
