@@ -131,12 +131,11 @@ class LandsatEvalDataset(BaseDataset):
             "Number of input tifs and label tifs do not match."
         )
 
-        self.pairs = []
-        for img, lbl in zip(self.tifs, self.label_tifs):
-            if img.name == lbl.name:
-                self.pairs.append((img, lbl))
-            else:
-                print(f"Skipping mismatched pair: {img.name}, {lbl.name}")
+        # inefficient sanity check
+        for idx in range(len(self.tifs)):
+            assert self.tifs[idx].name == self.label_tifs[idx].name, (
+                f"Input path {self.tifs[idx].name} and label path {self.label_tifs[idx].name} do not match."
+            )
 
     # NOTE: overwritten from TifDataset since the eval tif files have different naming conventions
     @classmethod
@@ -372,29 +371,27 @@ class LandsatEvalDataset(BaseDataset):
             else:
                 new_idx = idx - 1
             self.tifs[idx] = self.tifs[new_idx]
+            self.label_tifs[idx] = self.label_tifs[new_idx]
             tif_path = self.tifs[idx]
         dataset = self._tif_to_array(tif_path)
-        return dataset, idx
+        return dataset
 
-    def load_tif_with_idx(self, idx: int) -> tuple[DatasetOutput, int]:
+    def load_tif(self, idx: int) -> DatasetOutput:
         if self.h5py_folder is None:
             (
-                (
-                    s_t_h_x,
-                    s_t_m_x,
-                    s_t_l_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    months,
-                    valid_data_mask_s_t_h,
-                    valid_data_mask_s_t_m,
-                    valid_data_mask_s_t_l,
-                    valid_data_mask_sp,
-                    valid_data_mask_t,
-                    valid_data_mask_st,
-                ),
-                idx,
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                months,
+                valid_data_mask_s_t_h,
+                valid_data_mask_s_t_m,
+                valid_data_mask_s_t_l,
+                valid_data_mask_sp,
+                valid_data_mask_t,
+                valid_data_mask_st,
             ) = self._tif_to_array_with_checks(idx)
             return DatasetOutput(
                 s_t_h_x,
@@ -410,32 +407,29 @@ class LandsatEvalDataset(BaseDataset):
                 valid_data_mask_sp,
                 valid_data_mask_t,
                 valid_data_mask_st,
-            ), idx
+            )
         else:
             h5py_path = self.tif_to_h5py_path(self.tifs[idx])
             if h5py_path.exists():
                 try:
-                    return self.read_and_slice_h5py_file(h5py_path), idx
+                    return self.read_and_slice_h5py_file(h5py_path)
                 except Exception as e:
                     logger.warn(f"Exception {e} for {self.tifs[idx]}")
                     h5py_path.unlink()
                     (
-                        (
-                            s_t_h_x,
-                            s_t_m_x,
-                            s_t_l_x,
-                            sp_x,
-                            t_x,
-                            st_x,
-                            months,
-                            valid_data_mask_s_t_h,
-                            valid_data_mask_s_t_m,
-                            valid_data_mask_s_t_l,
-                            valid_data_mask_sp,
-                            valid_data_mask_t,
-                            valid_data_mask_st,
-                        ),
-                        idx,
+                        s_t_h_x,
+                        s_t_m_x,
+                        s_t_l_x,
+                        sp_x,
+                        t_x,
+                        st_x,
+                        months,
+                        valid_data_mask_s_t_h,
+                        valid_data_mask_s_t_m,
+                        valid_data_mask_s_t_l,
+                        valid_data_mask_sp,
+                        valid_data_mask_t,
+                        valid_data_mask_st,
                     ) = self._tif_to_array_with_checks(idx)
                     self.save_h5py(
                         s_t_h_x,
@@ -466,25 +460,22 @@ class LandsatEvalDataset(BaseDataset):
                         valid_data_mask_sp,
                         valid_data_mask_t,
                         valid_data_mask_st,
-                    ), idx
+                    )
             else:
                 (
-                    (
-                        s_t_h_x,
-                        s_t_m_x,
-                        s_t_l_x,
-                        sp_x,
-                        t_x,
-                        st_x,
-                        months,
-                        valid_data_mask_s_t_h,
-                        valid_data_mask_s_t_m,
-                        valid_data_mask_s_t_l,
-                        valid_data_mask_sp,
-                        valid_data_mask_t,
-                        valid_data_mask_st,
-                    ),
-                    idx,
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    months,
+                    valid_data_mask_s_t_h,
+                    valid_data_mask_s_t_m,
+                    valid_data_mask_s_t_l,
+                    valid_data_mask_sp,
+                    valid_data_mask_t,
+                    valid_data_mask_st,
                 ) = self._tif_to_array_with_checks(idx)
                 self.save_h5py(
                     s_t_h_x,
@@ -515,7 +506,7 @@ class LandsatEvalDataset(BaseDataset):
                     valid_data_mask_sp,
                     valid_data_mask_t,
                     valid_data_mask_st,
-                ), idx
+                )
 
     def __getitem__(self, idx):
         if self.h5pys_only:
@@ -525,7 +516,7 @@ class LandsatEvalDataset(BaseDataset):
                 return self.read_and_slice_h5py_file(self.h5pys[idx]).normalize(self.normalizer)
 
         # NOTE: input will be a DatasetOutput object
-        h5py, idx = self.load_tif_with_idx(idx)
+        h5py = self.load_tif(idx)
 
         if self.normalizer is None:
             (
@@ -639,7 +630,7 @@ class LandsatEvalDataset(BaseDataset):
                 st_m,
             ) = self.mask_prediction_high_res(s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m)
 
-        _, label = self.pairs[idx]
+        label = self.label_tifs[idx]
         # TODO: optinally add conversion to h5pys for labels
         with cast(xr.Dataset, rioxarray.open_rasterio(label)) as data:
             label = cast(np.ndarray, data.values)
