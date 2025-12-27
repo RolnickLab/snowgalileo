@@ -32,7 +32,7 @@
     },
     "hyperparameters_snowgalileo": {
         "batch_size": 4,
-        "num_workers": 4,
+        "num_workers": 0,
         "weight_decay": 1e-5,
         "schedule_sigmoid_slope": false,
         "sigmoid_slope": 0.1,
