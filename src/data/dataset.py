@@ -525,7 +525,7 @@ class Dataset(PyTorchDataset):
     def one_hot_encode_esa_worldcover(data: np.ndarray) -> np.ndarray:
         """One-hot encode the ESA Worldcover band, setting all channels to NO_DATA_VALUE where class=0."""
 
-        assert np.all(np.isin(data, WC_CLASS_VALUES + [0])), (
+        assert np.all(np.isin(data, WC_CLASS_VALUES + [0] + [NO_DATA_VALUE])), (
             "ESA Worldcover data contains unexpected class values."
         )
         nodata_mask = data == 0
