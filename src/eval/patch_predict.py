@@ -1,3 +1,4 @@
+import math
 from copy import deepcopy
 
 import numpy as np
@@ -11,6 +12,7 @@ from src.eval.metrics import (
     compute_regression_metrics,
     compute_segmentation_metrics,
 )
+from src.eval.utils import SigmoidSlopeScheduler
 from src.snowgalileo import AttentionProbe, adjust_learning_rate
 from src.utils import save_checkpoint
 
@@ -57,7 +59,8 @@ class EncoderWithHead(nn.Module):
 
         # attach a sigmoid to squeeze outputs to [0, 1]
         self.sigmoid = nn.Sigmoid()
-        self.sigmoid_slope = sigmoid_slope
+
+        self.register_buffer("sigmoid_slope", torch.tensor(sigmoid_slope))
 
     def forward(
         self,
@@ -259,6 +262,7 @@ def finetune_seg(
     weight_decay = hyperparameter_config.get("weight_decay", 0.0)
     lr_schedule = hyperparameter_config.get("lr_schedule", True)
     optimizer = hyperparameter_config.get("optimizer", "Adam")
+    schedule_sigmoid_slope = hyperparameter_config.get("schedule_sigmoid_slope", False)
     sigmoid_slope = hyperparameter_config.get("sigmoid_slope", 1.0)
     loss_fn = hyperparameter_config.get("loss_fn", "MSE")
     warmup_fraction = hyperparameter_config.get("warmup_fraction", 0.1)
@@ -302,6 +306,14 @@ def finetune_seg(
         "min_lr": 1.0e-6,
         "epochs": epochs,
     }
+
+    updates_per_epoch = math.ceil(len(train_loader) / grad_accum)
+    num_training_steps = epochs * updates_per_epoch
+
+    if schedule_sigmoid_slope:
+        slope_scheduler = SigmoidSlopeScheduler(
+            finetuned_encoder, start=8.0, end=1.0, total_steps=num_training_steps
+        )
 
     if loss_fn == "MSE":
         loss_function = nn.MSELoss()
@@ -359,6 +371,9 @@ def finetune_seg(
             if ((i + 1) % grad_accum == 0) or (i + 1 == len(train_loader)):
                 epoch_fraction = epoch + (i / len(train_loader))
 
+                if schedule_sigmoid_slope:
+                    slope_scheduler.step()
+
                 if lr_schedule:
                     set_lr = adjust_learning_rate(
                         optimizer=opt,
@@ -384,6 +399,9 @@ def finetune_seg(
                     identifier="",
                     patch_size_high_res=patch_size_high_res,
                 )
+                current_slope = finetuned_encoder.sigmoid_slope
+                results["sigmoid_slope"] = current_slope
+                results["learning_rate"] = set_lr
                 if log_wandb:
                     wandb.log(results, step=epoch)
                 if sweep_run is not None:

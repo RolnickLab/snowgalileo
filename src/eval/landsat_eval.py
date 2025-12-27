@@ -123,7 +123,7 @@ class LandsatEvalDataset(BaseDataset):
                 self.label_tifs.append(tif)
             except IndexError:
                 warnings.warn(f"IndexError for label {tif}")
-        
+
         self.tifs.sort(key=lambda p: p.name)
         self.label_tifs.sort(key=lambda p: p.name)
 

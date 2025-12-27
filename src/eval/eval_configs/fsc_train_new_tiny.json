@@ -34,6 +34,7 @@
         "batch_size": 4,
         "num_workers": 4,
         "weight_decay": 1e-5,
+        "schedule_sigmoid_slope": true,
         "sigmoid_slope": 0.1,
         "lr_schedule": true,
         "learning_rate": 6e-3,
