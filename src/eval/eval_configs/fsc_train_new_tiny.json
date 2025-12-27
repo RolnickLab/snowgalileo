@@ -32,11 +32,11 @@
     },
     "hyperparameters_snowgalileo": {
         "batch_size": 4,
-        "num_workers": 0,
+        "num_workers": 4,
         "weight_decay": 1e-5,
-        "sigmoid_slope": 1.0,
-        "lr_schedule": false,
-        "learning_rate": 3e-4,
+        "sigmoid_slope": 0.1,
+        "lr_schedule": true,
+        "learning_rate": 6e-3,
         "optimizer": "Adam",
         "warmup_fraction": 0.1,
         "loss_fn": "MSE"
