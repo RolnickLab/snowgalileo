@@ -363,7 +363,7 @@ class LandsatEvalDataset(BaseDataset):
         tif_path = self.tifs[idx]
         try:
             dataset = self._tif_to_array(tif_path)
-            return dataset, idx
+            return dataset
         except Exception as e:
             print(f"Replacing tif {tif_path} due to {e}")
             if idx == 0:
