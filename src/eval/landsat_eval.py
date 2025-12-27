@@ -359,7 +359,7 @@ class LandsatEvalDataset(BaseDataset):
         except AssertionError as e:
             raise e
 
-    def _tif_to_array_with_checks(self, idx):
+    def _tif_to_array_with_checks(self, idx) -> DatasetOutput:
         tif_path = self.tifs[idx]
         try:
             dataset = self._tif_to_array(tif_path)
