@@ -82,60 +82,79 @@ class LandsatEvalDataset(BaseDataset):
         )
 
         self.split = split
-        assert self.split in ["train", "test", "visualize"]
+        assert self.split in ["train", "test", "visualize", "inference"]
 
         # whether to exclude the prediction date from the input timesteps
         # if True, the prediction date will be masked out in the input
         self.exclude_prediction_date = exclude_prediction_date
         self.exclude_prediction_high_res = exclude_prediction_high_res
+        self.label_height_width = data_config["input_height_width"]
 
-        self.label_folder = DATA_FOLDER / data_config["label_folder"] / self.split
         self.input_tif_folder = DATA_FOLDER / data_config["input_tif_folder"] / self.split
 
-        # hacky to make sure that visualization mode uses manually defined data
-        if self.split != "visualize" and self.split != "":
+        if self.split not in ["inference"]:
+            self.label_folder = DATA_FOLDER / data_config["label_folder"] / self.split
+        else:
+            self.label_folder = None
+
+        if self.split not in ["visualize", "inference"]:
             self.h5py_folder = DATA_FOLDER / data_config["input_h5py_folder"] / self.split
             if self.h5py_folder is not None:  # for mypy to pass
                 self.h5py_folder.mkdir(parents=True, exist_ok=True)
         else:
             self.h5py_folder = None
 
-        self.tifs = []
         input_tifs = list(self.input_tif_folder.glob("*.tif")) + list(
             self.input_tif_folder.glob("*.tiff")
         )
-        for tif in input_tifs:
-            try:
-                _ = self.prediction_month_from_file(tif)
-                self.tifs.append(tif)
-            except IndexError:
-                warnings.warn(f"IndexError for input {tif}")
+        self.tifs: List[Path] = self._sanity_check(input_tifs)
+        self.tifs.sort(key=lambda p: p.name)
 
         self.h5pys: list = []
 
-        self.label_height_width = data_config["input_height_width"]
-
-        self.label_tifs = []
         label_tifs = list(self.label_folder.glob("*.tif")) + list(self.label_folder.glob("*.tiff"))
-        for tif in label_tifs:
-            try:
-                _ = self.prediction_month_from_file(tif)
-                self.label_tifs.append(tif)
-            except IndexError:
-                warnings.warn(f"IndexError for label {tif}")
-
-        self.tifs.sort(key=lambda p: p.name)
+        self.label_tifs: List[Path] = self._sanity_check(label_tifs)
         self.label_tifs.sort(key=lambda p: p.name)
 
-        assert len(self.tifs) == len(self.label_tifs), (
-            "Number of input tifs and label tifs do not match."
-        )
+        self.pairs = []
+        
+        if h5pys_only:
+            assert self.h5py_folder is not None, "Can't use h5pys only if there is no cache folder"
+            self.tifs: List[Path] = []
+            self.h5pys = list(self.h5py_folder.glob("*.h5"))
 
-        # inefficient sanity check
-        for idx in range(len(self.tifs)):
-            assert self.tifs[idx].name == self.label_tifs[idx].name, (
-                f"Input path {self.tifs[idx].name} and label path {self.label_tifs[idx].name} do not match."
+            for img, lbl in zip(self.h5pys, self.label_tifs):
+                if img.name == lbl.name:
+                    self.pairs.append((img, lbl))
+                else:
+                    print(f"Skipping mismatched pair: {img.name}, {lbl.name}")
+        else:
+            for img, lbl in zip(self.tifs, self.label_tifs):
+                if img.name == lbl.name:
+                    self.pairs.append((img, lbl))
+                else:
+                    print(f"Skipping mismatched pair: {img.name}, {lbl.name}")
+
+        if self.split not in ["inference"]:
+            assert len(self.tifs) == len(self.label_tifs), (
+                "Number of input tifs and label tifs do not match."
             )
+            # inefficient sanity check
+            for idx in range(len(self.tifs)):
+                assert self.tifs[idx].name == self.label_tifs[idx].name, (
+                    f"Input path {self.tifs[idx].name} and label path {self.label_tifs[idx].name} do not match."
+                )
+
+    @classmethod
+    def _sanity_check(cls, tifs):
+        checked_tifs: List[Path] = []
+        for tif in tifs:
+            try:
+                _ = cls.prediction_month_from_file(tif)
+                checked_tifs.append(tif)
+            except IndexError:
+                warnings.warn(f"IndexError for {tif}")
+        return checked_tifs
 
     # NOTE: overwritten from TifDataset since the eval tif files have different naming conventions
     @classmethod
@@ -360,7 +379,7 @@ class LandsatEvalDataset(BaseDataset):
             raise e
 
     def _tif_to_array_with_checks(self, idx) -> DatasetOutput:
-        tif_path = self.tifs[idx]
+        tif_path, _ = self.pairs[idx]
         try:
             dataset = self._tif_to_array(tif_path)
             return dataset
@@ -370,9 +389,8 @@ class LandsatEvalDataset(BaseDataset):
                 new_idx = idx + 1
             else:
                 new_idx = idx - 1
-            self.tifs[idx] = self.tifs[new_idx]
-            self.label_tifs[idx] = self.label_tifs[new_idx]
-            tif_path = self.tifs[idx]
+            self.pairs[idx] = self.pairs[new_idx]
+            tif_path = self.pairs[idx][0]
         dataset = self._tif_to_array(tif_path)
         return dataset
 
@@ -409,12 +427,13 @@ class LandsatEvalDataset(BaseDataset):
                 valid_data_mask_st,
             )
         else:
-            h5py_path = self.tif_to_h5py_path(self.tifs[idx])
+            image_path, _ = self.pairs[idx]
+            h5py_path = self.tif_to_h5py_path(image_path)
             if h5py_path.exists():
                 try:
                     return self.read_and_slice_h5py_file(h5py_path)
                 except Exception as e:
-                    logger.warn(f"Exception {e} for {self.tifs[idx]}")
+                    logger.warn(f"Exception {e} for {image_path}")
                     h5py_path.unlink()
                     (
                         s_t_h_x,
@@ -444,7 +463,7 @@ class LandsatEvalDataset(BaseDataset):
                         valid_data_mask_sp,
                         valid_data_mask_t,
                         valid_data_mask_st,
-                        self.tifs[idx].stem,
+                        image_path.stem,
                     )
                     return DatasetOutput(
                         s_t_h_x,
@@ -490,7 +509,7 @@ class LandsatEvalDataset(BaseDataset):
                     valid_data_mask_sp,
                     valid_data_mask_t,
                     valid_data_mask_st,
-                    self.tifs[idx].stem,
+                    image_path.stem,
                 )
                 return DatasetOutput(
                     s_t_h_x,
@@ -510,13 +529,10 @@ class LandsatEvalDataset(BaseDataset):
 
     def __getitem__(self, idx):
         if self.h5pys_only:
-            if self.normalizer is None:
-                return self.read_and_slice_h5py_file(self.h5pys[idx])
-            else:
-                return self.read_and_slice_h5py_file(self.h5pys[idx]).normalize(self.normalizer)
-
-        # NOTE: input will be a DatasetOutput object
-        h5py = self.load_tif(idx)
+            h5py_path, _ = self.pairs[idx]
+            image = self.read_and_slice_h5py_file(h5py_path)
+        else:
+            image = self.load_tif(idx)
 
         if self.normalizer is None:
             (
@@ -533,7 +549,7 @@ class LandsatEvalDataset(BaseDataset):
                 valid_data_mask_sp,
                 valid_data_mask_t,
                 valid_data_mask_st,
-            ) = h5py
+            ) = image
 
         else:
             (
@@ -550,7 +566,7 @@ class LandsatEvalDataset(BaseDataset):
                 valid_data_mask_sp,
                 valid_data_mask_t,
                 valid_data_mask_st,
-            ) = h5py.normalize(self.normalizer)
+            ) = image.normalize(self.normalizer)
 
         # unmask everything per default, then mask invalid data
         # 0 = valid data, 1 = masked
@@ -630,39 +646,61 @@ class LandsatEvalDataset(BaseDataset):
                 st_m,
             ) = self.mask_prediction_high_res(s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m)
 
-        label = self.label_tifs[idx]
-        # TODO: optinally add conversion to h5pys for labels
-        with cast(xr.Dataset, rioxarray.open_rasterio(label)) as data:
-            label = cast(np.ndarray, data.values)
-            # remove first dimension (for shape consistency)
-            label = np.squeeze(label, axis=0)
+        if self.split == "inference":
+            # return input tif instead of label in inference mode
+            return (
+                masked_output_np_to_tensor(
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    month,
+                ),
+                self.tifs[idx],
+            )
 
-        assert self.tifs[idx].name == self.label_tifs[idx].name, (
-            f"Input path {self.tifs[idx].name} and label path {self.label_tifs[idx].name} do not match."
-        )
+        else:
+            image_path, label_path = self.pairs[idx]
+            # TODO: optinally add conversion to h5pys for labels
+            with cast(xr.Dataset, rioxarray.open_rasterio(label_path)) as data:
+                label = cast(np.ndarray, data.values)
+                # remove first dimension (for shape consistency)
+                label = np.squeeze(label, axis=0)
 
-        return (
-            masked_output_np_to_tensor(
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                s_t_h_m,
-                s_t_m_m,
-                s_t_l_m,
-                sp_m,
-                t_m,
-                st_m,
-                month,
-            ),
-            label,
-            self.tifs[idx].name,  # for logging purposes
-        )
+            assert image_path.name == label_path.name, (
+                f"Input path {image_path.name} and label path {label_path.name} do not match."
+            )
+
+            return (
+                masked_output_np_to_tensor(
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    month,
+                ),
+                label,
+                image_path.name,  # for logging purposes
+            )
 
     def __len__(self) -> int:
-        return len(self.label_tifs)
+        return len(self.pairs)
 
 
 class LandsatEval(EvalTask):
@@ -1052,6 +1090,126 @@ class LandsatEval(EvalTask):
                 target_to_save,
             )
             print(f"Saved predictions for {filename} with overall accuracy: {acc}", flush=True)
+
+    @torch.no_grad()
+    def _predict_and_store_output(self, model: EncoderWithHead, id: str, log_wandb: bool = True):
+        inference_ds = LandsatEvalDataset(
+            exclude_prediction_date=self.exclude_prediction_date,
+            exclude_prediction_high_res=self.exclude_prediction_high_res,
+            split="inference",
+            data_config=self.data_config,
+            h5pys_only=self.h5pys_only,
+        )
+
+        if self.normalization == "std":
+            normalizing_dict = inference_ds.load_normalization_values(
+                path=config_dir / NORMALIZATION_DICT_FILENAME
+            )
+            print(normalizing_dict, flush=True)
+            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+        else:
+            normalizer = Normalizer(std=False)
+        inference_ds.normalizer = normalizer
+
+        output_tif_folder = DATA_FOLDER / "output_tifs"
+        if not output_tif_folder.exists():
+            output_tif_folder.mkdir(parents=True, exist_ok=True)
+
+        output_npy_folder = DATA_FOLDER / "output_png"
+        if not output_npy_folder.exists():
+            output_npy_folder.mkdir(parents=True, exist_ok=True)
+
+        inference_dl = DataLoader(
+            inference_ds,
+            batch_size=1,
+            shuffle=False,
+            num_workers=0,
+        )
+
+        with torch.no_grad():
+            for masked_output, filename in tqdm(
+                inference_dl, desc="Predicting output"
+            ):
+                (
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                ) = [t.to(device) for t in masked_output]
+
+                # with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                logits = model(
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    months,
+                    patch_size_high_res=10,
+                    patch_size_med_res=1,
+                    patch_size_low_res=1,
+                )
+
+                # check that all predictions are between 0 and 1
+                assert logits.min() >= 0 and logits.max() <= 1
+
+                spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
+                preds_2D = (
+                    rearrange(
+                        torch.squeeze(logits),
+                        "(h w) -> h w",
+                        h=spatial_patches_per_dim,
+                        w=spatial_patches_per_dim,
+                    )
+                    .float()
+                    .cpu()
+                    .numpy()
+                )
+
+                if log_wandb:
+                    import matplotlib.pyplot as plt
+                    import wandb
+
+                    fig, axs = plt.subplots(1, 1, figsize=(5, 5))
+                    axs[0].imshow(preds_2D, cmap="gray", vmin=0, vmax=1)
+                    axs[0].set_title("Predictions")
+                    filename = filename[0].split(".tif")[0]
+
+                    wandb.init(entity="sea-ice", project="ai4snow-finetune")
+                    wandb.log(
+                        {
+                            f"{self.name}_visualization_{filename}": wandb.Image(
+                                fig,
+                                caption=f"Lat: {filename.split('_')[3]}, Lon: {filename.split('_')[4]}, Date: {filename.split('_')[1]}",
+                            )
+                        }
+                    )
+                    plt.close(fig)
+
+                # save the predictions as numpy
+                np.save(
+                    output_npy_folder / f"{filename}_output.npy",
+                    preds_2D,
+                )
+                print(
+                    f"Saved predictions for {filename}", flush=True
+                )
 
     @torch.no_grad()
     def _evaluate_model(self, model: EncoderWithHead, id: str, log_wandb: bool = True):
@@ -1528,3 +1686,6 @@ class LandsatEval(EvalTask):
 
     def evaluate_model_on_task(self, model: EncoderWithHead, id: str):
         self._evaluate_model(model, id=id)
+
+    def predict_and_store_output(self, model: EncoderWithHead, id: str):
+        self._predict_and_store_output(model, id=id)

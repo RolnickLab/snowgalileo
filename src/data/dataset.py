@@ -310,20 +310,24 @@ class Dataset(PyTorchDataset):
         else:
             if download:
                 self.download_tifs_from_drive_folder()
-            self.tifs = []
             tifs = list(data_folder.glob("*.tif")) + list(data_folder.glob("*.tiff"))
-            for tif in tifs:
-                try:
-                    _ = self.start_month_from_file(tif)
-                    self.tifs.append(tif)
-                except IndexError:
-                    warnings.warn(f"IndexError for {tif}")
+            self.tifs: List[Path] = self._sanity_check(tifs)
             self.h5pys = []
 
         self.output_hw_high_res = output_hw_high_res
         self.output_hw_med_res = output_hw_med_res
         self.output_hw_low_res = output_hw_low_res
         self.output_timesteps = output_timesteps
+
+    def _sanity_check(self, tifs):
+        checked_tifs: List[Path] = []
+        for tif in tifs:
+            try:
+                _ = self.start_month_from_file(tif)
+                checked_tifs.append(tif)
+            except IndexError:
+                warnings.warn(f"IndexError for {tif}")
+        return checked_tifs
 
     def __len__(self) -> int:
         if self.h5pys_only:
@@ -1098,8 +1102,7 @@ class Dataset(PyTorchDataset):
             | (band_2_np == MODIS_FILL_VALUE)
         )
 
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", message="invalid value encountered in divide")
+        with np.errstate(divide="ignore", invalid="ignore"):
             # suppress the following warning
             # RuntimeWarning: invalid value encountered in divide
             # for cases where near_infrared + red == 0
