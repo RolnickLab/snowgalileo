@@ -136,16 +136,6 @@ class LandsatEvalDataset(BaseDataset):
                 else:
                     print(f"Skipping mismatched pair: {img.name}, {lbl.name}")
 
-        if self.split not in ["inference"]:
-            assert len(self.tifs) == len(self.label_tifs), (
-                "Number of input tifs and label tifs do not match."
-            )
-            # inefficient sanity check
-            for idx in range(len(self.tifs)):
-                assert self.tifs[idx].name == self.label_tifs[idx].name, (
-                    f"Input path {self.tifs[idx].name} and label path {self.label_tifs[idx].name} do not match."
-                )
-
     @classmethod
     def _sanity_check(cls, tifs):
         checked_tifs: List[Path] = []
