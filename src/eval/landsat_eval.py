@@ -666,7 +666,7 @@ class LandsatEvalDataset(BaseDataset):
                 # remove first dimension (for shape consistency)
                 label = np.squeeze(label, axis=0)
 
-            assert image_path.name == label_path.name, (
+            assert image_path.name.split('.')[0] == label_path.name.split('.')[0], (
                 f"Input path {image_path.name} and label path {label_path.name} do not match."
             )
 
