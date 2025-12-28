@@ -122,9 +122,10 @@ class LandsatEvalDataset(BaseDataset):
             assert self.h5py_folder is not None, "Can't use h5pys only if there is no cache folder"
             self.tifs: List[Path] = []
             self.h5pys = list(self.h5py_folder.glob("*.h5"))
+            self.h5pys.sort(key=lambda p: p.name)
 
             for img, lbl in zip(self.h5pys, self.label_tifs):
-                if img.name == lbl.name:
+                if img.name.split('.')[0] == lbl.name.split('.')[0]:
                     self.pairs.append((img, lbl))
                 else:
                     print(f"Skipping mismatched pair: {img.name}, {lbl.name}")
