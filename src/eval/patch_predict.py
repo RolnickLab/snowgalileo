@@ -312,7 +312,7 @@ def finetune_seg(
 
     if schedule_sigmoid_slope:
         slope_scheduler = SigmoidSlopeScheduler(
-            finetuned_encoder, start=8.0, end=1.0, total_steps=num_training_steps
+            finetuned_encoder, start=1.0, end=8.0, total_steps=num_training_steps
         )
 
     if loss_fn == "MSE":
