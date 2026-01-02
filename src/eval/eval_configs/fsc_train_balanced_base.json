@@ -36,10 +36,10 @@
         "weight_decay": 1e-5,
         "schedule_sigmoid_slope": true,
         "sigmoid_slope": 1.0,
-        "lr_schedule": false,
+        "lr_schedule": true,
         "learning_rate": 3e-4,
         "optimizer": "Adam",
-        "warmup_fraction": 0.1,
+        "warmup_fraction": 0.05,
         "loss_fn": "MSE"
     },
     "hyperparameters_rf": {

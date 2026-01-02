@@ -39,7 +39,7 @@
         "lr_schedule": true,
         "learning_rate": 6e-3,
         "optimizer": "Adam",
-        "warmup_fraction": 0.1,
+        "warmup_fraction": 0.05,
         "loss_fn": "MSE"
     },
     "hyperparameters_rf": {
