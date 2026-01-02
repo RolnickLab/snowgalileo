@@ -114,7 +114,7 @@ class LandsatEvalDataset(BaseDataset):
         self.label_tifs.sort(key=lambda p: p.name)
 
         self.pairs = []
-        
+
         if h5pys_only:
             assert self.h5py_folder is not None, "Can't use h5pys only if there is no cache folder"
             self.tifs: List[Path] = []
@@ -122,7 +122,7 @@ class LandsatEvalDataset(BaseDataset):
             self.h5pys.sort(key=lambda p: p.name)
 
             for img, lbl in zip(self.h5pys, self.label_tifs):
-                if img.name.split('.')[0] == lbl.name.split('.')[0]:
+                if img.name.split(".")[0] == lbl.name.split(".")[0]:
                     self.pairs.append((img, lbl))
                 else:
                     print(f"Skipping mismatched pair: {img.name}, {lbl.name}")
@@ -656,7 +656,7 @@ class LandsatEvalDataset(BaseDataset):
                 self.tifs[idx],
             )
         """
-            
+
         image_path, label_path = self.pairs[idx]
         # TODO: optinally add conversion to h5pys for labels
         with cast(xr.Dataset, rioxarray.open_rasterio(label_path)) as data:
@@ -664,7 +664,7 @@ class LandsatEvalDataset(BaseDataset):
             # remove first dimension (for shape consistency)
             label = np.squeeze(label, axis=0)
 
-        assert image_path.name.split('.')[0] == label_path.name.split('.')[0], (
+        assert image_path.name.split(".")[0] == label_path.name.split(".")[0], (
             f"Input path {image_path.name} and label path {label_path.name} do not match."
         )
 
@@ -1138,9 +1138,7 @@ class LandsatEval(EvalTask):
         )
 
         with torch.no_grad():
-            for masked_output, labels, filepath in tqdm(
-                inference_dl, desc="Predicting output"
-            ):
+            for masked_output, labels, filepath in tqdm(inference_dl, desc="Predicting output"):
                 (
                     s_t_h_x,
                     s_t_m_x,
@@ -1192,46 +1190,70 @@ class LandsatEval(EvalTask):
                     .cpu()
                     .numpy()
                 )
+                # upsample to resolution of input tif for storage in the same TIF
+                preds_up = np.repeat(np.repeat(preds_2D, 10, axis=0), 10, axis=1)
 
                 # unpack filepath from batch dimension
                 filepath = Path(filepath[0])
                 filename = filepath.stem
 
                 with cast(xr.Dataset, rioxarray.open_rasterio(filepath)) as data:
-                    # extract lat, lon in EPSG:4326 from tif_path
-                    # TODO: make this dynamic in case the tif_path has a different naming convention
-                    parts = filename.split("_")
-                    lat = float(parts[3])
-                    lon = float(parts[4])
-                    import pdb; pdb.set_trace()
+                    stack = np.concatenate([data.values, preds_up[None, :, :]], axis=0)
+
+                    new = xr.DataArray(
+                        stack,
+                        dims=data.dims,
+                        coords=data.coords,
+                        attrs=data.attrs,
+                    )
+
+                    new = new.rio.write_crs(data.rio.crs)
+                    new = new.rio.write_transform(data.rio.transform())
+
+                new.rio.to_raster(output_tif_folder / f"{filename}_with_preds.tif")
+
+                # also save the predictions as numpy
+                np.save(
+                    output_npy_folder / f"{filename}_output.npy",
+                    preds_2D,
+                )
+
+                labels = labels.float().cpu().numpy()
+                # squeeze labels if needed
+                if len(labels.shape) == 3:
+                    labels = np.squeeze(labels, axis=0)
+
+                r2 = r2_score(labels.flatten(), preds_2D.flatten())
+                rmse = root_mean_squared_error(labels.flatten(), preds_2D.flatten())
 
                 if log_wandb:
                     import matplotlib.pyplot as plt
                     import wandb
 
-                    fig, axs = plt.subplots(1, 1, figsize=(5, 5))
-                    axs.imshow(preds_2D, cmap="gray", vmin=0, vmax=1)
-                    axs.set_title("Predictions")
+                    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+                    axs[0].imshow(preds_2D, cmap="gray", vmin=0, vmax=1)
+                    axs[0].set_title("Predictions")
+                    axs[1].imshow(labels, cmap="gray", vmin=0, vmax=1)
+                    axs[1].set_title("Ground Truth")
+                    axs[2].imshow(np.abs(preds_2D - labels), cmap="coolwarm", vmin=0, vmax=1)
+                    axs[2].set_title("Absolute Error")
+                    fig.colorbar(axs[2].images[0], ax=axs[2], orientation="vertical")
+                    # plt.savefig(f"visualizations/{filename}_r2_{r2}_rmse_{rmse}.png")
+
+                    filename = filename[0].split(".tif")[0]
 
                     wandb.init(entity="sea-ice", project="ai4snow-finetune")
                     wandb.log(
                         {
-                            f"{self.name}_visualization_{filename}": wandb.Image(
+                            f"{self.name}_visualization_{filename}_r2_{r2}_rmse_{rmse}": wandb.Image(
                                 fig,
-                                caption=f"Lat: {filename.split('_')[3]}, Lon: {filename.split('_')[4]}, Date: {filename.split('_')[1]}",
+                                caption=f"R2: {r2:.4f}, RMSE: {rmse:.4f}, Lat: {filename.split('_')[3]}, Lon: {filename.split('_')[4]}, Date: {filename.split('_')[1]}",
                             )
                         }
                     )
                     plt.close(fig)
 
-                # save the predictions as numpy
-                np.save(
-                    output_npy_folder / f"{filename}_output.npy",
-                    preds_2D,
-                )
-                print(
-                    f"Saved predictions for {filename}", flush=True
-                )
+                print(f"Saved predictions for {filename}", flush=True)
 
     @torch.no_grad()
     def _evaluate_model(self, model: EncoderWithHead, id: str, log_wandb: bool = True):
