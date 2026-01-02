@@ -687,7 +687,7 @@ class LandsatEvalDataset(BaseDataset):
                     month,
                 ),
                 label,
-                image_path,
+                str(image_path),
             )
 
         return (
