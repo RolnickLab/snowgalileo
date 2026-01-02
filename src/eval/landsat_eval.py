@@ -634,6 +634,7 @@ class LandsatEvalDataset(BaseDataset):
                 st_m,
             ) = self.mask_prediction_high_res(s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m)
 
+        """
         if self.split == "inference":
             # return input tif instead of label in inference mode
             return (
@@ -654,38 +655,38 @@ class LandsatEvalDataset(BaseDataset):
                 ),
                 self.tifs[idx],
             )
+        """
+            
+        image_path, label_path = self.pairs[idx]
+        # TODO: optinally add conversion to h5pys for labels
+        with cast(xr.Dataset, rioxarray.open_rasterio(label_path)) as data:
+            label = cast(np.ndarray, data.values)
+            # remove first dimension (for shape consistency)
+            label = np.squeeze(label, axis=0)
 
-        else:
-            image_path, label_path = self.pairs[idx]
-            # TODO: optinally add conversion to h5pys for labels
-            with cast(xr.Dataset, rioxarray.open_rasterio(label_path)) as data:
-                label = cast(np.ndarray, data.values)
-                # remove first dimension (for shape consistency)
-                label = np.squeeze(label, axis=0)
+        assert image_path.name.split('.')[0] == label_path.name.split('.')[0], (
+            f"Input path {image_path.name} and label path {label_path.name} do not match."
+        )
 
-            assert image_path.name.split('.')[0] == label_path.name.split('.')[0], (
-                f"Input path {image_path.name} and label path {label_path.name} do not match."
-            )
-
-            return (
-                masked_output_np_to_tensor(
-                    s_t_h_x,
-                    s_t_m_x,
-                    s_t_l_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_h_m,
-                    s_t_m_m,
-                    s_t_l_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                    month,
-                ),
-                label,
-                image_path.name,  # for logging purposes
-            )
+        return (
+            masked_output_np_to_tensor(
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+                month,
+            ),
+            label,
+            image_path.name,  # for logging purposes
+        )
 
     def __len__(self) -> int:
         return len(self.pairs)
