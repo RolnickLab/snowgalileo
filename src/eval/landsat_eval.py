@@ -1194,7 +1194,7 @@ class LandsatEval(EvalTask):
                 )
 
                 # unpack filepath from batch dimension
-                filepath = filepath[0]
+                filepath = Path(filepath[0])
                 filename = filepath.stem
 
                 with cast(xr.Dataset, rioxarray.open_rasterio(filepath)) as data:
