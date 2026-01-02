@@ -29,32 +29,51 @@ argparser.add_argument(
     action="store_true",
     help="Whether to exclude high-res in prediction date. Should match checkpoint training.",
 )
+argparser.add_argument(
+    "--eval_config_name",
+    type=str,
+    default="fsc_train_tiny.json",
+    help="Config name for evaluation. Options are stored in src/eval/eval_configs/",
+)
+argparser.add_argument(
+    "--decoding_strategy",
+    type=str,
+    default="attention_probe",
+    choices=["finetune", "linear_probe", "attention_probe"],
+    help="Decoding strategy to use. 'Finetune' uses a linear decoder and finetunes the entire model. 'Linear_probe' uses a linear decoder and only trains the decoder. 'Attention_probe' uses an attention-based decoder and fine-tunes the entire model. 'sklearn' uses the frozen encoder features for a sklearn model.",
+)
 args = argparser.parse_args().__dict__
+
+decoder_mode = args["decoding_strategy"]
 
 # TODO: fix the EncoderWithHead loading pipeline
 # TODO: make sure the eval config matches the training config
-with (
-    Path("src") / Path("eval") / Path("eval_configs") / Path("landsat_eval_1_99_test.json")
-).open("r") as f:
+with (Path("src") / Path("eval") / Path("eval_configs") / Path(args["eval_config_name"])).open(
+    "r"
+) as f:
     eval_config = json.load(f)
-    default_attn_config = eval_config["attention_probe"]
-    sigmoid_slope = eval_config["hyperparams"]["sigmoid_slope"]
+    sigmoid_slope = eval_config["hyperparameters_snowgalileo"]["sigmoid_slope"]
+
+# retrieve model size from config filename
+raw_filename = args["eval_config_name"].split(".")[0]
+model_size_from_config = raw_filename.split("_")[-1]
 
 if args["checkpoint_name"] != "":
     # load pretrained snowgalileo encoder
-    config = load_check_config("ai4snow_ps10.json")
+    # sigmoid slope is ignored when linear head is used
+    config = load_check_config(f"ai4snow_{model_size_from_config}.json")
     encoder_random_init = Encoder(**config["model"]["encoder"])
     model = EncoderWithHead(
-        encoder_random_init, eval_config=default_attn_config, sigmoid_slope=sigmoid_slope
+        encoder_random_init, eval_config=eval_config[decoder_mode], sigmoid_slope=sigmoid_slope
     ).to(device)
     checkpoint = torch.load(Path(checkpoints_dir / args["checkpoint_name"]), map_location=device)
     model.load_state_dict(checkpoint)
 else:
     # randomly initialized snowgalileo encoder
-    config = load_check_config("ai4snow_ps10.json")
-    encoder = Encoder(**config["model"]["encoder"])
+    config = load_check_config(f"ai4snow_{model_size_from_config}.json")
+    encoder_random_init = Encoder(**config["model"]["encoder"])
     model = EncoderWithHead(
-        encoder, eval_config=default_attn_config, sigmoid_slope=sigmoid_slope
+        encoder_random_init, eval_config=eval_config[decoder_mode], sigmoid_slope=sigmoid_slope
     ).to(device)
 
 eval_task = LandsatEval(
