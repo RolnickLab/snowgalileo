@@ -1176,8 +1176,8 @@ class LandsatEval(EvalTask):
                     import wandb
 
                     fig, axs = plt.subplots(1, 1, figsize=(5, 5))
-                    axs[0].imshow(preds_2D, cmap="gray", vmin=0, vmax=1)
-                    axs[0].set_title("Predictions")
+                    axs.imshow(preds_2D, cmap="gray", vmin=0, vmax=1)
+                    axs.set_title("Predictions")
                     filename = filename[0].split(".tif")[0]
 
                     wandb.init(entity="sea-ice", project="ai4snow-finetune")
