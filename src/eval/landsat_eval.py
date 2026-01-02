@@ -1116,7 +1116,7 @@ class LandsatEval(EvalTask):
         )
 
         with torch.no_grad():
-            for masked_output, filename in tqdm(
+            for masked_output, labels, filename in tqdm(
                 inference_dl, desc="Predicting output"
             ):
                 (
