@@ -668,6 +668,28 @@ class LandsatEvalDataset(BaseDataset):
             f"Input path {image_path.name} and label path {label_path.name} do not match."
         )
 
+        # for inference mode, return full filepath to image not only the filename
+        if self.split == "inference":
+            return (
+                masked_output_np_to_tensor(
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    month,
+                ),
+                label,
+                image_path,
+            )
+
         return (
             masked_output_np_to_tensor(
                 s_t_h_x,
@@ -1116,7 +1138,7 @@ class LandsatEval(EvalTask):
         )
 
         with torch.no_grad():
-            for masked_output, labels, filename in tqdm(
+            for masked_output, labels, filepath in tqdm(
                 inference_dl, desc="Predicting output"
             ):
                 (
@@ -1171,6 +1193,18 @@ class LandsatEval(EvalTask):
                     .numpy()
                 )
 
+                # unpack filepath from batch dimension
+                filepath = filepath[0]
+                filename = filepath.stem
+
+                with cast(xr.Dataset, rioxarray.open_rasterio(filepath)) as data:
+                    # extract lat, lon in EPSG:4326 from tif_path
+                    # TODO: make this dynamic in case the tif_path has a different naming convention
+                    parts = filename.split("_")
+                    lat = float(parts[3])
+                    lon = float(parts[4])
+                    import pdb; pdb.set_trace()
+
                 if log_wandb:
                     import matplotlib.pyplot as plt
                     import wandb
@@ -1178,7 +1212,6 @@ class LandsatEval(EvalTask):
                     fig, axs = plt.subplots(1, 1, figsize=(5, 5))
                     axs.imshow(preds_2D, cmap="gray", vmin=0, vmax=1)
                     axs.set_title("Predictions")
-                    filename = filename[0].split(".tif")[0]
 
                     wandb.init(entity="sea-ice", project="ai4snow-finetune")
                     wandb.log(
