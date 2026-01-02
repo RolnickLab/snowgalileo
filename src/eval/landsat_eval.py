@@ -1200,10 +1200,15 @@ class LandsatEval(EvalTask):
                 with cast(xr.Dataset, rioxarray.open_rasterio(filepath)) as data:
                     stack = np.concatenate([data.values, preds_up[None, :, :]], axis=0)
 
+                    new_band = np.arange(1, stack.shape[0] + 1)
                     new = xr.DataArray(
                         stack,
                         dims=data.dims,
-                        coords=data.coords,
+                        coords={
+                            "band": new_band,
+                            "y": data.coords["y"],
+                            "x": data.coords["x"],
+                        },
                         attrs=data.attrs,
                     )
 
