@@ -92,10 +92,7 @@ class LandsatEvalDataset(BaseDataset):
 
         self.input_tif_folder = DATA_FOLDER / data_config["input_tif_folder"] / self.split
 
-        #if self.split not in ["inference"]:
-        #    self.label_folder = DATA_FOLDER / data_config["label_folder"] / self.split
-        #else:
-        #    self.label_folder = None
+        self.label_folder = DATA_FOLDER / data_config["label_folder"] / self.split
 
         if self.split not in ["visualize", "inference"]:
             self.h5py_folder = DATA_FOLDER / data_config["input_h5py_folder"] / self.split
