@@ -15,12 +15,12 @@ Pre-training Execution:
     - Evaluate model pre-training on validation task (encoder, with KNN)
 
 Evaluation Execution:
-- ```export_for_eval.py```: Export data from Google Earth Engine for evaluation purposes. More post-processing is necessary (TODO: document what exactly)
-- ```predict_and_generate_output```: Generates output GeoTIFFs including model input and predictions. Currently only works with already exported data (data paths are specified in the eval config to be passed as argument)
-- ```finetune.py```: Main entrypoint for finetuning
-- ```finetune_sweeps.py```: Hyperparameter sweeps for finetuning
-- ```eval_only.py```: Evaluates finetuned model from checkpoint. Will be main entrypoint for analyzes experiments
-- ```visualize.py```: Used to plot qualitative predictions
+- ```scripts/export_for_eval.py```: Export data from Google Earth Engine for evaluation purposes. More post-processing is necessary (TODO: document what exactly)
+- ```scripts/predict_and_generate_output```: Generates output GeoTIFFs including model input and predictions. Currently only works with already exported data (data paths are specified in the eval config to be passed as argument)
+- ```scripts/finetune.py```: Main entrypoint for finetuning
+- ```scripts/finetune_sweeps.py```: Hyperparameter sweeps for finetuning
+- ```scripts/eval_only.py```: Evaluates finetuned model from checkpoint. Will be main entrypoint for analyzes experiments
+- ```scripts/visualize.py```: Used to plot qualitative predictions
 
 Data Export:
 - ```src/data/earthengine/```
