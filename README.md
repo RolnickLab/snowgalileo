@@ -7,8 +7,8 @@
 Information about input data export and data distributions can be found in `data/README.md`.
 
 Pre-training Execution:
-- ```export_for_pretrain.py```: Export pre-training data from Google Earth Engine based on specified sampling points (stored in ```data/pretraining_points```).
-- ```pretrain.py```: Snowgalileo pre-training
+- ```scripts/export_for_pretrain.py```: Export pre-training data from Google Earth Engine based on specified sampling points (stored in ```data/pretraining_points```).
+- ```scripts/pretrain.py```: Snowgalileo pre-training
     - Setup (wandb, hyperparameters, etc.)
     - Dataloader collate function: creates masks for pre-training
     - Pre-train model for e epochs
