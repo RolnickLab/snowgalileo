@@ -1,17 +1,74 @@
 # Data Retrieval
 
-Note: all required shell scripts are stored in the `shell_scripts` folder.
-
 ## Pre-training Data
-1) run the `run[number].sh` scripts 3x each
-2) run `run_copy_files.sh` to copy individual tifs into one large tif folder
-3) run `run_export_checks.sh` to perform some checks on the exports
+
+The export of pre-training data from Google Earth Engine can be started using the script `export_for_pretrain.py` based on coordinates listed in a CSV file (stored in `pretraining_points/`). Exports are run locally via a download URL using the earthengine CLI and require authentication via a Google account.
+
+Google Earth Engine authentication tokens expire after a limited time. The export workflow therefore supports restartable exports using a starting index.
+
+Before starting an export session, authenticate with GEE:
+
+`earthengine authenticate` (requires the earthengine-api to be installed)
+
+Next, run the export script:
+
+`python export_for_pretrain.py --export_start_idx <index> <folder>`
+
+`--export_start_idx` (int) defines the index of the first row from the input CSV file to be processed. Use 0 for the initial run.
+
+If exports stop due to expired authentication:
+
+Re-authenticate using `earthengine authenticate` and restart the export using the index of the next unprocessed CSV row. 
+
+Recommended procedure: Run the export script multiple times in parallel (starting from different row indeces) and store the data in individual folders (to be indicated with `--tifs_folder`). Then, combine all exported data using `scripts/copy_tifs.py`. We recommend using the directory `data/tifs_all_bands/` to combine all data, since this is the default option for all subsequent scripts. Both the export and the copy scripts automatically check whether a file for a given index already exists in the respective output directory.
+
+We provide the shell scripts that we used for export kick-off in the `shell_scripts` folder.
+
+Note: The export workflow allows export through Cloud Storage or Google Drive as alternative to the URL-Download option (not tested).
 
 This results in ~149,496 files being stored in `data/tifs_all_bands/`.
 
-## Landsat Evaluation Data
-1) run `run_eval_export.sh` (all possible input tifs are exported, the resulting number of files will be smaller than the number of masks)
-2) run `run_copy_eval.sh` (all masks that have a matching input will be copied into a new folder)
-3) run `run_crop_eval.sh` (all inputs will be cropped to the shape of the masks)
-4) run `scripts.train_test_split.py` to split the data into train and test
-5) create a folder `landsat_eval_h5pys` and subfolders `train` and `test` within DATA_FOLDER
+## Computation of Normalization Values
+The normalization values provided with this repository are computed using the entire pre-training dataset and can be used as is for downstream purposes.
+
+We apply per-channel 2*std normalization based on the procedure in related work (Galileo, CROMA, and SatMAE). We don't apply normalization to naturally scaled variables (NDVI, NDSI, and one-hot encoded ESA Worldcover Map), or location. All normalization values were computed using the `scripts/compute_normalization.py` script, which computes running statistics over a given dataset using Welford's algorithm.
+
+## Evaluation Data
+
+The evaluation data consists of two parts: labels that are provided via... and need to be stored at the right location, and input data, which should be exported via Google Earth Engine based on the time and location identifier of the labels.
+
+First, the labels need to be unzipped into `./data/landsat_eval_masks/`. To do so, for example, store the .zip file in the root directory, then run `unzip [file] -d "data/landsat_eval_masks/"`. All masks will now be stored in `./data/landsat_eval_masks/patches_UTM_5_95/`.
+
+Since the coordinates will be processed in EPGS4326 format, the filenames need to be renamed from UTM to EPGS4326. To do so, run the script `scripts/rename_utm_to_wgs84.py`. This will modify the filenames of all files in `./data/landsat_eval_masks/patches_UTM_5_95/`.
+
+## Landsat-based FSC Data
+1) run `run_eval_export.sh` (all possible input tifs are exported, the resulting number of files will be smaller than the number of masks bacause of export fails). The same GEE procedure as for the pre-training files needs to be followed. To handle the large number of files to be exported, follow the recommended procedure above.
+2) (if filename locations are in UTM projection) run `run_rename_utm.sh` to reproject the filename identifier to WGS.
+3) run `run_copy_eval.sh` (all masks that have a matching input will be copied into a new folder)
+4) run `run_crop_eval.sh` (all inputs will be cropped to the shape of the masks)
+5) Depending on the purpose of the data, follow one of the following steps:
+- (for train/test data) run `scripts.train_test_split.py` to split the data into train and test 
+- (if data is used for evaluation only) move all files into a new subfolder called `test`
+  
+### FSC Training Distribution Full Set Balanced
+<img width="859" height="470" alt="balanced_train_mean" src="https://github.com/user-attachments/assets/439c722a-b7cc-437a-a5be-1ffe78a4923a" />
+<img width="826" height="451" alt="balanced_train_unique" src="https://github.com/user-attachments/assets/26f1cb53-ec7f-440a-b2b7-1ffc01a23fb3" />
+<img width="850" height="470" alt="balanced_test_mean" src="https://github.com/user-attachments/assets/b7723925-563a-49a6-8686-d5e1ae81f653" />
+<img width="857" height="451" alt="balanced_test_unique" src="https://github.com/user-attachments/assets/4838f7bc-6c67-4639-a87b-65ff793a05a0" />
+
+### FSC Training Distribution Full Set
+<img width="859" height="470" alt="fsc_train_new_mean" src="https://github.com/user-attachments/assets/86edba8d-46bf-43ba-aa0c-6574851e5720" />
+<img width="826" height="451" alt="fsc_train_new_unique" src="https://github.com/user-attachments/assets/38830850-42be-45ae-af6f-dc3c4fa27860" />
+
+### FSC Training Distribution Subset
+<img width="850" height="470" alt="fsc_train_mean" src="https://github.com/user-attachments/assets/9081bf2a-52db-438c-8919-8bb91a2b199f" />
+<img width="857" height="451" alt="fsc_train_unique" src="https://github.com/user-attachments/assets/9a2a9c4c-67b0-49f3-9dd0-22195fe365e0" />
+
+### FSC Test Distribution Rockies
+<img width="850" height="470" alt="fsc_test_rockies_mean" src="https://github.com/user-attachments/assets/3f49d62c-a951-4d4b-b840-05dbcebb0500" />
+<img width="848" height="451" alt="fsc_test_rockies_unique" src="https://github.com/user-attachments/assets/a382aaab-3883-4184-a932-5bd767b935a7" />
+
+### FSC Test Distribution Switzerland
+<img width="850" height="470" alt="fsc_test_switzerland_mean" src="https://github.com/user-attachments/assets/ede36ed8-a415-450c-867d-166fa76c6bfc" />
+<img width="848" height="451" alt="fsc_test_switzerland_unique" src="https://github.com/user-attachments/assets/dbad80db-e7d4-473e-b8ea-fd1b3093bfc9" />
+

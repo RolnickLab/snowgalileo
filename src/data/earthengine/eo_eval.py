@@ -17,7 +17,7 @@ from src.data.config import (
     DATA_FOLDER,
     EE_BUCKET_TIFS,
     EE_DRIVE_FOLDER_NAME,
-    EVAL_MODALITIES,
+    MODALITIES,
     NO_DATA_VALUE,
     NUM_TIMESTEPS,
 )
@@ -40,10 +40,11 @@ from src.data.earthengine.era5 import (
     get_single_era5_image,
 )
 from src.data.earthengine.esa_worldcover import (
-    WC_BANDS,
-    WC_DIV_VALUES,
-    WC_SHIFT_VALUES,
-    get_single_wc_image,
+    EE_WC_BANDS,
+    EE_WC_DIV_VALUES,
+    EE_WC_SHIFT_VALUES,
+    WC_BANDS_NAMES,
+    get_single_ee_wc_image,
 )
 from src.data.earthengine.landsat import (
     LANDSAT_BANDS,
@@ -72,7 +73,6 @@ from src.data.earthengine.s2 import (
 )
 from src.data.earthengine.s3 import S3_BANDS, S3_DIV_VALUES, S3_SHIFT_VALUES, get_single_s3_image
 from src.data.earthengine.viirs import (
-    VIIRS_CLOUD_FLAG_BANDS,
     VIIRS_COARSE_BANDS,
     VIIRS_COARSE_DIV_VALUES,
     VIIRS_COARSE_SHIFT_VALUES,
@@ -81,7 +81,6 @@ from src.data.earthengine.viirs import (
     VIIRS_FINE_SHIFT_VALUES,
     get_single_viirs_coarse_image,
     get_single_viirs_fine_image,
-    get_viirs_cloud_flag,
 )
 
 # construct time image functions
@@ -104,21 +103,20 @@ TIME_BANDS = []
 TIME_SHIFT_VALUES = []
 TIME_DIV_VALUES = []
 
-SPACE_BANDS = []
+EE_SPACE_BANDS = []
 SPACE_SHIFT_VALUES = []
 SPACE_DIV_VALUES = []
 
 CLOUD_BANDS = []
 
-for modality in EVAL_MODALITIES:
-    if EVAL_MODALITIES[modality].get("active") and EVAL_MODALITIES[modality].get("export"):
-        print(EVAL_MODALITIES[modality])
+for modality in MODALITIES:
+    if MODALITIES[modality].get("active") and MODALITIES[modality].get("export"):
         try:
             band_list = globals()[f"{modality.upper()}_BANDS"]
             shift_values = globals()[f"{modality.upper()}_SHIFT_VALUES"]
             div_values = globals()[f"{modality.upper()}_DIV_VALUES"]
 
-            if EVAL_MODALITIES[modality].get("shape_type") == "s_t_h_x":
+            if MODALITIES[modality].get("shape_type") == "s_t_h_x":
                 SPACE_TIME_HIGH_RES_BANDS.extend(band_list)
                 SPACE_TIME_HIGH_RES_SHIFT_VALUES.extend(shift_values)
                 SPACE_TIME_HIGH_RES_DIV_VALUES.extend(div_values)
@@ -126,7 +124,7 @@ for modality in EVAL_MODALITIES:
                 function = globals()[f"get_single_{modality}_image"]
                 TIME_IMAGE_FUNCTIONS.append(function)
 
-            elif EVAL_MODALITIES[modality].get("shape_type") == "s_t_m_x":
+            elif MODALITIES[modality].get("shape_type") == "s_t_m_x":
                 SPACE_TIME_MED_RES_BANDS.extend(band_list)
                 SPACE_TIME_MED_RES_SHIFT_VALUES.extend(shift_values)
                 SPACE_TIME_MED_RES_DIV_VALUES.extend(div_values)
@@ -134,7 +132,7 @@ for modality in EVAL_MODALITIES:
                 function = globals()[f"get_single_{modality}_image"]
                 TIME_IMAGE_FUNCTIONS.append(function)
 
-            elif EVAL_MODALITIES[modality].get("shape_type") == "s_t_l_x":
+            elif MODALITIES[modality].get("shape_type") == "s_t_l_x":
                 SPACE_TIME_LOW_RES_BANDS.extend(band_list)
                 SPACE_TIME_LOW_RES_SHIFT_VALUES.extend(shift_values)
                 SPACE_TIME_LOW_RES_DIV_VALUES.extend(div_values)
@@ -142,7 +140,7 @@ for modality in EVAL_MODALITIES:
                 function = globals()[f"get_single_{modality}_image"]
                 TIME_IMAGE_FUNCTIONS.append(function)
 
-            elif EVAL_MODALITIES[modality].get("shape_type") == "t_x":
+            elif MODALITIES[modality].get("shape_type") == "t_x":
                 TIME_BANDS.extend(band_list)
                 TIME_SHIFT_VALUES.extend(shift_values)
                 TIME_DIV_VALUES.extend(div_values)
@@ -150,8 +148,8 @@ for modality in EVAL_MODALITIES:
                 function = globals()[f"get_single_{modality}_image"]
                 TIME_IMAGE_FUNCTIONS.append(function)
 
-            elif EVAL_MODALITIES[modality].get("shape_type") == "sp_x":
-                SPACE_BANDS.extend(band_list)
+            elif MODALITIES[modality].get("shape_type") == "sp_x":
+                EE_SPACE_BANDS.extend(band_list)
                 SPACE_SHIFT_VALUES.extend(shift_values)
                 SPACE_DIV_VALUES.extend(div_values)
 
@@ -160,7 +158,7 @@ for modality in EVAL_MODALITIES:
 
         except KeyError:
             # TODO: make this more pretty
-            if EVAL_MODALITIES[modality].get("shape_type") == "clouds":
+            if MODALITIES[modality].get("shape_type") == "clouds":
                 band_list = globals()[f"{modality.upper()}_BANDS"]
                 CLOUD_BANDS.extend(band_list)
 
@@ -180,11 +178,10 @@ assert TIME_IMAGE_FUNCTIONS == [
     get_single_viirs_coarse_image,
     get_single_era5_image,
     get_modis_cloud_flag,
-    get_viirs_cloud_flag,
     get_s2_cloud_flag,
     get_landsat_cloud_flag,
 ]
-assert SPACE_IMAGE_FUNCTIONS == [get_single_dem_image, get_single_wc_image]
+assert SPACE_IMAGE_FUNCTIONS == [get_single_dem_image, get_single_ee_wc_image]
 assert SPACE_TIME_HIGH_RES_BANDS == S1_BANDS + S2_BANDS + LANDSAT_BANDS
 assert SPACE_TIME_HIGH_RES_SHIFT_VALUES == S1_SHIFT_VALUES + S2_SHIFT_VALUES + LANDSAT_SHIFT_VALUES
 assert SPACE_TIME_HIGH_RES_DIV_VALUES == S1_DIV_VALUES + S2_DIV_VALUES + LANDSAT_DIV_VALUES
@@ -197,16 +194,10 @@ assert SPACE_TIME_LOW_RES_DIV_VALUES == MODIS_DIV_VALUES + VIIRS_FINE_DIV_VALUES
 assert TIME_BANDS == VIIRS_COARSE_BANDS + ERA5_BANDS
 assert TIME_SHIFT_VALUES == VIIRS_COARSE_SHIFT_VALUES + ERA5_SHIFT_VALUES
 assert TIME_DIV_VALUES == VIIRS_COARSE_DIV_VALUES + ERA5_DIV_VALUES
-assert SPACE_BANDS == DEM_BANDS + WC_BANDS
-assert SPACE_SHIFT_VALUES == DEM_SHIFT_VALUES + WC_SHIFT_VALUES
-assert SPACE_DIV_VALUES == DEM_DIV_VALUES + WC_DIV_VALUES
-assert (
-    CLOUD_BANDS
-    == MODIS_CLOUD_FLAG_BANDS
-    + VIIRS_CLOUD_FLAG_BANDS
-    + S2_CLOUD_FLAG_BANDS
-    + LANDSAT_CLOUD_FLAG_BANDS
-)
+assert EE_SPACE_BANDS == DEM_BANDS + EE_WC_BANDS
+assert SPACE_SHIFT_VALUES == DEM_SHIFT_VALUES + EE_WC_SHIFT_VALUES
+assert SPACE_DIV_VALUES == DEM_DIV_VALUES + EE_WC_DIV_VALUES
+assert CLOUD_BANDS == MODIS_CLOUD_FLAG_BANDS + S2_CLOUD_FLAG_BANDS + LANDSAT_CLOUD_FLAG_BANDS
 
 SPACE_TIME_HIGH_RES_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(SPACE_TIME_HIGH_RES_SHIFT_VALUES)
 SPACE_TIME_HIGH_RES_DIV_VALUES_NP: npt.NDArray[Any] = np.array(SPACE_TIME_HIGH_RES_DIV_VALUES)
@@ -216,8 +207,8 @@ SPACE_TIME_LOW_RES_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(SPACE_TIME_LOW_R
 SPACE_TIME_LOW_RES_DIV_VALUES_NP: npt.NDArray[Any] = np.array(SPACE_TIME_LOW_RES_DIV_VALUES)
 TIME_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(TIME_SHIFT_VALUES)
 TIME_DIV_VALUES_NP: npt.NDArray[Any] = np.array(TIME_DIV_VALUES)
-SPACE_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(DEM_SHIFT_VALUES + WC_SHIFT_VALUES)
-SPACE_DIV_VALUES_NP: npt.NDArray[Any] = np.array(DEM_DIV_VALUES + WC_DIV_VALUES)
+SPACE_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(DEM_SHIFT_VALUES + EE_WC_SHIFT_VALUES)
+SPACE_DIV_VALUES_NP: npt.NDArray[Any] = np.array(DEM_DIV_VALUES + EE_WC_DIV_VALUES)
 
 # we will add latlons in dataset.py function
 LOCATION_BANDS = ["x", "y", "z"]
@@ -227,12 +218,12 @@ STATIC_DIV_VALUES_NP: npt.NDArray[Any] = np.array([1, 1, 1])
 
 EO_SPACE_TIME_LOW_RES_BANDS = SPACE_TIME_LOW_RES_BANDS
 
-if EVAL_MODALITIES["ndsi"].get("active"):
+if MODALITIES["ndsi"].get("active"):
     SPACE_TIME_LOW_RES_BANDS = SPACE_TIME_LOW_RES_BANDS + ["NDSI"]
     SPACE_TIME_LOW_RES_SHIFT_VALUES_NP = np.append(SPACE_TIME_LOW_RES_SHIFT_VALUES_NP, [0])
     SPACE_TIME_LOW_RES_DIV_VALUES_NP = np.append(SPACE_TIME_LOW_RES_DIV_VALUES_NP, [1])
 
-if EVAL_MODALITIES["ndvi"].get("active"):
+if MODALITIES["ndvi"].get("active"):
     SPACE_TIME_LOW_RES_BANDS = SPACE_TIME_LOW_RES_BANDS + ["NDVI"]
     SPACE_TIME_LOW_RES_SHIFT_VALUES_NP = np.append(SPACE_TIME_LOW_RES_SHIFT_VALUES_NP, [0])
     SPACE_TIME_LOW_RES_DIV_VALUES_NP = np.append(SPACE_TIME_LOW_RES_DIV_VALUES_NP, [1])
@@ -246,6 +237,16 @@ EO_ALL_DYNAMIC_IN_TIME_BANDS = (
 )
 
 EO_ALL_DYNAMIC_IN_TIME_BANDS_NP = np.array(EO_ALL_DYNAMIC_IN_TIME_BANDS)
+
+# we create a new list for one-hot encoded space bands
+SPACE_BANDS = DEM_BANDS + WC_BANDS_NAMES
+
+# hacky, but we need to reduce one shift/div value because we already had one for the "Map" band
+SPACE_SHIFT_VALUES_NP = np.append(SPACE_SHIFT_VALUES_NP, [0] * (len(WC_BANDS_NAMES) - 1))
+SPACE_DIV_VALUES_NP = np.append(SPACE_DIV_VALUES_NP, [1] * (len(WC_BANDS_NAMES) - 1))
+
+# index of the ESA Worldcover band in the SPACE_BANDS list, needed for one-hot encoding
+ESA_WORLDCOVER_BAND_INDEX = EE_SPACE_BANDS.index("Map")
 
 # spatial resolution per pixel: 10m, 20m, or 30m
 SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
@@ -284,10 +285,10 @@ SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDi
     }
 )
 
-if EVAL_MODALITIES["ndsi"].get("active"):
+if MODALITIES["ndsi"].get("active"):
     SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX.update({"NDSI": [SPACE_TIME_LOW_RES_BANDS.index("NDSI")]})
 
-if EVAL_MODALITIES["ndvi"].get("active"):
+if MODALITIES["ndvi"].get("active"):
     SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX.update({"NDVI": [SPACE_TIME_LOW_RES_BANDS.index("NDVI")]})
 
 TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
@@ -303,7 +304,7 @@ TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
 SPACE_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
         "DEM": [SPACE_BANDS.index(b) for b in DEM_BANDS],
-        "WC": [SPACE_BANDS.index(b) for b in WC_BANDS],
+        "WC": [SPACE_BANDS.index(b) for b in WC_BANDS_NAMES],
     }
 )
 
@@ -394,6 +395,10 @@ class EarthEngineExporterEval(EarthEngineExporter):
 
         img = create_ee_image(polygon, interval_start_date, interval_end_date)
 
+        # important so we control the no data value
+        # NOTE: in reality, GEE might still write values to zero with URL downloads
+        img = img.unmask(self.no_data_val)  # type: ignore[attr-defined]
+
         print("Exporting image in crs", crs, flush=True)
 
         if self.mode == "cloud":
@@ -467,7 +472,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
         for the latlons specified in the filename of each file in the given folder.
         """
 
-        # check that each file in the folder has a filename with the format L9_YYYYMMDD_LAT_LON_SC[a number between 0 and 100]
+        # check that each file in the folder has a filename with the format L0*_YYYYMMDD_LAT_LON_SC[a number between 0 and 100]
         # and that the lat and lon are in the format of a string
         # e.g. LC09_20220101_FSC0_50.1234_8.1234.tif
         # also, create a pandas dataframe with all filenames in the format of a string

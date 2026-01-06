@@ -1,5 +1,6 @@
 # TODO: integrate this more beautifully with the rest of the codebase!
 
+import argparse
 import os
 import re
 import shutil
@@ -7,6 +8,11 @@ from pathlib import Path
 from typing import Union
 
 from src.data.config import DATA_FOLDER
+
+argparser = argparse.ArgumentParser()
+argparser.add_argument("--exported_tif_path", type=str, default="fsc_train_100m_tifs/all_tifs")
+argparser.add_argument("--mask_path", type=str, default="fsc_train_100m_patches")
+argparser.add_argument("--output_folder", type=str, default="fsc_train_100m_masks")
 
 
 # Source - https://stackoverflow.com/a
@@ -16,9 +22,11 @@ def get_filename_without_epsg_extension(x):
     return re.sub(r"_EPSG:\d+\.tif{1,2}f?$", "", x)
 
 
-exported_tif_path = Path(DATA_FOLDER / "landsat_eval_tifs" / "100m_tif_global")
-mask_path = Path(DATA_FOLDER / "landsat_eval_masks" / "all" / "100m_mask_global")
-output_folder = Path(DATA_FOLDER / "landsat_eval_masks" / "all" / "100m_mask_global_subset")
+args = argparser.parse_args()
+
+exported_tif_path = Path(DATA_FOLDER / args.exported_tif_path)
+mask_path = Path(DATA_FOLDER / args.mask_path)
+output_folder = Path(DATA_FOLDER / args.output_folder)
 
 output_folder.mkdir(parents=True, exist_ok=True)
 

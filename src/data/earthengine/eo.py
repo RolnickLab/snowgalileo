@@ -47,10 +47,11 @@ from src.data.earthengine.era5 import (
     get_single_era5_image,
 )
 from src.data.earthengine.esa_worldcover import (
-    WC_BANDS,
-    WC_DIV_VALUES,
-    WC_SHIFT_VALUES,
-    get_single_wc_image,
+    EE_WC_BANDS,
+    EE_WC_DIV_VALUES,
+    EE_WC_SHIFT_VALUES,
+    WC_BANDS_NAMES,
+    get_single_ee_wc_image,
 )
 from src.data.earthengine.landsat import (
     LANDSAT_BANDS,
@@ -121,7 +122,7 @@ TIME_BANDS = []
 TIME_SHIFT_VALUES = []
 TIME_DIV_VALUES = []
 
-SPACE_BANDS = []
+EE_SPACE_BANDS = []
 SPACE_SHIFT_VALUES = []
 SPACE_DIV_VALUES = []
 
@@ -129,7 +130,6 @@ CLOUD_BANDS = []
 
 for modality in MODALITIES:
     if MODALITIES[modality].get("active") and MODALITIES[modality].get("export"):
-        print(MODALITIES[modality])
         try:
             band_list = globals()[f"{modality.upper()}_BANDS"]
             shift_values = globals()[f"{modality.upper()}_SHIFT_VALUES"]
@@ -168,7 +168,7 @@ for modality in MODALITIES:
                 TIME_IMAGE_FUNCTIONS.append(function)
 
             elif MODALITIES[modality].get("shape_type") == "sp_x":
-                SPACE_BANDS.extend(band_list)
+                EE_SPACE_BANDS.extend(band_list)
                 SPACE_SHIFT_VALUES.extend(shift_values)
                 SPACE_DIV_VALUES.extend(div_values)
 
@@ -200,7 +200,7 @@ assert TIME_IMAGE_FUNCTIONS == [
     get_s2_cloud_flag,
     get_landsat_cloud_flag,
 ]
-assert SPACE_IMAGE_FUNCTIONS == [get_single_dem_image, get_single_wc_image]
+assert SPACE_IMAGE_FUNCTIONS == [get_single_dem_image, get_single_ee_wc_image]
 assert SPACE_TIME_HIGH_RES_BANDS == S1_BANDS + S2_BANDS + LANDSAT_BANDS
 assert SPACE_TIME_HIGH_RES_SHIFT_VALUES == S1_SHIFT_VALUES + S2_SHIFT_VALUES + LANDSAT_SHIFT_VALUES
 assert SPACE_TIME_HIGH_RES_DIV_VALUES == S1_DIV_VALUES + S2_DIV_VALUES + LANDSAT_DIV_VALUES
@@ -213,9 +213,9 @@ assert SPACE_TIME_LOW_RES_DIV_VALUES == MODIS_DIV_VALUES + VIIRS_FINE_DIV_VALUES
 assert TIME_BANDS == VIIRS_COARSE_BANDS + ERA5_BANDS
 assert TIME_SHIFT_VALUES == VIIRS_COARSE_SHIFT_VALUES + ERA5_SHIFT_VALUES
 assert TIME_DIV_VALUES == VIIRS_COARSE_DIV_VALUES + ERA5_DIV_VALUES
-assert SPACE_BANDS == DEM_BANDS + WC_BANDS
-assert SPACE_SHIFT_VALUES == DEM_SHIFT_VALUES + WC_SHIFT_VALUES
-assert SPACE_DIV_VALUES == DEM_DIV_VALUES + WC_DIV_VALUES
+assert EE_SPACE_BANDS == DEM_BANDS + EE_WC_BANDS
+assert SPACE_SHIFT_VALUES == DEM_SHIFT_VALUES + EE_WC_SHIFT_VALUES
+assert SPACE_DIV_VALUES == DEM_DIV_VALUES + EE_WC_DIV_VALUES
 assert CLOUD_BANDS == MODIS_CLOUD_FLAG_BANDS + S2_CLOUD_FLAG_BANDS + LANDSAT_CLOUD_FLAG_BANDS
 
 SPACE_TIME_HIGH_RES_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(SPACE_TIME_HIGH_RES_SHIFT_VALUES)
@@ -226,8 +226,8 @@ SPACE_TIME_LOW_RES_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(SPACE_TIME_LOW_R
 SPACE_TIME_LOW_RES_DIV_VALUES_NP: npt.NDArray[Any] = np.array(SPACE_TIME_LOW_RES_DIV_VALUES)
 TIME_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(TIME_SHIFT_VALUES)
 TIME_DIV_VALUES_NP: npt.NDArray[Any] = np.array(TIME_DIV_VALUES)
-SPACE_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(DEM_SHIFT_VALUES + WC_SHIFT_VALUES)
-SPACE_DIV_VALUES_NP: npt.NDArray[Any] = np.array(DEM_DIV_VALUES + WC_DIV_VALUES)
+SPACE_SHIFT_VALUES_NP: npt.NDArray[Any] = np.array(DEM_SHIFT_VALUES + EE_WC_SHIFT_VALUES)
+SPACE_DIV_VALUES_NP: npt.NDArray[Any] = np.array(DEM_DIV_VALUES + EE_WC_DIV_VALUES)
 
 # we will add latlons in dataset.py function
 LOCATION_BANDS = ["x", "y", "z"]
@@ -256,6 +256,16 @@ EO_ALL_DYNAMIC_IN_TIME_BANDS = (
 )
 
 EO_ALL_DYNAMIC_IN_TIME_BANDS_NP = np.array(EO_ALL_DYNAMIC_IN_TIME_BANDS)
+
+# we create a new list for one-hot encoded space bands
+SPACE_BANDS = DEM_BANDS + WC_BANDS_NAMES
+
+# hacky, but we need to reduce one shift/div value because we already had one for the "Map" band
+SPACE_SHIFT_VALUES_NP = np.append(SPACE_SHIFT_VALUES_NP, [0] * (len(WC_BANDS_NAMES) - 1))
+SPACE_DIV_VALUES_NP = np.append(SPACE_DIV_VALUES_NP, [1] * (len(WC_BANDS_NAMES) - 1))
+
+# index of the ESA Worldcover band in the SPACE_BANDS list, needed for one-hot encoding
+ESA_WORLDCOVER_BAND_INDEX = EE_SPACE_BANDS.index("Map")
 
 # spatial resolution per pixel: 10m, 20m, or 30m
 SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
@@ -313,7 +323,7 @@ TIME_BANDS_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
 SPACE_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
     {
         "DEM": [SPACE_BANDS.index(b) for b in DEM_BANDS],
-        "WC": [SPACE_BANDS.index(b) for b in WC_BANDS],
+        "WC": [SPACE_BANDS.index(b) for b in WC_BANDS_NAMES],
     }
 )
 
@@ -564,6 +574,10 @@ class EarthEngineExporter:
             return False
 
         img = create_ee_image(polygon, interval_start_date, interval_end_date)
+
+        # important so we control the no data value
+        # NOTE: in reality, GEE might still write values to zero with URL downloads
+        img = img.unmask(self.no_data_val)  # type: ignore[attr-defined]
 
         if self.mode == "cloud":
             try:

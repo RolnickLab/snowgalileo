@@ -24,7 +24,7 @@ argparser = argparse.ArgumentParser()
 argparser.add_argument(
     "--pretraining_checkpoint_folder",
     type=str,
-    default="outputs/checkpoints_ps10_5/epoch_82/",
+    default="outputs/checkpoints_tiny/epoch_100",
     help="Path to folder containing pretrained checkpoint.",
 )
 # TODO: make the choices of naming more descriptive
@@ -52,8 +52,13 @@ argparser.add_argument(
 argparser.add_argument(
     "--eval_config",
     type=str,
-    default="landsat_eval_5_95.json",
+    default="fsc_train_tiny.json",
     help="Which eval config to use. Options are stored in src/eval/eval_configs/",
+)
+argparser.add_argument(
+    "--h5pys_only",
+    action="store_true",
+    help="Where to only use h5pys (faster, but need to be already stored in this format)",
 )
 args = argparser.parse_args().__dict__
 
@@ -62,8 +67,14 @@ with (Path(__file__).parents[0] / Path("src/eval/eval_configs") / Path(args["eva
 ) as f:
     eval_config = json.load(f)
 
+# retrieve model size from config filename
+raw_filename = args["eval_config"].split(".")[0]
+model_size_from_config = raw_filename.split("_")[-1]
 
 if args["pretraining_checkpoint_folder"] != "":
+    checkpoint_folder = args["pretraining_checkpoint_folder"].split("/")[1]
+    model_size_from_checkpoint_folder = checkpoint_folder.split("_")[1]
+    assert model_size_from_checkpoint_folder == model_size_from_config
     # load pretrained snowgalileo encoder
     encoder = Encoder.load_from_folder(
         Path(DATA_FOLDER / args["pretraining_checkpoint_folder"])
@@ -71,7 +82,7 @@ if args["pretraining_checkpoint_folder"] != "":
     initialization_id = "snowgalileo_pretrained"
 else:
     # randomly initialized snowgalileo encoder
-    config = load_check_config("ai4snow_ps10.json")
+    config = load_check_config(f"ai4snow_{model_size_from_config}.json")
     encoder = Encoder(**config["model"]["encoder"]).to(device)
     initialization_id = "snowgalileo_random"
 
@@ -84,6 +95,7 @@ eval_tasks: List[EvalTask] = [
             decoder_mode=args["decoding_strategy"],
             num_finetune_epochs=args["num_finetune_epochs"],
             eval_config=eval_config,
+            h5pys_only=args["h5pys_only"],
         )
     ],
 ]

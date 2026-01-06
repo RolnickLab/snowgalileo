@@ -50,9 +50,9 @@ torch.backends.cuda.matmul.allow_tf32 = True
 autocast_device = torch.bfloat16 if is_bf16_available() else torch.float32
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument("--config_file", type=str, default="ai4snow_ps10.json")
+argparser.add_argument("--config_file", type=str, default="ai4snow_tiny.json")
 argparser.add_argument("--run_name_prefix", type=str, default="")
-argparser.add_argument("--h5py_folder", type=str, default="data/h5pys_ps10_5")
+argparser.add_argument("--h5py_folder", type=str, default="data/h5pys_pretrain")
 argparser.add_argument("--output_folder", type=str, default="")
 argparser.add_argument("--download", dest="download", action="store_true")
 argparser.add_argument("--h5pys_only", dest="h5pys_only", action="store_true")
@@ -141,7 +141,7 @@ else:
 run = wandb.init(
     name=run_name,
     entity=wandb_org,
-    project="ai4snow",
+    project="ai4snow_cryosphere",
     dir=wandb_output_dir,
     id=run_id,
     resume="allow",

@@ -6,6 +6,7 @@ import h5py
 import numpy as np
 
 from src.data.config import (
+    NO_DATA_VALUE,
     NORMALIZATION_DICT_FILENAME,
     NUM_HIGH_RES_PIXELS_PER_DIM,
     NUM_LOW_RES_PIXELS_PER_DIM,
@@ -25,8 +26,8 @@ from src.data.dataset import (
 )
 from src.utils import config_dir
 
-TIFS_FOLDER = Path(__file__).parents[1] / "data/tifs"
-BROKEN_TIFS_FOLDER = Path(__file__).parents[1] / "data/tifs_broken"
+TIFS_FOLDER = Path(__file__).parents[1] / "data/tifs_test"
+BROKEN_TIFS_FOLDER = Path(__file__).parents[1] / "data/tifs_broken_test"
 UNBROKEN_TEST_FILES = [TIFS_FOLDER / x for x in TIFS_FOLDER.glob("*.tif")]
 BROKEN_TEST_FILE = list(BROKEN_TIFS_FOLDER.glob("*.tif"))
 
@@ -209,6 +210,106 @@ class TestDataset(unittest.TestCase):
                 with h5py.File(h5_file, "r") as f:
                     # mostly checking it can be read
                     self.assertEqual(f["t_x"].shape[0], NUM_TIMESTEPS)
+
+    def test_one_hot_encoding(self):
+        ds = Dataset(TIFS_FOLDER, download=False)
+        for b in ds:
+            sp_x = b[3]
+            self.assertEqual(sp_x.shape[-1], len(SPACE_BANDS))
+            # check one hot encoding of categorical variables
+            # landcover (11 classes + 1 no data)
+            # starting from 3rd index
+            self.assertTrue(np.all(np.isin(sp_x[..., 3:14], [0, 1, NO_DATA_VALUE])))
+
+        no_data_test = np.array([[0], [30], [90]])
+        expected_output = np.array(
+            [
+                [[NO_DATA_VALUE] * 11],
+                [[0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]],
+                [[0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0]],
+            ]
+        )
+        output = Dataset.one_hot_encode_esa_worldcover(no_data_test)
+        self.assertTrue(np.array_equal(output, expected_output))
+
+    def test_create_valid_masks(self):
+        ds = Dataset(TIFS_FOLDER, download=False)
+
+        NO_DATA_VALUE = -9999
+        rng = np.random.default_rng(42)
+
+        def insert_invalid(x, frac=0.1):
+            mask = rng.random(x.shape) < frac
+            x = x.copy()
+            x[mask] = NO_DATA_VALUE
+            return x, mask
+
+        h, w, t, c_sth, c_stm, c_stl, c_sp, c_t, c_st = 10, 10, 8, 15, 2, 11, 14, 9, 3
+
+        s_t_h_x = np.random.randint(1, 1000, size=(h, w, t, c_sth)).astype(float)
+        s_t_m_x = np.random.randint(0, 1000, size=(h, w, t, c_stm)).astype(float)
+        s_t_l_x = np.random.randint(0, 1000, size=(h, w, t, c_stl)).astype(float)
+        sp_x = np.random.randint(1, 1000, size=(h, w, c_sp)).astype(float)
+        t_x = np.random.randint(200, 1000, size=(t, c_t)).astype(float)
+        st_x = np.random.randint(0, 1000, size=(c_st,)).astype(float)
+
+        # insert invalid data values at random positions
+        s_t_h_x, invalid_sth = insert_invalid(s_t_h_x)
+        s_t_m_x, invalid_stm = insert_invalid(s_t_m_x)
+        s_t_l_x, invalid_stl = insert_invalid(s_t_l_x)
+        sp_x, invalid_sp = insert_invalid(sp_x)
+        t_x, invalid_t = insert_invalid(t_x)
+        st_x, invalid_st = insert_invalid(st_x)
+
+        (
+            valid_data_sth,
+            valid_data_stm,
+            valid_data_stl,
+            valid_data_sp,
+            valid_data_t,
+            valid_data_st,
+        ) = ds.create_valid_mask(
+            s_t_h_x=s_t_h_x, s_t_m_x=s_t_m_x, s_t_l_x=s_t_l_x, sp_x=sp_x, t_x=t_x, st_x=st_x
+        )
+
+        self.assertEqual(valid_data_sth.shape, s_t_h_x.shape)
+        self.assertEqual(valid_data_stm.shape, s_t_m_x.shape)
+        self.assertEqual(valid_data_stl.shape, s_t_l_x.shape)
+        self.assertEqual(valid_data_sp.shape, sp_x.shape)
+        self.assertEqual(valid_data_t.shape, t_x.shape)
+        self.assertEqual(valid_data_st.shape, st_x.shape)
+
+        np.testing.assert_array_equal(valid_data_sth, (~invalid_sth).astype(int))
+        np.testing.assert_array_equal(valid_data_stm, (~invalid_stm).astype(int))
+        np.testing.assert_array_equal(valid_data_stl, (~invalid_stl).astype(int))
+        np.testing.assert_array_equal(valid_data_sp, (~invalid_sp).astype(int))
+        np.testing.assert_array_equal(valid_data_t, (~invalid_t).astype(int))
+        np.testing.assert_array_equal(valid_data_st, (~invalid_st).astype(int))
+
+        for mask in [
+            valid_data_sth,
+            valid_data_stm,
+            valid_data_stl,
+            valid_data_sp,
+            valid_data_t,
+            valid_data_st,
+        ]:
+            assert set(np.unique(mask)).issubset({0, 1})
+
+        # test if all invalid positions have value 0, and all others a value of 1
+        self.assertTrue(np.all(valid_data_sth[invalid_sth] == 0))
+        self.assertTrue(np.all(valid_data_stm[invalid_stm] == 0))
+        self.assertTrue(np.all(valid_data_stl[invalid_stl] == 0))
+        self.assertTrue(np.all(valid_data_sp[invalid_sp] == 0))
+        self.assertTrue(np.all(valid_data_t[invalid_t] == 0))
+        self.assertTrue(np.all(valid_data_st[invalid_st] == 0))
+
+        self.assertTrue(np.all(valid_data_sth[~invalid_sth] == 1))
+        self.assertTrue(np.all(valid_data_stm[~invalid_stm] == 1))
+        self.assertTrue(np.all(valid_data_stl[~invalid_stl] == 1))
+        self.assertTrue(np.all(valid_data_sp[~invalid_sp] == 1))
+        self.assertTrue(np.all(valid_data_t[~invalid_t] == 1))
+        self.assertTrue(np.all(valid_data_st[~invalid_st] == 1))
 
 
 if __name__ == "__main__":

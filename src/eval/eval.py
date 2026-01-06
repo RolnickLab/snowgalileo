@@ -5,7 +5,6 @@ from typing import Dict, List, Optional, Sequence
 import numpy as np
 import torch
 from einops import rearrange
-from scipy.stats import mode
 from sklearn.base import BaseEstimator, clone
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression
@@ -83,16 +82,6 @@ class EvalTask(ABC):
         )
 
     @torch.no_grad()
-    def rearrange_token_sequence_into_images(self, sequence: torch.Tensor) -> torch.Tensor:
-        # rearrange token sequence into images
-        return rearrange(
-            sequence,
-            "(b h w p1 p2) -> b (h p1) (w p2)",
-            p1=self.patch_size_high_res,
-            p2=self.patch_size_high_res,
-        )
-
-    @torch.no_grad()
     def group_encodings_per_token(
         self,
         model,
@@ -128,22 +117,6 @@ class EvalTask(ABC):
         )
         return encodings
 
-    def reduce_targets_per_token(self, grouped_label: np.ndarray) -> np.ndarray:
-        if self.output_mode == "mode":
-            # take the most common label per token
-            label = mode(grouped_label, axis=1).mode
-
-        # get normalized counts of each class per token
-        else:
-            label = np.zeros((grouped_label.shape[0], self.num_outputs))
-
-            for i in range(grouped_label.shape[0]):
-                class_counts = np.bincount(grouped_label[i], minlength=self.num_outputs)
-                norm_counts = class_counts / np.sum(class_counts)
-                label[i] = norm_counts
-
-        return label
-
     @torch.no_grad()
     def train_sklearn_model(
         self,
@@ -162,7 +135,7 @@ class EvalTask(ABC):
             if self.regression:
                 assert model_mode in self.all_regression_sklearn_models
             else:
-                assert model_mode in self.all_classification_sklearn_models
+                raise NotImplementedError("Only regression is implemented")
 
         pretrained_model.eval()
 
@@ -309,7 +282,7 @@ class EvalTask(ABC):
         pretrained_model: Encoder,
         model_modes: Optional[List[str]] = None,
         log_wandb: bool = False,
-        hyperparams_config: Optional[Dict] = None,
+        hyperparameter_config: Optional[Dict] = None,
         initialization_id: Optional[str] = None,
         sweep_run=None,
         save_final_checkpoint: bool = False,
