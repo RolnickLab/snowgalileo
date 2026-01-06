@@ -1,8 +1,10 @@
 ## A Pretrained Remote Sensing model
 
+### TO-DO: Installation info
+
 ### File Structure
 
-Information about input data export can be found in `data/README.md`.
+Information about input data export and data distributions can be found in `data/README.md`.
 
 Pre-training Execution:
 - ```export_for_pretrain.py```: Export pre-training data from Google Earth Engine based on specified sampling points (stored in ```data/pretraining_points```).
