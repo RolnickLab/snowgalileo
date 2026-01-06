@@ -104,7 +104,7 @@ class LandsatEvalDataset(BaseDataset):
         input_tifs = list(self.input_tif_folder.glob("*.tif")) + list(
             self.input_tif_folder.glob("*.tiff")
         )
-        self.tifs: List[Path] = self._sanity_check(input_tifs)
+        self.tifs = self._sanity_check(input_tifs)
         self.tifs.sort(key=lambda p: p.name)
 
         self.h5pys: list = []

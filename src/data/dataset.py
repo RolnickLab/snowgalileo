@@ -311,7 +311,7 @@ class Dataset(PyTorchDataset):
             if download:
                 self.download_tifs_from_drive_folder()
             tifs = list(data_folder.glob("*.tif")) + list(data_folder.glob("*.tiff"))
-            self.tifs: List[Path] = self._sanity_check(tifs)
+            self.tifs = self._sanity_check(tifs)
             self.h5pys = []
 
         self.output_hw_high_res = output_hw_high_res
