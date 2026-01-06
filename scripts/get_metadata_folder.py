@@ -30,7 +30,7 @@ for filename in os.listdir(folder_path):
 
     rows.append([date, fsc, lat, lon, filename])
 
-output_path = os.path.join(folder_path, f"{mask_folder}.csv")
+output_path = os.path.join(DATA_FOLDER, f"summary.csv")
 
 with open(output_path, "w", newline="") as f:
     writer = csv.writer(f)
