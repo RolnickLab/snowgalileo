@@ -1,7 +1,7 @@
-import os
-import csv
-import sys
 import argparse
+import csv
+import os
+
 from src.data.config import DATA_FOLDER
 
 argparser = argparse.ArgumentParser()
@@ -30,7 +30,7 @@ for filename in os.listdir(folder_path):
 
     rows.append([date, fsc, lat, lon, filename])
 
-output_path = os.path.join(DATA_FOLDER, f"summary.csv")
+output_path = os.path.join(DATA_FOLDER, "summary.csv")
 
 with open(output_path, "w", newline="") as f:
     writer = csv.writer(f)

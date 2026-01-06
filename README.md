@@ -15,6 +15,24 @@ Throughout the processing, the spatial (pixel) dimension gets reduced to a token
 
 ### File Structure
 
+Information about input data export can be found in `data/README.md`.
+
+Pre-training Execution:
+- ```export_for_pretrain.py```: Export pre-training data from Google Earth Engine based on specified sampling points (stored in ```data/pretraining_points```).
+- ```pretrain.py```: Snowgalileo pre-training
+    - Setup (wandb, hyperparameters, etc.)
+    - Dataloader collate function: creates masks for pre-training
+    - Pre-train model for e epochs
+    - Evaluate model pre-training on validation task (encoder, with KNN)
+
+Evaluation Execution:
+- ```export_for_eval.py```: Export data from Google Earth Engine for evaluation purposes. More post-processing is necessary (TODO: document what exactly)
+- ```predict_and_generate_output```: Generates output GeoTIFFs including model input and predictions. Currently only works with already exported data (data paths are specified in the eval config to be passed as argument)
+- ```finetune.py```: Main entrypoint for finetuning
+- ```finetune_sweeps.py```: Hyperparameter sweeps for finetuning
+- ```eval_only.py```: Evaluates finetuned model from checkpoint. Will be main entrypoint for analyzes experiments
+- ```visualize.py```: Used to plot qualitative predictions
+
 Data Export:
 - ```src/data/earthengine/```
     - contains all code specific to Google Earthengine: sensor-specific export scripts, as well as export files
@@ -45,23 +63,6 @@ Finetuning/ Evaluation Setup:
 - ```src/eval/landsat_eval.py```
     - prepares the Landsat evaluation dataset, and wraps the Landsat-specific evaluation process
 
-Pre-training Execution:
-- ```export_for_pretrain.py```: Export pre-training data from Google Earth Engine based on specified sampling points (stored in ```data/pretraining_points```).
-- ```pretrain.py```: Snowgalileo pre-training
-    - Setup (wandb, hyperparameters, etc.)
-    - Dataloader collate function: creates masks for pre-training
-    - Pre-train model for e epochs
-    - Evaluate model pre-training on validation task (encoder, with KNN)
-
-Finetuning/ Evaluation Execution:
-- ```export_for_eval.py```: Export data from Google Earth Engine for evaluation purposes. More post-processing is necessary (TODO: document what exactly)
-- ```finetune.py```: Main entrypoint for finetuning
-- ```finetune_sweeps.py```: Hyperparameter sweeps for finetuning
-- ```eval_only.py```: Evaluates finetuned model from checkpoint. Will be main entrypoint for analyzes experiments
-- ```visualize.py```: Used to plot qualitative predictions
-
-### Experiment Execution is currently bottlenecked by data download
-
-TODO: create detailed documentation about how to access data from Google Earth Engine.
+#### TO-DO: Describe entire pipeline from input data export to output generation
 
 ESA contract number: ...

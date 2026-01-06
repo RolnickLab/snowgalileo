@@ -34,10 +34,10 @@ print(len(latitudes))
 print(len(longitudes))
 
 np.save(
-    os.path.join(DATA_FOLDER, f"latitudes.npy"),
+    os.path.join(DATA_FOLDER, "latitudes.npy"),
     np.array(latitudes),
 )
 np.save(
-    os.path.join(DATA_FOLDER, f"longitudes.npy"),
+    os.path.join(DATA_FOLDER, "longitudes.npy"),
     np.array(longitudes),
 )
