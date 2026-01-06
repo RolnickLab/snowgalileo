@@ -10,13 +10,14 @@ argparser = argparse.ArgumentParser()
 argparser.add_argument("--mask_folder", type=str, default="patches_UTM_1_99")
 
 mask_folder = argparser.parse_args().__dict__["mask_folder"]
-mask_path = os.path.join(DATA_FOLDER, "landsat_eval_masks", "all", mask_folder)
+mask_path = os.path.join(DATA_FOLDER, mask_folder)
 
 latitudes = []
 longitudes = []
 
 for filename in os.listdir(mask_path):
-    # open file to get crs
+    if not filename.lower().endswith(".tif"):
+        continue
     with rasterio.open(os.path.join(mask_path, filename)) as src:
         crs = src.crs
 
