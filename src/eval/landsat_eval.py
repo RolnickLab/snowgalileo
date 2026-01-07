@@ -1284,9 +1284,7 @@ class LandsatEval(EvalTask):
             num_workers=0,
         )
 
-        results = evaluate_seg(
-            data_loader=test_dl, finetuned_model=model, device=device
-        )
+        results = evaluate_seg(data_loader=test_dl, finetuned_model=model, device=device)
 
         if log_wandb:
             import wandb
@@ -1424,7 +1422,6 @@ class LandsatEval(EvalTask):
                 # append results to csv with filename, r2, rmse
                 with open(results_csv_path, "a") as f:
                     f.write(f"{filename[0]},{r2},{rmse}\n")
-
 
     @torch.no_grad()
     def _visualize_predictions(
