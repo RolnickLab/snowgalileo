@@ -206,7 +206,6 @@ def finetune_and_eval_seg(
         data_loader=loaders["test"],
         finetuned_model=finetuned_model,
         device=device,
-        identifier=identifier,
     )
     if save_final_checkpoint:
         filename = f"{identifier}_{hyperparameter_config['initialization_id']}_{sweep_name}.pth"
@@ -396,7 +395,6 @@ def finetune_seg(
                     data_loader=val_loader,
                     finetuned_model=finetuned_encoder,
                     device=device,
-                    identifier="",
                     patch_size_high_res=patch_size_high_res,
                 )
                 current_slope = finetuned_encoder.sigmoid_slope
@@ -415,7 +413,6 @@ def evaluate_seg(
     data_loader,
     finetuned_model,
     device,
-    identifier="",
     patch_size_high_res=10,
 ):
     finetuned_model = finetuned_model.eval()

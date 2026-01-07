@@ -22,7 +22,7 @@ argparser = argparse.ArgumentParser()
 argparser.add_argument(
     "--checkpoint_name",
     type=str,
-    default="finetuned_seg_ls_s42_ps10_attn__no_high_res_in_pred_date_final.pth",
+    default="attn_fsc_train_tiny_snowgalileo_pretrained_3ytssipa.pth",
 )
 argparser.add_argument(
     "--exclude_prediction_high_res",
@@ -32,7 +32,7 @@ argparser.add_argument(
 argparser.add_argument(
     "--eval_config_name",
     type=str,
-    default="fsc_train_tiny.json",
+    default="fsc_test_rockies_tiny.json",
     help="Config name for evaluation. Options are stored in src/eval/eval_configs/",
 )
 argparser.add_argument(

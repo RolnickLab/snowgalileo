@@ -1259,7 +1259,7 @@ class LandsatEval(EvalTask):
                 print(f"Saved predictions for {filename}", flush=True)
 
     @torch.no_grad()
-    def _evaluate_model(self, model: EncoderWithHead, id: str, log_wandb: bool = True):
+    def _evaluate_model(self, model: EncoderWithHead, log_wandb: bool = True):
         test_ds = LandsatEvalDataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
@@ -1285,7 +1285,7 @@ class LandsatEval(EvalTask):
         )
 
         results = evaluate_seg(
-            data_loader=test_dl, finetuned_model=model, device=device, identifier=id
+            data_loader=test_dl, finetuned_model=model, device=device
         )
 
         if log_wandb:
@@ -1425,35 +1425,6 @@ class LandsatEval(EvalTask):
                 with open(results_csv_path, "a") as f:
                     f.write(f"{filename[0]},{r2},{rmse}\n")
 
-            print(
-                "Mean r2 score 2D: ",
-                r2_score(
-                    np.concatenate(all_labels_2D).flatten(), np.concatenate(all_preds_2D).flatten()
-                ),
-                flush=True,
-            )
-            print(
-                "Mean RMSE 2D: ",
-                root_mean_squared_error(
-                    np.concatenate(all_labels_2D).flatten(), np.concatenate(all_preds_2D).flatten()
-                ),
-                flush=True,
-            )
-
-            print(
-                "Mean r2 score 1D: ",
-                r2_score(
-                    np.concatenate(all_labels_1D).flatten(), np.concatenate(all_preds_1D).flatten()
-                ),
-                flush=True,
-            )
-            print(
-                "Mean RMSE 1D: ",
-                root_mean_squared_error(
-                    np.concatenate(all_labels_1D).flatten(), np.concatenate(all_preds_1D).flatten()
-                ),
-                flush=True,
-            )
 
     @torch.no_grad()
     def _visualize_predictions(
@@ -1731,8 +1702,11 @@ class LandsatEval(EvalTask):
     ):
         self._visualize_predictions(model, log_wandb=log_wandb)
 
-    def evaluate_model_on_task(self, model: EncoderWithHead, id: str):
-        self._evaluate_model(model, id=id)
+    def evaluate_model_on_task(self, model: EncoderWithHead):
+        self._evaluate_model(model)
+
+    def evaluate_indidvidual_samples(self, model: EncoderWithHead, id: str):
+        self._evaluate_individual_samples(model, id=id)
 
     def predict_and_store_output(self, model: EncoderWithHead, id: str):
         self._predict_and_store_output(model, id=id)
