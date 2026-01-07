@@ -87,4 +87,4 @@ eval_task = LandsatEval(
     h5pys_only=args["h5pys_only"],
 )
 
-eval_task.evaluate_indidvidual_samples(model=model, id=args["eval_config_name"])
+eval_task.evaluate_indidvidual_samples(model=model, id=args["eval_config_name"].split(".")[0])

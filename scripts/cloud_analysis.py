@@ -27,7 +27,7 @@ argparser.add_argument(
 argparser.add_argument(
     "--results_csv_name",
     type=str,
-    default="fsc_test_rockies_tiny.json",
+    default="fsc_test_rockies_tiny",
 )
 args = argparser.parse_args().__dict__
 
@@ -37,12 +37,15 @@ with (Path("src") / Path("eval") / Path("eval_configs") / Path(args["eval_config
     eval_config = json.load(f)
 data_config = eval_config["data"]
 
-results_csv_path = RESULTS_FOLDER / f"evaluation_results_{args['results_csv_name']}.csv"
+input_results_csv_path = RESULTS_FOLDER / f"evaluation_results_{args['results_csv_name']}.csv"
+output_results_csv_path = RESULTS_FOLDER / f"evaluation_results_{args['results_csv_name']}_with_clouds.csv"
+output_results_csv_path.touch(exist_ok=True)
+
 tif_data_path = DATA_FOLDER / data_config["input_tif_folder"] / "test"
 
 cloud_dataset = CloudMetaDataset(data_folder=tif_data_path)
 
-df = pd.read_csv(results_csv_path)
+df = pd.read_csv(input_results_csv_path)
 all_files = df["filename"].tolist()
 
 last_clear_days = []
@@ -76,4 +79,4 @@ df["total_cloudy_days"] = total_cloudy_days
 df["total_cloud_shadow_days"] = total_cloud_shadow_days
 df["total_cirrus_days"] = total_cirrus_days
 
-df.to_csv(results_csv_path, index=False)
+df.to_csv(output_results_csv_path, index=False)
