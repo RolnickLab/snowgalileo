@@ -15,7 +15,7 @@ from src.data.earthengine.eo_eval import (
     EO_ALL_DYNAMIC_IN_TIME_BANDS,
     EO_ALL_DYNAMIC_IN_TIME_BANDS_NP,
     NUM_TIMESTEPS,
-    SPACE_BANDS,
+    EE_SPACE_BANDS,
 )
 from src.utils import seed_everything
 
@@ -104,14 +104,11 @@ class CloudMetaDataset(BaseDataset):
             lat = float(parts[3])
             lon = float(parts[4])
 
-        # NOTE: hacky assert that will get triggered once the baselines branch is merged
-        assert len(SPACE_BANDS) == 4, "Expected 4 space bands for space bands"
-
-        num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(EO_ALL_DYNAMIC_IN_TIME_BANDS)
+        num_timesteps = (values.shape[0] - len(EE_SPACE_BANDS)) / len(EO_ALL_DYNAMIC_IN_TIME_BANDS)
         assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
         assert num_timesteps == NUM_TIMESTEPS, f"{tif_path} has incorrect number of timesteps"
         dynamic_in_time_x = rearrange(
-            values[: -(len(SPACE_BANDS))],
+            values[: -(len(EE_SPACE_BANDS))],
             "(t c) h w -> h w t c",
             c=len(EO_ALL_DYNAMIC_IN_TIME_BANDS),
             t=int(num_timesteps),
