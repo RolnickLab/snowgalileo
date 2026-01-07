@@ -1,0 +1,41 @@
+{"training": {
+    "patch_size_high_res": 10,
+    "patch_size_med_res": 1,
+    "patch_size_low_res": 1,
+    "timesteps": 8,
+    "max_lr": 0.003,
+    "num_epochs": 200,
+    "batch_size": 128,
+    "effective_batch_size": 512,
+    "warmup_epochs": 30,
+    "final_lr": 1e-06,
+    "weight_decay": 0.02,
+    "grad_clip": true,
+    "betas": [0.9, 0.999],
+    "augmentation": {"flip+rotate": true},
+    "encode_ratio": 0.1,
+    "decode_ratio": 0.5,
+    "loss_type": "MAE",
+    "normalization": "std"
+    },
+    "model": {
+        "encoder": {
+            "embedding_size": 128,
+            "depth": 4,
+            "num_heads": 8,
+            "mlp_ratio": 4,
+            "max_sequence_length": 24,
+            "freeze_projections": false,
+            "drop_path": 0.1
+        },
+        "decoder": {
+            "depth": 2,
+            "num_heads": 8,
+            "mlp_ratio": 4,
+            "max_sequence_length": 24,
+            "learnable_channel_embeddings": true,
+            "embedding_size": 128,
+            "use_fast_attn": true
+        }
+    }
+}

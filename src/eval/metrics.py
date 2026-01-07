@@ -1,5 +1,42 @@
+from typing import Dict
+
 import numpy as np
-from sklearn.metrics import f1_score
+from sklearn.metrics import (
+    accuracy_score,
+    balanced_accuracy_score,
+    f1_score,
+    mean_absolute_error,
+    median_absolute_error,
+    precision_score,
+    r2_score,
+    recall_score,
+    root_mean_squared_error,
+)
+
+
+def compute_regression_metrics(preds: np.ndarray, target: np.ndarray) -> Dict[str, float]:
+    return {
+        "rmse": root_mean_squared_error(target, preds),
+        "r2": r2_score(target, preds),
+        "mean_absolute_error": mean_absolute_error(target, preds),
+        "median_absolute_error": median_absolute_error(target, preds),
+    }
+
+
+def compute_classification_metrics(preds: np.ndarray, target: np.ndarray) -> Dict[str, float]:
+    return {
+        "overall_accuracy": accuracy_score(target, preds),
+        "balanced_accuracy": balanced_accuracy_score(target, preds),
+        "recall": recall_score(target, preds, average="weighted"),
+        "precision": precision_score(target, preds, average="weighted"),
+        "f1": f1_score(target, preds, average="weighted"),
+    }
+
+
+def compute_segmentation_metrics(preds: np.ndarray, target: np.ndarray) -> Dict[str, float]:
+    return {
+        "miou": mean_iou(preds, target, num_classes=10),
+    }
 
 
 def class_wise_f1(y_pred, y_true, num_classes):

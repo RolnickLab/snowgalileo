@@ -37,7 +37,7 @@ from src.masking import (
 from src.snowgalileo import Encoder, GalileoPixelDecoder
 from src.utils import device, load_check_config
 
-DATA_FOLDER = Path(__file__).parents[1] / "data/tifs"
+DATA_FOLDER = Path(__file__).parents[1] / "data/tifs_test"
 
 
 class TestSnowGalileo(unittest.TestCase):

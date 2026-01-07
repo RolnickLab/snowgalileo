@@ -11,7 +11,7 @@ from src.loss import mse_loss
 from src.snowgalileo import Encoder, GalileoPixelDecoder
 from src.utils import device
 
-DATA_FOLDER = Path(__file__).parents[1] / "data/tifs"
+DATA_FOLDER = Path(__file__).parents[1] / "data/tifs_test"
 
 
 class TestEndtoEnd(unittest.TestCase):

@@ -31,6 +31,8 @@ from src.data.config import (
     EE_FOLDER_H5PYS,
     EE_FOLDER_TIFS,
     MODALITIES,
+    MODIS_FILL_VALUE,
+    NDI_VALID_DATA_BOUNDS,
     NO_DATA_VALUE,
     NUM_LOW_RES_PIXELS_PER_DIM,
     NUM_MED_RES_PIXELS_PER_DIM,
@@ -39,9 +41,13 @@ from src.data.config import (
 )
 from src.data.earthengine.eo import (
     CLOUD_BANDS,
+    DEM_BANDS,
+    EE_SPACE_BANDS,
+    EE_WC_BANDS,
     EO_ALL_DYNAMIC_IN_TIME_BANDS,
     EO_ALL_DYNAMIC_IN_TIME_BANDS_NP,
     EO_SPACE_TIME_LOW_RES_BANDS,
+    ESA_WORLDCOVER_BAND_INDEX,
     SPACE_BANDS,
     SPACE_DIV_VALUES_NP,
     SPACE_SHIFT_VALUES_NP,
@@ -61,6 +67,7 @@ from src.data.earthengine.eo import (
     TIME_DIV_VALUES_NP,
     TIME_SHIFT_VALUES_NP,
 )
+from src.data.earthengine.esa_worldcover import NUM_WC_CLASSES, WC_CLASS_VALUES
 from src.data.utils import RunningStats
 
 logger = logging.getLogger("__main__")
@@ -69,13 +76,15 @@ logger = logging.getLogger("__main__")
 class Normalizer:
     # these are the bands we will replace with the 2*std computation
     # if std = True
+    # using the pre-training population statistics
+    # for NDVI, NDSI, ESA Worldcover, and Location bands, we use pre-defined values
     std_bands: Dict[str, list] = {
         "space_time_high_res": SPACE_TIME_HIGH_RES_BANDS,
         "space_time_med_res": SPACE_TIME_MED_RES_BANDS,
-        "space_time_low_res": SPACE_TIME_LOW_RES_BANDS,
-        "space": SPACE_BANDS,
+        "space_time_low_res": [b for b in SPACE_TIME_LOW_RES_BANDS if b != "NDVI" and b != "NDSI"],
+        "space": DEM_BANDS,
         "time": TIME_BANDS,
-        "static": STATIC_BANDS,
+        "static": [],
     }
 
     def __init__(self, std: bool = True, normalizing_dicts: Optional[Dict] = None):
@@ -109,16 +118,16 @@ class Normalizer:
         self.normalizing_dicts = normalizing_dicts
         if std:
             name_to_bands = {
-                len(SPACE_TIME_HIGH_RES_BANDS): SPACE_TIME_HIGH_RES_BANDS,
-                len(SPACE_TIME_MED_RES_BANDS): SPACE_TIME_MED_RES_BANDS,
-                len(SPACE_TIME_LOW_RES_BANDS): SPACE_TIME_LOW_RES_BANDS,
-                len(SPACE_BANDS): SPACE_BANDS,
-                len(TIME_BANDS): TIME_BANDS,
-                len(STATIC_BANDS): STATIC_BANDS,
+                "space_time_high_res": SPACE_TIME_HIGH_RES_BANDS,
+                "space_time_med_res": SPACE_TIME_MED_RES_BANDS,
+                "space_time_low_res": SPACE_TIME_LOW_RES_BANDS,
+                "space": DEM_BANDS,
+                "time": TIME_BANDS,
+                "static": STATIC_BANDS,
             }
             assert normalizing_dicts is not None
             for key, val in normalizing_dicts.items():
-                if isinstance(key, str):
+                if key == "total_n" or key == "sampled_n":
                     continue
                 bands_to_replace = self.std_bands[key]
                 for band in bands_to_replace:
@@ -143,28 +152,23 @@ class Normalizer:
         # we don't want to normalize the no data values to be able to identify them later
         assert np.all(x[valid_data_mask] != NO_DATA_VALUE)
         x_normalized = np.where(valid_data_mask, (x - shift_values) / div_values, NO_DATA_VALUE)
+
         return x_normalized
 
     def __call__(self, x: np.ndarray, array_type: str, valid_data_mask: np.ndarray):
         if self.normalizing_dicts is not None:
             if array_type not in self.normalizing_dicts:
                 raise ValueError(f"Unknown array type: {array_type}")
-            shift_values = self.normalizing_dicts[array_type]["mean"]
-            div_values = self.normalizing_dicts[array_type]["std"]
-            return self._normalize(x, valid_data_mask, shift_values, div_values)
-
-        if array_type not in self.shift_div_dict:
-            raise ValueError(f"Unknown array type: {array_type}")
-        # TODO: check or remove this long-term
-        assert 1 == 0, (
-            "We can not totally rely on pre-defined shift/div values. Please provide normalizing_dicts."
-        )
-        return self._normalize(
-            x,
-            valid_data_mask,
-            self.shift_div_dict[array_type]["shift"],
-            self.shift_div_dict[array_type]["div"],
-        )
+            return self._normalize(
+                x,
+                valid_data_mask,
+                self.shift_div_dict[array_type]["shift"],
+                self.shift_div_dict[array_type]["div"],
+            )
+        else:
+            raise NotImplementedError(
+                "Only normalization with precomputed mean/std is implemented."
+            )
 
 
 class StackedDatasetOutput(NamedTuple):
@@ -280,7 +284,7 @@ class Dataset(PyTorchDataset):
     def __init__(
         self,
         data_folder: Path,
-        download: bool = True,
+        download: bool = False,
         h5py_folder: Optional[Path] = None,
         h5pys_only: bool = False,
         output_hw_high_res: int = DATASET_OUTPUT_HW_HIGH_RES,
@@ -306,20 +310,24 @@ class Dataset(PyTorchDataset):
         else:
             if download:
                 self.download_tifs_from_drive_folder()
-            self.tifs = []
             tifs = list(data_folder.glob("*.tif")) + list(data_folder.glob("*.tiff"))
-            for tif in tifs:
-                try:
-                    _ = self.start_month_from_file(tif)
-                    self.tifs.append(tif)
-                except IndexError:
-                    warnings.warn(f"IndexError for {tif}")
+            self.tifs = self._sanity_check(tifs)
             self.h5pys = []
 
         self.output_hw_high_res = output_hw_high_res
         self.output_hw_med_res = output_hw_med_res
         self.output_hw_low_res = output_hw_low_res
         self.output_timesteps = output_timesteps
+
+    def _sanity_check(self, tifs):
+        checked_tifs: List[Path] = []
+        for tif in tifs:
+            try:
+                _ = self.start_month_from_file(tif)
+                checked_tifs.append(tif)
+            except IndexError:
+                warnings.warn(f"IndexError for {tif}")
+        return checked_tifs
 
     def __len__(self) -> int:
         if self.h5pys_only:
@@ -518,6 +526,30 @@ class Dataset(PyTorchDataset):
         )
 
     @staticmethod
+    def one_hot_encode_esa_worldcover(data: np.ndarray) -> np.ndarray:
+        """One-hot encode the ESA Worldcover band, setting all channels to NO_DATA_VALUE where class=0."""
+
+        assert np.all(np.isin(data, WC_CLASS_VALUES + [0] + [NO_DATA_VALUE])), (
+            "ESA Worldcover data contains unexpected class values."
+        )
+        nodata_mask = data == 0
+
+        # Map class values to indices 0..NUM_WC_CLASSES-1
+        mapped = np.zeros_like(data)
+        for idx, class_value in enumerate(WC_CLASS_VALUES):
+            mapped[data == class_value] = idx
+
+        h, w = data.shape
+        one_hot = np.zeros((h, w, NUM_WC_CLASSES), dtype=data.dtype)
+
+        # Standard one-hot encoding
+        one_hot[np.arange(h)[:, None], np.arange(w), mapped.astype(int)] = 1
+
+        # Set all channels to NO_DATA_VALUE where original class was 0
+        one_hot[nodata_mask] = NO_DATA_VALUE
+        return one_hot
+
+    @staticmethod
     def _check_and_fillna(data: np.ndarray, bands_np: np.ndarray) -> np.ndarray:
         """Fill in the missing values in the data array"""
         if data.shape[-1] != len(bands_np):
@@ -582,8 +614,12 @@ class Dataset(PyTorchDataset):
         new_H, new_W = target_shape
 
         # make sure that we are processing dynamic-in-time array
-        assert data.ndim == 4
-        assert H % new_H == 0 and W % new_W == 0, "H and W must be divisible by target dimensions"
+        if data.ndim != 4:
+            raise ValueError(f"Expected data with 4 dims (H, W, T, C), got {data.ndim}")
+        if mask.shape != data.shape:
+            raise ValueError(f"Mask shape {mask.shape} does not match data shape {data.shape}")
+        if H % new_H != 0 or W % new_W != 0:
+            raise ValueError("H and W must be divisible by target dimensions")
 
         # Compute block sizes
         h_block = H // new_H
@@ -591,9 +627,9 @@ class Dataset(PyTorchDataset):
 
         # reshape
         # for data, take the mean over blocks, for the mask take the min (we want the block mask to be invalid where at least one value is invalid)
-        return data.reshape(new_H, h_block, new_W, w_block, T, C).mean(axis=(1, 3)), mask.reshape(
-            new_H, h_block, new_W, w_block, T, C
-        ).min(axis=(1, 3))
+        return data.reshape(new_H, h_block, new_W, w_block, T, C).mean(
+            axis=(1, 3), dtype=data.dtype
+        ), mask.reshape(new_H, h_block, new_W, w_block, T, C).min(axis=(1, 3))
 
     @classmethod
     def start_month_from_file(cls, tif_path: Path) -> int:
@@ -695,11 +731,11 @@ class Dataset(PyTorchDataset):
                 np.mean([float(value) for value in re.findall(lon_pattern, str(tif_path))])
             )
 
-        num_timesteps = (values.shape[0] - len(SPACE_BANDS)) / len(EO_ALL_DYNAMIC_IN_TIME_BANDS)
+        num_timesteps = (values.shape[0] - len(EE_SPACE_BANDS)) / len(EO_ALL_DYNAMIC_IN_TIME_BANDS)
         assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
         assert num_timesteps == NUM_TIMESTEPS, f"{tif_path} has incorrect number of timesteps"
         dynamic_in_time_x = rearrange(
-            values[: -(len(SPACE_BANDS))],
+            values[: -(len(EE_SPACE_BANDS))],
             "(t c) h w -> h w t c",
             c=len(EO_ALL_DYNAMIC_IN_TIME_BANDS),
             t=int(num_timesteps),
@@ -748,6 +784,13 @@ class Dataset(PyTorchDataset):
                 space_time_low_res_x, band_1="sur_refl_b04", band_2="sur_refl_b06"
             )
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndsi), axis=-1)
+            assert (ndsi != MODIS_FILL_VALUE).any(), (
+                f"MODIS fill values encountered in NDSI for {tif_path}"
+            )
+            assert (
+                (ndsi >= NDI_VALID_DATA_BOUNDS[0]) & (ndsi <= NDI_VALID_DATA_BOUNDS[1])
+                | (ndsi == NO_DATA_VALUE)
+            ).all(), f"NDSI values out of bounds {NDI_VALID_DATA_BOUNDS} for {tif_path}"
 
         # NDVI = (NIR - Red) / (NIR + Red)
         if MODALITIES["ndvi"].get("active"):
@@ -755,18 +798,31 @@ class Dataset(PyTorchDataset):
                 space_time_low_res_x, band_1="sur_refl_b02", band_2="sur_refl_b01"
             )
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndvi), axis=-1)
+            assert (ndvi != MODIS_FILL_VALUE).any(), (
+                f"MODIS fill values encountered in NDVI for {tif_path}"
+            )
+            assert (
+                (ndvi >= NDI_VALID_DATA_BOUNDS[0]) & (ndvi <= NDI_VALID_DATA_BOUNDS[1])
+                | (ndvi == NO_DATA_VALUE)
+            ).all(), f"NDVI values out of bounds {NDI_VALID_DATA_BOUNDS} for {tif_path}"
 
         space_x = rearrange(
-            values[-len(SPACE_BANDS) :],
+            values[-len(EE_SPACE_BANDS) :],
             "c h w -> h w c",
         )
-        space_x = cls._check_and_fillna(space_x, np.array(SPACE_BANDS))
+        space_x = cls._check_and_fillna(space_x, np.array(EE_SPACE_BANDS))
+
+        # one-hot encode ESA Worldcover band
+        esa_wc = cls.one_hot_encode_esa_worldcover(space_x[:, :, ESA_WORLDCOVER_BAND_INDEX])
+        assert esa_wc.all() in [0, 1, NO_DATA_VALUE], (
+            f"Unexpected values in ESA Worldcover for {tif_path}"
+        )
+        space_x = np.concatenate((space_x[:, :, : (-len(EE_WC_BANDS))], esa_wc), axis=-1)
 
         static_x = to_cartesian(lat, lon)
         static_x = cls._check_and_fillna(static_x, np.array(STATIC_BANDS))
 
         months = cls.month_array_from_file(tif_path, int(num_timesteps))
-
         (
             space_time_high_res_x,
             space_time_med_res_x,
@@ -803,7 +859,6 @@ class Dataset(PyTorchDataset):
         )
 
         # for downsampling, the arrays need to be in divisible shape so we do it after cropping
-        # this is also why we use target shape (5, 5) for medium resolution
         space_time_med_res_x, valid_data_mask_s_t_m = cls.downsample_dynamic_in_time_with_mean(
             space_time_med_res_x,
             valid_data_mask_s_t_m,
@@ -1034,27 +1089,36 @@ class Dataset(PyTorchDataset):
         (band_1 - band_2) / (band_1 + band_2)
         """
 
-        # TODO: make this dynamic instead
-        assert band_1 in SPACE_TIME_LOW_RES_BANDS
-        assert band_2 in SPACE_TIME_LOW_RES_BANDS
+        for b in [band_1, band_2]:
+            assert b in SPACE_TIME_LOW_RES_BANDS
 
         band_1_np = input_array[:, :, :, SPACE_TIME_LOW_RES_BANDS.index(band_1)]
         band_2_np = input_array[:, :, :, SPACE_TIME_LOW_RES_BANDS.index(band_2)]
 
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", message="invalid value encountered in divide")
+        invalid = (
+            (band_1_np == NO_DATA_VALUE)
+            | (band_1_np == MODIS_FILL_VALUE)
+            | (band_2_np == NO_DATA_VALUE)
+            | (band_2_np == MODIS_FILL_VALUE)
+        )
+
+        with np.errstate(divide="ignore", invalid="ignore"):
             # suppress the following warning
             # RuntimeWarning: invalid value encountered in divide
             # for cases where near_infrared + red == 0
             # since this is handled in the where condition
-            return np.expand_dims(
+            ndi = np.expand_dims(
                 np.where(
-                    (band_1_np + band_2_np) > 0,
+                    ((band_1_np + band_2_np) > 0) & (~invalid),
                     (band_1_np - band_2_np) / (band_1_np + band_2_np),
-                    0,
+                    NO_DATA_VALUE,
                 ),
                 -1,
             )
+        # when the input bands have different signs, NDI can be outside [-1, 1]
+        # set values outside valid range to NO_DATA_VALUE (will be masked out later)
+        ndi[(ndi < NDI_VALID_DATA_BOUNDS[0]) | (ndi > NDI_VALID_DATA_BOUNDS[1])] = NO_DATA_VALUE
+        return ndi
 
     def read_and_slice_h5py_file(self, h5py_path: Path):
         with h5py.File(h5py_path, "r") as hf:
@@ -1262,7 +1326,9 @@ class Dataset(PyTorchDataset):
 
         return norm_dict
 
-    def compute_running_stats(self, sampled_n=50000):
+    def compute_running_stats(
+        self, sampled_n=50000, normalization_dict_filename: str = "normalizing_dict.json"
+    ):
         """
         Compute running statistics for the entire dataset.
         """
@@ -1315,7 +1381,7 @@ class Dataset(PyTorchDataset):
             t_x = np.where(valid_data_mask_t, t_x, np.nan)
             st_x = np.where(valid_data_mask_st, st_x, np.nan)
 
-            # Collapse dimensions if needed, e.g., s_t_h_x.shape = (T, H, W, C) --> reshape to (-1, C)
+            # Collapse dimensions if needed, e.g., s_t_h_x.shape = (H, W, T, C) --> reshape to (-1, C)
             stats_high_res.update(s_t_h_x.reshape(-1, s_t_h_x.shape[-1]))
             stats_med_res.update(s_t_m_x.reshape(-1, s_t_m_x.shape[-1]))
             stats_low_res.update(s_t_l_x.reshape(-1, s_t_l_x.shape[-1]))
@@ -1359,150 +1425,7 @@ class Dataset(PyTorchDataset):
             },
         }
 
-        with open(self.data_folder.parents[1] / "normalizing_dict_updated.json", "w") as f:
+        with open(normalization_dict_filename, "w") as f:
             json.dump(norm_dict, f)
 
         return norm_dict
-
-
-if __name__ == "__main__":
-    from src.data.config import DATA_FOLDER, NORMALIZATION_DICT_FILENAME
-    from src.utils import config_dir
-
-    dataset = Dataset(
-        data_folder=DATA_FOLDER / "tifs_all_bands",
-        download=False,
-        h5py_folder=Path("data/h5pys_ps10_5"),
-        h5pys_only=True,
-    )
-
-    normalizing_dict = dataset.load_normalization_values(
-        path=config_dir / NORMALIZATION_DICT_FILENAME
-    )
-    print(normalizing_dict, flush=True)
-    normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
-    dataset.normalizer = normalizer
-
-    stats = []
-
-    # create a csv that stores the min and max values for each channel
-    for i in range(len(dataset)):
-        (
-            s_t_h_x,
-            s_t_m_x,
-            s_t_l_x,
-            sp_x,
-            t_x,
-            st_x,
-            months,
-            valid_data_mask_s_t_h,
-            valid_data_mask_s_t_m,
-            valid_data_mask_s_t_l,
-            valid_data_mask_sp,
-            valid_data_mask_t,
-            valid_data_mask_st,
-        ) = dataset[i]
-
-        s_t_h_x_c0_valid = s_t_h_x[..., 0][valid_data_mask_s_t_h[..., 0].astype(bool)]
-        s_t_h_x_c1_valid = s_t_h_x[..., 1][valid_data_mask_s_t_h[..., 1].astype(bool)]
-        s_t_h_x_c2_valid = s_t_h_x[..., 2][valid_data_mask_s_t_h[..., 2].astype(bool)]
-        s_t_h_x_c3_valid = s_t_h_x[..., 3][valid_data_mask_s_t_h[..., 3].astype(bool)]
-        s_t_h_x_c4_valid = s_t_h_x[..., 4][valid_data_mask_s_t_h[..., 4].astype(bool)]
-        s_t_h_x_c5_valid = s_t_h_x[..., 5][valid_data_mask_s_t_h[..., 5].astype(bool)]
-        s_t_h_x_c6_valid = s_t_h_x[..., 6][valid_data_mask_s_t_h[..., 6].astype(bool)]
-        s_t_h_x_c7_valid = s_t_h_x[..., 7][valid_data_mask_s_t_h[..., 7].astype(bool)]
-        s_t_h_x_c8_valid = s_t_h_x[..., 8][valid_data_mask_s_t_h[..., 8].astype(bool)]
-        s_t_h_x_c9_valid = s_t_h_x[..., 9][valid_data_mask_s_t_h[..., 9].astype(bool)]
-        s_t_h_x_c10_valid = s_t_h_x[..., 10][valid_data_mask_s_t_h[..., 10].astype(bool)]
-        s_t_h_x_c11_valid = s_t_h_x[..., 11][valid_data_mask_s_t_h[..., 11].astype(bool)]
-        s_t_h_x_c12_valid = s_t_h_x[..., 12][valid_data_mask_s_t_h[..., 12].astype(bool)]
-        s_t_h_x_c13_valid = s_t_h_x[..., 13][valid_data_mask_s_t_h[..., 13].astype(bool)]
-        s_t_h_x_c14_valid = s_t_h_x[..., 14][valid_data_mask_s_t_h[..., 14].astype(bool)]
-
-        s_t_m_x_c0_valid = s_t_m_x[..., 0][valid_data_mask_s_t_m[..., 0].astype(bool)]
-        s_t_m_x_c1_valid = s_t_m_x[..., 1][valid_data_mask_s_t_m[..., 1].astype(bool)]
-
-        s_t_l_x_c0_valid = s_t_l_x[..., 0][valid_data_mask_s_t_l[..., 0].astype(bool)]
-        s_t_l_x_c1_valid = s_t_l_x[..., 1][valid_data_mask_s_t_l[..., 1].astype(bool)]
-        s_t_l_x_c2_valid = s_t_l_x[..., 2][valid_data_mask_s_t_l[..., 2].astype(bool)]
-        s_t_l_x_c3_valid = s_t_l_x[..., 3][valid_data_mask_s_t_l[..., 3].astype(bool)]
-        s_t_l_x_c4_valid = s_t_l_x[..., 4][valid_data_mask_s_t_l[..., 4].astype(bool)]
-        s_t_l_x_c5_valid = s_t_l_x[..., 5][valid_data_mask_s_t_l[..., 5].astype(bool)]
-        s_t_l_x_c6_valid = s_t_l_x[..., 6][valid_data_mask_s_t_l[..., 6].astype(bool)]
-        s_t_l_x_c7_valid = s_t_l_x[..., 7][valid_data_mask_s_t_l[..., 7].astype(bool)]
-        s_t_l_x_c8_valid = s_t_l_x[..., 8][valid_data_mask_s_t_l[..., 8].astype(bool)]
-        s_t_l_x_c9_valid = s_t_l_x[..., 9][valid_data_mask_s_t_l[..., 9].astype(bool)]
-        s_t_l_x_c10_valid = s_t_l_x[..., 10][valid_data_mask_s_t_l[..., 10].astype(bool)]
-
-        sp_x_c0_valid = sp_x[..., 0][valid_data_mask_sp[..., 0].astype(bool)]
-        sp_x_c1_valid = sp_x[..., 1][valid_data_mask_sp[..., 1].astype(bool)]
-        sp_x_c2_valid = sp_x[..., 2][valid_data_mask_sp[..., 2].astype(bool)]
-        sp_x_c3_valid = sp_x[..., 3][valid_data_mask_sp[..., 3].astype(bool)]
-
-        t_x_c0_valid = t_x[..., 0][valid_data_mask_t[..., 0].astype(bool)]
-        t_x_c1_valid = t_x[..., 1][valid_data_mask_t[..., 1].astype(bool)]
-        t_x_c2_valid = t_x[..., 2][valid_data_mask_t[..., 2].astype(bool)]
-        t_x_c3_valid = t_x[..., 3][valid_data_mask_t[..., 3].astype(bool)]
-        t_x_c4_valid = t_x[..., 4][valid_data_mask_t[..., 4].astype(bool)]
-        t_x_c5_valid = t_x[..., 5][valid_data_mask_t[..., 5].astype(bool)]
-        t_x_c6_valid = t_x[..., 6][valid_data_mask_t[..., 6].astype(bool)]
-        t_x_c7_valid = t_x[..., 7][valid_data_mask_t[..., 7].astype(bool)]
-        t_x_c8_valid = t_x[..., 8][valid_data_mask_t[..., 8].astype(bool)]
-
-        st_x_c0_valid = st_x[..., 0][valid_data_mask_st[..., 0].astype(bool)]
-        st_x_c1_valid = st_x[..., 1][valid_data_mask_st[..., 1].astype(bool)]
-        st_x_c2_valid = st_x[..., 2][valid_data_mask_st[..., 2].astype(bool)]
-
-        stats.append(
-            {
-                "tif": i,
-                "s_t_h_x_c1_std": s_t_h_x_c1_valid.std(dtype=np.float32),
-                "s_t_h_x_c2_std": s_t_h_x_c2_valid.std(dtype=np.float32),
-                "s_t_h_x_c3_std": s_t_h_x_c3_valid.std(dtype=np.float32),
-                "s_t_h_x_c4_std": s_t_h_x_c4_valid.std(dtype=np.float32),
-                "s_t_h_x_c5_std": s_t_h_x_c5_valid.std(dtype=np.float32),
-                "s_t_h_x_c6_std": s_t_h_x_c6_valid.std(dtype=np.float32),
-                "s_t_h_x_c7_std": s_t_h_x_c7_valid.std(dtype=np.float32),
-                "s_t_h_x_c8_std": s_t_h_x_c8_valid.std(dtype=np.float32),
-                "s_t_h_x_c9_std": s_t_h_x_c9_valid.std(dtype=np.float32),
-                "s_t_h_x_c10_std": s_t_h_x_c10_valid.std(dtype=np.float32),
-                "s_t_h_x_c11_std": s_t_h_x_c11_valid.std(dtype=np.float32),
-                "s_t_h_x_c12_std": s_t_h_x_c12_valid.std(dtype=np.float32),
-                "s_t_h_x_c13_std": s_t_h_x_c13_valid.std(dtype=np.float32),
-                "s_t_h_x_c14_std": s_t_h_x_c14_valid.std(dtype=np.float32),
-                "s_t_m_x_c0_std": s_t_m_x_c0_valid.std(dtype=np.float32),
-                "s_t_m_x_c1_std": s_t_m_x_c1_valid.std(dtype=np.float32),
-                "s_t_l_x_c0_std": s_t_l_x_c0_valid.std(dtype=np.float32),
-                "s_t_l_x_c1_std": s_t_l_x_c1_valid.std(dtype=np.float32),
-                "s_t_l_x_c2_std": s_t_l_x_c2_valid.std(dtype=np.float32),
-                "s_t_l_x_c3_std": s_t_l_x_c3_valid.std(dtype=np.float32),
-                "s_t_l_x_c4_std": s_t_l_x_c4_valid.std(dtype=np.float32),
-                "s_t_l_x_c5_std": s_t_l_x_c5_valid.std(dtype=np.float32),
-                "s_t_l_x_c6_std": s_t_l_x_c6_valid.std(dtype=np.float32),
-                "s_t_l_x_c7_std": s_t_l_x_c7_valid.std(dtype=np.float32),
-                "s_t_l_x_c8_std": s_t_l_x_c8_valid.std(dtype=np.float32),
-                "s_t_l_x_c9_std": s_t_l_x_c9_valid.std(dtype=np.float32),
-                "s_t_l_x_c10_std": s_t_l_x_c10_valid.std(dtype=np.float32),
-                "sp_x_c0_std": sp_x_c0_valid.std(dtype=np.float32),
-                "sp_x_c1_std": sp_x_c1_valid.std(dtype=np.float32),
-                "sp_x_c2_std": sp_x_c2_valid.std(dtype=np.float32),
-                "sp_x_c3_std": sp_x_c3_valid.std(dtype=np.float32),
-                "t_x_c0_std": t_x_c0_valid.std(dtype=np.float32),
-                "t_x_c1_std": t_x_c1_valid.std(dtype=np.float32),
-                "t_x_c2_std": t_x_c2_valid.std(dtype=np.float32),
-                "t_x_c3_std": t_x_c3_valid.std(dtype=np.float32),
-                "t_x_c4_std": t_x_c4_valid.std(dtype=np.float32),
-                "t_x_c5_std": t_x_c5_valid.std(dtype=np.float32),
-                "t_x_c6_std": t_x_c6_valid.std(dtype=np.float32),
-                "t_x_c7_std": t_x_c7_valid.std(dtype=np.float32),
-                "t_x_c8_std": t_x_c8_valid.std(dtype=np.float32),
-                "st_x_c0_std": st_x_c0_valid.std(dtype=np.float32),
-                "st_x_c1_std": st_x_c1_valid.std(dtype=np.float32),
-                "st_x_c2_std": st_x_c2_valid.std(dtype=np.float32),
-            }
-        )
-
-    import pandas as pd
-
-    df = pd.DataFrame(stats)
-    df.to_csv("data_stats_mean_std_float32.csv", index=False)
