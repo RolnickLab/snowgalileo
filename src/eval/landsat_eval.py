@@ -1550,7 +1550,7 @@ class LandsatEval(EvalTask):
 
                 # save the predictions as numpy
                 np.save(
-                    visualization_folder / f"{filename}_r2_{r2}_rmse_{rmse}.npy",
+                    visualization_folder / str(self.eval_config) / f"{filename}_r2_{r2}_rmse_{rmse}.npy",
                     preds_2D,
                 )
                 print(
