@@ -1447,7 +1447,7 @@ class LandsatEval(EvalTask):
             normalizer = Normalizer(std=False)
         vis_ds.normalizer = normalizer
 
-        visualization_folder = DATA_FOLDER / "visualizations"
+        visualization_folder = DATA_FOLDER / "visualizations" / str(self.eval_config)
         if not visualization_folder.exists():
             visualization_folder.mkdir(parents=True, exist_ok=True)
 
@@ -1550,7 +1550,7 @@ class LandsatEval(EvalTask):
 
                 # save the predictions as numpy
                 np.save(
-                    visualization_folder / str(self.eval_config) / f"{filename}_r2_{r2}_rmse_{rmse}.npy",
+                    visualization_folder / f"{filename}_r2_{r2}_rmse_{rmse}.npy",
                     preds_2D,
                 )
                 print(
