@@ -121,7 +121,7 @@ class CloudMetaDataset(BaseDataset):
             :,
             :,
             :,
-            -4:-3,
+            -3:-2,
         ]
 
         try:
