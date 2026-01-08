@@ -1447,7 +1447,7 @@ class LandsatEval(EvalTask):
             normalizer = Normalizer(std=False)
         vis_ds.normalizer = normalizer
 
-        visualization_folder = DATA_FOLDER / "visualizations" / str(self.eval_config)
+        visualization_folder = DATA_FOLDER / "visualizations" / str(self.eval_config["name"])
         if not visualization_folder.exists():
             visualization_folder.mkdir(parents=True, exist_ok=True)
 
