@@ -218,7 +218,7 @@ USE_INDECES = False
 
 EE_PROJECT = "ee-marlena"
 EE_BUCKET_TIFS = None
-EE_DRIVE_FOLDER_NAME = "snow_ee_exports_20241226"
+EE_DRIVE_FOLDER_NAME = "snow_ee_exports_20260111"
 EE_DRIVE_FOLDER_ID = "1cL7tEHhC92UHmuwdEgH0ero6aXQqhBcb"
 EE_FOLDER_TIFS = "tifs4"
 EE_FOLDER_H5PYS = "h5pys"
