@@ -424,7 +424,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
                 ee.batch.Export.image.toDrive(
                     folder=self.dest_drive_folder,
                     fileNamePrefix=cloud_filename,
-                    image=img.clip(polygon),
+                    image=img.toDouble().clip(polygon),
                     description=description,
                     crs=crs,
                     scale=10,
