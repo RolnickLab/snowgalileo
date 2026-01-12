@@ -68,15 +68,27 @@ Subset the input and label images into 4 using GDAL and the command line (using 
 
 - `gdalinfo LC09_20230216_FSC55_3138166.88837_446880.07876.tif | grep "Size is"`
 
-- `gdal_retile.py -ps 2000 2000 -targetDir tiles LC09_20230216_FSC55_3138166.88837_446880.07876.tif`
+- `gdal_retile.py -ps 100 100 -targetDir tiles LC09_20230216_FSC55_3138166.88837_446880.07876.tif` (for masks, use `-ps 10 10`)
 
 9) Create a folder “inference” and store the resulting subsets here.
 10) Run the generate_outputs script with an eval config that specifies the input and label folders.
 11) Use GDAL (within gdal environment) to stitch the single components back together:
 
-- `gdalbuildvrt mosaic.vrt tile_1_1.tif tile_1_2.tif tile_2_1.tif tile_2_2.tif`
+```
+for base in $(ls *_1_1_with_preds.tif | sed 's/_1_1_with_preds.tif//'); do
+  gdalbuildvrt "${base}_mosaic.vrt" \
+       "${base}_1_1_with_preds.tif" \
+       "${base}_1_2_with_preds.tif" \
+       "${base}_2_1_with_preds.tif" \
+       "${base}_2_2_with_preds.tif"
+done
+```
 
-- `gdal_translate mosaic.vrt merged.tif`
+```
+for vrt in *_mosaic.vrt; do
+  gdal_translate "$vrt" "${vrt%.vrt}.tif"
+done
+```
 
   
 ### FSC Training Distribution Full Set Balanced
