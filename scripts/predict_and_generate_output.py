@@ -87,4 +87,4 @@ eval_task = LandsatEval(
     h5pys_only=args["h5pys_only"],
 )
 
-eval_task.predict_and_store_output(model=model, id=args["checkpoint_name"])
+eval_task.predict_and_store_output(model=model, id=args["checkpoint_name"], eval_config=args["eval_config_name"])

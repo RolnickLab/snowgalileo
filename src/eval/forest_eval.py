@@ -98,23 +98,6 @@ class ForestMetaDataset(BaseDataset):
                         "lon": "nan",
                     }
                 )
-            return fractional_forest_cover_dict
+            return fractional_forest_cover_dict, filename
         else:
             raise ValueError(f"File {tif_path} is not a .tif file")
-
-
-if __name__ == "__main__":
-    # NOTE: for testing purposes, remove later
-
-    # test by getting cloud states for 1000 samples in tif folder
-    tifs_folder = DATA_FOLDER / "landsat_eval_tifs/patches_UTM_5_95_cropped/test"
-    cloud_dataset = ForestMetaDataset(data_folder=tifs_folder)
-    num_samples = 1000
-
-    all_files = [f for f in os.listdir(tifs_folder) if f.endswith(".tif")]
-    random_subset = np.random.choice(all_files, num_samples, replace=False)
-
-    for i in random_subset:
-        tif_path = Path(tifs_folder / i)
-        fractional_forest_cover = cloud_dataset.return_fractional_forest_cover_from_filename(i)
-        print(fractional_forest_cover)

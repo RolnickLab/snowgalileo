@@ -1103,7 +1103,7 @@ class LandsatEval(EvalTask):
             print(f"Saved predictions for {filename} with overall accuracy: {acc}", flush=True)
 
     @torch.no_grad()
-    def _predict_and_store_output(self, model: EncoderWithHead, id: str, log_wandb: bool = True):
+    def _predict_and_store_output(self, model: EncoderWithHead, id: str, log_wandb: bool = True, eval_config: str = ""):
         inference_ds = LandsatEvalDataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
@@ -1122,11 +1122,11 @@ class LandsatEval(EvalTask):
             normalizer = Normalizer(std=False)
         inference_ds.normalizer = normalizer
 
-        output_tif_folder = DATA_FOLDER / "output_tifs"
+        output_tif_folder = DATA_FOLDER / "output_tifs" / eval_config
         if not output_tif_folder.exists():
             output_tif_folder.mkdir(parents=True, exist_ok=True)
 
-        output_npy_folder = DATA_FOLDER / "output_png"
+        output_npy_folder = DATA_FOLDER / "output_png" / eval_config
         if not output_npy_folder.exists():
             output_npy_folder.mkdir(parents=True, exist_ok=True)
 
@@ -1705,5 +1705,5 @@ class LandsatEval(EvalTask):
     def evaluate_indidvidual_samples(self, model: EncoderWithHead, id: str):
         self._evaluate_individual_samples(model, id=id)
 
-    def predict_and_store_output(self, model: EncoderWithHead, id: str):
-        self._predict_and_store_output(model, id=id)
+    def predict_and_store_output(self, model: EncoderWithHead, id: str, eval_config: str = ""):
+        self._predict_and_store_output(model, id=id, eval_config=eval_config)
