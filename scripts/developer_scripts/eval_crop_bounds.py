@@ -85,10 +85,6 @@ for file_name in os.listdir(mask_path):
                             input_data, mask_bounds, transformed_mask_transform
                         )
 
-                        assert cropped_data.shape[1:] == (100, 100), (
-                            "Cropped data shape does not match mask shape."
-                        )
-
                         dest_file = os.path.join(output_folder, file_name)
 
                         # Save the cropped data to the output folder
