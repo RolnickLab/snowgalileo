@@ -72,3 +72,41 @@ def export_from_filename_for_folder(
         if item is None:
             print(f"No item found for date {date}")
             continue
+
+        # crop the item to the lat, lon bounds with rasterio
+        asset = item.assets["sce"]
+        href = asset.href
+        with rasterio.open(href) as src:
+            out_image, out_transform = rasterio.mask.mask(
+                src,
+                [
+                    {
+                        "type": "Polygon",
+                        "coordinates": [
+                            [
+                                [min_lon, min_lat],
+                                [min_lon, max_lat],
+                                [max_lon, max_lat],
+                                [max_lon, min_lat],
+                                [min_lon, min_lat],
+                            ]
+                        ],
+                    }
+                ],
+                crop=True,
+            )
+            out_meta = src.meta.copy()
+        out_meta.update(
+            {
+                "driver": "GTiff",
+                "height": out_image.shape[1],
+                "width": out_image.shape[2],
+                "transform": out_transform,
+            }
+        )
+
+        output_folder = DATA_FOLDER / "globalsnowpack_exports"
+        output_folder.mkdir(parents=True, exist_ok=True)
+        output_filename = output_folder / f"gsp_{filename}"
+        with rasterio.open(output_filename, "w", **out_meta) as dest:
+            dest.write(out_image)
