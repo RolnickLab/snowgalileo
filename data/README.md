@@ -106,8 +106,8 @@ done
 <img width="857" height="451" alt="fsc_train_unique" src="https://github.com/user-attachments/assets/9a2a9c4c-67b0-49f3-9dd0-22195fe365e0" />
 
 ### FSC Test Distribution Rockies
-<img width="850" height="470" alt="fsc_test_rockies_mean" src="https://github.com/user-attachments/assets/3f49d62c-a951-4d4b-b840-05dbcebb0500" />
-<img width="848" height="451" alt="fsc_test_rockies_unique" src="https://github.com/user-attachments/assets/a382aaab-3883-4184-a932-5bd767b935a7" />
+<img width="850" height="470" alt="mean_in_rockies" src="https://github.com/user-attachments/assets/a3432bcb-8833-41da-8392-97090aa274e7" />
+<img width="848" height="451" alt="unique_in_rockies" src="https://github.com/user-attachments/assets/0be610f0-ce9f-4fb2-a401-32cd1b6890f5" />
 
 ### FSC Test Distribution Switzerland
 <img width="850" height="470" alt="fsc_test_switzerland_mean" src="https://github.com/user-attachments/assets/ede36ed8-a415-450c-867d-166fa76c6bfc" />
