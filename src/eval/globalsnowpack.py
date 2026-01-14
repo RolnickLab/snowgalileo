@@ -35,7 +35,6 @@ def export_from_filename_for_folder(
         filenames.append(filename)
 
     filenames = sorted(filenames)[start_idx:]
-    exports_started = 0
     print(f"Exporting {len(filenames)} latlons: ")
 
     for filename in filenames:
