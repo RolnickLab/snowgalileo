@@ -145,14 +145,27 @@ class CloudMetaDataset(BaseDataset):
         # loops through time series, so last_clear_day is the last occurrence
         # we exclude the last timestep from the analysis as in the case of Landsat, it will always be clear
         for t in range(NUM_TIMESTEPS - 1):
-            states = [self.map_int_to_cloud_states(int(v)) for v in np.unique(modis_cloud_x[t]) if v != 0]
+            unique_vals = [v for v in np.unique(modis_cloud_x[t]) if v != 0]
 
-            # aggregate states for this day
-            is_cloud = any(s[0] for s in states)
-            is_cloud_shadow = any(s[1] for s in states)
-            is_cirrus = any(s[2] for s in states)
+            # no valid observations that day
+            if len(unique_vals) == 0:
+                is_cloud = False
+                is_cloud_shadow = False
+                is_cirrus = False
+            else:
+                states = [self.map_int_to_cloud_states(int(v)) for v in unique_vals]
 
-            if not (is_cloud or is_cloud_shadow or is_cirrus) and not np.all(modis_cloud_x[t] == 0):
+                cloud_votes = sum(s[0] for s in states)
+                cloud_shadow_votes = sum(s[1] for s in states)
+                cirrus_votes = sum(s[2] for s in states)
+
+                majority = len(states) / 2
+
+                is_cloud = cloud_votes > majority
+                is_cloud_shadow = cloud_shadow_votes > majority
+                is_cirrus = cirrus_votes > majority
+
+            if not (is_cloud or is_cloud_shadow or is_cirrus) and not len(unique_vals) == 0:
                 last_clear_day = t
                 total_clear_days += 1
 

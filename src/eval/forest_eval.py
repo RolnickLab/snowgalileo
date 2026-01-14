@@ -12,7 +12,7 @@ from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER
 from src.data.dataset import Dataset as BaseDataset
 from src.data.earthengine.eo_eval import (
-    SPACE_BANDS,
+    EE_SPACE_BANDS,
 )
 from src.utils import seed_everything
 
@@ -54,16 +54,13 @@ class ForestMetaDataset(BaseDataset):
             lat = float(parts[3])
             lon = float(parts[4])
 
-        # NOTE: hacky assert that will get triggered once the baselines branch is merged
-        assert len(SPACE_BANDS) == 4, "Expected 4 space bands for space bands"
-
         space_x = rearrange(
-            values[-len(SPACE_BANDS) :],
+            values[-len(EE_SPACE_BANDS) :],
             "c h w -> h w c",
         )
-        space_x = cls._check_and_fillna(space_x, np.array(SPACE_BANDS))
+        space_x = cls._check_and_fillna(space_x, np.array(EE_SPACE_BANDS))
 
-        worldcover_map = space_x[:, :, -1]  # TODO: make this dynamic once baselines is merged
+        worldcover_map = space_x[:, :, -1]
         ffc = cls.retrieve_fractional_forest_cover(worldcover_map)
 
         try:
