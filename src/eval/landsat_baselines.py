@@ -66,7 +66,7 @@ class LandsatEvalDatasetSklearn(LandsatEvalDataset):
             else:
                 return self.read_and_slice_h5py_file(self.h5pys[idx]).normalize(self.normalizer)
 
-        h5py, idx = self.load_tif(idx)
+        h5py = self.load_tif(idx)
 
         if self.normalizer is None:
             (
