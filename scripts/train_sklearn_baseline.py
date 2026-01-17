@@ -19,7 +19,7 @@ argparser.add_argument(
 argparser.add_argument(
     "--eval_config_name",
     type=str,
-    default="landsat_eval_1_99_test.json",
+    default="fsc_train_balanced_tiny.json",
     help="Config name for evaluation. Options are stored in src/eval/eval_configs/",
 )
 argparser.add_argument(
