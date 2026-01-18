@@ -1103,7 +1103,9 @@ class LandsatEval(EvalTask):
             print(f"Saved predictions for {filename} with overall accuracy: {acc}", flush=True)
 
     @torch.no_grad()
-    def _predict_and_store_output(self, model: EncoderWithHead, id: str, log_wandb: bool = True, eval_config: str = ""):
+    def _predict_and_store_output(
+        self, model: EncoderWithHead, id: str, log_wandb: bool = True, eval_config: str = ""
+    ):
         inference_ds = LandsatEvalDataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,

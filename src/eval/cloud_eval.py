@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from typing import Dict, Optional, Union, cast
 
@@ -9,13 +8,12 @@ import xarray as xr
 from einops import rearrange
 
 from src.config import DEFAULT_SEED
-from src.data.config import DATA_FOLDER
 from src.data.dataset import Dataset as BaseDataset
 from src.data.earthengine.eo_eval import (
+    EE_SPACE_BANDS,
     EO_ALL_DYNAMIC_IN_TIME_BANDS,
     EO_ALL_DYNAMIC_IN_TIME_BANDS_NP,
     NUM_TIMESTEPS,
-    EE_SPACE_BANDS,
 )
 from src.utils import seed_everything
 

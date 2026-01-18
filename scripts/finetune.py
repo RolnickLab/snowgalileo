@@ -62,9 +62,7 @@ argparser.add_argument(
 )
 args = argparser.parse_args().__dict__
 
-with (Path("src/eval/eval_configs") / Path(args["eval_config"])).open(
-    "r"
-) as f:
+with (Path("src/eval/eval_configs") / Path(args["eval_config"])).open("r") as f:
     eval_config = json.load(f)
 
 # retrieve model size from config filename

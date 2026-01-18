@@ -2,16 +2,14 @@ import argparse
 import json
 from pathlib import Path
 
+import pandas as pd
 import psutil
 import torch
-import os
 
 from src.config import DEFAULT_SEED
-from src.utils import seed_everything
-from src.data.config import RESULTS_FOLDER, DATA_FOLDER
+from src.data.config import DATA_FOLDER, RESULTS_FOLDER
 from src.eval.utils import extract_season_from_filename
-import pandas as pd
-import numpy as np
+from src.utils import seed_everything
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -39,7 +37,9 @@ with (Path("src") / Path("eval") / Path("eval_configs") / Path(args["eval_config
 data_config = eval_config["data"]
 
 input_results_csv_path = RESULTS_FOLDER / f"evaluation_results_{args['results_csv_name']}.csv"
-output_results_csv_path = RESULTS_FOLDER / f"evaluation_results_{args['results_csv_name']}_with_seasons.csv"
+output_results_csv_path = (
+    RESULTS_FOLDER / f"evaluation_results_{args['results_csv_name']}_with_seasons.csv"
+)
 output_results_csv_path.touch(exist_ok=True)
 
 tif_data_path = DATA_FOLDER / data_config["input_tif_folder"] / "test"
