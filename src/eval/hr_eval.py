@@ -26,7 +26,7 @@ seed_everything(DEFAULT_SEED)
 process = psutil.Process()
 
 
-class HROpticalMetaDataset(BaseDataset):
+class HRMetaDataset(BaseDataset):
     """Dataset class for retrieving forest metadata from ESA WorldCover data"""
 
     def __init__(self, data_folder, download=False, h5pys_only=False, *args, **kwargs):

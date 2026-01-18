@@ -8,7 +8,7 @@ import torch
 
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER, RESULTS_FOLDER
-from src.eval.forest_eval import ForestMetaDataset
+from src.eval.hr_eval import HRMetaDataset
 from src.utils import seed_everything
 
 seed_everything(DEFAULT_SEED)
@@ -38,30 +38,49 @@ data_config = eval_config["data"]
 
 input_results_csv_path = RESULTS_FOLDER / f"evaluation_results_{args['results_csv_name']}.csv"
 output_results_csv_path = (
-    RESULTS_FOLDER / f"evaluation_results_{args['results_csv_name']}_with_forest.csv"
+    RESULTS_FOLDER / f"evaluation_results_{args['results_csv_name']}_with_hr.csv"
 )
 output_results_csv_path.touch(exist_ok=True)
 
 tif_data_path = DATA_FOLDER / data_config["input_tif_folder"] / "test"
 
-forest_dataset = ForestMetaDataset(data_folder=tif_data_path)
+hr_dataset = HRMetaDataset(data_folder=tif_data_path)
 
 df = pd.read_csv(input_results_csv_path)
 all_files = df["filename"].tolist()
 
-ffc = []
+num_hr_days = []
+last_hr_day = []
+num_s1_days = []
+num_s2_days = []
+num_landsat_days = []
+last_s1_day = []
+last_s2_day = []
+last_landsat_day = []
 filenames = []
 
 for i in all_files:
     tif_path = Path(tif_data_path / i)
-    fractional_forest_cover, filename = forest_dataset.return_fractional_forest_cover_from_filename(
-        i
-    )
-    ffc.append(fractional_forest_cover["fractional_forest_cover"])
+    hr_dict, filename = hr_dataset.return_hr_from_filename(i)
+    num_hr_days.append(hr_dict["num_hr_days"])
+    last_hr_day.append(hr_dict["last_hr_day"])
+    num_s1_days.append(hr_dict["num_s1_days"])
+    num_s2_days.append(hr_dict["num_s2_days"])
+    num_landsat_days.append(hr_dict["num_landsat_days"])
+    last_s1_day.append(hr_dict["last_s1_day"])
+    last_s2_day.append(hr_dict["last_s2_day"])
+    last_landsat_day.append(hr_dict["last_landsat_day"])
     filenames.append(filename)
 
 assert filenames == all_files, "filenames must match!"
 
-df["fractional_forest_cover"] = ffc
+df["num_hr_days"] = num_hr_days
+df["last_hr_day"] = last_hr_day
+df["num_s1_days"] = num_s1_days
+df["num_s2_days"] = num_s2_days
+df["num_landsat_days"] = num_landsat_days
+df["last_s1_day"] = last_s1_day
+df["last_s2_day"] = last_s2_day
+df["last_landsat_day"] = last_landsat_day
 
 df.to_csv(output_results_csv_path, index=False)
