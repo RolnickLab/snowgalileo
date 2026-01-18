@@ -34,38 +34,23 @@ class HRMetaDataset(BaseDataset):
             data_folder=data_folder, download=download, h5pys_only=h5pys_only, *args, **kwargs
         )
 
-    @classmethod
-    def _get_hr(cls, tif_path: Path):
-        with cast(xr.Dataset, rioxarray.open_rasterio(tif_path)) as data:
-            # [all_combined_bands, H, W]
-            # all_combined_bands includes all dynamic-in-time bands
-            # interleaved for all timesteps
-            # followed by the static-in-time bands
-            values = cast(np.ndarray, data.values)
-
-        num_timesteps = (values.shape[0] - len(EE_SPACE_BANDS)) / len(EO_ALL_DYNAMIC_IN_TIME_BANDS)
-        assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
-        assert num_timesteps == NUM_TIMESTEPS, f"{tif_path} has incorrect number of timesteps"
-        dynamic_in_time_x = rearrange(
-            values[: -(len(EE_SPACE_BANDS))],
-            "(t c) h w -> h w t c",
-            c=len(EO_ALL_DYNAMIC_IN_TIME_BANDS),
-            t=int(num_timesteps),
-        )
-        dynamic_in_time_x = cls._check_and_fillna(
-            dynamic_in_time_x, EO_ALL_DYNAMIC_IN_TIME_BANDS_NP
-        )
-        space_time_high_res_x = dynamic_in_time_x[
-            :,
-            :,
-            :,
-            : -(
-                len(SPACE_TIME_MED_RES_BANDS)
-                + len(EO_SPACE_TIME_LOW_RES_BANDS)
-                + len(TIME_BANDS)
-                + len(CLOUD_BANDS)
-            ),
-        ]
+    def _get_hr(self, tif_path: Path):
+        (
+            s_t_h_x,
+            _,
+            _,
+            _,
+            _,
+            _,
+            _,
+            valid_data_mask_s_t_h,
+            _,
+            _,
+            _,
+            _,
+            _,
+        ) = self._tif_to_array(tif_path)
+        s_t_h_x = np.where(valid_data_mask_s_t_h, s_t_h_x, NO_DATA_VALUE)
 
         num_hr_days = 0
         num_s1_days = 0
@@ -81,15 +66,15 @@ class HRMetaDataset(BaseDataset):
         # assumption: the first band of each sensor determines if the sensor data is present
         for t in range(NUM_TIMESTEPS - 1):
             s1_present = not np.any(
-                space_time_high_res_x[:, :, t, EO_ALL_DYNAMIC_IN_TIME_BANDS_NP.index("VV")]
+                s_t_h_x[:, :, t, EO_ALL_DYNAMIC_IN_TIME_BANDS.index("VV")]
                 == NO_DATA_VALUE
             )
             s2_present = not np.any(
-                space_time_high_res_x[:, :, t, EO_ALL_DYNAMIC_IN_TIME_BANDS_NP.index("B2")]
+                s_t_h_x[:, :, t, EO_ALL_DYNAMIC_IN_TIME_BANDS.index("B2")]
                 == NO_DATA_VALUE
             )
             landsat_present = not np.any(
-                space_time_high_res_x[:, :, t, EO_ALL_DYNAMIC_IN_TIME_BANDS_NP.index("B2_landsat")]
+                s_t_h_x[:, :, t, EO_ALL_DYNAMIC_IN_TIME_BANDS.index("B2_landsat")]
                 == NO_DATA_VALUE
             )
 
