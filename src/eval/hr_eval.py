@@ -8,7 +8,7 @@ import xarray as xr
 from einops import rearrange
 
 from src.config import DEFAULT_SEED
-from src.data.config import NO_DATA_VALUE, CHANNEL_WISE_INVALID_DATA_THRESHOLDS
+from src.data.config import CHANNEL_WISE_INVALID_DATA_THRESHOLDS, NO_DATA_VALUE
 from src.data.dataset import Dataset as BaseDataset
 from src.data.earthengine.eo_eval import (
     CLOUD_BANDS,
@@ -109,16 +109,13 @@ class HRMetaDataset(BaseDataset):
         # assumption: the first band of each sensor determines if the sensor data is present
         for t in range(NUM_TIMESTEPS - 1):
             s1_present = not np.any(
-                s_t_h_x[:, :, t, EO_ALL_DYNAMIC_IN_TIME_BANDS.index("VV")]
-                == NO_DATA_VALUE
+                s_t_h_x[:, :, t, EO_ALL_DYNAMIC_IN_TIME_BANDS.index("VV")] == NO_DATA_VALUE
             )
             s2_present = not np.any(
-                s_t_h_x[:, :, t, EO_ALL_DYNAMIC_IN_TIME_BANDS.index("B2")]
-                == NO_DATA_VALUE
+                s_t_h_x[:, :, t, EO_ALL_DYNAMIC_IN_TIME_BANDS.index("B2")] == NO_DATA_VALUE
             )
             landsat_present = not np.any(
-                s_t_h_x[:, :, t, EO_ALL_DYNAMIC_IN_TIME_BANDS.index("B2_landsat")]
-                == NO_DATA_VALUE
+                s_t_h_x[:, :, t, EO_ALL_DYNAMIC_IN_TIME_BANDS.index("B2_landsat")] == NO_DATA_VALUE
             )
 
             if s1_present or s2_present or landsat_present:

@@ -45,7 +45,7 @@ class CloudMetaDataset(BaseDataset):
         16-bit unsigned integer, bit 0 is LSB
         Returns if there is cloud, cloud shadow, cirrus detected
         """
-        # fill value by MODIS is 0
+        # fill value by MODIS QA state is 0
         if state == 0:
             assert False, "Fill value encountered in MODIS QA state"
 
@@ -132,7 +132,8 @@ class CloudMetaDataset(BaseDataset):
     def _get_cloud_states(
         self, modis_cloud_x: np.ndarray, lat: float, lon: float, cloud_state_dict: dict
     ) -> Dict[str, Union[int, str, float]]:
-        """Get the last day with cloud and total number of cloudy days from modis cloud data"""
+        """Get the last day with cloud and total number of cloudy days from modis qa state.
+        Uses majority voting in case of multiple observations per day."""
         last_clear_day = -1
         total_clear_days = 0
         total_cloudy_days = 0
@@ -141,8 +142,9 @@ class CloudMetaDataset(BaseDataset):
         total_days = 0
 
         # loops through time series, so last_clear_day is the last occurrence
-        # we exclude the last timestep from the analysis as in the case of Landsat, it will always be clear
+        # we exclude the last timestep from the analysis as in our data, it will always be clear
         for t in range(NUM_TIMESTEPS - 1):
+            # 0 means fill value of MODIS QA state, skip those
             unique_vals = [v for v in np.unique(modis_cloud_x[t]) if v != 0]
 
             # no valid observations that day
@@ -204,6 +206,7 @@ class CloudMetaDataset(BaseDataset):
                 print(f"Processed {tif_path}")
             except Exception as e:
                 print(f"Error processing {tif_path}: {e}")
+                # fill with -1 or nan values on error
                 cloud_state_dict.update(
                     {
                         "last_clear_day": -1,

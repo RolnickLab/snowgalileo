@@ -54,8 +54,8 @@ filenames = []
 
 for i in all_files:
     tif_path = Path(tif_data_path / i)
-    fractional_forest_cover, filename = forest_dataset.return_fractional_forest_cover_from_filename(
-        i
+    fractional_forest_cover, filename = (
+        forest_dataset.return_fractional_forest_cover_from_filename(i)
     )
     ffc.append(fractional_forest_cover["fractional_forest_cover"])
     filenames.append(filename)
