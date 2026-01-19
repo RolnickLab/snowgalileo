@@ -115,6 +115,7 @@ class CloudMetaDataset(BaseDataset):
             dynamic_in_time_x, EO_ALL_DYNAMIC_IN_TIME_BANDS_NP
         )
         # resolution: 1000m
+        # (a bit hacky - the MODIS cloud band is currently in the third-to-last position of EO_ALL_DYNAMIC_IN_TIME_BANDS)
         modis_cloud_x = dynamic_in_time_x[
             :,
             :,
