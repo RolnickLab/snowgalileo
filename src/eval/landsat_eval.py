@@ -747,8 +747,24 @@ class LandsatEval(EvalTask):
         self.eval_config = eval_config
         self.data_config = self.eval_config["data"]
 
+    @staticmethod
+    def _get_dataset(
+        exclude_prediction_date: bool,
+        exclude_prediction_high_res: bool,
+        split: str,
+        h5pys_only: bool = False,
+        data_config: Dict = {},
+    ) -> LandsatEvalDataset:
+        return LandsatEvalDataset(
+            exclude_prediction_date=exclude_prediction_date,
+            exclude_prediction_high_res=exclude_prediction_high_res,
+            split=split,
+            h5pys_only=h5pys_only,
+            data_config=data_config,
+        )
+
     def get_test_dl(self, hyperparameter_config=None, return_ds=False):
-        test_ds = LandsatEvalDataset(
+        test_ds = self._get_dataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="test",
@@ -1106,7 +1122,7 @@ class LandsatEval(EvalTask):
     def _predict_and_store_output(
         self, model: EncoderWithHead, id: str, log_wandb: bool = True, eval_config: str = ""
     ):
-        inference_ds = LandsatEvalDataset(
+        inference_ds = self._get_dataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="inference",
@@ -1262,7 +1278,7 @@ class LandsatEval(EvalTask):
 
     @torch.no_grad()
     def _evaluate_model(self, model: EncoderWithHead, log_wandb: bool = True):
-        test_ds = LandsatEvalDataset(
+        test_ds = self._get_dataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="test",
@@ -1313,7 +1329,7 @@ class LandsatEval(EvalTask):
         model: EncoderWithHead,
         id: str,
     ):
-        test_ds = LandsatEvalDataset(
+        test_ds = self._get_dataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="test",
@@ -1431,7 +1447,7 @@ class LandsatEval(EvalTask):
         model: EncoderWithHead,
         log_wandb: bool = False,
     ):
-        vis_ds = LandsatEvalDataset(
+        vis_ds = self._get_dataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="visualize",
@@ -1617,7 +1633,7 @@ class LandsatEval(EvalTask):
         BATCH_SIZE = hyperparameter_config.get("batch_size", 16)
         NUM_WORKERS = hyperparameter_config.get("num_workers", 4)
 
-        train_ds = LandsatEvalDataset(
+        train_ds = self._get_dataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="train",
