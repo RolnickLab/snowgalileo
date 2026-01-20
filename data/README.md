@@ -60,10 +60,10 @@ Since the coordinates will be processed in EPGS4326 format, the filenames need t
 1) In the “uniform_extraction_points.ipynb” scripts, set “patch_size” to 20 (and optionally reduce the number of patches per bin).
 2) Download the generated patches using Git Bash and scp.
 3) Upload the patches to the Mila cluster using Ubuntu and scp.
-4) Export the corresponding earthengine input images. We have to use the “drive” mode, since the files will exceed the file size limit of “url”. Files will be stored in your drive folder → download locally → upload to Mila and store in tifs folder.
-5) Rename the patches and inputs from UTM to WGS84
-6) (optionally subset the label patches if not all have been exported).
-7) Crop the input images to a size (200, 200) with the eval_crop_bounds.py script.
+4) Export the corresponding earthengine input images. We have to use the “drive” mode, since the files will exceed the file size limit of “url”. Files will be stored in your drive folder → download locally → upload to Mila and store in tifs folder. Or: `rclone copy gdrive:path/to/source/ ./path/to/destination --progress`
+6) Rename the patches and inputs from UTM to WGS84
+7) (optionally subset the label patches if not all have been exported).
+8) Crop the input images to a size (200, 200) with the eval_crop_bounds.py script.
 Subset the input and label images into 4 using GDAL and the command line (using a different conda environment, since GDAL is not compatible with our numpy version).
 
 - `gdalinfo LC09_20230216_FSC55_3138166.88837_446880.07876.tif | grep "Size is"`
