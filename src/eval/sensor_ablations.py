@@ -11,7 +11,6 @@ process = psutil.Process()
 
 
 class SensorAblationsMetaDataset(LandsatEvalDataset):
-    """Dataset class for retrieving forest metadata from ESA WorldCover data"""
 
     def __init__(
         self,
