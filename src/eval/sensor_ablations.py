@@ -14,10 +14,20 @@ class SensorAblationsMetaDataset(LandsatEvalDataset):
     """Dataset class for retrieving forest metadata from ESA WorldCover data"""
 
     def __init__(
-        self, data_folder, download=False, h5pys_only=False, eval_config=None, *args, **kwargs
+        self,
+        data_config={},
+        split="train",
+        h5pys_only=False,
+        eval_config=None,
+        exclude_prediction_date=False,
+        exclude_prediction_high_res=False,
     ):
         super().__init__(
-            data_folder=data_folder, download=download, h5pys_only=h5pys_only, *args, **kwargs
+            data_config=data_config,
+            split=split,
+            h5pys_only=h5pys_only,
+            exclude_prediction_date=exclude_prediction_date,
+            exclude_prediction_high_res=exclude_prediction_high_res,
         )
         self.eval_config = eval_config
         assert self.eval_config is not None, "eval_config must be provided for sensor ablations"
