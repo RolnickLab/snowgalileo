@@ -62,7 +62,8 @@
         "ablate_era5": true,
         "ablate_indeces": false,
         "ablate_landcover": false,
-        "ablate_high_res_sensor": false,
+        "ablate_high_res_optical": false,
+        "ablate_high_res_sar": false,
         "ablate_med_res_sensor": false,
         "ablate_low_res_sensor": false,
         "ablate_topography": false

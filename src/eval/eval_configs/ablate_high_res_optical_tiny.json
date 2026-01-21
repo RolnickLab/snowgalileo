@@ -60,12 +60,12 @@
     },
     "sensor_ablations": {
         "ablate_era5": false,
-        "ablate_indeces": true,
+        "ablate_indeces": false,
         "ablate_landcover": false,
-        "ablate_high_res_optical": false,
+        "ablate_high_res_optical": true,
         "ablate_high_res_sar": false,
         "ablate_med_res_sensor": false,
         "ablate_low_res_sensor": false,
-        "ablate_topography": true
+        "ablate_topography": false
     }
 }

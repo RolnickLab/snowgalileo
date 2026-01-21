@@ -45,9 +45,12 @@ class SensorAblationsMetaDataset(LandsatEvalDataset):
         ) = super().__getitem__(idx)
 
         # TODO: make dynamic
-        # ablate Sentinel-1, Sentinel-2, Landsat data
-        if self.eval_config["sensor_ablations"]["ablate_high_res_sensor"]:
-            s_t_h_m[:, :, :, :] = 1
+        # ablate Sentinel-1
+        if self.eval_config["sensor_ablations"]["ablate_high_res_sar"]:
+            s_t_h_m[:, :, :, :3] = 1
+        # ablate Sentinel-2, Landsat data
+        if self.eval_config["sensor_ablations"]["ablate_high_res_optical"]:
+            s_t_h_m[:, :, :, 3:] = 1
         # ablate Sentinel-3 data
         if self.eval_config["sensor_ablations"]["ablate_med_res_sensor"]:
             s_t_m_m[:, :, :, :] = 1
