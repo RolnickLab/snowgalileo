@@ -123,8 +123,8 @@ class SensorAblationsEval(LandsatEval):
             eval_config=eval_config,
         )
 
-    @staticmethod
     def _get_dataset(
+        self,
         exclude_prediction_date: bool,
         exclude_prediction_high_res: bool,
         split: str,
