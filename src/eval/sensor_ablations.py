@@ -11,7 +11,6 @@ process = psutil.Process()
 
 
 class SensorAblationsMetaDataset(LandsatEvalDataset):
-
     def __init__(
         self,
         data_config={},
@@ -138,4 +137,5 @@ class SensorAblationsEval(LandsatEval):
             split=split,
             h5pys_only=h5pys_only,
             data_config=data_config,
+            eval_config=self.eval_config,
         )
