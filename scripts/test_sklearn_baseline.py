@@ -63,4 +63,4 @@ rf = LandsatEvalSklearn(
     model_type=args["model_type"],
     normalizing_dict=normalizing_dict,
 )
-rf.predict_only(id=id, save_results=True)
+rf.predict_only(model=model, id=id, save_results=True)
