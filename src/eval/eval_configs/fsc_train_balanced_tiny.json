@@ -43,7 +43,7 @@
         "loss_fn": "MSE"
     },
     "hyperparameters_rf": {
-        "n_estimators": 300,
+        "n_estimators": 50,
         "min_samples_leaf": 5
     },
     "hyperparameters_svr": {
