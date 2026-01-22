@@ -59,7 +59,7 @@
         "activation": "relu"
     },
     "sensor_ablations": {
-        "ablate_era5": true,
+        "ablate_era5": false,
         "ablate_indeces": false,
         "ablate_landcover": false,
         "ablate_high_res_optical": false,
