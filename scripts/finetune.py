@@ -50,6 +50,11 @@ argparser.add_argument(
     help="Whether to exclude high-res in prediction date.",
 )
 argparser.add_argument(
+    "--exclude_prediction_date",
+    action="store_true",
+    help="Whether to exclude prediction date.",
+)
+argparser.add_argument(
     "--eval_config",
     type=str,
     default="fsc_train_balanced_tiny.json",
@@ -88,6 +93,7 @@ eval_tasks: List[EvalTask] = [
     # geobench EuroSat only works without latlons
     *[
         LandsatEval(
+            exclude_prediction_date=args["exclude_prediction_date"],
             exclude_prediction_high_res=args["exclude_prediction_high_res"],
             resample=args["resample"],
             decoder_mode=args["decoding_strategy"],
