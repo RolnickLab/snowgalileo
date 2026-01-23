@@ -389,6 +389,10 @@ def finetune_seg(
                 opt.step()
                 opt.zero_grad()
 
+        if epoch % 10 == 0:
+            filename = f"{hyperparameter_config['initialization_id']}_{sweep_run.id}_epoch{epoch}.pth"
+            save_checkpoint(finetuned_encoder, filename)
+
         if log_wandb or sweep_run is not None:
             if epoch % 5 == 0 or epoch == epochs - 1:
                 results = evaluate_seg(
