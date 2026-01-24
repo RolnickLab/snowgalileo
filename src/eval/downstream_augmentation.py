@@ -59,7 +59,7 @@ class DownstreamFlipAndRotateSpace(object):
         space_time_m_m: torch.Tensor,
         space_time_l_m: torch.Tensor,
         space_m: torch.Tensor,
-        label: torch.Tensor
+        label: torch.Tensor,
     ) -> Tuple[
         torch.Tensor,
         torch.Tensor,
@@ -69,7 +69,7 @@ class DownstreamFlipAndRotateSpace(object):
         torch.Tensor,
         torch.Tensor,
         torch.Tensor,
-        torch.Tensor
+        torch.Tensor,
     ]:
         if not self.enabled:
             return (
@@ -81,7 +81,7 @@ class DownstreamFlipAndRotateSpace(object):
                 space_time_m_m,
                 space_time_l_m,
                 space_m,
-                label
+                label,
             )
 
         space_time_h_x = rearrange(
@@ -93,9 +93,8 @@ class DownstreamFlipAndRotateSpace(object):
         space_time_h_m = rearrange(space_time_h_m.float(), "h w t c -> t c h w")
         space_time_m_m = rearrange(space_time_m_m.float(), "h w t c -> t c h w")
         space_time_l_m = rearrange(space_time_l_m.float(), "h w t c -> t c h w")
-        space_m = rearrange(
-            space_m.float(), "h w c -> c h w"
-        )  # rearrange for transforms
+        space_m = rearrange(space_m.float(), "h w c -> c h w")  # rearrange for transforms
+        label = torch.unsqueeze(label, dim=0)
 
         transformation = random.choice(self.transformations)
 
@@ -105,19 +104,11 @@ class DownstreamFlipAndRotateSpace(object):
         space_time_m_x = rearrange(transformation(space_time_m_x), "t c h w -> h w t c")
         space_time_l_x = rearrange(transformation(space_time_l_x), "t c h w -> h w t c")
         space_x = rearrange(transformation(space_x), "c h w -> h w c")  # rearrange back
-        space_time_h_m = rearrange(
-            transformation(space_time_h_m), "t c h w -> h w t c"
-        )
-        space_time_m_m = rearrange(
-            transformation(space_time_m_m), "t c h w -> h w t c"
-        )
-        space_time_l_m = rearrange(
-            transformation(space_time_l_m), "t c h w -> h w t c"
-        )
-        space_m = rearrange(
-            transformation(space_m), "c h w -> h w c"
-        )  # rearrange back
-        label = transformation(label)
+        space_time_h_m = rearrange(transformation(space_time_h_m), "t c h w -> h w t c")
+        space_time_m_m = rearrange(transformation(space_time_m_m), "t c h w -> h w t c")
+        space_time_l_m = rearrange(transformation(space_time_l_m), "t c h w -> h w t c")
+        space_m = rearrange(transformation(space_m), "c h w -> h w c")  # rearrange back
+        label = torch.squeeze(transformation(label))
 
         return (
             space_time_h_x.half(),
@@ -128,7 +119,7 @@ class DownstreamFlipAndRotateSpace(object):
             space_time_m_m.half(),
             space_time_l_m.half(),
             space_m.half(),
-            label
+            label,
         )
 
 
@@ -152,7 +143,7 @@ class DownstreamAugmentation(object):
         space_m: torch.Tensor,
         time_m: torch.Tensor,
         static_m: torch.Tensor,
-        label: torch.Tensor
+        label: torch.Tensor,
     ) -> Tuple[
         torch.Tensor,
         torch.Tensor,
@@ -167,7 +158,7 @@ class DownstreamAugmentation(object):
         torch.Tensor,
         torch.Tensor,
         torch.Tensor,
-        torch.Tensor
+        torch.Tensor,
     ]:
         (
             space_time_h_x,
@@ -178,7 +169,7 @@ class DownstreamAugmentation(object):
             space_time_m_m,
             space_time_l_m,
             space_m,
-            label
+            label,
         ) = self.flip_and_rotate.apply(
             space_time_h_x,
             space_time_m_x,
@@ -188,7 +179,7 @@ class DownstreamAugmentation(object):
             space_time_m_m,
             space_time_l_m,
             space_m,
-            label
+            label,
         )
 
         return (
@@ -205,5 +196,5 @@ class DownstreamAugmentation(object):
             space_m,
             time_m,
             static_m,
-            label
+            label,
         )

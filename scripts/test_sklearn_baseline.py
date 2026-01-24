@@ -31,8 +31,7 @@ argparser.add_argument(
     help="Type of model to train: rf, svr, or mlp.",
 )
 argparser.add_argument(
-    "--model_checkpoint_path",
-    default="landsat_rf_model_rf_50est_19012026.joblib"
+    "--model_checkpoint_path", default="landsat_rf_model_rf_50est_19012026.joblib"
 )
 args = argparser.parse_args().__dict__
 

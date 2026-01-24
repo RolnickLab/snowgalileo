@@ -805,7 +805,7 @@ class LandsatEvalSklearn(LandsatEval):
                 json.dump(results, f)
 
         return results
-    
+
     def predict_only(
         self,
         model: Union[RandomForestRegressor, SVR, MLPRegressor],
