@@ -12,13 +12,11 @@
     },
     "finetune": {
         "freeze_encoder": false,
-        "token_mapping": "spatial_mean",
-        "med_and_low_res_repeat": false
+        "token_mapping": "spatial_mean"
     },
     "linear_probe": {
         "freeze_encoder": true,
-        "token_mapping": "spatial_mean",
-        "med_and_low_res_repeat": true
+        "token_mapping": "spatial_mean"
     },
     "attention_probe": {
         "freeze_encoder": false,
@@ -27,8 +25,7 @@
         "attn_dropout_p": 0.0,
         "use_tanh": false,
         "hidden_dim": 0,
-        "attend_over_spatial": true,
-        "med_and_low_res_repeat": true
+        "attend_over_spatial": true
     },
     "hyperparameters_snowgalileo": {
         "augmentation": false,
@@ -42,7 +39,8 @@
         "optimizer": "Adam",
         "adam_beta_2": 0.999,
         "warmup_fraction": 0.05,
-        "loss_fn": "MSE"
+        "loss_fn": "MSE",
+        "med_and_low_res_repeat": true
     },
     "hyperparameters_rf": {
         "n_estimators": 50,

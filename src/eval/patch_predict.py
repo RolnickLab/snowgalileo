@@ -25,6 +25,7 @@ class EncoderWithHead(nn.Module):
         inputs_per_target=10,
         sigmoid_slope=1.0,
         eval_config=None,
+        med_and_low_res_repeat=True
     ):
         super(EncoderWithHead, self).__init__()
         self.encoder = deepcopy(encoder)  # just in case
@@ -36,6 +37,7 @@ class EncoderWithHead(nn.Module):
         )
         self.number_of_patches = int(inputs_per_target * inputs_per_target)
         self.token_mapping = eval_config["token_mapping"]
+        self.med_and_low_res_repeat = med_and_low_res_repeat
         self.eval_config = eval_config
 
         # first check if config has attn over spatial variable
@@ -131,7 +133,7 @@ class EncoderWithHead(nn.Module):
                 sp_m,
                 t_m,
                 st_m,
-                med_and_low_res_repeat=self.eval_config.get("med_and_low_res_repeat", True),
+                med_and_low_res_repeat=self.med_and_low_res_repeat,
             )
             output = self.sigmoid(self.head(encodings) * self.sigmoid_slope)
         # map token sequence to patch output using attention probes.
@@ -152,7 +154,7 @@ class EncoderWithHead(nn.Module):
                 t_m,
                 st_m,
                 attend_over_spatial=self.eval_config.get("attend_over_spatial", True),
-                med_and_low_res_repeat=self.eval_config.get("med_and_low_res_repeat", True),
+                med_and_low_res_repeat=self.med_and_low_res_repeat,
             )
             output = self.sigmoid(self.head(x, m, pos) * self.sigmoid_slope)
         else:
@@ -266,6 +268,7 @@ def finetune_seg(
     sigmoid_slope = hyperparameter_config.get("sigmoid_slope", 1.0)
     loss_fn = hyperparameter_config.get("loss_fn", "MSE")
     warmup_fraction = hyperparameter_config.get("warmup_fraction", 0.1)
+    med_and_low_res_repeat = hyperparameter_config.get("med_and_low_res_repeat", True)
 
     train_loader = data_loaders["train"]
     val_loader = data_loaders["test"]
@@ -276,6 +279,7 @@ def finetune_seg(
         inputs_per_target=inputs_per_target,
         sigmoid_slope=sigmoid_slope,
         eval_config=eval_config,
+        med_and_low_res_repeat=med_and_low_res_repeat
     ).to(device)
 
     finetuned_encoder = finetuned_encoder.train()
