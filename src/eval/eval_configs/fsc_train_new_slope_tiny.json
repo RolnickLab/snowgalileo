@@ -31,14 +31,16 @@
         "med_and_low_res_repeat": true
     },
     "hyperparameters_snowgalileo": {
+        "augmentation": false,
         "batch_size": 4,
-        "num_workers": 0,
+        "num_workers": 4,
         "weight_decay": 1e-5,
         "schedule_sigmoid_slope": true,
         "sigmoid_slope": 0.1,
         "lr_schedule": true,
         "learning_rate": 6e-3,
         "optimizer": "Adam",
+        "adam_beta_2": 0.999,
         "warmup_fraction": 0.1,
         "loss_fn": "MSE"
     },

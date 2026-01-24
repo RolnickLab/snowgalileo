@@ -29,7 +29,8 @@
         "attend_over_spatial": true,
         "med_and_low_res_repeat": true
     },
-    "hyperparameters": {
+    "hyperparameters_snowgalileo": {
+        "augmentation": false,
         "batch_size": 16,
         "num_workers": 4,
         "weight_decay": 1e-5,
@@ -37,6 +38,7 @@
         "lr_schedule": false,
         "learning_rate": 3e-4,
         "optimizer": "Adam",
+        "adam_beta_2": 0.999,
         "warmup_fraction": 0.1,
         "loss_fn": "MSE"
     },

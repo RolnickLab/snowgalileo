@@ -806,20 +806,87 @@ class LandsatEvalSklearn(LandsatEval):
 
         return results
 
+    def predict_only(
+        self,
+        model: Union[RandomForestRegressor, SVR, MLPRegressor],
+        id: str = "",
+        save_results: bool = False,
+        normalization: str = "std",
+    ) -> Dict[str, float]:
+        assert normalization in ["std", ""], f"Unknown normalization {normalization}"
+        assert id in ["rockies", "switzerland"], f"Unknown id {id}"
 
-if __name__ == "__main__":
-    id = "test"
-    with (Path(__file__).parents[0] / Path("eval_configs") / Path("landsat_eval_5_95.json")).open(
-        "r"
-    ) as f:
-        config = json.load(f)
+        test_ds = LandsatEvalDatasetSklearn(
+            split="test",
+            exclude_prediction_date=self.exclude_prediction_date,
+            exclude_prediction_high_res=self.exclude_prediction_high_res,
+            data_config=self.data_config,
+            h5pys_only=self.h5pys_only,
+        )
 
-    rf = LandsatEvalSklearn(
-        normalization="std",
-        exclude_prediction_date=False,
-        exclude_prediction_high_res=False,
-        resample=False,
-        eval_config=config,
-        model_type="rf",
-    )
-    rf.fit_sklearn(id)
+        if normalization == "std":
+            normalizer = Normalizer(std=True, normalizing_dicts=self.normalizing_dict)
+            test_ds.normalizer = normalizer
+
+        test_dl = DataLoader(
+            test_ds,
+            batch_size=1,
+            shuffle=False,
+            num_workers=0,
+        )
+        all_preds = []
+        all_test_labels = []
+
+        for input, label, _ in test_dl:
+            (
+                s_t_h_x,
+                s_t_m_x,
+                s_t_l_x,
+                sp_x,
+                t_x,
+                st_x,
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+                month,
+            ) = input
+            input = torch.squeeze(
+                self.concatenate_features_per_output_pixel(
+                    *self.replace_masked_data(
+                        *self.aggregate_data_per_output_pixel(
+                            s_t_h_x=s_t_h_x,
+                            s_t_m_x=s_t_m_x,
+                            s_t_l_x=s_t_l_x,
+                            sp_x=sp_x,
+                            t_x=t_x,
+                            st_x=st_x,
+                            s_t_h_m=s_t_h_m,
+                            s_t_m_m=s_t_m_m,
+                            s_t_l_m=s_t_l_m,
+                            sp_m=sp_m,
+                            t_m=t_m,
+                            st_m=st_m,
+                            month=month,
+                        ),
+                    )
+                )[0]
+            )  # (N, num_features)
+            preds = model.predict(input.numpy())
+            all_preds.append(torch.as_tensor(preds))
+            all_test_labels.append(torch.squeeze(label).flatten())
+
+        test_preds = torch.cat(all_preds, dim=0).numpy()
+        test_labels = torch.cat(all_test_labels, dim=0).numpy()
+
+        results = compute_regression_metrics(preds=test_preds, target=test_labels)
+
+        if save_results:
+            # results
+            results_path = Path(f"./landsat_{self.model_type}_results_{id}.json")
+            with results_path.open("w") as f:
+                json.dump(results, f)
+
+        return results

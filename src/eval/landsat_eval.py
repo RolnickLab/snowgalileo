@@ -59,6 +59,7 @@ from src.eval.patch_predict import EncoderWithHead, evaluate_seg, get_finetune_r
 from src.masking import _aggregate_mask_per_channel_group
 from src.snowgalileo import Encoder
 from src.utils import DEFAULT_SEED, config_dir, device, masked_output_np_to_tensor
+from src.eval.downstream_augmentation import DownstreamAugmentation
 
 logger = logging.getLogger("__main__")
 
@@ -71,6 +72,7 @@ class LandsatEvalDataset(BaseDataset):
         exclude_prediction_date: bool = False,
         exclude_prediction_high_res: bool = False,
         normalizer: Optional[Normalizer] = None,
+        augmentation=DownstreamAugmentation(False),
         data_config: Dict = {},
     ):
         super().__init__(
@@ -83,6 +85,8 @@ class LandsatEvalDataset(BaseDataset):
 
         self.split = split
         assert self.split in ["train", "test", "visualize", "inference"]
+
+        self.augmentation = augmentation
 
         # whether to exclude the prediction date from the input timesteps
         # if True, the prediction date will be masked out in the input
@@ -668,6 +672,38 @@ class LandsatEvalDataset(BaseDataset):
             f"Input path {image_path.name} and label path {label_path.name} do not match."
         )
 
+        (
+            s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
+            sp_x,
+            t_x,
+            st_x,
+            month,
+            s_t_h_m,
+            s_t_m_m,
+            s_t_l_m,
+            sp_m,
+            t_m,
+            st_m,
+            label,
+        ) = self.augmentation.apply(
+            torch.as_tensor(s_t_h_x),
+            torch.as_tensor(s_t_m_x),
+            torch.as_tensor(s_t_l_x),
+            torch.as_tensor(sp_x),
+            torch.as_tensor(t_x),
+            torch.as_tensor(st_x),
+            torch.as_tensor(month),
+            torch.as_tensor(s_t_h_m),
+            torch.as_tensor(s_t_m_m),
+            torch.as_tensor(s_t_l_m),
+            torch.as_tensor(sp_m),
+            torch.as_tensor(t_m),
+            torch.as_tensor(st_m),
+            torch.as_tensor(label),
+        )
+
         # for inference mode, return full filepath to image not only the filename
         if self.split == "inference":
             return (
@@ -769,6 +805,7 @@ class LandsatEval(EvalTask):
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="test",
             h5pys_only=self.h5pys_only,
+            augmentation=DownstreamAugmentation(False),
             data_config=self.data_config,
         )
 
@@ -783,9 +820,9 @@ class LandsatEval(EvalTask):
 
         test_dl = DataLoader(
             test_ds,
-            batch_size=hyperparameter_config["batch_size"],
+            batch_size=1,
             shuffle=False,
-            num_workers=hyperparameter_config["num_workers"],
+            num_workers=0,
         )
         if return_ds:
             return test_ds, test_dl
@@ -1127,6 +1164,7 @@ class LandsatEval(EvalTask):
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="inference",
             data_config=self.data_config,
+            augmentation=DownstreamAugmentation(False),
             h5pys_only=self.h5pys_only,
         )
 
@@ -1283,6 +1321,7 @@ class LandsatEval(EvalTask):
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="test",
             data_config=self.data_config,
+            augmentation=DownstreamAugmentation(False),
             h5pys_only=self.h5pys_only,
         )
 
@@ -1334,6 +1373,7 @@ class LandsatEval(EvalTask):
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="test",
             data_config=self.data_config,
+            augmentation=DownstreamAugmentation(False),
             h5pys_only=self.h5pys_only,
         )
 
@@ -1452,6 +1492,7 @@ class LandsatEval(EvalTask):
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="visualize",
             data_config=self.data_config,
+            augmentation=DownstreamAugmentation(False),
             h5pys_only=self.h5pys_only,
         )
 
@@ -1638,6 +1679,7 @@ class LandsatEval(EvalTask):
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="train",
             data_config=self.data_config,
+            augmentation=DownstreamAugmentation(hyperparameter_config.get("augmentation", False)),
             h5pys_only=self.h5pys_only,
         )
 

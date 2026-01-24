@@ -33,7 +33,7 @@ class TestRetrieveCloudState(unittest.TestCase):
         filenames = [f for f in os.listdir(DATA_FOLDER)]
 
         for filename in filenames:
-            cloud_state_dict = cloud_dataset.return_cloud_state_from_filename(filename)
+            cloud_state_dict, _ = cloud_dataset.return_cloud_state_from_filename(filename)
             total_cloudy = cloud_state_dict["total_cloudy_days"]
             total_shadow = cloud_state_dict["total_cloud_shadow_days"]
             total_cirrus = cloud_state_dict["total_cirrus_days"]
