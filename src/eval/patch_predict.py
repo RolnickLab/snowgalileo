@@ -413,7 +413,7 @@ def finetune_seg(
                 )
                 current_slope = finetuned_encoder.sigmoid_slope
                 results["sigmoid_slope"] = current_slope
-                results["learning_rate"] = set_lr
+                results["learning_rate"] = opt.param_groups[0]["lr"]
                 if log_wandb:
                     wandb.log(results, step=epoch)
                 if sweep_run is not None:
