@@ -672,7 +672,21 @@ class LandsatEvalDataset(BaseDataset):
             f"Input path {image_path.name} and label path {label_path.name} do not match."
         )
 
-        s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, month, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, label = self.augmentation.apply(s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, month, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, label)
+        s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, month, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, label = self.augmentation.apply(torch.as_tensor(s_t_h_x),
+                                                                                                                                        torch.as_tensor(s_t_m_x), 
+                                                                                                                                        torch.as_tensor(s_t_l_x), 
+                                                                                                                                        torch.as_tensor(sp_x), 
+                                                                                                                                        torch.as_tensor(t_x), 
+                                                                                                                                        torch.as_tensor(st_x), 
+                                                                                                                                        torch.as_tensor(month), 
+                                                                                                                                        torch.as_tensor(s_t_h_m), 
+                                                                                                                                        torch.as_tensor(s_t_m_m), 
+                                                                                                                                        torch.as_tensor(s_t_l_m), 
+                                                                                                                                        torch.as_tensor(sp_m), 
+                                                                                                                                        torch.as_tensor(t_m), 
+                                                                                                                                        torch.as_tensor(st_m), 
+                                                                                                                                        torch.as_tensor(label)
+                                                                                                                                        )
 
         # for inference mode, return full filepath to image not only the filename
         if self.split == "inference":
