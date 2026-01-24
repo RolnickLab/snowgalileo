@@ -13,6 +13,7 @@ process = psutil.Process()
 class SensorAblationsMetaDataset(LandsatEvalDataset):
     def __init__(
         self,
+        augmentation,
         data_config={},
         split="train",
         h5pys_only=False,
@@ -26,6 +27,7 @@ class SensorAblationsMetaDataset(LandsatEvalDataset):
             h5pys_only=h5pys_only,
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
+            augmentation=augmentation
         )
         self.eval_config = eval_config
         assert self.eval_config is not None, "eval_config must be provided for sensor ablations"
@@ -125,6 +127,7 @@ class SensorAblationsEval(LandsatEval):
 
     def _get_dataset(
         self,
+        augmentation,
         exclude_prediction_date: bool,
         exclude_prediction_high_res: bool,
         split: str,
@@ -138,4 +141,5 @@ class SensorAblationsEval(LandsatEval):
             h5pys_only=h5pys_only,
             data_config=data_config,
             eval_config=self.eval_config,
+            augmentation=augmentation
         )

@@ -788,6 +788,7 @@ class LandsatEval(EvalTask):
         exclude_prediction_date: bool,
         exclude_prediction_high_res: bool,
         split: str,
+        augmentation,
         h5pys_only: bool = False,
         data_config: Dict = {},
     ) -> LandsatEvalDataset:
@@ -796,6 +797,7 @@ class LandsatEval(EvalTask):
             exclude_prediction_high_res=exclude_prediction_high_res,
             split=split,
             h5pys_only=h5pys_only,
+            augmentation=augmentation,
             data_config=data_config,
         )
 
@@ -805,8 +807,8 @@ class LandsatEval(EvalTask):
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="test",
             h5pys_only=self.h5pys_only,
-            augmentation=DownstreamAugmentation(False),
             data_config=self.data_config,
+            augmentation=DownstreamAugmentation(False),
         )
 
         if self.normalization == "std":
@@ -1163,9 +1165,9 @@ class LandsatEval(EvalTask):
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="inference",
+            h5pys_only=self.h5pys_only,
             data_config=self.data_config,
             augmentation=DownstreamAugmentation(False),
-            h5pys_only=self.h5pys_only,
         )
 
         if self.normalization == "std":
@@ -1320,9 +1322,9 @@ class LandsatEval(EvalTask):
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="test",
+            h5pys_only=self.h5pys_only,
             data_config=self.data_config,
             augmentation=DownstreamAugmentation(False),
-            h5pys_only=self.h5pys_only,
         )
 
         if self.normalization == "std":
@@ -1372,9 +1374,9 @@ class LandsatEval(EvalTask):
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="test",
+            h5pys_only=self.h5pys_only,
             data_config=self.data_config,
             augmentation=DownstreamAugmentation(False),
-            h5pys_only=self.h5pys_only,
         )
 
         if self.normalization == "std":
@@ -1491,9 +1493,9 @@ class LandsatEval(EvalTask):
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="visualize",
+            h5pys_only=self.h5pys_only,
             data_config=self.data_config,
             augmentation=DownstreamAugmentation(False),
-            h5pys_only=self.h5pys_only,
         )
 
         if self.normalization == "std":
@@ -1678,9 +1680,9 @@ class LandsatEval(EvalTask):
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             split="train",
+            h5pys_only=self.h5pys_only,
             data_config=self.data_config,
             augmentation=DownstreamAugmentation(hyperparameter_config.get("augmentation", False)),
-            h5pys_only=self.h5pys_only,
         )
 
         if self.normalization == "std":
