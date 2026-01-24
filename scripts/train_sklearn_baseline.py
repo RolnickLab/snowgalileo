@@ -17,6 +17,11 @@ argparser.add_argument(
     help="Whether to exclude high-res in prediction date. Should match checkpoint training setup.",
 )
 argparser.add_argument(
+    "--exclude_prediction_date",
+    action="store_true",
+    help="Whether to exclude the prediction date. Should match checkpoint training setup.",
+)
+argparser.add_argument(
     "--eval_config_name",
     type=str,
     default="fsc_train_balanced_tiny.json",
@@ -54,7 +59,7 @@ normalizing_dict = Dataset.load_normalization_values(path=config_dir / NORMALIZA
 
 rf = LandsatEvalSklearn(
     normalization="std",
-    exclude_prediction_date=False,
+    exclude_prediction_date=args["exclude_prediction_date"],
     exclude_prediction_high_res=args["exclude_prediction_high_res"],
     resample=False,
     eval_config=config,
