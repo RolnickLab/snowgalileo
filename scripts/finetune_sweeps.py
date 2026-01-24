@@ -59,7 +59,7 @@ sweep_configuration = {
         "augmentation": {"values": [True, False]},
         "sigmoid_slope": {"values": [0.01, 0.1, 0.5, 1.0]},
         "loss_fn": {"values": ["MSE"]},
-        "adam_beta_2": {"values": [{0.9, 0.95, 0.98, 0.99, 0.995, 0.999}]},
+        "adam_beta_2": {"values": [0.9, 0.95, 0.98, 0.99, 0.995, 0.999]},
     },
 }
 
