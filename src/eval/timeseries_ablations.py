@@ -27,10 +27,12 @@ class TimeseriesAblationsMetaDataset(LandsatEvalDataset):
             h5pys_only=h5pys_only,
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
-            augmentation=augmentation
+            augmentation=augmentation,
         )
         self.eval_config = eval_config
-        assert self.eval_config is not None, "eval_config must be provided for timeseries ablations"
+        assert self.eval_config is not None, (
+            "eval_config must be provided for timeseries ablations"
+        )
         assert "timeseries_ablations" in self.eval_config, "timeseries_ablations config missing"
 
     def __getitem__(self, idx):

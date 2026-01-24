@@ -25,7 +25,7 @@ class EncoderWithHead(nn.Module):
         inputs_per_target=10,
         sigmoid_slope=1.0,
         eval_config=None,
-        med_and_low_res_repeat=True
+        med_and_low_res_repeat=True,
     ):
         super(EncoderWithHead, self).__init__()
         self.encoder = deepcopy(encoder)  # just in case
@@ -279,7 +279,7 @@ def finetune_seg(
         inputs_per_target=inputs_per_target,
         sigmoid_slope=sigmoid_slope,
         eval_config=eval_config,
-        med_and_low_res_repeat=med_and_low_res_repeat
+        med_and_low_res_repeat=med_and_low_res_repeat,
     ).to(device)
 
     finetuned_encoder = finetuned_encoder.train()

@@ -6,9 +6,7 @@ import psutil
 import torch
 
 from src.config import DEFAULT_SEED
-from src.eval import (
-    LandsatEval,
-)
+from src.eval import LandsatEval, TimeseriesAblationsEval, SensorAblationsEval
 from src.eval.patch_predict import EncoderWithHead
 from src.snowgalileo import Encoder
 from src.utils import checkpoints_dir, device, load_check_config, seed_everything
@@ -81,10 +79,25 @@ else:
         encoder_random_init, eval_config=eval_config[decoder_mode], sigmoid_slope=sigmoid_slope
     ).to(device)
 
-eval_task = LandsatEval(
-    exclude_prediction_high_res=args["exclude_prediction_high_res"],
-    eval_config=eval_config,
-    h5pys_only=args["h5pys_only"],
-)
+if eval_config["timeseries_ablations"]:
+    print("Evaluating timeseries ablation")
+    eval_task = TimeseriesAblationsEval(
+        exclude_prediction_high_res=args["exclude_prediction_high_res"],
+        eval_config=eval_config,
+        h5pys_only=args["h5pys_only"],
+    )
+elif any(eval_config["sensor_ablations"].values()):
+    print("Evaluating sensor ablation")
+    eval_task = SensorAblationsEval(
+        exclude_prediction_high_res=args["exclude_prediction_high_res"],
+        eval_config=eval_config,
+        h5pys_only=args["h5pys_only"],
+    )
+else:
+    eval_task = LandsatEval(
+        exclude_prediction_high_res=args["exclude_prediction_high_res"],
+        eval_config=eval_config,
+        h5pys_only=args["h5pys_only"],
+    )
 
 eval_task.evaluate_model_on_task(model=model)

@@ -67,5 +67,6 @@
         "ablate_med_res_sensor": true,
         "ablate_low_res_sensor": false,
         "ablate_topography": false
-    }
+    },
+    "timeseries_ablations": false
 }

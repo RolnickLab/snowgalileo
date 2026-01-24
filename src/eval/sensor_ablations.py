@@ -27,7 +27,7 @@ class SensorAblationsMetaDataset(LandsatEvalDataset):
             h5pys_only=h5pys_only,
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
-            augmentation=augmentation
+            augmentation=augmentation,
         )
         self.eval_config = eval_config
         assert self.eval_config is not None, "eval_config must be provided for sensor ablations"
@@ -141,5 +141,5 @@ class SensorAblationsEval(LandsatEval):
             h5pys_only=h5pys_only,
             data_config=data_config,
             eval_config=self.eval_config,
-            augmentation=augmentation
+            augmentation=augmentation,
         )

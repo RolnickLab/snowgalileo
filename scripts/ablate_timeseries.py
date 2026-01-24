@@ -52,7 +52,7 @@ argparser.add_argument(
 argparser.add_argument(
     "--eval_config",
     type=str,
-    default="ablate_high_res_optical_tiny.json",
+    default="ablate_timeseries_tiny.json",
     help="Determines the ablation mode. Options are stored in src/eval/eval_configs/",
 )
 argparser.add_argument(
