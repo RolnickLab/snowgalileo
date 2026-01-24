@@ -33,7 +33,7 @@
     "hyperparameters_snowgalileo": {
         "augmentation": false,
         "batch_size": 4,
-        "num_workers": 0,
+        "num_workers": 4,
         "weight_decay": 1e-5,
         "sigmoid_slope": 1.0,
         "lr_schedule": false,

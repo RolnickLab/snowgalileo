@@ -804,9 +804,9 @@ class LandsatEval(EvalTask):
 
         test_dl = DataLoader(
             test_ds,
-            batch_size=hyperparameter_config["batch_size"],
+            batch_size=1,
             shuffle=False,
-            num_workers=hyperparameter_config["num_workers"],
+            num_workers=hyperparameter_config.get("num_workers", 0),
         )
         if return_ds:
             return test_ds, test_dl
