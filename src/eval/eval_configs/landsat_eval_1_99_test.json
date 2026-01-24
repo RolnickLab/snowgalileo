@@ -38,6 +38,7 @@
         "lr_schedule": false,
         "learning_rate": 3e-4,
         "optimizer": "Adam",
+        "adam_beta_2": 0.999,
         "warmup_fraction": 0.1,
         "loss_fn": "MSE"
     },

@@ -52,13 +52,14 @@ sweep_configuration = {
     "parameters": {
         "learning_rate": {"values": [1e-5, 3e-5, 6e-5, 1e-4, 3e-4, 6e-4, 1e-3, 3e-3, 6e-3]},
         "lr_schedule": {"values": [True, False]},
-        "warmup_fraction": {"values": [0.0, 0.05, 0.1, 0.2]},
-        "batch_size": {"values": [4, 2]},
+        "warmup_fraction": {"values": [0.0, 0.1, 0.2, 0.3, 0.5]},
+        "batch_size": {"values": [8, 4, 2]},
         "optimizer": {"values": ["Adam", "SGD"]},
         "weight_decay": {"values": [0, 1e-5, 1e-3]},
-        "num_workers": {"values": [4]},
+        "augmentation": {"values": [True, False]},
         "sigmoid_slope": {"values": [0.01, 0.1, 0.5, 1.0]},
         "loss_fn": {"values": ["MSE"]},
+        "adam_beta_2": {"values": [{0.9, 0.95, 0.98, 0.99, 0.995, 0.999}]},
     },
 }
 
@@ -127,7 +128,7 @@ def main():
     # number of runs in the sweep
     count = 100
 
-    sweep_id = wandb.sweep(sweep=sweep_config, project="ai4snow_sweeps", entity="sea-ice")
+    sweep_id = wandb.sweep(sweep=sweep_config, project="ai4snow_sweeps_final", entity="sea-ice")
     wandb.agent(sweep_id, function=train_and_validate, count=count)
 
     wandb.finish()

@@ -261,6 +261,7 @@ def finetune_seg(
     weight_decay = hyperparameter_config.get("weight_decay", 0.0)
     lr_schedule = hyperparameter_config.get("lr_schedule", True)
     optimizer = hyperparameter_config.get("optimizer", "Adam")
+    adam_beta_2 = hyperparameter_config.get("adam_beta_2", 0.999)
     schedule_sigmoid_slope = hyperparameter_config.get("schedule_sigmoid_slope", False)
     sigmoid_slope = hyperparameter_config.get("sigmoid_slope", 1.0)
     loss_fn = hyperparameter_config.get("loss_fn", "MSE")
@@ -284,7 +285,12 @@ def finetune_seg(
             finetuned_encoder.parameters(), lr=lr, momentum=0.9, weight_decay=weight_decay
         )
     elif optimizer == "Adam":
-        opt = torch.optim.Adam(finetuned_encoder.parameters(), lr=lr, weight_decay=weight_decay)
+        opt = torch.optim.Adam(
+            finetuned_encoder.parameters(),
+            lr=lr,
+            weight_decay=weight_decay,
+            betas=(0.9, adam_beta_2),
+        )
     else:
         raise ValueError(f"Unknown optimizer: {optimizer}")
 
