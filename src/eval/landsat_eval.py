@@ -3,6 +3,7 @@ import warnings
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Union, cast
 
+import joblib
 import numpy as np
 import rioxarray
 import torch
@@ -53,13 +54,13 @@ from src.data.earthengine.eo_eval import (
     TIME_BANDS,
     TIME_BANDS_GROUPS_IDX,
 )
+from src.eval.downstream_augmentation import DownstreamAugmentation
 from src.eval.eval import EvalTask, model_class_name
 from src.eval.metrics import compute_classification_metrics, compute_regression_metrics
 from src.eval.patch_predict import EncoderWithHead, evaluate_seg, get_finetune_results_on_val_set
 from src.masking import _aggregate_mask_per_channel_group
 from src.snowgalileo import Encoder
 from src.utils import DEFAULT_SEED, config_dir, device, masked_output_np_to_tensor
-from src.eval.downstream_augmentation import DownstreamAugmentation
 
 logger = logging.getLogger("__main__")
 
@@ -1726,7 +1727,15 @@ class LandsatEval(EvalTask):
             trained_sklearn_models = self.train_sklearn_model(
                 train_dl, pretrained_model, model_modes
             )
-            for sklearn_model in trained_sklearn_models:
+
+            for idx, sklearn_model in enumerate(trained_sklearn_models):
+                # save the trained sklearn models
+                try:
+                    model_path = Path(f"./linear_probe_{idx}.joblib")
+                    joblib.dump(trained_sklearn_models, model_path)
+                    print(f"Saved sklearn model to {model_path}", flush=True)
+                except Exception as e:
+                    print(f"Could not save sklearn model due to {e}", flush=True)
                 results = self._evaluate_trained_sklearn_model(
                     pretrained_model,
                     sklearn_model,

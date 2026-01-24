@@ -1,5 +1,5 @@
 import random
-from typing import Dict, Tuple
+from typing import Tuple
 
 import torch
 import torchvision.transforms.v2.functional as F

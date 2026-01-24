@@ -2,12 +2,13 @@ import argparse
 import json
 from pathlib import Path
 
+import joblib
+
 from src.config import DEFAULT_SEED
 from src.data.config import NORMALIZATION_DICT_FILENAME
 from src.data.dataset import Dataset
 from src.eval.landsat_baselines import LandsatEvalSklearn
 from src.utils import config_dir, seed_everything
-import joblib
 
 seed_everything(DEFAULT_SEED)
 

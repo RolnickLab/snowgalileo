@@ -6,7 +6,7 @@ import psutil
 import torch
 
 from src.config import DEFAULT_SEED
-from src.eval import LandsatEval, TimeseriesAblationsEval, SensorAblationsEval
+from src.eval import LandsatEval, SensorAblationsEval, TimeseriesAblationsEval
 from src.eval.patch_predict import EncoderWithHead
 from src.snowgalileo import Encoder
 from src.utils import checkpoints_dir, device, load_check_config, seed_everything
