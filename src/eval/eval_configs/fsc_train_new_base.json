@@ -31,6 +31,7 @@
         "med_and_low_res_repeat": true
     },
     "hyperparameters_snowgalileo": {
+        "augmentation": false,
         "batch_size": 2,
         "num_workers": 0,
         "weight_decay": 1e-5,
