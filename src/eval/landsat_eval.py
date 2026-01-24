@@ -806,7 +806,7 @@ class LandsatEval(EvalTask):
             test_ds,
             batch_size=1,
             shuffle=False,
-            num_workers=hyperparameter_config.get("num_workers", 0),
+            num_workers=0,
         )
         if return_ds:
             return test_ds, test_dl
