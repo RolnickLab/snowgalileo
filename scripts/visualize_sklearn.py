@@ -4,8 +4,10 @@ from pathlib import Path
 
 import psutil
 import torch
+import joblib
 
 from src.config import DEFAULT_SEED
+from src.data.config import DATA_FOLDER
 from src.eval import (
     LandsatEval,
 )
@@ -20,31 +22,24 @@ torch.backends.cuda.matmul.allow_tf32 = True
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument(
-    "--checkpoint_name",
+    "--pretraining_checkpoint_folder",
     type=str,
-    default="attn_fsc_train_tiny_snowgalileo_pretrained_3ytssipa.pth",
+    default="outputs/checkpoints_tiny/epoch_100",
+    help="Path to folder containing pretrained checkpoint.",
 )
 argparser.add_argument(
     "--exclude_prediction_high_res",
     action="store_true",
     help="Whether to exclude high-res in prediction date. Should match checkpoint training.",
 )
+argparser.add_argument("--sklearn_model_path", type=str, default="")
 argparser.add_argument(
     "--eval_config_name",
     type=str,
     default="fsc_test_rockies_tiny.json",
     help="Config name for evaluation. Options are stored in src/eval/eval_configs/",
 )
-argparser.add_argument(
-    "--decoding_strategy",
-    type=str,
-    default="attention_probe",
-    choices=["finetune", "linear_probe", "attention_probe"],
-    help="Decoding strategy to use. 'Finetune' uses a linear decoder and finetunes the entire model. 'Linear_probe' uses a linear decoder and only trains the decoder. 'Attention_probe' uses an attention-based decoder and fine-tunes the entire model. 'sklearn' uses the frozen encoder features for a sklearn model.",
-)
 args = argparser.parse_args().__dict__
-
-decoder_mode = args["decoding_strategy"]
 
 # TODO: fix the EncoderWithHead loading pipeline
 # TODO: make sure the eval config matches the training config
@@ -58,27 +53,25 @@ with (Path("src") / Path("eval") / Path("eval_configs") / Path(args["eval_config
 raw_filename = args["eval_config_name"].split(".")[0]
 model_size_from_config = raw_filename.split("_")[-1]
 
-if args["checkpoint_name"] != "":
+if args["pretraining_checkpoint_folder"] != "":
+    checkpoint_folder = args["pretraining_checkpoint_folder"].split("/")[1]
+    model_size_from_checkpoint_folder = checkpoint_folder.split("_")[1]
+    assert model_size_from_checkpoint_folder == model_size_from_config
     # load pretrained snowgalileo encoder
-    # sigmoid slope is ignored when linear head is used
-    config = load_check_config(f"ai4snow_{model_size_from_config}.json")
-    encoder_random_init = Encoder(**config["model"]["encoder"])
-    model = EncoderWithHead(
-        encoder_random_init, eval_config=eval_config[decoder_mode], sigmoid_slope=sigmoid_slope
-    ).to(device)
-    checkpoint = torch.load(Path(checkpoints_dir / args["checkpoint_name"]), map_location=device)
-    model.load_state_dict(checkpoint).eval()
+    encoder = Encoder.load_from_folder(
+        Path(DATA_FOLDER / args["pretraining_checkpoint_folder"])
+    ).to(device).eval()
+    initialization_id = "snowgalileo_pretrained"
 else:
     # randomly initialized snowgalileo encoder
     config = load_check_config(f"ai4snow_{model_size_from_config}.json")
-    encoder_random_init = Encoder(**config["model"]["encoder"])
-    model = (
-        EncoderWithHead(
-            encoder_random_init, eval_config=eval_config[decoder_mode], sigmoid_slope=sigmoid_slope
-        )
-        .to(device)
-        .eval()
-    )
+    encoder = Encoder(**config["model"]["encoder"]).to(device).eval()
+    initialization_id = "snowgalileo_random"
+
+# read sklearn checkpoint
+model = joblib.load(args["sklearn_model_path"])
+sklearn_models = []
+sklearn_models.append(model)
 
 eval_task = LandsatEval(
     exclude_prediction_high_res=args["exclude_prediction_high_res"],
@@ -86,4 +79,6 @@ eval_task = LandsatEval(
     h5pys_only=False,
 )
 
-eval_task.visualize_sample_predictions(model=model, log_wandb=True)
+eval_task.visualize_sample_predictions(
+    model=encoder, log_wandb=True, sklearn=True, sklearn_models=sklearn_models
+)

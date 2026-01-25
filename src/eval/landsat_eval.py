@@ -1484,12 +1484,20 @@ class LandsatEval(EvalTask):
                 with open(results_csv_path, "a") as f:
                     f.write(f"{filename[0]},{r2},{rmse}\n")
 
+            label = label.squeeze(0).numpy()
+            print(f"Saved predictions for {filename} with R2: {r2}", flush=True)
+
     @torch.no_grad()
     def _visualize_predictions(
         self,
-        model: EncoderWithHead,
+        model: Union[EncoderWithHead, Encoder],
         log_wandb: bool = False,
+        sklearn: bool = False,
+        sklearn_models: Optional[List] = None,
     ):
+        if sklearn and sklearn_models is None:
+            raise ValueError("sklearn_models must be provided when sklearn=True")
+
         vis_ds = self._get_dataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
@@ -1560,25 +1568,64 @@ class LandsatEval(EvalTask):
                     patch_size_low_res=1,
                 )
 
-                # check that all predictions are between 0 and 1
-                assert logits.min() >= 0 and logits.max() <= 1
-
-                spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
-                preds_2D = (
-                    rearrange(
-                        torch.squeeze(logits),
-                        "(h w) -> h w",
-                        h=spatial_patches_per_dim,
-                        w=spatial_patches_per_dim,
-                    )
-                    .float()
-                    .cpu()
-                    .numpy()
-                )
                 labels = labels.float().cpu().numpy()
                 # squeeze labels if needed
                 if len(labels.shape) == 3:
                     labels = np.squeeze(labels, axis=0)
+
+                if not sklearn:
+                    # check that all predictions are between 0 and 1
+                    assert logits.min() >= 0 and logits.max() <= 1
+
+                    spatial_patches_per_dim = int(logits.shape[1] ** 0.5)
+                    preds_2D = (
+                        rearrange(
+                            torch.squeeze(logits),
+                            "(h w) -> h w",
+                            h=spatial_patches_per_dim,
+                            w=spatial_patches_per_dim,
+                        )
+                        .float()
+                        .cpu()
+                        .numpy()
+                    )
+                else:
+                    (
+                        s_t_h_x,
+                        s_t_m_x,
+                        s_t_l_x,
+                        sp_x,
+                        t_x,
+                        st_x,
+                        s_t_h_m,
+                        s_t_m_m,
+                        s_t_l_m,
+                        sp_m,
+                        t_m,
+                        st_m,
+                        _,
+                    ) = logits
+                    encodings = self.group_encodings_per_token(
+                        model,
+                        s_t_h_x,
+                        s_t_m_x,
+                        s_t_l_x,
+                        sp_x,
+                        t_x,
+                        st_x,
+                        s_t_h_m,
+                        s_t_m_m,
+                        s_t_l_m,
+                        sp_m,
+                        t_m,
+                        st_m,
+                    )
+                    encodings = encodings.cpu().numpy()
+
+                    for model in sklearn_models:
+                        preds = model.predict(encodings)
+                        # reshape the predictions to match the label shape
+                        preds_2D = preds.reshape(labels.shape)
 
                 r2 = r2_score(labels.flatten(), preds_2D.flatten())
                 rmse = root_mean_squared_error(labels.flatten(), preds_2D.flatten())
@@ -1762,10 +1809,14 @@ class LandsatEval(EvalTask):
 
     def visualize_sample_predictions(
         self,
-        model: EncoderWithHead,
+        model: Union[EncoderWithHead, Encoder],
         log_wandb: bool = False,
+        sklearn: bool = False,
+        sklearn_models: Optional[List] = None,
     ):
-        self._visualize_predictions(model, log_wandb=log_wandb)
+        self._visualize_predictions(
+            model, log_wandb=log_wandb, sklearn=sklearn, sklearn_models=sklearn_models
+        )
 
     def evaluate_model_on_task(self, model: EncoderWithHead):
         self._evaluate_model(model)
