@@ -19,6 +19,11 @@ argparser.add_argument(
     help="Whether to exclude high-res in prediction date. Should match checkpoint training setup.",
 )
 argparser.add_argument(
+    "--exclude_prediction_date",
+    action="store_true",
+    help="Whether to exclude input from prediction date. Should match checkpoint training setup.",
+)
+argparser.add_argument(
     "--eval_config_name",
     type=str,
     default="fsc_test_rockies_tiny.json",
@@ -56,7 +61,7 @@ model = joblib.load(args["model_checkpoint_path"])
 
 rf = LandsatEvalSklearn(
     normalization="std",
-    exclude_prediction_date=False,
+    exclude_prediction_date=args["exclude_prediction_date"],
     exclude_prediction_high_res=args["exclude_prediction_high_res"],
     resample=False,
     eval_config=config,
