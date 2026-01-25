@@ -1721,21 +1721,18 @@ class LandsatEval(EvalTask):
                 model_modes = self.all_regression_sklearn_models
             for model_mode in model_modes:
                 assert model_mode in self.all_regression_sklearn_models
-            assert not save_final_checkpoint, (
-                "Cannot save final checkpoint when using sklearn evaluation mode."
-            )
             trained_sklearn_models = self.train_sklearn_model(
                 train_dl, pretrained_model, model_modes
             )
 
             for idx, sklearn_model in enumerate(trained_sklearn_models):
-                # save the trained sklearn models
-                try:
-                    model_path = Path(f"./linear_probe_{idx}.joblib")
-                    joblib.dump(trained_sklearn_models, model_path)
-                    print(f"Saved sklearn model to {model_path}", flush=True)
-                except Exception as e:
-                    print(f"Could not save sklearn model due to {e}", flush=True)
+                if save_final_checkpoint:
+                    try:
+                        model_path = Path(f"./linear_probe_{idx}.joblib")
+                        joblib.dump(trained_sklearn_models, model_path)
+                        print(f"Saved sklearn model to {model_path}", flush=True)
+                    except Exception as e:
+                        print(f"Could not save sklearn model due to {e}", flush=True)
                 results = self._evaluate_trained_sklearn_model(
                     pretrained_model,
                     sklearn_model,
