@@ -1623,6 +1623,8 @@ class LandsatEval(EvalTask):
                     encodings = encodings.cpu().numpy()
 
                     for model in sklearn_models:
+                        # TODO: change the type
+                        model = model[0]
                         preds = model.predict(encodings)
                         # reshape the predictions to match the label shape
                         preds_2D = preds.reshape(labels.shape)
