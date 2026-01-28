@@ -1,7 +1,7 @@
+import random
 from typing import Dict
 
 import psutil
-from sklearn.model_selection import StratifiedShuffleSplit
 from torch.utils.data import Subset
 
 from src.config import DEFAULT_SEED
@@ -54,17 +54,7 @@ class DatasetSizeAblationsEval(LandsatEval):
         )
 
         if data_config["dataset_subset_size"] > 0:
-            subset_size = data_config["dataset_subset_size"]
-
-            labels = [dataset[i][1] for i in range(len(dataset))]
-
-            splitter = StratifiedShuffleSplit(
-                n_splits=1,
-                train_size=subset_size,
-                random_state=42,
-            )
-            indices, _ = next(splitter.split(range(len(dataset)), labels))
-
+            indices = random.sample(range(len(dataset)), data_config["dataset_subset_size"])
             dataset = Subset(dataset, indices)
 
         return dataset
