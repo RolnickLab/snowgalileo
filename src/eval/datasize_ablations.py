@@ -51,7 +51,6 @@ class DatasetSizeAblationsEval(LandsatEval):
             split=split,
             h5pys_only=h5pys_only,
             data_config=data_config,
-            eval_config=self.eval_config,
         )
 
         if data_config["dataset_subset_size"] > 0:
