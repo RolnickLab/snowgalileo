@@ -18,6 +18,7 @@ from src.config import DEFAULT_SEED
 from src.data.dataset import Normalizer
 from src.data.earthengine.eo_eval import (
     SPACE_TIME_HIGH_RES_BANDS,
+    TIME_BANDS
 )
 from src.eval.landsat_eval import LandsatEval, LandsatEvalDataset, masked_output_np_to_tensor
 from src.eval.metrics import compute_regression_metrics
@@ -35,6 +36,7 @@ class LandsatEvalDatasetSklearn(LandsatEvalDataset):
         split: str = "train",
         exclude_prediction_date: bool = False,
         exclude_prediction_high_res: bool = False,
+        exclude_prediction_sensors: bool = False,
         normalizer: Optional[Normalizer] = None,
         data_config: Dict = {},
         h5pys_only: bool = False,
@@ -43,6 +45,7 @@ class LandsatEvalDatasetSklearn(LandsatEvalDataset):
             split=split,
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
+            exclude_prediction_sensors=exclude_prediction_sensors,
             normalizer=normalizer,
             data_config=data_config,
             h5pys_only=h5pys_only,
@@ -57,6 +60,20 @@ class LandsatEvalDatasetSklearn(LandsatEvalDataset):
         assert self.exclude_prediction_high_res
         assert s_t_h_m.shape[-1] == len(SPACE_TIME_HIGH_RES_BANDS)
         s_t_h_m[:, :, -1, 3:] = 1
+        return s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
+
+    # NOTE: overwritten because for baselines, we use ungrouped channels    
+    def mask_prediction_sensor_data(self, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m):
+        # Masks all sensor channel groups in the prediction timestep
+        # This includes all Sentinel-1, Sentinel-2, Landsat, Sentinel-3, MODIS, VIIRS data, as well as the MODIS-derived indeces
+        # NOTE: 0 = valid, 1 = masked
+        print("Masking high resolution data in prediction timestep", flush=True)
+        assert self.exclude_prediction_sensors
+        assert t_m.shape[-1] == len(TIME_BANDS)
+        s_t_h_m[:, :, -1, :] = 1
+        s_t_m_m[:, :, -1, :] = 1
+        s_t_l_m[:, :, -1, :] = 1
+        t_m[-1, :-5] = 1
         return s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
 
     def __getitem__(self, idx):
@@ -130,6 +147,16 @@ class LandsatEvalDatasetSklearn(LandsatEvalDataset):
                 st_m,
             ) = self.mask_prediction_high_res(s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m)
 
+        if self.exclude_prediction_sensors:
+            (
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+            ) = self.mask_prediction_sensor_data(s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m)
+
         label = self.label_tifs[idx]
         # TODO: optinally add conversion to h5pys for labels
         with cast(xr.Dataset, rioxarray.open_rasterio(label)) as data:
@@ -172,6 +199,7 @@ class LandsatEvalSklearn(LandsatEval):
         normalization: Union[str, Normalizer] = "std",  # or "scaling"
         exclude_prediction_date: bool = False,
         exclude_prediction_high_res: bool = False,
+        exclude_prediction_sensors: bool = False,
         num_tokens_per_dim: int = 10,
         h5pys_only: bool = False,
         resample: bool = False,
@@ -182,6 +210,7 @@ class LandsatEvalSklearn(LandsatEval):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
         self.exclude_prediction_high_res = exclude_prediction_high_res
+        self.exclude_prediction_sensors = exclude_prediction_sensors
         self.num_tokens_per_dim = num_tokens_per_dim
         self.resample = resample
         self.name = "ls_rf"
@@ -195,6 +224,7 @@ class LandsatEvalSklearn(LandsatEval):
             normalization=normalization,
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
+            exclude_prediction_sensors=exclude_prediction_sensors,
             resample=resample,
             eval_config=eval_config,
             h5pys_only=self.h5pys_only,
@@ -627,6 +657,7 @@ class LandsatEvalSklearn(LandsatEval):
             split="train",
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
+            exclude_prediction_sensors=self.exclude_prediction_sensors,
             data_config=self.data_config,
             h5pys_only=self.h5pys_only,
         )
@@ -727,6 +758,7 @@ class LandsatEvalSklearn(LandsatEval):
             split="test",
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
+            exclude_prediction_sensors=self.exclude_prediction_sensors,
             data_config=self.data_config,
             h5pys_only=self.h5pys_only,
         )
@@ -820,6 +852,7 @@ class LandsatEvalSklearn(LandsatEval):
             split="test",
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
+            exclude_prediction_sensors=self.exclude_prediction_sensors,
             data_config=self.data_config,
             h5pys_only=self.h5pys_only,
         )
