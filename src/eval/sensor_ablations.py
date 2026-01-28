@@ -5,6 +5,10 @@ import psutil
 from src.config import DEFAULT_SEED
 from src.eval.landsat_eval import LandsatEval, LandsatEvalDataset
 from src.utils import masked_output_np_to_tensor, seed_everything
+from src.data.dataset import Normalizer
+from src.utils import config_dir
+from src.data.config import NORMALIZATION_DICT_FILENAME
+from typing import Union
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -133,13 +137,25 @@ class SensorAblationsEval(LandsatEval):
         split: str,
         h5pys_only: bool = False,
         data_config: Dict = {},
+        normalization: Union[str, Normalizer] = "std"
     ) -> SensorAblationsMetaDataset:
-        return SensorAblationsMetaDataset(
+        ds = SensorAblationsMetaDataset(
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
             split=split,
             h5pys_only=h5pys_only,
+            augmentation=augmentation,
             data_config=data_config,
             eval_config=self.eval_config,
-            augmentation=augmentation,
         )
+
+        if normalization == "std":
+            normalizing_dict = ds.load_normalization_values(
+                path=config_dir / NORMALIZATION_DICT_FILENAME
+            )
+            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+        else:
+            normalizer = Normalizer(std=False)
+        ds.normalizer = normalizer
+
+        return ds

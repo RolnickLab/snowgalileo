@@ -792,8 +792,10 @@ class LandsatEval(EvalTask):
         augmentation,
         h5pys_only: bool = False,
         data_config: Dict = {},
+        normalization: Union[str, Normalizer] = "std"
     ) -> LandsatEvalDataset:
-        return LandsatEvalDataset(
+        
+        ds = LandsatEvalDataset(
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
             split=split,
@@ -801,6 +803,17 @@ class LandsatEval(EvalTask):
             augmentation=augmentation,
             data_config=data_config,
         )
+
+        if normalization == "std":
+            normalizing_dict = ds.load_normalization_values(
+                path=config_dir / NORMALIZATION_DICT_FILENAME
+            )
+            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
+        else:
+            normalizer = Normalizer(std=False)
+        ds.normalizer = normalizer
+
+        return ds
 
     def get_test_dl(self, hyperparameter_config=None, return_ds=False):
         test_ds = self._get_dataset(
@@ -810,16 +823,8 @@ class LandsatEval(EvalTask):
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
             augmentation=DownstreamAugmentation(False),
+            normalization=self.normalization
         )
-
-        if self.normalization == "std":
-            normalizing_dict = test_ds.load_normalization_values(
-                path=config_dir / NORMALIZATION_DICT_FILENAME
-            )
-            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
-        else:
-            normalizer = Normalizer(std=False)
-        test_ds.normalizer = normalizer
 
         test_dl = DataLoader(
             test_ds,
@@ -1169,17 +1174,8 @@ class LandsatEval(EvalTask):
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
             augmentation=DownstreamAugmentation(False),
+            normalization=self.normalization
         )
-
-        if self.normalization == "std":
-            normalizing_dict = inference_ds.load_normalization_values(
-                path=config_dir / NORMALIZATION_DICT_FILENAME
-            )
-            print(normalizing_dict, flush=True)
-            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
-        else:
-            normalizer = Normalizer(std=False)
-        inference_ds.normalizer = normalizer
 
         output_tif_folder = DATA_FOLDER / "output_tifs" / eval_config
         if not output_tif_folder.exists():
@@ -1326,16 +1322,8 @@ class LandsatEval(EvalTask):
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
             augmentation=DownstreamAugmentation(False),
+            normalization=self.normalization
         )
-
-        if self.normalization == "std":
-            normalizing_dict = test_ds.load_normalization_values(
-                path=config_dir / NORMALIZATION_DICT_FILENAME
-            )
-            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
-        else:
-            normalizer = Normalizer(std=False)
-        test_ds.normalizer = normalizer
 
         test_dl = DataLoader(
             test_ds,
@@ -1378,16 +1366,8 @@ class LandsatEval(EvalTask):
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
             augmentation=DownstreamAugmentation(False),
+            normalization=self.normalization
         )
-
-        if self.normalization == "std":
-            normalizing_dict = test_ds.load_normalization_values(
-                path=config_dir / NORMALIZATION_DICT_FILENAME
-            )
-            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
-        else:
-            normalizer = Normalizer(std=False)
-        test_ds.normalizer = normalizer
 
         test_dl = DataLoader(
             test_ds,
@@ -1504,17 +1484,8 @@ class LandsatEval(EvalTask):
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
             augmentation=DownstreamAugmentation(False),
+            normalization=self.normalization
         )
-
-        if self.normalization == "std":
-            normalizing_dict = vis_ds.load_normalization_values(
-                path=config_dir / NORMALIZATION_DICT_FILENAME
-            )
-            print(normalizing_dict, flush=True)
-            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
-        else:
-            normalizer = Normalizer(std=False)
-        vis_ds.normalizer = normalizer
 
         visualization_folder = DATA_FOLDER / "visualizations" / str(self.eval_config["name"])
         if not visualization_folder.exists():
@@ -1732,16 +1703,8 @@ class LandsatEval(EvalTask):
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
             augmentation=DownstreamAugmentation(hyperparameter_config.get("augmentation", False)),
+            normalization=self.normalization
         )
-
-        if self.normalization == "std":
-            normalizing_dict = train_ds.load_normalization_values(
-                path=config_dir / NORMALIZATION_DICT_FILENAME
-            )
-            normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
-        else:
-            normalizer = Normalizer(std=False)
-        train_ds.normalizer = normalizer
 
         if self.resample:
             from torch.utils.data import WeightedRandomSampler
