@@ -30,6 +30,11 @@ argparser.add_argument(
     help="Whether to exclude high-res in prediction date. Should match checkpoint training.",
 )
 argparser.add_argument(
+    "--exclude_prediction_sensors",
+    action="store_true",
+    help="Whether to exclude observational sensors in prediction date.",
+)
+argparser.add_argument(
     "--eval_config_name",
     type=str,
     default="fsc_test_rockies_tiny.json",
@@ -78,6 +83,7 @@ else:
 
 eval_task = LandsatEval(
     exclude_prediction_high_res=args["exclude_prediction_high_res"],
+    exclude_prediction_sensors=args["exclude_prediction_sensors"],
     eval_config=eval_config,
     h5pys_only=False,
 )

@@ -22,6 +22,11 @@ argparser.add_argument(
     help="Whether to exclude the prediction date. Should match checkpoint training setup.",
 )
 argparser.add_argument(
+    "--exclude_prediction_sensors",
+    action="store_true",
+    help="Whether to exclude observational sensors in prediction date.",
+)
+argparser.add_argument(
     "--eval_config_name",
     type=str,
     default="fsc_train_balanced_tiny.json",
@@ -61,6 +66,7 @@ rf = LandsatEvalSklearn(
     normalization="std",
     exclude_prediction_date=args["exclude_prediction_date"],
     exclude_prediction_high_res=args["exclude_prediction_high_res"],
+    exclude_prediction_sensors=args["exclude_prediction_sensors"],
     resample=False,
     eval_config=config,
     model_type=args["model_type"],

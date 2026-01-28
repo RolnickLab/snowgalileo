@@ -72,6 +72,7 @@ class LandsatEvalDataset(BaseDataset):
         h5pys_only: bool = False,
         exclude_prediction_date: bool = False,
         exclude_prediction_high_res: bool = False,
+        exclude_prediction_sensors: bool = False,
         normalizer: Optional[Normalizer] = None,
         augmentation=DownstreamAugmentation(False),
         data_config: Dict = {},
@@ -93,6 +94,7 @@ class LandsatEvalDataset(BaseDataset):
         # if True, the prediction date will be masked out in the input
         self.exclude_prediction_date = exclude_prediction_date
         self.exclude_prediction_high_res = exclude_prediction_high_res
+        self.exclude_prediction_sensors = exclude_prediction_sensors
         self.label_height_width = data_config["input_height_width"]
 
         self.input_tif_folder = DATA_FOLDER / data_config["input_tif_folder"] / self.split
@@ -164,6 +166,19 @@ class LandsatEvalDataset(BaseDataset):
         s_t_m_m[:, :, -1, :] = 1
         s_t_l_m[:, :, -1, :] = 1
         t_m[-1, :] = 1
+        return s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
+    
+    def mask_prediction_sensor_data(self, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m):
+        # Masks all sensor channel groups in the prediction timestep
+        # This includes all Sentinel-1, Sentinel-2, Landsat, Sentinel-3, MODIS, VIIRS data, as well as the MODIS-derived indeces
+        # NOTE: 0 = valid, 1 = masked
+        print("Masking high resolution data in prediction timestep", flush=True)
+        assert self.exclude_prediction_sensors
+        assert t_m.shape[-1] == len(TIME_BANDS_GROUPS_IDX)
+        s_t_h_m[:, :, -1, :] = 1
+        s_t_m_m[:, :, -1, :] = 1
+        s_t_l_m[:, :, -1, :] = 1
+        t_m[-1, :-1] = 1
         return s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
 
     def mask_prediction_high_res(self, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m):
@@ -639,6 +654,16 @@ class LandsatEvalDataset(BaseDataset):
                 st_m,
             ) = self.mask_prediction_high_res(s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m)
 
+        if self.exclude_prediction_sensors:
+            (
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+            ) = self.mask_prediction_sensor_data(s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m)
+
         """
         if self.split == "inference":
             # return input tif instead of label in inference mode
@@ -761,6 +786,7 @@ class LandsatEval(EvalTask):
         normalization: Union[str, Normalizer] = "std",  # or "scaling"
         exclude_prediction_date: bool = False,
         exclude_prediction_high_res: bool = False,
+        exclude_prediction_sensors: bool = False,
         patch_size_high_res: int = 10,
         h5pys_only: bool = False,
         seed=DEFAULT_SEED,
@@ -772,6 +798,7 @@ class LandsatEval(EvalTask):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
         self.exclude_prediction_high_res = exclude_prediction_high_res
+        self.exclude_prediction_sensors = exclude_prediction_sensors
         self.patch_size_high_res = patch_size_high_res
         self.resample = resample
         self.num_finetune_epochs = num_finetune_epochs
@@ -780,7 +807,7 @@ class LandsatEval(EvalTask):
 
         super().__init__(self.patch_size_high_res, seed)
         name_id = f"{eval_config['name']}" if eval_config and "name" in eval_config else ""
-        self.name = f"{'attn' if self.decoder_mode == 'attention_probe' else 'linear' if self.decoder_mode == 'linear_probe' else 'finetune' if self.decoder_mode == 'finetune' else 'sklearn'}_{'_exclude_prediction_date_' if self.exclude_prediction_date else ''}{'_no_high_res_in_pred_date' if self.exclude_prediction_high_res else ''}{name_id}"
+        self.name = f"{'attn' if self.decoder_mode == 'attention_probe' else 'linear' if self.decoder_mode == 'linear_probe' else 'finetune' if self.decoder_mode == 'finetune' else 'sklearn'}{'_exclude_prediction_date_' if self.exclude_prediction_date else ''}{'_exclude_prediction_sensors_' if self.exclude_prediction_sensors else ''}{'_no_high_res_in_pred_date' if self.exclude_prediction_high_res else ''}{name_id}"
         self.eval_config = eval_config
         self.data_config = self.eval_config["data"]
 
@@ -788,6 +815,7 @@ class LandsatEval(EvalTask):
     def _get_dataset(
         exclude_prediction_date: bool,
         exclude_prediction_high_res: bool,
+        exclude_prediction_sensors: bool,
         split: str,
         augmentation,
         h5pys_only: bool = False,
@@ -798,6 +826,7 @@ class LandsatEval(EvalTask):
         ds = LandsatEvalDataset(
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
+            exclude_prediction_sensors=exclude_prediction_sensors,
             split=split,
             h5pys_only=h5pys_only,
             augmentation=augmentation,
@@ -819,6 +848,7 @@ class LandsatEval(EvalTask):
         test_ds = self._get_dataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
+            exclude_prediction_sensors=self.exclude_prediction_sensors,
             split="test",
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
@@ -1170,6 +1200,7 @@ class LandsatEval(EvalTask):
         inference_ds = self._get_dataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
+            exclude_prediction_sensors=self.exclude_prediction_sensors,
             split="inference",
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
@@ -1318,6 +1349,7 @@ class LandsatEval(EvalTask):
         test_ds = self._get_dataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
+            exclude_prediction_sensors=self.exclude_prediction_sensors,
             split="test",
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
@@ -1362,6 +1394,7 @@ class LandsatEval(EvalTask):
         test_ds = self._get_dataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
+            exclude_prediction_sensors=self.exclude_prediction_sensors,
             split="test",
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
@@ -1480,6 +1513,7 @@ class LandsatEval(EvalTask):
         vis_ds = self._get_dataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
+            exclude_prediction_sensors=self.exclude_prediction_sensors,
             split="visualize",
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
@@ -1699,6 +1733,7 @@ class LandsatEval(EvalTask):
         train_ds = self._get_dataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
+            exclude_prediction_sensors=self.exclude_prediction_sensors,
             split="train",
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,

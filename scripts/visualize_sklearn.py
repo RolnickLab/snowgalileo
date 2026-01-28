@@ -31,6 +31,11 @@ argparser.add_argument(
     action="store_true",
     help="Whether to exclude high-res in prediction date. Should match checkpoint training.",
 )
+argparser.add_argument(
+    "--exclude_prediction_sensors",
+    action="store_true",
+    help="Whether to exclude observational sensors in prediction date.",
+)
 argparser.add_argument("--sklearn_model_path", type=str, default="")
 argparser.add_argument(
     "--eval_config_name",
@@ -74,6 +79,7 @@ sklearn_models.append(model)
 
 eval_task = LandsatEval(
     exclude_prediction_high_res=args["exclude_prediction_high_res"],
+    exclude_prediction_sensors=args["exclude_prediction_sensors"],
     eval_config=eval_config,
     h5pys_only=False,
 )

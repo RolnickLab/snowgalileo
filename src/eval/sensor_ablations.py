@@ -24,6 +24,7 @@ class SensorAblationsMetaDataset(LandsatEvalDataset):
         eval_config=None,
         exclude_prediction_date=False,
         exclude_prediction_high_res=False,
+        exclude_prediction_sensors=False,
     ):
         super().__init__(
             data_config=data_config,
@@ -31,6 +32,7 @@ class SensorAblationsMetaDataset(LandsatEvalDataset):
             h5pys_only=h5pys_only,
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
+            exclude_prediction_sensors=exclude_prediction_sensors,
             augmentation=augmentation,
         )
         self.eval_config = eval_config
@@ -115,6 +117,7 @@ class SensorAblationsEval(LandsatEval):
         self,
         exclude_prediction_date: bool = False,
         exclude_prediction_high_res: bool = False,
+        exclude_prediction_sensors: bool = False,
         h5pys_only: bool = False,
         num_finetune_epochs: int = 50,
         decoder_mode: str = "attention_probe",
@@ -123,6 +126,7 @@ class SensorAblationsEval(LandsatEval):
         super().__init__(
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
+            exclude_prediction_sensors=exclude_prediction_sensors,
             h5pys_only=h5pys_only,
             num_finetune_epochs=num_finetune_epochs,
             decoder_mode=decoder_mode,
@@ -134,6 +138,7 @@ class SensorAblationsEval(LandsatEval):
         augmentation,
         exclude_prediction_date: bool,
         exclude_prediction_high_res: bool,
+        exclude_prediction_sensors: bool,
         split: str,
         h5pys_only: bool = False,
         data_config: Dict = {},
@@ -142,6 +147,7 @@ class SensorAblationsEval(LandsatEval):
         ds = SensorAblationsMetaDataset(
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
+            exclude_prediction_sensors=exclude_prediction_sensors,
             split=split,
             h5pys_only=h5pys_only,
             augmentation=augmentation,
