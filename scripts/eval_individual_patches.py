@@ -77,7 +77,7 @@ if args["checkpoint_name"] != "":
         encoder_random_init, eval_config=eval_config[decoder_mode], sigmoid_slope=sigmoid_slope
     ).to(device)
     checkpoint = torch.load(Path(checkpoints_dir / args["checkpoint_name"]), map_location=device)
-    model.load_state_dict(checkpoint).eval()
+    model.load_state_dict(checkpoint)
 else:
     # randomly initialized snowgalileo encoder
     config = load_check_config(f"ai4snow_{model_size_from_config}.json")
@@ -87,7 +87,6 @@ else:
             encoder_random_init, eval_config=eval_config[decoder_mode], sigmoid_slope=sigmoid_slope
         )
         .to(device)
-        .eval()
     )
 
 eval_task = LandsatEval(

@@ -60,7 +60,7 @@ if args["pretraining_checkpoint_folder"] != "":
     # load pretrained snowgalileo encoder
     encoder = Encoder.load_from_folder(
         Path(DATA_FOLDER / args["pretraining_checkpoint_folder"])
-    ).to(device).eval()
+    ).to(device)
     initialization_id = "snowgalileo_pretrained"
 else:
     # randomly initialized snowgalileo encoder
