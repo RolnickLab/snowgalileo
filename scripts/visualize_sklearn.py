@@ -2,18 +2,17 @@ import argparse
 import json
 from pathlib import Path
 
+import joblib
 import psutil
 import torch
-import joblib
 
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER
 from src.eval import (
     LandsatEval,
 )
-from src.eval.patch_predict import EncoderWithHead
 from src.snowgalileo import Encoder
-from src.utils import checkpoints_dir, device, load_check_config, seed_everything
+from src.utils import device, load_check_config, seed_everything
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()

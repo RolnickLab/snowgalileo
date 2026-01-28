@@ -8,6 +8,7 @@
         "num_timesteps": 8,
         "input_height_width": 100,
         "num_classes": 1,
-        "split_type": ""
+        "split_type": "",
+        "dataset_subset_size": 0
     }
 }

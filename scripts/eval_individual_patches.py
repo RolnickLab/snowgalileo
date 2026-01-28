@@ -82,12 +82,9 @@ else:
     # randomly initialized snowgalileo encoder
     config = load_check_config(f"ai4snow_{model_size_from_config}.json")
     encoder_random_init = Encoder(**config["model"]["encoder"])
-    model = (
-        EncoderWithHead(
-            encoder_random_init, eval_config=eval_config[decoder_mode], sigmoid_slope=sigmoid_slope
-        )
-        .to(device)
-    )
+    model = EncoderWithHead(
+        encoder_random_init, eval_config=eval_config[decoder_mode], sigmoid_slope=sigmoid_slope
+    ).to(device)
 
 eval_task = LandsatEval(
     exclude_prediction_high_res=args["exclude_prediction_high_res"],

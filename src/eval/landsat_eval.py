@@ -1484,7 +1484,6 @@ class LandsatEval(EvalTask):
                 with open(results_csv_path, "a") as f:
                     f.write(f"{filename[0]},{r2},{rmse}\n")
 
-            label = label.squeeze(0).numpy()
             print(f"Saved predictions for {filename} with R2: {r2}", flush=True)
 
     @torch.no_grad()
