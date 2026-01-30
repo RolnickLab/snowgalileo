@@ -36,7 +36,7 @@ class EncoderWithHead(nn.Module):
         self.logits_per_patch = int(
             (patch_size_high_res / inputs_per_target) * (patch_size_high_res / inputs_per_target)
         )
-        self.number_of_patches = int(number_of_patches * number_of_patches)
+        self.number_of_patches = int(num_patches_per_dim * num_patches_per_dim)
         self.token_mapping = eval_config["token_mapping"]
         self.med_and_low_res_repeat = med_and_low_res_repeat
         self.eval_config = eval_config
