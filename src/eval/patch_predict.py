@@ -23,7 +23,7 @@ class EncoderWithHead(nn.Module):
         encoder,
         patch_size_high_res=10,
         inputs_per_target=10,
-        number_of_patches=10,
+        num_patches_per_dim=10,
         sigmoid_slope=1.0,
         eval_config=None,
         med_and_low_res_repeat=True,
