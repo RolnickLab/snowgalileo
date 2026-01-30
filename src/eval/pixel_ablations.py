@@ -107,8 +107,8 @@ class PixelAblationsMetaDataset(LandsatEvalDataset):
 
             # restore the selected cells
             s_t_h_m[hr_row, hr_col, :, :] = default_s_t_h_m[hr_row, hr_col, :, :]
-            s_t_l_m[mr_row, mr_col, :, :] = default_s_t_m_m[mr_row, mr_col, :, :]
-            s_t_m_m[lr_row, lr_col, :, :] = default_s_t_l_m[lr_row, lr_col, :, :]
+            s_t_m_m[mr_row, mr_col, :, :] = default_s_t_m_m[mr_row, mr_col, :, :]
+            s_t_l_m[lr_row, lr_col, :, :] = default_s_t_l_m[lr_row, lr_col, :, :]
             sp_m[hr_row, hr_col, :] = default_sp_m[hr_row, hr_col, :]
 
             # becomes shape (1, 1)
