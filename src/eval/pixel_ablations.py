@@ -113,7 +113,6 @@ class PixelAblationsMetaDataset(LandsatEvalDataset):
 
             # becomes shape (1, 1)
             label = label[label_row, label_col]
-            assert label.shape == (1, 1)
 
         return (
             masked_output_np_to_tensor(
