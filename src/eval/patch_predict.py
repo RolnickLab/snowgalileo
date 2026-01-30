@@ -23,6 +23,7 @@ class EncoderWithHead(nn.Module):
         encoder,
         patch_size_high_res=10,
         inputs_per_target=10,
+        number_of_patches=10,
         sigmoid_slope=1.0,
         eval_config=None,
         med_and_low_res_repeat=True,
@@ -35,7 +36,7 @@ class EncoderWithHead(nn.Module):
         self.logits_per_patch = int(
             (patch_size_high_res / inputs_per_target) * (patch_size_high_res / inputs_per_target)
         )
-        self.number_of_patches = int(inputs_per_target * inputs_per_target)
+        self.number_of_patches = int(number_of_patches * number_of_patches)
         self.token_mapping = eval_config["token_mapping"]
         self.med_and_low_res_repeat = med_and_low_res_repeat
         self.eval_config = eval_config
@@ -269,6 +270,7 @@ def finetune_seg(
     loss_fn = hyperparameter_config.get("loss_fn", "MSE")
     warmup_fraction = hyperparameter_config.get("warmup_fraction", 0.1)
     med_and_low_res_repeat = hyperparameter_config.get("med_and_low_res_repeat", True)
+    num_patches_per_dim = hyperparameter_config.get("num_patches_per_dim", 10)
 
     train_loader = data_loaders["train"]
     val_loader = data_loaders["test"]
@@ -277,6 +279,7 @@ def finetune_seg(
         encoder=encoder,
         patch_size_high_res=patch_size_high_res,
         inputs_per_target=inputs_per_target,
+        num_patches_per_dim=num_patches_per_dim,
         sigmoid_slope=sigmoid_slope,
         eval_config=eval_config,
         med_and_low_res_repeat=med_and_low_res_repeat,

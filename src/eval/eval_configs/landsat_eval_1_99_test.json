@@ -39,7 +39,8 @@
         "adam_beta_2": 0.999,
         "warmup_fraction": 0.1,
         "loss_fn": "MSE",
-        "med_and_low_res_repeat": true
+        "med_and_low_res_repeat": true,
+        "num_patches_per_dim": 10
     },
     "hyperparameters_rf": {
         "n_estimators": 300,

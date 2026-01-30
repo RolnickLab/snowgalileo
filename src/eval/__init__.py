@@ -2,10 +2,12 @@ from src.eval.datasize_ablations import DatasetSizeAblationsEval
 from src.eval.landsat_eval import LandsatEval
 from src.eval.sensor_ablations import SensorAblationsEval
 from src.eval.timeseries_ablations import TimeseriesAblationsEval
+from src.eval.pixel_ablations import PixelAblationsEval
 
 __all__ = [
     "LandsatEval",
     "SensorAblationsEval",
     "TimeseriesAblationsEval",
     "DatasetSizeAblationsEval",
+    "PixelAblationsEval"
 ]
