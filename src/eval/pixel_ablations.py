@@ -44,7 +44,7 @@ class PixelAblationsMetaDataset(LandsatEvalDataset):
         assert "pixel_ablations" in self.eval_config, "pixel_ablations config missing"
 
         self.cum_pixels = [0]
-        for _ in super().__len__:
+        for _ in range(super().__len__()):
             self.cum_pixels.append(self.cum_pixels[-1] + DATASET_OUTPUT_HW_HIGH_RES * DATASET_OUTPUT_HW_HIGH_RES)
 
     def __len__(self):
