@@ -72,7 +72,7 @@ class DatasetSizeAblationsEval(LandsatEval):
             normalizer = Normalizer(std=False)
         dataset.normalizer = normalizer
 
-        if data_config["dataset_subset_size"] > 0:
+        if data_config["dataset_subset_size"] > 0 and split == "train":
             indices = random.sample(range(len(dataset)), data_config["dataset_subset_size"])
             dataset = Subset(dataset, indices)
 
