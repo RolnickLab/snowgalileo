@@ -33,6 +33,7 @@ from src.data.config import (
     NUM_MED_RES_PIXELS_PER_DIM,
     NUM_TIMESTEPS,
     RESULTS_FOLDER,
+    DATASET_OUTPUT_HW_HIGH_RES
 )
 from src.data.dataset import Dataset as BaseDataset
 from src.data.dataset import DatasetOutput, Normalizer, to_cartesian
@@ -327,6 +328,25 @@ class LandsatEvalDataset(BaseDataset):
 
         months = cls.month_array_from_file(tif_path, int(num_timesteps))
 
+        (
+            space_time_high_res_x,
+            space_time_med_res_x,
+            space_time_low_res_x,
+            space_x,
+            time_x,
+            static_x,
+            months,
+        ) = cls.subset_image(
+            space_time_high_res_x,
+            space_time_med_res_x,
+            space_time_low_res_x,
+            space_x,
+            time_x,
+            static_x,
+            months,
+            size=DATASET_OUTPUT_HW_HIGH_RES,
+            num_timesteps=NUM_TIMESTEPS,
+        )
         (
             valid_data_mask_s_t_h,
             valid_data_mask_s_t_m,
@@ -664,7 +684,6 @@ class LandsatEvalDataset(BaseDataset):
                 st_m,
             ) = self.mask_prediction_sensor_data(s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m)
 
-        """
         if self.split == "inference":
             # return input tif instead of label in inference mode
             return (
@@ -685,7 +704,6 @@ class LandsatEvalDataset(BaseDataset):
                 ),
                 self.tifs[idx],
             )
-        """
 
         image_path, label_path = self.pairs[idx]
         # TODO: optinally add conversion to h5pys for labels
