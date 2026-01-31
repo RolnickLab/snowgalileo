@@ -552,7 +552,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
         exports_started = 0
         print(f"Exporting {len(dates)} files: ")
 
-        for i, date in tqdm(dates, desc="Exporting", total=len(dates)):
+        for i, date in enumerate(dates):
             ee_bbox = EEBoundingBox.from_centre(
                 # worldstrat points are strings
                 mid_lat=float(lats[i]),
