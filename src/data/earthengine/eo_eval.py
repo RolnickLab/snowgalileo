@@ -560,7 +560,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
                 surrounding_metres=int(self.surrounding_metres),
             )
 
-            WINDOW_END_DATE = datetime.strptime(date, "%Y%m%d").date()
+            WINDOW_END_DATE = datetime.strptime(str(date), "%Y%m%d").date()
             WINDOW_START_DATE = WINDOW_END_DATE - timedelta(days=NUM_TIMESTEPS - 1)
 
             export_started = self._export_for_polygon(
