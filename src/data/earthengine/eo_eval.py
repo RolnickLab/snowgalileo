@@ -6,12 +6,15 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, List, Optional, Union
 from typing import OrderedDict as OrderedDictType
+from src.data.earthengine.ee_bbox import EEBoundingBox
 
 import ee
 import numpy as np
 import numpy.typing as npt
 import rasterio
 import requests  # type: ignore
+import pandas as pd
+from tqdm import tqdm
 
 from src.data.config import (
     DATA_FOLDER,
@@ -535,3 +538,44 @@ class EarthEngineExporterEval(EarthEngineExporter):
             print("Export finished. Syncing to google cloud")
             self.sync_local_and_gcloud()
             print("Finished sync")
+
+    def export_from_csv(
+        self,
+        csv_file
+    ) -> None:
+
+        df = pd.read_csv(csv_file)
+        dates = df["date"].tolist()
+        lats = df["latitude"].tolist()
+        lons = df["longitude"].tolist()
+
+        exports_started = 0
+        print(f"Exporting {len(dates)} files: ")
+
+        for i, date in tqdm(dates, desc="Exporting", total=len(dates)):
+            ee_bbox = EEBoundingBox.from_centre(
+                # worldstrat points are strings
+                mid_lat=float(lats[i]),
+                mid_lon=float(lons[i]),
+                surrounding_metres=int(self.surrounding_metres),
+            )
+
+            WINDOW_END_DATE = datetime.strptime(date, "%Y%m%d").date()
+            WINDOW_START_DATE = WINDOW_END_DATE - timedelta(days=NUM_TIMESTEPS - 1)
+
+            export_started = self._export_for_polygon(
+                polygon=ee_bbox.to_ee_polygon(),
+                polygon_identifier=ee_bbox.get_identifier(
+                    WINDOW_START_DATE, WINDOW_END_DATE, for_eval_from_csv=True
+                ),
+                interval_start_date=WINDOW_START_DATE,
+                interval_end_date=WINDOW_END_DATE
+            )
+            if export_started:
+                exports_started += 1
+
+        if self.mode == "url":
+            print("Export finished. Syncing to google cloud")
+            self.sync_local_and_gcloud()
+            print("Finished sync")
+

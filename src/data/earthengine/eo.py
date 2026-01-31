@@ -688,7 +688,7 @@ class EarthEngineExporter:
                 export_started = self._export_for_polygon(
                     polygon=ee_bbox.to_ee_polygon(),
                     polygon_identifier=ee_bbox.get_identifier(
-                        season_key, WINDOW_START_DATE, WINDOW_END_DATE
+                        WINDOW_START_DATE, WINDOW_END_DATE, season=season_key
                     ),
                     interval_start_date=WINDOW_START_DATE,
                     interval_end_date=WINDOW_END_DATE,
