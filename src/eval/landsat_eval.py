@@ -78,6 +78,10 @@ class LandsatEvalDataset(BaseDataset):
         augmentation=DownstreamAugmentation(False),
         data_config: Dict = {},
     ):
+        
+        self.split = split
+        assert self.split in ["train", "test", "visualize", "inference"]
+
         super().__init__(
             data_folder=DATA_FOLDER / data_config["input_tif_folder"] / split,
             download=False,
@@ -85,9 +89,6 @@ class LandsatEvalDataset(BaseDataset):
             h5pys_only=h5pys_only,
             normalizer=normalizer,
         )
-
-        self.split = split
-        assert self.split in ["train", "test", "visualize", "inference"]
 
         self.augmentation = augmentation
 
