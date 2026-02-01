@@ -145,12 +145,11 @@ class LandsatEvalDataset(BaseDataset):
                 else:
                     print(f"Skipping mismatched pair: {img.name}, {lbl.name}")
 
-    @classmethod
-    def _sanity_check(cls, tifs):
+    def _sanity_check(self, tifs):
         checked_tifs: List[Path] = []
         for tif in tifs:
             try:
-                _ = cls.prediction_month_from_file(tif)
+                _ = self.prediction_month_from_file(tif)
                 checked_tifs.append(tif)
             except IndexError:
                 warnings.warn(f"IndexError for {tif}")
@@ -200,15 +199,14 @@ class LandsatEvalDataset(BaseDataset):
         s_t_h_m[:, :, -1, 1:] = 1
         return s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
 
-    @classmethod
-    def month_array_from_file(cls, tif_path: Path, num_timesteps: int) -> np.ndarray:
+    def month_array_from_file(self, tif_path: Path, num_timesteps: int) -> np.ndarray:
         """
         Given a filepath and num_timesteps, extract start_month and return an array of
         months where months[idx] is the month for list(range(num_timesteps))[i]
         """
         # assumes all files are exported with filenames including:
         # *dates=<start_date>*, where the start_date is in a YYYY-MM-dd format
-        prediction_month = cls.prediction_month_from_file(tif_path)
+        prediction_month = self.prediction_month_from_file(tif_path)
         # - 1 because we want to index from 0
         # TODO: account for the possibility that different timesteps can be in different months
         return np.full(num_timesteps, prediction_month - 1)
