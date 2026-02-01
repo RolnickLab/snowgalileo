@@ -211,7 +211,7 @@ class LandsatEvalDataset(BaseDataset):
         return np.full(num_timesteps, prediction_month - 1)
 
     @classmethod
-    def _tif_to_array(cls, tif_path: Path) -> DatasetOutput:
+    def _tif_to_array(self, tif_path: Path) -> DatasetOutput:
         """
         Loads a spatiotemporal tif file, divides it into different array groups, and creates valid data masks.
 
@@ -236,6 +236,11 @@ class LandsatEvalDataset(BaseDataset):
             # extract lat, lon in EPSG:4326 from tif_path
             # TODO: make this dynamic in case the tif_path has a different naming convention
             parts = tif_path.stem.split("_")
+
+            if self.split == "inference":
+                lat = float(parts[2])
+                lon = float(parts[3])
+
             lat = float(parts[3])
             lon = float(parts[4])
 
@@ -248,7 +253,7 @@ class LandsatEvalDataset(BaseDataset):
             c=len(EO_ALL_DYNAMIC_IN_TIME_BANDS),
             t=int(num_timesteps),
         )
-        dynamic_in_time_x = cls._check_and_fillna(
+        dynamic_in_time_x = self._check_and_fillna(
             dynamic_in_time_x, EO_ALL_DYNAMIC_IN_TIME_BANDS_NP
         )
         space_time_high_res_x = dynamic_in_time_x[
@@ -288,7 +293,7 @@ class LandsatEvalDataset(BaseDataset):
 
         # NDSI = (Green - SWIR) / (Green + SWIR)
         if MODALITIES["ndsi"].get("active"):
-            ndsi = cls.calculate_ndi(
+            ndsi = self.calculate_ndi(
                 space_time_low_res_x, band_1="sur_refl_b04", band_2="sur_refl_b06"
             )
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndsi), axis=-1)
@@ -302,7 +307,7 @@ class LandsatEvalDataset(BaseDataset):
 
         # NDVI = (NIR - Red) / (NIR + Red)
         if MODALITIES["ndvi"].get("active"):
-            ndvi = cls.calculate_ndi(
+            ndvi = self.calculate_ndi(
                 space_time_low_res_x, band_1="sur_refl_b02", band_2="sur_refl_b01"
             )
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndvi), axis=-1)
@@ -318,19 +323,19 @@ class LandsatEvalDataset(BaseDataset):
             values[-len(EE_SPACE_BANDS) :],
             "c h w -> h w c",
         )
-        space_x = cls._check_and_fillna(space_x, np.array(EE_SPACE_BANDS))
+        space_x = self._check_and_fillna(space_x, np.array(EE_SPACE_BANDS))
 
         # one-hot encode ESA Worldcover band
-        esa_wc = cls.one_hot_encode_esa_worldcover(space_x[:, :, ESA_WORLDCOVER_BAND_INDEX])
+        esa_wc = self.one_hot_encode_esa_worldcover(space_x[:, :, ESA_WORLDCOVER_BAND_INDEX])
         assert esa_wc.all() in [0, 1, NO_DATA_VALUE], (
             f"Unexpected values in ESA Worldcover for {tif_path}"
         )
         space_x = np.concatenate((space_x[:, :, : (-len(EE_WC_BANDS))], esa_wc), axis=-1)
 
         static_x = to_cartesian(lat, lon)
-        static_x = cls._check_and_fillna(static_x, np.array(STATIC_BANDS))
+        static_x = self._check_and_fillna(static_x, np.array(STATIC_BANDS))
 
-        months = cls.month_array_from_file(tif_path, int(num_timesteps))
+        months = self.month_array_from_file(tif_path, int(num_timesteps))
 
         (
             space_time_high_res_x,
@@ -340,7 +345,7 @@ class LandsatEvalDataset(BaseDataset):
             time_x,
             static_x,
             months,
-        ) = cls.subset_image(
+        ) = self.subset_image(
             space_time_high_res_x,
             space_time_med_res_x,
             space_time_low_res_x,
@@ -358,7 +363,7 @@ class LandsatEvalDataset(BaseDataset):
             valid_data_mask_sp,
             valid_data_mask_t,
             valid_data_mask_st,
-        ) = cls.create_valid_mask(
+        ) = self.create_valid_mask(
             space_time_high_res_x,
             space_time_med_res_x,
             space_time_low_res_x,
@@ -368,12 +373,12 @@ class LandsatEvalDataset(BaseDataset):
         )
 
         # for downsampling, the arrays need to be in divisible shape so we do it after cropping
-        space_time_med_res_x, valid_data_mask_s_t_m = cls.downsample_dynamic_in_time_with_mean(
+        space_time_med_res_x, valid_data_mask_s_t_m = self.downsample_dynamic_in_time_with_mean(
             space_time_med_res_x,
             valid_data_mask_s_t_m,
             target_shape=(NUM_MED_RES_PIXELS_PER_DIM, NUM_MED_RES_PIXELS_PER_DIM),
         )
-        space_time_low_res_x, valid_data_mask_s_t_l = cls.downsample_dynamic_in_time_with_mean(
+        space_time_low_res_x, valid_data_mask_s_t_l = self.downsample_dynamic_in_time_with_mean(
             space_time_low_res_x,
             valid_data_mask_s_t_l,
             target_shape=(NUM_LOW_RES_PIXELS_PER_DIM, NUM_LOW_RES_PIXELS_PER_DIM),
