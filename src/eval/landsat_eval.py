@@ -157,10 +157,13 @@ class LandsatEvalDataset(BaseDataset):
         return checked_tifs
 
     # NOTE: overwritten from TifDataset since the eval tif files have different naming conventions
-    @classmethod
-    def prediction_month_from_file(cls, tif_path: Path) -> int:
+    # TODO: make this dynamic
+    def prediction_month_from_file(self, tif_path: Path) -> int:
+        if self.split == "inference":
+            prediction_month = int(tif_path.name.split("_")[0][5:7])
         # assumes the tif file name is in the format "LC09_YYYYMMDD_[FSC]_[lat]_[lon].tif"
-        prediction_month = int(tif_path.name.split("_")[1][4:6])
+        else:
+            prediction_month = int(tif_path.name.split("_")[1][4:6])
         return prediction_month
 
     def mask_prediction_timestep(self, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m):
