@@ -748,28 +748,6 @@ class LandsatEvalDataset(BaseDataset):
             torch.as_tensor(label),
         )
 
-        # for inference mode, return full filepath to image not only the filename
-        if self.split == "inference":
-            return (
-                masked_output_np_to_tensor(
-                    s_t_h_x,
-                    s_t_m_x,
-                    s_t_l_x,
-                    sp_x,
-                    t_x,
-                    st_x,
-                    s_t_h_m,
-                    s_t_m_m,
-                    s_t_l_m,
-                    sp_m,
-                    t_m,
-                    st_m,
-                    month,
-                ),
-                label,
-                str(image_path),
-            )
-
         return (
             masked_output_np_to_tensor(
                 s_t_h_x,
@@ -1242,7 +1220,7 @@ class LandsatEval(EvalTask):
         )
 
         with torch.no_grad():
-            for masked_output, labels, filepath in tqdm(inference_dl, desc="Predicting output"):
+            for masked_output, filepath in tqdm(inference_dl, desc="Predicting output"):
                 (
                     s_t_h_x,
                     s_t_m_x,
