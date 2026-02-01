@@ -210,7 +210,6 @@ class LandsatEvalDataset(BaseDataset):
         # TODO: account for the possibility that different timesteps can be in different months
         return np.full(num_timesteps, prediction_month - 1)
 
-    @classmethod
     def _tif_to_array(self, tif_path: Path) -> DatasetOutput:
         """
         Loads a spatiotemporal tif file, divides it into different array groups, and creates valid data masks.
