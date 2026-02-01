@@ -711,7 +711,7 @@ class LandsatEvalDataset(BaseDataset):
                     st_m,
                     month,
                 ),
-                self.pairs[idx][0],
+                str(self.pairs[idx][0]),
             )
 
         image_path, label_path = self.pairs[idx]
