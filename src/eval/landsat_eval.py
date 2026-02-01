@@ -134,6 +134,10 @@ class LandsatEvalDataset(BaseDataset):
                     self.pairs.append((img, lbl))
                 else:
                     print(f"Skipping mismatched pair: {img.name}, {lbl.name}")
+        elif self.split == "inference":
+            # create placeholder labels
+            for img in self.tifs:
+                self.pairs.append((img, None))           
         else:
             for img, lbl in zip(self.tifs, self.label_tifs):
                 if img.name == lbl.name:
@@ -769,8 +773,6 @@ class LandsatEvalDataset(BaseDataset):
         )
 
     def __len__(self) -> int:
-        if self.split == "inference":
-            return len(self.tifs)
         return len(self.pairs)
 
 
