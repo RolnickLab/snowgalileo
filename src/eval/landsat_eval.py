@@ -769,6 +769,8 @@ class LandsatEvalDataset(BaseDataset):
         )
 
     def __len__(self) -> int:
+        if self.split == "inference":
+            return len(self.tifs)
         return len(self.pairs)
 
 
