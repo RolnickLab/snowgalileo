@@ -16,26 +16,26 @@ from sklearn.metrics import (
 
 def compute_regression_metrics(preds: np.ndarray, target: np.ndarray) -> Dict[str, float]:
     return {
-        "rmse": root_mean_squared_error(target, preds),
-        "r2": r2_score(target, preds),
-        "mean_absolute_error": mean_absolute_error(target, preds),
-        "median_absolute_error": median_absolute_error(target, preds),
+        "rmse": float(root_mean_squared_error(target, preds)),
+        "r2": float(r2_score(target, preds)),
+        "mean_absolute_error": float(mean_absolute_error(target, preds)),
+        "median_absolute_error": float(median_absolute_error(target, preds)),
     }
 
 
 def compute_classification_metrics(preds: np.ndarray, target: np.ndarray) -> Dict[str, float]:
     return {
-        "overall_accuracy": accuracy_score(target, preds),
-        "balanced_accuracy": balanced_accuracy_score(target, preds),
-        "recall": recall_score(target, preds, average="weighted"),
-        "precision": precision_score(target, preds, average="weighted"),
-        "f1": f1_score(target, preds, average="weighted"),
+        "overall_accuracy": float(accuracy_score(target, preds)),
+        "balanced_accuracy": float(balanced_accuracy_score(target, preds)),
+        "recall": float(recall_score(target, preds, average="weighted")),
+        "precision": float(precision_score(target, preds, average="weighted")),
+        "f1": float(f1_score(target, preds, average="weighted")),
     }
 
 
 def compute_segmentation_metrics(preds: np.ndarray, target: np.ndarray) -> Dict[str, float]:
     return {
-        "miou": mean_iou(preds, target, num_classes=10),
+        "miou": float(mean_iou(preds, target, num_classes=10)),
     }
 
 
