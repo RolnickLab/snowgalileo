@@ -5,7 +5,7 @@ from pathlib import Path
 from src.config import DEFAULT_SEED
 from src.data.config import NORMALIZATION_DICT_FILENAME
 from src.data.dataset import Dataset
-from src.eval.landsat_baselines import LandsatEvalSklearn
+from src.fsc.landsat_baselines import LandsatEvalSklearn
 from src.utils import config_dir, seed_everything
 
 seed_everything(DEFAULT_SEED)
@@ -30,7 +30,7 @@ argparser.add_argument(
     "--eval_config_name",
     type=str,
     default="fsc_train_balanced_tiny.json",
-    help="Config name for evaluation. Options are stored in src/eval/eval_configs/",
+    help="Config name for evaluation. Options are stored in configs/finetune/",
 )
 argparser.add_argument(
     "--run_id",
@@ -54,7 +54,7 @@ args = argparser.parse_args().__dict__
 
 
 id = args["run_id"]
-with (Path("src") / Path("eval") / Path("eval_configs") / Path(args["eval_config_name"])).open(
+with (Path("configs") / Path("finetune") / Path(args["eval_config_name"])).open(
     "r"
 ) as f:
     config = json.load(f)

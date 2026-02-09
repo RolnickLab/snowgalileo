@@ -15,7 +15,7 @@ class TestConfigs(unittest.TestCase):
         _ = Encoder(**config["model"]["encoder"])
 
     def test_configs_mae(self):
-        configs = list((config_dir / "mae").glob("*.json"))
+        configs = list((config_dir / "pretrain").glob("*.json"))
 
         for config_path in configs:
             try:

@@ -6,8 +6,8 @@ import psutil
 import torch
 
 from src.config import DEFAULT_SEED
-from src.eval import LandsatEval, SensorAblationsEval, TimeseriesAblationsEval
-from src.eval.patch_predict import EncoderWithHead
+from src.fsc import LandsatEval, SensorAblationsEval, TimeseriesAblationsEval
+from src.fsc.patch_predict import EncoderWithHead
 from src.snowgalileo import Encoder
 from src.utils import checkpoints_dir, device, load_check_config, seed_everything
 
@@ -41,7 +41,7 @@ argparser.add_argument(
     "--eval_config_name",
     type=str,
     default="fsc_test_rockies_tiny.json",
-    help="Config name for evaluation. Options are stored in src/eval/eval_configs/",
+    help="Config name for evaluation. Options are stored in configs/eval/",
 )
 argparser.add_argument(
     "--h5pys_only",

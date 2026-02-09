@@ -1,0 +1,79 @@
+{
+    "name": "fsc_train_tiny_ablate_low_res",
+    "data": {
+        "label_folder": "fsc_train_100m_masks_balanced",
+        "input_tif_folder": "fsc_train_100m_cropped_balanced",
+        "input_h5py_folder": "fsc_train_100m_h5pys_balanced",
+        "label_resolution": 100,
+        "num_timesteps": 8,
+        "input_height_width": 100,
+        "num_classes": 1,
+        "split_type": "train_test_random",
+        "dataset_subset_size": 0
+    },
+    "finetune": {
+        "freeze_encoder": false,
+        "token_mapping": "spatial_mean"
+    },
+    "linear_probe": {
+        "freeze_encoder": true,
+        "token_mapping": "spatial_mean"
+    },
+    "attention_probe": {
+        "freeze_encoder": false,
+        "token_mapping": "attention_probe",
+        "n_heads": 2,
+        "attn_dropout_p": 0.0,
+        "use_tanh": false,
+        "hidden_dim": 0,
+        "attend_over_spatial": true
+    },
+    "hyperparameters_snowgalileo": {
+        "augmentation": false,
+        "batch_size": 4,
+        "num_workers": 0,
+        "weight_decay": 1e-5,
+        "schedule_sigmoid_slope": false,
+        "sigmoid_slope": 0.1,
+        "lr_schedule": true,
+        "learning_rate": 6e-3,
+        "optimizer": "Adam",
+        "adam_beta_2": 0.999,
+        "warmup_fraction": 0.05,
+        "loss_fn": "MSE",
+        "med_and_low_res_repeat": true,
+        "num_patches_per_dim": 10
+    },
+    "hyperparameters_rf": {
+        "n_estimators": 300,
+        "min_samples_leaf": 5
+    },
+    "hyperparameters_svr": {
+        "kernel": "rbf",
+        "C_base": 2,
+        "C_exponent": -15,
+        "degree": 2,
+        "gamma_base": 2,
+        "gamma_exponent": -5
+    },
+    "hyperparameters_mlp": {
+        "learning_rate_init": 0.001,
+        "activation": "relu"
+    },
+    "sensor_ablations": {
+        "ablate_era5": false,
+        "ablate_landcover": false,
+        "ablate_indeces": false,
+        "ablate_high_res_optical": false,
+        "ablate_high_res_sar": false,
+        "ablate_med_res_sensor": false,
+        "ablate_low_res_sensor": true,
+        "ablate_topography": false
+    },
+    "timeseries_ablations": false,
+    "cloud_generation": {
+        "cloud_prob_pred_day": 0.0,
+        "cloud_prob_timeseries": 0.0,
+        "shadow_prob": 0.0
+    }
+}

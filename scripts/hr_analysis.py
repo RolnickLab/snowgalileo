@@ -8,7 +8,7 @@ import torch
 
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER, RESULTS_FOLDER
-from src.eval.hr_eval import HRMetaDataset
+from src.fsc.eval.hr_eval import HRMetaDataset
 from src.utils import seed_everything
 
 seed_everything(DEFAULT_SEED)
@@ -21,7 +21,7 @@ argparser.add_argument(
     "--eval_config_name",
     type=str,
     default="fsc_test_rockies_tiny.json",
-    help="Config name for evaluation. Options are stored in src/eval/eval_configs/",
+    help="Config name for evaluation. Options are stored in configs/eval/",
 )
 argparser.add_argument(
     "--results_csv_name",
@@ -30,7 +30,7 @@ argparser.add_argument(
 )
 args = argparser.parse_args().__dict__
 
-with (Path("src") / Path("eval") / Path("eval_configs") / Path(args["eval_config_name"])).open(
+with (Path("configs") / Path("eval") / Path(args["eval_config_name"])).open(
     "r"
 ) as f:
     eval_config = json.load(f)

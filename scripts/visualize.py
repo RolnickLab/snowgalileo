@@ -6,10 +6,10 @@ import psutil
 import torch
 
 from src.config import DEFAULT_SEED
-from src.eval import (
+from src.fsc import (
     LandsatEval,
 )
-from src.eval.patch_predict import EncoderWithHead
+from src.fsc.patch_predict import EncoderWithHead
 from src.snowgalileo import Encoder
 from src.utils import checkpoints_dir, device, load_check_config, seed_everything
 
@@ -38,7 +38,7 @@ argparser.add_argument(
     "--eval_config_name",
     type=str,
     default="fsc_test_rockies_tiny.json",
-    help="Config name for evaluation. Options are stored in src/eval/eval_configs/",
+    help="Config name for evaluation. Options are stored in configs/eval/",
 )
 argparser.add_argument(
     "--decoding_strategy",
@@ -53,7 +53,7 @@ decoder_mode = args["decoding_strategy"]
 
 # TODO: fix the EncoderWithHead loading pipeline
 # TODO: make sure the eval config matches the training config
-with (Path("src") / Path("eval") / Path("eval_configs") / Path(args["eval_config_name"])).open(
+with (Path("configs") / Path("eval") /  Path(args["eval_config_name"])).open(
     "r"
 ) as f:
     eval_config = json.load(f)

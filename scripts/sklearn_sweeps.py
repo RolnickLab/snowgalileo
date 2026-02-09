@@ -8,7 +8,7 @@ import wandb
 from src.config import DEFAULT_SEED
 from src.data.config import NORMALIZATION_DICT_FILENAME
 from src.data.dataset import Dataset
-from src.eval.landsat_baselines import LandsatEvalSklearn
+from src.fsc.landsat_baselines import LandsatEvalSklearn
 from src.utils import config_dir, seed_everything
 
 seed_everything(DEFAULT_SEED)
@@ -31,7 +31,7 @@ parser.add_argument(
     "--eval_config_name",
     type=str,
     default="landsat_eval_1_99_test.json",
-    help="Config name for evaluation. Options are stored in src/eval/eval_configs/",
+    help="Config name for evaluation. Options are stored in configs/finetune/",
 )
 parser.add_argument(
     "--h5pys_only",
@@ -100,7 +100,7 @@ def train_and_validate():
 
     with wandb.init(project="ai4snow_sweeps_sklearn") as sweep_run:
         with (
-            Path("src") / Path("eval") / Path("eval_configs") / Path(args.eval_config_name)
+            Path("configs") / Path("finetune") / Path(args.eval_config_name)
         ).open("r") as f:
             config = json.load(f)
 
