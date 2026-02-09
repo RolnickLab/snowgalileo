@@ -13,6 +13,8 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.neural_network import MLPRegressor
 from sklearn.svm import SVR
 from torch.utils.data import DataLoader
+from torch.utils.data import Subset
+import random
 
 from src.config import DEFAULT_SEED
 from src.data.dataset import Normalizer
@@ -647,6 +649,7 @@ class LandsatEvalSklearn(LandsatEval):
         hyperparameters: Dict = {},
         save_results: bool = False,
         normalization: str = "std",
+        dataset_subset_size: int = 0
     ) -> Dict[str, float]:
         assert normalization in ["std", ""], f"Unknown normalization {normalization}"
 
@@ -665,6 +668,10 @@ class LandsatEvalSklearn(LandsatEval):
         if normalization == "std":
             normalizer = Normalizer(std=True, normalizing_dicts=self.normalizing_dict)
             train_ds.normalizer = normalizer
+
+        if dataset_subset_size > 0:
+            indices = random.sample(range(len(train_ds)), dataset_subset_size)
+            train_ds = Subset(train_ds, indices)
 
         train_dl = DataLoader(
             train_ds,

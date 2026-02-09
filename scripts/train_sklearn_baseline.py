@@ -50,6 +50,11 @@ argparser.add_argument(
     action="store_true",
     help="Where to only use h5pys (faster, but need to be already stored in this format)",
 )
+argparser.add_argument(
+    "--dataset_subset_size",
+    type=int,
+    default=0
+)
 args = argparser.parse_args().__dict__
 
 
@@ -73,4 +78,4 @@ rf = LandsatEvalSklearn(
     h5pys_only=args["h5pys_only"],
     normalizing_dict=normalizing_dict,
 )
-rf.fit_sklearn(id=args["run_id"], save_results=True)
+rf.fit_sklearn(id=args["run_id"], save_results=True, dataset_subset_size=args["dataset_subset_size"])
