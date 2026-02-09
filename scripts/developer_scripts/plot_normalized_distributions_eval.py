@@ -79,27 +79,31 @@ if __name__ == "__main__":
 
     dataloader = DataLoader(dataset, batch_size=1000, shuffle=False, num_workers=4)
 
-    for i, batch in enumerate(dataloader):
+    for i, (masked_output, labels, _) in enumerate(dataloader):
         if i == 2:
             break
         (
-            (
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                months,
-                valid_data_mask_s_t_h,
-                valid_data_mask_s_t_m,
-                valid_data_mask_s_t_l,
-                valid_data_mask_sp,
-                valid_data_mask_t,
-                valid_data_mask_st,
-            ),
-            name,
-        ) = batch
+            s_t_h_x,
+            s_t_m_x,
+            s_t_l_x,
+            sp_x,
+            t_x,
+            st_x,
+            s_t_h_m,
+            s_t_m_m,
+            s_t_l_m,
+            sp_m,
+            t_m,
+            st_m,
+            months,
+        ) = masked_output
+
+        valid_data_mask_s_t_h = torch.logical_not(s_t_h_m)
+        valid_data_mask_s_t_m = torch.logical_not(s_t_m_m)
+        valid_data_mask_s_t_l = torch.logical_not(s_t_l_m)
+        valid_data_mask_sp = torch.logical_not(sp_m)
+        valid_data_mask_t = torch.logical_not(t_m)
+        valid_data_mask_st = torch.logical_not(st_m)
 
         s_t_h_x_c0_valid = s_t_h_x[..., 0][valid_data_mask_s_t_h[..., 0].bool()]
         s_t_h_x_c1_valid = s_t_h_x[..., 1][valid_data_mask_s_t_h[..., 1].bool()]
@@ -234,18 +238,6 @@ if __name__ == "__main__":
                 data, idx, channel_name, f"{channel_name.replace(' ', '_')}_distribution.png"
             )
 
-        # for debugging purposes, if S1 VH contains zero values, print how many
-        s1_vh_zero_count = torch.sum(s_t_h_x_c1_valid == 0).item()
-        print(f"S1 VH zero count: {s1_vh_zero_count} in tif {name} in batch {i}")
-
-        # for debugging purposes, if S1 VH contains zero values, print how many
-        s2_b11_zero_count = torch.sum(s_t_h_x_c7_valid == 0).item()
-        print(f"S2 B11 zero count: {s2_b11_zero_count} in tif {name} in batch {i}")
-
-        # for debugging purposes, if S1 VH contains zero values, print how many
-        landsat_b6_zero_count = torch.sum(s_t_h_x_c13_valid == 0).item()
-        print(f"Landsat B6 zero count: {landsat_b6_zero_count} in tif {name} in batch {i}")
-
         # print the number of values that are below -1 or above 1 for NDSI and NDVI
         ndsi_out_of_bounds = torch.sum((s_t_l_x_c9_valid < -1) | (s_t_l_x_c9_valid > 1)).item()
         ndvi_out_of_bounds = torch.sum((s_t_l_x_c10_valid < -1) | (s_t_l_x_c10_valid > 1)).item()
@@ -292,18 +284,6 @@ if __name__ == "__main__":
             plot_distribution(
                 data, idx, channel_name, f"{channel_name.replace(' ', '_')}_distribution.png"
             )
-
-        # print unique values count for aspect channel
-        aspect_unique_values = torch.unique(sp_x_c2_valid, return_counts=True)
-        print(f"Aspect unique values and counts: {aspect_unique_values}")
-
-        # for debugging purposes, if S1 VH contains zero values, print how many
-        aspect_zero_count = torch.sum(sp_x_c2_valid == 0).item()
-        print(f"Aspect zero count: {aspect_zero_count} in tif {name} in batch {i}")
-
-        # for debugging purposes, if S1 VH contains zero values, print how many
-        slope_zero_count = torch.sum(s_t_h_x_c1_valid == 0).item()
-        print(f"Slope zero count: {slope_zero_count} in tif {name} in batch {i}")
 
         for idx, (data, channel_name) in enumerate(
             zip(
