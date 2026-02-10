@@ -8,7 +8,7 @@ import torch
 
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER, RESULTS_FOLDER
-from src.fsc.eval.hr_eval import HRMetaDataset
+from src.fsc.add_eval.hr_eval import HRMetaDataset
 from src.utils import seed_everything
 
 seed_everything(DEFAULT_SEED)

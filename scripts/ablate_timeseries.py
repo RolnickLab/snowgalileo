@@ -11,7 +11,7 @@ from src.data.config import DATA_FOLDER
 from src.fsc import (
     TimeseriesAblationsEval,
 )
-from src.fsc.eval import EvalTask
+from src.fsc.add_eval import EvalTask
 from src.snowgalileo import Encoder
 from src.utils import device, load_check_config, seed_everything
 

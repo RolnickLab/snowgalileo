@@ -8,7 +8,7 @@ import torch
 
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER, RESULTS_FOLDER
-from src.fsc.eval.cloud_eval import CloudMetaDataset
+from src.fsc.add_eval.cloud_eval import CloudMetaDataset
 from src.utils import seed_everything
 
 seed_everything(DEFAULT_SEED)
