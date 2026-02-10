@@ -1,5 +1,6 @@
 import satellite_cloud_generator as scg
 from src.config import DEFAULT_SEED
+from src.data import config
 from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset
 from src.utils import masked_output_np_to_tensor, seed_everything
 from src.data.dataset import Normalizer
@@ -9,6 +10,7 @@ from typing import Union, Dict, cast
 from einops import rearrange
 import numpy as np
 import psutil
+import random
 from pathlib import Path
 import rioxarray
 import torch
@@ -46,6 +48,7 @@ from src.data.earthengine.eo_eval import (
     STATIC_BANDS,
     TIME_BANDS,
     TIME_BANDS_GROUPS_IDX,
+    SPACE_TIME_LOW_RES_BANDS
 )
 
 seed_everything(DEFAULT_SEED)
@@ -111,8 +114,24 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
     },
 }
 
+
+class CostumCloudGenerator(scg.CloudGenerator):
+    def __init__(self, config, cloud_p=1.0, shadow_p=1.0):
+        super().__init__(config, cloud_p=cloud_p, shadow_p=shadow_p)
+
+    def get_config_names(self):
+        return [cfg.get("name", "unnamed_config") for cfg in self.config]
+
+
+
 def generate_clouds(band_stack, band_weights, cloud_prob=0.0, shadow_prob=0.0):
     """Function to generate clouds. Input image should be in shape [B,C,H,W]. Band weights should be in shape [B,C,1,1]."""
+
+    scg.WIDE_CONFIG["name"] = "wide"
+    scg.BIG_CONFIG["name"] = "big"
+    scg.LOCAL_CONFIG["name"] = "local"
+    scg.FOG_CONFIG["name"] = "fog"
+
     cfgs=[scg.WIDE_CONFIG,
         scg.BIG_CONFIG,
         scg.LOCAL_CONFIG,
@@ -126,14 +145,11 @@ def generate_clouds(band_stack, band_weights, cloud_prob=0.0, shadow_prob=0.0):
                                        cloud_p=cloud_prob,
                                        shadow_p=shadow_prob))
 
-    composed_gen = gens[0] | gens[1] | gens[2] | gens[3]
+    gen = random.choice(gens)
+    cloud_id = gen.get_config_names()
+    out, cloud_mask, _ = gen(band_stack, channel_magnitude=band_weights, return_cloud=True)
 
-    # randomly apply one of the generators
-    out = composed_gen(band_stack, channel_magnitude=band_weights)
-
-    # TODO: return cloud type, keep valid data mask
-
-    return out
+    return out, cloud_mask, cloud_id
 
 
 class CloudGeneratorMetaDataset(LandsatEvalDataset):
@@ -242,12 +258,72 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         time_x = dynamic_in_time_x[
             :, :, :, -(len(TIME_BANDS) + len(CLOUD_BANDS)) : -len(CLOUD_BANDS)
         ]
+
+        # ---------- Cloud Generation ------------------------------------
+
+        # Create copies of the arrays to later compute valid masks on, since invalid data values will be 
+        # changed by cloud generation
+        space_time_high_res_x_no_clouds_added = space_time_high_res_x.copy()
+        space_time_med_res_x_no_clouds_added = space_time_med_res_x.copy()
+        space_time_low_res_x_no_clouds_added = space_time_low_res_x.copy()
+        time_x_no_clouds_added = time_x.copy()        
+
+        # TODO:
+        # test NDSI / NDVI
+        # test if cloud_mask 1 = cloud, 0 = no cloud
+        # test no data values
+        # test if output is different now
+        if self.eval_config["cloud_generation"]["cloud_prob_pred_day"] != 0.0:
+            space_time_names = ["s_t_h_x", "s_t_m_x", "s_t_l_x", "time_x"]
+            space_time_vars = [space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, time_x]
+            to_cloud = []
+            channel_slices = []
+
+            for name, var in zip(space_time_names, space_time_vars):
+                config = CHANNEL_WISE_CLOUD_PARAMETERS[name]
+                apply_clouds_mask = []
+                for sensor_cfg in config.values():
+                    apply_clouds_mask.extend(sensor_cfg["apply_clouds"])
+
+                apply_clouds_mask = np.array(apply_clouds_mask, dtype=bool)
+                # var shape: [H, W, T, C]
+                x_last = var[:, :, -1, :]  # [H, W, C]
+                x_cloud_channels = x_last[:, :, apply_clouds_mask]  # [H, W, C_cloud]
+                to_cloud.append(x_cloud_channels)
+
+                # Save where these channels came from
+                channel_slices.append((var, apply_clouds_mask))
+
+        to_cloud_combined = np.concatenate(to_cloud, axis=-1)
+        x_cloud_in = np.transpose(to_cloud_combined, (2, 0, 1))[None]
+
+        x_clouded, cloud_mask, _ = generate_clouds(x_cloud_in)
+        x_clouded_hw_c = np.transpose(x_clouded[0], (1, 2, 0))
+
+        c_start = 0
+        for array, mask in channel_slices:
+            c_count = mask.sum().item()
+            c_end = c_start + c_count
+
+            cloud_chunk = x_clouded_hw_c[:, :, c_start:c_end]
+            array[:, :, -1, mask] = cloud_chunk
+
+            c_start = c_end
+
+        if self.eval_config["cloud_generation"]["cloud_prob_timeseries"] != 0.0:
+            raise NotImplementedError
+
+        # ----------------------------------------------------------------------
+
         time_x = np.nanmean(time_x, axis=(0, 1))
+        time_x_no_clouds_added = np.nanmean(time_x_no_clouds_added, axis=(0, 1))
 
         # NDSI = (Green - SWIR) / (Green + SWIR)
         if MODALITIES["ndsi"].get("active"):
+            # base on array without clouds added, because no data values will be changed
+            # cloud dependent computation will be taken care of with cloud mask
             ndsi = self.calculate_ndi(
-                space_time_low_res_x, band_1="sur_refl_b04", band_2="sur_refl_b06"
+                space_time_low_res_x_no_clouds_added, band_1="sur_refl_b04", band_2="sur_refl_b06", cloud_mask=cloud_mask
             )
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndsi), axis=-1)
             assert (ndsi != MODIS_FILL_VALUE).any(), (
@@ -261,7 +337,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         # NDVI = (NIR - Red) / (NIR + Red)
         if MODALITIES["ndvi"].get("active"):
             ndvi = self.calculate_ndi(
-                space_time_low_res_x, band_1="sur_refl_b02", band_2="sur_refl_b01"
+                space_time_low_res_x_no_clouds_added, band_1="sur_refl_b02", band_2="sur_refl_b01", cloud_mask=cloud_mask
             )
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndvi), axis=-1)
             assert (ndvi != MODIS_FILL_VALUE).any(), (
@@ -309,6 +385,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
             size=DATASET_OUTPUT_HW_HIGH_RES,
             num_timesteps=NUM_TIMESTEPS,
         )
+        # base on array without clouds added, because no data values will be changed
         (
             valid_data_mask_s_t_h,
             valid_data_mask_s_t_m,
@@ -317,82 +394,13 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
             valid_data_mask_t,
             valid_data_mask_st,
         ) = self.create_valid_mask(
-            space_time_high_res_x,
-            space_time_med_res_x,
-            space_time_low_res_x,
+            space_time_high_res_x_no_clouds_added,
+            space_time_med_res_x_no_clouds_added,
+            space_time_low_res_x_no_clouds_added,
             space_x,
-            time_x,
+            time_x_no_clouds_added,
             static_x,
         )
-
-
-        # TODO:
-        # handle NDSI / NDVI
-        # handle no data values
-        # TODO: numpy / torch conflict
-        if self.eval_config["cloud_generation"]["cloud_prob_pred_day"] != 0.0:
-            space_time_names = ["s_t_h_x", "s_t_m_x", "s_t_l_x"]
-            space_time_vars = [space_time_high_res_x, space_time_med_res_x, space_time_low_res_x]
-            to_cloud = []
-            channel_slices = []
-
-            for name, var in zip(space_time_names, space_time_vars):
-                config = CHANNEL_WISE_CLOUD_PARAMETERS[name]
-                apply_clouds_mask = []
-                for sensor_cfg in config.values():
-                    apply_clouds_mask.extend(sensor_cfg["apply_clouds"])
-
-                apply_clouds_mask = torch.tensor(apply_clouds_mask, dtype=torch.bool)
-                # var shape: [H, W, T, C]
-                x_last = var[:, :, -1, :]  # [H, W, C]
-                x_cloud_channels = x_last[:, :, apply_clouds_mask]  # [H, W, C_cloud]
-                to_cloud.append(x_cloud_channels)
-
-                # Save where these channels came from
-                channel_slices.append(("spatial", var, apply_clouds_mask))
-
-            # time-only
-            config = CHANNEL_WISE_CLOUD_PARAMETERS["t_x"]
-            apply_clouds_mask = []
-            for sensor_cfg in config.values():
-                apply_clouds_mask.extend(sensor_cfg["apply_clouds"])
-
-            apply_clouds_mask = torch.tensor(apply_clouds_mask, dtype=torch.bool)
-            # var shape: [T, C]
-            x_last = time_x[-1, :]  # [C]
-            x_cloud_channels = x_last[apply_clouds_mask]  # [C_cloud]
-            to_cloud.append(x_cloud_channels[None, None, :])  # [1, 1, C_cloud]
-
-            channel_slices.append(("time", time_x, apply_clouds_mask))
-
-        to_cloud_combined = torch.cat(to_cloud, dim=-1)
-        x_cloud_in = to_cloud_combined.permute(2, 0, 1)[None]
-
-        x_clouded = generate_clouds(x_cloud_in)
-        # TODO: Check if output has a batch dimension
-        x_clouded_hw_c = x_clouded[0].permute(1, 2, 0)
-
-        c_start = 0
-        for kind, tensor, mask in channel_slices:
-            c_count = mask.sum().item()
-            c_end = c_start + c_count
-
-            cloud_chunk = x_clouded_hw_c[:, :, c_start:c_end]
-
-            if kind == "spatial":
-                # tensor shape: [H, W, T, C]
-                tensor[:, :, -1, mask] = cloud_chunk
-
-            elif kind == "time":
-                # tensor shape: [T, C]
-                tensor[-1, mask] = cloud_chunk[0, 0, :]
-
-            c_start = c_end
-
-        # TODO: Check if output is different now
-
-        if self.eval_config["cloud_generation"]["cloud_prob_timeseries"] != 0.0:
-            pass
 
         # for downsampling, the arrays need to be in divisible shape so we do it after cropping
         space_time_med_res_x, valid_data_mask_s_t_m = self.downsample_dynamic_in_time_with_mean(
@@ -436,6 +444,50 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
             )
         except AssertionError as e:
             raise e
+
+    @staticmethod
+    def calculate_ndi(input_array: np.ndarray, band_1: str, band_2: str, cloud_mask: np.ndarray) -> np.ndarray:
+        r"""
+        Given an input array of shape [h, w, t, bands]
+        where bands == len(EO_DYNAMIC_IN_TIME_BANDS_NP), returns an array of shape
+        [h, w, t, 1] representing NDI,
+        (band_1 - band_2) / (band_1 + band_2)
+        """
+
+        for b in [band_1, band_2]:
+            assert b in SPACE_TIME_LOW_RES_BANDS
+
+        band_1_np = input_array[:, :, :, SPACE_TIME_LOW_RES_BANDS.index(band_1)]
+        band_2_np = input_array[:, :, :, SPACE_TIME_LOW_RES_BANDS.index(band_2)]
+
+        if not np.all(cloud_mask == 0):
+            band_1_np[:, :, -1, :] = NO_DATA_VALUE
+            band_2_np[:, :, -1, :] = NO_DATA_VALUE
+
+        invalid = (
+            (band_1_np == NO_DATA_VALUE)
+            | (band_1_np == MODIS_FILL_VALUE)
+            | (band_2_np == NO_DATA_VALUE)
+            | (band_2_np == MODIS_FILL_VALUE)
+        )
+
+        with np.errstate(divide="ignore", invalid="ignore"):
+            # suppress the following warning
+            # RuntimeWarning: invalid value encountered in divide
+            # for cases where near_infrared + red == 0
+            # since this is handled in the where condition
+            ndi = np.expand_dims(
+                np.where(
+                    ((band_1_np + band_2_np) > 0) & (~invalid),
+                    (band_1_np - band_2_np) / (band_1_np + band_2_np),
+                    NO_DATA_VALUE,
+                ),
+                -1,
+            )
+        # when the input bands have different signs, NDI can be outside [-1, 1]
+        # set values outside valid range to NO_DATA_VALUE (will be masked out later)
+        ndi[(ndi < NDI_VALID_DATA_BOUNDS[0]) | (ndi > NDI_VALID_DATA_BOUNDS[1])] = NO_DATA_VALUE
+        return ndi
 
 
 class CloudGeneratorEval(LandsatEval):

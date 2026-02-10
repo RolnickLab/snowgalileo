@@ -8,7 +8,7 @@ import torch
 
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER
-from src.fsc import (
+from src.fsc.ablations.pixel_ablations import (
     PixelAblationsEval,
 )
 from src.fsc.eval import EvalTask
