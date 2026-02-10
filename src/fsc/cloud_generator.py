@@ -274,7 +274,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         # test no data values
         # test if output is different now
         if self.eval_config["cloud_generation"]["cloud_prob_pred_day"] != 0.0:
-            space_time_names = ["s_t_h_x", "s_t_m_x", "s_t_l_x", "time_x"]
+            space_time_names = ["s_t_h_x", "s_t_m_x", "s_t_l_x", "t_x"]
             space_time_vars = [space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, time_x]
             to_cloud = []
             channel_slices = []
