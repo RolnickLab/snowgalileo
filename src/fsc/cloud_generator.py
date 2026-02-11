@@ -278,9 +278,11 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
             space_time_vars = [space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, time_x]
             to_cloud = []
             channel_slices = []
+            band_weights = []
 
             for name, var in zip(space_time_names, space_time_vars):
                 config = CHANNEL_WISE_CLOUD_PARAMETERS[name]
+                band_weights.append(np.concatenate([config[sensor]["channel_magnitudes"] for sensor in config.keys()]))
                 apply_clouds_mask = []
                 for sensor_cfg in config.values():
                     apply_clouds_mask.extend(sensor_cfg["apply_clouds"])
@@ -297,7 +299,14 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         to_cloud_combined = np.concatenate(to_cloud, axis=-1)
         x_cloud_in = np.transpose(to_cloud_combined, (2, 0, 1))[None]
 
-        x_clouded, cloud_mask, _ = generate_clouds(x_cloud_in)
+        # to tensor
+        x_cloud_in_tensor = torch.from_numpy(x_cloud_in).float()
+        band_weights_tensor = torch.from_numpy(np.concatenate(band_weights)).float()
+
+        x_clouded, cloud_mask, _ = generate_clouds(band_stack=x_cloud_in_tensor,
+                                                   band_weights=band_weights_tensor,
+                                                   cloud_prob=self.eval_config["cloud_generation"]["cloud_prob_pred_day"], 
+                                                   shadow_prob=self.eval_config["cloud_generation"]["shadow_prob"])
         x_clouded_hw_c = np.transpose(x_clouded[0], (1, 2, 0))
 
         c_start = 0
