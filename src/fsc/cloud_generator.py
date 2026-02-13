@@ -252,10 +252,10 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         space_time_low_res_x_no_clouds_added = space_time_low_res_x.copy()
         time_x_no_clouds_added = time_x.copy()
 
-        cloud_mask_s_t_h = torch.zeros_like(space_time_high_res_x)
-        cloud_mask_s_t_m = torch.zeros_like(space_time_med_res_x)
-        cloud_mask_s_t_l = torch.zeros_like(space_time_low_res_x)
-        cloud_mask_t = torch.zeros_like(time_x)        
+        cloud_mask_s_t_h = np.zeros_like(space_time_high_res_x)
+        cloud_mask_s_t_m = np.zeros_like(space_time_med_res_x)
+        cloud_mask_s_t_l = np.zeros_like(space_time_low_res_x)
+        cloud_mask_t = np.zeros_like(time_x)        
 
         # TODO:
         # test NDSI / NDVI
