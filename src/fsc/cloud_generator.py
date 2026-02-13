@@ -266,10 +266,13 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
 
             for name, var in zip(space_time_names, space_time_vars):
                 config = CHANNEL_WISE_CLOUD_PARAMETERS[name]
-                band_weights.append(np.concatenate([config[sensor]["channel_magnitudes"] for sensor in config.keys()]))
+                band_weights.append(np.concatenate([config[sensor]["channel_magnitudes"] for sensor in config.keys() if sensor["apply_clouds"]]))
                 apply_clouds_mask = []
                 for sensor_cfg in config.values():
-                    apply_clouds_mask.extend(sensor_cfg["apply_clouds"])
+                    for apply, magnitude in zip(sensor_cfg["apply_clouds"], sensor_cfg["channel_magnitudes"]):
+                        apply_clouds_mask.append(apply)
+                        if apply:
+                            band_weights.append(magnitude)
 
                 apply_clouds_mask = np.array(apply_clouds_mask, dtype=bool)
                 # var shape: [H, W, T, C]
