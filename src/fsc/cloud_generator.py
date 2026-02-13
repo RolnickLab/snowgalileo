@@ -250,7 +250,12 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         space_time_high_res_x_no_clouds_added = space_time_high_res_x.copy()
         space_time_med_res_x_no_clouds_added = space_time_med_res_x.copy()
         space_time_low_res_x_no_clouds_added = space_time_low_res_x.copy()
-        time_x_no_clouds_added = time_x.copy()        
+        time_x_no_clouds_added = time_x.copy()
+
+        cloud_mask_s_t_h = torch.zeros_like(space_time_high_res_x)
+        cloud_mask_s_t_m = torch.zeros_like(space_time_med_res_x)
+        cloud_mask_s_t_l = torch.zeros_like(space_time_low_res_x)
+        cloud_mask_t = torch.zeros_like(time_x)        
 
         # TODO:
         # test NDSI / NDVI
@@ -260,11 +265,12 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         if self.eval_config["cloud_generation"]["cloud_prob_pred_day"] != 0.0:
             space_time_names = ["s_t_h_x", "s_t_m_x", "s_t_l_x", "t_x"]
             space_time_vars = [space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, time_x]
+            space_time_cloud_masks = [cloud_mask_s_t_h, cloud_mask_s_t_m, cloud_mask_s_t_l, cloud_mask_t]
             to_cloud = []
             channel_slices = []
             band_weights = []
 
-            for name, var in zip(space_time_names, space_time_vars):
+            for name, var, cl_mask in zip(space_time_names, space_time_vars, space_time_cloud_masks):
                 config = CHANNEL_WISE_CLOUD_PARAMETERS[name]
                 apply_clouds_mask = []
                 for sensor_cfg in config.values():
@@ -280,7 +286,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
                 to_cloud.append(x_cloud_channels)
 
                 # Save where these channels came from
-                channel_slices.append((var, apply_clouds_mask))
+                channel_slices.append((var, apply_clouds_mask, cl_mask))
 
         to_cloud_combined = np.concatenate(to_cloud, axis=-1)
         x_cloud_in = np.transpose(to_cloud_combined, (2, 0, 1))[None]
@@ -294,14 +300,16 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
                                                    cloud_prob=self.eval_config["cloud_generation"]["cloud_prob_pred_day"], 
                                                    shadow_prob=self.eval_config["cloud_generation"]["shadow_prob"])
         x_clouded_hw_c = np.transpose(x_clouded[0], (1, 2, 0))
+        cloud_mask_hw_c = np.transpose(cloud_mask[0], (1, 2, 0))
 
         c_start = 0
-        for array, mask in channel_slices:
-            c_count = mask.sum().item()
+        for array, clouds_applied, cl_mask in channel_slices:
+            c_count = clouds_applied.sum().item()
             c_end = c_start + c_count
 
             cloud_chunk = x_clouded_hw_c[:, :, c_start:c_end]
-            array[:, :, -1, mask] = cloud_chunk
+            array[:, :, -1, clouds_applied] = cloud_chunk
+            cl_mask[:, :, -1, clouds_applied] = cloud_mask_hw_c[:, :, c_start:c_end]
 
             c_start = c_end
 
