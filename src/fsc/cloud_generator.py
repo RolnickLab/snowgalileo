@@ -258,10 +258,10 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         cloud_mask_t = np.zeros_like(time_x)        
 
         # TODO:
-        # test NDSI / NDVI
-        # test if cloud_mask 1 = cloud, 0 = no cloud
-        # test no data values
-        # test if output is different now
+        # Test NDSI / NDVI
+        # Cloud mask: 0 is no cloud, but why are the others <1 ?
+        # Test no data values
+        # Test output visually
         if self.eval_config["cloud_generation"]["cloud_prob_pred_day"] != 0.0:
             space_time_names = ["s_t_h_x", "s_t_m_x", "s_t_l_x", "t_x"]
             space_time_vars = [space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, time_x]
@@ -326,6 +326,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
                 space_time_low_res_x_no_clouds_added, band_1="sur_refl_b04", band_2="sur_refl_b06", cloud_mask=cloud_mask_s_t_l
             )
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndsi), axis=-1)
+            space_time_low_res_x_no_clouds_added = np.concatenate((space_time_low_res_x_no_clouds_added, ndsi), axis=-1)
             assert (ndsi != MODIS_FILL_VALUE).any(), (
                 f"MODIS fill values encountered in NDSI for {tif_path}"
             )
@@ -340,6 +341,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
                 space_time_low_res_x_no_clouds_added, band_1="sur_refl_b02", band_2="sur_refl_b01", cloud_mask=cloud_mask_s_t_l
             )
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndvi), axis=-1)
+            space_time_low_res_x_no_clouds_added = np.concatenate((space_time_low_res_x_no_clouds_added, ndvi), axis=-1)
             assert (ndvi != MODIS_FILL_VALUE).any(), (
                 f"MODIS fill values encountered in NDVI for {tif_path}"
             )
@@ -385,7 +387,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
             size=DATASET_OUTPUT_HW_HIGH_RES,
             num_timesteps=NUM_TIMESTEPS,
         )
-        # base on array without clouds added, because no data values will be changed
+        # base on array without clouds added, because cloud generation modified original no data values
         (
             valid_data_mask_s_t_h,
             valid_data_mask_s_t_m,
@@ -461,8 +463,8 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         band_2_np = input_array[:, :, :, SPACE_TIME_LOW_RES_BANDS.index(band_2)]
 
         if not np.all(cloud_mask == 0):
-            band_1_np[:, :, -1, :] = NO_DATA_VALUE
-            band_2_np[:, :, -1, :] = NO_DATA_VALUE
+            band_1_np[:, :, -1] = NO_DATA_VALUE
+            band_2_np[:, :, -1] = NO_DATA_VALUE
 
         invalid = (
             (band_1_np == NO_DATA_VALUE)
