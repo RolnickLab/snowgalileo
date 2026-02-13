@@ -730,6 +730,7 @@ class LandsatEvalSklearn(LandsatEval):
                     model_input.shape[-1] / 3
                 ),  # fixed here, since depends on input shape
                 random_state=DEFAULT_SEED,
+                n_jobs=-1
             )
 
         elif self.model_type == "svr":
