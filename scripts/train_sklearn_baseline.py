@@ -50,6 +50,10 @@ argparser.add_argument(
     action="store_true",
     help="Where to only use h5pys (faster, but need to be already stored in this format)",
 )
+argparser.add_argument(
+    "--bagging",
+    action="store_true",
+)
 args = argparser.parse_args().__dict__
 
 
@@ -72,5 +76,6 @@ rf = LandsatEvalSklearn(
     model_type=args["model_type"],
     h5pys_only=args["h5pys_only"],
     normalizing_dict=normalizing_dict,
+    bagging=args["bagging"]
 )
 rf.fit_sklearn(id=args["run_id"], save_results=True)

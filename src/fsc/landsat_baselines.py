@@ -12,6 +12,7 @@ from einops import rearrange, reduce, repeat
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.neural_network import MLPRegressor
 from sklearn.svm import SVR
+from sklearn.ensemble import BaggingRegressor
 from torch.utils.data import DataLoader
 
 from src.config import DEFAULT_SEED
@@ -206,6 +207,7 @@ class LandsatEvalSklearn(LandsatEval):
         eval_config: Dict = {},
         model_type: str = "rf",
         normalizing_dict: Optional[Dict] = None,
+        bagging: bool = False
     ):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
@@ -217,6 +219,7 @@ class LandsatEvalSklearn(LandsatEval):
         self.model_type = model_type
         self.normalizing_dict = normalizing_dict
         self.h5pys_only = h5pys_only
+        self.bagging = bagging
 
         assert model_type in ["rf", "svr", "mlp"], f"Unknown model type {model_type}"
 
@@ -752,8 +755,14 @@ class LandsatEvalSklearn(LandsatEval):
 
         else:
             raise ValueError(f"Unknown model type {self.model_type}")
+        
+        if self.bagging:
+            model_composed = BaggingRegressor(estimator=model, n_jobs=-1)
+        else:
+            model_composed = model
 
-        model.fit(model_input, model_labels)
+
+        model_composed.fit(model_input, model_labels)
 
         test_ds = LandsatEvalDatasetSklearn(
             split="test",
@@ -814,7 +823,7 @@ class LandsatEvalSklearn(LandsatEval):
                     )
                 )[0]
             )  # (N, num_features)
-            preds = model.predict(input.numpy())
+            preds = model_composed.predict(input.numpy())
             all_preds.append(torch.as_tensor(preds))
             all_test_labels.append(torch.squeeze(label).flatten())
 
@@ -827,7 +836,7 @@ class LandsatEvalSklearn(LandsatEval):
             # model checkpoint
             try:
                 model_path = Path(f"./landsat_{self.model_type}_model_{id}.joblib")
-                joblib.dump(model, model_path)
+                joblib.dump(model_composed, model_path)
                 print(f"Saved {self.model_type} model to {model_path}", flush=True)
             except Exception as e:
                 print(f"Could not save {self.model_type} model due to {e}", flush=True)
