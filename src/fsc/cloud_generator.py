@@ -141,7 +141,7 @@ def generate_clouds(band_stack, band_weights, cloud_prob=0.0, shadow_prob=0.0):
     gens=[]
 
     for cfg in cfgs:
-        gens.append(scg.CloudGenerator(cfg,
+        gens.append(CostumCloudGenerator(cfg,
                                        cloud_p=cloud_prob,
                                        shadow_p=shadow_prob))
 
