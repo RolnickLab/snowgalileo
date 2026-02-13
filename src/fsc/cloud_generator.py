@@ -114,23 +114,8 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
     },
 }
 
-
-class CostumCloudGenerator(scg.CloudGenerator):
-    def __init__(self, config, cloud_p=1.0, shadow_p=1.0):
-        super().__init__(config, cloud_p=cloud_p, shadow_p=shadow_p)
-
-    def get_config_names(self):
-        return [cfg.get("name", "unnamed_config") for cfg in self.config]
-
-
-
 def generate_clouds(band_stack, band_weights, cloud_prob=0.0, shadow_prob=0.0):
     """Function to generate clouds. Input image should be in shape [B,C,H,W]. Band weights should be in shape [B,C,1,1]."""
-
-    scg.WIDE_CONFIG["name"] = "wide"
-    scg.BIG_CONFIG["name"] = "big"
-    scg.LOCAL_CONFIG["name"] = "local"
-    scg.FOG_CONFIG["name"] = "fog"
 
     cfgs=[scg.WIDE_CONFIG,
         scg.BIG_CONFIG,
@@ -141,15 +126,14 @@ def generate_clouds(band_stack, band_weights, cloud_prob=0.0, shadow_prob=0.0):
     gens=[]
 
     for cfg in cfgs:
-        gens.append(CostumCloudGenerator(cfg,
+        gens.append(scg.CloudGenerator(cfg,
                                        cloud_p=cloud_prob,
                                        shadow_p=shadow_prob))
 
     gen = random.choice(gens)
-    cloud_id = gen.get_config_names()
     out, cloud_mask, _ = gen(band_stack, channel_magnitude=band_weights, return_cloud=True)
 
-    return out, cloud_mask, cloud_id
+    return out, cloud_mask
 
 
 class CloudGeneratorMetaDataset(LandsatEvalDataset):
@@ -303,7 +287,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         x_cloud_in_tensor = torch.from_numpy(x_cloud_in).float()
         band_weights_tensor = torch.from_numpy(np.concatenate(band_weights)).float()
 
-        x_clouded, cloud_mask, _ = generate_clouds(band_stack=x_cloud_in_tensor,
+        x_clouded, cloud_mask = generate_clouds(band_stack=x_cloud_in_tensor,
                                                    band_weights=band_weights_tensor,
                                                    cloud_prob=self.eval_config["cloud_generation"]["cloud_prob_pred_day"], 
                                                    shadow_prob=self.eval_config["cloud_generation"]["shadow_prob"])
