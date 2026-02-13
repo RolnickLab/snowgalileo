@@ -287,7 +287,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
 
         # to tensor
         x_cloud_in_tensor = torch.from_numpy(x_cloud_in).float()
-        band_weights_tensor = torch.from_numpy(np.concatenate(band_weights)).float()
+        band_weights_tensor = torch.tensor(band_weights).float()
 
         x_clouded, cloud_mask = generate_clouds(band_stack=x_cloud_in_tensor,
                                                    band_weights=band_weights_tensor,
@@ -304,9 +304,6 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
             array[:, :, -1, mask] = cloud_chunk
 
             c_start = c_end
-
-        if self.eval_config["cloud_generation"]["cloud_prob_timeseries"] != 0.0:
-            raise NotImplementedError
 
         # ----------------------------------------------------------------------
 
