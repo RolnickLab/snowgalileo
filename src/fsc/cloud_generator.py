@@ -323,7 +323,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
             # base on array without clouds added, because no data values will be changed
             # cloud dependent computation will be taken care of with cloud mask
             ndsi = self.calculate_ndi(
-                space_time_low_res_x_no_clouds_added, band_1="sur_refl_b04", band_2="sur_refl_b06", cloud_mask=cloud_mask
+                space_time_low_res_x_no_clouds_added, band_1="sur_refl_b04", band_2="sur_refl_b06", cloud_mask=cloud_mask_s_t_l
             )
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndsi), axis=-1)
             assert (ndsi != MODIS_FILL_VALUE).any(), (
@@ -337,7 +337,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         # NDVI = (NIR - Red) / (NIR + Red)
         if MODALITIES["ndvi"].get("active"):
             ndvi = self.calculate_ndi(
-                space_time_low_res_x_no_clouds_added, band_1="sur_refl_b02", band_2="sur_refl_b01", cloud_mask=cloud_mask
+                space_time_low_res_x_no_clouds_added, band_1="sur_refl_b02", band_2="sur_refl_b01", cloud_mask=cloud_mask_s_t_l
             )
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndvi), axis=-1)
             assert (ndvi != MODIS_FILL_VALUE).any(), (
