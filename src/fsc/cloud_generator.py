@@ -26,7 +26,7 @@ from src.data.config import (
     NUM_MED_RES_PIXELS_PER_DIM,
     NUM_TIMESTEPS,
     RESULTS_FOLDER,
-    DATASET_OUTPUT_HW_HIGH_RES
+    DATASET_OUTPUT_HW_HIGH_RES,
 )
 from src.data.dataset import Dataset as BaseDataset
 from src.data.dataset import DatasetOutput, Normalizer, to_cartesian
@@ -48,7 +48,7 @@ from src.data.earthengine.eo_eval import (
     STATIC_BANDS,
     TIME_BANDS,
     TIME_BANDS_GROUPS_IDX,
-    SPACE_TIME_LOW_RES_BANDS
+    SPACE_TIME_LOW_RES_BANDS,
 )
 
 seed_everything(DEFAULT_SEED)
@@ -67,68 +67,84 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
         "S1": {
             "band_names": ["VV", "VH", "angle"],
             "apply_clouds": [False, False, False],
-            "channel_magnitudes": [0.0,0.0,0.0]
+            "channel_magnitudes": [0.0, 0.0, 0.0],
         },
         "S2": {
             "band_names": ["B2", "B3", "B4", "B8", "B11", "B12"],
             "apply_clouds": [True, True, True, True, True, True],
-            "channel_magnitudes": [0.0,0.0,0.0,0.0,0.0,0.0]
+            "channel_magnitudes": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         },
         "Landsat": {
-            "band_names": ["B2_landsat", "B3_landsat", "B4_landsat", "B5_landsat", "B6_landsat", "B7_landsat"],
+            "band_names": [
+                "B2_landsat",
+                "B3_landsat",
+                "B4_landsat",
+                "B5_landsat",
+                "B6_landsat",
+                "B7_landsat",
+            ],
             "apply_clouds": [True, True, True, True, True, True],
-            "channel_magnitudes": [0.0,0.0,0.0,0.0,0.0,0.0]
+            "channel_magnitudes": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         },
     },
     "s_t_m_x": {
         "S3": {
             "band_names": ["Oa17_radiance", "Oa21_radiance"],
             "apply_clouds": [True, True],
-            "channel_magnitudes": [0.0,0.0]
+            "channel_magnitudes": [0.0, 0.0],
         },
     },
     # NOTE: Indeces computation happens after cloud generation
     "s_t_l_x": {
         "MODIS": {
-            "band_names": ["sur_refl_b01", "sur_refl_b02", "sur_refl_b03", "sur_refl_b04", "sur_refl_b05", "sur_refl_b06", "sur_refl_b07"],
+            "band_names": [
+                "sur_refl_b01",
+                "sur_refl_b02",
+                "sur_refl_b03",
+                "sur_refl_b04",
+                "sur_refl_b05",
+                "sur_refl_b06",
+                "sur_refl_b07",
+            ],
             "apply_clouds": [True, True, True, True, True, True, True],
-            "channel_magnitudes": [0.0,0.0,0.0,0.0,0.0,0.0,0.0]
+            "channel_magnitudes": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         },
         "VIIRS": {
             "band_names": ["I1", "I3"],
             "apply_clouds": [True, True],
-            "channel_magnitudes": [0.0,0.0]
+            "channel_magnitudes": [0.0, 0.0],
         },
     },
     "t_x": {
         "VIIRS": {
             "band_names": ["M5", "M7", "M10", "M11"],
             "apply_clouds": [True, True, True, True],
-            "channel_magnitudes": [0.0,0.0,0.0,0.0]
+            "channel_magnitudes": [0.0, 0.0, 0.0, 0.0],
         },
         "ERA5": {
-            "band_names": ["skin_temperature", "temperature_2m", "total_precipitation_sum", "u_component_of_wind_10m", "v_component_of_wind_10m"],
+            "band_names": [
+                "skin_temperature",
+                "temperature_2m",
+                "total_precipitation_sum",
+                "u_component_of_wind_10m",
+                "v_component_of_wind_10m",
+            ],
             "apply_clouds": [False, False, False, False, False],
-            "channel_magnitudes": [0.0, 0.0, 0.0, 0.0, 0.0]
-        }
+            "channel_magnitudes": [0.0, 0.0, 0.0, 0.0, 0.0],
+        },
     },
 }
+
 
 def generate_clouds(band_stack, band_weights, cloud_prob=0.0, shadow_prob=0.0):
     """Function to generate clouds. Input image should be in shape [B,C,H,W]. Band weights should be in shape [B,C,1,1]."""
 
-    cfgs=[scg.WIDE_CONFIG,
-        scg.BIG_CONFIG,
-        scg.LOCAL_CONFIG,
-        scg.FOG_CONFIG
-        ]
-    
-    gens=[]
+    cfgs = [scg.WIDE_CONFIG, scg.BIG_CONFIG, scg.LOCAL_CONFIG, scg.FOG_CONFIG]
+
+    gens = []
 
     for cfg in cfgs:
-        gens.append(scg.CloudGenerator(cfg,
-                                       cloud_p=cloud_prob,
-                                       shadow_p=shadow_prob))
+        gens.append(scg.CloudGenerator(cfg, cloud_p=cloud_prob, shadow_p=shadow_prob))
 
     gen = random.choice(gens)
     out, cloud_mask, _ = gen(band_stack, channel_magnitude=band_weights, return_cloud=True)
@@ -158,9 +174,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
             augmentation=augmentation,
         )
         self.eval_config = eval_config
-        assert self.eval_config is not None, (
-            "eval_config must be provided for cloud generation"
-        )
+        assert self.eval_config is not None, "eval_config must be provided for cloud generation"
         assert "cloud_generation" in self.eval_config, "cloud_generation config missing"
 
     def _tif_to_array(self, tif_path: Path) -> DatasetOutput:
@@ -245,7 +259,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
 
         # ---------- Cloud Generation ------------------------------------
 
-        # Create copies of the arrays to later compute valid masks on, since invalid data values will be 
+        # Create copies of the arrays to later compute valid masks on, since invalid data values will be
         # changed by cloud generation
         space_time_high_res_x_no_clouds_added = space_time_high_res_x.copy()
         space_time_med_res_x_no_clouds_added = space_time_med_res_x.copy()
@@ -255,7 +269,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         cloud_mask_s_t_h = np.zeros_like(space_time_high_res_x)
         cloud_mask_s_t_m = np.zeros_like(space_time_med_res_x)
         cloud_mask_s_t_l = np.zeros_like(space_time_low_res_x)
-        cloud_mask_t = np.zeros_like(time_x)        
+        cloud_mask_t = np.zeros_like(time_x)
 
         # TODO:
         # Test NDSI / NDVI
@@ -264,17 +278,31 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         # Test output visually
         if self.eval_config["cloud_generation"]["cloud_prob_pred_day"] != 0.0:
             space_time_names = ["s_t_h_x", "s_t_m_x", "s_t_l_x", "t_x"]
-            space_time_vars = [space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, time_x]
-            space_time_cloud_masks = [cloud_mask_s_t_h, cloud_mask_s_t_m, cloud_mask_s_t_l, cloud_mask_t]
+            space_time_vars = [
+                space_time_high_res_x,
+                space_time_med_res_x,
+                space_time_low_res_x,
+                time_x,
+            ]
+            space_time_cloud_masks = [
+                cloud_mask_s_t_h,
+                cloud_mask_s_t_m,
+                cloud_mask_s_t_l,
+                cloud_mask_t,
+            ]
             to_cloud = []
             channel_slices = []
             band_weights = []
 
-            for name, var, cl_mask in zip(space_time_names, space_time_vars, space_time_cloud_masks):
+            for name, var, cl_mask in zip(
+                space_time_names, space_time_vars, space_time_cloud_masks
+            ):
                 config = CHANNEL_WISE_CLOUD_PARAMETERS[name]
                 apply_clouds_mask = []
                 for sensor_cfg in config.values():
-                    for apply, magnitude in zip(sensor_cfg["apply_clouds"], sensor_cfg["channel_magnitudes"]):
+                    for apply, magnitude in zip(
+                        sensor_cfg["apply_clouds"], sensor_cfg["channel_magnitudes"]
+                    ):
                         apply_clouds_mask.append(apply)
                         if apply:
                             band_weights.append(magnitude)
@@ -295,10 +323,12 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         x_cloud_in_tensor = torch.from_numpy(x_cloud_in).float()
         band_weights_tensor = torch.tensor(band_weights).float()
 
-        x_clouded, cloud_mask = generate_clouds(band_stack=x_cloud_in_tensor,
-                                                   band_weights=band_weights_tensor,
-                                                   cloud_prob=self.eval_config["cloud_generation"]["cloud_prob_pred_day"], 
-                                                   shadow_prob=self.eval_config["cloud_generation"]["shadow_prob"])
+        x_clouded, cloud_mask = generate_clouds(
+            band_stack=x_cloud_in_tensor,
+            band_weights=band_weights_tensor,
+            cloud_prob=self.eval_config["cloud_generation"]["cloud_prob_pred_day"],
+            shadow_prob=self.eval_config["cloud_generation"]["shadow_prob"],
+        )
         x_clouded_hw_c = np.transpose(x_clouded[0], (1, 2, 0))
         cloud_mask_hw_c = np.transpose(cloud_mask[0], (1, 2, 0))
 
@@ -323,10 +353,15 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
             # base on array without clouds added, because no data values will be changed
             # cloud dependent computation will be taken care of with cloud mask
             ndsi = self.calculate_ndi(
-                space_time_low_res_x_no_clouds_added, band_1="sur_refl_b04", band_2="sur_refl_b06", cloud_mask=cloud_mask_s_t_l
+                space_time_low_res_x_no_clouds_added,
+                band_1="sur_refl_b04",
+                band_2="sur_refl_b06",
+                cloud_mask=cloud_mask_s_t_l,
             )
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndsi), axis=-1)
-            space_time_low_res_x_no_clouds_added = np.concatenate((space_time_low_res_x_no_clouds_added, ndsi), axis=-1)
+            space_time_low_res_x_no_clouds_added = np.concatenate(
+                (space_time_low_res_x_no_clouds_added, ndsi), axis=-1
+            )
             assert (ndsi != MODIS_FILL_VALUE).any(), (
                 f"MODIS fill values encountered in NDSI for {tif_path}"
             )
@@ -338,10 +373,15 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         # NDVI = (NIR - Red) / (NIR + Red)
         if MODALITIES["ndvi"].get("active"):
             ndvi = self.calculate_ndi(
-                space_time_low_res_x_no_clouds_added, band_1="sur_refl_b02", band_2="sur_refl_b01", cloud_mask=cloud_mask_s_t_l
+                space_time_low_res_x_no_clouds_added,
+                band_1="sur_refl_b02",
+                band_2="sur_refl_b01",
+                cloud_mask=cloud_mask_s_t_l,
             )
             space_time_low_res_x = np.concatenate((space_time_low_res_x, ndvi), axis=-1)
-            space_time_low_res_x_no_clouds_added = np.concatenate((space_time_low_res_x_no_clouds_added, ndvi), axis=-1)
+            space_time_low_res_x_no_clouds_added = np.concatenate(
+                (space_time_low_res_x_no_clouds_added, ndvi), axis=-1
+            )
             assert (ndvi != MODIS_FILL_VALUE).any(), (
                 f"MODIS fill values encountered in NDVI for {tif_path}"
             )
@@ -448,7 +488,9 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
             raise e
 
     @staticmethod
-    def calculate_ndi(input_array: np.ndarray, band_1: str, band_2: str, cloud_mask: np.ndarray) -> np.ndarray:
+    def calculate_ndi(
+        input_array: np.ndarray, band_1: str, band_2: str, cloud_mask: np.ndarray
+    ) -> np.ndarray:
         r"""
         Given an input array of shape [h, w, t, bands]
         where bands == len(EO_DYNAMIC_IN_TIME_BANDS_NP), returns an array of shape
@@ -526,7 +568,7 @@ class CloudGeneratorEval(LandsatEval):
         split: str,
         h5pys_only: bool = False,
         data_config: Dict = {},
-        normalization: Union[str, Normalizer] = "std"
+        normalization: Union[str, Normalizer] = "std",
     ) -> CloudGeneratorMetaDataset:
         ds = CloudGeneratorMetaDataset(
             exclude_prediction_date=exclude_prediction_date,

@@ -539,11 +539,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
             self.sync_local_and_gcloud()
             print("Finished sync")
 
-    def export_from_csv(
-        self,
-        csv_file
-    ) -> None:
-
+    def export_from_csv(self, csv_file) -> None:
         df = pd.read_csv(csv_file)
         dates = df["date"].tolist()
         lats = df["latitude"].tolist()
@@ -569,7 +565,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
                     WINDOW_START_DATE, WINDOW_END_DATE, for_eval_from_csv=True
                 ),
                 interval_start_date=WINDOW_START_DATE,
-                interval_end_date=WINDOW_END_DATE
+                interval_end_date=WINDOW_END_DATE,
             )
             if export_started:
                 exports_started += 1
@@ -578,4 +574,3 @@ class EarthEngineExporterEval(EarthEngineExporter):
             print("Export finished. Syncing to google cloud")
             self.sync_local_and_gcloud()
             print("Finished sync")
-

@@ -57,15 +57,13 @@ class BBox:
         else:
             return lat, lon
 
-    def get_identifier(
-        self, start_date, end_date, season=None, for_eval_from_csv=False
-    ) -> str:
+    def get_identifier(self, start_date, end_date, season=None, for_eval_from_csv=False) -> str:
         # Identifier is rounded to the nearest ~10m
         min_lon = round(self.min_lon, 4)
         min_lat = round(self.min_lat, 4)
         max_lon = round(self.max_lon, 4)
         max_lat = round(self.max_lat, 4)
-    
+
         if for_eval_from_csv:
             return f"{start_date}_{end_date}_{min_lat}_{min_lon}_{max_lat}_{max_lon}"
 

@@ -17,10 +17,7 @@ from torch.utils.data import DataLoader
 
 from src.config import DEFAULT_SEED
 from src.data.dataset import Normalizer
-from src.data.earthengine.eo_eval import (
-    SPACE_TIME_HIGH_RES_BANDS,
-    TIME_BANDS
-)
+from src.data.earthengine.eo_eval import SPACE_TIME_HIGH_RES_BANDS, TIME_BANDS
 from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset, masked_output_np_to_tensor
 from src.fsc.metrics import compute_regression_metrics
 
@@ -63,7 +60,7 @@ class LandsatEvalDatasetSklearn(LandsatEvalDataset):
         s_t_h_m[:, :, -1, 3:] = 1
         return s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
 
-    # NOTE: overwritten because for baselines, we use ungrouped channels    
+    # NOTE: overwritten because for baselines, we use ungrouped channels
     def mask_prediction_sensor_data(self, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m):
         # Masks all sensor channel groups in the prediction timestep
         # This includes all Sentinel-1, Sentinel-2, Landsat, Sentinel-3, MODIS, VIIRS data, as well as the MODIS-derived indeces
@@ -207,7 +204,7 @@ class LandsatEvalSklearn(LandsatEval):
         eval_config: Dict = {},
         model_type: str = "rf",
         normalizing_dict: Optional[Dict] = None,
-        bagging: bool = False
+        bagging: bool = False,
     ):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
@@ -733,7 +730,7 @@ class LandsatEvalSklearn(LandsatEval):
                     model_input.shape[-1] / 3
                 ),  # fixed here, since depends on input shape
                 random_state=DEFAULT_SEED,
-                n_jobs=-1
+                n_jobs=-1,
             )
 
         elif self.model_type == "svr":
@@ -755,12 +752,11 @@ class LandsatEvalSklearn(LandsatEval):
 
         else:
             raise ValueError(f"Unknown model type {self.model_type}")
-        
+
         if self.bagging:
             model_composed = BaggingRegressor(estimator=model, n_jobs=-1)
         else:
             model_composed = model
-
 
         model_composed.fit(model_input, model_labels)
 

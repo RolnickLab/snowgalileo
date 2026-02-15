@@ -99,9 +99,7 @@ def train_and_validate():
     args = parser.parse_args()
 
     with wandb.init(project="ai4snow_sweeps_sklearn") as sweep_run:
-        with (
-            Path("configs") / Path("finetune") / Path(args.eval_config_name)
-        ).open("r") as f:
+        with (Path("configs") / Path("finetune") / Path(args.eval_config_name)).open("r") as f:
             config = json.load(f)
 
         # we use the normalization values for missing data imputation so we load it independently

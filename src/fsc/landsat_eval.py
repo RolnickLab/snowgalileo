@@ -33,7 +33,7 @@ from src.data.config import (
     NUM_MED_RES_PIXELS_PER_DIM,
     NUM_TIMESTEPS,
     RESULTS_FOLDER,
-    DATASET_OUTPUT_HW_HIGH_RES
+    DATASET_OUTPUT_HW_HIGH_RES,
 )
 from src.data.dataset import Dataset as BaseDataset
 from src.data.dataset import DatasetOutput, Normalizer, to_cartesian
@@ -78,7 +78,6 @@ class LandsatEvalDataset(BaseDataset):
         augmentation=DownstreamAugmentation(False),
         data_config: Dict = {},
     ):
-        
         self.split = split
         assert self.split in ["train", "test", "visualize", "inference"]
 
@@ -142,7 +141,7 @@ class LandsatEvalDataset(BaseDataset):
         elif self.split == "inference":
             # create placeholder labels
             for img in self.tifs:
-                self.pairs.append((img, None))           
+                self.pairs.append((img, None))
         else:
             for img, lbl in zip(self.tifs, self.label_tifs):
                 if img.name == lbl.name:
@@ -179,7 +178,7 @@ class LandsatEvalDataset(BaseDataset):
         s_t_l_m[:, :, -1, :] = 1
         t_m[-1, :] = 1
         return s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
-    
+
     def mask_prediction_sensor_data(self, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m):
         # Masks all sensor channel groups in the prediction timestep
         # This includes all Sentinel-1, Sentinel-2, Landsat, Sentinel-3, MODIS, VIIRS data, as well as the MODIS-derived indeces
@@ -820,7 +819,7 @@ class LandsatEval(EvalTask):
         name_id = f"{eval_config['name']}" if eval_config and "name" in eval_config else ""
         self.name = f"{'attn' if self.decoder_mode == 'attention_probe' else 'linear' if self.decoder_mode == 'linear_probe' else 'finetune' if self.decoder_mode == 'finetune' else 'sklearn'}{'_exclude_prediction_date_' if self.exclude_prediction_date else ''}{'_exclude_prediction_sensors_' if self.exclude_prediction_sensors else ''}{'_no_high_res_in_pred_date' if self.exclude_prediction_high_res else ''}{name_id}"
         self.eval_config = eval_config
-        self.data_config = self.eval_config.data
+        self.data_config = self.eval_config["data"]
 
     @staticmethod
     def _get_dataset(
@@ -831,9 +830,8 @@ class LandsatEval(EvalTask):
         augmentation,
         h5pys_only: bool = False,
         data_config: Dict = {},
-        normalization: Union[str, Normalizer] = "std"
+        normalization: Union[str, Normalizer] = "std",
     ) -> LandsatEvalDataset:
-        
         ds = LandsatEvalDataset(
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
@@ -864,7 +862,7 @@ class LandsatEval(EvalTask):
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
             augmentation=DownstreamAugmentation(False),
-            normalization=self.normalization
+            normalization=self.normalization,
         )
 
         test_dl = DataLoader(
@@ -1216,7 +1214,7 @@ class LandsatEval(EvalTask):
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
             augmentation=DownstreamAugmentation(False),
-            normalization=self.normalization
+            normalization=self.normalization,
         )
 
         output_tif_folder = DATA_FOLDER / "output_tifs" / eval_config
@@ -1365,7 +1363,7 @@ class LandsatEval(EvalTask):
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
             augmentation=DownstreamAugmentation(False),
-            normalization=self.normalization
+            normalization=self.normalization,
         )
 
         test_dl = DataLoader(
@@ -1410,7 +1408,7 @@ class LandsatEval(EvalTask):
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
             augmentation=DownstreamAugmentation(False),
-            normalization=self.normalization
+            normalization=self.normalization,
         )
 
         test_dl = DataLoader(
@@ -1529,7 +1527,7 @@ class LandsatEval(EvalTask):
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
             augmentation=DownstreamAugmentation(False),
-            normalization=self.normalization
+            normalization=self.normalization,
         )
 
         visualization_folder = DATA_FOLDER / "visualizations" / str(self.eval_config["name"])
@@ -1749,7 +1747,7 @@ class LandsatEval(EvalTask):
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
             augmentation=DownstreamAugmentation(hyperparameter_config.get("augmentation", False)),
-            normalization=self.normalization
+            normalization=self.normalization,
         )
 
         if self.resample:

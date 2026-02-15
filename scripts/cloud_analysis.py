@@ -30,9 +30,7 @@ argparser.add_argument(
 )
 args = argparser.parse_args().__dict__
 
-with (Path("configs") / Path("eval") / Path(args["eval_config_name"])).open(
-    "r"
-) as f:
+with (Path("configs") / Path("eval") / Path(args["eval_config_name"])).open("r") as f:
     eval_config = json.load(f)
 data_config = eval_config["data"]
 

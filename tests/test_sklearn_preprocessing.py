@@ -317,9 +317,7 @@ class TestSklearn(unittest.TestCase):
         month,
     ):
         with (
-            Path(__file__).parents[1]
-            / Path("configs/finetune/")
-            / Path("landsat_eval_5_95.json")
+            Path(__file__).parents[1] / Path("configs/finetune/") / Path("landsat_eval_5_95.json")
         ).open("r") as f:
             config = json.load(f)
 
@@ -376,9 +374,7 @@ class TestSklearn(unittest.TestCase):
         month,
     ):
         with (
-            Path(__file__).parents[1]
-            / Path("configs/finetune/")
-            / Path("landsat_eval_5_95.json")
+            Path(__file__).parents[1] / Path("configs/finetune/") / Path("landsat_eval_5_95.json")
         ).open("r") as f:
             config = json.load(f)
 

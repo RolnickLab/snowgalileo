@@ -50,9 +50,8 @@ class DatasetSizeAblationsEval(LandsatEval):
         split: str,
         h5pys_only: bool = False,
         data_config: Dict = {},
-        normalization: Union[str, Normalizer] = "std"
+        normalization: Union[str, Normalizer] = "std",
     ) -> LandsatEvalDataset:
-        
         dataset = LandsatEvalDataset(
             augmentation=augmentation,
             exclude_prediction_date=exclude_prediction_date,

@@ -31,7 +31,7 @@ def extract_season_from_filename(filename: str) -> str:
         return "summer"
     except (ValueError, IndexError):
         raise ValueError(f"Filename '{filename}' does not match expected format.")
-    
+
 
 class SigmoidSlopeScheduler:
     "Exponential decay."

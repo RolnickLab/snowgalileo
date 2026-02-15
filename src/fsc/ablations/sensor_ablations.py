@@ -142,7 +142,7 @@ class SensorAblationsEval(LandsatEval):
         split: str,
         h5pys_only: bool = False,
         data_config: Dict = {},
-        normalization: Union[str, Normalizer] = "std"
+        normalization: Union[str, Normalizer] = "std",
     ) -> SensorAblationsMetaDataset:
         ds = SensorAblationsMetaDataset(
             exclude_prediction_date=exclude_prediction_date,

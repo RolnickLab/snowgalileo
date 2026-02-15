@@ -7,7 +7,12 @@ from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset
 from src.utils import masked_output_np_to_tensor, seed_everything
 from src.data.dataset import Normalizer
 from src.utils import config_dir
-from src.data.config import NORMALIZATION_DICT_FILENAME, DATASET_OUTPUT_HW_HIGH_RES, NUM_MED_RES_PIXELS_PER_DIM, NUM_LOW_RES_PIXELS_PER_DIM
+from src.data.config import (
+    NORMALIZATION_DICT_FILENAME,
+    DATASET_OUTPUT_HW_HIGH_RES,
+    NUM_MED_RES_PIXELS_PER_DIM,
+    NUM_LOW_RES_PIXELS_PER_DIM,
+)
 from typing import Union
 import numpy as np
 
@@ -38,14 +43,14 @@ class PixelAblationsMetaDataset(LandsatEvalDataset):
             augmentation=augmentation,
         )
         self.eval_config = eval_config
-        assert self.eval_config is not None, (
-            "eval_config must be provided for pixel ablations"
-        )
+        assert self.eval_config is not None, "eval_config must be provided for pixel ablations"
         assert "pixel_ablations" in self.eval_config, "pixel_ablations config missing"
 
         self.cum_pixels = [0]
         for _ in range(super().__len__()):
-            self.cum_pixels.append(self.cum_pixels[-1] + DATASET_OUTPUT_HW_HIGH_RES * DATASET_OUTPUT_HW_HIGH_RES)
+            self.cum_pixels.append(
+                self.cum_pixels[-1] + DATASET_OUTPUT_HW_HIGH_RES * DATASET_OUTPUT_HW_HIGH_RES
+            )
 
     def __len__(self):
         return self.cum_pixels[-1]
@@ -169,7 +174,7 @@ class PixelAblationsEval(LandsatEval):
         split: str,
         h5pys_only: bool = False,
         data_config: Dict = {},
-        normalization: Union[str, Normalizer] = "std"
+        normalization: Union[str, Normalizer] = "std",
     ) -> PixelAblationsMetaDataset:
         ds = PixelAblationsMetaDataset(
             exclude_prediction_date=exclude_prediction_date,

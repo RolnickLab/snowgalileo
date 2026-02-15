@@ -61,9 +61,7 @@ decoder_mode = args["decoding_strategy"]
 
 # TODO: fix the EncoderWithHead loading pipeline
 # TODO: make sure the eval config matches the training config
-with (Path("configs") / Path("eval") / Path(args["eval_config_name"])).open(
-    "r"
-) as f:
+with (Path("configs") / Path("eval") / Path(args["eval_config_name"])).open("r") as f:
     eval_config = json.load(f)
     sigmoid_slope = eval_config["hyperparameters_snowgalileo"]["sigmoid_slope"]
 

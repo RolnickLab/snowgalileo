@@ -30,7 +30,7 @@ parser.add_argument(
     "--eval_config",
     type=str,
     default="fsc_train_tiny.json",
-    help="Which eval config to use. Options are stored in configs/finetune/"
+    help="Which eval config to use. Options are stored in configs/finetune/",
 )
 parser.add_argument(
     "--h5pys_only",

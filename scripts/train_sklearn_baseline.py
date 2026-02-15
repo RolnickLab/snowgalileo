@@ -58,9 +58,7 @@ args = argparser.parse_args().__dict__
 
 
 id = args["run_id"]
-with (Path("configs") / Path("finetune") / Path(args["eval_config_name"])).open(
-    "r"
-) as f:
+with (Path("configs") / Path("finetune") / Path(args["eval_config_name"])).open("r") as f:
     config = json.load(f)
 
 # we use the normalization values for missing data imputation so we load it independently
@@ -76,6 +74,6 @@ rf = LandsatEvalSklearn(
     model_type=args["model_type"],
     h5pys_only=args["h5pys_only"],
     normalizing_dict=normalizing_dict,
-    bagging=args["bagging"]
+    bagging=args["bagging"],
 )
 rf.fit_sklearn(id=args["run_id"], save_results=True)

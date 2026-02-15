@@ -53,9 +53,7 @@ elif "switzerland" in args["eval_config_name"]:
 else:
     raise ValueError(f"Unknown eval_config_name {args['eval_config_name']}")
 
-with (Path("configs") / Path("eval") / Path(args["eval_config_name"])).open(
-    "r"
-) as f:
+with (Path("configs") / Path("eval") / Path(args["eval_config_name"])).open("r") as f:
     config = json.load(f)
 
 # we use the normalization values for missing data imputation so we load it independently
