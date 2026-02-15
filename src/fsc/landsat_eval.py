@@ -103,12 +103,16 @@ class LandsatEvalDataset(BaseDataset):
 
         self.label_folder = DATA_FOLDER / data_config["label_folder"] / self.split
 
-        if self.split not in ["visualize", "inference"]:
-            self.h5py_folder = DATA_FOLDER / data_config["input_h5py_folder"] / self.split
-            if self.h5py_folder is not None:  # for mypy to pass
-                self.h5py_folder.mkdir(parents=True, exist_ok=True)
-        else:
+        if self.split in {"visualize", "inference"}:
             self.h5py_folder = None
+        else:
+            folder_name = data_config["input_h5py_folder"]
+
+            if not folder_name:
+                self.h5py_folder = None
+            else:
+                self.h5py_folder = DATA_FOLDER / folder_name / self.split
+                self.h5py_folder.mkdir(parents=True, exist_ok=True)
 
         input_tifs = list(self.input_tif_folder.glob("*.tif")) + list(
             self.input_tif_folder.glob("*.tiff")
@@ -816,7 +820,7 @@ class LandsatEval(EvalTask):
         name_id = f"{eval_config['name']}" if eval_config and "name" in eval_config else ""
         self.name = f"{'attn' if self.decoder_mode == 'attention_probe' else 'linear' if self.decoder_mode == 'linear_probe' else 'finetune' if self.decoder_mode == 'finetune' else 'sklearn'}{'_exclude_prediction_date_' if self.exclude_prediction_date else ''}{'_exclude_prediction_sensors_' if self.exclude_prediction_sensors else ''}{'_no_high_res_in_pred_date' if self.exclude_prediction_high_res else ''}{name_id}"
         self.eval_config = eval_config
-        self.data_config = self.eval_config["data"]
+        self.data_config = self.eval_config.data
 
     @staticmethod
     def _get_dataset(
