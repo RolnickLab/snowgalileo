@@ -289,7 +289,7 @@ class CostumCloudGenerator(scg.CloudGenerator):
         if channel_magnitude is None:
             channel_magnitude=torch.ones(*input.shape[:-2],1,1,device=input.device)
                     
-        output = mix(input, cloud, channel_magnitude=channel_magnitude, blur_scaling=blur_scaling, cloud_color=cloud_color, invert=invert)
+        output = mix(input, cloud, channel_magnitude=channel_magnitude, blur_scaling=0.0, cloud_color=cloud_color, invert=invert)
         
         if not return_cloud:
             return output
