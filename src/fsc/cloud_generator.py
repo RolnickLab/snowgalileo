@@ -14,6 +14,10 @@ import random
 from pathlib import Path
 import rioxarray
 import torch
+import torch.nn.functional as F
+from satellite_cloud_generator.noise import generate_perlin, flex_noise
+from satellite_cloud_generator.CloudSimulator import mix
+from satellite_cloud_generator.CloudSimulator import KT as KT
 import xarray as xr
 from src.data.config import (
     DATA_FOLDER,
@@ -135,6 +139,163 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
     },
 }
 
+class CostumCloudGenerator(scg.CloudGenerator):
+    def __init__(self, config, cloud_p=1.0, shadow_p=1.0):
+        super().__init__(config, cloud_p=cloud_p, shadow_p=shadow_p)
+
+    def add_cloud(input,
+                max_lvl=(0.95,1.0),
+                min_lvl=(0.0, 0.05),
+                channel_magnitude=None,
+                clear_threshold=0.0,
+                noise_type = 'perlin',
+                const_scale=True,
+                decay_factor=1,
+                locality_degree=1,
+                invert=False,
+                channel_magnitude_shift=0.05,
+                channel_offset=2,
+                blur_scaling=2.0,
+                cloud_color=True,
+                return_cloud=False
+                ):
+        """ Takes an input image of shape [batch, channels, height, width]        
+            and returns a generated cloudy version of the input image
+        
+        Args:
+            input (Tensor) : input image in shape [B,C,H,W]
+        
+            max_lvl (float or tuple of floats): Indicates the maximum strength of the cloud (1.0 means that some pixels will be fully non-transparent)
+            
+            min_lvl (float or tuple of floats): Indicates the minimum strength of the cloud (0.0 means that some pixels will have no cloud)
+            channel_magnitude (Tensor) : cloud magnitudes in each channel, shape [B,C,1,1]
+            
+            clear_threshold (float): An optional threshold for cutting off some part of the initial generated cloud mask
+            
+            noise_type (string: 'perlin', 'flex'): Method of noise generation (currently supported: 'perlin', 'flex')
+            
+            const_scale (bool): If True, the spatial frequencies of the cloud shape are scaled based on the image size (this makes the cloud preserve its appearance regardless of image resolution)
+            
+            decay_factor (float): decay factor that narrows the spectrum of the generated noise (higher values, such as 2.0 will reduce the amplitude of high spatial frequencies, yielding a 'blurry' cloud)
+            
+            locality degree (int): more local clouds shapes can be achieved by multiplying several random cloud shapes with each other (value of 1 disables this effect, and higher integers correspond to the number of multiplied masks)
+            
+            invert (bool) : for some applications, the cloud can be inverted to effectively decrease the level of reflected power (see thermal example in the notebook)
+            
+            channel_offset (int): optional offset that can randomly misalign spatially the individual cloud mask channels (by a value in range -channel_offset and +channel_offset)
+            
+            channel_magniutde_shift (float): optional offset from the reference cloud mask magnitude for individual channels, if non-zero, then each channel will have a cloud magnitude uniformly sampled from C+-channel_magnitude, where C is the reference cloud mask
+            
+            blur_scaling (float): Scaling factor for the variance of locally varying Gaussian blur (dependent on cloud thickness). Value of 0 will disable this feature.
+            
+            cloud_color (bool): If True, it will adjust the color of the cloud based on the mean color of the clear sky image
+            
+            return_cloud (bool): If True, it will return a channel-wise cloud mask of shape [height, width, channels] along with the cloudy image
+            
+        Returns:
+        
+            Tensor: Tensor containing a generated cloudy image (and a cloud mask if return_cloud == True)
+    
+        """  
+        
+        if not torch.is_tensor(input):
+            input = torch.FloatTensor(input)
+        
+        while len(input.shape) < 4:
+            input = input.unsqueeze(0)  
+        
+        b,c,h,w = input.shape
+        device=input.device
+        
+        # --- Potential Sampling of Parameters (if provided as a range)
+        min_lvl=torch.tensor(min_lvl, device=device)
+        max_lvl=torch.tensor(max_lvl, device=device)
+        
+        if len(min_lvl.shape) != 0:
+            min_lvl = min_lvl[0] +(min_lvl[1]-min_lvl[0])*torch.rand([b,1,1,1], device=device)
+            
+        # max_lvl is dependent on min_lvl (cannot be less than min_lvl)
+        if len(max_lvl.shape) != 0:        
+            max_floor=min_lvl+F.relu(max_lvl[0]-min_lvl)
+            max_lvl = max_floor + (max_lvl[1]-max_floor)*torch.rand([b,1,1,1], device=device)
+            
+        # ensure max_lvl does not go below min_lvl
+        max_lvl=min_lvl+F.relu(max_lvl-min_lvl)
+            
+        # clear_threshold
+        if isinstance(clear_threshold, tuple) or isinstance(clear_threshold, list):
+            clear_threshold = clear_threshold[0] +(clear_threshold[1]-clear_threshold[0])*torch.rand([b,1,1], device=device)
+            
+        # decay_factor
+        if isinstance(decay_factor, tuple) or isinstance(decay_factor, list):
+            decay_factor = float(decay_factor[0] +(decay_factor[1]-decay_factor[0])*torch.rand([1,1]))
+
+        # locality_degree
+        if isinstance(locality_degree, tuple) or isinstance(locality_degree, list):
+            locality_degree = int(locality_degree[0]+torch.randint(1+locality_degree[1]-locality_degree[0],(1,1)))
+        
+        # --- End of Parameter Sampling
+        locality_degree=max([1, int(locality_degree)])
+        
+        net_noise_shape=torch.ones((b,h,w),device=device)
+        for idx in range(locality_degree):
+            # generate noise shape
+            if noise_type == 'perlin':
+                noise_shape=generate_perlin(shape=(h,w), batch=b, device=device, const_scale=const_scale, decay_factor=decay_factor)     
+            elif noise_type == 'flex':
+                noise_shape = flex_noise(h,w, const_scale=const_scale, decay_factor=decay_factor)
+            else:
+                raise NotImplementedError
+
+            noise_shape -= noise_shape.min()
+            noise_shape /= noise_shape.max()
+            
+            net_noise_shape*=noise_shape
+            
+        # apply non-linearities and rescale
+        net_noise_shape[net_noise_shape < clear_threshold] = 0.0
+        net_noise_shape -= clear_threshold  
+        net_noise_shape = net_noise_shape.clip(0,1)    
+        if not net_noise_shape.max()==0:
+            net_noise_shape /= net_noise_shape.max()
+
+        # channel-wise mask
+        cloud=(net_noise_shape.unsqueeze(1)*(max_lvl-min_lvl) + min_lvl).expand(b,c,h,w)
+        
+        # channel-wise thickness difference
+        if channel_magnitude_shift != 0.0:
+            channel_magnitude_shift=abs(channel_magnitude_shift)
+            weights=channel_magnitude_shift*(2*torch.rand(c, device=device)-1)+1
+            cloud=(weights[:,None,None]*cloud)
+        
+        # channel offset (optional)
+        if channel_offset != 0:
+            offsets = torch.randint(-channel_offset, channel_offset+1, (2,c))
+            
+            crop_val = offsets.max().abs()
+            if crop_val != 0:
+                for ch in range(cloud.shape[1]):
+                    cloud[:,ch] = torch.roll(cloud[:,ch], offsets[0,ch].item(),dims=-2)
+                    cloud[:,ch] = torch.roll(cloud[:,ch], offsets[1,ch].item(),dims=-1)                    
+
+                    cloud = KT.resize(cloud[:,:,crop_val:-crop_val-1, crop_val:-crop_val-1],
+                                    (h,w),
+                                    interpolation='nearest',
+                                    align_corners=True)     
+        
+        # transparency between 0 and 1
+        cloud=cloud.clip(0,1)
+        
+        if channel_magnitude is None:
+            channel_magnitude=torch.ones(*input.shape[:-2],1,1,device=input.device)
+                    
+        output = mix(input, cloud, channel_magnitude=channel_magnitude, blur_scaling=blur_scaling, cloud_color=cloud_color, invert=invert)
+        
+        if not return_cloud:
+            return output
+        else:
+            return output, cloud# if not invert else 1-cloud
+
 
 def generate_clouds(band_stack, band_weights, cloud_prob=0.0, shadow_prob=0.0):
     """Function to generate clouds. Input image should be in shape [B,C,H,W]. Band weights should be in shape [B,C,1,1]."""
@@ -144,7 +305,7 @@ def generate_clouds(band_stack, band_weights, cloud_prob=0.0, shadow_prob=0.0):
     gens = []
 
     for cfg in cfgs:
-        gens.append(scg.CloudGenerator(cfg, cloud_p=cloud_prob, shadow_p=shadow_prob))
+        gens.append(CostumCloudGenerator(cfg, cloud_p=cloud_prob, shadow_p=shadow_prob))
 
     gen = random.choice(gens)
     out, cloud_mask, _ = gen(band_stack, channel_magnitude=band_weights, return_cloud=True)
