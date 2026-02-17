@@ -101,7 +101,6 @@ eval_tasks: List[EvalTask] = [
             exclude_prediction_date=args["exclude_prediction_date"],
             exclude_prediction_high_res=args["exclude_prediction_high_res"],
             exclude_prediction_sensors=args["exclude_prediction_sensors"],
-            resample=args["resample"],
             decoder_mode=args["decoding_strategy"],
             num_finetune_epochs=args["num_finetune_epochs"],
             eval_config=eval_config,
