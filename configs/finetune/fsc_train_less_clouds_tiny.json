@@ -1,9 +1,9 @@
 {
     "name": "fsc_train_tiny",
     "data": {
-        "label_folder": "fsc_train_100m_masks_new",
-        "input_tif_folder": "fsc_train_100m_cropped_new",
-        "input_h5py_folder": "fsc_train_100m_h5pys_new",
+        "label_folder": "fsc_train_100m_masks_balanced",
+        "input_tif_folder": "fsc_train_100m_cropped_balanced",
+        "input_h5py_folder": "",
         "label_resolution": 100,
         "num_timesteps": 8,
         "input_height_width": 100,
@@ -33,19 +33,19 @@
         "batch_size": 4,
         "num_workers": 4,
         "weight_decay": 1e-5,
-        "schedule_sigmoid_slope": true,
+        "schedule_sigmoid_slope": false,
         "sigmoid_slope": 0.1,
         "lr_schedule": true,
         "learning_rate": 6e-3,
         "optimizer": "Adam",
         "adam_beta_2": 0.999,
-        "warmup_fraction": 0.1,
+        "warmup_fraction": 0.05,
         "loss_fn": "MSE",
         "med_and_low_res_repeat": true,
         "num_patches_per_dim": 10
     },
     "hyperparameters_rf": {
-        "n_estimators": 300,
+        "n_estimators": 50,
         "min_samples_leaf": 5
     },
     "hyperparameters_svr": {
@@ -61,7 +61,7 @@
         "activation": "relu"
     },
     "cloud_generation": {
-        "cloud_prob_pred_day": 0.0,
+        "cloud_prob_pred_day": 30.0,
         "shadow_prob": 0.0
     }
 }
