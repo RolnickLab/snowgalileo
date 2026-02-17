@@ -7,7 +7,7 @@ import torch
 from src.data.config import (
     NORMALIZATION_DICT_FILENAME,
 )
-from src.eval.landsat_baselines import (
+from src.fsc.landsat_baselines import (
     LandsatEvalDatasetSklearn,
     LandsatEvalSklearn,
 )
@@ -28,7 +28,7 @@ class TestSklearn(unittest.TestCase):
             ]
         )
 
-        with (Path("src/eval/eval_configs/landsat_eval_5_95.json")).open("r") as f:
+        with (Path("configs/finetune/landsat_eval_5_95.json")).open("r") as f:
             config = json.load(f)
         ds = LandsatEvalDatasetSklearn(data_config=config["data"])
         normalizing_dict = ds.load_normalization_values(
@@ -77,7 +77,7 @@ class TestSklearn(unittest.TestCase):
             ]
         )
 
-        with (Path("src/eval/eval_configs/landsat_eval_5_95.json")).open("r") as f:
+        with (Path("configs/finetune/landsat_eval_5_95.json")).open("r") as f:
             config = json.load(f)
         ds = LandsatEvalDatasetSklearn(data_config=config["data"])
         normalizing_dict = ds.load_normalization_values(
@@ -131,7 +131,7 @@ class TestSklearn(unittest.TestCase):
             ]
         )
 
-        with (Path("src/eval/eval_configs/landsat_eval_5_95.json")).open("r") as f:
+        with (Path("configs/finetune/landsat_eval_5_95.json")).open("r") as f:
             config = json.load(f)
         ds = LandsatEvalDatasetSklearn(data_config=config["data"])
         normalizing_dict = ds.load_normalization_values(
@@ -203,7 +203,7 @@ class TestSklearn(unittest.TestCase):
             ]
         )
 
-        with (Path("src/eval/eval_configs/landsat_eval_5_95.json")).open("r") as f:
+        with (Path("configs/finetune/landsat_eval_5_95.json")).open("r") as f:
             config = json.load(f)
         ds = LandsatEvalDatasetSklearn(data_config=config["data"])
         normalizing_dict = ds.load_normalization_values(
@@ -276,7 +276,7 @@ class TestSklearn(unittest.TestCase):
             ]
         )
 
-        with (Path("src/eval/eval_configs/landsat_eval_5_95.json")).open("r") as f:
+        with (Path("configs/finetune/landsat_eval_5_95.json")).open("r") as f:
             config = json.load(f)
         ds = LandsatEvalDatasetSklearn(data_config=config["data"])
         normalizing_dict = ds.load_normalization_values(
@@ -317,9 +317,7 @@ class TestSklearn(unittest.TestCase):
         month,
     ):
         with (
-            Path(__file__).parents[1]
-            / Path("src/eval/eval_configs")
-            / Path("landsat_eval_5_95.json")
+            Path(__file__).parents[1] / Path("configs/finetune/") / Path("landsat_eval_5_95.json")
         ).open("r") as f:
             config = json.load(f)
 
@@ -376,9 +374,7 @@ class TestSklearn(unittest.TestCase):
         month,
     ):
         with (
-            Path(__file__).parents[1]
-            / Path("src/eval/eval_configs")
-            / Path("landsat_eval_5_95.json")
+            Path(__file__).parents[1] / Path("configs/finetune/") / Path("landsat_eval_5_95.json")
         ).open("r") as f:
             config = json.load(f)
 

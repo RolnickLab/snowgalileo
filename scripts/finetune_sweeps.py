@@ -7,8 +7,8 @@ import wandb
 
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER
-from src.eval import LandsatEval
-from src.eval.eval import EvalTask
+from src.fsc import LandsatEval
+from src.fsc.eval import EvalTask
 from src.snowgalileo import Encoder
 from src.utils import device, load_check_config, seed_everything
 
@@ -30,7 +30,7 @@ parser.add_argument(
     "--eval_config",
     type=str,
     default="fsc_train_tiny.json",
-    help="Which eval config to use. Options are stored in src/eval/eval_configs/",
+    help="Which eval config to use. Options are stored in configs/finetune/",
 )
 parser.add_argument(
     "--h5pys_only",
@@ -79,7 +79,7 @@ def reset_wandb_env():
 def train_and_validate():
     args = parser.parse_args()
 
-    with (Path("src/eval/eval_configs") / Path(args.eval_config)).open("r") as f:
+    with (Path("configs/finetune/") / Path(args.eval_config)).open("r") as f:
         eval_config = json.load(f)
 
     with wandb.init(project="ai4snow_sweeps") as sweep_run:

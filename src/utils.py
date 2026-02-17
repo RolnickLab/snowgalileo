@@ -22,7 +22,8 @@ from src.masking import MaskedOutput
 
 data_dir = Path(__file__).parent.parent / "data"
 logging_dir = Path(__file__).parent.parent / "logs"
-config_dir = Path(__file__).parent.parent / "config"
+config_dir = Path(__file__).parent.parent / "configs"
+pretrain_config_dir = config_dir / "pretrain"
 checkpoints_dir = Path(__file__).parent.parent / "checkpoint_backup"
 
 if not torch.cuda.is_available():
@@ -182,7 +183,7 @@ def check_config(config):
 
 
 def load_check_config(name: str) -> Dict:
-    with (config_dir / name).open("r") as f:
+    with (pretrain_config_dir / name).open("r") as f:
         config = json.load(f)
     config = check_config(config)
 

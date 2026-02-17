@@ -7,7 +7,7 @@ import joblib
 from src.config import DEFAULT_SEED
 from src.data.config import NORMALIZATION_DICT_FILENAME
 from src.data.dataset import Dataset
-from src.eval.landsat_baselines import LandsatEvalSklearn
+from src.fsc.landsat_baselines import LandsatEvalSklearn
 from src.utils import config_dir, seed_everything
 
 seed_everything(DEFAULT_SEED)
@@ -32,7 +32,7 @@ argparser.add_argument(
     "--eval_config_name",
     type=str,
     default="fsc_test_rockies_tiny.json",
-    help="Config name for evaluation. Options are stored in src/eval/eval_configs/",
+    help="Config name for evaluation. Options are stored in configs/eval/",
 )
 argparser.add_argument(
     "--model_type",
@@ -53,9 +53,7 @@ elif "switzerland" in args["eval_config_name"]:
 else:
     raise ValueError(f"Unknown eval_config_name {args['eval_config_name']}")
 
-with (Path("src") / Path("eval") / Path("eval_configs") / Path(args["eval_config_name"])).open(
-    "r"
-) as f:
+with (Path("configs") / Path("eval") / Path(args["eval_config_name"])).open("r") as f:
     config = json.load(f)
 
 # we use the normalization values for missing data imputation so we load it independently

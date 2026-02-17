@@ -5,7 +5,7 @@ from pathlib import Path
 from src.config import DEFAULT_SEED
 from src.data.config import NORMALIZATION_DICT_FILENAME
 from src.data.dataset import Dataset
-from src.eval.landsat_baselines import LandsatEvalSklearn
+from src.fsc.landsat_baselines import LandsatEvalSklearn
 from src.utils import config_dir, seed_everything
 
 seed_everything(DEFAULT_SEED)
@@ -30,7 +30,7 @@ argparser.add_argument(
     "--eval_config_name",
     type=str,
     default="fsc_train_balanced_tiny.json",
-    help="Config name for evaluation. Options are stored in src/eval/eval_configs/",
+    help="Config name for evaluation. Options are stored in configs/finetune/",
 )
 argparser.add_argument(
     "--run_id",
@@ -55,13 +55,15 @@ argparser.add_argument(
     type=int,
     default=0
 )
+argparser.add_argument(
+    "--bagging",
+    action="store_true",
+)
 args = argparser.parse_args().__dict__
 
 
 id = args["run_id"]
-with (Path("src") / Path("eval") / Path("eval_configs") / Path(args["eval_config_name"])).open(
-    "r"
-) as f:
+with (Path("configs") / Path("finetune") / Path(args["eval_config_name"])).open("r") as f:
     config = json.load(f)
 
 # we use the normalization values for missing data imputation so we load it independently
@@ -77,5 +79,6 @@ rf = LandsatEvalSklearn(
     model_type=args["model_type"],
     h5pys_only=args["h5pys_only"],
     normalizing_dict=normalizing_dict,
+    bagging=args["bagging"],
 )
 rf.fit_sklearn(id=args["run_id"], save_results=True, dataset_subset_size=args["dataset_subset_size"])

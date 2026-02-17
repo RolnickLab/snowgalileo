@@ -8,10 +8,10 @@ import torch
 
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER
-from src.eval import (
+from src.fsc import (
     DatasetSizeAblationsEval,
 )
-from src.eval.eval import EvalTask
+from src.fsc.eval import EvalTask
 from src.snowgalileo import Encoder
 from src.utils import device, load_check_config, seed_everything
 
@@ -58,7 +58,7 @@ argparser.add_argument(
     "--eval_config",
     type=str,
     default="ablate_data_subset_5000_tiny.json",
-    help="Determines the ablation mode. Options are stored in src/eval/eval_configs/",
+    help="Determines the ablation mode. Options are stored in configs/finetune/",
 )
 argparser.add_argument(
     "--h5pys_only",
@@ -67,7 +67,7 @@ argparser.add_argument(
 )
 args = argparser.parse_args().__dict__
 
-with (Path("src/eval/eval_configs") / Path(args["eval_config"])).open("r") as f:
+with (Path("configs/finetune") / Path(args["eval_config"])).open("r") as f:
     eval_config = json.load(f)
 
 # retrieve model size from config filename
