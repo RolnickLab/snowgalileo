@@ -54,11 +54,13 @@
         "C_exponent": -15,
         "degree": 2,
         "gamma_base": 2,
-        "gamma_exponent": -5
+        "gamma_exponent": -5,
+        "max_iter": 200
     },
     "hyperparameters_mlp": {
         "learning_rate_init": 0.001,
-        "activation": "relu"
+        "activation": "relu",
+        "max_iter": 200
     },
     "cloud_generation": {
         "cloud_prob_pred_day": 0.0,
