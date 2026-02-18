@@ -746,7 +746,7 @@ class LandsatEvalSklearn(LandsatEval):
             degree = hyperparameters["degree"]
             C = hyperparameters["C_base"] ** hyperparameters["C_exponent"]
             print(f"Using gamma={gamma}, degree={degree}", flush=True)
-            model = SVR(kernel=hyperparameters["kernel"], gamma=gamma, degree=degree, C=C)
+            model = SVR(kernel=hyperparameters["kernel"], gamma=gamma, degree=degree, C=C, max_iter=hyperparameters["max_iter"])
 
         elif self.model_type == "mlp":
             print("Training Multi-layer Perceptron Regressor...", flush=True)
@@ -755,6 +755,7 @@ class LandsatEvalSklearn(LandsatEval):
                 hidden_layer_sizes=(2 * model_input.shape[-1] + 1,),
                 random_state=DEFAULT_SEED,
                 learning_rate_init=hyperparameters["learning_rate_init"],
+                max_iter=hyperparameters["max_iter"],
             )
 
         else:
