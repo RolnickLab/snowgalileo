@@ -43,7 +43,7 @@ argparser.add_argument(
 argparser.add_argument(
     "--decoding_strategy",
     type=str,
-    default="attention_probe",
+    default="finetune",
     choices=["finetune", "linear_probe", "attention_probe"],
     help="Decoding strategy to use. 'Finetune' uses a linear decoder and finetunes the entire model. 'Linear_probe' uses a linear decoder and only trains the decoder. 'Attention_probe' uses an attention-based decoder and fine-tunes the entire model. 'sklearn' uses the frozen encoder features for a sklearn model.",
 )

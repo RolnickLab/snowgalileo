@@ -29,19 +29,19 @@
         "attend_over_spatial": true
     },
     "hyperparameters_snowgalileo": {
-        "augmentation": false,
-        "batch_size": 4,
+        "augmentation": true,
+        "batch_size": 2,
         "num_workers": 4,
-        "weight_decay": 1e-5,
-        "schedule_sigmoid_slope": true,
-        "sigmoid_slope": 1.0,
+        "weight_decay": 0,
+        "schedule_sigmoid_slope": false,
+        "sigmoid_slope": 1,
         "lr_schedule": false,
-        "learning_rate": 3e-4,
+        "learning_rate": 0.003,
         "optimizer": "Adam",
-        "adam_beta_2": 0.999,
-        "warmup_fraction": 0.1,
+        "adam_beta_2": 0.98,
+        "warmup_fraction": 0.3,
         "loss_fn": "MSE",
-        "med_and_low_res_repeat": true,
+        "med_and_low_res_repeat": false,
         "num_patches_per_dim": 10
     },
     "hyperparameters_rf": {
