@@ -728,6 +728,11 @@ class LandsatEvalSklearn(LandsatEval):
         model_input = torch.cat(all_samples, dim=0).numpy()
         model_labels = torch.cat(all_labels, dim=0).numpy()
 
+        # store the input and labels
+        if save_results:
+            np.save(f"./landsat_sklearn_train_input_{id}.npy", model_input)
+            np.save(f"./landsat_sklearn_train_labels_{id}.npy", model_labels)
+
         if self.model_type == "rf":
             print("Training Random Forest Regressor...", flush=True)
             model = RandomForestRegressor(
