@@ -4,6 +4,7 @@
         "label_folder": "masks_landsat_test",
         "input_tif_folder": "tifs_eval_test",
         "input_h5py_folder": "",
+        "sklearn_train_data_checkpoint_folder": "sklearn_train_data_checkpoint",
         "label_resolution": 100,
         "num_timesteps": 8,
         "input_height_width": 100,

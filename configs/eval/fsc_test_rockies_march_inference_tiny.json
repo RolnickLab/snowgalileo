@@ -4,6 +4,7 @@
         "label_folder": "",
         "input_tif_folder": "rockies_march",
         "input_h5py_folder": "rockies_march_h5pys",
+        "sklearn_train_data_checkpoint_folder": "sklearn_train_data_checkpoint",
         "label_resolution": 100,
         "num_timesteps": 8,
         "input_height_width": 100,

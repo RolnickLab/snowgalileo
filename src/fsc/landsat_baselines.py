@@ -17,6 +17,10 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Subset
 import random
 
+from src.data.config import (
+    DATA_FOLDER
+)
+
 from src.config import DEFAULT_SEED
 from src.data.dataset import Normalizer
 from src.data.earthengine.eo_eval import SPACE_TIME_HIGH_RES_BANDS, TIME_BANDS
@@ -656,82 +660,94 @@ class LandsatEvalSklearn(LandsatEval):
         if hyperparameters == {}:
             hyperparameters = self.eval_config[f"hyperparameters_{self.model_type}"]
 
-        train_ds = LandsatEvalDatasetSklearn(
-            split="train",
-            exclude_prediction_date=self.exclude_prediction_date,
-            exclude_prediction_high_res=self.exclude_prediction_high_res,
-            exclude_prediction_sensors=self.exclude_prediction_sensors,
-            data_config=self.data_config,
-            h5pys_only=self.h5pys_only,
-        )
+        train_data_checkpoint_path = Path(DATA_FOLDER) / self.eval_config["data"]["sklearn_train_data_checkpoint_folder"]
 
-        if normalization == "std":
-            normalizer = Normalizer(std=True, normalizing_dicts=self.normalizing_dict)
-            train_ds.normalizer = normalizer
+        if train_data_checkpoint_path == "":
+            train_data_checkpoint_path = None
 
-        if dataset_subset_size > 0:
-            indices = random.sample(range(len(train_ds)), dataset_subset_size)
-            train_ds = Subset(train_ds, indices)
+        # see if checkpoint path has data, if so, load it and skip training preparation
+        if train_data_checkpoint_path is not None and (train_data_checkpoint_path / f"sklearn_model_input_{id}.npy").exists() and (train_data_checkpoint_path / f"sklearn_model_labels_{id}.npy").exists():
+            print(f"Loading preprocessed training data from {train_data_checkpoint_path}", flush=True)
+            model_input = np.load(train_data_checkpoint_path / f"sklearn_model_input_{id}.npy")
+            model_labels = np.load(train_data_checkpoint_path / f"sklearn_model_labels_{id}.npy")
 
-        train_dl = DataLoader(
-            train_ds,
-            batch_size=1,
-            shuffle=True,
-            num_workers=0,
-        )
+        else:
+            train_ds = LandsatEvalDatasetSklearn(
+                split="train",
+                exclude_prediction_date=self.exclude_prediction_date,
+                exclude_prediction_high_res=self.exclude_prediction_high_res,
+                exclude_prediction_sensors=self.exclude_prediction_sensors,
+                data_config=self.data_config,
+                h5pys_only=self.h5pys_only,
+            )
 
-        all_samples = []
-        all_labels = []
+            if normalization == "std":
+                normalizer = Normalizer(std=True, normalizing_dicts=self.normalizing_dict)
+                train_ds.normalizer = normalizer
 
-        for input, label, _ in train_dl:
-            (
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                s_t_h_m,
-                s_t_m_m,
-                s_t_l_m,
-                sp_m,
-                t_m,
-                st_m,
-                month,
-            ) = input
+            if dataset_subset_size > 0:
+                indices = random.sample(range(len(train_ds)), dataset_subset_size)
+                train_ds = Subset(train_ds, indices)
 
-            input = torch.squeeze(
-                self.concatenate_features_per_output_pixel(
-                    *self.replace_masked_data(
-                        *self.aggregate_data_per_output_pixel(
-                            s_t_h_x=s_t_h_x,
-                            s_t_m_x=s_t_m_x,
-                            s_t_l_x=s_t_l_x,
-                            sp_x=sp_x,
-                            t_x=t_x,
-                            st_x=st_x,
-                            s_t_h_m=s_t_h_m,
-                            s_t_m_m=s_t_m_m,
-                            s_t_l_m=s_t_l_m,
-                            sp_m=sp_m,
-                            t_m=t_m,
-                            st_m=st_m,
-                            month=month,
-                        ),
-                    )
-                )[0]
-            )  # (N, num_features)
-            label = torch.squeeze(label).flatten()  # (N,)
-            all_samples.append(input)
-            all_labels.append(label)
+            train_dl = DataLoader(
+                train_ds,
+                batch_size=1,
+                shuffle=True,
+                num_workers=0,
+            )
 
-        model_input = torch.cat(all_samples, dim=0).numpy()
-        model_labels = torch.cat(all_labels, dim=0).numpy()
+            all_samples = []
+            all_labels = []
 
-        # store the input and labels
-        if save_results:
-            np.save(f"./landsat_sklearn_train_input_{id}.npy", model_input)
-            np.save(f"./landsat_sklearn_train_labels_{id}.npy", model_labels)
+            for input, label, _ in train_dl:
+                (
+                    s_t_h_x,
+                    s_t_m_x,
+                    s_t_l_x,
+                    sp_x,
+                    t_x,
+                    st_x,
+                    s_t_h_m,
+                    s_t_m_m,
+                    s_t_l_m,
+                    sp_m,
+                    t_m,
+                    st_m,
+                    month,
+                ) = input
+
+                input = torch.squeeze(
+                    self.concatenate_features_per_output_pixel(
+                        *self.replace_masked_data(
+                            *self.aggregate_data_per_output_pixel(
+                                s_t_h_x=s_t_h_x,
+                                s_t_m_x=s_t_m_x,
+                                s_t_l_x=s_t_l_x,
+                                sp_x=sp_x,
+                                t_x=t_x,
+                                st_x=st_x,
+                                s_t_h_m=s_t_h_m,
+                                s_t_m_m=s_t_m_m,
+                                s_t_l_m=s_t_l_m,
+                                sp_m=sp_m,
+                                t_m=t_m,
+                                st_m=st_m,
+                                month=month,
+                            ),
+                        )
+                    )[0]
+                )  # (N, num_features)
+                label = torch.squeeze(label).flatten()  # (N,)
+                all_samples.append(input)
+                all_labels.append(label)
+
+            model_input = torch.cat(all_samples, dim=0).numpy()
+            model_labels = torch.cat(all_labels, dim=0).numpy()
+
+            if train_data_checkpoint_path is not None:
+                train_data_checkpoint_path.mkdir(parents=True, exist_ok=True)
+                np.save(train_data_checkpoint_path / f"sklearn_model_input_{id}.npy", model_input)
+                np.save(train_data_checkpoint_path / f"sklearn_model_labels_{id}.npy", model_labels)
 
         if self.model_type == "rf":
             print("Training Random Forest Regressor...", flush=True)
