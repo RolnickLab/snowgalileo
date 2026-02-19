@@ -16,6 +16,7 @@ from sklearn.ensemble import BaggingRegressor
 from torch.utils.data import DataLoader
 from torch.utils.data import Subset
 import random
+from time import time
 
 from src.data.config import (
     DATA_FOLDER
@@ -657,6 +658,8 @@ class LandsatEvalSklearn(LandsatEval):
     ) -> Dict[str, float]:
         assert normalization in ["std", ""], f"Unknown normalization {normalization}"
 
+        start_time = time()
+
         if hyperparameters == {}:
             hyperparameters = self.eval_config[f"hyperparameters_{self.model_type}"]
 
@@ -773,10 +776,12 @@ class LandsatEvalSklearn(LandsatEval):
             print("Training Multi-layer Perceptron Regressor...", flush=True)
             model = MLPRegressor(
                 activation=hyperparameters["activation"],
-                hidden_layer_sizes=(2 * model_input.shape[-1] + 1,),
+                hidden_layer_sizes=tuple(hyperparameters["hidden_layer_sizes"]),
                 random_state=DEFAULT_SEED,
                 learning_rate_init=hyperparameters["learning_rate_init"],
                 max_iter=hyperparameters["max_iter"],
+                early_stopping=True,
+                n_iter_no_change=20
             )
 
         else:
@@ -788,6 +793,12 @@ class LandsatEvalSklearn(LandsatEval):
             model_composed = model
 
         model_composed.fit(model_input, model_labels)
+
+        if self.model_type == "mlp":
+            print(f"MLP training stopped after {model_composed.n_iter_} iterations with training loss {model_composed.loss_:.4f}", flush=True)
+
+        end_time = time()
+        print(f"Training time: {end_time - start_time:.2f} seconds", flush=True)
 
         test_ds = LandsatEvalDatasetSklearn(
             split="test",

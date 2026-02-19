@@ -61,7 +61,8 @@
     "hyperparameters_mlp": {
         "learning_rate_init": 0.001,
         "activation": "relu",
-        "max_iter": 200
+        "max_iter": 200,
+        "hidden_layer_sizes": [128]
     },
     "cloud_generation": {
         "cloud_prob_pred_day": 80.0,
