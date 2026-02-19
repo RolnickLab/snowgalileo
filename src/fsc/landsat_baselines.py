@@ -666,10 +666,10 @@ class LandsatEvalSklearn(LandsatEval):
             train_data_checkpoint_path = None
 
         # see if checkpoint path has data, if so, load it and skip training preparation
-        if train_data_checkpoint_path is not None and (train_data_checkpoint_path / f"sklearn_model_input_{id}.npy").exists() and (train_data_checkpoint_path / f"sklearn_model_labels_{id}.npy").exists():
+        if train_data_checkpoint_path is not None and (train_data_checkpoint_path / f"sklearn_model_input.npy").exists() and (train_data_checkpoint_path / f"sklearn_model_labels.npy").exists():
             print(f"Loading preprocessed training data from {train_data_checkpoint_path}", flush=True)
-            model_input = np.load(train_data_checkpoint_path / f"sklearn_model_input_{id}.npy")
-            model_labels = np.load(train_data_checkpoint_path / f"sklearn_model_labels_{id}.npy")
+            model_input = np.load(train_data_checkpoint_path / f"sklearn_model_input.npy")
+            model_labels = np.load(train_data_checkpoint_path / f"sklearn_model_labels.npy")
 
         else:
             train_ds = LandsatEvalDatasetSklearn(
@@ -746,8 +746,8 @@ class LandsatEvalSklearn(LandsatEval):
 
             if train_data_checkpoint_path is not None:
                 train_data_checkpoint_path.mkdir(parents=True, exist_ok=True)
-                np.save(train_data_checkpoint_path / f"sklearn_model_input_{id}.npy", model_input)
-                np.save(train_data_checkpoint_path / f"sklearn_model_labels_{id}.npy", model_labels)
+                np.save(train_data_checkpoint_path / f"sklearn_model_input.npy", model_input)
+                np.save(train_data_checkpoint_path / f"sklearn_model_labels.npy", model_labels)
 
         if self.model_type == "rf":
             print("Training Random Forest Regressor...", flush=True)
