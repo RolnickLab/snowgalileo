@@ -49,6 +49,47 @@ Since the coordinates will be processed in EPGS4326 format, the filenames need t
 5) Depending on the purpose of the data, follow one of the following steps:
 - (for train/test data) run `scripts.train_test_split.py` to split the data into train and test 
 - (if data is used for evaluation only) move all files into a new subfolder called `test`
+
+## How to transfer new images from LRZ → Mila
+(for example, to generate more patches, to generate a different patch size, or a different FSC distribution)
+1) Log in to Terrabyte and create an interactive jupyter notebook session with a micromamba environment specified that has all the required packages installed.
+2) Within the “uniform_extraction_points.ipynb” script, change your desired parameters (e.g., “patch_size”, “patches_per_bin”, “bin_labels” or “resample_dir”).
+3) Run the script and store the outputs in the desired “patch_dir”.
+
+## How to process large images
+1) In the “uniform_extraction_points.ipynb” scripts, set “patch_size” to 20 (and optionally reduce the number of patches per bin).
+2) Download the generated patches using Git Bash and scp.
+3) Upload the patches to the Mila cluster using Ubuntu and scp.
+4) Export the corresponding earthengine input images. We have to use the “drive” mode, since the files will exceed the file size limit of “url”. Files will be stored in your drive folder → download locally → upload to Mila and store in tifs folder. Or: `rclone copy gdrive:path/to/source/ ./path/to/destination --progress`
+6) Rename the patches and inputs from UTM to WGS84
+7) (optionally subset the label patches if not all have been exported).
+8) Crop the input images to a size (200, 200) with the eval_crop_bounds.py script.
+Subset the input and label images into 4 using GDAL and the command line (using a different conda environment, since GDAL is not compatible with our numpy version).
+
+- `gdalinfo LC09_20230216_FSC55_3138166.88837_446880.07876.tif | grep "Size is"`
+
+- `gdal_retile.py -ps 100 100 -targetDir tiles LC09_20230216_FSC55_3138166.88837_446880.07876.tif` (for masks, use `-ps 10 10`)
+
+9) Create a folder “inference” and store the resulting subsets here.
+10) Run the generate_outputs script with an eval config that specifies the input and label folders.
+11) Use GDAL (within gdal environment) to stitch the single components back together:
+
+```
+for base in $(ls *_1_1_with_preds.tif | sed 's/_1_1_with_preds.tif//'); do
+  gdalbuildvrt "${base}_mosaic.vrt" \
+       "${base}_1_1_with_preds.tif" \
+       "${base}_1_2_with_preds.tif" \
+       "${base}_2_1_with_preds.tif" \
+       "${base}_2_2_with_preds.tif"
+done
+```
+
+```
+for vrt in *_mosaic.vrt; do
+  gdal_translate "$vrt" "${vrt%.vrt}.tif"
+done
+```
+
   
 ### FSC Training Distribution Full Set Balanced
 <img width="859" height="470" alt="balanced_train_mean" src="https://github.com/user-attachments/assets/439c722a-b7cc-437a-a5be-1ffe78a4923a" />
@@ -65,8 +106,8 @@ Since the coordinates will be processed in EPGS4326 format, the filenames need t
 <img width="857" height="451" alt="fsc_train_unique" src="https://github.com/user-attachments/assets/9a2a9c4c-67b0-49f3-9dd0-22195fe365e0" />
 
 ### FSC Test Distribution Rockies
-<img width="850" height="470" alt="fsc_test_rockies_mean" src="https://github.com/user-attachments/assets/3f49d62c-a951-4d4b-b840-05dbcebb0500" />
-<img width="848" height="451" alt="fsc_test_rockies_unique" src="https://github.com/user-attachments/assets/a382aaab-3883-4184-a932-5bd767b935a7" />
+<img width="850" height="470" alt="mean_in_rockies" src="https://github.com/user-attachments/assets/a3432bcb-8833-41da-8392-97090aa274e7" />
+<img width="848" height="451" alt="unique_in_rockies" src="https://github.com/user-attachments/assets/0be610f0-ce9f-4fb2-a401-32cd1b6890f5" />
 
 ### FSC Test Distribution Switzerland
 <img width="850" height="470" alt="fsc_test_switzerland_mean" src="https://github.com/user-attachments/assets/ede36ed8-a415-450c-867d-166fa76c6bfc" />
