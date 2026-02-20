@@ -27,6 +27,29 @@ class TestRetrieveCloudState(unittest.TestCase):
                 )
                 self.assertEqual((cloud_state, shadow_state, cirrus_state), expected_state)
 
+        # NOTE: the binary test cases are in reversed order (LSB is bit 0, MSB is bit 15)
+        # so have to be read from right to left when deriving the expected cloud states
+        test_cases_with_bit = [
+            (200, "0000000011001000",(0,0,0)),
+            (8, "0000000000001000",(0,0,0)),
+            (1288, "0000010100001000",(0,0,1)),
+            (141, "0000000010001101",(1,1,0)),
+            (204, "0000000011001100",(0,1,0)),
+            (5384, "0001010100001000",(0,0,1)),
+            (40970, "1010000000001010",(1,1,0)),
+            (1034, "0000010000001010",(1,1,0)),
+            (8392, "0010000011001000",(0,1,0)),
+            (40969, "1010000000001001",(1,1,0)),
+            (1033, "0000010000001001",(1,1,0)),
+        ]
+        for integer, bit_string, expected_state in test_cases_with_bit:
+            with self.subTest(state=integer):
+                cloud_state, shadow_state, cirrus_state = CloudMetaDataset.map_int_to_cloud_states(
+                    integer
+                )
+                self.assertEqual(format(integer, "016b"), bit_string)
+                self.assertEqual((cloud_state, shadow_state, cirrus_state), expected_state)
+
     def test_end_to_end(self):
         # checks that the number of clear days matches the inverse of cloud + shadow + cirrus days
         cloud_dataset = CloudMetaDataset(data_folder=DATA_FOLDER)
