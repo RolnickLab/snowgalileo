@@ -77,7 +77,7 @@ if __name__ == "__main__":
         normalizer = Normalizer(std=True, normalizing_dicts=normalizing_dict)
         dataset.normalizer = normalizer
 
-    dataloader = DataLoader(dataset, batch_size=1000, shuffle=False, num_workers=4)
+    dataloader = DataLoader(dataset, batch_size=1000, shuffle=False, num_workers=0)
 
     for i, (masked_output, labels, _) in enumerate(dataloader):
         if i == 2:
