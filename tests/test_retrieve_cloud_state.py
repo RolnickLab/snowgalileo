@@ -29,6 +29,7 @@ class TestRetrieveCloudState(unittest.TestCase):
 
         # NOTE: the binary test cases are in reversed order (LSB is bit 0, MSB is bit 15)
         # so have to be read from right to left when deriving the expected cloud states
+        # Source of test cases: https://blog.ronnyale.com/posts/2023-12-25-modis-bitstring/
         test_cases_with_bit = [
             (200, "0000000011001000",(0,0,0)),
             (8, "0000000000001000",(0,0,0)),
