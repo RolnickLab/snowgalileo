@@ -15,8 +15,8 @@ from src.data.config import (
     NORMALIZATION_DICT_FILENAME,
     NUM_TIMESTEPS,
 )
-from src.eval.landsat_eval import LandsatEvalDataset as BaseDataset
-from src.eval.downstream_augmentation import DownstreamAugmentation
+from src.fsc.landsat_eval import LandsatEvalDataset as BaseDataset
+from src.fsc.downstream_augmentation import DownstreamAugmentation
 from src.data.dataset import Normalizer
 from src.utils import config_dir
 
