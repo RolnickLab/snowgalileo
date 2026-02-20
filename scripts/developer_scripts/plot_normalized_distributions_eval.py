@@ -62,7 +62,7 @@ args = argparser.parse_args().__dict__
 
 if __name__ == "__main__":
 
-    with (Path("src/eval/eval_configs") / Path(args["eval_config"])).open("r") as f:
+    with (Path("configs/eval") / Path(args["eval_config"])).open("r") as f:
         eval_config = json.load(f)
 
     dataset = PlottingDataset(
