@@ -114,7 +114,7 @@ def train_and_validate():
             log_wandb=False,
             initialization_id=initialization_id,
             sweep_run=sweep_run,
-            save_final_checkpoint=False,
+            checkpointing=False,
         )
         # log metric to sweep run
         # TODO: change the metric names based on eval config

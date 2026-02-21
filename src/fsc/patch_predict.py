@@ -173,7 +173,7 @@ def finetune_and_eval_seg(
     num_finetune_epochs=50,
     log_wandb=False,
     sweep_run=None,
-    save_final_checkpoint=False,
+    checkpointing=False,
 ):
     if log_wandb:
         wandb.init(
@@ -204,13 +204,14 @@ def finetune_and_eval_seg(
         eval_config=eval_config,
         log_wandb=log_wandb,
         sweep_run=sweep_run,
+        checkpointing=checkpointing,
     )
     results = evaluate_seg(
         data_loader=loaders["test"],
         finetuned_model=finetuned_model,
         device=device,
     )
-    if save_final_checkpoint:
+    if checkpointing:
         filename = f"{identifier}_{hyperparameter_config['initialization_id']}_{sweep_name}.pth"
         save_checkpoint(finetuned_model, filename)
     return results
@@ -227,7 +228,7 @@ def get_finetune_results_on_val_set(
     num_finetune_epochs,
     log_wandb=False,
     sweep_run=None,
-    save_final_checkpoint=False,
+    checkpointing=False,
 ):
     final_vals = []
     for _ in range(num_runs):
@@ -241,7 +242,7 @@ def get_finetune_results_on_val_set(
             log_wandb=log_wandb,
             hyperparameter_config=hyperparameter_config,
             sweep_run=sweep_run,
-            save_final_checkpoint=save_final_checkpoint,
+            checkpointing=checkpointing,
         )
         final_vals.append(val)
 
@@ -259,6 +260,7 @@ def finetune_seg(
     inputs_per_target=10,
     log_wandb=False,
     sweep_run=None,
+    checkpointing=False,
 ):
     lr = hyperparameter_config.get("learning_rate", 0.1)
     weight_decay = hyperparameter_config.get("weight_decay", 0.0)
@@ -402,8 +404,9 @@ def finetune_seg(
                 opt.step()
                 opt.zero_grad()
 
-        if epoch % 10 == 0:
-            filename = f"{hyperparameter_config['initialization_id']}_{sweep_run.id}_epoch{epoch}.pth"
+        if epoch % 10 == 0 and checkpointing:
+            run_id = wandb.run.id if log_wandb else sweep_run.id if sweep_run is not None else "no_wandb"
+            filename = f"{hyperparameter_config['initialization_id']}_{run_id}_epoch_{epoch}.pth"
             save_checkpoint(finetuned_encoder, filename)
 
         if log_wandb or sweep_run is not None:

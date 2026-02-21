@@ -1716,7 +1716,7 @@ class LandsatEval(EvalTask):
         hyperparameter_config: Optional[Dict] = None,
         initialization_id: Optional[str] = None,
         sweep_run=None,
-        save_final_checkpoint: bool = False,
+        checkpointing: bool = False,
     ) -> Dict:
         assert self.decoder_mode in ["finetune", "linear_probe", "attention_probe", "sklearn"], (
             f"Unknown evaluation mode: {self.decoder_mode}"
@@ -1781,7 +1781,7 @@ class LandsatEval(EvalTask):
             )
 
             for idx, sklearn_model in enumerate(trained_sklearn_models):
-                if save_final_checkpoint:
+                if checkpointing:
                     try:
                         model_path = Path(f"./linear_probe_{idx}.joblib")
                         joblib.dump(trained_sklearn_models, model_path)
@@ -1808,7 +1808,7 @@ class LandsatEval(EvalTask):
                 num_finetune_epochs=self.num_finetune_epochs,
                 log_wandb=log_wandb,
                 sweep_run=sweep_run,
-                save_final_checkpoint=save_final_checkpoint,
+                checkpointing=checkpointing,
             )
         else:
             raise ValueError(f"Unknown evaluation mode: {self.decoder_mode}")

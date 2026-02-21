@@ -40,9 +40,9 @@ argparser.add_argument(
     "--num_finetune_epochs", type=int, default=25, help="Number of epochs to finetune for."
 )
 argparser.add_argument(
-    "--save_final_checkpoint",
+    "--checkpointing",
     action="store_true",
-    help="Whether to save the final checkpoint after finetuning.",
+    help="Enables checkpointing after every 10 epochs and saves the final checkpoint.",
 )
 argparser.add_argument(
     "--exclude_prediction_high_res",
@@ -116,6 +116,6 @@ for task in eval_tasks:
         model_modes=["Regression"],
         log_wandb=True,
         initialization_id=initialization_id,
-        save_final_checkpoint=args["save_final_checkpoint"],
+        checkpointing=args["checkpointing"],
     )
     print(json.dumps(results, indent=2, default=str), flush=True)
