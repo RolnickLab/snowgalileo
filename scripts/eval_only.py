@@ -103,6 +103,7 @@ if eval_config["timeseries_ablations"]:
         exclude_prediction_era5=exclude_prediction_era5,
         eval_config=eval_config,
         h5pys_only=args["h5pys_only"],
+        decoder_mode=decoder_mode
     )
 elif any(eval_config["sensor_ablations"].values()):
     print("Evaluating sensor ablation")
@@ -113,6 +114,7 @@ elif any(eval_config["sensor_ablations"].values()):
         exclude_prediction_era5=exclude_prediction_era5,
         eval_config=eval_config,
         h5pys_only=args["h5pys_only"],
+        decoder_mode=decoder_mode
     )
 else:
     eval_task = LandsatEval(
@@ -122,6 +124,7 @@ else:
         exclude_prediction_era5=exclude_prediction_era5,
         eval_config=eval_config,
         h5pys_only=args["h5pys_only"],
+        decoder_mode=decoder_mode
     )
 
 eval_task.evaluate_model_on_task(model=model)
