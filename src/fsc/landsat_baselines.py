@@ -29,7 +29,6 @@ from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset, masked_output_
 from src.fsc.metrics import compute_regression_metrics
     
 import multiprocessing as mp
-import time
 
 
 class LandsatEvalDatasetSklearn(LandsatEvalDataset):
