@@ -784,9 +784,9 @@ class LandsatEvalSklearn(LandsatEval):
 
         elif self.model_type == "svr":
             print("Training Support Vector Regressor...", flush=True)
-            gamma = hyperparameters["gamma_base"] ** hyperparameters["gamma_exponent"]
-            degree = hyperparameters["degree"]
-            C = hyperparameters["C_base"] ** hyperparameters["C_exponent"]
+            gamma = hyperparameters.get("gamma_base", 2) ** hyperparameters.get("gamma_exponent", -5)
+            degree = hyperparameters.get("degree", 2)
+            C = hyperparameters.get("C_base", 2) ** hyperparameters.get("C_exponent", -15)
             print(f"Using gamma={gamma}, degree={degree}", flush=True)
             model = SVR(kernel=hyperparameters.get("kernel", "rbf"), 
                         gamma=gamma, 
