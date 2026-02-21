@@ -649,23 +649,6 @@ class LandsatEvalSklearn(LandsatEval):
         assert not (x == -9999).any(), "No-data values (-9999) left in input."
         return x, m
 
-    def _train_model(self, model, X, y):
-        model.fit(X, y)
-        return model
-
-    def _fit_with_timeout(self, model, X, y, timeout):
-        pool = mp.Pool(1)
-        result = pool.apply_async(self._train_model, (model, X, y))
-        
-        try:
-            trained_model = result.get(timeout=timeout)
-            pool.close()
-            return trained_model
-        except mp.TimeoutError:
-            pool.terminate()
-            print("Training exceeded time limit. Skipping...")
-            return None
-
     def fit_sklearn(
         self,
         id: str = "",
@@ -821,15 +804,8 @@ class LandsatEvalSklearn(LandsatEval):
         else:
             model_composed = model
 
-        trained_model = self._fit_with_timeout(
-            model_composed, model_input, model_labels, timeout=86400
-        )
+        model_composed.fit(model_input, model_labels)
 
-        if trained_model is None:
-            raise RuntimeError("Training failed or exceeded timeout.")
-
-        model_composed = trained_model
-        
         if self.model_type == "mlp":
             print(f"MLP training stopped after {model_composed.n_iter_} iterations with training loss {model_composed.loss_:.4f}", flush=True)
 
