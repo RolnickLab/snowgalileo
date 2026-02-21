@@ -74,6 +74,7 @@ class LandsatEvalDataset(BaseDataset):
         exclude_prediction_date: bool = False,
         exclude_prediction_high_res: bool = False,
         exclude_prediction_sensors: bool = False,
+        exclude_prediction_era5: bool = True,
         normalizer: Optional[Normalizer] = None,
         augmentation=DownstreamAugmentation(False),
         data_config: Dict = {},
@@ -96,6 +97,7 @@ class LandsatEvalDataset(BaseDataset):
         self.exclude_prediction_date = exclude_prediction_date
         self.exclude_prediction_high_res = exclude_prediction_high_res
         self.exclude_prediction_sensors = exclude_prediction_sensors
+        self.exclude_prediction_era5 = exclude_prediction_era5
         self.label_height_width = data_config["input_height_width"]
 
         self.input_tif_folder = DATA_FOLDER / data_config["input_tif_folder"] / self.split
@@ -201,6 +203,15 @@ class LandsatEvalDataset(BaseDataset):
         assert s_t_h_m.shape[-1] == len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX)
         # Keep the first channel group (Sentinel-1)
         s_t_h_m[:, :, -1, 1:] = 1
+        return s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
+    
+    def mask_prediction_era5(self, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m):
+        # Masks the ERA5 channel group in the prediction timestep
+        # NOTE: 0 = valid, 1 = masked
+        print("Masking ERA5 data in prediction timestep", flush=True)
+        assert self.exclude_prediction_era5
+        # Keep the first three channel group (VIIRS coarse)
+        t_m[-1, 3:] = 1
         return s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
 
     def month_array_from_file(self, tif_path: Path, num_timesteps: int) -> np.ndarray:
@@ -698,6 +709,16 @@ class LandsatEvalDataset(BaseDataset):
                 st_m,
             ) = self.mask_prediction_sensor_data(s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m)
 
+        if self.exclude_prediction_era5:
+            (
+                s_t_h_m,
+                s_t_m_m,
+                s_t_l_m,
+                sp_m,
+                t_m,
+                st_m,
+            ) = self.mask_prediction_era5(s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m)
+
         if self.split == "inference":
             # return input tif instead of label in inference mode
             return (
@@ -797,6 +818,7 @@ class LandsatEval(EvalTask):
         exclude_prediction_date: bool = False,
         exclude_prediction_high_res: bool = False,
         exclude_prediction_sensors: bool = False,
+        exclude_prediction_era5: bool = True,
         patch_size_high_res: int = 10,
         h5pys_only: bool = False,
         seed=DEFAULT_SEED,
@@ -809,6 +831,7 @@ class LandsatEval(EvalTask):
         self.exclude_prediction_date = exclude_prediction_date
         self.exclude_prediction_high_res = exclude_prediction_high_res
         self.exclude_prediction_sensors = exclude_prediction_sensors
+        self.exclude_prediction_era5 = exclude_prediction_era5
         self.patch_size_high_res = patch_size_high_res
         self.resample = resample
         self.num_finetune_epochs = num_finetune_epochs
@@ -826,6 +849,7 @@ class LandsatEval(EvalTask):
         exclude_prediction_date: bool,
         exclude_prediction_high_res: bool,
         exclude_prediction_sensors: bool,
+        exclude_prediction_era5: bool,
         split: str,
         augmentation,
         h5pys_only: bool = False,
@@ -836,6 +860,7 @@ class LandsatEval(EvalTask):
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
             exclude_prediction_sensors=exclude_prediction_sensors,
+            exclude_prediction_era5=exclude_prediction_era5,
             split=split,
             h5pys_only=h5pys_only,
             augmentation=augmentation,
@@ -858,6 +883,7 @@ class LandsatEval(EvalTask):
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             exclude_prediction_sensors=self.exclude_prediction_sensors,
+            exclude_prediction_era5=self.exclude_prediction_era5,
             split="test",
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
@@ -1210,6 +1236,7 @@ class LandsatEval(EvalTask):
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             exclude_prediction_sensors=self.exclude_prediction_sensors,
+            exclude_prediction_era5=self.exclude_prediction_era5,
             split="inference",
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
@@ -1359,6 +1386,7 @@ class LandsatEval(EvalTask):
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             exclude_prediction_sensors=self.exclude_prediction_sensors,
+            exclude_prediction_era5=self.exclude_prediction_era5,
             split="test",
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
@@ -1404,6 +1432,7 @@ class LandsatEval(EvalTask):
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             exclude_prediction_sensors=self.exclude_prediction_sensors,
+            exclude_prediction_era5=self.exclude_prediction_era5,
             split="test",
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
@@ -1523,6 +1552,7 @@ class LandsatEval(EvalTask):
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             exclude_prediction_sensors=self.exclude_prediction_sensors,
+            exclude_prediction_era5=self.exclude_prediction_era5,
             split="visualize",
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,
@@ -1743,6 +1773,7 @@ class LandsatEval(EvalTask):
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
             exclude_prediction_sensors=self.exclude_prediction_sensors,
+            exclude_prediction_era5=self.exclude_prediction_era5,
             split="train",
             h5pys_only=self.h5pys_only,
             data_config=self.data_config,

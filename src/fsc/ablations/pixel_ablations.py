@@ -32,6 +32,7 @@ class PixelAblationsMetaDataset(LandsatEvalDataset):
         exclude_prediction_date=False,
         exclude_prediction_high_res=False,
         exclude_prediction_sensors=False,
+        exclude_prediction_era5=False,
     ):
         super().__init__(
             data_config=data_config,
@@ -40,6 +41,7 @@ class PixelAblationsMetaDataset(LandsatEvalDataset):
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
             exclude_prediction_sensors=exclude_prediction_sensors,
+            exclude_prediction_era5=exclude_prediction_era5,
             augmentation=augmentation,
         )
         self.eval_config = eval_config
@@ -150,6 +152,7 @@ class PixelAblationsEval(LandsatEval):
         exclude_prediction_date: bool = False,
         exclude_prediction_high_res: bool = False,
         exclude_prediction_sensors: bool = False,
+        exclude_prediction_era5: bool = False,
         h5pys_only: bool = False,
         num_finetune_epochs: int = 50,
         decoder_mode: str = "attention_probe",
@@ -159,6 +162,7 @@ class PixelAblationsEval(LandsatEval):
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
             exclude_prediction_sensors=exclude_prediction_sensors,
+            exclude_prediction_era5=exclude_prediction_era5,
             h5pys_only=h5pys_only,
             num_finetune_epochs=num_finetune_epochs,
             decoder_mode=decoder_mode,
@@ -171,6 +175,7 @@ class PixelAblationsEval(LandsatEval):
         exclude_prediction_date: bool,
         exclude_prediction_high_res: bool,
         exclude_prediction_sensors: bool,
+        exclude_prediction_era5: bool,
         split: str,
         h5pys_only: bool = False,
         data_config: Dict = {},
@@ -180,6 +185,7 @@ class PixelAblationsEval(LandsatEval):
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
             exclude_prediction_sensors=exclude_prediction_sensors,
+            exclude_prediction_era5=exclude_prediction_era5,
             split=split,
             h5pys_only=h5pys_only,
             augmentation=augmentation,

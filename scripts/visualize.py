@@ -27,12 +27,22 @@ argparser.add_argument(
 argparser.add_argument(
     "--exclude_prediction_high_res",
     action="store_true",
-    help="Whether to exclude high-res in prediction date. Should match checkpoint training.",
+    help="Whether to exclude high-res in prediction date.",
 )
 argparser.add_argument(
     "--exclude_prediction_sensors",
     action="store_true",
     help="Whether to exclude observational sensors in prediction date.",
+)
+argparser.add_argument(
+    "--exclude_prediction_date",
+    action="store_true",
+    help="Whether to exclude prediction date.",
+)
+argparser.add_argument(
+    "--include_prediction_era5",
+    action="store_true",
+    help="Whether to include ERA5 in prediction date.",
 )
 argparser.add_argument(
     "--eval_config_name",
@@ -82,6 +92,8 @@ else:
 eval_task = LandsatEval(
     exclude_prediction_high_res=args["exclude_prediction_high_res"],
     exclude_prediction_sensors=args["exclude_prediction_sensors"],
+    exclude_prediction_date=args["exclude_prediction_date"],
+    exclude_prediction_era5=not args["include_prediction_era5"],
     eval_config=eval_config,
     h5pys_only=False,
 )

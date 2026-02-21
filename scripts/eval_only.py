@@ -25,17 +25,22 @@ argparser.add_argument(
 argparser.add_argument(
     "--exclude_prediction_high_res",
     action="store_true",
-    help="Whether to exclude high-res in prediction date. Should match checkpoint training setup.",
-)
-argparser.add_argument(
-    "--exclude_prediction_date",
-    action="store_true",
-    help="Whether to exclude the input from the prediction date. Should match checkpoint training setup.",
+    help="Whether to exclude high-res in prediction date.",
 )
 argparser.add_argument(
     "--exclude_prediction_sensors",
     action="store_true",
     help="Whether to exclude observational sensors in prediction date.",
+)
+argparser.add_argument(
+    "--exclude_prediction_date",
+    action="store_true",
+    help="Whether to exclude prediction date.",
+)
+argparser.add_argument(
+    "--include_prediction_era5",
+    action="store_true",
+    help="Whether to include ERA5 in prediction date.",
 )
 argparser.add_argument(
     "--eval_config_name",
@@ -87,12 +92,15 @@ else:
         encoder_random_init, eval_config=eval_config[decoder_mode], sigmoid_slope=sigmoid_slope
     ).to(device)
 
+exclude_prediction_era5 = not args["include_prediction_era5"]
+
 if eval_config["timeseries_ablations"]:
     print("Evaluating timeseries ablation")
     eval_task = TimeseriesAblationsEval(
         exclude_prediction_high_res=args["exclude_prediction_high_res"],
         exclude_prediction_date=args["exclude_prediction_date"],
         exclude_prediction_sensors=args["exclude_prediction_sensors"],
+        exclude_prediction_era5=exclude_prediction_era5,
         eval_config=eval_config,
         h5pys_only=args["h5pys_only"],
     )
@@ -102,6 +110,7 @@ elif any(eval_config["sensor_ablations"].values()):
         exclude_prediction_high_res=args["exclude_prediction_high_res"],
         exclude_prediction_date=args["exclude_prediction_date"],
         exclude_prediction_sensors=args["exclude_prediction_sensors"],
+        exclude_prediction_era5=exclude_prediction_era5,
         eval_config=eval_config,
         h5pys_only=args["h5pys_only"],
     )
@@ -110,6 +119,7 @@ else:
         exclude_prediction_high_res=args["exclude_prediction_high_res"],
         exclude_prediction_date=args["exclude_prediction_date"],
         exclude_prediction_sensors=args["exclude_prediction_sensors"],
+        exclude_prediction_era5=exclude_prediction_era5,
         eval_config=eval_config,
         h5pys_only=args["h5pys_only"],
     )

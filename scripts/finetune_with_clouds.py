@@ -50,14 +50,19 @@ argparser.add_argument(
     help="Whether to exclude high-res in prediction date.",
 )
 argparser.add_argument(
+    "--exclude_prediction_sensors",
+    action="store_true",
+    help="Whether to exclude observational sensors in prediction date.",
+)
+argparser.add_argument(
     "--exclude_prediction_date",
     action="store_true",
     help="Whether to exclude prediction date.",
 )
 argparser.add_argument(
-    "--exclude_prediction_sensors",
+    "--include_prediction_era5",
     action="store_true",
-    help="Whether to exclude observational sensors in prediction date.",
+    help="Whether to include ERA5 in prediction date.",
 )
 argparser.add_argument(
     "--eval_config",
@@ -101,6 +106,7 @@ eval_tasks: List[EvalTask] = [
             exclude_prediction_date=args["exclude_prediction_date"],
             exclude_prediction_high_res=args["exclude_prediction_high_res"],
             exclude_prediction_sensors=args["exclude_prediction_sensors"],
+            exclude_prediction_era5=not args["include_prediction_era5"],
             decoder_mode=args["decoding_strategy"],
             num_finetune_epochs=args["num_finetune_epochs"],
             eval_config=eval_config,

@@ -121,6 +121,7 @@ def train_and_validate():
             normalization="std",
             exclude_prediction_date=False,
             exclude_prediction_high_res=args.exclude_prediction_high_res,
+            exclude_prediction_era5=True,
             resample=False,
             eval_config=config,
             model_type=args.model_type,
