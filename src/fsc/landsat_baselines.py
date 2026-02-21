@@ -772,14 +772,10 @@ class LandsatEvalSklearn(LandsatEval):
         if self.model_type == "rf":
             print("Training Random Forest Regressor...", flush=True)
             
-            if hyperparameters.get("max_features") == "feature_dependent":
-                max_features = math.ceil(model_input.shape[-1] / 3)
-                print(f"Using feature-dependent max_features={max_features}", flush=True)
-
             model = RandomForestRegressor(
                 n_estimators=hyperparameters.get("n_estimators", 100),
                 min_samples_leaf=hyperparameters.get("min_samples_leaf", 5),
-                max_features=hyperparameters.get("max_features", math.ceil(model_input.shape[-1] / 3)),
+                max_features=math.ceil(model_input.shape[-1] / 3) if hyperparameters.get("max_features") == "feature_dependent" else hyperparameters.get("max_features", "sqrt"),
                 min_samples_split=hyperparameters.get("min_samples_split", 2),
                 max_depth=hyperparameters.get("max_depth", None),
                 random_state=DEFAULT_SEED,
