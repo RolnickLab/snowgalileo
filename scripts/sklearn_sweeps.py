@@ -133,6 +133,7 @@ def train_and_validate():
         results = eval_task.fit_sklearn(
             hyperparameters=sweep_run.config,
             save_results=False,
+            sweep_run=sweep_run,
         )
 
         # log metric to sweep run
@@ -158,7 +159,7 @@ def main():
     # number of runs in the sweep
     count = 100
 
-    sweep_id = wandb.sweep(sweep=sweep_config, project="ai4snow_sklearn_sweeps", entity="sea-ice")
+    sweep_id = wandb.sweep(sweep=sweep_config, project=f"ai4snow_{args.model_type}_sweeps", entity="sea-ice")
     wandb.agent(sweep_id, function=train_and_validate, count=count)
 
     wandb.finish()

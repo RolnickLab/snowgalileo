@@ -2,6 +2,7 @@ import json
 import math
 from pathlib import Path
 from typing import Dict, Optional, Union, cast
+import wandb
 
 import joblib
 import numpy as np
@@ -671,7 +672,8 @@ class LandsatEvalSklearn(LandsatEval):
         hyperparameters: Dict = {},
         save_results: bool = False,
         normalization: str = "std",
-        dataset_subset_size: int = 0
+        dataset_subset_size: int = 0,
+        sweep_run: Optional[wandb.sdk.wandb_run.Run] = None,
     ) -> Dict[str, float]:
         assert normalization in ["std", ""], f"Unknown normalization {normalization}"
 
@@ -894,6 +896,9 @@ class LandsatEvalSklearn(LandsatEval):
         test_labels = torch.cat(all_test_labels, dim=0).numpy()
 
         results = compute_regression_metrics(preds=test_preds, target=test_labels)
+
+        if sweep_run is not None:
+            sweep_run.log(results)
 
         if save_results:
             # model checkpoint
