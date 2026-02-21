@@ -47,7 +47,8 @@
     },
     "hyperparameters_rf": {
         "n_estimators": 50,
-        "min_samples_leaf": 5
+        "min_samples_leaf": 5,
+        "max_features": "feature_dependent"
     },
     "hyperparameters_svr": {
         "kernel": "rbf",
