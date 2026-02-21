@@ -30,7 +30,7 @@ parser.add_argument(
 parser.add_argument(
     "--eval_config_name",
     type=str,
-    default="landsat_eval_1_99_test.json",
+    default="fsc_train_balanced_tiny.json",
     help="Config name for evaluation. Options are stored in configs/finetune/",
 )
 parser.add_argument(
@@ -52,6 +52,10 @@ rf_sweep_configuration = {
     "parameters": {
         "n_estimators": {"values": [50, 100, 200, 300, 400, 500]},
         "normalization": {"values": [None, "std"]},
+        "max_features": {"values": ["feature_dependent", "sqrt", "log2"]},
+        "min_samples_leaf": {"values": [1, 2, 5]},
+        "max_depth": {"values": [None, 10, 20, 30]},
+        "min_samples_split": {"values": [2, 5, 10]},
     },
 }
 
@@ -68,6 +72,9 @@ svr_sweep_configuration = {
         "degree": {"values": [2, 3]},
         "gamma_exponent": {"values": [-5, 0, 5]},
         "normalization": {"values": [None, "std"]},
+        "epsilon": {"values": [0.01, 0.1, 0.5, 1.0]},
+        "max_iter": {"values": [500, 1000, 5000, 10000]},
+        "bagging": {"values": [True, False]},
     },
 }
 
@@ -80,6 +87,9 @@ mlp_sweep_configuration = {
         "learning_rate_init": {"values": [0.0001, 0.001, 0.01, 0.1]},
         "activation": {"values": ["logistic", "tanh", "relu"]},
         "normalization": {"values": [None, "std"]},
+        "solver": {"values": ["adam"]},
+        "alpha": {"values": [1e-5, 1e-4, 1e-3]},
+        "batch_size": {"values": [64, 128, 256, "auto"]},
     },
 }
 
@@ -140,10 +150,10 @@ def main():
 
     if args.model_type == "rf":
         sweep_config = rf_sweep_configuration
-    else:
-        raise NotImplementedError(
-            f"Sweep configuration for model type {args.model_type} is not implemented."
-        )
+    elif args.model_type == "svr":
+        sweep_config = svr_sweep_configuration
+    elif args.model_type == "mlp":
+        sweep_config = mlp_sweep_configuration
 
     # number of runs in the sweep
     count = 100

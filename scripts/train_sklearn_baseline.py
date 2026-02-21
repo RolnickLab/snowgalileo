@@ -55,10 +55,6 @@ argparser.add_argument(
     type=int,
     default=0
 )
-argparser.add_argument(
-    "--bagging",
-    action="store_true",
-)
 args = argparser.parse_args().__dict__
 
 
@@ -79,6 +75,5 @@ rf = LandsatEvalSklearn(
     model_type=args["model_type"],
     h5pys_only=args["h5pys_only"],
     normalizing_dict=normalizing_dict,
-    bagging=args["bagging"],
 )
 rf.fit_sklearn(id=args["run_id"], save_results=True, dataset_subset_size=args["dataset_subset_size"])

@@ -27,6 +27,9 @@ from src.data.dataset import Normalizer
 from src.data.earthengine.eo_eval import SPACE_TIME_HIGH_RES_BANDS, TIME_BANDS
 from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset, masked_output_np_to_tensor
 from src.fsc.metrics import compute_regression_metrics
+    
+import multiprocessing as mp
+import time
 
 
 class LandsatEvalDatasetSklearn(LandsatEvalDataset):
@@ -211,7 +214,6 @@ class LandsatEvalSklearn(LandsatEval):
         eval_config: Dict = {},
         model_type: str = "rf",
         normalizing_dict: Optional[Dict] = None,
-        bagging: bool = False,
     ):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
@@ -223,7 +225,6 @@ class LandsatEvalSklearn(LandsatEval):
         self.model_type = model_type
         self.normalizing_dict = normalizing_dict
         self.h5pys_only = h5pys_only
-        self.bagging = bagging
 
         assert model_type in ["rf", "svr", "mlp"], f"Unknown model type {model_type}"
 
@@ -648,6 +649,23 @@ class LandsatEvalSklearn(LandsatEval):
         assert not (x == -9999).any(), "No-data values (-9999) left in input."
         return x, m
 
+    def _train_model(self, model, X, y):
+        model.fit(X, y)
+        return model
+
+    def _fit_with_timeout(self, model, X, y, timeout):
+        pool = mp.Pool(1)
+        result = pool.apply_async(self._train_model, (model, X, y))
+        
+        try:
+            trained_model = result.get(timeout=timeout)
+            pool.close()
+            return trained_model
+        except mp.TimeoutError:
+            pool.terminate()
+            print("Training exceeded time limit. Skipping...")
+            return None
+
     def fit_sklearn(
         self,
         id: str = "",
@@ -754,12 +772,17 @@ class LandsatEvalSklearn(LandsatEval):
 
         if self.model_type == "rf":
             print("Training Random Forest Regressor...", flush=True)
+            
+            if hyperparameters.get("max_features") == "feature_dependent":
+                max_features = math.ceil(model_input.shape[-1] / 3)
+                print(f"Using feature-dependent max_features={max_features}", flush=True)
+
             model = RandomForestRegressor(
-                n_estimators=hyperparameters["n_estimators"],
-                min_samples_leaf=hyperparameters["min_samples_leaf"],
-                max_features=math.ceil(
-                    model_input.shape[-1] / 3
-                ),  # fixed here, since depends on input shape
+                n_estimators=hyperparameters.get("n_estimators", 100),
+                min_samples_leaf=hyperparameters.get("min_samples_leaf", 5),
+                max_features=hyperparameters.get("max_features", math.ceil(model_input.shape[-1] / 3)),
+                min_samples_split=hyperparameters.get("min_samples_split", 2),
+                max_depth=hyperparameters.get("max_depth", None),
                 random_state=DEFAULT_SEED,
                 n_jobs=-1,
             )
@@ -770,16 +793,25 @@ class LandsatEvalSklearn(LandsatEval):
             degree = hyperparameters["degree"]
             C = hyperparameters["C_base"] ** hyperparameters["C_exponent"]
             print(f"Using gamma={gamma}, degree={degree}", flush=True)
-            model = SVR(kernel=hyperparameters["kernel"], gamma=gamma, degree=degree, C=C, max_iter=hyperparameters["max_iter"])
+            model = SVR(kernel=hyperparameters.get("kernel", "rbf"), 
+                        gamma=gamma, 
+                        degree=degree, 
+                        C=C, 
+                        max_iter=hyperparameters.get("max_iter", 1000),
+                        epsilon=hyperparameters.get("epsilon", 0.1)
+            )
 
         elif self.model_type == "mlp":
             print("Training Multi-layer Perceptron Regressor...", flush=True)
             model = MLPRegressor(
-                activation=hyperparameters["activation"],
-                hidden_layer_sizes=tuple(hyperparameters["hidden_layer_sizes"]),
+                activation=hyperparameters.get("activation", "relu"),
+                hidden_layer_sizes=tuple(hyperparameters.get("hidden_layer_sizes", [256, 128, 64])),
+                batch_size=hyperparameters.get("batch_size", "auto"),
+                solver=hyperparameters.get("solver", "adam"),
+                alpha=hyperparameters.get("alpha", 1e-4),
                 random_state=DEFAULT_SEED,
-                learning_rate_init=hyperparameters["learning_rate_init"],
-                max_iter=hyperparameters["max_iter"],
+                learning_rate_init=hyperparameters.get("learning_rate_init", 1e-3),
+                max_iter=hyperparameters.get("max_iter", 1000),
                 early_stopping=True,
                 n_iter_no_change=20
             )
@@ -787,12 +819,12 @@ class LandsatEvalSklearn(LandsatEval):
         else:
             raise ValueError(f"Unknown model type {self.model_type}")
 
-        if self.bagging:
+        if hyperparameters.get("bagging", False):
             model_composed = BaggingRegressor(estimator=model, n_jobs=-1)
         else:
             model_composed = model
 
-        model_composed.fit(model_input, model_labels)
+        self._fit_with_timeout(model_composed, model_input, model_labels, timeout=86400)  # 1 day timeout for training
 
         if self.model_type == "mlp":
             print(f"MLP training stopped after {model_composed.n_iter_} iterations with training loss {model_composed.loss_:.4f}", flush=True)
