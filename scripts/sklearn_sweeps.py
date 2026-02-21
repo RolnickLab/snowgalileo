@@ -158,7 +158,7 @@ def main():
     # number of runs in the sweep
     count = 100
 
-    sweep_id = wandb.sweep(sweep=sweep_config, project="ai4snow_sweeps", entity="sea-ice")
+    sweep_id = wandb.sweep(sweep=sweep_config, project="ai4snow_sklearn_sweeps", entity="sea-ice")
     wandb.agent(sweep_id, function=train_and_validate, count=count)
 
     wandb.finish()
