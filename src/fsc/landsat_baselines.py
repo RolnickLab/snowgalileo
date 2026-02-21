@@ -821,8 +821,15 @@ class LandsatEvalSklearn(LandsatEval):
         else:
             model_composed = model
 
-        self._fit_with_timeout(model_composed, model_input, model_labels, timeout=86400)  # 1 day timeout for training
+        trained_model = self._fit_with_timeout(
+            model_composed, model_input, model_labels, timeout=86400
+        )
 
+        if trained_model is None:
+            raise RuntimeError("Training failed or exceeded timeout.")
+
+        model_composed = trained_model
+        
         if self.model_type == "mlp":
             print(f"MLP training stopped after {model_composed.n_iter_} iterations with training loss {model_composed.loss_:.4f}", flush=True)
 
