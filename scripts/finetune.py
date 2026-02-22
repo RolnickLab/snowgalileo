@@ -15,6 +15,14 @@ from src.fsc.eval import EvalTask
 from src.snowgalileo import Encoder
 from src.utils import device, load_check_config, seed_everything
 
+import os
+from datetime import datetime
+
+slurm_id = os.environ.get("SLURM_JOB_ID", "local")
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+job_id = f"{slurm_id}_{timestamp}"
+
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
 
@@ -77,6 +85,8 @@ argparser.add_argument(
 )
 args = argparser.parse_args().__dict__
 
+
+
 with (Path("configs/finetune/") / Path(args["eval_config"])).open("r") as f:
     eval_config = json.load(f)
 
@@ -112,6 +122,7 @@ eval_tasks: List[EvalTask] = [
             num_finetune_epochs=args["num_finetune_epochs"],
             eval_config=eval_config,
             h5pys_only=args["h5pys_only"],
+            job_id=job_id
         )
     ],
 ]

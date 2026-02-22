@@ -826,6 +826,7 @@ class LandsatEval(EvalTask):
         num_finetune_epochs: int = 50,
         decoder_mode: str = "attention_probe",
         eval_config: Dict = {},
+        job_id=""
     ):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
@@ -837,10 +838,11 @@ class LandsatEval(EvalTask):
         self.num_finetune_epochs = num_finetune_epochs
         self.decoder_mode = decoder_mode
         self.h5pys_only = h5pys_only
+        self.job_id = job_id
 
         super().__init__(self.patch_size_high_res, seed)
         name_id = f"{eval_config['name']}" if eval_config and "name" in eval_config else ""
-        self.name = f"{'attn' if self.decoder_mode == 'attention_probe' else 'linear' if self.decoder_mode == 'linear_probe' else 'finetune' if self.decoder_mode == 'finetune' else 'sklearn'}{'_exclude_prediction_date_' if self.exclude_prediction_date else ''}{'_exclude_prediction_sensors_' if self.exclude_prediction_sensors else ''}{'_no_high_res_in_pred_date' if self.exclude_prediction_high_res else ''}{name_id}"
+        self.name = f"{'attn_' if self.decoder_mode == 'attention_probe' else 'linear_' if self.decoder_mode == 'linear_probe' else 'finetune_' if self.decoder_mode == 'finetune' else 'sklearn_'}{'exclude_prediction_date_' if self.exclude_prediction_date else ''}{'exclude_prediction_sensors_' if self.exclude_prediction_sensors else ''}{'no_high_res_in_pred_date' if self.exclude_prediction_high_res else ''}{name_id}"
         self.eval_config = eval_config
         self.data_config = self.eval_config["data"]
 
@@ -1840,6 +1842,7 @@ class LandsatEval(EvalTask):
                 log_wandb=log_wandb,
                 sweep_run=sweep_run,
                 checkpointing=checkpointing,
+                job_id=self.job_id
             )
         else:
             raise ValueError(f"Unknown evaluation mode: {self.decoder_mode}")
