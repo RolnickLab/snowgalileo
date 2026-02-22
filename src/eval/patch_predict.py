@@ -4,7 +4,6 @@ from copy import deepcopy
 import numpy as np
 import torch
 import torch.nn as nn
-import wandb
 from einops import rearrange
 
 from src.eval.metrics import (
@@ -173,6 +172,7 @@ def finetune_and_eval_seg(
     save_final_checkpoint=False,
 ):
     if log_wandb:
+        import wandb
         wandb.init(
             entity="sea-ice",
             project="ai4snow-finetune",
@@ -403,6 +403,7 @@ def finetune_seg(
                 results["sigmoid_slope"] = current_slope
                 results["learning_rate"] = set_lr
                 if log_wandb:
+                    import wandb
                     wandb.log(results, step=epoch)
                 if sweep_run is not None:
                     sweep_run.log(results, step=epoch)
