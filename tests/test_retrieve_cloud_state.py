@@ -44,7 +44,7 @@ class TestRetrieveCloudState(unittest.TestCase):
             (1033, "0000010000001001", (1, 0, 0)),
             (1796, "0000011100000100", (1, 1, 1)),
             (576, "0000001001000000", (0, 0, 1)),
-            (772, "0000001100000100", (0, 1, 1))
+            (772, "0000001100000100", (0, 1, 1)),
         ]
         for integer, bit_string, expected_state in test_cases_with_bit:
             with self.subTest(state=integer):
