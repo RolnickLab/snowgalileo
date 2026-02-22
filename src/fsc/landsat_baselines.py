@@ -789,7 +789,6 @@ class LandsatEvalSklearn(LandsatEval):
                 min_samples_split=hyperparameters.get("min_samples_split", 2),
                 max_depth=hyperparameters.get("max_depth", None),
                 random_state=DEFAULT_SEED,
-                n_jobs=-1,
             )
 
         elif self.model_type == "svr":
@@ -825,7 +824,7 @@ class LandsatEvalSklearn(LandsatEval):
             raise ValueError(f"Unknown model type {self.model_type}")
 
         if hyperparameters.get("bagging", False):
-            model_composed = BaggingRegressor(estimator=model, n_jobs=-1)
+            model_composed = BaggingRegressor(estimator=model)
         else:
             model_composed = model
 
