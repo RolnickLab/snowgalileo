@@ -173,6 +173,7 @@ def finetune_and_eval_seg(
 ):
     if log_wandb:
         import wandb
+
         wandb.init(
             entity="sea-ice",
             project="ai4snow-finetune",
@@ -404,6 +405,7 @@ def finetune_seg(
                 results["learning_rate"] = set_lr
                 if log_wandb:
                     import wandb
+
                     wandb.log(results, step=epoch)
                 if sweep_run is not None:
                     sweep_run.log(results, step=epoch)
