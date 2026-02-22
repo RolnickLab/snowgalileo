@@ -9,6 +9,44 @@ DATA_FOLDER = Path(__file__).parents[1] / "data/eval_tifs"
 
 
 class TestRetrieveCloudState(unittest.TestCase):
+    def test_bitwise_extract(self):
+        # NOTE: the binary test cases are in reversed order (LSB is bit 0, MSB is bit 15)
+        # so have to be read from right to left when deriving the expected cloud states
+        # Source of test cases: https://blog.ronnyale.com/posts/2023-12-25-modis-bitstring/
+        test_cases = [
+            (200, 0, 1, "0000000011001000", 0),
+            (8, 0, 1, "0000000000001000", 0),
+            (1288, 0, 1, "0000010100001000", 0),
+            (141, 0, 1, "0000000010001101", 2),
+            (204, 0, 1, "0000000011001100", 0),
+            (40969, 0, 1, "1010000000001001", 2),
+            (40970, 0, 1, "1010000000001010", 1),
+            (200, 8, 9, "0000000011001000", 0),
+            (8, 8, 9, "0000000000001000", 0),
+            (1288, 8, 9, "0000010100001000", 2),
+            (141, 8, 9, "0000000010001101", 0),
+            (204, 8, 9, "0000000011001100", 0),
+            (40969, 8, 9, "1010000000001001", 0),
+            (1796, 8, 9, "0000011100000100", 3),
+            (200, 2, None, "0000000011001000", 0),
+            (8, 2, None, "0000000000001000", 0),
+            (1288, 2, None, "0000010100001000", 0),
+            (141, 2, None, "0000000010001101", 1),
+            (204, 2, None, "0000000011001100", 1),
+            (40969, 2, None, "1010000000001001", 0),
+            (200, 10, None, "0000000011001000", 0),
+            (8, 10, None, "0000000000001000", 0),
+            (1288, 10, None, "0000010100001000", 1),
+            (141, 10, None, "0000000010001101", 0),
+            (204, 10, None, "0000000011001100", 0),
+            (40969, 10, None, "1010000000001001", 0),
+        ]
+        for integer, from_bit, to_bit, bit_string, expected_state in test_cases:
+            with self.subTest(state=integer):
+                state = CloudMetaDataset.bitwise_extract(integer, from_bit, to_bit)
+                self.assertEqual(format(integer, "016b"), bit_string)
+                self.assertEqual(state, expected_state)
+
     def test_map_int_to_cloud_states(self):
         # test cases without expected bit string (derived with
         # https://gis.stackexchange.com/questions/349371/creating-cloud-free-images-out-of-a-mod09a1-modis-image-in-gee/349401#349401)
