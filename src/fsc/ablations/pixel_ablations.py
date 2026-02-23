@@ -168,6 +168,7 @@ class PixelAblationsEval(LandsatEval):
             num_finetune_epochs=num_finetune_epochs,
             decoder_mode=decoder_mode,
             eval_config=eval_config,
+            job_id=job_id
         )
 
     def _get_dataset(
