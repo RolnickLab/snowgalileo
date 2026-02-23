@@ -1,5 +1,5 @@
 {
-    "name": "fsc_train_tiny_ablate_subset_100",
+    "name": "fsc_train_tiny_ablate_subset_10",
     "data": {
         "label_folder": "fsc_train_100m_masks_balanced",
         "input_tif_folder": "fsc_train_100m_cropped_balanced",
