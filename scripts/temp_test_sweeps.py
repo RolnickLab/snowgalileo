@@ -51,11 +51,11 @@ rf_sweep_configuration = {
     "metric": {"goal": "maximize", "name": "r2"},
     "parameters": {
         "n_estimators": {"values": [50, 100, 200, 300, 400, 500]},
-        "normalization": {"values": [None, "std"]},
-        "max_features": {"values": ["feature_dependent", "sqrt", "log2"]},
-        "min_samples_leaf": {"values": [1, 2, 5]},
-        "max_depth": {"values": [None, 10, 20, 30]},
-        "min_samples_split": {"values": [2, 5, 10]},
+        "normalization": {"values": [None]},
+        "max_features": {"values": ["feature_dependent"]},
+        "min_samples_leaf": {"values": [2]},
+        "max_depth": {"values": [20]},
+        "min_samples_split": {"values": [2]},
     },
 }
 
@@ -108,7 +108,7 @@ def reset_wandb_env():
 def train_and_validate():
     args = parser.parse_args()
 
-    with wandb.init(project=f"ai4snow_{args.model_type}_sweeps") as sweep_run:
+    with wandb.init(project="ai4snow_estimator_test") as sweep_run:
         with (Path("configs") / Path("finetune") / Path(args.eval_config_name)).open("r") as f:
             config = json.load(f)
 
@@ -160,7 +160,7 @@ def main():
     # number of runs in the sweep
     count = 100
 
-    sweep_id = wandb.sweep(sweep=sweep_config, project=f"ai4snow_{args.model_type}_sweeps", entity="sea-ice")
+    sweep_id = wandb.sweep(sweep=sweep_config, project=f"ai4snow_estimator_test", entity="sea-ice")
     wandb.agent(sweep_id, function=train_and_validate, count=count)
 
     wandb.finish()
