@@ -81,7 +81,7 @@ def train_and_validate():
     with (Path("configs/finetune/") / Path(args.eval_config)).open("r") as f:
         eval_config = json.load(f)
 
-    with wandb.init(project="ai4snow_sweeps") as sweep_run:
+    with wandb.init(project="ai4snow_sweeps_23022026") as sweep_run:
         if args.pretrain == "snow":
             # load pretrained snowgalileo encoder
             encoder = Encoder.load_from_folder(
@@ -128,7 +128,7 @@ def main():
     # number of runs in the sweep
     count = 100
 
-    sweep_id = wandb.sweep(sweep=sweep_config, project="ai4snow_sweeps_final", entity="sea-ice")
+    sweep_id = wandb.sweep(sweep=sweep_config, project="ai4snow_sweeps_23022026", entity="sea-ice")
     wandb.agent(sweep_id, function=train_and_validate, count=count)
 
     wandb.finish()
