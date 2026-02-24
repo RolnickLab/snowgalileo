@@ -177,7 +177,7 @@ def finetune_and_eval_seg(
     log_wandb=False,
     sweep_run=None,
     checkpointing=False,
-    job_id=""
+    job_id="",
 ):
     if log_wandb:
         wandb.init(
@@ -210,7 +210,7 @@ def finetune_and_eval_seg(
         sweep_run=sweep_run,
         checkpointing=checkpointing,
         identifier=identifier,
-        job_id=job_id
+        job_id=job_id,
     )
     results = evaluate_seg(
         data_loader=loaders["test"],
@@ -218,7 +218,9 @@ def finetune_and_eval_seg(
         device=device,
     )
     if checkpointing:
-        filename = f"{identifier}_{hyperparameter_config['initialization_id']}_{sweep_name}_{job_id}.pth"
+        filename = (
+            f"{identifier}_{hyperparameter_config['initialization_id']}_{sweep_name}_{job_id}.pth"
+        )
         save_checkpoint(finetuned_model, filename)
     return results
 
@@ -235,7 +237,7 @@ def get_finetune_results_on_val_set(
     log_wandb=False,
     sweep_run=None,
     checkpointing=False,
-    job_id=""
+    job_id="",
 ):
     final_vals = []
     for _ in range(num_runs):
@@ -250,7 +252,7 @@ def get_finetune_results_on_val_set(
             hyperparameter_config=hyperparameter_config,
             sweep_run=sweep_run,
             checkpointing=checkpointing,
-            job_id=job_id
+            job_id=job_id,
         )
         final_vals.append(val)
 
@@ -270,11 +272,17 @@ def finetune_seg(
     sweep_run=None,
     checkpointing=False,
     identifier="",
-    job_id=""
+    job_id="",
 ):
     # Use the wandB id as storage name if available, else the config if (less safe because not necessarily unique)
-    run_id = wandb.run.id if log_wandb else sweep_run.id if sweep_run is not None else hyperparameter_config.get("initialization_id", "default")  
-    run_path = Path(checkpoints_dir / run_id) 
+    run_id = (
+        wandb.run.id
+        if log_wandb
+        else sweep_run.id
+        if sweep_run is not None
+        else hyperparameter_config.get("initialization_id", "default")
+    )
+    run_path = Path(checkpoints_dir / run_id)
     config_path = run_path / f"config.json"
 
     lr = hyperparameter_config.get("learning_rate", 0.1)
@@ -351,27 +359,35 @@ def finetune_seg(
         start_epoch = config.get("cur_epoch", 0)
 
         config.setdefault("restart_history", [])
-        config["restart_history"].append({
-            "job_id": job_id,
-            "resumed_from_epoch": start_epoch,
-        })
+        config["restart_history"].append(
+            {
+                "job_id": job_id,
+                "resumed_from_epoch": start_epoch,
+            }
+        )
 
         with config_path.open("w") as f:
             json.dump(config, f, indent=4)
 
         print("Restarting from epoch:", start_epoch)
         finetuned_encoder.load_state_dict(
-            torch.load(run_path / f"{identifier}_{hyperparameter_config['initialization_id']}_{run_id}_epoch_{start_epoch}.pth", map_location=device)
+            torch.load(
+                run_path
+                / f"{identifier}_{hyperparameter_config['initialization_id']}_{run_id}_epoch_{start_epoch}.pth",
+                map_location=device,
+            )
         )
     else:
         run_path.mkdir(parents=True, exist_ok=True)
 
         config = {
             "cur_epoch": 0,
-            "restart_history": [{
-                "job_id": job_id,
-                "resumed_from_epoch": 0,
-            }]
+            "restart_history": [
+                {
+                    "job_id": job_id,
+                    "resumed_from_epoch": 0,
+                }
+            ],
         }
 
         with config_path.open("w") as f:
@@ -455,7 +471,10 @@ def finetune_seg(
                 opt.zero_grad()
 
         if epoch % 10 == 0 and checkpointing:
-            file_path= Path(run_path / f"{identifier}_{hyperparameter_config['initialization_id']}_{run_id}_epoch_{epoch}.pth")
+            file_path = Path(
+                run_path
+                / f"{identifier}_{hyperparameter_config['initialization_id']}_{run_id}_epoch_{epoch}.pth"
+            )
             save_checkpoint(finetuned_encoder, file_path)
             config["cur_epoch"] = epoch
             with (run_path / f"config.json").open("w") as f:

@@ -120,7 +120,7 @@ eval_tasks: List[EvalTask] = [
             num_finetune_epochs=args["num_finetune_epochs"],
             eval_config=eval_config,
             h5pys_only=args["h5pys_only"],
-            job_id=job_id
+            job_id=job_id,
         )
     ],
 ]

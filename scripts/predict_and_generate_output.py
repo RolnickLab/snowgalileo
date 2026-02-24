@@ -101,7 +101,7 @@ eval_task = LandsatEval(
     exclude_prediction_era5=not args["include_prediction_era5"],
     eval_config=eval_config,
     h5pys_only=args["h5pys_only"],
-    decoder_mode=decoder_mode
+    decoder_mode=decoder_mode,
 )
 
 eval_task.predict_and_store_output(

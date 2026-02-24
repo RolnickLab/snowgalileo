@@ -19,16 +19,14 @@ from torch.utils.data import Subset
 import random
 from time import time
 
-from src.data.config import (
-    DATA_FOLDER
-)
+from src.data.config import DATA_FOLDER
 
 from src.config import DEFAULT_SEED
 from src.data.dataset import Normalizer
 from src.data.earthengine.eo_eval import SPACE_TIME_HIGH_RES_BANDS, TIME_BANDS
 from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset, masked_output_np_to_tensor
 from src.fsc.metrics import compute_regression_metrics
-    
+
 import multiprocessing as mp
 
 
@@ -85,7 +83,7 @@ class LandsatEvalDatasetSklearn(LandsatEvalDataset):
         s_t_l_m[:, :, -1, :] = 1
         t_m[-1, :-5] = 1
         return s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
-    
+
     # NOTE: overwritten because for baselines, we use ungrouped channels
     def mask_prediction_era5(self, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m):
         # NOTE: 0 = valid, 1 = masked
@@ -689,14 +687,22 @@ class LandsatEvalSklearn(LandsatEval):
         if hyperparameters == {}:
             hyperparameters = self.eval_config[f"hyperparameters_{self.model_type}"]
 
-        train_data_checkpoint_path = Path(DATA_FOLDER) / self.eval_config["data"]["sklearn_train_data_checkpoint_folder"]
+        train_data_checkpoint_path = (
+            Path(DATA_FOLDER) / self.eval_config["data"]["sklearn_train_data_checkpoint_folder"]
+        )
 
         if train_data_checkpoint_path == "":
             train_data_checkpoint_path = None
 
         # see if checkpoint path has data, if so, load it and skip training preparation
-        if train_data_checkpoint_path is not None and (train_data_checkpoint_path / f"sklearn_model_input.npy").exists() and (train_data_checkpoint_path / f"sklearn_model_labels.npy").exists():
-            print(f"Loading preprocessed training data from {train_data_checkpoint_path}", flush=True)
+        if (
+            train_data_checkpoint_path is not None
+            and (train_data_checkpoint_path / f"sklearn_model_input.npy").exists()
+            and (train_data_checkpoint_path / f"sklearn_model_labels.npy").exists()
+        ):
+            print(
+                f"Loading preprocessed training data from {train_data_checkpoint_path}", flush=True
+            )
             model_input = np.load(train_data_checkpoint_path / f"sklearn_model_input.npy")
             model_labels = np.load(train_data_checkpoint_path / f"sklearn_model_labels.npy")
 
@@ -781,11 +787,13 @@ class LandsatEvalSklearn(LandsatEval):
 
         if self.model_type == "rf":
             print("Training Random Forest Regressor...", flush=True)
-            
+
             model = RandomForestRegressor(
                 n_estimators=hyperparameters.get("n_estimators", 100),
                 min_samples_leaf=hyperparameters.get("min_samples_leaf", 5),
-                max_features=math.ceil(model_input.shape[-1] / 3) if hyperparameters.get("max_features") == "feature_dependent" else hyperparameters.get("max_features", "sqrt"),
+                max_features=math.ceil(model_input.shape[-1] / 3)
+                if hyperparameters.get("max_features") == "feature_dependent"
+                else hyperparameters.get("max_features", "sqrt"),
                 min_samples_split=hyperparameters.get("min_samples_split", 2),
                 max_depth=hyperparameters.get("max_depth", None),
                 random_state=DEFAULT_SEED,
@@ -793,23 +801,28 @@ class LandsatEvalSklearn(LandsatEval):
 
         elif self.model_type == "svr":
             print("Training Support Vector Regressor...", flush=True)
-            gamma = hyperparameters.get("gamma_base", 2) ** hyperparameters.get("gamma_exponent", -5)
+            gamma = hyperparameters.get("gamma_base", 2) ** hyperparameters.get(
+                "gamma_exponent", -5
+            )
             degree = hyperparameters.get("degree", 2)
             C = hyperparameters.get("C_base", 2) ** hyperparameters.get("C_exponent", -15)
             print(f"Using gamma={gamma}, degree={degree}", flush=True)
-            model = SVR(kernel=hyperparameters.get("kernel", "rbf"), 
-                        gamma=gamma, 
-                        degree=degree, 
-                        C=C, 
-                        max_iter=hyperparameters.get("max_iter", 1000),
-                        epsilon=hyperparameters.get("epsilon", 0.1)
+            model = SVR(
+                kernel=hyperparameters.get("kernel", "rbf"),
+                gamma=gamma,
+                degree=degree,
+                C=C,
+                max_iter=hyperparameters.get("max_iter", 1000),
+                epsilon=hyperparameters.get("epsilon", 0.1),
             )
 
         elif self.model_type == "mlp":
             print("Training Multi-layer Perceptron Regressor...", flush=True)
             model = MLPRegressor(
                 activation=hyperparameters.get("activation", "relu"),
-                hidden_layer_sizes=tuple(hyperparameters.get("hidden_layer_sizes", [256, 128, 64])),
+                hidden_layer_sizes=tuple(
+                    hyperparameters.get("hidden_layer_sizes", [256, 128, 64])
+                ),
                 batch_size=hyperparameters.get("batch_size", "auto"),
                 solver=hyperparameters.get("solver", "adam"),
                 alpha=hyperparameters.get("alpha", 1e-4),
@@ -817,7 +830,7 @@ class LandsatEvalSklearn(LandsatEval):
                 learning_rate_init=hyperparameters.get("learning_rate_init", 1e-3),
                 max_iter=hyperparameters.get("max_iter", 1000),
                 early_stopping=True,
-                n_iter_no_change=20
+                n_iter_no_change=20,
             )
 
         else:
@@ -831,7 +844,10 @@ class LandsatEvalSklearn(LandsatEval):
         model_composed.fit(model_input, model_labels)
 
         if self.model_type == "mlp":
-            print(f"MLP training stopped after {model_composed.n_iter_} iterations with training loss {model_composed.loss_:.4f}", flush=True)
+            print(
+                f"MLP training stopped after {model_composed.n_iter_} iterations with training loss {model_composed.loss_:.4f}",
+                flush=True,
+            )
 
         end_time = time()
         print(f"Training time: {end_time - start_time:.2f} seconds", flush=True)

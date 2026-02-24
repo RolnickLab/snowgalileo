@@ -86,7 +86,6 @@ argparser.add_argument(
 args = argparser.parse_args().__dict__
 
 
-
 with (Path("configs/finetune/") / Path(args["eval_config"])).open("r") as f:
     eval_config = json.load(f)
 
@@ -116,13 +115,13 @@ eval_tasks: List[EvalTask] = [
             exclude_prediction_date=args["exclude_prediction_date"],
             exclude_prediction_high_res=args["exclude_prediction_high_res"],
             exclude_prediction_sensors=args["exclude_prediction_sensors"],
-            exclude_prediction_era5 = not args["include_prediction_era5"],
+            exclude_prediction_era5=not args["include_prediction_era5"],
             resample=args["resample"],
             decoder_mode=args["decoding_strategy"],
             num_finetune_epochs=args["num_finetune_epochs"],
             eval_config=eval_config,
             h5pys_only=args["h5pys_only"],
-            job_id=job_id
+            job_id=job_id,
         )
     ],
 ]

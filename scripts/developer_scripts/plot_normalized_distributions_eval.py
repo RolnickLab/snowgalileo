@@ -51,8 +51,9 @@ class PlottingDataset(BaseDataset):
             exclude_prediction_sensors,
             normalizer,
             augmentation,
-            data_config
+            data_config,
         )
+
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--eval_config", type=str, default="fsc_train_balanced_tiny.json")
@@ -61,13 +62,10 @@ argparser.add_argument("--normalize", action="store_true", help="Whether to norm
 args = argparser.parse_args().__dict__
 
 if __name__ == "__main__":
-
     with (Path("configs/finetune") / Path(args["eval_config"])).open("r") as f:
         eval_config = json.load(f)
 
-    dataset = PlottingDataset(
-        data_config = eval_config["data"]
-    )
+    dataset = PlottingDataset(data_config=eval_config["data"])
 
     if args["normalize"]:
         normalizing_dict = dataset.load_normalization_values(

@@ -204,7 +204,7 @@ class LandsatEvalDataset(BaseDataset):
         # Keep the first channel group (Sentinel-1)
         s_t_h_m[:, :, -1, 1:] = 1
         return s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
-    
+
     def mask_prediction_era5(self, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m):
         # Masks the ERA5 channel group in the prediction timestep
         # NOTE: 0 = valid, 1 = masked
@@ -826,7 +826,7 @@ class LandsatEval(EvalTask):
         num_finetune_epochs: int = 50,
         decoder_mode: str = "attention_probe",
         eval_config: Dict = {},
-        job_id=""
+        job_id="",
     ):
         self.normalization = normalization
         self.exclude_prediction_date = exclude_prediction_date
@@ -1842,7 +1842,7 @@ class LandsatEval(EvalTask):
                 log_wandb=log_wandb,
                 sweep_run=sweep_run,
                 checkpointing=checkpointing,
-                job_id=self.job_id
+                job_id=self.job_id,
             )
         else:
             raise ValueError(f"Unknown evaluation mode: {self.decoder_mode}")

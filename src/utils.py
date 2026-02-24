@@ -76,7 +76,7 @@ def save_checkpoint(model, filename="default.pth"):
     filename.parent.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), filename)
     print(f"Saved checkpoint to {filename}")
-   
+
 
 class AverageMeter:
     """computes and stores the average and current value"""
