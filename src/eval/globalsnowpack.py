@@ -45,13 +45,16 @@ def export_from_filename_for_folder(
     for filename in filenames:
         date = datetime.strptime(parts[1], "%Y%m%d").date()
 
-        with rasterio.open(folder / filename) as src:
-            bounds = src.bounds
-            crs = src.crs
+        with rasterio.open(folder / filename) as landsat_src:
+            landsat_bounds = landsat_src.bounds
+            landsat_crs = landsat_src.crs
+            landsat_transform = landsat_src.transform
+            landsat_height = landsat_src.height
+            landsat_width = landsat_src.width
 
-            transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
-            min_lon, min_lat = transformer.transform(bounds.left, bounds.bottom)
-            max_lon, max_lat = transformer.transform(bounds.right, bounds.top)
+            transformer = Transformer.from_crs(landsat_crs, "EPSG:4326", always_xy=True)
+            min_lon, min_lat = transformer.transform(landsat_bounds.left, landsat_bounds.bottom)
+            max_lon, max_lat = transformer.transform(landsat_bounds.right, landsat_bounds.top)
 
         # Search by date
         search = stac_api.search(
@@ -69,33 +72,26 @@ def export_from_filename_for_folder(
 
         polygon = mapping(box(min_lon, min_lat, max_lon, max_lat))
 
-        with rasterio.open(href) as src:
-            out_image, out_transform = rasterio.mask.mask(
-                src,
+        with rasterio.open(href) as gsp_src:
+            gsp_image, gsp_transform = rasterio.mask.mask(
+                gsp_src,
                 [polygon],
                 crop=True,
             )
-            out_meta = src.meta.copy()
+            gsp_crs = gsp_src.crs
 
-        reprojected_cutout = np.empty((src.height, src.width), dtype=out_image.dtype)
+        reprojected_cutout = np.empty((landsat_height, landsat_width), dtype=gsp_image.dtype)
 
         reproject(
-            source=out_image,
+            source=gsp_image,
             destination=reprojected_cutout,
-            src_transform=out_transform,
-            src_crs=out_image.crs,
-            dst_transform=src.transform,
-            dst_crs=crs,
+            src_transform=gsp_transform,
+            src_crs=gsp_crs,
+            dst_transform=landsat_transform,
+            dst_crs=landsat_crs,
             resampling=Resampling.nearest,
         )
 
-        # TODO: Check the transform
-
-        out_meta.update(
-            height=reprojected_cutout.shape[1],
-            width=reprojected_cutout.shape[2],
-        )
-
         output_filename = output_folder / f"gsp_{filename}"
-        with rasterio.open(output_filename, "w", **out_meta) as dest:
+        with rasterio.open(output_filename, "w") as dest:
             dest.write(reprojected_cutout)
