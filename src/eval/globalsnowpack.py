@@ -94,8 +94,8 @@ def export_from_filename_for_folder(
         )
 
         gsp_meta.update(
-            height=reprojected_cutout.shape[1],
-            width=reprojected_cutout.shape[2],
+            height=reprojected_cutout.shape[0],
+            width=reprojected_cutout.shape[1],
             crs=landsat_crs,
             transform=landsat_transform
         )
