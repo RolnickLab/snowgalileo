@@ -50,7 +50,7 @@ rf_sweep_configuration = {
     "method": "random",
     "metric": {"goal": "maximize", "name": "r2"},
     "parameters": {
-        "n_estimators": {"values": [50, 100, 200, 300, 400, 500]},
+        "n_estimators": {"values": [100, 200]},
         "normalization": {"values": [None]},
         "max_features": {"values": ["feature_dependent"]},
         "min_samples_leaf": {"values": [2]},
