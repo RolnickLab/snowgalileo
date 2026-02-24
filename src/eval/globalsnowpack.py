@@ -1,13 +1,14 @@
-import os
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
 import rasterio
+from pyproj import Transformer
+from pystac_client import Client
+from rasterio.warp import Resampling, reproject
+from shapely.geometry import box, mapping
 
 from src.data.config import DATA_FOLDER
-from pystac_client import Client
-from pyproj import Transformer
-from shapely.geometry import box, mapping
 
 
 def export_from_filename_for_folder(
@@ -76,12 +77,25 @@ def export_from_filename_for_folder(
             )
             out_meta = src.meta.copy()
 
-        out_meta.update(
-            height=out_image.shape[1],
-            width=out_image.shape[2],
-            transform=out_transform,
+        reprojected_cutout = np.empty((src.height, src.width), dtype=out_image.dtype)
+
+        reproject(
+            source=out_image,
+            destination=reprojected_cutout,
+            src_transform=out_transform,
+            src_crs=out_image.crs,
+            dst_transform=src.transform,
+            dst_crs=crs,
+            resampling=Resampling.nearest,
         )
-        
+
+        # TODO: Check the transform
+
+        out_meta.update(
+            height=reprojected_cutout.shape[1],
+            width=reprojected_cutout.shape[2],
+        )
+
         output_filename = output_folder / f"gsp_{filename}"
         with rasterio.open(output_filename, "w", **out_meta) as dest:
-            dest.write(out_image)
+            dest.write(reprojected_cutout)
