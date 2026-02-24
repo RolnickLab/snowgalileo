@@ -78,6 +78,7 @@ def export_from_filename_for_folder(
                 [polygon],
                 crop=True,
             )
+            gsp_meta = gsp_src.meta.copy()
             gsp_crs = gsp_src.crs
 
         reprojected_cutout = np.empty((landsat_height, landsat_width), dtype=gsp_image.dtype)
@@ -92,6 +93,13 @@ def export_from_filename_for_folder(
             resampling=Resampling.nearest,
         )
 
+        gsp_meta.update(
+            height=reprojected_cutout.shape[1],
+            width=reprojected_cutout.shape[2],
+            crs=landsat_crs,
+            transform=landsat_transform
+        )
+
         output_filename = output_folder / f"gsp_{filename}"
-        with rasterio.open(output_filename, "w") as dest:
+        with rasterio.open(output_filename, "w", **gsp_meta) as dest:
             dest.write(reprojected_cutout)
