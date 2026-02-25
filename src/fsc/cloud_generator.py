@@ -62,17 +62,20 @@ EO_ALL_DYNAMIC_IN_TIME_BANDS = (
     + CLOUD_BANDS
 )
 
+# NOTE: Scaling factors according to Earthengine documentation for the specific bands
 CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
     "s_t_h_x": {
         "S1": {
             "band_names": ["VV", "VH", "angle"],
             "apply_clouds": [False, False, False],
             "channel_magnitudes": [0.0, 0.0, 0.0],
+            "scaling_factors": [1.0, 1.0, 1.0]
         },
         "S2": {
             "band_names": ["B2", "B3", "B4", "B8", "B11", "B12"],
             "apply_clouds": [True, True, True, True, True, True],
             "channel_magnitudes": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "scaling_factors": [0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001],
         },
         "Landsat": {
             "band_names": [
@@ -85,6 +88,7 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
             ],
             "apply_clouds": [True, True, True, True, True, True],
             "channel_magnitudes": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "scaling_factors": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
         },
     },
     "s_t_m_x": {
@@ -92,6 +96,7 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
             "band_names": ["Oa17_radiance", "Oa21_radiance"],
             "apply_clouds": [True, True],
             "channel_magnitudes": [0.0, 0.0],
+            "scaling_factors": [0.00493004, 0.00324118]
         },
     },
     # NOTE: Indeces computation happens after cloud generation
@@ -108,11 +113,13 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
             ],
             "apply_clouds": [True, True, True, True, True, True, True],
             "channel_magnitudes": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "scaling_factors": [0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001],
         },
         "VIIRS": {
             "band_names": ["I1", "I3"],
             "apply_clouds": [True, True],
             "channel_magnitudes": [0.0, 0.0],
+            "scaling_factors": [1.0, 1.0]
         },
     },
     "t_x": {
@@ -120,6 +127,7 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
             "band_names": ["M5", "M7", "M10", "M11"],
             "apply_clouds": [True, True, True, True],
             "channel_magnitudes": [0.0, 0.0, 0.0, 0.0],
+            "scaling_factors": [1.0, 1.0, 1.0, 1.0]
         },
         "ERA5": {
             "band_names": [
@@ -131,13 +139,18 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
             ],
             "apply_clouds": [False, False, False, False, False],
             "channel_magnitudes": [0.0, 0.0, 0.0, 0.0, 0.0],
+            "scaling_factors": [1.0, 1.0, 1.0, 1.0, 1.0],
         },
     },
 }
 
 
-def generate_clouds(band_stack, band_weights, cloud_prob=0.0, shadow_prob=0.0):
+def generate_clouds(band_stack, band_weights, scaling_factors, cloud_prob=0.0, shadow_prob=0.0):
     """Function to generate clouds. Input image should be in shape [B,C,H,W]. Band weights should be in shape [B,C,1,1]."""
+
+    # the generator function takes reflectance values, but some inputs are in DN format.
+    # we handle this by temporarily scaling to reflectance values
+    band_stack *= scaling_factors.view(1, -1, 1, 1)
 
     cfgs = [scg.WIDE_CONFIG, scg.BIG_CONFIG, scg.LOCAL_CONFIG, scg.FOG_CONFIG]
 
@@ -148,6 +161,12 @@ def generate_clouds(band_stack, band_weights, cloud_prob=0.0, shadow_prob=0.0):
 
     gen = random.choice(gens)
     out, cloud_mask, _ = gen(band_stack, channel_magnitude=band_weights, return_cloud=True)
+
+    # cloud generations brightens the images, we clamp to get physically consistent outputs
+    out = torch.clamp(out, 0.0, 1.0)
+
+    # scale back to not disturb the input distribution of the model
+    out = out / scaling_factors.view(1, -1, 1, 1)
 
     return out, cloud_mask
 
@@ -295,6 +314,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
             to_cloud = []
             channel_slices = []
             band_weights = []
+            scaling_factors = []
 
             for name, var, cl_mask in zip(
                 space_time_names, space_time_vars, space_time_cloud_masks
@@ -302,12 +322,13 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
                 config = CHANNEL_WISE_CLOUD_PARAMETERS[name]
                 apply_clouds_mask = []
                 for sensor_cfg in config.values():
-                    for apply, magnitude in zip(
-                        sensor_cfg["apply_clouds"], sensor_cfg["channel_magnitudes"]
+                    for apply, magnitude, scaling in zip(
+                        sensor_cfg["apply_clouds"], sensor_cfg["channel_magnitudes"], sensor_cfg["scaling_factors"]
                     ):
                         apply_clouds_mask.append(apply)
                         if apply:
                             band_weights.append(magnitude)
+                            scaling_factors.append(scaling)
 
                 apply_clouds_mask = np.array(apply_clouds_mask, dtype=bool)
                 # var shape: [H, W, T, C]
@@ -324,10 +345,12 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         # to tensor
         x_cloud_in_tensor = torch.from_numpy(x_cloud_in).float()
         band_weights_tensor = torch.tensor(band_weights).float()
+        scaling_factors_tensor = torch.tensor(scaling_factors).float()
 
         x_clouded, cloud_mask = generate_clouds(
             band_stack=x_cloud_in_tensor,
             band_weights=band_weights_tensor,
+            scaling_factors=scaling_factors_tensor,
             cloud_prob=self.eval_config["cloud_generation"]["cloud_prob_pred_day"],
             shadow_prob=self.eval_config["cloud_generation"]["shadow_prob"],
         )
