@@ -198,6 +198,132 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         assert self.eval_config is not None, "eval_config must be provided for cloud generation"
         assert "cloud_generation" in self.eval_config, "cloud_generation config missing"
 
+
+    def _apply_cloud_augmentation(self, space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, time_x):
+        # Create copies of the arrays to later compute valid masks on, since invalid data values will be
+        # changed by cloud generation
+        space_time_high_res_x_no_clouds_added = space_time_high_res_x.copy()
+        space_time_med_res_x_no_clouds_added = space_time_med_res_x.copy()
+        space_time_low_res_x_no_clouds_added = space_time_low_res_x.copy()
+        time_x_no_clouds_added = time_x.copy()
+
+        cloud_mask_s_t_h = np.zeros_like(space_time_high_res_x)
+        cloud_mask_s_t_m = np.zeros_like(space_time_med_res_x)
+        cloud_mask_s_t_l = np.zeros_like(space_time_low_res_x)
+        cloud_mask_t = np.zeros_like(time_x)
+
+        space_time_names = ["s_t_h_x", "s_t_m_x", "s_t_l_x", "t_x"]
+        space_time_vars = [
+            space_time_high_res_x,
+            space_time_med_res_x,
+            space_time_low_res_x,
+            time_x,
+        ]
+        space_time_cloud_masks = [
+            cloud_mask_s_t_h,
+            cloud_mask_s_t_m,
+            cloud_mask_s_t_l,
+            cloud_mask_t,
+        ]
+
+        channel_meta = []
+        band_weights = []
+        scaling_factors = []
+
+        for name, var, cl_mask in zip(
+            space_time_names, space_time_vars, space_time_cloud_masks
+        ):
+            config = CHANNEL_WISE_CLOUD_PARAMETERS[name]
+            apply_mask = []
+
+            for sensor_cfg in config.values():
+                for apply, magnitude, scaling in zip(
+                    sensor_cfg["apply_clouds"],
+                    sensor_cfg["channel_magnitudes"],
+                    sensor_cfg["scaling_factors"],
+                ):
+                    apply_mask.append(apply)
+                    if apply:
+                        band_weights.append(magnitude)
+                        scaling_factors.append(scaling)
+
+            apply_mask = np.array(apply_mask, dtype=bool)
+            channel_meta.append((var, apply_mask, cl_mask))
+
+        if len(band_weights) == 0:
+            return (
+                space_time_high_res_x,
+                space_time_med_res_x,
+                space_time_low_res_x,
+                time_x,
+                space_time_high_res_x_no_clouds_added,
+                space_time_med_res_x_no_clouds_added,
+                space_time_low_res_x_no_clouds_added,
+                time_x_no_clouds_added,
+            )
+
+        band_weights_tensor = torch.tensor(band_weights).float()
+        scaling_factors_tensor = torch.tensor(scaling_factors).float()
+
+        def apply_clouds_at_timestep(t_idx, cloud_prob):
+
+            to_cloud = []
+
+            for var, apply_mask, _ in channel_meta:
+                x_slice = var[:, :, t_idx, :]
+                x_cloud_channels = x_slice[:, :, apply_mask]
+                to_cloud.append(x_cloud_channels)
+
+            to_cloud_combined = np.concatenate(to_cloud, axis=-1)
+            x_cloud_in = np.transpose(to_cloud_combined, (2, 0, 1))[None]
+
+            x_cloud_in_tensor = torch.from_numpy(x_cloud_in).float()
+
+            x_clouded, cloud_mask = generate_clouds(
+                band_stack=x_cloud_in_tensor,
+                band_weights=band_weights_tensor,
+                scaling_factors=scaling_factors_tensor,
+                cloud_prob=cloud_prob,
+                shadow_prob=self.eval_config["cloud_generation"]["shadow_prob"],
+            )
+
+            x_clouded_hw_c = np.transpose(x_clouded[0], (1, 2, 0))
+            cloud_mask_hw_c = np.transpose(cloud_mask[0], (1, 2, 0))
+
+            # redistribute channels
+            c_start = 0
+            for var, apply_mask, cl_mask in channel_meta:
+                c_count = apply_mask.sum()
+                c_end = c_start + c_count
+
+                if c_count > 0:
+                    var[:, :, t_idx, apply_mask] = x_clouded_hw_c[:, :, c_start:c_end]
+                    cl_mask[:, :, t_idx, apply_mask] = cloud_mask_hw_c[:, :, c_start:c_end]
+
+                c_start = c_end
+
+        if self.eval_config["cloud_generation"]["cloud_prob_pred_day"] > 0.0:
+            apply_clouds_at_timestep(
+                -1,
+                self.eval_config["cloud_generation"]["cloud_prob_pred_day"],
+            )
+
+        if self.eval_config["cloud_generation"]["cloud_prob_timeseries"] > 0.0:
+            prob = self.eval_config["cloud_generation"]["cloud_prob_timeseries"]
+            for T in range(time_x.shape[-2]):
+                apply_clouds_at_timestep(T, prob)
+
+        return (
+            space_time_high_res_x,
+            space_time_med_res_x,
+            space_time_low_res_x,
+            time_x,
+            space_time_high_res_x_no_clouds_added,
+            space_time_med_res_x_no_clouds_added,
+            space_time_low_res_x_no_clouds_added,
+            time_x_no_clouds_added,
+        )
+
     def _tif_to_array(self, tif_path: Path) -> DatasetOutput:
         """
         Loads a spatiotemporal tif file, divides it into different array groups, and creates valid data masks.
@@ -233,7 +359,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
                 lon = float(parts[4])
 
         num_timesteps = (values.shape[0] - len(EE_SPACE_BANDS)) / len(EO_ALL_DYNAMIC_IN_TIME_BANDS)
-        assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
+        assert (values.shape[0] - len(EE_SPACE_BANDS)) % len(EO_ALL_DYNAMIC_IN_TIME_BANDS) == 0, f"{tif_path} has incorrect number of channels"
         assert num_timesteps == NUM_TIMESTEPS, f"{tif_path} has incorrect number of timesteps"
         dynamic_in_time_x = rearrange(
             values[: -(len(EE_SPACE_BANDS))],
@@ -278,97 +404,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
             :, :, :, -(len(TIME_BANDS) + len(CLOUD_BANDS)) : -len(CLOUD_BANDS)
         ]
 
-        # ---------- Cloud Generation ------------------------------------
-
-        # Create copies of the arrays to later compute valid masks on, since invalid data values will be
-        # changed by cloud generation
-        space_time_high_res_x_no_clouds_added = space_time_high_res_x.copy()
-        space_time_med_res_x_no_clouds_added = space_time_med_res_x.copy()
-        space_time_low_res_x_no_clouds_added = space_time_low_res_x.copy()
-        time_x_no_clouds_added = time_x.copy()
-
-        cloud_mask_s_t_h = np.zeros_like(space_time_high_res_x)
-        cloud_mask_s_t_m = np.zeros_like(space_time_med_res_x)
-        cloud_mask_s_t_l = np.zeros_like(space_time_low_res_x)
-        cloud_mask_t = np.zeros_like(time_x)
-
-        # TODO:
-        # Test NDSI / NDVI
-        # Cloud mask: 0 is no cloud, but why are the others <1 ?
-        # Test no data values
-        # Test output visually
-        if self.eval_config["cloud_generation"]["cloud_prob_pred_day"] != 0.0:
-            space_time_names = ["s_t_h_x", "s_t_m_x", "s_t_l_x", "t_x"]
-            space_time_vars = [
-                space_time_high_res_x,
-                space_time_med_res_x,
-                space_time_low_res_x,
-                time_x,
-            ]
-            space_time_cloud_masks = [
-                cloud_mask_s_t_h,
-                cloud_mask_s_t_m,
-                cloud_mask_s_t_l,
-                cloud_mask_t,
-            ]
-            to_cloud = []
-            channel_slices = []
-            band_weights = []
-            scaling_factors = []
-
-            for name, var, cl_mask in zip(
-                space_time_names, space_time_vars, space_time_cloud_masks
-            ):
-                config = CHANNEL_WISE_CLOUD_PARAMETERS[name]
-                apply_clouds_mask = []
-                for sensor_cfg in config.values():
-                    for apply, magnitude, scaling in zip(
-                        sensor_cfg["apply_clouds"], sensor_cfg["channel_magnitudes"], sensor_cfg["scaling_factors"]
-                    ):
-                        apply_clouds_mask.append(apply)
-                        if apply:
-                            band_weights.append(magnitude)
-                            scaling_factors.append(scaling)
-
-                apply_clouds_mask = np.array(apply_clouds_mask, dtype=bool)
-                # var shape: [H, W, T, C]
-                x_last = var[:, :, -1, :]  # [H, W, C]
-                x_cloud_channels = x_last[:, :, apply_clouds_mask]  # [H, W, C_cloud]
-                to_cloud.append(x_cloud_channels)
-
-                # Save where these channels came from
-                channel_slices.append((var, apply_clouds_mask, cl_mask))
-
-        to_cloud_combined = np.concatenate(to_cloud, axis=-1)
-        x_cloud_in = np.transpose(to_cloud_combined, (2, 0, 1))[None]
-
-        # to tensor
-        x_cloud_in_tensor = torch.from_numpy(x_cloud_in).float()
-        band_weights_tensor = torch.tensor(band_weights).float()
-        scaling_factors_tensor = torch.tensor(scaling_factors).float()
-
-        x_clouded, cloud_mask = generate_clouds(
-            band_stack=x_cloud_in_tensor,
-            band_weights=band_weights_tensor,
-            scaling_factors=scaling_factors_tensor,
-            cloud_prob=self.eval_config["cloud_generation"]["cloud_prob_pred_day"],
-            shadow_prob=self.eval_config["cloud_generation"]["shadow_prob"],
-        )
-        x_clouded_hw_c = np.transpose(x_clouded[0], (1, 2, 0))
-        cloud_mask_hw_c = np.transpose(cloud_mask[0], (1, 2, 0))
-
-        c_start = 0
-        for array, clouds_applied, cl_mask in channel_slices:
-            c_count = clouds_applied.sum().item()
-            c_end = c_start + c_count
-
-            cloud_chunk = x_clouded_hw_c[:, :, c_start:c_end]
-            array[:, :, -1, clouds_applied] = cloud_chunk
-            cl_mask[:, :, -1, clouds_applied] = cloud_mask_hw_c[:, :, c_start:c_end]
-
-            c_start = c_end
-
-        # ----------------------------------------------------------------------
+        space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, time_x, space_time_high_res_x_no_clouds_added, space_time_med_res_x_no_clouds_added, space_time_low_res_x_no_clouds_added, time_x_no_clouds_added = self._apply_cloud_augmentation(space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, time_x)
 
         time_x = np.nanmean(time_x, axis=(0, 1))
         time_x_no_clouds_added = np.nanmean(time_x_no_clouds_added, axis=(0, 1))
@@ -423,7 +459,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
 
         # one-hot encode ESA Worldcover band
         esa_wc = self.one_hot_encode_esa_worldcover(space_x[:, :, ESA_WORLDCOVER_BAND_INDEX])
-        assert esa_wc.all() in [0, 1, NO_DATA_VALUE], (
+        assert np.isin(esa_wc, [0, 1, NO_DATA_VALUE]).all(), (
             f"Unexpected values in ESA Worldcover for {tif_path}"
         )
         space_x = np.concatenate((space_x[:, :, : (-len(EE_WC_BANDS))], esa_wc), axis=-1)

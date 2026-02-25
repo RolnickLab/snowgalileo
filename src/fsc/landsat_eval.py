@@ -343,7 +343,7 @@ class LandsatEvalDataset(BaseDataset):
 
         # one-hot encode ESA Worldcover band
         esa_wc = self.one_hot_encode_esa_worldcover(space_x[:, :, ESA_WORLDCOVER_BAND_INDEX])
-        assert esa_wc.all() in [0, 1, NO_DATA_VALUE], (
+        assert np.isin(esa_wc, [0, 1, NO_DATA_VALUE]).all(), (
             f"Unexpected values in ESA Worldcover for {tif_path}"
         )
         space_x = np.concatenate((space_x[:, :, : (-len(EE_WC_BANDS))], esa_wc), axis=-1)

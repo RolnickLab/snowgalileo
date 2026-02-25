@@ -67,6 +67,7 @@
     },
     "cloud_generation": {
         "cloud_prob_pred_day": 0.0,
+        "cloud_prob_timeseries": 0.0,
         "shadow_prob": 0.0
     }
 }
