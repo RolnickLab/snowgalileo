@@ -108,7 +108,7 @@ def reset_wandb_env():
 def train_and_validate():
     args = parser.parse_args()
 
-    with wandb.init(project=f"ai4snow_{args.model_type}_sweeps") as sweep_run:
+    with wandb.init(project=f"ai4snow_{args.model_type}_sweeps_small_set") as sweep_run:
         with (Path("configs") / Path("finetune") / Path(args.eval_config_name)).open("r") as f:
             config = json.load(f)
 
@@ -161,7 +161,7 @@ def main():
     count = 100
 
     sweep_id = wandb.sweep(
-        sweep=sweep_config, project=f"ai4snow_{args.model_type}_sweeps", entity="sea-ice"
+        sweep=sweep_config, project=f"ai4snow_{args.model_type}_sweeps_small_set", entity="sea-ice"
     )
     wandb.agent(sweep_id, function=train_and_validate, count=count)
 
