@@ -1,5 +1,8 @@
 from datetime import datetime
 from pathlib import Path
+from einops import rearrange
+import json
+from src.eval.metrics import compute_classification_metrics
 
 import numpy as np
 import rasterio
@@ -10,6 +13,8 @@ from shapely.geometry import box, mapping
 
 from src.data.config import DATA_FOLDER
 
+all_landsat_labels = []
+all_gsp_labels = []
 
 def export_from_filename_for_folder(
     folder: str,
@@ -46,15 +51,19 @@ def export_from_filename_for_folder(
         date = datetime.strptime(parts[1], "%Y%m%d").date()
 
         with rasterio.open(folder / filename) as landsat_src:
+            landsat_labels = np.squeeze(landsat_src.values, axis=0)
+
             landsat_bounds = landsat_src.bounds
             landsat_crs = landsat_src.crs
             landsat_transform = landsat_src.transform
             landsat_height = landsat_src.height
             landsat_width = landsat_src.width
 
-            transformer = Transformer.from_crs(landsat_crs, "EPSG:4326", always_xy=True)
-            min_lon, min_lat = transformer.transform(landsat_bounds.left, landsat_bounds.bottom)
-            max_lon, max_lat = transformer.transform(landsat_bounds.right, landsat_bounds.top)
+        all_landsat_labels.append(rearrange(landsat_labels, "h w -> (h w)"))
+
+        transformer = Transformer.from_crs(landsat_crs, "EPSG:4326", always_xy=True)
+        min_lon, min_lat = transformer.transform(landsat_bounds.left, landsat_bounds.bottom)
+        max_lon, max_lat = transformer.transform(landsat_bounds.right, landsat_bounds.top)
 
         # Search by date
         search = stac_api.search(
@@ -100,6 +109,45 @@ def export_from_filename_for_folder(
             transform=landsat_transform
         )
 
+        all_gsp_labels.append(rearrange(reprojected_cutout, "h w -> (h w)" ))
+
         output_filename = output_folder / f"gsp_{filename}"
         with rasterio.open(output_filename, "w", **gsp_meta) as dest:
             dest.write(reprojected_cutout)
+
+
+if __name__ == "__main__":
+    # Mapping from https://download.geoservice.dlr.de/GSP/files/daily/GSPDAILY_README.txt 
+    # Fill value 0.0 will be mapped to -1, which will be discarded in metric computations
+    def gsp_binary_mapping(arr, fill_value = -1):
+        invalid = ((arr < 8) & (arr != 0)) | ((arr > 36) & (arr < 64)) | (arr > 132)
+        assert not np.any(invalid), f"Invalid values {arr[invalid]} in GSP array."
+
+        result = np.full_like(arr, fill_value=fill_value)
+        result[(8 <= arr) & (arr <= 36)] = 0
+        result[(64 <= arr) & (arr <= 132)] = 1
+        return result
+
+    def landsat_binary_mapping(arr, fill_value= -1):
+        invalid = (arr < 0) | (arr > 1)
+        assert not np.any(invalid), f"Invalid values {arr[invalid]} in Landsat array."
+
+        result = np.full_like(arr, fill_value=fill_value)
+        result[(0 == arr)] = 0
+        result[(0 < arr)] = 1
+        return result
+
+    fill_value = -1
+
+    assert len(all_gsp_labels) == len(all_landsat_labels)
+
+    gsp_labels = gsp_binary_mapping(np.concatenate(all_gsp_labels), fill_value=fill_value)
+    landsat_labels = landsat_binary_mapping(np.concatenate(all_landsat_labels), fill_value=fill_value)
+
+    valid_data_mask = gsp_labels != fill_value
+
+    results = compute_classification_metrics(landsat_labels[valid_data_mask], gsp_labels[valid_data_mask])
+
+    results_path = Path(f"./globalsnowpack_results.json")
+    with results_path.open("w") as f:
+        json.dump(results, f)
