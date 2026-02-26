@@ -113,7 +113,7 @@ def export_from_filename_for_folder(
 
         output_filename = output_folder / f"gsp_{filename}"
         with rasterio.open(output_filename, "w", **gsp_meta) as dest:
-            dest.write(reprojected_cutout)
+            dest.write(reprojected_cutout, 1)
 
     return all_landsat_labels, all_gsp_labels
 
