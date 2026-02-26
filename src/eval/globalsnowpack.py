@@ -51,7 +51,7 @@ def export_from_filename_for_folder(
         date = datetime.strptime(parts[1], "%Y%m%d").date()
 
         with rasterio.open(folder / filename) as landsat_src:
-            landsat_labels = np.squeeze(landsat_src.values, axis=0)
+            landsat_labels = landsat_src.read(1)
 
             landsat_bounds = landsat_src.bounds
             landsat_crs = landsat_src.crs
