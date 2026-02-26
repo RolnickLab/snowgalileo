@@ -13,9 +13,6 @@ from shapely.geometry import box, mapping
 
 from src.data.config import DATA_FOLDER
 
-all_landsat_labels = []
-all_gsp_labels = []
-
 def export_from_filename_for_folder(
     folder: str,
     start_idx: int = 0,
@@ -24,6 +21,9 @@ def export_from_filename_for_folder(
     Export GlobalSnowpack cutouts that match the bounds for each file in the given folder.
     Expected filename format is L0*_YYYYMMDD_FSC[a number between 0 and 100]_LAT_LON.tif.
     """
+
+    all_landsat_labels = []
+    all_gsp_labels = []
 
     # Collect all filenames in the folder that match the expected format
     filenames = []
@@ -115,6 +115,8 @@ def export_from_filename_for_folder(
         with rasterio.open(output_filename, "w", **gsp_meta) as dest:
             dest.write(reprojected_cutout)
 
+    return all_landsat_labels, all_gsp_labels
+
 
 if __name__ == "__main__":
     # Mapping from https://download.geoservice.dlr.de/GSP/files/daily/GSPDAILY_README.txt 
@@ -138,6 +140,10 @@ if __name__ == "__main__":
         return result
 
     fill_value = -1
+
+    labels_folder = Path(DATA_FOLDER / "fsc_test_rockies_100m_masks/test")
+
+    all_landsat_labels, all_gsp_labels = export_from_filename_for_folder(labels_folder)
 
     assert len(all_gsp_labels) == len(all_landsat_labels)
 
