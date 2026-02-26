@@ -77,10 +77,6 @@ def export_from_filename_for_folder(
             landsat_height = landsat_src.height
             landsat_width = landsat_src.width
 
-        all_landsat_labels.append(
-            rearrange(landsat_labels, "h w -> (h w)")
-        )
-
         # Transform bounds to WGS84
         transformer = Transformer.from_crs(
             landsat_crs, "EPSG:4326", always_xy=True
