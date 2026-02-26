@@ -146,7 +146,7 @@ if __name__ == "__main__":
 
     valid_data_mask = gsp_labels != fill_value
 
-    results = compute_classification_metrics(landsat_labels[valid_data_mask], gsp_labels[valid_data_mask])
+    results = compute_classification_metrics(gsp_labels[valid_data_mask], landsat_labels[valid_data_mask])
 
     results_path = Path(f"./globalsnowpack_results.json")
     with results_path.open("w") as f:
