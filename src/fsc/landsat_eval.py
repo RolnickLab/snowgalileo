@@ -58,7 +58,7 @@ from src.data.earthengine.eo_eval import (
 from src.fsc.downstream_augmentation import DownstreamAugmentation
 from src.fsc.eval import EvalTask, model_class_name
 from src.fsc.metrics import compute_classification_metrics, compute_regression_metrics
-from src.fsc.patch_predict import EncoderWithHead, evaluate_seg, get_finetune_results_on_val_set
+from src.fsc.patch_predict import EncoderWithHead, evaluate_seg, get_finetune_results_on_val_set, evaluate_binary
 from src.masking import _aggregate_mask_per_channel_group
 from src.snowgalileo import Encoder
 from src.utils import DEFAULT_SEED, config_dir, device, masked_output_np_to_tensor
@@ -1381,6 +1381,29 @@ class LandsatEval(EvalTask):
                     plt.close(fig)
 
                 print(f"Saved predictions for {filename}", flush=True)
+
+    @torch.no_grad()
+    def _evaluate_binary(self, model: EncoderWithHead):
+        test_ds = self._get_dataset(
+            exclude_prediction_date=self.exclude_prediction_date,
+            exclude_prediction_high_res=self.exclude_prediction_high_res,
+            exclude_prediction_sensors=self.exclude_prediction_sensors,
+            exclude_prediction_era5=self.exclude_prediction_era5,
+            split="test",
+            h5pys_only=self.h5pys_only,
+            data_config=self.data_config,
+            augmentation=DownstreamAugmentation(False),
+            normalization=self.normalization,
+        )
+
+        test_dl = DataLoader(
+            test_ds,
+            batch_size=1,
+            shuffle=False,
+            num_workers=0,
+        )
+
+        results = evaluate_binary(data_loader=test_dl, finetuned_model=model, device=device)
 
     @torch.no_grad()
     def _evaluate_model(self, model: EncoderWithHead, log_wandb: bool = True):

@@ -3,6 +3,7 @@ from pathlib import Path
 from einops import rearrange
 import json
 from src.fsc.metrics import compute_classification_metrics
+from src.fsc.utils import landsat_binary_mapping
 
 import numpy as np
 import rasterio
@@ -157,13 +158,6 @@ if __name__ == "__main__":
         result = np.full_like(arr, fill_value=fill_value)
         result[(1 < arr) & (arr < 64)] = 0
         result[(64 <= arr)] = 1
-        return result
-
-    def landsat_binary_mapping(arr, fill_value= -1):
-        arr = arr.astype(np.float32)
-        result = np.full_like(arr, fill_value=fill_value)
-        result[(0 == arr)] = 0
-        result[(0 < arr)] = 1
         return result
 
     fill_value = -1
