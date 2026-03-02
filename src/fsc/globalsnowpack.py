@@ -2,7 +2,7 @@ from datetime import datetime
 from pathlib import Path
 from einops import rearrange
 import json
-from src.eval.metrics import compute_classification_metrics
+from src.fsc.metrics import compute_classification_metrics
 
 import numpy as np
 import rasterio
