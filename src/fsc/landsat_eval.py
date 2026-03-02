@@ -1369,7 +1369,7 @@ class LandsatEval(EvalTask):
                     fig.colorbar(axs[2].images[0], ax=axs[2], orientation="vertical")
                     # plt.savefig(f"visualizations/{filename}_r2_{r2}_rmse_{rmse}.png")
 
-                    wandb.init(entity="sea-ice", project="ai4snow-finetune")
+                    wandb.init(entity="sea-ice", project="ai4snow_finetune_final")
                     wandb.log(
                         {
                             f"{self.name}_visualization_{filename}_r2_{r2}_rmse_{rmse}": wandb.Image(
@@ -1408,7 +1408,7 @@ class LandsatEval(EvalTask):
         if log_wandb:
             import wandb
 
-            wandb.init(entity="sea-ice", project="ai4snow-finetune")
+            wandb.init(entity="sea-ice", project="ai4snow_finetune_final")
             wandb.log(results)
 
             def flatten_for_summary(d, prefix=""):
@@ -1693,7 +1693,7 @@ class LandsatEval(EvalTask):
 
                     filename = filename[0].split(".tif")[0]
 
-                    wandb.init(entity="sea-ice", project="ai4snow-finetune")
+                    wandb.init(entity="sea-ice", project="ai4snow_finetune_final")
                     wandb.log(
                         {
                             f"{self.name}_visualization_{filename}_r2_{r2}_rmse_{rmse}": wandb.Image(

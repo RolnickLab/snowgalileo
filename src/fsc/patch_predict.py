@@ -182,7 +182,7 @@ def finetune_and_eval_seg(
     if log_wandb:
         wandb.init(
             entity="sea-ice",
-            project="ai4snow-finetune",
+            project="ai4snow_finetune_final",
             name=f"{identifier}-lr{hyperparameter_config.get('learning_rate')}",
         )
         wandb.config.update(hyperparameter_config)
