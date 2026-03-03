@@ -51,6 +51,12 @@ argparser.add_argument(
     help="Type of model to train: rf, svr, or mlp.",
 )
 argparser.add_argument(
+    "--normalization",
+    type=str,
+    default="std",
+    choices=["std", ""],
+)
+argparser.add_argument(
     "--h5pys_only",
     action="store_true",
     help="Where to only use h5pys (faster, but need to be already stored in this format)",
@@ -66,8 +72,8 @@ with (Path("configs") / Path("finetune") / Path(args["eval_config_name"])).open(
 # we use the normalization values for missing data imputation so we load it independently
 normalizing_dict = Dataset.load_normalization_values(path=config_dir / NORMALIZATION_DICT_FILENAME)
 
-rf = LandsatEvalSklearn(
-    normalization="std",
+sklearn = LandsatEvalSklearn(
+    normalization=args["normalization"],
     exclude_prediction_date=args["exclude_prediction_date"],
     exclude_prediction_high_res=args["exclude_prediction_high_res"],
     exclude_prediction_sensors=args["exclude_prediction_sensors"],
@@ -78,6 +84,6 @@ rf = LandsatEvalSklearn(
     h5pys_only=args["h5pys_only"],
     normalizing_dict=normalizing_dict,
 )
-rf.fit_sklearn(
-    id=args["run_id"], save_results=True, dataset_subset_size=args["dataset_subset_size"]
+sklearn.fit_sklearn(
+    id=args["run_id"], save_results=True, dataset_subset_size=args["dataset_subset_size"], normalization=args["normalization"]
 )

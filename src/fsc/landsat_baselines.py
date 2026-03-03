@@ -819,15 +819,15 @@ class LandsatEvalSklearn(LandsatEval):
         elif self.model_type == "mlp":
             print("Training Multi-layer Perceptron Regressor...", flush=True)
             model = MLPRegressor(
-                activation=hyperparameters.get("activation", "relu"),
+                activation=hyperparameters.get("activation", "logistic"),
                 hidden_layer_sizes=tuple(
                     hyperparameters.get("hidden_layer_sizes", [256, 128, 64])
                 ),
-                batch_size=hyperparameters.get("batch_size", "auto"),
+                batch_size=hyperparameters.get("batch_size", 128),
                 solver=hyperparameters.get("solver", "adam"),
-                alpha=hyperparameters.get("alpha", 1e-4),
+                alpha=hyperparameters.get("alpha", 0.00001),
                 random_state=DEFAULT_SEED,
-                learning_rate_init=hyperparameters.get("learning_rate_init", 1e-3),
+                learning_rate_init=hyperparameters.get("learning_rate_init", 0.001),
                 max_iter=hyperparameters.get("max_iter", 1000),
                 early_stopping=True,
                 n_iter_no_change=20,

@@ -60,9 +60,12 @@
     },
     "hyperparameters_mlp": {
         "learning_rate_init": 0.001,
-        "activation": "relu",
+        "activation": "logistic",
         "max_iter": 1000,
-        "hidden_layer_sizes": [512, 256, 128]
+        "hidden_layer_sizes": [256, 128, 64],
+        "alpha": 0.00001,
+        "batch_size": 128,
+        "solver": "adam"
     },
     "cloud_generation": {
         "cloud_prob_pred_day": 0.0,
