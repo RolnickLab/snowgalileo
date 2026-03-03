@@ -804,15 +804,15 @@ class LandsatEvalSklearn(LandsatEval):
             gamma = hyperparameters.get("gamma_base", 2) ** hyperparameters.get(
                 "gamma_exponent", -5
             )
-            degree = hyperparameters.get("degree", 2)
-            C = hyperparameters.get("C_base", 2) ** hyperparameters.get("C_exponent", -15)
+            degree = hyperparameters.get("degree", 3)
+            C = hyperparameters.get("C_base", 2) ** hyperparameters.get("C_exponent", 0)
             print(f"Using gamma={gamma}, degree={degree}", flush=True)
             model = SVR(
                 kernel=hyperparameters.get("kernel", "rbf"),
                 gamma=gamma,
                 degree=degree,
                 C=C,
-                max_iter=hyperparameters.get("max_iter", 1000),
+                max_iter=hyperparameters.get("max_iter", 5000),
                 epsilon=hyperparameters.get("epsilon", 0.1),
             )
 

@@ -52,12 +52,14 @@
     },
     "hyperparameters_svr": {
         "kernel": "rbf",
+        "epsilon": 0.1,
+        "bagging": true,
         "C_base": 2,
-        "C_exponent": -15,
-        "degree": 2,
+        "C_exponent": 0,
+        "degree": 3,
         "gamma_base": 2,
         "gamma_exponent": -5,
-        "max_iter": 1000
+        "max_iter": 5000
     },
     "hyperparameters_mlp": {
         "learning_rate_init": 0.001,
