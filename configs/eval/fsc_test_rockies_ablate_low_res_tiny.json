@@ -46,8 +46,11 @@
         "num_patches_per_dim": 10
     },
     "hyperparameters_rf": {
-        "n_estimators": 300,
-        "min_samples_leaf": 5
+        "n_estimators": 400,
+        "min_samples_leaf": 2,
+        "min_samples_split": 2,
+        "max_depth": 30,
+        "max_features": "feature_dependent"
     },
     "hyperparameters_svr": {
         "kernel": "rbf",

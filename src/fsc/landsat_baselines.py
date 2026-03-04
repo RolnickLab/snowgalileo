@@ -789,13 +789,13 @@ class LandsatEvalSklearn(LandsatEval):
             print("Training Random Forest Regressor...", flush=True)
 
             model = RandomForestRegressor(
-                n_estimators=hyperparameters.get("n_estimators", 100),
-                min_samples_leaf=hyperparameters.get("min_samples_leaf", 5),
+                n_estimators=hyperparameters.get("n_estimators", 400),
+                min_samples_leaf=hyperparameters.get("min_samples_leaf", 2),
                 max_features=math.ceil(model_input.shape[-1] / 3)
                 if hyperparameters.get("max_features") == "feature_dependent"
                 else hyperparameters.get("max_features", "sqrt"),
                 min_samples_split=hyperparameters.get("min_samples_split", 2),
-                max_depth=hyperparameters.get("max_depth", None),
+                max_depth=hyperparameters.get("max_depth", 30),
                 random_state=DEFAULT_SEED,
             )
 
