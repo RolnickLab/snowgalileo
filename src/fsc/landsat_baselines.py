@@ -20,8 +20,8 @@ import random
 from time import time
 
 from src.data.config import DATA_FOLDER
-
 from src.config import DEFAULT_SEED
+
 from src.data.dataset import Normalizer
 from src.data.earthengine.eo_eval import SPACE_TIME_HIGH_RES_BANDS, TIME_BANDS
 from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset, masked_output_np_to_tensor
@@ -674,6 +674,7 @@ class LandsatEvalSklearn(LandsatEval):
     def fit_sklearn(
         self,
         id: str = "",
+        seed: int = DEFAULT_SEED,
         hyperparameters: Dict = {},
         save_results: bool = False,
         normalization: str = "std",
@@ -796,7 +797,7 @@ class LandsatEvalSklearn(LandsatEval):
                 else hyperparameters.get("max_features", "sqrt"),
                 min_samples_split=hyperparameters.get("min_samples_split", 2),
                 max_depth=hyperparameters.get("max_depth", 30),
-                random_state=DEFAULT_SEED,
+                random_state=seed,
             )
 
         elif self.model_type == "svr":
@@ -826,7 +827,7 @@ class LandsatEvalSklearn(LandsatEval):
                 batch_size=hyperparameters.get("batch_size", 128),
                 solver=hyperparameters.get("solver", "adam"),
                 alpha=hyperparameters.get("alpha", 0.00001),
-                random_state=DEFAULT_SEED,
+                random_state=seed,
                 learning_rate_init=hyperparameters.get("learning_rate_init", 0.001),
                 max_iter=hyperparameters.get("max_iter", 1000),
                 early_stopping=True,

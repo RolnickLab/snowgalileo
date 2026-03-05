@@ -8,8 +8,6 @@ from src.data.dataset import Dataset
 from src.fsc.landsat_baselines import LandsatEvalSklearn
 from src.utils import config_dir, seed_everything
 
-seed_everything(DEFAULT_SEED)
-
 argparser = argparse.ArgumentParser()
 argparser.add_argument(
     "--exclude_prediction_high_res",
@@ -44,6 +42,11 @@ argparser.add_argument(
     help="Identifier used to store results and model checkpoint.",
 )
 argparser.add_argument(
+    "--seed",
+    type=int,
+    default=DEFAULT_SEED,
+)
+argparser.add_argument(
     "--model_type",
     type=str,
     default="rf",
@@ -61,9 +64,11 @@ argparser.add_argument(
     action="store_true",
     help="Where to only use h5pys (faster, but need to be already stored in this format)",
 )
+
 argparser.add_argument("--dataset_subset_size", type=int, default=0)
 args = argparser.parse_args().__dict__
 
+seed_everything(args["seed"])
 
 id = args["run_id"]
 with (Path("configs") / Path("finetune") / Path(args["eval_config_name"])).open("r") as f:
@@ -85,5 +90,5 @@ sklearn = LandsatEvalSklearn(
     normalizing_dict=normalizing_dict,
 )
 sklearn.fit_sklearn(
-    id=args["run_id"], save_results=True, dataset_subset_size=args["dataset_subset_size"], normalization=args["normalization"]
+    id=args["run_id"], save_results=True, dataset_subset_size=args["dataset_subset_size"], normalization=args["normalization"], seed=args["seed"]
 )
