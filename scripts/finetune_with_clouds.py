@@ -83,7 +83,14 @@ argparser.add_argument(
     action="store_true",
     help="Where to only use h5pys (faster, but need to be already stored in this format)",
 )
+argparser.add_argument(
+    "--seed",
+    type=int,
+    default=DEFAULT_SEED,
+)
 args = argparser.parse_args().__dict__
+
+seed_everything(args["seed"])
 
 with (Path("configs/finetune/") / Path(args["eval_config"])).open("r") as f:
     eval_config = json.load(f)
@@ -120,6 +127,7 @@ eval_tasks: List[EvalTask] = [
             eval_config=eval_config,
             h5pys_only=args["h5pys_only"],
             job_id=job_id,
+            seed=args["seed"]
         )
     ],
 ]
