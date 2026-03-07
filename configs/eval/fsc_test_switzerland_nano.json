@@ -1,5 +1,5 @@
 {
-    "name": "fsc_test_switzerland_base",
+    "name": "fsc_test_switzerland_nano",
     "data": {
         "label_folder": "fsc_test_switzerland_100m_masks",
         "input_tif_folder": "fsc_test_switzerland_100m_cropped",
