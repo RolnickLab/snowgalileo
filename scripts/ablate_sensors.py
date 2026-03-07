@@ -83,7 +83,15 @@ argparser.add_argument(
     action="store_true",
     help="Where to only use h5pys (faster, but need to be already stored in this format)",
 )
+argparser.add_argument(
+    "--resume_from_wandb_id",
+    type=str,
+    default=""
+)
 args = argparser.parse_args().__dict__
+
+if args["resume_from_wandb_id"] == "":
+    wandb_id_parsed = None
 
 with (Path("configs/finetune") / Path(args["eval_config"])).open("r") as f:
     eval_config = json.load(f)
@@ -132,6 +140,7 @@ for task in eval_tasks:
         model_modes=["Regression"],
         log_wandb=True,
         initialization_id=initialization_id,
+        wandb_id_parsed=wandb_id_parsed,
         checkpointing=args["checkpointing"],
     )
     print(json.dumps(results, indent=2, default=str), flush=True)

@@ -285,6 +285,7 @@ class EvalTask(ABC):
         hyperparameter_config: Optional[Dict] = None,
         initialization_id: Optional[str] = None,
         sweep_run=None,
+        wandb_id_parsed=None,
         save_final_checkpoint: bool = False,
     ) -> Dict:
         raise NotImplementedError

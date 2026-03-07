@@ -176,6 +176,7 @@ def finetune_and_eval_seg(
     hyperparameter_config,
     num_finetune_epochs=50,
     log_wandb=False,
+    wandb_id_parsed=None,
     sweep_run=None,
     checkpointing=False,
     job_id="",
@@ -209,6 +210,7 @@ def finetune_and_eval_seg(
         eval_config=eval_config,
         log_wandb=log_wandb,
         sweep_run=sweep_run,
+        wandb_id_parsed=wandb_id_parsed,
         checkpointing=checkpointing,
         identifier=identifier,
         job_id=job_id,
@@ -237,6 +239,7 @@ def get_finetune_results_on_val_set(
     num_finetune_epochs,
     log_wandb=False,
     sweep_run=None,
+    wandb_id_parsed=None,
     checkpointing=False,
     job_id="",
 ):
@@ -252,6 +255,7 @@ def get_finetune_results_on_val_set(
             log_wandb=log_wandb,
             hyperparameter_config=hyperparameter_config,
             sweep_run=sweep_run,
+            wandb_id_parsed=wandb_id_parsed,
             checkpointing=checkpointing,
             job_id=job_id,
         )
@@ -271,13 +275,16 @@ def finetune_seg(
     inputs_per_target=10,
     log_wandb=False,
     sweep_run=None,
+    wandb_id_parsed=None,
     checkpointing=False,
     identifier="",
     job_id="",
 ):
     # Use the wandB id as storage name if available, else the config if (less safe because not necessarily unique)
     run_id = (
-        wandb.run.id
+        wandb_id_parsed
+        if wandb_id_parsed is not None
+        else wandb.run.id
         if log_wandb
         else sweep_run.id
         if sweep_run is not None

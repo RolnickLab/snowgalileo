@@ -1771,6 +1771,7 @@ class LandsatEval(EvalTask):
         hyperparameter_config: Optional[Dict] = None,
         initialization_id: Optional[str] = None,
         sweep_run=None,
+        wandb_id_parsed=None,
         checkpointing: bool = False,
     ) -> Dict:
         assert self.decoder_mode in ["finetune", "linear_probe", "attention_probe", "sklearn"], (
@@ -1864,6 +1865,7 @@ class LandsatEval(EvalTask):
                 num_finetune_epochs=self.num_finetune_epochs,
                 log_wandb=log_wandb,
                 sweep_run=sweep_run,
+                wandb_id_parsed=wandb_id_parsed,
                 checkpointing=checkpointing,
                 job_id=self.job_id,
             )
