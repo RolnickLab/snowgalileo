@@ -98,6 +98,8 @@ seed_everything(args["seed"])
 
 if args["resume_from_wandb_id"] == "":
     wandb_id_parsed = None
+else:
+    wandb_id_parsed = args["resume_from_wandb_id"]
 
 with (Path("configs/finetune/") / Path(args["eval_config"])).open("r") as f:
     eval_config = json.load(f)
