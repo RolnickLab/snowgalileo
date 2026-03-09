@@ -6,15 +6,13 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, List, Optional, Union
 from typing import OrderedDict as OrderedDictType
-from src.data.earthengine.ee_bbox import EEBoundingBox
 
 import ee
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
 import rasterio
 import requests  # type: ignore
-import pandas as pd
-from tqdm import tqdm
 
 from src.data.config import (
     DATA_FOLDER,
@@ -30,7 +28,7 @@ from src.data.earthengine.copernicus_dem import (
     DEM_SHIFT_VALUES,
     get_single_dem_image,
 )
-from src.data.earthengine.ee_bbox import EEGeometry
+from src.data.earthengine.ee_bbox import EEBoundingBox, EEGeometry
 from src.data.earthengine.eo import (
     EarthEngineExporter,
     create_ee_image,
@@ -548,7 +546,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
         exports_started = 0
         print(f"Exporting {len(dates)} files: ")
 
-        for i, date in enumerate(dates):
+        for i, dat in enumerate(dates):
             ee_bbox = EEBoundingBox.from_centre(
                 # worldstrat points are strings
                 mid_lat=float(lats[i]),
@@ -556,7 +554,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
                 surrounding_metres=int(self.surrounding_metres),
             )
 
-            WINDOW_END_DATE = datetime.strptime(str(date), "%Y%m%d").date()
+            WINDOW_END_DATE = datetime.strptime(str(dat), "%Y%m%d").date()
             WINDOW_START_DATE = WINDOW_END_DATE - timedelta(days=NUM_TIMESTEPS - 1)
 
             export_started = self._export_for_polygon(

@@ -96,14 +96,16 @@ exclude_prediction_era5 = not args["include_prediction_era5"]
 
 if eval_config["timeseries_ablations"]:
     print("Evaluating timeseries ablation")
-    eval_task = TimeseriesAblationsEval(
-        exclude_prediction_high_res=args["exclude_prediction_high_res"],
-        exclude_prediction_date=args["exclude_prediction_date"],
-        exclude_prediction_sensors=args["exclude_prediction_sensors"],
-        exclude_prediction_era5=exclude_prediction_era5,
-        eval_config=eval_config,
-        h5pys_only=args["h5pys_only"],
-        decoder_mode=decoder_mode,
+    eval_task: TimeseriesAblationsEval | SensorAblationsEval | LandsatEval = (
+        TimeseriesAblationsEval(
+            exclude_prediction_high_res=args["exclude_prediction_high_res"],
+            exclude_prediction_date=args["exclude_prediction_date"],
+            exclude_prediction_sensors=args["exclude_prediction_sensors"],
+            exclude_prediction_era5=exclude_prediction_era5,
+            eval_config=eval_config,
+            h5pys_only=args["h5pys_only"],
+            decoder_mode=decoder_mode,
+        )
     )
 elif any(eval_config["sensor_ablations"].values()):
     print("Evaluating sensor ablation")

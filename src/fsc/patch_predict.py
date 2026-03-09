@@ -1,9 +1,7 @@
+import json
 import math
 from copy import deepcopy
-import json
 from pathlib import Path
-from src.utils import checkpoints_dir
-from src.fsc.utils import landsat_binary_mapping
 
 import numpy as np
 import torch
@@ -16,9 +14,9 @@ from src.fsc.metrics import (
     compute_regression_metrics,
     compute_segmentation_metrics,
 )
-from src.fsc.utils import SigmoidSlopeScheduler
+from src.fsc.utils import SigmoidSlopeScheduler, landsat_binary_mapping
 from src.snowgalileo import AttentionProbe, adjust_learning_rate
-from src.utils import save_checkpoint
+from src.utils import checkpoints_dir, save_checkpoint
 
 
 class EncoderWithHead(nn.Module):
@@ -187,7 +185,7 @@ def finetune_and_eval_seg(
             project="ai4snow_finetune_final",
             name=f"{identifier}-lr{hyperparameter_config.get('learning_rate')}",
             id=wandb_id_parsed,
-            resume="allow"
+            resume="allow",
         )
         wandb.config.update(hyperparameter_config)
         wandb.config.update(
@@ -293,7 +291,7 @@ def finetune_seg(
         else hyperparameter_config.get("initialization_id", "default")
     )
     run_path = Path(checkpoints_dir / run_id)
-    config_path = run_path / f"config.json"
+    config_path = run_path / "config.json"
 
     lr = hyperparameter_config.get("learning_rate", 0.1)
     weight_decay = hyperparameter_config.get("weight_decay", 0.0)
@@ -487,7 +485,7 @@ def finetune_seg(
             )
             save_checkpoint(finetuned_encoder, file_path)
             config["cur_epoch"] = epoch
-            with (run_path / f"config.json").open("w") as f:
+            with (run_path / "config.json").open("w") as f:
                 json.dump(config, f)
 
         if log_wandb or sweep_run is not None:
@@ -509,12 +507,8 @@ def finetune_seg(
 
     return finetuned_encoder
 
-def evaluate_binary(
-    data_loader,
-    finetuned_model,
-    device,
-    patch_size_high_res=10
-):
+
+def evaluate_binary(data_loader, finetuned_model, device, patch_size_high_res=10):
     finetuned_model = finetuned_model.eval()
 
     all_preds_1D = []
@@ -571,7 +565,7 @@ def evaluate_binary(
 
     results = compute_classification_metrics(predictions, landsat_labels)
 
-    results_path = Path(f"./snowgalileo_binary_results.json")
+    results_path = Path("./snowgalileo_binary_results.json")
     with results_path.open("w") as f:
         json.dump(results, f)
 

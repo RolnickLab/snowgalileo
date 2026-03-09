@@ -1,15 +1,18 @@
 from datetime import datetime
 from pathlib import Path
+
 import numpy as np
 
 from src.data.config import NORTH_HEM_SEASONS
 
-def landsat_binary_mapping(arr, fill_value= -1):
+
+def landsat_binary_mapping(arr, fill_value=-1):
     arr = arr.astype(np.float32)
     result = np.full_like(arr, fill_value=fill_value)
     result[(0 == arr)] = 0
     result[(0 < arr)] = 1
     return result
+
 
 def extract_season_from_filename(filename: str) -> str:
     """Extract season from filename assuming format: <prefix>_<YYYYMMDD>_<lat>_<lon>.tif"""

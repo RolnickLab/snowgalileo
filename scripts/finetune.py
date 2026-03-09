@@ -1,5 +1,7 @@
 import argparse
 import json
+import os
+from datetime import datetime
 from pathlib import Path
 from typing import List
 
@@ -14,9 +16,6 @@ from src.fsc import (
 from src.fsc.eval import EvalTask
 from src.snowgalileo import Encoder
 from src.utils import device, load_check_config, seed_everything
-
-import os
-from datetime import datetime
 
 slurm_id = os.environ.get("SLURM_JOB_ID", "local")
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -71,11 +70,7 @@ argparser.add_argument(
     action="store_true",
     help="Whether to include ERA5 in prediction date.",
 )
-argparser.add_argument(
-    "--resume_from_wandb_id",
-    type=str,
-    default=""
-)
+argparser.add_argument("--resume_from_wandb_id", type=str, default="")
 argparser.add_argument(
     "--eval_config",
     type=str,
@@ -137,7 +132,7 @@ eval_tasks: List[EvalTask] = [
             eval_config=eval_config,
             h5pys_only=args["h5pys_only"],
             job_id=job_id,
-            seed=args["seed"]
+            seed=args["seed"],
         )
     ],
 ]

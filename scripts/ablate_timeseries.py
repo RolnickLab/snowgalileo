@@ -1,5 +1,7 @@
 import argparse
 import json
+import os
+from datetime import datetime
 from pathlib import Path
 from typing import List
 
@@ -11,12 +13,9 @@ from src.data.config import DATA_FOLDER
 from src.fsc import (
     TimeseriesAblationsEval,
 )
-from src.fsc.add_eval import EvalTask
+from src.fsc.eval import EvalTask
 from src.snowgalileo import Encoder
 from src.utils import device, load_check_config, seed_everything
-
-import os
-from datetime import datetime
 
 slurm_id = os.environ.get("SLURM_JOB_ID", "local")
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -83,11 +82,7 @@ argparser.add_argument(
     action="store_true",
     help="Where to only use h5pys (faster, but need to be already stored in this format)",
 )
-argparser.add_argument(
-    "--resume_from_wandb_id",
-    type=str,
-    default=""
-)
+argparser.add_argument("--resume_from_wandb_id", type=str, default="")
 args = argparser.parse_args().__dict__
 
 if args["resume_from_wandb_id"] == "":

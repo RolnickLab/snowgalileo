@@ -90,5 +90,9 @@ sklearn = LandsatEvalSklearn(
     normalizing_dict=normalizing_dict,
 )
 sklearn.fit_sklearn(
-    id=args["run_id"], save_results=True, dataset_subset_size=args["dataset_subset_size"], normalization=args["normalization"], seed=args["seed"]
+    id=args["run_id"],
+    save_results=True,
+    dataset_subset_size=args["dataset_subset_size"],
+    normalization=args["normalization"],
+    seed=args["seed"],
 )

@@ -24,6 +24,7 @@ from tqdm import tqdm
 
 from src.data.config import (
     DATA_FOLDER,
+    DATASET_OUTPUT_HW_HIGH_RES,
     MODALITIES,
     MODIS_FILL_VALUE,
     NDI_VALID_DATA_BOUNDS,
@@ -33,7 +34,6 @@ from src.data.config import (
     NUM_MED_RES_PIXELS_PER_DIM,
     NUM_TIMESTEPS,
     RESULTS_FOLDER,
-    DATASET_OUTPUT_HW_HIGH_RES,
 )
 from src.data.dataset import Dataset as BaseDataset
 from src.data.dataset import DatasetOutput, Normalizer, to_cartesian
@@ -58,7 +58,12 @@ from src.data.earthengine.eo_eval import (
 from src.fsc.downstream_augmentation import DownstreamAugmentation
 from src.fsc.eval import EvalTask, model_class_name
 from src.fsc.metrics import compute_classification_metrics, compute_regression_metrics
-from src.fsc.patch_predict import EncoderWithHead, evaluate_seg, get_finetune_results_on_val_set, evaluate_binary
+from src.fsc.patch_predict import (
+    EncoderWithHead,
+    evaluate_binary,
+    evaluate_seg,
+    get_finetune_results_on_val_set,
+)
 from src.masking import _aggregate_mask_per_channel_group
 from src.snowgalileo import Encoder
 from src.utils import DEFAULT_SEED, config_dir, device, masked_output_np_to_tensor
@@ -105,15 +110,15 @@ class LandsatEvalDataset(BaseDataset):
         self.label_folder = DATA_FOLDER / data_config["label_folder"] / self.split
 
         if self.split in {"visualize", "inference"}:
-            self.h5py_folder = None
+            self.h5py_folder: Path | None = None
         else:
             folder_name = data_config["input_h5py_folder"]
-
             if not folder_name:
                 self.h5py_folder = None
             else:
-                self.h5py_folder = DATA_FOLDER / folder_name / self.split
-                self.h5py_folder.mkdir(parents=True, exist_ok=True)
+                folder = DATA_FOLDER / folder_name / self.split
+                folder.mkdir(parents=True, exist_ok=True)
+                self.h5py_folder = folder
 
         input_tifs = list(self.input_tif_folder.glob("*.tif")) + list(
             self.input_tif_folder.glob("*.tiff")
@@ -127,7 +132,7 @@ class LandsatEvalDataset(BaseDataset):
         self.label_tifs: List[Path] = self._sanity_check(label_tifs)
         self.label_tifs.sort(key=lambda p: p.name)
 
-        self.pairs = []
+        self.pairs: List[tuple[Path, Optional[Path]]] = []
 
         if h5pys_only:
             assert self.h5py_folder is not None, "Can't use h5pys only if there is no cache folder"
@@ -846,8 +851,8 @@ class LandsatEval(EvalTask):
         self.eval_config = eval_config
         self.data_config = self.eval_config["data"]
 
-    @staticmethod
     def _get_dataset(
+        self,
         exclude_prediction_date: bool,
         exclude_prediction_high_res: bool,
         exclude_prediction_sensors: bool,
@@ -857,7 +862,7 @@ class LandsatEval(EvalTask):
         h5pys_only: bool = False,
         data_config: Dict = {},
         normalization: Union[str, Normalizer] = "std",
-    ) -> LandsatEvalDataset:
+    ):
         ds = LandsatEvalDataset(
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
@@ -1347,34 +1352,20 @@ class LandsatEval(EvalTask):
                     preds_2D,
                 )
 
-                labels = labels.float().cpu().numpy()
-                # squeeze labels if needed
-                if len(labels.shape) == 3:
-                    labels = np.squeeze(labels, axis=0)
-
-                r2 = r2_score(labels.flatten(), preds_2D.flatten())
-                rmse = root_mean_squared_error(labels.flatten(), preds_2D.flatten())
-
                 if log_wandb:
                     import matplotlib.pyplot as plt
                     import wandb
 
-                    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
-                    axs[0].imshow(preds_2D, cmap="gray", vmin=0, vmax=1)
-                    axs[0].set_title("Predictions")
-                    axs[1].imshow(labels, cmap="gray", vmin=0, vmax=1)
-                    axs[1].set_title("Ground Truth")
-                    axs[2].imshow(np.abs(preds_2D - labels), cmap="coolwarm", vmin=0, vmax=1)
-                    axs[2].set_title("Absolute Error")
-                    fig.colorbar(axs[2].images[0], ax=axs[2], orientation="vertical")
-                    # plt.savefig(f"visualizations/{filename}_r2_{r2}_rmse_{rmse}.png")
+                    fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+                    ax.imshow(preds_2D, cmap="gray", vmin=0, vmax=1)
+                    ax.set_title("Predictions")
 
                     wandb.init(entity="sea-ice", project="ai4snow_finetune_final")
                     wandb.log(
                         {
-                            f"{self.name}_visualization_{filename}_r2_{r2}_rmse_{rmse}": wandb.Image(
+                            f"{self.name}_visualization_{filename}": wandb.Image(
                                 fig,
-                                caption=f"R2: {r2:.4f}, RMSE: {rmse:.4f}, Lat: {filename.split('_')[3]}, Lon: {filename.split('_')[4]}, Date: {filename.split('_')[1]}",
+                                caption=f"Lat: {filename.split('_')[3]}, Lon: {filename.split('_')[4]}, Date: {filename.split('_')[1]}",
                             )
                         }
                     )
@@ -1404,6 +1395,8 @@ class LandsatEval(EvalTask):
         )
 
         results = evaluate_binary(data_loader=test_dl, finetuned_model=model, device=device)
+
+        print(results)
 
     @torch.no_grad()
     def _evaluate_model(self, model: EncoderWithHead, log_wandb: bool = True):
@@ -1568,9 +1561,9 @@ class LandsatEval(EvalTask):
         model: Union[EncoderWithHead, Encoder],
         log_wandb: bool = False,
         sklearn: bool = False,
-        sklearn_models: Optional[List] = None,
+        sklearn_models: List = [],
     ):
-        if sklearn and sklearn_models is None:
+        if sklearn and sklearn_models == []:
             raise ValueError("sklearn_models must be provided when sklearn=True")
 
         vis_ds = self._get_dataset(
@@ -1688,12 +1681,12 @@ class LandsatEval(EvalTask):
                         t_m,
                         st_m,
                     )
-                    encodings = encodings.cpu().numpy()
+                    encodings_np = encodings.cpu().numpy()
 
                     for sklearn_model in sklearn_models:
                         # TODO: change the type
                         sklearn_model = sklearn_model[0]
-                        preds = sklearn_model.predict(encodings)
+                        preds = sklearn_model.predict(encodings_np)
                         # reshape the predictions to match the label shape
                         preds_2D = preds.reshape(labels.shape)
 
@@ -1879,7 +1872,7 @@ class LandsatEval(EvalTask):
         model: Union[EncoderWithHead, Encoder],
         log_wandb: bool = False,
         sklearn: bool = False,
-        sklearn_models: Optional[List] = None,
+        sklearn_models: List = [],
     ):
         self._visualize_predictions(
             model, log_wandb=log_wandb, sklearn=sklearn, sklearn_models=sklearn_models

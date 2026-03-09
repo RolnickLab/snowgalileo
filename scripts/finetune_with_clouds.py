@@ -1,5 +1,7 @@
 import argparse
 import json
+import os
+from datetime import datetime
 from pathlib import Path
 from typing import List
 
@@ -14,9 +16,6 @@ from src.fsc.cloud_generator import (
 from src.fsc.eval import EvalTask
 from src.snowgalileo import Encoder
 from src.utils import device, load_check_config, seed_everything
-
-import os
-from datetime import datetime
 
 slurm_id = os.environ.get("SLURM_JOB_ID", "local")
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -88,11 +87,7 @@ argparser.add_argument(
     type=int,
     default=DEFAULT_SEED,
 )
-argparser.add_argument(
-    "--resume_from_wandb_id",
-    type=str,
-    default=""
-)
+argparser.add_argument("--resume_from_wandb_id", type=str, default="")
 args = argparser.parse_args().__dict__
 
 seed_everything(args["seed"])
@@ -137,7 +132,7 @@ eval_tasks: List[EvalTask] = [
             eval_config=eval_config,
             h5pys_only=args["h5pys_only"],
             job_id=job_id,
-            seed=args["seed"]
+            seed=args["seed"],
         )
     ],
 ]

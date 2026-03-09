@@ -1,15 +1,12 @@
-from typing import Dict
+from typing import Dict, Union
 
 import psutil
 
 from src.config import DEFAULT_SEED
-from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset
-from src.utils import masked_output_np_to_tensor, seed_everything
-from src.data.dataset import Normalizer
-from src.utils import config_dir
 from src.data.config import NORMALIZATION_DICT_FILENAME
-from typing import Union
-
+from src.data.dataset import Normalizer
+from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset
+from src.utils import config_dir, masked_output_np_to_tensor, seed_everything
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -123,16 +120,16 @@ class TimeseriesAblationsEval(LandsatEval):
 
     def _get_dataset(
         self,
-        augmentation,
         exclude_prediction_date: bool,
         exclude_prediction_high_res: bool,
         exclude_prediction_sensors: bool,
         exclude_prediction_era5: bool,
         split: str,
+        augmentation,
         h5pys_only: bool = False,
         data_config: Dict = {},
         normalization: Union[str, Normalizer] = "std",
-    ) -> TimeseriesAblationsMetaDataset:
+    ):
         ds = TimeseriesAblationsMetaDataset(
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,

@@ -1,16 +1,14 @@
 import random
-from typing import Dict
+from typing import Dict, Union
 
 import psutil
 from torch.utils.data import Subset
 
 from src.config import DEFAULT_SEED
-from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset
-from src.utils import seed_everything
-from src.data.dataset import Normalizer
-from src.utils import config_dir
 from src.data.config import NORMALIZATION_DICT_FILENAME
-from typing import Union
+from src.data.dataset import Normalizer
+from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset
+from src.utils import config_dir, seed_everything
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -45,18 +43,18 @@ class DatasetSizeAblationsEval(LandsatEval):
             job_id=job_id,
         )
 
-    @staticmethod
     def _get_dataset(
-        augmentation,
+        self,
         exclude_prediction_date: bool,
         exclude_prediction_high_res: bool,
         exclude_prediction_sensors: bool,
         exclude_prediction_era5: bool,
         split: str,
+        augmentation,
         h5pys_only: bool = False,
         data_config: Dict = {},
         normalization: Union[str, Normalizer] = "std",
-    ) -> LandsatEvalDataset:
+    ):
         dataset = LandsatEvalDataset(
             augmentation=augmentation,
             exclude_prediction_date=exclude_prediction_date,
@@ -79,6 +77,6 @@ class DatasetSizeAblationsEval(LandsatEval):
 
         if data_config["dataset_subset_size"] > 0 and split == "train":
             indices = random.sample(range(len(dataset)), data_config["dataset_subset_size"])
-            dataset = Subset(dataset, indices)
+            subset_dataset = Subset(dataset, indices)
 
-        return dataset
+        return subset_dataset

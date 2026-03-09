@@ -1,33 +1,28 @@
 import json
 import math
+import random
 from pathlib import Path
+from time import time
 from typing import Dict, Optional, Union, cast
-import wandb
 
 import joblib
 import numpy as np
 import rioxarray
 import torch
+import wandb
 import xarray as xr
 from einops import rearrange, reduce, repeat
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import BaggingRegressor, RandomForestRegressor
 from sklearn.neural_network import MLPRegressor
 from sklearn.svm import SVR
-from sklearn.ensemble import BaggingRegressor
-from torch.utils.data import DataLoader
-from torch.utils.data import Subset
-import random
-from time import time
+from torch.utils.data import DataLoader, Subset
 
-from src.data.config import DATA_FOLDER
 from src.config import DEFAULT_SEED
-
+from src.data.config import DATA_FOLDER
 from src.data.dataset import Normalizer
 from src.data.earthengine.eo_eval import SPACE_TIME_HIGH_RES_BANDS, TIME_BANDS
 from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset, masked_output_np_to_tensor
 from src.fsc.metrics import compute_regression_metrics
-
-import multiprocessing as mp
 
 
 class LandsatEvalDatasetSklearn(LandsatEvalDataset):
@@ -698,14 +693,14 @@ class LandsatEvalSklearn(LandsatEval):
         # see if checkpoint path has data, if so, load it and skip training preparation
         if (
             train_data_checkpoint_path is not None
-            and (train_data_checkpoint_path / f"sklearn_model_input.npy").exists()
-            and (train_data_checkpoint_path / f"sklearn_model_labels.npy").exists()
+            and (train_data_checkpoint_path / "sklearn_model_input.npy").exists()
+            and (train_data_checkpoint_path / "sklearn_model_labels.npy").exists()
         ):
             print(
                 f"Loading preprocessed training data from {train_data_checkpoint_path}", flush=True
             )
-            model_input = np.load(train_data_checkpoint_path / f"sklearn_model_input.npy")
-            model_labels = np.load(train_data_checkpoint_path / f"sklearn_model_labels.npy")
+            model_input = np.load(train_data_checkpoint_path / "sklearn_model_input.npy")
+            model_labels = np.load(train_data_checkpoint_path / "sklearn_model_labels.npy")
 
         else:
             train_ds = LandsatEvalDatasetSklearn(
@@ -724,10 +719,10 @@ class LandsatEvalSklearn(LandsatEval):
 
             if dataset_subset_size > 0:
                 indices = random.sample(range(len(train_ds)), dataset_subset_size)
-                train_ds = Subset(train_ds, indices)
+                subset_ds = Subset(train_ds, indices)
 
             train_dl = DataLoader(
-                train_ds,
+                subset_ds,
                 batch_size=1,
                 shuffle=True,
                 num_workers=0,
@@ -783,8 +778,8 @@ class LandsatEvalSklearn(LandsatEval):
 
             if train_data_checkpoint_path is not None:
                 train_data_checkpoint_path.mkdir(parents=True, exist_ok=True)
-                np.save(train_data_checkpoint_path / f"sklearn_model_input.npy", model_input)
-                np.save(train_data_checkpoint_path / f"sklearn_model_labels.npy", model_labels)
+                np.save(train_data_checkpoint_path / "sklearn_model_input.npy", model_input)
+                np.save(train_data_checkpoint_path / "sklearn_model_labels.npy", model_labels)
 
         if self.model_type == "rf":
             print("Training Random Forest Regressor...", flush=True)

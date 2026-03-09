@@ -1,22 +1,18 @@
-import satellite_cloud_generator as scg
-from src.config import DEFAULT_SEED
-from src.data import config
-from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset
-from src.utils import masked_output_np_to_tensor, seed_everything
-from src.data.dataset import Normalizer
-from src.utils import config_dir
-from src.data.config import NORMALIZATION_DICT_FILENAME
-from typing import Union, Dict, cast
-from einops import rearrange
-import numpy as np
-import psutil
 import random
 from pathlib import Path
+from typing import Dict, Union, cast
+
+import numpy as np
+import psutil
 import rioxarray
+import satellite_cloud_generator as scg
 import torch
 import xarray as xr
+from einops import rearrange
+
+from src.config import DEFAULT_SEED
 from src.data.config import (
-    DATA_FOLDER,
+    DATASET_OUTPUT_HW_HIGH_RES,
     MODALITIES,
     MODIS_FILL_VALUE,
     NDI_VALID_DATA_BOUNDS,
@@ -25,10 +21,7 @@ from src.data.config import (
     NUM_LOW_RES_PIXELS_PER_DIM,
     NUM_MED_RES_PIXELS_PER_DIM,
     NUM_TIMESTEPS,
-    RESULTS_FOLDER,
-    DATASET_OUTPUT_HW_HIGH_RES,
 )
-from src.data.dataset import Dataset as BaseDataset
 from src.data.dataset import DatasetOutput, Normalizer, to_cartesian
 from src.data.earthengine.eo_eval import (
     CLOUD_BANDS,
@@ -38,29 +31,16 @@ from src.data.earthengine.eo_eval import (
     EO_ALL_DYNAMIC_IN_TIME_BANDS_NP,
     EO_SPACE_TIME_LOW_RES_BANDS,
     ESA_WORLDCOVER_BAND_INDEX,
-    SPACE_BAND_GROUPS_IDX,
-    SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
-    SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX,
+    SPACE_TIME_LOW_RES_BANDS,
     SPACE_TIME_MED_RES_BANDS,
-    SPACE_TIME_HIGH_RES_BANDS,
-    SPACE_TIME_MED_RES_BANDS_GROUPS_IDX,
-    STATIC_BAND_GROUPS_IDX,
     STATIC_BANDS,
     TIME_BANDS,
-    TIME_BANDS_GROUPS_IDX,
-    SPACE_TIME_LOW_RES_BANDS,
 )
+from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset
+from src.utils import config_dir, seed_everything
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
-
-EO_ALL_DYNAMIC_IN_TIME_BANDS = (
-    SPACE_TIME_HIGH_RES_BANDS
-    + SPACE_TIME_MED_RES_BANDS
-    + EO_SPACE_TIME_LOW_RES_BANDS
-    + TIME_BANDS
-    + CLOUD_BANDS
-)
 
 # NOTE: Scaling factors according to Earthengine documentation for the specific bands
 CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
@@ -69,7 +49,7 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
             "band_names": ["VV", "VH", "angle"],
             "apply_clouds": [False, False, False],
             "channel_magnitudes": [0.0, 0.0, 0.0],
-            "scaling_factors": [1.0, 1.0, 1.0]
+            "scaling_factors": [1.0, 1.0, 1.0],
         },
         "S2": {
             "band_names": ["B2", "B3", "B4", "B8", "B11", "B12"],
@@ -96,7 +76,7 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
             "band_names": ["Oa17_radiance", "Oa21_radiance"],
             "apply_clouds": [True, True],
             "channel_magnitudes": [0.0, 0.0],
-            "scaling_factors": [0.00493004, 0.00324118]
+            "scaling_factors": [0.00493004, 0.00324118],
         },
     },
     # NOTE: Indeces computation happens after cloud generation
@@ -119,7 +99,7 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
             "band_names": ["I1", "I3"],
             "apply_clouds": [True, True],
             "channel_magnitudes": [0.0, 0.0],
-            "scaling_factors": [1.0, 1.0]
+            "scaling_factors": [1.0, 1.0],
         },
     },
     "t_x": {
@@ -127,7 +107,7 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
             "band_names": ["M5", "M7", "M10", "M11"],
             "apply_clouds": [True, True, True, True],
             "channel_magnitudes": [0.0, 0.0, 0.0, 0.0],
-            "scaling_factors": [1.0, 1.0, 1.0, 1.0]
+            "scaling_factors": [1.0, 1.0, 1.0, 1.0],
         },
         "ERA5": {
             "band_names": [
@@ -198,8 +178,9 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         assert self.eval_config is not None, "eval_config must be provided for cloud generation"
         assert "cloud_generation" in self.eval_config, "cloud_generation config missing"
 
-
-    def _apply_cloud_augmentation(self, space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, time_x):
+    def _apply_cloud_augmentation(
+        self, space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, time_x
+    ):
         # Create copies of the arrays to later compute valid masks on, since invalid data values will be
         # changed by cloud generation
         space_time_high_res_x_no_clouds_added = space_time_high_res_x.copy()
@@ -230,9 +211,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         band_weights = []
         scaling_factors = []
 
-        for name, var, cl_mask in zip(
-            space_time_names, space_time_vars, space_time_cloud_masks
-        ):
+        for name, var, cl_mask in zip(space_time_names, space_time_vars, space_time_cloud_masks):
             config = CHANNEL_WISE_CLOUD_PARAMETERS[name]
             apply_mask = []
 
@@ -266,7 +245,6 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         scaling_factors_tensor = torch.tensor(scaling_factors).float()
 
         def apply_clouds_at_timestep(t_idx, cloud_prob):
-
             to_cloud = []
 
             for var, apply_mask, _ in channel_meta:
@@ -322,6 +300,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
             space_time_med_res_x_no_clouds_added,
             space_time_low_res_x_no_clouds_added,
             time_x_no_clouds_added,
+            cloud_mask_s_t_l,
         )
 
     def _tif_to_array(self, tif_path: Path) -> DatasetOutput:
@@ -359,7 +338,9 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
                 lon = float(parts[4])
 
         num_timesteps = (values.shape[0] - len(EE_SPACE_BANDS)) / len(EO_ALL_DYNAMIC_IN_TIME_BANDS)
-        assert (values.shape[0] - len(EE_SPACE_BANDS)) % len(EO_ALL_DYNAMIC_IN_TIME_BANDS) == 0, f"{tif_path} has incorrect number of channels"
+        assert (values.shape[0] - len(EE_SPACE_BANDS)) % len(EO_ALL_DYNAMIC_IN_TIME_BANDS) == 0, (
+            f"{tif_path} has incorrect number of channels"
+        )
         assert num_timesteps == NUM_TIMESTEPS, f"{tif_path} has incorrect number of timesteps"
         dynamic_in_time_x = rearrange(
             values[: -(len(EE_SPACE_BANDS))],
@@ -404,7 +385,19 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
             :, :, :, -(len(TIME_BANDS) + len(CLOUD_BANDS)) : -len(CLOUD_BANDS)
         ]
 
-        space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, time_x, space_time_high_res_x_no_clouds_added, space_time_med_res_x_no_clouds_added, space_time_low_res_x_no_clouds_added, time_x_no_clouds_added = self._apply_cloud_augmentation(space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, time_x)
+        (
+            space_time_high_res_x,
+            space_time_med_res_x,
+            space_time_low_res_x,
+            time_x,
+            space_time_high_res_x_no_clouds_added,
+            space_time_med_res_x_no_clouds_added,
+            space_time_low_res_x_no_clouds_added,
+            time_x_no_clouds_added,
+            cloud_mask_s_t_l,
+        ) = self._apply_cloud_augmentation(
+            space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, time_x
+        )
 
         time_x = np.nanmean(time_x, axis=(0, 1))
         time_x_no_clouds_added = np.nanmean(time_x_no_clouds_added, axis=(0, 1))
@@ -550,7 +543,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
 
     @staticmethod
     def calculate_ndi(
-        input_array: np.ndarray, band_1: str, band_2: str, cloud_mask: np.ndarray
+        input_array: np.ndarray, band_1: str, band_2: str, cloud_mask: np.ndarray | None = None
     ) -> np.ndarray:
         r"""
         Given an input array of shape [h, w, t, bands]
@@ -611,6 +604,7 @@ class CloudGeneratorEval(LandsatEval):
         decoder_mode: str = "attention_probe",
         eval_config: Dict = {},
         job_id="",
+        seed=DEFAULT_SEED,
     ):
         super().__init__(
             exclude_prediction_date=exclude_prediction_date,
@@ -625,16 +619,16 @@ class CloudGeneratorEval(LandsatEval):
 
     def _get_dataset(
         self,
-        augmentation,
         exclude_prediction_date: bool,
         exclude_prediction_high_res: bool,
         exclude_prediction_sensors: bool,
         exclude_prediction_era5: bool,
         split: str,
+        augmentation,
         h5pys_only: bool = False,
         data_config: Dict = {},
         normalization: Union[str, Normalizer] = "std",
-    ) -> CloudGeneratorMetaDataset:
+    ):
         ds = CloudGeneratorMetaDataset(
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,

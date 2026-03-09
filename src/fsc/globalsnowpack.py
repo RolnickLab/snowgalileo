@@ -1,18 +1,18 @@
+import json
 from datetime import datetime
 from pathlib import Path
-from einops import rearrange
-import json
-from src.fsc.metrics import compute_classification_metrics
-from src.fsc.utils import landsat_binary_mapping
 
 import numpy as np
 import rasterio
+from einops import rearrange
 from pyproj import Transformer
 from pystac_client import Client
 from rasterio.warp import Resampling, reproject
 from shapely.geometry import box, mapping
 
 from src.data.config import DATA_FOLDER
+from src.fsc.metrics import compute_classification_metrics
+from src.fsc.utils import landsat_binary_mapping
 
 
 def export_from_filename_for_folder(
@@ -27,11 +27,10 @@ def export_from_filename_for_folder(
     all_landsat_labels = []
     all_gsp_labels = []
 
-    folder = Path(DATA_FOLDER / folder)
+    folder_path = Path(DATA_FOLDER) / Path(folder)
 
-    # Collect valid filenames
-    filenames = []
-    for path in folder.iterdir():
+    filenames: list[str] = []
+    for path in folder_path.iterdir():
         if not path.name.startswith("LC0") or not path.name.endswith(".tif"):
             continue
         parts = path.name.split("_")
@@ -52,11 +51,9 @@ def export_from_filename_for_folder(
         parts = filename.split("_")
         date = datetime.strptime(parts[1], "%Y%m%d").date()
 
-        with rasterio.open(folder / filename) as landsat_src:
+        with rasterio.open(folder_path / filename) as landsat_src:
             landsat_labels = landsat_src.read(1)
-        all_landsat_labels.append(
-            rearrange(landsat_labels, "h w -> (h w)")
-        )
+        all_landsat_labels.append(rearrange(landsat_labels, "h w -> (h w)"))
 
         output_filename = output_folder / f"gsp_{filename}"
 
@@ -64,13 +61,11 @@ def export_from_filename_for_folder(
             print(f"Skipping existing file: {output_filename.name}")
             with rasterio.open(output_filename) as existing:
                 existing_data = existing.read(1)
-            all_gsp_labels.append(
-                rearrange(existing_data, "h w -> (h w)")
-            )
+            all_gsp_labels.append(rearrange(existing_data, "h w -> (h w)"))
             continue
 
         # ---- Read Landsat ----
-        with rasterio.open(folder / filename) as landsat_src:
+        with rasterio.open(folder_path / filename) as landsat_src:
             landsat_labels = landsat_src.read(1)
             landsat_bounds = landsat_src.bounds
             landsat_crs = landsat_src.crs
@@ -79,16 +74,10 @@ def export_from_filename_for_folder(
             landsat_width = landsat_src.width
 
         # Transform bounds to WGS84
-        transformer = Transformer.from_crs(
-            landsat_crs, "EPSG:4326", always_xy=True
-        )
+        transformer = Transformer.from_crs(landsat_crs, "EPSG:4326", always_xy=True)
 
-        min_lon, min_lat = transformer.transform(
-            landsat_bounds.left, landsat_bounds.bottom
-        )
-        max_lon, max_lat = transformer.transform(
-            landsat_bounds.right, landsat_bounds.top
-        )
+        min_lon, min_lat = transformer.transform(landsat_bounds.left, landsat_bounds.bottom)
+        max_lon, max_lat = transformer.transform(landsat_bounds.right, landsat_bounds.top)
 
         # ---- Search GlobalSnowpack ----
         search = stac_api.search(
@@ -137,12 +126,10 @@ def export_from_filename_for_folder(
             width=landsat_width,
             crs=landsat_crs,
             transform=landsat_transform,
-            count=1
+            count=1,
         )
 
-        all_gsp_labels.append(
-            rearrange(reprojected_cutout, "h w -> (h w)")
-        )
+        all_gsp_labels.append(rearrange(reprojected_cutout, "h w -> (h w)"))
 
         with rasterio.open(output_filename, "w", **gsp_meta) as dest:
             dest.write(reprojected_cutout, 1)
@@ -151,9 +138,9 @@ def export_from_filename_for_folder(
 
 
 if __name__ == "__main__":
-    # Mapping from https://download.geoservice.dlr.de/GSP/files/daily/GSPDAILY_README.txt 
+    # Mapping from https://download.geoservice.dlr.de/GSP/files/daily/GSPDAILY_README.txt
     # Fill value 0.0 will be mapped to -1, which will be discarded in metric computations
-    def gsp_binary_mapping(arr, fill_value = -1):
+    def gsp_binary_mapping(arr, fill_value=-1):
         arr = arr.astype(np.float32)
         result = np.full_like(arr, fill_value=fill_value)
         result[(1 < arr) & (arr < 64)] = 0
@@ -162,19 +149,23 @@ if __name__ == "__main__":
 
     fill_value = -1
 
-    labels_folder = Path(DATA_FOLDER / "fsc_test_rockies_100m_masks/test")
+    labels_folder = "fsc_test_rockies_100m_masks/test"
 
     all_landsat_labels, all_gsp_labels = export_from_filename_for_folder(labels_folder)
 
     assert len(all_gsp_labels) == len(all_landsat_labels)
 
     gsp_labels = gsp_binary_mapping(np.concatenate(all_gsp_labels), fill_value=fill_value)
-    landsat_labels = landsat_binary_mapping(np.concatenate(all_landsat_labels), fill_value=fill_value)
+    landsat_labels = landsat_binary_mapping(
+        np.concatenate(all_landsat_labels), fill_value=fill_value
+    )
 
     valid_data_mask = gsp_labels != fill_value
 
-    results = compute_classification_metrics(gsp_labels[valid_data_mask], landsat_labels[valid_data_mask])
+    results = compute_classification_metrics(
+        gsp_labels[valid_data_mask], landsat_labels[valid_data_mask]
+    )
 
-    results_path = Path(f"./globalsnowpack_results.json")
+    results_path = Path("./globalsnowpack_results.json")
     with results_path.open("w") as f:
         json.dump(results, f)

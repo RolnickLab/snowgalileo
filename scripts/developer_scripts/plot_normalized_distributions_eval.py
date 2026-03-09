@@ -1,23 +1,19 @@
 import argparse
+import json
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 import matplotlib.pyplot as plt
 import seaborn as sns
 import torch
-import json
 from torch.utils.data import DataLoader
 
 from src.data.config import (
-    DATASET_OUTPUT_HW_HIGH_RES,
-    DATASET_OUTPUT_HW_LOW_RES,
-    DATASET_OUTPUT_HW_MED_RES,
     NORMALIZATION_DICT_FILENAME,
-    NUM_TIMESTEPS,
 )
-from src.fsc.landsat_eval import LandsatEvalDataset as BaseDataset
-from src.fsc.downstream_augmentation import DownstreamAugmentation
 from src.data.dataset import Normalizer
+from src.fsc.downstream_augmentation import DownstreamAugmentation
+from src.fsc.landsat_eval import LandsatEvalDataset as BaseDataset
 from src.utils import config_dir
 
 
@@ -39,6 +35,7 @@ class PlottingDataset(BaseDataset):
         exclude_prediction_date: bool = False,
         exclude_prediction_high_res: bool = False,
         exclude_prediction_sensors: bool = False,
+        exclude_prediction_era5: bool = False,
         normalizer: Optional[Normalizer] = None,
         augmentation=DownstreamAugmentation(False),
         data_config: Dict = {},
@@ -49,6 +46,7 @@ class PlottingDataset(BaseDataset):
             exclude_prediction_date,
             exclude_prediction_high_res,
             exclude_prediction_sensors,
+            exclude_prediction_era5,
             normalizer,
             augmentation,
             data_config,

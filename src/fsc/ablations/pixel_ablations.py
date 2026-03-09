@@ -1,21 +1,18 @@
-from typing import Dict
+from typing import Dict, Union
 
+import numpy as np
 import psutil
 
 from src.config import DEFAULT_SEED
-from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset
-from src.utils import masked_output_np_to_tensor, seed_everything
-from src.data.dataset import Normalizer
-from src.utils import config_dir
 from src.data.config import (
-    NORMALIZATION_DICT_FILENAME,
     DATASET_OUTPUT_HW_HIGH_RES,
-    NUM_MED_RES_PIXELS_PER_DIM,
+    NORMALIZATION_DICT_FILENAME,
     NUM_LOW_RES_PIXELS_PER_DIM,
+    NUM_MED_RES_PIXELS_PER_DIM,
 )
-from typing import Union
-import numpy as np
-
+from src.data.dataset import Normalizer
+from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset
+from src.utils import config_dir, masked_output_np_to_tensor, seed_everything
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -173,16 +170,16 @@ class PixelAblationsEval(LandsatEval):
 
     def _get_dataset(
         self,
-        augmentation,
         exclude_prediction_date: bool,
         exclude_prediction_high_res: bool,
         exclude_prediction_sensors: bool,
         exclude_prediction_era5: bool,
         split: str,
+        augmentation,
         h5pys_only: bool = False,
         data_config: Dict = {},
         normalization: Union[str, Normalizer] = "std",
-    ) -> PixelAblationsMetaDataset:
+    ):
         ds = PixelAblationsMetaDataset(
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
