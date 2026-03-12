@@ -54,6 +54,12 @@ argparser.add_argument(
     help="Where to only use h5pys (faster, but need to be already stored in this format)",
 )
 argparser.add_argument(
+    "--identifier",
+    type=str,
+    default="default",
+    help="WandB identifier",
+)
+argparser.add_argument(
     "--decoding_strategy",
     type=str,
     default="finetune",
@@ -129,4 +135,4 @@ else:
         decoder_mode=decoder_mode,
     )
 
-eval_task.evaluate_model_on_task(model=model)
+eval_task.evaluate_model_on_task(model=model, id=args["identifier"])

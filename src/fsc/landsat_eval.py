@@ -1399,7 +1399,7 @@ class LandsatEval(EvalTask):
         print(results)
 
     @torch.no_grad()
-    def _evaluate_model(self, model: EncoderWithHead, log_wandb: bool = True):
+    def _evaluate_model(self, model: EncoderWithHead, id: str, log_wandb: bool = True):
         test_ds = self._get_dataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
@@ -1424,7 +1424,7 @@ class LandsatEval(EvalTask):
         if log_wandb:
             import wandb
 
-            wandb.init(entity="sea-ice", project="ai4snow_finetune_final")
+            wandb.init(entity="sea-ice", project="ai4snow_finetune_final", name=id)
             wandb.log(results)
 
             def flatten_for_summary(d, prefix=""):
@@ -1878,8 +1878,8 @@ class LandsatEval(EvalTask):
             model, log_wandb=log_wandb, sklearn=sklearn, sklearn_models=sklearn_models
         )
 
-    def evaluate_model_on_task(self, model: EncoderWithHead):
-        self._evaluate_model(model)
+    def evaluate_model_on_task(self, model: EncoderWithHead, id: str):
+        self._evaluate_model(model=model, id=id)
 
     def evaluate_indidvidual_samples(self, model: EncoderWithHead, id: str):
         self._evaluate_individual_samples(model, id=id)

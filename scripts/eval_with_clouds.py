@@ -43,6 +43,12 @@ argparser.add_argument(
     help="Whether to include ERA5 in prediction date.",
 )
 argparser.add_argument(
+    "--identifier",
+    type=str,
+    default="default",
+    help="WandB identifier",
+)
+argparser.add_argument(
     "--eval_config_name",
     type=str,
     default="fsc_test_rockies_clouds_tiny.json",
@@ -104,4 +110,4 @@ eval_task = CloudGeneratorEval(
     decoder_mode=decoder_mode,
 )
 
-eval_task.evaluate_model_on_task(model=model)
+eval_task.evaluate_model_on_task(model=model, id=args["identifier"])
