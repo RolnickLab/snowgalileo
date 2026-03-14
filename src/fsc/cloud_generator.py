@@ -552,15 +552,20 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         (band_1 - band_2) / (band_1 + band_2)
         """
 
+
         for b in [band_1, band_2]:
             assert b in SPACE_TIME_LOW_RES_BANDS
 
-        band_1_np = input_array[:, :, :, SPACE_TIME_LOW_RES_BANDS.index(band_1)]
-        band_2_np = input_array[:, :, :, SPACE_TIME_LOW_RES_BANDS.index(band_2)]
+        band_1_idx = SPACE_TIME_LOW_RES_BANDS.index(band_1)
+        band_2_idx = SPACE_TIME_LOW_RES_BANDS.index(band_2)
 
-        if not np.all(cloud_mask == 0):
-            band_1_np[:, :, -1] = NO_DATA_VALUE
-            band_2_np[:, :, -1] = NO_DATA_VALUE
+        band_1_np = input_array[:, :, :, band_1_idx].copy()
+        band_2_np = input_array[:, :, :, band_2_idx].copy()
+
+        if cloud_mask is not None and not np.all(cloud_mask == 0):
+            cloud_pixels = cloud_mask[:, :, :, band_1_idx] > 0
+            band_1_np[cloud_pixels] = NO_DATA_VALUE
+            band_2_np[cloud_pixels] = NO_DATA_VALUE
 
         invalid = (
             (band_1_np == NO_DATA_VALUE)
