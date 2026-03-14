@@ -190,7 +190,6 @@ class LandsatEvalDataset(BaseDataset):
         # Masks all sensor channel groups in the prediction timestep
         # This includes all Sentinel-1, Sentinel-2, Landsat, Sentinel-3, MODIS, VIIRS data, as well as the MODIS-derived indeces
         # NOTE: 0 = valid, 1 = masked
-        print("Masking high resolution data in prediction timestep", flush=True)
         assert self.exclude_prediction_sensors
         assert t_m.shape[-1] == len(TIME_BANDS_GROUPS_IDX)
         s_t_h_m[:, :, -1, :] = 1
@@ -203,7 +202,6 @@ class LandsatEvalDataset(BaseDataset):
         # Masks the high resolution, optical channel groups in the prediction timestep
         # This includes all Sentinel-2 and Landsat bands
         # NOTE: 0 = valid, 1 = masked
-        print("Masking high resolution data in prediction timestep", flush=True)
         assert self.exclude_prediction_high_res
         assert s_t_h_m.shape[-1] == len(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX)
         # Keep the first channel group (Sentinel-1)
@@ -213,7 +211,6 @@ class LandsatEvalDataset(BaseDataset):
     def mask_prediction_era5(self, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m):
         # Masks the ERA5 channel group in the prediction timestep
         # NOTE: 0 = valid, 1 = masked
-        print("Masking ERA5 data in prediction timestep", flush=True)
         assert self.exclude_prediction_era5
         # Keep the first three channel group (VIIRS coarse)
         t_m[-1, 3:] = 1
