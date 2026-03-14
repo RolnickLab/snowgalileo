@@ -373,12 +373,12 @@ def finetune_seg(
         finetuned_encoder.load_state_dict(
             torch.load(
                 run_path
-                / f"{identifier}_{hyperparameter_config['initialization_id']}_{run_id}_epoch_{start_epoch}.pth",
+                / f"encoder.pt",
                 map_location=device,
             )
         )
         opt.load_state_dict(
-        torch.load(run_path / f"optimizer_epoch_{start_epoch}.pt", map_location=device)
+        torch.load(run_path / f"optimizer.pt", map_location=device)
         )
     else:
         run_path.mkdir(parents=True, exist_ok=True)
