@@ -73,8 +73,8 @@
         "solver": "adam"
     },
     "cloud_generation": {
-        "cloud_prob_pred_day": 30.0,
-        "cloud_prob_timeseries": 0.0,
+        "cloud_prob_pred_day": 0.5,
+        "cloud_prob_timeseries": 0.3,
         "shadow_prob": 0.0
     }
 }

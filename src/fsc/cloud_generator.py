@@ -54,7 +54,7 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
         "S2": {
             "band_names": ["B2", "B3", "B4", "B8", "B11", "B12"],
             "apply_clouds": [True, True, True, True, True, True],
-            "channel_magnitudes": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "channel_magnitudes": [0.3252, 0.3036, 0.3235, 0.3716, 0.2770, 0.2563],
             "scaling_factors": [0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001],
         },
         "Landsat": {
@@ -67,7 +67,7 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
                 "B7_landsat",
             ],
             "apply_clouds": [True, True, True, True, True, True],
-            "channel_magnitudes": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "channel_magnitudes": [0.5157, 0.4304, 0.4384, 0.4473, 0.1760, 0.2105],
             "scaling_factors": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
         },
     },
@@ -75,7 +75,7 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
         "S3": {
             "band_names": ["Oa17_radiance", "Oa21_radiance"],
             "apply_clouds": [True, True],
-            "channel_magnitudes": [0.0, 0.0],
+            "channel_magnitudes": [1.7589,  0.3781],
             "scaling_factors": [0.00493004, 0.00324118],
         },
     },
@@ -92,13 +92,13 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
                 "sur_refl_b07",
             ],
             "apply_clouds": [True, True, True, True, True, True, True],
-            "channel_magnitudes": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "channel_magnitudes": [0.8411, 0.8400, 0.7846, 0.8301, 0.7175, 0.5384, 0.4205],
             "scaling_factors": [0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001],
         },
         "VIIRS": {
             "band_names": ["I1", "I3"],
             "apply_clouds": [True, True],
-            "channel_magnitudes": [0.0, 0.0],
+            "channel_magnitudes": [1.1923, 0.6415],
             "scaling_factors": [1.0, 1.0],
         },
     },
@@ -106,7 +106,7 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
         "VIIRS": {
             "band_names": ["M5", "M7", "M10", "M11"],
             "apply_clouds": [True, True, True, True],
-            "channel_magnitudes": [0.0, 0.0, 0.0, 0.0],
+            "channel_magnitudes": [0.3277, 0.4289, 0.1601, 0.1406],
             "scaling_factors": [1.0, 1.0, 1.0, 1.0],
         },
         "ERA5": {
