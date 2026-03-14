@@ -352,14 +352,6 @@ def finetune_seg(
         "epochs": epochs,
     }
 
-    updates_per_epoch = math.ceil(len(train_loader) / grad_accum)
-    num_training_steps = epochs * updates_per_epoch
-
-    if schedule_sigmoid_slope:
-        slope_scheduler = SigmoidSlopeScheduler(
-            finetuned_encoder, start=1.0, end=8.0, total_steps=num_training_steps
-        )
-
     # if checkpointing folder exists, load checkpoint
     if run_path.exists() and any(run_path.iterdir()):
         with config_path.open("r") as f:
@@ -385,6 +377,9 @@ def finetune_seg(
                 map_location=device,
             )
         )
+        opt.load_state_dict(
+        torch.load(run_path / f"optimizer_epoch_{start_epoch}.pt", map_location=device)
+        )
     else:
         run_path.mkdir(parents=True, exist_ok=True)
 
@@ -408,7 +403,7 @@ def finetune_seg(
     else:
         raise ValueError(f"Unknown loss function: {loss_fn}")
 
-    for epoch in range(epochs):
+    for epoch in range(start_epoch, epochs):
         for i, (masked_output, labels, _) in enumerate(train_loader):
             (
                 s_t_h_x,
@@ -460,7 +455,7 @@ def finetune_seg(
                 epoch_fraction = epoch + (i / len(train_loader))
 
                 if schedule_sigmoid_slope:
-                    slope_scheduler.step()
+                    raise NotImplementedError
 
                 if lr_schedule:
                     set_lr = adjust_learning_rate(
@@ -478,15 +473,22 @@ def finetune_seg(
                 opt.step()
                 opt.zero_grad()
 
-        if epoch % 10 == 0 and checkpointing:
+        torch.save(finetuned_encoder.state_dict(), run_path / f"encoder.pt")
+        torch.save(opt.state_dict(), run_path / f"optimizer.pt")
+        config["cur_epoch"] = epoch
+        with (run_path / "config.json").open("w") as f:
+            json.dump(config, f)
+
+
+        if epoch % 5 == 0 and checkpointing:
             file_path = Path(
                 run_path
-                / f"{identifier}_{hyperparameter_config['initialization_id']}_{run_id}_epoch_{epoch}.pth"
+                / f"{identifier}_{hyperparameter_config['initialization_id']}_{run_id}_epoch_{epoch + 1}.pth"
             )
             save_checkpoint(finetuned_encoder, file_path)
-            config["cur_epoch"] = epoch
-            with (run_path / "config.json").open("w") as f:
-                json.dump(config, f)
+            torch.save(
+                opt.state_dict(), run_path / f"optimizer_epoch_{epoch + 1}.pt"
+            )
 
         if log_wandb or sweep_run is not None:
             if epoch % 5 == 0 or epoch == epochs - 1:
