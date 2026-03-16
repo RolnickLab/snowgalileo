@@ -345,7 +345,6 @@ class Attention(nn.Module):
         q, k = self.q_norm(q), self.k_norm(k)
 
         if self.fast_attn:
-            print("Using fast attention")
             if attn_mask is not None:
                 attn_mask = attn_mask[:, None, None].repeat((1, self.num_heads, N, 1))
             x = F.scaled_dot_product_attention(
@@ -357,7 +356,6 @@ class Attention(nn.Module):
                 dropout_p=self.attn_drop.p,
             )
         else:
-            print("Not using fast attention")
             if attn_mask is not None:
                 raise NotImplementedError
             q = q * self.scale
@@ -1282,7 +1280,6 @@ class Encoder(SnowGalileoBase):
         - position: (batch size, num tokens) with position indices
         """
         if attend_over_spatial:
-            print("Attending over spatial patches.", flush=True)
             x, m = cls.combine_tokens_per_highres_spatial_patch(
                 s_t_h_x,
                 s_t_m_x,
@@ -1307,7 +1304,6 @@ class Encoder(SnowGalileoBase):
             )
             return x, m, position
 
-        print("Attending over all tokens.", flush=True)
         x, m = cls.collapse_and_combine_hwtc(
             s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
         )
@@ -1347,17 +1343,10 @@ class Encoder(SnowGalileoBase):
 
         # only keep high resolution tokens
         if not med_and_low_res_repeat:
-            print(
-                "Removing medium and low resolution tokens instead of repeating them.", flush=True
-            )
             x = torch.cat([s_t_h_x, sp_x], dim=2)  # B, S, N, D
             m = torch.cat([s_t_h_m, sp_m], dim=2)  # B, S, N
             return x, m
 
-        print(
-            "Repeating medium and low resolution tokens to match high resolution tokens.",
-            flush=True,
-        )
         # repeat medium and low resolution tokens over high resolution
         s_t_m_x = rearrange(
             repeat(
