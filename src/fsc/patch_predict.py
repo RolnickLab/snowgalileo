@@ -475,7 +475,7 @@ def finetune_seg(
 
         torch.save(finetuned_encoder.state_dict(), run_path / f"encoder.pt")
         torch.save(opt.state_dict(), run_path / f"optimizer.pt")
-        config["cur_epoch"] = epoch
+        config["cur_epoch"] = epoch + 1
         with (run_path / "config.json").open("w") as f:
             json.dump(config, f)
 
