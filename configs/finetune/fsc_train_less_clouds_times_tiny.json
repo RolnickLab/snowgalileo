@@ -3,7 +3,7 @@
     "data": {
         "label_folder": "fsc_train_100m_masks_balanced",
         "input_tif_folder": "fsc_train_100m_cropped_balanced",
-        "input_h5py_folder": "",
+        "input_h5py_folder": "fsc_less_clouds_timeseries_h5pys",
         "sklearn_train_data_checkpoint_folder": "sklearn_train_data_checkpoint",
         "label_resolution": 100,
         "num_timesteps": 8,
