@@ -62,7 +62,7 @@ argparser.add_argument(
 argparser.add_argument(
     "--h5pys_only",
     action="store_true",
-    help="Where to only use h5pys (faster, but need to be already stored in this format)",
+    help="Whether to only use h5pys (faster, but need to be already stored in this format)",
 )
 
 argparser.add_argument("--dataset_subset_size", type=int, default=0)
