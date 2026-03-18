@@ -267,7 +267,6 @@ class LandsatEvalSklearn(LandsatEval):
         valid_mask = ~torch.isnan(x)
 
         # accumulate last valid value along time axis
-        # use "expanding max index" trick
         timestep_idx = torch.arange(x.size(-1), device=x.device)
         timestep_idx = timestep_idx.view(1, 1, 1, -1).expand_as(x)
 

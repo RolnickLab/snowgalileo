@@ -64,8 +64,8 @@ argparser.add_argument(
     action="store_true",
     help="Whether to only use h5pys (faster, but need to be already stored in this format)",
 )
-
 argparser.add_argument("--dataset_subset_size", type=int, default=0)
+
 args = argparser.parse_args().__dict__
 
 seed_everything(args["seed"])
