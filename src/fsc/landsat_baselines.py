@@ -683,7 +683,7 @@ class LandsatEvalSklearn(LandsatEval):
         if hyperparameters == {}:
             hyperparameters = self.eval_config[f"hyperparameters_{self.model_type}"]
 
-        assert self.eval_config["cloud_prob_pred_day"] == 0.0 or self.h5pys_only, "Cloud generation is only supported with h5pys to this point."
+        assert self.eval_config["cloud_generation"]["cloud_prob_pred_day"] == 0.0 or self.h5pys_only, "Cloud generation is only supported with h5pys to this point."
 
         train_data_checkpoint_path = (
             Path(DATA_FOLDER) / self.eval_config["data"]["sklearn_train_data_checkpoint_folder"]
