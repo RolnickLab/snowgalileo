@@ -723,12 +723,20 @@ class LandsatEvalSklearn(LandsatEval):
                 indices = random.sample(range(len(train_ds)), dataset_subset_size)
                 subset_ds = Subset(train_ds, indices)
 
-            train_dl = DataLoader(
-                subset_ds,
-                batch_size=1,
-                shuffle=True,
-                num_workers=0,
-            )
+                train_dl = DataLoader(
+                    subset_ds,
+                    batch_size=1,
+                    shuffle=True,
+                    num_workers=0,
+                )
+
+            else:
+                train_dl = DataLoader(
+                    train_ds,
+                    batch_size=1,
+                    shuffle=True,
+                    num_workers=0,
+                )
 
             all_samples = []
             all_labels = []
