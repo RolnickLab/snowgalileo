@@ -47,6 +47,12 @@ argparser.add_argument(
     help="Type of model to train: rf, svr, or mlp.",
 )
 argparser.add_argument(
+    "--normalization",
+    type=str,
+    default="std",
+    choices=["std", ""],
+)
+argparser.add_argument(
     "--model_checkpoint_path", default="landsat_rf_model_rf_50est_19012026.joblib"
 )
 args = argparser.parse_args().__dict__
@@ -68,7 +74,7 @@ normalizing_dict = Dataset.load_normalization_values(path=config_dir / NORMALIZA
 model = joblib.load(args["model_checkpoint_path"])
 
 rf = LandsatEvalSklearn(
-    normalization="std",
+    normalization=args["normalization"],
     exclude_prediction_date=args["exclude_prediction_date"],
     exclude_prediction_high_res=args["exclude_prediction_high_res"],
     exclude_prediction_sensors=args["exclude_prediction_sensors"],
@@ -78,4 +84,4 @@ rf = LandsatEvalSklearn(
     model_type=args["model_type"],
     normalizing_dict=normalizing_dict,
 )
-rf.predict_only(model=model, id=id, save_results=True)
+rf.predict_only(model=model, id=id, save_results=True, normalization=args["normalization"],)
