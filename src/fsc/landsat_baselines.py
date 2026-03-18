@@ -90,12 +90,9 @@ class LandsatEvalDatasetSklearn(LandsatEvalDataset):
 
     def __getitem__(self, idx):
         if self.h5pys_only:
-            if self.normalizer is None:
-                return self.read_and_slice_h5py_file(self.h5pys[idx])
-            else:
-                return self.read_and_slice_h5py_file(self.h5pys[idx]).normalize(self.normalizer)
-
-        h5py = self.load_tif(idx)
+            h5py = self.read_and_slice_h5py_file(self.h5pys[idx])
+        else:
+            h5py = self.load_tif(idx)
 
         if self.normalizer is None:
             (
