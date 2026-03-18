@@ -63,9 +63,9 @@ argparser.add_argument(
 args = argparser.parse_args().__dict__
 
 if "rockies" in args["eval_config_name"]:
-    id = f"rockies_{args["run_id"]}"
+    id = f"rockies_{args['run_id']}"
 elif "switzerland" in args["eval_config_name"]:
-    id = f"switzerland_{args["run_id"]}"
+    id = f"switzerland_{args['run_id']}"
 else:
     raise ValueError(f"Unknown eval_config_name {args['eval_config_name']}")
 
