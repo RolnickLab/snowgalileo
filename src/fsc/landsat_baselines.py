@@ -951,7 +951,6 @@ class LandsatEvalSklearn(LandsatEval):
         normalization: str = "std",
     ) -> Dict[str, float]:
         assert normalization in ["std", ""], f"Unknown normalization {normalization}"
-        assert id in ["rockies", "switzerland"], f"Unknown id {id}"
 
         test_ds = LandsatEvalDatasetSklearn(
             split="test",
