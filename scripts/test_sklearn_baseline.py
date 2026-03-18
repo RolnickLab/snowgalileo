@@ -55,12 +55,17 @@ argparser.add_argument(
 argparser.add_argument(
     "--model_checkpoint_path", default="landsat_rf_model_rf_50est_19012026.joblib"
 )
+argparser.add_argument(
+    "--id",
+    type=str,
+    default="default"
+)
 args = argparser.parse_args().__dict__
 
 if "rockies" in args["eval_config_name"]:
-    id = "rockies"
+    id = f"rockies_{args["id"]}"
 elif "switzerland" in args["eval_config_name"]:
-    id = "switzerland"
+    id = f"switzerland_{args["id"]}"
 else:
     raise ValueError(f"Unknown eval_config_name {args['eval_config_name']}")
 
