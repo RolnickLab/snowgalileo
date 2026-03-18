@@ -177,15 +177,15 @@ class LandsatEvalDatasetSklearn(LandsatEvalDataset):
                 st_m,
             ) = self.mask_prediction_era5(s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m)
 
-        label = self.label_tifs[idx]
+        image_path, label_path = self.pairs[idx]
         # TODO: optinally add conversion to h5pys for labels
-        with cast(xr.Dataset, rioxarray.open_rasterio(label)) as data:
+        with cast(xr.Dataset, rioxarray.open_rasterio(label_path)) as data:
             label = cast(np.ndarray, data.values)
             # remove first dimension (for shape consistency)
             label = np.squeeze(label, axis=0)
 
-        assert self.tifs[idx].name == self.label_tifs[idx].name, (
-            f"Input path {self.tifs[idx].name} and label path {self.label_tifs[idx].name} do not match."
+        assert image_path.name.split(".")[0] == label_path.name.split(".")[0], (
+            f"Input path {image_path.name} and label path {label_path.name} do not match."
         )
 
         return (
@@ -205,7 +205,7 @@ class LandsatEvalDatasetSklearn(LandsatEvalDataset):
                 month,
             ),
             label,
-            self.tifs[idx].name,  # for logging purposes
+            image_path.name,  # for logging purposes
         )
 
 
