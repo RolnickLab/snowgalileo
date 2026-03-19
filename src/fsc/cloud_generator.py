@@ -125,14 +125,20 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
 }
 
 
-def generate_clouds(band_stack, band_weights, scaling_factors, cloud_prob=0.0, shadow_prob=0.0):
+def generate_clouds(band_stack, band_weights, scaling_factors, cloud_type="random", cloud_prob=0.0, shadow_prob=0.0):
     """Function to generate clouds. Input image should be in shape [B,C,H,W]. Band weights should be in shape [B,C,1,1]."""
 
     # the generator function takes reflectance values, but some inputs are in DN format.
     # we handle this by temporarily scaling to reflectance values
     band_stack *= scaling_factors.view(1, -1, 1, 1)
+    print(f"Using cloud type: {cloud_type}")
 
-    cfgs = [scg.WIDE_CONFIG, scg.BIG_CONFIG, scg.LOCAL_CONFIG, scg.FOG_CONFIG]
+    if cloud_type == "random":
+        cfgs = [scg.WIDE_CONFIG, scg.BIG_CONFIG, scg.LOCAL_CONFIG, scg.FOG_CONFIG]
+    elif cloud_type == "big":
+        cfgs = [scg.BIG_CONFIG]
+    elif cloud_type == "wide":
+        cfgs == [scg.WIDE_CONFIG]
 
     gens = []
 
@@ -244,7 +250,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         band_weights_tensor = torch.tensor(band_weights).float()
         scaling_factors_tensor = torch.tensor(scaling_factors).float()
 
-        def apply_clouds_at_timestep(t_idx, cloud_prob):
+        def apply_clouds_at_timestep(t_idx, cloud_prob, cloud_type):
             to_cloud = []
 
             for var, apply_mask, _ in channel_meta:
@@ -261,6 +267,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
                 band_stack=x_cloud_in_tensor,
                 band_weights=band_weights_tensor,
                 scaling_factors=scaling_factors_tensor,
+                cloud_type=cloud_type,
                 cloud_prob=cloud_prob,
                 shadow_prob=self.eval_config["cloud_generation"]["shadow_prob"],
             )
@@ -280,16 +287,19 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
 
                 c_start = c_end
 
+        cloud_type = self.eval_config.get("cloud_generation", {}).get("cloud_type", "random")
+
         if self.eval_config["cloud_generation"]["cloud_prob_pred_day"] > 0.0:
             apply_clouds_at_timestep(
                 -1,
                 self.eval_config["cloud_generation"]["cloud_prob_pred_day"],
+                cloud_type
             )
 
         if self.eval_config["cloud_generation"]["cloud_prob_timeseries"] > 0.0:
             prob = self.eval_config["cloud_generation"]["cloud_prob_timeseries"]
             for T in range(time_x.shape[-2]):
-                apply_clouds_at_timestep(T, prob)
+                apply_clouds_at_timestep(T, prob, cloud_type)
 
         return (
             space_time_high_res_x,
