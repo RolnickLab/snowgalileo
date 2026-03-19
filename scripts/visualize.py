@@ -99,7 +99,7 @@ if eval_config["cloud_generation"]["cloud_prob_pred_day"] > 0.0:
             exclude_prediction_sensors=args["exclude_prediction_sensors"],
             exclude_prediction_era5=not args["include_prediction_era5"],
             eval_config=eval_config,
-            h5pys_only=args["h5pys_only"],
+            h5pys_only=False,
             decoder_mode=decoder_mode,
         )
     )
