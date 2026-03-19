@@ -78,5 +78,7 @@ class DatasetSizeAblationsEval(LandsatEval):
         if data_config["dataset_subset_size"] > 0 and split == "train":
             indices = random.sample(range(len(dataset)), data_config["dataset_subset_size"])
             subset_dataset = Subset(dataset, indices)
+        else:
+            subset_dataset = dataset
 
         return subset_dataset
