@@ -8,6 +8,7 @@ import torch
 from src.config import DEFAULT_SEED
 from src.fsc import (
     LandsatEval,
+    CloudGeneratorEval
 )
 from src.fsc.patch_predict import EncoderWithHead
 from src.snowgalileo import Encoder
@@ -89,14 +90,28 @@ else:
         encoder_random_init, eval_config=eval_config[decoder_mode], sigmoid_slope=sigmoid_slope
     ).to(device)
 
-eval_task = LandsatEval(
-    exclude_prediction_high_res=args["exclude_prediction_high_res"],
-    exclude_prediction_sensors=args["exclude_prediction_sensors"],
-    exclude_prediction_date=args["exclude_prediction_date"],
-    exclude_prediction_era5=not args["include_prediction_era5"],
-    eval_config=eval_config,
-    h5pys_only=False,
-    decoder_mode=decoder_mode,
-)
+if eval_config["cloud_generation"]["cloud_prob_pred_day"] > 0.0:
+    print("Evaluating cloudy days")
+    eval_task: LandsatEval | CloudGeneratorEval = (
+        CloudGeneratorEval(
+            exclude_prediction_high_res=args["exclude_prediction_high_res"],
+            exclude_prediction_date=args["exclude_prediction_date"],
+            exclude_prediction_sensors=args["exclude_prediction_sensors"],
+            exclude_prediction_era5=not args["include_prediction_era5"],
+            eval_config=eval_config,
+            h5pys_only=args["h5pys_only"],
+            decoder_mode=decoder_mode,
+        )
+    )
+else:
+    eval_task = LandsatEval(
+        exclude_prediction_high_res=args["exclude_prediction_high_res"],
+        exclude_prediction_sensors=args["exclude_prediction_sensors"],
+        exclude_prediction_date=args["exclude_prediction_date"],
+        exclude_prediction_era5=not args["include_prediction_era5"],
+        eval_config=eval_config,
+        h5pys_only=False,
+        decoder_mode=decoder_mode,
+    )
 
 eval_task.visualize_sample_predictions(model=model, log_wandb=True)
