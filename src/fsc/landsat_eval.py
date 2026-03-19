@@ -1690,13 +1690,20 @@ class LandsatEval(EvalTask):
                 r2 = r2_score(labels.flatten(), preds_2D.flatten())
                 rmse = root_mean_squared_error(labels.flatten(), preds_2D.flatten())
 
+                b2 = s_t_h_x[0,:,:,-1,3]
+                b3 = s_t_h_x[0,:,:,-1,4]
+                b4 = s_t_h_x[0,:,:,-1,5]
+
+                rgb = np.stack([b4, b3, b2], axis=-1)
+                rgb_img = (rgb - rgb.min()) / (rgb.max() - rgb.min())
+
                 if log_wandb:
                     import matplotlib.pyplot as plt
                     import wandb
 
                     fig, axs = plt.subplots(1, 4, figsize=(20, 5))
-                    axs[0].imshow(s_t_h_x[0,:,:,-1,5], cmap="viridis", vmin=0, vmax=1)
-                    axs[0].set_title("Sentinel-2 B4")
+                    axs[0].imshow(rgb_img)
+                    axs[0].set_title("Input Sentinel-2 RGB")
                     axs[1].imshow(preds_2D, cmap="gray", vmin=0, vmax=1)
                     axs[1].set_title("Predictions")
                     axs[2].imshow(labels, cmap="gray", vmin=0, vmax=1)
