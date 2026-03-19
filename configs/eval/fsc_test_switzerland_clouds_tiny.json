@@ -1,8 +1,8 @@
 {
-    "name": "fsc_test_rockies_clouds_tiny",
+    "name": "fsc_test_switzerland_clouds_tiny",
     "data": {
-        "label_folder": "fsc_test_rockies_100m_masks",
-        "input_tif_folder": "fsc_test_rockies_100m_cropped",
+        "label_folder": "fsc_test_switzerland_100m_masks",
+        "input_tif_folder": "fsc_test_switzerland_100m_cropped",
         "input_h5py_folder": "",
         "sklearn_train_data_checkpoint_folder": "",
         "label_resolution": 100,
