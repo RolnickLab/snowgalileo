@@ -1694,14 +1694,16 @@ class LandsatEval(EvalTask):
                     import matplotlib.pyplot as plt
                     import wandb
 
-                    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
-                    axs[0].imshow(preds_2D, cmap="gray", vmin=0, vmax=1)
-                    axs[0].set_title("Predictions")
-                    axs[1].imshow(labels, cmap="gray", vmin=0, vmax=1)
-                    axs[1].set_title("Ground Truth")
-                    axs[2].imshow(np.abs(preds_2D - labels), cmap="coolwarm", vmin=0, vmax=1)
-                    axs[2].set_title("Absolute Error")
-                    fig.colorbar(axs[2].images[0], ax=axs[2], orientation="vertical")
+                    fig, axs = plt.subplots(1, 4, figsize=(20, 5))
+                    axs[0].imshow(s_t_h_x[0,:,:,-1,5], cmap="viridis", vmin=0, vmax=1)
+                    axs[0].set_title("Sentinel-2 B4")
+                    axs[1].imshow(preds_2D, cmap="gray", vmin=0, vmax=1)
+                    axs[1].set_title("Predictions")
+                    axs[2].imshow(labels, cmap="gray", vmin=0, vmax=1)
+                    axs[2].set_title("Ground Truth")
+                    axs[3].imshow(np.abs(preds_2D - labels), cmap="coolwarm", vmin=0, vmax=1)
+                    axs[3].set_title("Absolute Error")
+                    fig.colorbar(axs[3].images[0], ax=axs[2], orientation="vertical")
                     # plt.savefig(f"visualizations/{filename}_r2_{r2}_rmse_{rmse}.png")
 
                     filename = filename[0].split(".tif")[0]
