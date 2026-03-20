@@ -124,6 +124,17 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
     },
 }
 
+FULL_CONFIG={'min_lvl': [0.5,0.9],
+             'max_lvl': [1.0],
+             'const_scale':True,
+             'decay_factor':1.0,
+             'clear_threshold':0.0,
+             'locality_degree':1,
+             'cloud_color':[True,False],
+             'channel_offset':2,
+             'blur_scaling':2
+            }
+
 
 def generate_clouds(band_stack, band_weights, scaling_factors, cloud_type="random", cloud_prob=0.0, shadow_prob=0.0):
     """Function to generate clouds. Input image should be in shape [B,C,H,W]. Band weights should be in shape [B,C,1,1]."""
@@ -138,7 +149,9 @@ def generate_clouds(band_stack, band_weights, scaling_factors, cloud_type="rando
     elif cloud_type == "big":
         cfgs = [scg.BIG_CONFIG]
     elif cloud_type == "wide":
-        cfgs == [scg.WIDE_CONFIG]
+        cfgs = [scg.WIDE_CONFIG]
+    elif cloud_type == "full":
+        cfgs = [FULL_CONFIG]
 
     gens = []
 
