@@ -60,6 +60,11 @@ argparser.add_argument(
     type=str,
     default="default"
 )
+argparser.add_argument(
+    "--h5pys_only",
+    action="store_true",
+    help="Whether to only use h5pys (faster, but need to be already stored in this format)",
+)
 args = argparser.parse_args().__dict__
 
 if "rockies" in args["eval_config_name"]:
@@ -85,6 +90,7 @@ rf = LandsatEvalSklearn(
     exclude_prediction_sensors=args["exclude_prediction_sensors"],
     exclude_prediction_era5=not args["include_prediction_era5"],
     resample=False,
+    h5pys_only=args["h5pys_only"],
     eval_config=config,
     model_type=args["model_type"],
     normalizing_dict=normalizing_dict,
