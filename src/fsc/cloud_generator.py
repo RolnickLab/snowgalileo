@@ -125,7 +125,7 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
 }
 
 FULL_CONFIG={'min_lvl': [0.5,0.9],
-             'max_lvl': [1.0],
+             'max_lvl': 1.0,
              'const_scale':True,
              'decay_factor':1.0,
              'clear_threshold':0.0,
