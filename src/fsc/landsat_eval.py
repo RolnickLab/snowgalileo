@@ -584,7 +584,6 @@ class LandsatEvalDataset(BaseDataset):
 
     def __getitem__(self, idx):
         if self.h5pys_only:
-            print(f"Using images from path {h5py_path}", flush=True)
             h5py_path, _ = self.pairs[idx]
             image = self.read_and_slice_h5py_file(h5py_path)
         else:
