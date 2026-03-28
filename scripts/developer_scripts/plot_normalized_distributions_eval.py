@@ -31,7 +31,7 @@ def plot_distribution(data, channel_name, folder, filename):
 class PlottingDataset(BaseDataset):
     def __init__(
         self,
-        split: str = "train",
+        split: str = "test",
         h5pys_only: bool = False,
         exclude_prediction_date: bool = False,
         exclude_prediction_high_res: bool = False,
@@ -64,6 +64,8 @@ args = argparser.parse_args().__dict__
 if __name__ == "__main__":
     with (Path("configs/") / Path(args["eval_config"])).open("r") as f:
         eval_config = json.load(f)
+
+    save_folder = args["save_folder"]
 
     dataset = PlottingDataset(data_config=eval_config["data"])
 
