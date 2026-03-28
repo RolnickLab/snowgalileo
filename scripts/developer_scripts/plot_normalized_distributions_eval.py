@@ -15,15 +15,16 @@ from src.data.dataset import Normalizer
 from src.fsc.downstream_augmentation import DownstreamAugmentation
 from src.fsc.landsat_eval import LandsatEvalDataset as BaseDataset
 from src.utils import config_dir
+import numpy as np
 
 
-def plot_distribution(data, channel_idx, channel_name, filename):
+def plot_distribution(data, channel_name, folder, filename):
     plt.figure(figsize=(10, 6))
     sns.histplot(data.numpy().flatten(), bins=100, kde=True)
-    plt.title(f"Distribution of {channel_name} (Channel {channel_idx})")
+    plt.title(f"Distribution of {channel_name}, mean: {np.mean(data)}, std: {np.std(data)}, total num pixels: {len(data)}")
     plt.xlabel("Value")
     plt.ylabel("Frequency")
-    plt.savefig(Path("assets_eval") / filename)
+    plt.savefig(Path(folder) / filename)
     plt.close()
 
 
@@ -54,13 +55,14 @@ class PlottingDataset(BaseDataset):
 
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument("--eval_config", type=str, default="fsc_train_balanced_tiny.json")
+argparser.add_argument("--eval_config", type=str, default="eval/fsc_test_rockies_tiny.json")
 argparser.add_argument("--normalize", action="store_true", help="Whether to normalize the data")
+argparser.add_argument("--save_folder", type=str, default="assets_eval_rockies")
 
 args = argparser.parse_args().__dict__
 
 if __name__ == "__main__":
-    with (Path("configs/finetune") / Path(args["eval_config"])).open("r") as f:
+    with (Path("configs/") / Path(args["eval_config"])).open("r") as f:
         eval_config = json.load(f)
 
     dataset = PlottingDataset(data_config=eval_config["data"])
@@ -231,7 +233,7 @@ if __name__ == "__main__":
             )
         ):
             plot_distribution(
-                data, idx, channel_name, f"{channel_name.replace(' ', '_')}_distribution.png"
+                data, channel_name, save_folder, f"{channel_name.replace(' ', '_')}_distribution.png"
             )
 
         # print the number of values that are below -1 or above 1 for NDSI and NDVI
@@ -278,7 +280,7 @@ if __name__ == "__main__":
             )
         ):
             plot_distribution(
-                data, idx, channel_name, f"{channel_name.replace(' ', '_')}_distribution.png"
+                data, channel_name, save_folder, f"{channel_name.replace(' ', '_')}_distribution.png"
             )
 
         for idx, (data, channel_name) in enumerate(
@@ -308,12 +310,12 @@ if __name__ == "__main__":
             )
         ):
             plot_distribution(
-                data, idx, channel_name, f"{channel_name.replace(' ', '_')}_distribution.png"
+                data, channel_name, save_folder, f"{channel_name.replace(' ', '_')}_distribution.png"
             )
 
         for idx, (data, channel_name) in enumerate(
             zip([st_x_c0_valid, st_x_c1_valid, st_x_c2_valid], ["x", "y", "z"])
         ):
             plot_distribution(
-                data, idx, channel_name, f"{channel_name.replace(' ', '_')}_distribution.png"
+                data, channel_name, save_folder, f"{channel_name.replace(' ', '_')}_distribution.png"
             )
