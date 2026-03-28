@@ -19,9 +19,9 @@ import numpy as np
 
 
 def plot_distribution(data, channel_name, folder, filename):
-    data = data.numpy().flatten(), bins=100, kde=True
+    data = data.numpy().flatten()
     plt.figure(figsize=(10, 6))
-    sns.histplot(data)
+    sns.histplot(data, bins=100, kde=True)
     plt.title(f"Distribution of {channel_name}, mean: {np.mean(data)}, std: {np.std(data)}, total num pixels: {len(data)}")
     plt.xlabel("Value")
     plt.ylabel("Frequency")
