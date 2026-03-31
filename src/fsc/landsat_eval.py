@@ -1554,8 +1554,8 @@ class LandsatEval(EvalTask):
                     f.write(f"{filename[0]},{r2},{rmse}\n")
 
                 # save the predictions and labels for later analysis
-                np.save(RESULTS_FOLDER / f"{filename[0]}_preds.npy", preds_2D)
-                np.save(RESULTS_FOLDER / f"{filename[0]}_labels.npy", labels)
+                np.save(results_path / f"{filename[0]}_preds.npy", preds_2D)
+                np.save(results_path / f"{filename[0]}_labels.npy", labels)
 
     @torch.no_grad()
     def _visualize_predictions(
