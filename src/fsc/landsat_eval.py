@@ -1463,7 +1463,10 @@ class LandsatEval(EvalTask):
         )
 
         # create a csv to store results
-        results_csv_path = RESULTS_FOLDER / f"evaluation_results_{id}.csv"
+        results_path = RESULTS_FOLDER / id
+        results_csv_path = results_path / f"evaluation_results_{id}.csv"
+
+        results_path.mkdir(parents=True, exist_ok=True)
         results_csv_path.touch(exist_ok=True)
 
         # create header if file is empty
@@ -1550,7 +1553,9 @@ class LandsatEval(EvalTask):
                 with open(results_csv_path, "a") as f:
                     f.write(f"{filename[0]},{r2},{rmse}\n")
 
-            print(f"Saved predictions for {filename} with R2: {r2}", flush=True)
+                # save the predictions and labels for later analysis
+                np.save(RESULTS_FOLDER / f"{filename[0]}_preds.npy", preds_2D)
+                np.save(RESULTS_FOLDER / f"{filename[0]}_labels.npy", labels)
 
     @torch.no_grad()
     def _visualize_predictions(
