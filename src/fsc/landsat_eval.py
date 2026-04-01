@@ -1424,8 +1424,8 @@ class LandsatEval(EvalTask):
         results_to_save = {
             "prefix": id,
             "checkpoint_name": checkpoint_name,
-            "config_name": self.data_config["name"],
-            "dataset": self.data_config["data"]["label_folder"].split("_")[2],
+            "config_name": self.eval_config["name"],
+            "dataset": self.data_config["label_folder"].split("_")[2],
             "exclude_prediction_high_res": self.exclude_prediction_high_res,
             "decoder_mode": self.decoder_mode,
             "rmse": results["model"]["regression"]["rmse"],
