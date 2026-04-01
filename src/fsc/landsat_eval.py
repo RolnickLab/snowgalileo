@@ -1449,7 +1449,7 @@ class LandsatEval(EvalTask):
         out_path.parent.mkdir(parents=True, exist_ok=True)
 
         with open(out_path, "w") as f:
-            json.dump(results, f, indent=2)
+            json.dump(results_to_save, f, indent=2)
 
         if log_wandb:
             import wandb
@@ -1587,6 +1587,7 @@ class LandsatEval(EvalTask):
                     f.write(f"{filename[0]},{r2},{rmse}\n")
 
                 # save the predictions and labels for later analysis
+                np.save(results_path / f"{filename[0]}_input.npy", s_t_h_x.cpu().numpy())
                 np.save(results_path / f"{filename[0]}_preds.npy", preds_2D)
                 np.save(results_path / f"{filename[0]}_labels.npy", labels)
 
