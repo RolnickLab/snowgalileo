@@ -710,4 +710,8 @@ def evaluate_seg(
         majority_baseline_preds_2D, binned_targets_np
     )
 
+    results["baseline"]["balanced"]["segmentation"] = compute_segmentation_metrics(
+        binned_preds_np_f, binned_targets_np_f
+    )
+
     return results

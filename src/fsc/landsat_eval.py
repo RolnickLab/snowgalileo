@@ -1396,7 +1396,7 @@ class LandsatEval(EvalTask):
         print(results)
 
     @torch.no_grad()
-    def _evaluate_model(self, model: EncoderWithHead, id: str, log_wandb: bool = True):
+    def _evaluate_model(self, model: EncoderWithHead, id: str, checkpoint_name: str = "", log_wandb: bool = True):
         test_ds = self._get_dataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
@@ -1417,6 +1417,39 @@ class LandsatEval(EvalTask):
         )
 
         results = evaluate_seg(data_loader=test_dl, finetuned_model=model, device=device)
+
+        import json
+        from pathlib import Path
+
+        results_to_save = {
+            "prefix": id,
+            "checkpoint_name": checkpoint_name,
+            "config_name": self.data_config["name"],
+            "dataset": self.data_config["data"]["label_folder"].split("_")[2],
+            "exclude_prediction_high_res": self.exclude_prediction_high_res,
+            "decoder_mode": self.decoder_mode,
+            "rmse": results["model"]["regression"]["rmse"],
+            "r2": results["model"]["regression"]["r2"],
+            "mean_absolute_error": results["model"]["regression"]["mean_absolute_error"],
+            "median_absolute_error": results["model"]["regression"]["median_absolute_error"],
+            "miou": results["model"]["segmentation"]["miou"],
+            "rmse_majority_baseline": results["baseline"]["majority"]["regression"]["rmse"],
+            "r2_majority_baseline": results["baseline"]["majority"]["regression"]["r2"],
+            "mean_absolute_error_majority_baseline": results["baseline"]["majority"]["regression"]["mean_absolute_error"],
+            "median_absolute_error_majority_baseline": results["baseline"]["majority"]["regression"]["median_absolute_error"],
+            "miou_majority_baseline": results["baseline"]["majority"]["segmentation"]["miou"],
+            "rmse_balanced": results["baseline"]["balanced"]["regression"]["rmse"],
+            "r2_balanced": results["baseline"]["balanced"]["regression"]["r2"],
+            "mean_absolute_error_balanced": results["baseline"]["balanced"]["regression"]["mean_absolute_error"],
+            "median_absolute_error_balanced": results["baseline"]["balanced"]["regression"]["median_absolute_error"],
+            "miou_balanced": results["baseline"]["balanced"]["segmentation"]["miou"],
+        }
+
+        out_path = Path(f"results/{results_to_save['dataset']}") / f"{id}.json"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(out_path, "w") as f:
+            json.dump(results, f, indent=2)
 
         if log_wandb:
             import wandb
@@ -1889,8 +1922,8 @@ class LandsatEval(EvalTask):
             model, log_wandb=log_wandb, sklearn=sklearn, sklearn_models=sklearn_models
         )
 
-    def evaluate_model_on_task(self, model: EncoderWithHead, id: str):
-        self._evaluate_model(model=model, id=id)
+    def evaluate_model_on_task(self, model: EncoderWithHead, id: str, checkpoint_name: str = "", log_wandb: bool = True):
+        self._evaluate_model(model=model, id=id, checkpoint_name=checkpoint_name, log_wandb=log_wandb)
 
     def evaluate_indidvidual_samples(self, model: EncoderWithHead, id: str):
         self._evaluate_individual_samples(model, id=id)

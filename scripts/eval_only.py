@@ -146,4 +146,4 @@ else:
         decoder_mode=decoder_mode,
     )
 
-eval_task.evaluate_model_on_task(model=model, id=args["identifier"])
+eval_task.evaluate_model_on_task(model=model, id=args["identifier"], checkpoint_name=args["checkpoint_name"], log_wandb=True)
