@@ -419,7 +419,7 @@ def create_ee_image(
     between start_date and end_date, in intervals of
     days_per_timestep. Each timestep will be a different channel in the
     image (e.g. if I have 3 timesteps, then I'll have VV, VV_1, VV_2 for the
-    S1 VV bands). The static in time SRTM bands will also be in the image.
+    S1 VV bands). The static in time bands will also be in the image.
     """
     image_collection_list: List[ee.Image] = []
     cur_date = interval_start_date
