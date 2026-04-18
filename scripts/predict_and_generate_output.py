@@ -57,6 +57,10 @@ argparser.add_argument(
     help="ID for the evaluation run.",
 )
 argparser.add_argument(
+    "--h5pys_only",
+    action="store_true"
+)
+argparser.add_argument(
     "--decoding_strategy",
     type=str,
     default="finetune",
