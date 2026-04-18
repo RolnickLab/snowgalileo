@@ -51,9 +51,10 @@ argparser.add_argument(
     help="Config name for evaluation. Options are stored in configs/eval/",
 )
 argparser.add_argument(
-    "--h5pys_only",
-    action="store_true",
-    help="Where to only use h5pys (faster, but need to be already stored in this format)",
+    "--id",
+    type=str,
+    default="test_run",
+    help="ID for the evaluation run.",
 )
 argparser.add_argument(
     "--decoding_strategy",
@@ -105,5 +106,5 @@ eval_task = LandsatEval(
 )
 
 eval_task.predict_and_store_output(
-    model=model, id=args["checkpoint_name"], eval_config=args["eval_config_name"]
+    model=model, id=args["id"], eval_config=args["eval_config_name"]
 )

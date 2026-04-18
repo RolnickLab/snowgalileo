@@ -1248,11 +1248,11 @@ class LandsatEval(EvalTask):
             normalization=self.normalization,
         )
 
-        output_tif_folder = DATA_FOLDER / "output_tifs" / eval_config
+        output_tif_folder = DATA_FOLDER / "output_tifs" / id
         if not output_tif_folder.exists():
             output_tif_folder.mkdir(parents=True, exist_ok=True)
 
-        output_npy_folder = DATA_FOLDER / "output_png" / eval_config
+        output_npy_folder = DATA_FOLDER / "output_png" / id
         if not output_npy_folder.exists():
             output_npy_folder.mkdir(parents=True, exist_ok=True)
 
