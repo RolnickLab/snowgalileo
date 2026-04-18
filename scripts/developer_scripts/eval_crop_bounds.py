@@ -74,7 +74,7 @@ for file_name in os.listdir(mask_path):
                         mask_transform = mask_src.transform
                         mask_crs = mask_src.crs
 
-                        # TODO: an die Remote Sensing Leute: funktioniert das so?
+                        # Transform the mask's transform to match the input's resolution
                         transformed_mask_transform = mask_transform * rasterio.Affine.scale(
                             0.1, 0.1
                         )

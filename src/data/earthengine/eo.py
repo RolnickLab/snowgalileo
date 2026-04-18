@@ -413,10 +413,9 @@ def create_ee_image(
     interval_end_date: date,
     days_per_timestep: int = DAYS_PER_TIMESTEP,
 ) -> ee.Image:
-    # TODO: change function header
     """
     Returns an ee.Image which we can then export.
-    This image will contain S1, S2, ERA5 and Dynamic World data
+    This image will contain all time-varying data
     between start_date and end_date, in intervals of
     days_per_timestep. Each timestep will be a different channel in the
     image (e.g. if I have 3 timesteps, then I'll have VV, VV_1, VV_2 for the
@@ -575,8 +574,8 @@ class EarthEngineExporter:
 
         img = create_ee_image(polygon, interval_start_date, interval_end_date)
 
-        # important so we control the no data value
         # NOTE: in reality, GEE might still write values to zero with URL downloads
+        # this is why we explicitly mask known no data values in the dataset class later.
         img = img.unmask(self.no_data_val)  # type: ignore[attr-defined]
 
         if self.mode == "cloud":
