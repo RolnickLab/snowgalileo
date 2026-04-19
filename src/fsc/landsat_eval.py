@@ -170,7 +170,11 @@ class LandsatEvalDataset(BaseDataset):
     # TODO: make this dynamic
     def prediction_month_from_file(self, tif_path: Path) -> int:
         if self.split == "inference":
-            prediction_month = int(tif_path.name.split("_")[0][5:7])
+            try:
+                prediction_month = int(tif_path.name.split("_")[0][5:7])
+            except ValueError as e:
+                # this holds if we do inference on the test dataset
+                prediction_month = int(tif_path.name.split("_")[1][4:6])
         # assumes the tif file name is in the format "LC09_YYYYMMDD_[FSC]_[lat]_[lon].tif"
         else:
             prediction_month = int(tif_path.name.split("_")[1][4:6])
