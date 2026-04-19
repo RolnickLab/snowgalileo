@@ -24,7 +24,7 @@ data_dir = Path(__file__).parent.parent / "data"
 logging_dir = Path(__file__).parent.parent / "logs"
 config_dir = Path(__file__).parent.parent / "configs"
 pretrain_config_dir = config_dir / "pretrain"
-checkpoints_dir = Path(__file__).parent.parent / "finetuning_checkpoints"
+checkpoints_dir = Path(__file__).parent.parent / "logging_checkpoints"
 
 if not torch.cuda.is_available():
     device = torch.device("cpu")
