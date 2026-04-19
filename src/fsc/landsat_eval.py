@@ -1234,7 +1234,7 @@ class LandsatEval(EvalTask):
 
     @torch.no_grad()
     def _predict_and_store_output(
-        self, model: EncoderWithHead, id: str, log_wandb: bool = True, eval_config: str = ""
+        self, model: EncoderWithHead, id: str, log_wandb: bool = True
     ):
         inference_ds = self._get_dataset(
             exclude_prediction_date=self.exclude_prediction_date,
