@@ -82,6 +82,12 @@ argparser.add_argument(
     action="store_true",
     help="Where to only use h5pys (faster, but need to be already stored in this format)",
 )
+argparser.add_argument(
+    "--seed",
+    type=int,
+    default=DEFAULT_SEED,
+    help="Random seed for reproducibility.",
+)
 argparser.add_argument("--resume_from_wandb_id", type=str, default="")
 args = argparser.parse_args().__dict__
 
@@ -126,6 +132,7 @@ eval_tasks: List[EvalTask] = [
             eval_config=eval_config,
             h5pys_only=args["h5pys_only"],
             job_id=job_id,
+            seed=args["seed"],
         )
     ],
 ]

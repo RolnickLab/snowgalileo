@@ -10,7 +10,6 @@ from src.data.dataset import Normalizer
 from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset
 from src.utils import config_dir, seed_everything
 
-seed_everything(DEFAULT_SEED)
 process = psutil.Process()
 
 
@@ -30,6 +29,7 @@ class DatasetSizeAblationsEval(LandsatEval):
         decoder_mode: str = "attention_probe",
         eval_config: Dict = {},
         job_id="",
+        seed: int = DEFAULT_SEED,
     ):
         super().__init__(
             exclude_prediction_date=exclude_prediction_date,
@@ -41,7 +41,11 @@ class DatasetSizeAblationsEval(LandsatEval):
             decoder_mode=decoder_mode,
             eval_config=eval_config,
             job_id=job_id,
+            seed=seed,
         )
+
+        seed_everything(seed)
+        
 
     def _get_dataset(
         self,
@@ -76,7 +80,9 @@ class DatasetSizeAblationsEval(LandsatEval):
         dataset.normalizer = normalizer
 
         if data_config["dataset_subset_size"] > 0 and split == "train":
-            indices = random.sample(range(len(dataset)), data_config["dataset_subset_size"])
+            # we already set the seed, but just to be sure
+            rng = random.Random(self.seed)
+            indices = rng.sample(range(len(dataset)), data_config["dataset_subset_size"])
             subset_dataset = Subset(dataset, indices)
         else:
             subset_dataset = dataset
