@@ -258,13 +258,13 @@ class LandsatEvalDataset(BaseDataset):
             # TODO: make this dynamic in case the tif_path has a different naming convention
             parts = tif_path.stem.split("_")
 
-            if self.split == "inference":
-                lat = float(parts[2])
-                lon = float(parts[3])
-
-            else:
+            if parts[0].startswith("LC") or parts[0].startswith("LE"):  # Landsat 8 or 9
                 lat = float(parts[3])
                 lon = float(parts[4])
+
+            else:
+                lat = float(parts[2])
+                lon = float(parts[3])
 
         num_timesteps = (values.shape[0] - len(EE_SPACE_BANDS)) / len(EO_ALL_DYNAMIC_IN_TIME_BANDS)
         assert num_timesteps % 1 == 0, f"{tif_path} has incorrect number of channels"
