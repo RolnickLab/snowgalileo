@@ -1251,7 +1251,7 @@ class LandsatEval(EvalTask):
         if not output_tif_folder.exists():
             output_tif_folder.mkdir(parents=True, exist_ok=True)
 
-        output_npy_folder = DATA_FOLDER / "output_png" / id
+        output_npy_folder = DATA_FOLDER / "output_npys" / id
         if not output_npy_folder.exists():
             output_npy_folder.mkdir(parents=True, exist_ok=True)
 
