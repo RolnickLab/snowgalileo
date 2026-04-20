@@ -108,5 +108,5 @@ eval_task = LandsatEval(
 
 eval_task.evaluate_indidvidual_samples(
     model=model,
-    id=f"{args['eval_config_name'].split('.')[0]}_{args['checkpoint_name'].split('.pth')[0].split('_')[-1]}",
+    id=f"{args['eval_config_name'].split('.')[0]}_{args['checkpoint_name'].split('.pth')[0]}",
 )
