@@ -169,7 +169,7 @@ class LandsatEvalDataset(BaseDataset):
     # NOTE: overwritten from TifDataset since the eval tif files have different naming conventions
     # TODO: make this dynamic
     def prediction_month_from_file(self, tif_path: Path) -> int:
-        if tif_path.name.startswith("LC09") or tif_path.name.startswith("LE09"):
+        if tif_path.name.startswith("LC09") or tif_path.name.startswith("LE09") or tif_path.name.startswith("LC08"):
             prediction_month = int(tif_path.name.split("_")[1][4:6])
         else:
             prediction_month = int(tif_path.name.split("_")[0][5:7])
