@@ -597,6 +597,8 @@ class EarthEngineExporterEval(EarthEngineExporter):
             print(f"Converting {crs} to EPSG:4326")
             from pyproj import Transformer
 
+            filename = f"PR_{dat}_{center_x[i]:.16f}_{center_y[i]:.16f}.tif"
+
             # NOTE: always_xy=True ensures that the first coordinate is always in northerly direction
             transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
             min_lon, min_lat = transformer.transform(min_xx, min_yy)
