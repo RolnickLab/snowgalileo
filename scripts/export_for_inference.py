@@ -17,4 +17,4 @@ args = argparser.parse_args().__dict__
 exporter = EarthEngineExporterEval(
     check_gcp=args["check_gcp"], mode=args["mode"], tifs_folder=args["tifs_folder"]
 )
-exporter.export_from_csv(csv_file=args["path_to_csv"])
+exporter.export_from_csv_utm(csv_file=args["path_to_csv"])

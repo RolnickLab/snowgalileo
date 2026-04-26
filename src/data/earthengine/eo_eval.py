@@ -537,7 +537,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
             self.sync_local_and_gcloud()
             print("Finished sync")
 
-    def export_from_csv(self, csv_file) -> None:
+    def export_from_csv_wgs84(self, csv_file) -> None:
         df = pd.read_csv(csv_file)
         dates = df["date"].tolist()
         lats = df["latitude"].tolist()
@@ -564,6 +564,63 @@ class EarthEngineExporterEval(EarthEngineExporter):
                 ),
                 interval_start_date=WINDOW_START_DATE,
                 interval_end_date=WINDOW_END_DATE,
+            )
+            if export_started:
+                exports_started += 1
+
+        if self.mode == "url":
+            print("Export finished. Syncing to google cloud")
+            self.sync_local_and_gcloud()
+            print("Finished sync")
+
+
+    def export_from_csv_utm(self, csv_file) -> None:
+        df = pd.read_csv(csv_file)
+        dates = df["date"].tolist()
+        crs = df["crs"].tolist()
+        center_x = df["center_x"].tolist()
+        center_y = df["center_y"].tolist()
+        min_x = df["min_x"].tolist()
+        max_x = df["max_x"].tolist()
+        min_y = df["min_y"].tolist()
+        max_y = df["max_y"].tolist()
+
+        exports_started = 0
+        print(f"Exporting {len(dates)} files: ")
+
+        for i, dat in enumerate(dates):
+            min_yy, max_yy = min_y[i], max_y[i]
+            min_xx, max_xx = min_x[i], max_x[i]
+            crs = crs[i]
+
+            # reproject to EPSG:4326
+            print(f"Converting {crs} to EPSG:4326")
+            from pyproj import Transformer
+
+            # NOTE: always_xy=True ensures that the first coordinate is always in northerly direction
+            transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
+            min_lon, min_lat = transformer.transform(min_xx, min_yy)
+            max_lon, max_lat = transformer.transform(max_xx, max_yy)
+
+            ee_bbox = EEGeometry.from_coord_bounds(
+                min_lat=min_lat,
+                max_lat=max_lat,
+                min_lon=min_lon,
+                max_lon=max_lon,
+                proj="EPSG:4326",
+            )
+
+            WINDOW_END_DATE = datetime.strptime(str(dat), "%Y%m%d").date()
+            WINDOW_START_DATE = WINDOW_END_DATE - timedelta(days=NUM_TIMESTEPS - 1)
+
+            export_started = self._export_for_polygon(
+                polygon=ee_bbox,
+                polygon_identifier=ee_bbox.get_identifier(
+                    WINDOW_START_DATE, WINDOW_END_DATE, for_eval_from_csv=True
+                ),
+                interval_start_date=WINDOW_START_DATE,
+                interval_end_date=WINDOW_END_DATE,
+                crs=crs,
             )
             if export_started:
                 exports_started += 1
