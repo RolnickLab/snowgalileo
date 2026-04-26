@@ -577,7 +577,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
     def export_from_csv_utm(self, csv_file) -> None:
         df = pd.read_csv(csv_file)
         dates = df["date"].tolist()
-        crs = df["crs"].tolist()
+        coordinate_system = df["crs"].tolist()
         center_x = df["center_x"].tolist()
         center_y = df["center_y"].tolist()
         min_x = df["min_x"].tolist()
@@ -591,7 +591,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
         for i, dat in enumerate(dates):
             min_yy, max_yy = min_y[i], max_y[i]
             min_xx, max_xx = min_x[i], max_x[i]
-            crs = crs[i]
+            crs = coordinate_system[i]
 
             # reproject to EPSG:4326
             print(f"Converting {crs} to EPSG:4326")
@@ -600,7 +600,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
             filename = f"PR_{dat}_{center_x[i]:.16f}_{center_y[i]:.16f}.tif"
 
             # NOTE: always_xy=True ensures that the first coordinate is always in northerly direction
-            transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
+            transformer = Transformer.from_crs(32611, "EPSG:4326", always_xy=True)
             min_lon, min_lat = transformer.transform(min_xx, min_yy)
             max_lon, max_lat = transformer.transform(max_xx, max_yy)
 
