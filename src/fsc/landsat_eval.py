@@ -1512,6 +1512,10 @@ class LandsatEval(EvalTask):
         all_preds_1D = []
         all_labels_1D = []
 
+        # compute overall rmse across all samples for double-checking
+        total_se = 0
+        total_n = 0
+
         with torch.no_grad():
             for masked_output, labels, filename in tqdm(
                 test_dl, desc="Predicting visualization images"
@@ -1585,10 +1589,19 @@ class LandsatEval(EvalTask):
                 with open(results_csv_path, "a") as f:
                     f.write(f"{filename[0]},{r2},{rmse}\n")
 
+                se = np.sum((preds_2D.flatten() - labels.flatten()) ** 2)
+                total_se += se
+                total_n += preds_2D.flatten().size
+
                 # save the predictions and labels for later analysis
                 np.save(results_path / f"{filename[0]}_input.npy", s_t_h_x.cpu().numpy())
                 np.save(results_path / f"{filename[0]}_preds.npy", preds_2D)
                 np.save(results_path / f"{filename[0]}_labels.npy", labels)
+
+        overall_rmse = np.sqrt(total_se / total_n)
+        # append overall rmse to the end of the csv
+        with open(results_csv_path, "a") as f:
+            f.write(f"overall_rmse,{overall_rmse}\n")
 
     @torch.no_grad()
     def _visualize_predictions(
