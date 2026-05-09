@@ -1262,6 +1262,8 @@ class LandsatEval(EvalTask):
             num_workers=0,
         )
 
+        model.eval()
+
         with torch.no_grad():
             for masked_output, filepath in tqdm(inference_dl, desc="Predicting output"):
                 (
