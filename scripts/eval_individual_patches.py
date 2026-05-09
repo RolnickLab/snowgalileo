@@ -62,6 +62,11 @@ argparser.add_argument(
     choices=["finetune", "linear_probe", "attention_probe"],
     help="Decoding strategy to use. 'Finetune' uses a linear decoder and finetunes the entire model. 'Linear_probe' uses a linear decoder and only trains the decoder. 'Attention_probe' uses an attention-based decoder and fine-tunes the entire model. 'sklearn' uses the frozen encoder features for a sklearn model.",
 )
+argparser.add_argument(
+    "--prefix",
+    type=str,
+    default="default",
+)
 args = argparser.parse_args().__dict__
 
 decoder_mode = args["decoding_strategy"]
@@ -108,5 +113,5 @@ eval_task = LandsatEval(
 
 eval_task.evaluate_indidvidual_samples(
     model=model,
-    id=f"{args['eval_config_name'].split('.')[0]}_{args['checkpoint_name'].split('.pth')[0]}",
+    id=f"{args['prefix']}_{args['checkpoint_name'].split('.pth')[0]}",
 )

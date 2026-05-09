@@ -1495,8 +1495,9 @@ class LandsatEval(EvalTask):
         )
 
         # create a csv to store results
-        results_path = RESULTS_FOLDER / id
-        results_csv_path = results_path / f"evaluation_results_{id}.csv"
+        results_folder = RESULTS_FOLDER
+        results_path = results_folder / id
+        results_csv_path = results_folder / f"evaluation_results_{id}.csv"
 
         results_path.mkdir(parents=True, exist_ok=True)
         results_csv_path.touch(exist_ok=True)
@@ -1511,6 +1512,8 @@ class LandsatEval(EvalTask):
 
         all_preds_1D = []
         all_labels_1D = []
+
+        model.eval()
 
         # compute overall rmse across all samples for double-checking
         total_se = 0
