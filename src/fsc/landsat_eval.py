@@ -1787,9 +1787,6 @@ class LandsatEval(EvalTask):
                     visualization_folder / f"{filename}_r2_{r2}_rmse_{rmse}.npy",
                     preds_2D,
                 )
-                print(
-                    f"Saved predictions for {filename} with R2: {r2} and RMSE: {rmse}", flush=True
-                )
 
     @staticmethod
     def make_weights_for_balanced_classes(train_ds, nclasses):

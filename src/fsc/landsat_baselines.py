@@ -1037,7 +1037,7 @@ class LandsatEvalSklearn(LandsatEval):
 
         if save_results:
             # results
-            results_path = Path(f"./{self.model_type}_results_{id}.json")
+            results_path = Path(f"./{self.model_type}_{id}.json")
             with results_path.open("w") as f:
                 json.dump(results, f)
 
