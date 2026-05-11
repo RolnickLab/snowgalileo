@@ -976,7 +976,7 @@ class LandsatEvalSklearn(LandsatEval):
         all_preds = []
         all_test_labels = []
 
-        for input, label, _ in test_dl:
+        for input, label, filename in test_dl:
             (
                 s_t_h_x,
                 s_t_m_x,
@@ -1016,6 +1016,19 @@ class LandsatEvalSklearn(LandsatEval):
             preds = model.predict(input.numpy())
             all_preds.append(torch.as_tensor(preds))
             all_test_labels.append(torch.squeeze(label).flatten())
+
+            label_to_save = torch.squeeze(label).numpy()
+            pred_to_save = torch.as_tensor(preds).numpy().reshape(label_to_save.shape)
+
+            # save predictions and labels for each samplele
+            if save_results:
+                run_folder = Path(f"./{id}")
+                run_folder.mkdir(exist_ok=True)
+                sample_id = filename[0].split(".tif")[0]
+                sample_preds_path = Path(f"./{run_folder}/{sample_id}_{self.model_type}_preds.npy")
+                sample_labels_path = Path(f"./{run_folder}/{sample_id}_{self.model_type}_labels.npy")
+                np.save(sample_preds_path, pred_to_save)
+                np.save(sample_labels_path, label_to_save)
 
         test_preds = torch.cat(all_preds, dim=0).numpy()
         test_labels = torch.cat(all_test_labels, dim=0).numpy()
