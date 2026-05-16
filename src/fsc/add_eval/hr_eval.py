@@ -9,7 +9,7 @@ from einops import rearrange
 
 from src.config import DEFAULT_SEED
 from src.data.config import CHANNEL_WISE_INVALID_DATA_THRESHOLDS, NO_DATA_VALUE
-from src.data.dataset import Dataset as BaseDataset
+from src.fsc.landsat_eval import LandsatEvalDataset as BaseDataset
 from src.data.earthengine.eo_eval import (
     CLOUD_BANDS,
     EE_SPACE_BANDS,
