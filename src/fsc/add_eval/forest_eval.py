@@ -8,7 +8,7 @@ import xarray as xr
 from einops import rearrange
 
 from src.config import DEFAULT_SEED
-from src.fsc.landsat_eval import LandsatEvalDataset as BaseDataset
+from src.fsc.landsat_eval import Landsa as BaseDataset
 from src.data.earthengine.eo_eval import (
     EE_SPACE_BANDS,
 )
