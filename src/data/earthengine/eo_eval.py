@@ -600,7 +600,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
             filename = f"PR_{dat}_{center_x[i]:.16f}_{center_y[i]:.16f}.tif"
 
             # NOTE: always_xy=True ensures that the first coordinate is always in northerly direction
-            transformer = Transformer.from_crs(32611, "EPSG:4326", always_xy=True)
+            transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
             min_lon, min_lat = transformer.transform(min_xx, min_yy)
             max_lon, max_lat = transformer.transform(max_xx, max_yy)
 
