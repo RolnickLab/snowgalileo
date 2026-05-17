@@ -22,9 +22,8 @@ from src.data.config import DATA_FOLDER, RESULTS_FOLDER
 from src.data.dataset import Normalizer
 from src.data.earthengine.eo_eval import SPACE_TIME_HIGH_RES_BANDS, TIME_BANDS
 from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset, masked_output_np_to_tensor
+from sklearn.metrics import root_mean_squared_error
 from src.fsc.metrics import compute_regression_metrics
-
-from src.fsc.landsat_baselines import root_mean_squared_error
 
 
 class LandsatEvalDatasetSklearn(LandsatEvalDataset):
@@ -1050,7 +1049,7 @@ class LandsatEvalSklearn(LandsatEval):
 
                 # append results to csv with filename, r2, rmse
                 with open(results_csv_path, "a") as f:
-                    f.write(f"{filename[0]},{r2},{rmse}\n")
+                    f.write(f"{filename[0]},{rmse}\n")
 
 
         test_preds = torch.cat(all_preds, dim=0).numpy()
