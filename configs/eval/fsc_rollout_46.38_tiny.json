@@ -1,0 +1,91 @@
+{
+    "name": "fsc_rollout_46.38_tiny",
+    "data": {
+        "label_folder": "",
+        "input_tif_folder": "rollout_46.38_7.07_cropped",
+        "input_h5py_folder": "",
+        "sklearn_train_data_checkpoint_folder": "sklearn_train_data_checkpoint",
+        "label_resolution": 100,
+        "num_timesteps": 8,
+        "input_height_width": 100,
+        "num_classes": 1,
+        "split_type": "none",
+        "dataset_subset_size": 0
+    },
+    "finetune": {
+        "freeze_encoder": false,
+        "token_mapping": "spatial_mean"
+    },
+    "linear_probe": {
+        "freeze_encoder": true,
+        "token_mapping": "spatial_mean"
+    },
+    "attention_probe": {
+        "freeze_encoder": false,
+        "token_mapping": "attention_probe",
+        "n_heads": 2,
+        "attn_dropout_p": 0.0,
+        "use_tanh": false,
+        "hidden_dim": 0,
+        "attend_over_spatial": true
+    },
+    "hyperparameters_snowgalileo": {
+        "augmentation": true,
+        "batch_size": 8,
+        "num_workers": 4,
+        "weight_decay": 0.00001,
+        "schedule_sigmoid_slope": false,
+        "sigmoid_slope": 0.5,
+        "lr_schedule": true,
+        "learning_rate": 0.006,
+        "optimizer": "Adam",
+        "adam_beta_2": 0.9,
+        "warmup_fraction": 0.1,
+        "loss_fn": "MSE",
+        "med_and_low_res_repeat": true,
+        "num_patches_per_dim": 10
+    },
+    "hyperparameters_rf": {
+        "n_estimators": 400,
+        "min_samples_leaf": 2,
+        "min_samples_split": 2,
+        "max_depth": 30,
+        "max_features": "feature_dependent"
+    },
+    "hyperparameters_svr": {
+        "kernel": "rbf",
+        "epsilon": 0.1,
+        "bagging": true,
+        "C_base": 2,
+        "C_exponent": 0,
+        "degree": 3,
+        "gamma_base": 2,
+        "gamma_exponent": -5,
+        "max_iter": 5000
+    },
+    "hyperparameters_mlp": {
+        "learning_rate_init": 0.001,
+        "activation": "logistic",
+        "max_iter": 1000,
+        "hidden_layer_sizes": [256, 128, 64],
+        "alpha": 0.00001,
+        "batch_size": 128,
+        "solver": "adam"
+    },
+    "sensor_ablations": {
+        "ablate_era5": false,
+        "ablate_indeces": false,
+        "ablate_landcover": false,
+        "ablate_high_res_optical": false,
+        "ablate_high_res_sar": false,
+        "ablate_med_res_sensor": false,
+        "ablate_low_res_sensor": false,
+        "ablate_topography": false
+    },
+    "timeseries_ablations": false,
+    "cloud_generation": {
+        "cloud_prob_pred_day": 0.0,
+        "cloud_prob_timeseries": 0.0,
+        "shadow_prob": 0.0
+    }
+}
