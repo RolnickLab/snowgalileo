@@ -18,11 +18,13 @@ from sklearn.svm import SVR
 from torch.utils.data import DataLoader, Subset
 
 from src.config import DEFAULT_SEED
-from src.data.config import DATA_FOLDER
+from src.data.config import DATA_FOLDER, RESULTS_FOLDER
 from src.data.dataset import Normalizer
 from src.data.earthengine.eo_eval import SPACE_TIME_HIGH_RES_BANDS, TIME_BANDS
 from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset, masked_output_np_to_tensor
 from src.fsc.metrics import compute_regression_metrics
+
+from src.fsc.landsat_baselines import root_mean_squared_error
 
 
 class LandsatEvalDatasetSklearn(LandsatEvalDataset):
@@ -976,6 +978,20 @@ class LandsatEvalSklearn(LandsatEval):
         all_preds = []
         all_test_labels = []
 
+        if save_results:
+            # create a csv to store results
+            results_folder = RESULTS_FOLDER
+            results_path = results_folder / id
+            results_csv_path = results_folder / f"{id}.csv"
+
+            results_path.mkdir(parents=True, exist_ok=True)
+            results_csv_path.touch(exist_ok=True)
+
+            # create header if file is empty
+            if results_csv_path.stat().st_size == 0:
+                with open(results_csv_path, "w") as f:
+                    f.write("filename,r2,rmse\n")
+
         for input, label, filename in test_dl:
             (
                 s_t_h_x,
@@ -1020,7 +1036,7 @@ class LandsatEvalSklearn(LandsatEval):
             label_to_save = torch.squeeze(label).numpy()
             pred_to_save = torch.as_tensor(preds).numpy().reshape(label_to_save.shape)
 
-            # save predictions and labels for each samplele
+            # save predictions and labels for each sample
             if save_results:
                 run_folder = Path(f"./{id}")
                 run_folder.mkdir(exist_ok=True)
@@ -1029,6 +1045,13 @@ class LandsatEvalSklearn(LandsatEval):
                 sample_labels_path = Path(f"./{run_folder}/{sample_id}_{self.model_type}_labels.npy")
                 np.save(sample_preds_path, pred_to_save)
                 np.save(sample_labels_path, label_to_save)
+
+                rmse = root_mean_squared_error(label_to_save.flatten(), pred_to_save.flatten())
+
+                # append results to csv with filename, r2, rmse
+                with open(results_csv_path, "a") as f:
+                    f.write(f"{filename[0]},{r2},{rmse}\n")
+
 
         test_preds = torch.cat(all_preds, dim=0).numpy()
         test_labels = torch.cat(all_test_labels, dim=0).numpy()

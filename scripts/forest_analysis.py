@@ -45,6 +45,7 @@ tif_data_path = DATA_FOLDER / data_config["input_tif_folder"] / "test"
 forest_dataset = ForestMetaDataset(data_folder=tif_data_path)
 
 df = pd.read_csv(input_results_csv_path)
+df = df[df["filename"] != "overall_rmse"]
 all_files = df["filename"].tolist()
 
 ffc = []
