@@ -981,7 +981,7 @@ class LandsatEvalSklearn(LandsatEval):
             # create a csv to store results
             results_folder = RESULTS_FOLDER
             results_path = results_folder / id
-            results_csv_path = results_folder / f"{id}.csv"
+            results_csv_path = results_folder / f"{self.model_type}_{id}.csv"
 
             results_path.mkdir(parents=True, exist_ok=True)
             results_csv_path.touch(exist_ok=True)
@@ -989,7 +989,7 @@ class LandsatEvalSklearn(LandsatEval):
             # create header if file is empty
             if results_csv_path.stat().st_size == 0:
                 with open(results_csv_path, "w") as f:
-                    f.write("filename,r2,rmse\n")
+                    f.write("filename,rmse\n")
 
         for input, label, filename in test_dl:
             (
