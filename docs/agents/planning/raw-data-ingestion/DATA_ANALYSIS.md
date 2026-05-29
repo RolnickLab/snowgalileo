@@ -557,9 +557,7 @@ Direct-source requirements:
   collection. The current code uses harmonized top-of-atmosphere values, not
   Sentinel-2 Level-2A surface reflectance.
 - Select bands `B2`, `B3`, `B4`, `B8`, `B11`, and `B12`.
-- Preserve the Earth Engine harmonized digital-number convention. Scenes with
-  processing baseline `04.00` or later must be shifted so their value range
-  matches older scenes. In GEE, `S2_HARMONIZED` handles this offset.
+- Preserve the Earth Engine harmonized digital-number convention. Sentinel-2 data in GEE (both Level-1C via `COPERNICUS/S2_HARMONIZED` and Level-2A via `COPERNICUS/S2_SR_HARMONIZED`) are harmonized to correct for the processing baseline baseline 04.00+ offset (+1000 DN). Direct Copernicus products do NOT have this harmonization. The local adapter must read the granule metadata, check the processing baseline version, and subtract 1000 from the digital numbers if the baseline is `04.00` or later to ensure a harmonized time series.
 - Keep the current scaled-integer reflectance convention expected by the code:
   values are normalized later by division by `10000`.
 - Resample 20 m SWIR bands (`B11`, `B12`) onto the target export grid in a way

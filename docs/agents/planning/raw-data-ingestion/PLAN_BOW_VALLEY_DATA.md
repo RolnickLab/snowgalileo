@@ -276,6 +276,7 @@ Rules enforced by `base.py`:
   not responsible for replicating it.
 - Landsat adapter encapsulates the L9→L8 fallback internally (single
   `bands_out=["B2_landsat",..,"B7_landsat"]`), matching GEE behaviour.
+- **Sentinel-2 harmonization**: Sentinel-2 data in GEE (both Level-1C and Level-2A) are harmonized to correct for the processing baseline baseline 04.00+ offset (+1000 DN). Direct Copernicus products do NOT have this harmonization. The local S2 adapter must check the processing baseline version of each input granule and subtract 1000 from the digital numbers if the baseline is `04.00` or later to ensure a harmonized time series matching the model's expectations.
 - WorldCover adapter ignores `day` and returns the v200 2021 map. Hardcoded.
 
 ### LocalSourceExporter
