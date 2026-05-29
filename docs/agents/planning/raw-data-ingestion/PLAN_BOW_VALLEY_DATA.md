@@ -85,6 +85,20 @@ generator.
 **CRS is law** — every cell carries an explicit `transform`, `crs`, and `shape`
 triple that all adapters must conform to.
 
+### Fixed Extent Mosaic & Scene Coverage Complexity
+
+A fixed spatial extent is provided for the full Bow Valley AOI desired daily mosaic. This introduces significant operational complexity:
+- **Multi-Scene Composition**: The full AOI bbox is approximately 187 km × 162 km. This massive area requires a grid of roughly 2x2 product scenes (close to 4 scenes total of Landsat or Sentinel-2) to achieve complete spatial coverage.
+- **Incomplete Daily Coverage**: Because of sensor orbit path timings, swath widths, and scene collection grids, we will **never** have 100% spatial coverage of the full AOI on a single acquisition day/timestamp. Some parts of the AOI will have scenes on day `d`, while other parts will have nodata.
+- **Orbit/Swath Boundary Nodata**: Scenes near orbit boundaries or swath edges often contain significant regions of native nodata. Cells that overlap scene edges will have partial observations.
+- **Mosaicing & Composite Strategy in Direct-Source Pipeline**:
+  - For a given 1 km x 1 km grid cell, it may fall in the overlap region of multiple adjacent/swath-overlapping scenes on the same day, or it may fall on the edge of a scene where part of the cell is nodata.
+  - If we replicate GEE's naive `.first()` selection per day per cell, we might ingest a scene that only partially covers the cell even if a fully-covering scene is available, or we might miss coverage in the overlap areas.
+  - Therefore, the local adapters must handle mosaicing of all available scenes/granules for the target day *before* cropping to the 1 km grid cell. This ensures maximum coverage and reduces artificial `nodata` boundaries within grid cells.
+- **Heterogeneous Daily Coverage in daily mosaic**:
+  - The final daily mosaic will always be incomplete (heterogeneous coverage). Some 1 km grid cells will be completely invalid (all `-9999` inputs, leading to `nodata` in predictions), while others will have valid outputs.
+  - The `DailyMosaicWriter` must be robust to missing grid cells or cells with degenerate outputs, stitching only valid predictions into the daily UTM 11N COG.
+
 ### Temporal window
 
 | Parameter | Value | Source |
@@ -488,3 +502,5 @@ before approval.
 - VIIRS coarse bands are exported as per-pixel rasters on the cell grid; the
   loader (not the adapter) does the spatial mean into `time_x`.
 - Landsat L9→L8 fallback is encapsulated inside the Landsat adapter.
+- **Mosaicing overlapping daily scenes is mandatory**: Any scene overlaps or swath edge boundaries must be composite-mosaiced prior to cropping to avoid artificial nodata boundaries within a single 1 km grid cell.
+

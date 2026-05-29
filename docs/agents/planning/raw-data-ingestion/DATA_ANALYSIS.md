@@ -783,3 +783,6 @@ format.
 - The Earth Engine exporter's window is sampled per (point, season) triple, so
   each input point produces three GeoTIFFs (`early`, `mid`, `late`) per
   exporter run, not one.
+- **AOI Coverage and Scene Heterogeneity**: Large fixed-extent AOI mosaics (e.g. composed of a 2x2 grid of ~4 Sentinel-2 or Landsat scenes) suffer from incomplete daily coverage. On any specific date, full AOI coverage is impossible due to varying orbit paths, swathes, and scene boundaries. 
+- **Swath Boundary Nodata and Mosaicing**: Scenes/products near orbit edges or swath boundaries often contain significant nodata regions. In Earth Engine, naive `.first()` scene selection on the collection filtered by date and region is sufficient for a single small footprint but fails on cells intersecting scene boundaries or swath edges. A direct-source pipeline must mosaic all valid overlapping scenes/granules acquired on the target day prior to cell cropping to maximize pixel coverage and avoid artificial nodata boundaries within the 1 km grid cells.
+
