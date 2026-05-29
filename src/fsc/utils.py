@@ -15,14 +15,13 @@ def landsat_binary_mapping(arr, fill_value=-1):
 
 
 def extract_season_from_filename(filename: str) -> str:
-    """Extract season from filename assuming format: <prefix>_<YYYYMMDD>_<lat>_<lon>.tif"""
-
+    """Extract season from filename assuming format: <prefix>_<YYYYMMDD>_<lat>_<lon>.tif."""
     parts = Path(filename).stem.split("_")
     try:
         date_str = parts[1]
         month_day = date_str[4:8]  # MMDD
         # convert into MM-DD format
-        month_day = month_day[:2] + "-" + month_day[2:]
+        month_day = f"{month_day[:2]}-{month_day[2:]}"
 
         for season, (start, end) in NORTH_HEM_SEASONS.items():
             start_date = datetime.strptime(start, "%m-%d")
@@ -44,7 +43,7 @@ def extract_season_from_filename(filename: str) -> str:
 
 
 class SigmoidSlopeScheduler:
-    "Exponential decay."
+    """Exponential decay."""
 
     def __init__(self, model, start, end, total_steps):
         self.model = model

@@ -13,6 +13,7 @@ import wandb
 import xarray as xr
 from einops import rearrange, reduce, repeat
 from sklearn.ensemble import BaggingRegressor, RandomForestRegressor
+from sklearn.metrics import root_mean_squared_error
 from sklearn.neural_network import MLPRegressor
 from sklearn.svm import SVR
 from torch.utils.data import DataLoader, Subset
@@ -22,15 +23,14 @@ from src.data.config import DATA_FOLDER, RESULTS_FOLDER
 from src.data.dataset import Normalizer
 from src.data.earthengine.eo_eval import SPACE_TIME_HIGH_RES_BANDS, TIME_BANDS
 from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset, masked_output_np_to_tensor
-from sklearn.metrics import root_mean_squared_error
 from src.fsc.metrics import compute_regression_metrics
 
 
 class LandsatEvalDatasetSklearn(LandsatEvalDataset):
-    """
-    The Random Forest baseline uses the same dataset as the main LandsatEvalDataset,
-    but doesn't group channel masks into channel group masks, so that we can directly
-    remove masked channels for the Random Forest input.
+    """The Random Forest baseline uses the same dataset as the main
+    LandsatEvalDataset, but doesn't group channel masks into channel group
+    masks, so that we can directly remove masked channels for the Random Forest
+    input.
     """
 
     def __init__(
@@ -256,9 +256,11 @@ class LandsatEvalSklearn(LandsatEval):
         )
 
     def forward_filling_masked_data_per_channel_else_aggregate(self, x, m, t, array_type: str):
-        """Fills masked values in x by forward-filling along the time dimension per channel.
-        Remaining NaNs will fall back to aggregation replacement."""
+        """Fills masked values in x by forward-filling along the time dimension
+        per channel.
 
+        Remaining NaNs will fall back to aggregation replacement.
+        """
         assert x.dim() == 4, f"Expected 4D tensor, got shape {x.shape}"
 
         x = x.clone()
@@ -301,7 +303,9 @@ class LandsatEvalSklearn(LandsatEval):
     @staticmethod
     def median_replace(x, m, dims):
         """Replaces masked values in x with the median over the specified dims.
-        Breaks early if no NaNs are left after a replacement step."""
+
+        Breaks early if no NaNs are left after a replacement step.
+        """
         x = torch.masked_fill(x, m.bool(), float("nan"))
         for d in dims:
             x = torch.where(torch.isnan(x), torch.nanmedian(x, dim=d, keepdim=True).values, x)
@@ -312,9 +316,13 @@ class LandsatEvalSklearn(LandsatEval):
 
     def replace_masked_data_with_aggregate(self, x, m, array_type: str):
         """Replaces masked values in x with an aggregate.
-        First, tries to replace over the time dimension for timeseries data,
-        then over the space dimension. For space-only and static data, replaces over space dimension.
-        If no replacement is possible, fill with the per-channel mean of the pre-training data."""
+
+        First, tries to replace over the time dimension for timeseries
+        data, then over the space dimension. For space-only and static
+        data, replaces over space dimension. If no replacement is
+        possible, fill with the per-channel mean of the pre-training
+        data.
+        """
         # timeseries data with shape (B, S, C, T)
         if x.dim() == 4:
             dims = [-1, -3]
@@ -360,10 +368,11 @@ class LandsatEvalSklearn(LandsatEval):
         st_m,
         month,
     ):
-        """
-        Aggregates input data per output pixel by bringing all data to the output resolution.
-        This means upsampling medium and low resolution data,
-        and aggregating high resolution data to output pixel resolution.
+        """Aggregates input data per output pixel by bringing all data to the
+        output resolution.
+
+        This means upsampling medium and low resolution data, and
+        aggregating high resolution data to output pixel resolution.
         """
         # determine upsampling factors for medium and low resolution data
         p_m = self.num_tokens_per_dim // s_t_m_x.shape[1]
@@ -621,8 +630,8 @@ class LandsatEvalSklearn(LandsatEval):
         st_t,
         month,
     ):
-        """
-        Concatenates all data of a single image into shapes of [B, S, N], where for RF, S is n_samples and N is n_features.
+        """Concatenates all data of a single image into shapes of [B, S, N],
+        where for RF, S is n_samples and N is n_features.
         """
         # for timeseries data, flatten time and channel dimension
         s_t_h_x = rearrange(s_t_h_x, "b s t c -> b s (t c)")
@@ -682,7 +691,9 @@ class LandsatEvalSklearn(LandsatEval):
         if hyperparameters == {}:
             hyperparameters = self.eval_config[f"hyperparameters_{self.model_type}"]
 
-        assert self.eval_config["cloud_generation"]["cloud_prob_pred_day"] == 0.0 or self.h5pys_only, "Cloud generation is only supported with h5pys to this point."
+        assert (
+            self.eval_config["cloud_generation"]["cloud_prob_pred_day"] == 0.0 or self.h5pys_only
+        ), "Cloud generation is only supported with h5pys to this point."
 
         train_data_checkpoint_path = (
             Path(DATA_FOLDER) / self.eval_config["data"]["sklearn_train_data_checkpoint_folder"]
@@ -1041,7 +1052,9 @@ class LandsatEvalSklearn(LandsatEval):
                 run_folder.mkdir(exist_ok=True)
                 sample_id = filename[0].split(".tif")[0]
                 sample_preds_path = Path(f"./{run_folder}/{sample_id}_{self.model_type}_preds.npy")
-                sample_labels_path = Path(f"./{run_folder}/{sample_id}_{self.model_type}_labels.npy")
+                sample_labels_path = Path(
+                    f"./{run_folder}/{sample_id}_{self.model_type}_labels.npy"
+                )
                 np.save(sample_preds_path, pred_to_save)
                 np.save(sample_labels_path, label_to_save)
 
@@ -1050,7 +1063,6 @@ class LandsatEvalSklearn(LandsatEval):
                 # append results to csv with filename, r2, rmse
                 with open(results_csv_path, "a") as f:
                     f.write(f"{filename[0]},{rmse}\n")
-
 
         test_preds = torch.cat(all_preds, dim=0).numpy()
         test_labels = torch.cat(all_test_labels, dim=0).numpy()

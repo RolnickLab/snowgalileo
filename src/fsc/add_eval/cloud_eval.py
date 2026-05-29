@@ -22,7 +22,7 @@ process = psutil.Process()
 
 
 class CloudMetaDataset(BaseDataset):
-    """Dataset class for retrieving cloud metadata from MODIS data"""
+    """Dataset class for retrieving cloud metadata from MODIS data."""
 
     def __init__(self, data_folder, download=False, h5pys_only=False, *args, **kwargs):
         super().__init__(
@@ -43,7 +43,7 @@ class CloudMetaDataset(BaseDataset):
         """Retrieve cloud state from MODIS QA state integer
         QA state translation from Table 13 in https://lpdaac.usgs.gov/documents/306/MOD09_User_Guide_V6.pdf
         16-bit unsigned integer, bit 0 is LSB
-        Returns if there is cloud, cloud shadow, cirrus detected
+        Returns if there is cloud, cloud shadow, cirrus detected.
         """
         # fill value by MODIS QA state is 0
         if state == 0:
@@ -89,7 +89,7 @@ class CloudMetaDataset(BaseDataset):
 
     @classmethod
     def _get_cloud_band_and_location(cls, tif_path: Path):
-        """Extract the MODIS cloud band from a tif file"""
+        """Extract the MODIS cloud band from a tif file."""
         with cast(xr.Dataset, rioxarray.open_rasterio(tif_path)) as data:
             # [all_combined_bands, H, W]
             # all_combined_bands includes all dynamic-in-time bands
@@ -133,8 +133,11 @@ class CloudMetaDataset(BaseDataset):
     def _get_cloud_states(
         self, modis_cloud_x: np.ndarray, lat: float, lon: float, cloud_state_dict: dict
     ) -> Dict[str, Union[int, str, float]]:
-        """Get the last day with cloud and total number of cloudy days from modis qa state.
-        Uses majority voting in case of multiple observations per day."""
+        """Get the last day with cloud and total number of cloudy days from
+        modis qa state.
+
+        Uses majority voting in case of multiple observations per day.
+        """
         last_clear_day = -1
         total_clear_days = 0
         total_cloudy_days = 0

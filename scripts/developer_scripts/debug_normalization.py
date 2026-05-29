@@ -249,7 +249,6 @@ if __name__ == "__main__":
                 "st_x_c2_std": st_x_c2_valid.std() if len(st_x_c2_valid) > 0 else np.nan,
             }
         )
-
         """
         stats.append(
             {

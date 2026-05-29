@@ -1,7 +1,9 @@
 import argparse
 from pathlib import Path
+
 import rasterio
 from rasterio.windows import Window
+
 from src.data.config import DATA_FOLDER
 
 
@@ -29,10 +31,7 @@ def center_crop_tifs(input_folder, output_folder, crop_height=100, crop_width=10
             col_start = (width - crop_width) // 2
 
             window = Window(
-                col_off=col_start,
-                row_off=row_start,
-                width=crop_width,
-                height=crop_height
+                col_off=col_start, row_off=row_start, width=crop_width, height=crop_height
             )
 
             cropped = src.read(window=window)
@@ -41,11 +40,7 @@ def center_crop_tifs(input_folder, output_folder, crop_height=100, crop_width=10
             transform = src.window_transform(window)
 
             profile = src.profile.copy()
-            profile.update({
-                "height": crop_height,
-                "width": crop_width,
-                "transform": transform
-            })
+            profile.update({"height": crop_height, "width": crop_width, "transform": transform})
 
             output_path = output_folder / tif_file.name
 
@@ -65,5 +60,5 @@ if __name__ == "__main__":
         input_folder=Path(DATA_FOLDER / args.exported_tif_path),
         output_folder=Path(DATA_FOLDER / args.cropped_path),
         crop_height=100,
-        crop_width=100
+        crop_width=100,
     )

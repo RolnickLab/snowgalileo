@@ -30,8 +30,8 @@ def date_to_string(input_date: Union[date, str]) -> str:
 
 
 def create_placeholder(region: ee.Geometry, selected_bands, fill_value=NO_DATA_VALUE):
-    """
-    Creates a placeholder image for a region with constant values for each band in selected_bands.
+    """Creates a placeholder image for a region with constant values for each
+    band in selected_bands.
     """
     constant_bands = [ee.Image(ee.Number(fill_value)).rename(band) for band in selected_bands]
 
@@ -40,13 +40,13 @@ def create_placeholder(region: ee.Geometry, selected_bands, fill_value=NO_DATA_V
 
 
 def sample_time_window(start_date: str, end_date: str, window_size: int, seed=None):
-    """
-    Sample random time window within a specified date range.
+    """Sample random time window within a specified date range.
 
     Args:
         start_date: Start of the timeframe in 'YYYY-MM-DD' format.
         end_date: End of the timeframe in 'YYYY-MM-DD' format.
         window_size: Length of each time window in days.
+        seed: Random seet
 
     Returns:
         list of tuples: Each tuple contains the start and end dates of a sampled time window.
@@ -75,13 +75,14 @@ def sample_time_window(start_date: str, end_date: str, window_size: int, seed=No
 
 
 def sample_season_year(season, start_year, end_year, seed=None):
-    """
-    Randomly samples a year between start_year and end_year and assigns it to the season.
+    """Randomly samples a year between start_year and end_year and assigns it
+    to the season.
 
     Args:
         season: Tuple with season name as first and date ranges as second item.
         start_year (int): Start year for random sampling.
         end_year (int): End year for random sampling.
+        seed: Random seed
 
     Returns:
         dict: A dictionary with seasons as keys and randomly sampled year-specific date ranges.
@@ -113,7 +114,7 @@ def sample_season_year(season, start_year, end_year, seed=None):
 
 
 def get_location_season_identifier(filename) -> str:
-    return filename.split("_dates=")[0] + ".tif"
+    return f"{filename.split('_dates=')[0]}.tif"
 
 
 def copy_files_with_partial_check(src_folder, dest_folder):

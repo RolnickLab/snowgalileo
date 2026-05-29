@@ -7,9 +7,8 @@ from einops import rearrange
 
 
 class DownstreamFlipAndRotateSpace(object):
-    """
-    For now, lets have no parameters
-    Choose 1 of 8 transformations and apply it to space_time_x and space_x
+    """For now, lets have no parameters Choose 1 of 8 transformations and apply
+    it to space_time_x and space_x.
     """
 
     def __init__(self, enabled: bool):

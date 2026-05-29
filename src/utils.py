@@ -51,7 +51,7 @@ def seed_everything(seed: int = DEFAULT_SEED):
 def masked_output_np_to_tensor(
     s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, month
 ) -> MaskedOutput:
-    """converts eval task"""
+    """Converts eval task."""
     return MaskedOutput(
         torch.as_tensor(s_t_h_x, dtype=torch.float32),
         torch.as_tensor(s_t_m_x, dtype=torch.float32),
@@ -79,7 +79,7 @@ def save_checkpoint(model, filename="default.pth"):
 
 
 class AverageMeter:
-    """computes and stores the average and current value"""
+    """Computes and stores the average and current value."""
 
     average: float
     sum: float

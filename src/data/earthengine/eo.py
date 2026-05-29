@@ -345,10 +345,11 @@ def get_ee_task_list(key: str = "description") -> List[str]:
 
 
 def get_ee_task_amount(prefix: Optional[str] = None) -> int:
-    """
-    Gets amount of active tasks in Earth Engine.
+    """Gets amount of active tasks in Earth Engine.
+
     Args:
         prefix: Prefix to filter tasks.
+
     Returns:
         Amount of active tasks.
     """
@@ -403,7 +404,7 @@ def make_combine_bands_function(bands: List[str]):
 
 
 def ee_safe_str(s: str):
-    """Earth Engine descriptions only allow certain characters"""
+    """Earth Engine descriptions only allow certain characters."""
     return s.replace(".", "-").replace("=", "-").replace("/", "-")[:100]
 
 
@@ -413,13 +414,13 @@ def create_ee_image(
     interval_end_date: date,
     days_per_timestep: int = DAYS_PER_TIMESTEP,
 ) -> ee.Image:
-    """
-    Returns an ee.Image which we can then export.
-    This image will contain all time-varying data
-    between start_date and end_date, in intervals of
-    days_per_timestep. Each timestep will be a different channel in the
-    image (e.g. if I have 3 timesteps, then I'll have VV, VV_1, VV_2 for the
-    S1 VV bands). The static in time bands will also be in the image.
+    """Returns an ee.Image which we can then export.
+
+    This image will contain all time-varying data between start_date and
+    end_date, in intervals of days_per_timestep. Each timestep will be a
+    different channel in the image (e.g. if I have 3 timesteps, then
+    I'll have VV, VV_1, VV_2 for the S1 VV bands). The static in time
+    bands will also be in the image.
     """
     image_collection_list: List[ee.Image] = []
     cur_date = interval_start_date
@@ -464,8 +465,9 @@ def create_ee_image(
 
 
 class EarthEngineExporter:
-    """
-    Export satellite data from Earth engine. It's called using the following
+    """Export satellite data from Earth engine.
+
+    It's called using the following
     script:
     ```
     from src.data import EarthEngineExporter
@@ -636,7 +638,7 @@ class EarthEngineExporter:
                 local_path = Path(self.tifs_folder / local_filename)
                 with local_path.open("wb") as f:
                     shutil.copyfileobj(r.raw, f)
-                    print("Downloaded file " + local_filename, flush=True)
+                    print(f"Downloaded file {local_filename}", flush=True)
         return True
 
     def export_for_latlons(
@@ -644,10 +646,9 @@ class EarthEngineExporter:
         latlons: pd.DataFrame,
         num_exports_to_start: int = 3000,
     ) -> None:
-        """
-        Export boxes with length and width EXPORTED_HEIGHT_WIDTH_METRES
-        for the points in latlons (where latlons is a dataframe with
-        the columns "lat" and "lon")
+        """Export boxes with length and width EXPORTED_HEIGHT_WIDTH_METRES for
+        the points in latlons (where latlons is a dataframe with the columns
+        "lat" and "lon").
         """
         for expected_column in [LAT, LON]:
             assert expected_column in latlons

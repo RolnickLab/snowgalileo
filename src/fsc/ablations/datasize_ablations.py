@@ -45,7 +45,6 @@ class DatasetSizeAblationsEval(LandsatEval):
         )
 
         seed_everything(seed)
-        
 
     def _get_dataset(
         self,

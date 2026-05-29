@@ -17,11 +17,10 @@ from src.data_augmentation import Augmentation
 
 
 class MaskedOutput(NamedTuple):
-    """
-    A mask can take 3 values:
+    """A mask can take 3 values:
     0: seen by the encoder (i.e. makes the key and value tokens in the decoder)
     1: not seen by the encoder, and ignored by the decoder
-    2: not seen by the encoder, and processed by the decoder (the decoder's query values)
+    2: not seen by the encoder, and processed by the decoder (the decoder's query values).
     """
 
     space_time_high_x: torch.Tensor
@@ -289,15 +288,12 @@ def batch_mask_random(
     patch_size_med_res: int = 1,
     patch_size_low_res: int = 1,
 ):
-    """
-    Masks out random tokens (blocks of of pxpx1x1).
-    e.g. if mask_ratio=0.25, h = w = 8 and p=2, then a mask (for one timestep)
-    and channel group) might be
-    [0 0 1 1]
-    [0 0 1 1]
-    [0 0 0 0]
-    [0 0 0 0]
-    Operates over batches where each item in the batch is independently masked
+    """Masks out random tokens (blocks of of pxpx1x1).
+
+    e.g. if mask_ratio=0.25, h = w = 8 and p=2, then a mask (for one
+    timestep) and channel group) might be [0 0 1 1] [0 0 1 1] [0 0 0 0]
+    [0 0 0 0] Operates over batches where each item in the batch is
+    independently masked
     """
     b, h_h, w_h, t, _ = space_time_high_x.shape
     b, h_m, w_m, t, _ = space_time_med_x.shape

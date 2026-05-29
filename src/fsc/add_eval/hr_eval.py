@@ -27,7 +27,9 @@ process = psutil.Process()
 
 
 class HRMetaDataset(BaseDataset):
-    """Dataset class for retrieving forest metadata from ESA WorldCover data"""
+    """Dataset class for retrieving forest metadata from ESA WorldCover
+    data.
+    """
 
     def __init__(self, data_folder, download=False, h5pys_only=False, *args, **kwargs):
         super().__init__(
@@ -36,8 +38,8 @@ class HRMetaDataset(BaseDataset):
 
     @classmethod
     def _tif_to_array(cls, tif_path: Path):
-        """
-        Loads a spatiotemporal tif file, divides it into different array groups, and creates valid data masks.
+        """Loads a spatiotemporal tif file, divides it into different array
+        groups, and creates valid data masks.
 
         The different array types are:
         space_time_high_res_x: (H, W, T, C_STH)
