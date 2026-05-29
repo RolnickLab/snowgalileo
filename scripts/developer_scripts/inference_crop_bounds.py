@@ -2,21 +2,18 @@
 
 import argparse
 import gc
-import os
 from pathlib import Path
 from typing import Union
 
 import rasterio
-from rasterio.windows import Window
 from rasterio.transform import Affine
 
 from src.data.config import DATA_FOLDER
 
 
 def crop_center(input_data, crop_height=100, crop_width=100):
-    """
-    Crop the center region of shape (crop_height, crop_width)
-    from input_data with shape (C, H, W).
+    """Crop the center region of shape (crop_height, crop_width) from
+    input_data with shape (C, H, W).
     """
     _, height, width = input_data.shape
 
@@ -32,9 +29,7 @@ def crop_center(input_data, crop_height=100, crop_width=100):
 
 
 def update_transform_for_crop(transform, row_start, col_start):
-    """
-    Update geotransform after cropping.
-    """
+    """Update geotransform after cropping."""
     return transform * Affine.translation(col_start, row_start)
 
 

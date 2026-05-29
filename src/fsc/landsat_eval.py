@@ -169,7 +169,12 @@ class LandsatEvalDataset(BaseDataset):
     # NOTE: overwritten from TifDataset since the eval tif files have different naming conventions
     # TODO: make this dynamic
     def prediction_month_from_file(self, tif_path: Path) -> int:
-        if tif_path.name.startswith("LC") or tif_path.name.startswith("LE09") or tif_path.name.startswith("PR") or tif_path.name.startswith("LC08"):
+        if (
+            tif_path.name.startswith("LC")
+            or tif_path.name.startswith("LE09")
+            or tif_path.name.startswith("PR")
+            or tif_path.name.startswith("LC08")
+        ):
             prediction_month = int(tif_path.name.split("_")[1][4:6])
         else:
             prediction_month = int(tif_path.name.split("_")[0][5:7])
@@ -216,9 +221,9 @@ class LandsatEvalDataset(BaseDataset):
         return s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
 
     def month_array_from_file(self, tif_path: Path, num_timesteps: int) -> np.ndarray:
-        """
-        Given a filepath and num_timesteps, extract start_month and return an array of
-        months where months[idx] is the month for list(range(num_timesteps))[i]
+        """Given a filepath and num_timesteps, extract start_month and return
+        an array of months where months[idx] is the month for
+        list(range(num_timesteps))[i].
         """
         # assumes all files are exported with filenames including:
         # *dates=<start_date>*, where the start_date is in a YYYY-MM-dd format
@@ -228,8 +233,8 @@ class LandsatEvalDataset(BaseDataset):
         return np.full(num_timesteps, prediction_month - 1)
 
     def _tif_to_array(self, tif_path: Path) -> DatasetOutput:
-        """
-        Loads a spatiotemporal tif file, divides it into different array groups, and creates valid data masks.
+        """Loads a spatiotemporal tif file, divides it into different array
+        groups, and creates valid data masks.
 
         The different array types are:
         space_time_high_res_x: (H, W, T, C_STH)
@@ -1232,9 +1237,7 @@ class LandsatEval(EvalTask):
             print(f"Saved predictions for {filename} with overall accuracy: {acc}", flush=True)
 
     @torch.no_grad()
-    def _predict_and_store_output(
-        self, model: EncoderWithHead, id: str, log_wandb: bool = True
-    ):
+    def _predict_and_store_output(self, model: EncoderWithHead, id: str, log_wandb: bool = True):
         inference_ds = self._get_dataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
@@ -1397,7 +1400,9 @@ class LandsatEval(EvalTask):
         print(results)
 
     @torch.no_grad()
-    def _evaluate_model(self, model: EncoderWithHead, id: str, checkpoint_name: str = "", log_wandb: bool = True):
+    def _evaluate_model(
+        self, model: EncoderWithHead, id: str, checkpoint_name: str = "", log_wandb: bool = True
+    ):
         test_ds = self._get_dataset(
             exclude_prediction_date=self.exclude_prediction_date,
             exclude_prediction_high_res=self.exclude_prediction_high_res,
@@ -1436,13 +1441,21 @@ class LandsatEval(EvalTask):
             "miou": results["model"]["segmentation"]["miou"],
             "rmse_majority_baseline": results["baseline"]["majority"]["regression"]["rmse"],
             "r2_majority_baseline": results["baseline"]["majority"]["regression"]["r2"],
-            "mean_absolute_error_majority_baseline": results["baseline"]["majority"]["regression"]["mean_absolute_error"],
-            "median_absolute_error_majority_baseline": results["baseline"]["majority"]["regression"]["median_absolute_error"],
+            "mean_absolute_error_majority_baseline": results["baseline"]["majority"]["regression"][
+                "mean_absolute_error"
+            ],
+            "median_absolute_error_majority_baseline": results["baseline"]["majority"][
+                "regression"
+            ]["median_absolute_error"],
             "miou_majority_baseline": results["baseline"]["majority"]["segmentation"]["miou"],
             "rmse_balanced": results["baseline"]["balanced"]["regression"]["rmse"],
             "r2_balanced": results["baseline"]["balanced"]["regression"]["r2"],
-            "mean_absolute_error_balanced": results["baseline"]["balanced"]["regression"]["mean_absolute_error"],
-            "median_absolute_error_balanced": results["baseline"]["balanced"]["regression"]["median_absolute_error"],
+            "mean_absolute_error_balanced": results["baseline"]["balanced"]["regression"][
+                "mean_absolute_error"
+            ],
+            "median_absolute_error_balanced": results["baseline"]["balanced"]["regression"][
+                "median_absolute_error"
+            ],
             "miou_balanced": results["baseline"]["balanced"]["segmentation"]["miou"],
         }
 
@@ -1746,9 +1759,9 @@ class LandsatEval(EvalTask):
                 r2 = r2_score(labels.flatten(), preds_2D.flatten())
                 rmse = root_mean_squared_error(labels.flatten(), preds_2D.flatten())
 
-                b2 = s_t_h_x[0,:,:,-1,3]
-                b3 = s_t_h_x[0,:,:,-1,4]
-                b4 = s_t_h_x[0,:,:,-1,5]
+                b2 = s_t_h_x[0, :, :, -1, 3]
+                b3 = s_t_h_x[0, :, :, -1, 4]
+                b4 = s_t_h_x[0, :, :, -1, 5]
 
                 rgb = np.stack([b4, b3, b2], axis=-1)
                 rgb_img = (rgb - rgb.min()) / (rgb.max() - rgb.min())
@@ -1790,8 +1803,8 @@ class LandsatEval(EvalTask):
 
     @staticmethod
     def make_weights_for_balanced_classes(train_ds, nclasses):
-        """
-        Computes a weight for each sample based on the frquency of its mean class per image, binned into nclasses classes.
+        """Computes a weight for each sample based on the frquency of its mean
+        class per image, binned into nclasses classes.
         """
         n_images = len(train_ds)
         print(f"Number of images: {n_images}")
@@ -1937,8 +1950,12 @@ class LandsatEval(EvalTask):
             model, log_wandb=log_wandb, sklearn=sklearn, sklearn_models=sklearn_models
         )
 
-    def evaluate_model_on_task(self, model: EncoderWithHead, id: str, checkpoint_name: str = "", log_wandb: bool = True):
-        self._evaluate_model(model=model, id=id, checkpoint_name=checkpoint_name, log_wandb=log_wandb)
+    def evaluate_model_on_task(
+        self, model: EncoderWithHead, id: str, checkpoint_name: str = "", log_wandb: bool = True
+    ):
+        self._evaluate_model(
+            model=model, id=id, checkpoint_name=checkpoint_name, log_wandb=log_wandb
+        )
 
     def evaluate_indidvidual_samples(self, model: EncoderWithHead, id: str):
         self._evaluate_individual_samples(model, id=id)

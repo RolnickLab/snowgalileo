@@ -1,5 +1,4 @@
 import json
-import math
 from copy import deepcopy
 from pathlib import Path
 
@@ -14,7 +13,7 @@ from src.fsc.metrics import (
     compute_regression_metrics,
     compute_segmentation_metrics,
 )
-from src.fsc.utils import SigmoidSlopeScheduler, landsat_binary_mapping
+from src.fsc.utils import landsat_binary_mapping
 from src.snowgalileo import AttentionProbe, adjust_learning_rate
 from src.utils import checkpoints_dir, save_checkpoint
 
@@ -372,14 +371,11 @@ def finetune_seg(
         print("Restarting from epoch:", start_epoch)
         finetuned_encoder.load_state_dict(
             torch.load(
-                run_path
-                / f"encoder.pt",
+                run_path / "encoder.pt",
                 map_location=device,
             )
         )
-        opt.load_state_dict(
-        torch.load(run_path / f"optimizer.pt", map_location=device)
-        )
+        opt.load_state_dict(torch.load(run_path / "optimizer.pt", map_location=device))
     else:
         run_path.mkdir(parents=True, exist_ok=True)
 
@@ -473,12 +469,11 @@ def finetune_seg(
                 opt.step()
                 opt.zero_grad()
 
-        torch.save(finetuned_encoder.state_dict(), run_path / f"encoder.pt")
-        torch.save(opt.state_dict(), run_path / f"optimizer.pt")
+        torch.save(finetuned_encoder.state_dict(), run_path / "encoder.pt")
+        torch.save(opt.state_dict(), run_path / "optimizer.pt")
         config["cur_epoch"] = epoch + 1
         with (run_path / "config.json").open("w") as f:
             json.dump(config, f)
-
 
         if epoch % 5 == 0 and checkpointing:
             file_path = Path(
@@ -486,9 +481,7 @@ def finetune_seg(
                 / f"{identifier}_{hyperparameter_config['initialization_id']}_{run_id}_epoch_{epoch + 1}.pth"
             )
             save_checkpoint(finetuned_encoder, file_path)
-            torch.save(
-                opt.state_dict(), run_path / f"optimizer_epoch_{epoch + 1}.pt"
-            )
+            torch.save(opt.state_dict(), run_path / f"optimizer_epoch_{epoch + 1}.pt")
 
         if log_wandb or sweep_run is not None:
             if epoch % 5 == 0 or epoch == epochs - 1:

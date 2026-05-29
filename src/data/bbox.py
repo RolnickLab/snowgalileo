@@ -40,9 +40,9 @@ class BBox:
 
     @property
     def three_dimensional_points(self) -> List[float]:
-        r"""
-        If we are passing the central latitude and longitude to
-        an ML model, we want it to know the extremes are close together.
+        r"""If we are passing the central latitude and longitude to an ML model,
+        we want it to know the extremes are close together.
+
         Mapping them to 3d space allows us to do that
         """
         lat, lon = self.get_centre(in_radians=True)

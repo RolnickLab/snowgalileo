@@ -13,16 +13,17 @@ argparser.add_argument("--tif_folder", default=None)
 
 
 def count_geotiff_values_and_nans(folder_path):
-    """
-    Counts the total number of values and NaNs in all GeoTIFF files in a folder.
+    """Counts the total number of values and NaNs in all GeoTIFF files in a
+    folder.
 
-    Parameters:
+    Parameters
+    ----------
         folder_path (str): Path to the folder containing GeoTIFF files.
 
     Returns:
+    -------
         dict: A dictionary with the total number of values and NaNs.
     """
-
     if folder_path is None:
         folder_path = TIFS_FOLDER
     else:

@@ -19,11 +19,12 @@ def export_from_filename_for_folder(
     folder: str,
     start_idx: int = 0,
 ) -> tuple[list[np.ndarray], list[np.ndarray]]:
-    """
-    Export GlobalSnowpack cutouts that match the bounds for each file in the given folder.
-    Expected filename format is LC0*_YYYYMMDD_FSC[a number between 0 and 100]_LAT_LON.tif.
-    """
+    """Export GlobalSnowpack cutouts that match the bounds for each file in the
+    given folder.
 
+    Expected filename format is LC0*_YYYYMMDD_FSC[a number between 0 and
+    100]_LAT_LON.tif.
+    """
     all_landsat_labels = []
     all_gsp_labels = []
 

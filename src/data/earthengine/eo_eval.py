@@ -317,8 +317,9 @@ STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
 
 
 class EarthEngineExporterEval(EarthEngineExporter):
-    """
-    Export satellite data from Earth engine. It's called using the following
+    """Export satellite data from Earth engine.
+
+    It's called using the following
     script:
     ```
     from src.data import EarthEngineExporter
@@ -460,7 +461,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
                 local_path = Path(self.tifs_folder / local_filename)
                 with local_path.open("wb") as f:
                     shutil.copyfileobj(r.raw, f)
-                    print("Downloaded file " + local_filename, flush=True)
+                    print(f"Downloaded file {local_filename}", flush=True)
         return True
 
     def export_from_filename_for_folder(
@@ -468,11 +469,10 @@ class EarthEngineExporterEval(EarthEngineExporter):
         folder,
         start_idx: int = 0,
     ) -> None:
+        """Export boxes with length and width EXPORTED_HEIGHT_WIDTH_METRES for
+        the latlons specified in the filename of each file in the given
+        folder.
         """
-        Export boxes with length and width EXPORTED_HEIGHT_WIDTH_METRES
-        for the latlons specified in the filename of each file in the given folder.
-        """
-
         # check that each file in the folder has a filename with the format L0*_YYYYMMDD_LAT_LON_SC[a number between 0 and 100]
         # and that the lat and lon are in the format of a string
         # e.g. LC09_20220101_FSC0_50.1234_8.1234.tif
@@ -572,7 +572,6 @@ class EarthEngineExporterEval(EarthEngineExporter):
             print("Export finished. Syncing to google cloud")
             self.sync_local_and_gcloud()
             print("Finished sync")
-
 
     def export_from_csv_utm(self, csv_file) -> None:
         df = pd.read_csv(csv_file)

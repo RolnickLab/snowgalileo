@@ -39,7 +39,7 @@ def adjust_learning_rate(
     max_lr,
     min_lr,
 ):
-    """Decay the learning rate with half-cycle cosine after warmup"""
+    """Decay the learning rate with half-cycle cosine after warmup."""
     if epoch < warmup_epochs:
         lr = max_lr * epoch / warmup_epochs
     else:
@@ -73,7 +73,7 @@ class FlexiPatchEmbed(nn.Module):
     ) -> None:
         """2D image to patch embedding w/ flexible patch sizes
         Extended from: https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/patch_embed.py#L24
-        by https://github.com/bwconrad/flexivit/
+        by https://github.com/bwconrad/flexivit/.
 
         Args:
             patch_size: Base patch size. i.e the size of the parameter buffer
@@ -84,6 +84,7 @@ class FlexiPatchEmbed(nn.Module):
             patch_size_seq: List of patch sizes to randomly sample from
             interpolation: Resize interpolation type
             antialias: Whether to apply antialiasing resizing
+
         """
         super().__init__()
 
@@ -108,7 +109,7 @@ class FlexiPatchEmbed(nn.Module):
         self.pinvs = self._cache_pinvs()
 
     def _cache_pinvs(self) -> dict:
-        """Pre-calculate all pinv matrices"""
+        """Pre-calculate all pinv matrices."""
         pinvs = {}
         for ps in self.patch_size_seq:
             tuple_ps = to_2tuple(ps)
@@ -134,7 +135,9 @@ class FlexiPatchEmbed(nn.Module):
         return torch.linalg.pinv(resize_matrix)
 
     def resize_patch_embed(self, patch_embed: Tensor, new_patch_size: Tuple[int, int]):
-        """Resize patch_embed to target resolution via pseudo-inverse resizing"""
+        """Resize patch_embed to target resolution via pseudo-inverse
+        resizing.
+        """
         # Return original kernel if no resize is necessary
         if self.patch_size == new_patch_size:
             return patch_embed
@@ -197,8 +200,8 @@ class AttentionProbe(nn.Module):
     # Credits to: https://github.com/EleutherAI/attention-probes
     # Modified to invert meaning of masks (1 = masked, 0 = unmasked)
     # Also changed default output_dim to 100 since this is the number of patches we want to predict.
-    """
-    Torch module for attention probes.
+    """Torch module for attention probes.
+
     Supports:
     * multiple heads
     * relative position bias
@@ -217,16 +220,16 @@ class AttentionProbe(nn.Module):
         attn_dropout_p: float = 0.0,
         config: Any = None,
     ):
-        """
-        Args:
-            d_in (int): input dimensionality.
-            n_heads (int): number of attention heads.
-            output_dim (int): output dimension (default: 100).
-            Returns logits, needs to be passed through an activation function.
-            hidden_dim (int): hidden dimension for post-attention MLP (default: 0, no MLP).
-            use_tanh (bool): use tanh activation for attention weights (default: False).
-            attn_dropout_p (float): dropout probability for attention weights (default: 0.0).
-            config (Any): additional configuration parameters to store in the model.
+        """Args:
+        d_in (int): input dimensionality.
+        n_heads (int): number of attention heads.
+        output_dim (int): output dimension (default: 100).
+        Returns logits, needs to be passed through an activation function.
+        hidden_dim (int): hidden dimension for post-attention MLP (default: 0, no MLP).
+        use_tanh (bool): use tanh activation for attention weights (default: False).
+        attn_dropout_p (float): dropout probability for attention weights (default: 0.0).
+        config (Any): additional configuration parameters to store in the model.
+
         """
         super().__init__()
         # projection from inputs to attention logits
@@ -371,7 +374,7 @@ class Attention(nn.Module):
 
 
 class Mlp(nn.Module):
-    """MLP as used in Vision Transformer, MLP-Mixer and related networks"""
+    """MLP as used in Vision Transformer, MLP-Mixer and related networks."""
 
     def __init__(
         self,
@@ -423,7 +426,9 @@ def drop_path(x, drop_prob: float = 0.0, training: bool = False):
 
 
 class DropPath(nn.Module):
-    """Drop paths (Stochastic Depth) per sample  (when applied in main path of residual blocks)."""
+    """Drop paths (Stochastic Depth) per sample  (when applied in main path of
+    residual blocks).
+    """
 
     def __init__(self, drop_prob=None):
         super(DropPath, self).__init__()
@@ -965,15 +970,13 @@ class Encoder(SnowGalileoBase):
         patch_size_med_res: int = 1,
         patch_size_low_res: int = 1,
     ):
-        """
-        Given a [B, H, W, (T), C] inputs, returns a [B, H, W, (T), C_G, D] output.
-        We assume that the spatial masks are consistent for the given patch size,
-        so that if patch_size == 2 then one possible mask would be
-        [0, 0, 1, 1]
-        [0, 0, 1, 1]
-        [1, 1, 0, 0]
-        [1, 1, 0, 0]
-        for the H, W dimensions
+        """Given a [B, H, W, (T), C] inputs, returns a [B, H, W, (T), C_G, D]
+        output.
+
+        We assume that the spatial masks are consistent for the given
+        patch size, so that if patch_size == 2 then one possible mask
+        would be [0, 0, 1, 1] [0, 0, 1, 1] [1, 1, 0, 0] [1, 1, 0, 0] for
+        the H, W dimensions
         """
         b, h_s_t_h, w_s_t_h, t, _ = s_t_h_x.shape
         new_h_s_t_h, new_w_s_t_h = h_s_t_h // patch_size_high_res, w_s_t_h // patch_size_high_res
@@ -1271,8 +1274,8 @@ class Encoder(SnowGalileoBase):
         attend_over_spatial: bool = False,
         med_and_low_res_repeat: bool = True,
     ):
-        """
-        Preprocess tokens for attention probe by collapsing spatial dimensions. Also return position.
+        """Preprocess tokens for attention probe by collapsing spatial
+        dimensions. Also return position.
 
         Output shapes:
         - x: (batch size, num tokens, token_dim) or (batch size, high_res_spatial_positions, num tokens, token_dim) if attend_over_spatial is True
@@ -1917,7 +1920,7 @@ class GalileoPixelDecoder(SnowGalileoBase):
                 )
 
         print(
-            "Length of the outputs: " + str(len(output_s_t_h)),
+            f"Length of the outputs: {str(len(output_s_t_h))}",
             str(len(output_s_t_m)),
             str(len(output_s_t_l)),
             str(len(output_sp)),

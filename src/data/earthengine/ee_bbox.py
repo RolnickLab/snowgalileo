@@ -9,9 +9,10 @@ from src.data.bbox import BBox
 
 @dataclass
 class EEGeometry:
-    r"""
-    A base class for Earth Engine geometries.
-    This is used to provide a common interface for different geometry types.
+    r"""A base class for Earth Engine geometries.
+
+    This is used to provide a common interface for different geometry
+    types.
     """
 
     @staticmethod
@@ -33,10 +34,7 @@ class EEGeometry:
 
 @dataclass
 class EEBoundingBox(BBox):
-    r"""
-    A bounding box with additional earth-engine specific
-    functionality
-    """
+    r"""A bounding box with additional earth-engine specific functionality."""
 
     def to_ee_polygon(self) -> ee.Geometry:
         return ee.Geometry.Polygon(
@@ -51,9 +49,7 @@ class EEBoundingBox(BBox):
         )
 
     def to_metres(self) -> Tuple[float, float]:
-        r"""
-        :return: [lat metres, lon metres]
-        """
+        r""":return: [lat metres, lon metres]"""
         # https://gis.stackexchange.com/questions/75528/understanding-terms-in-length-of-degree-formula
         mid_lat = (self.min_lat + self.max_lat) / 2.0
         m_per_deg_lat, m_per_deg_lon = self.metre_per_degree(mid_lat)
@@ -64,9 +60,8 @@ class EEBoundingBox(BBox):
         return delta_lat * m_per_deg_lat, delta_lon * m_per_deg_lon
 
     def to_polygons(self, metres_per_patch: int = 3300) -> List[ee.Geometry]:
-        """
-        This function is handy if you want to split the bounding box into many polygons
-        (of size metres_per_patch).
+        """This function is handy if you want to split the bounding box into
+        many polygons (of size metres_per_patch).
         """
         lat_metres, lon_metres = self.to_metres()
 

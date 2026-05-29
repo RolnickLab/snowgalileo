@@ -4,7 +4,7 @@ from src.data.config import NO_DATA_VALUE
 
 
 class RunningStats:
-    """Inspired by: https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford%27s_online_algorithm"""
+    """Inspired by: https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford%27s_online_algorithm."""
 
     def __init__(self, shape):
         self.count = np.zeros(shape)
