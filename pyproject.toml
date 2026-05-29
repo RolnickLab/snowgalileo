@@ -1,4 +1,73 @@
+[project]
+name = "presto-v3"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Marlena Reil", email = "marlena.reil@mila.quebec " },
+    { name = "f-PLT", email = "fplt.softwaredeveloper@gmail.com" }
+]
+requires-python = ">=3.11,<3.15"
+dependencies = [
+    "codecarbon>=3.0.6",
+    "earthengine-api==0.1.391",
+    "einops>=0.8.2",
+    "geobench>=1.0.0",
+    "geopandas>=1.0.1",
+    "h5py>=3.16.0",
+    "numpy==1.26.4",
+    "pystac>=1.14.3",
+    "pystac-client>=0.9.0",
+    "rioxarray>=0.17.0",
+    "satellite-cloud-generator>=0.4",
+    "scikit-learn>=1.8.0",
+    "torch==2.2.1",
+    "torchvision==0.17.1",
+    "tqdm>=4.67.3",
+    "types-requests>=2.33.0.20260518",
+    "wandb>=0.27.0",
+]
+
+[dependency-groups]
+dev = [
+    "matplotlib>=3.10.9",
+    "mypy>=2.1.0",
+    "pre-commit>=4.6.0",
+    "pytest>=9.0.3",
+    "ruff>=0.15.15",
+]
+
+[project.scripts]
+
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
 [tool.ruff]
-# Enable the isort rules.
-lint.extend-select = ["I"]
 line-length = 99
+lint.select = ["E4", "E7", "E9", "F", "I", "D"]
+lint.ignore = [
+  "E203", # Whitespace before ':' (Handled cleanly by modern formatters)
+  "E266", # Too many leading '#'
+  "E501", # Line too long (Deferred to formatter/docformatter limits)
+  
+  # --- Docstring Presence Ignores (Kept per your layout strategy) ---
+  "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107",
+
+  # --- Docformatter Harmonization Flags ---
+  "D203", # Enforce D211 (No blank line before class docstring) to match docformatter `blank = false`
+  "D205", # Does not check for summary line blank line
+  "D212", # IGNORE: "Summary on first line". Prevents conflicts with docformatter `pre-summary-newline = true`
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.flynt]
+line-length = 99
+transform-concats = true
+verbose = true
