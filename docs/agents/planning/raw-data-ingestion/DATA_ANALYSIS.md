@@ -490,6 +490,35 @@ dataset and grouped masks, but does not train a neural prediction head. Instead:
     `[x, y, z]`.
   - Baseline normalization is identity.
 
+## Raw Archive Directory Formats and Structures (Direct-Source)
+
+Based on the raw data archive under `data/bow_valley_selection_raw/`, direct-source ingestion must handle the following structures, files, and nested formats for the 9 modalities:
+
+- **dem** (Copernicus DEM GLO-30):
+  - Path: `data/bow_valley_selection_raw/dem/DEM1_SAR_DGE_30_[meta]/Copernicus_DSM_10_[tile]/`
+  - Format: Nested SAFE directory. Under each tile's main directory, there is a `DEM/` subfolder containing a single GeoTIFF file (`..._DEM.tif`) representing elevation in meters above EGM2008 geoid.
+- **era5** (ERA5-Land Daily Aggregates):
+  - Path: `data/bow_valley_selection_raw/era5/`
+  - Format: NetCDF (`.nc`) files. Monthly folders named `YYYYMM_ERA5LAND/` contain separate daily average files for wind and temperature variables: `10m_u_component_of_wind_0_daily-mean.nc`, `10m_v_component_of_wind_0_daily-mean.nc`, `2m_temperature_0_daily-mean.nc`, and `skin_temperature_0_daily-mean.nc`. Daily accumulated precipitation is stored as monthly files in the parent folder, e.g., `YYYYMM_ERA5LAND_totalprecip.nc`.
+- **landsat8** / **landsat9** (Landsat Collection 2 Level 1 TOA):
+  - Path: `data/bow_valley_selection_raw/landsat8/` and `data/bow_valley_selection_raw/landsat9/`
+  - Format: `.tar` files or extracted directories containing individual band GeoTIFF files (`_B2.TIF` through `_B7.TIF` and `_B11.TIF`), a pixel QA band (`_QA_PIXEL.TIF`), and metadata text/JSON/XML files (`_MTL.json`, `_MTL.txt`, `_MTL.xml`) defining scaling coefficients.
+- **sentinel1** (Sentinel-1 GRD):
+  - Path: `data/bow_valley_selection_raw/sentinel1/`
+  - Format: Standard `.zip` archives containing the Sentinel SAFE directory structure. Inside the archive, measurements are in `.tiff` files (under `measurement/`) and metadata in `.xml` files.
+- **sentinel2** (Sentinel-2 Level-1C):
+  - Path: `data/bow_valley_selection_raw/sentinel2/`
+  - Format: Standard `.zip` archives containing the Sentinel SAFE directory structure. Granules contain JPEG2000 (`.jp2`) band files under `GRANULE/[granule_id]/IMG_DATA/`.
+- **sentinel3** (Sentinel-3 OLCI Level-1 EFR):
+  - Path: `data/bow_valley_selection_raw/sentinel3/`
+  - Format: Standard `.zip` archives containing the Sentinel SAFE directory structure for OL_1_EFR products. The radiance bands (e.g. `Oa17_radiance.nc`, `Oa21_radiance.nc`) and coordinate tie-points (`geo_coordinates.nc`) are stored as separate NetCDF files.
+- **modis** (MOD09GA daily surface reflectance):
+  - Path: `data/bow_valley_selection_raw/modis/`
+  - Format: Standard HDF4 (`.hdf`) files representing MOD09GA tiles (e.g., `h10v03`) containing sinusoidal grid subdatasets.
+- **worldcover** (ESA WorldCover v200):
+  - Path: `data/bow_valley_selection_raw/worldcover/ESA_WorldCover_10m_2021_v200_[tile]_Map/`
+  - Format: Categorical GeoTIFF file (`..._Map.tif`) under its respective tile directory.
+
 ## Direct-source Interchangeability Requirements
 
 If this repository stops using Google Earth Engine and downloads products from
