@@ -71,3 +71,9 @@ convention = "google"
 line-length = 99
 transform-concats = true
 verbose = true
+
+[tool.pytest]
+addopts = ["-ra"]
+testpaths = [
+    "tests",
+]
