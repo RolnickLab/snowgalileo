@@ -277,6 +277,9 @@ Rules enforced by `base.py`:
 - Landsat adapter encapsulates the L9→L8 fallback internally (single
   `bands_out=["B2_landsat",..,"B7_landsat"]`), matching GEE behaviour.
 - **Sentinel-2 harmonization**: Sentinel-2 data in GEE (both Level-1C and Level-2A) are harmonized to correct for the processing baseline baseline 04.00+ offset (+1000 DN). Direct Copernicus products do NOT have this harmonization. The local S2 adapter must check the processing baseline version of each input granule and subtract 1000 from the digital numbers if the baseline is `04.00` or later to ensure a harmonized time series matching the model's expectations.
+- **ERA5-Land daily aggregation**: GEE's daily ERA5 aggregates represent UTC day bounds (00:00 to 23:00 UTC). The local adapter must aggregate hourly ECMWF CDS datasets to daily steps, computing the mean for temperatures/winds and the sum for daily total precipitation.
+- **Copernicus DEM terrain metrics**: Slope and aspect are scale-sensitive. GEE computes them on the fly from the 10 m resampled elevation DEM. The local DEM adapter must reproject the elevation DEM to the target 10 m cell grid first before computing slope and aspect to avoid scale distortion.
+- **Sentinel-3 OLCI geolocation**: S3 OLCI SAFE products contain separate NetCDF files georeferenced by coordinate tie-point grids. The local adapter must use these geolocation arrays to precisely project OLCI radiance bands onto the target cell grid.
 - WorldCover adapter ignores `day` and returns the v200 2021 map. Hardcoded.
 
 ### LocalSourceExporter

@@ -608,8 +608,7 @@ Direct-source requirements:
 - Preserve radiance units and scaling as exported by GEE. The repository applies
   identity baseline normalization for these bands, so any source-side scale
   factor will flow directly into the model.
-- Use the source geolocation information to orthorectify/reproject onto the
-  target export grid.
+- Use the Sentinel-3 OLCI SAFE format tie-point grids (latitude and longitude coordinate datasets stored in separate NetCDF files) to precisely georeference and reproject the radiance bands onto the target cell grid. Naive geolocation or ignoring the tie-point interpolation will cause significant pixel coordinate misalignment relative to GEE's orthorectified OLCI collection.
 - Emit only `Oa17_radiance` and `Oa21_radiance` in the Sentinel-3 slot.
 - Fill missing acquisitions with `-9999` and allow the dataset loader to
   downsample this group to `5 x 5` after cropping.
@@ -672,8 +671,7 @@ Direct-source requirements:
 
 - Download ERA5-Land variables from the ECMWF Climate Data Store or another
   authoritative ECMWF endpoint.
-- Produce daily aggregates that match the GEE collection's definitions for the
-  requested UTC date window.
+- Produce daily aggregates that match GEE's `DAILY_AGGR` by downloading hourly forecast/reanalysis data from the ECMWF CDS and aggregating across the exact UTC day bounds (00:00 to 23:00 UTC). Specifically: compute the daily mean for `skin_temperature`, `temperature_2m`, `u_component_of_wind_10m`, and `v_component_of_wind_10m`; compute the daily sum of accumulated hourly forecasts for `total_precipitation_sum`.
 - Emit `skin_temperature`, `temperature_2m`, `total_precipitation_sum`,
   `u_component_of_wind_10m`, and `v_component_of_wind_10m`.
 - Preserve units expected by the current code: temperature in Kelvin,
@@ -698,10 +696,9 @@ Direct-source requirements:
 - Mosaic and crop tiles before writing the final stack.
 - Preserve elevation values in meters with the same vertical datum convention as
   the GEE product.
-- Compute `slope` and `aspect` in degrees using an algorithm that matches
-  `ee.Terrain.slope` and `ee.Terrain.aspect` closely enough for downstream
-  masks and normalization.
-- Reproject to the target grid and emit bands as `DEM`, `slope`, `aspect`.
+- Reproject the elevation DEM to the target cell grid (10 m scale, e.g. EPSG:4326) *first* before computing terrain derivatives. Terrain slope and aspect are highly scale-sensitive; computing them on the native 30 m grid and then reprojecting will yield mismatched gradients.
+- Compute `slope` and `aspect` in degrees on the reprojected 10 m grid using Horn's algorithm or an equivalent gradient method that closely matches GEE's `ee.Terrain.slope` and `ee.Terrain.aspect` to satisfy downstream masks and normalization.
+- Emit bands as `DEM`, `slope`, `aspect`.
 - Preserve invalid elevation as `-9999` or values that are masked by the current
   `DEM >= 0.0000001` threshold.
 
