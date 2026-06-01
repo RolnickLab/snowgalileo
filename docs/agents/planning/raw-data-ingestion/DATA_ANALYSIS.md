@@ -540,15 +540,15 @@ Detailed inventory and parsed metadata of raw assets under `data/bow_valley_sele
 
 ### Spatial-Temporal Characteristics
 
-- **DEM (Digital Elevation Model):** Copernicus GLO-30 / GLO-10. Single band. Shape `(3601, 2401)`. Bounded `[-117.0002, 49.9998, -115.9997, 51.0001]`. `float32`.
-- **WorldCover:** ESA WorldCover 10m. Categorical landcover. Shape `(36000, 36000)`. Bounded `[-117.0, 48.0, -114.0, 51.0]`. `uint8`.
+- **DEM (Digital Elevation Model):** Copernicus GLO-30 / GLO-10. Single band. Shape `(3601, 2401)`. Bounded `[-117.0002, 49.9998, -115.9997, 51.0001]` **per tile** (126 tiles total; the archive *mosaic* extends north past lat 51 — Phase 0 must confirm coverage to the AOI `lat_max = 52.31`). `float32`.
+- **WorldCover:** ESA WorldCover 10m. Categorical landcover. Shape `(36000, 36000)` **per tile**. Single tile bounded `[-117.0, 48.0, -114.0, 51.0]`; 8 tiles total (the mosaic must cover the AOI north to lat 52.31 — Phase 0 audit assertion). `uint8`.
 - **ERA5-Land:** Daily aggregates in NetCDF format (read via `h5py`). Variables: `tp` (precip, shape `(31, 61, 61)`), `t2m` (temp), `skt` (skin temp), `u10`/`v10` (winds). Extent `[-120.0, -114.0, 48.0, 54.0]`. Temporal span: March 2025.
 - **Landsat 8 & 9:** L1TP Collection 2 TOA reflectance. Scene shape `(8191, 8101)` (L8), `(8181, 8111)` (L9). Extent around UTM Zone 12N `[176080, 5607800, 420900, 5853300]`. 11 spectral bands + QA_PIXEL + QA_RADSAT. `uint16`.
-- **MODIS:** MOD09GA daily surface reflectance HDF4. Shape `(1200, 1200)` per sinusoidal tile (tile `h10v03`). 22 subdatasets containing bands 1-7, quality flags, geometries. `uint16`.
+- **MODIS:** MOD09GA daily surface reflectance HDF4 (tile `h10v03`). **Two co-registered sinusoidal grids per file** (verified via `gdalinfo`): a 1 km grid (`MODIS_Grid_1km_2D`, **1200×1200**, holds `state_1km` + geometry) and a 500 m grid (`MODIS_Grid_500m_2D`, **2400×2400**, holds the science bands `sur_refl_b01`–`b07`). 22 subdatasets total. `uint16`. **Clipping must index each grid at its own resolution — see `CLIPPING_PLAN.md §2.7`.**
 - **Sentinel-1:** C-band GRD dual-pol (VV + VH). Swath range geometry. Scene shape `(16708, 26079)`. `uint16`.
 - **Sentinel-2:** MultiSpectral Instrument Level-1C. Tile shape `(10980, 10980)` (tiles `T11UPS`, `T11UPT`, `T11UNS`, `T11UNT`). `uint16`.
 - **Sentinel-3:** OLCI Level-1 EFR radiance NetCDF. Shape `(4091, 4865)` per orbit segment. 21 radiance bands. `uint16`.
-- **VIIRS:** VNP09GA daily surface reflectance HDF5. Shape `(1200, 1200)` (tile `h10v03`). 67 datasets (M-bands, I-bands). `int16`/`uint16`.
+- **VIIRS:** VNP09GA daily surface reflectance HDF5 (tile `h10v03`). **Two co-registered grids** (verified via `gdalinfo`): `VIIRS_Grid_1km_2D` (**1200×1200**, holds the coarse M-bands `M5/M7/M10/M11` → `time_x`) and `VIIRS_Grid_500m_2D` (**2400×2400**, holds the fine I-bands `I1/I3` → `space_time_low_res_x`). 67 datasets. `int16`/`uint16`. The I-bands carry `_FillValue = -28672` (same native fill as MODIS); preserve it through clipping for the same loader-sentinel reason. **Per-grid clipping — see `CLIPPING_PLAN.md §2.7`.**
 
 ### Strategic Processing Recommendations
 

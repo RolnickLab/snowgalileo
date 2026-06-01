@@ -50,27 +50,64 @@ and an inference-grid driver.
 
 ## 3. AOI, Grid, and Temporal Window
 
-### AOI — computed from `sampled_cells_bow_river_with_dates.csv`
+### AOI — two distinct definitions (DO NOT CONFLATE)
 
-500 sampled cells in EPSG:32611. Convex-bbox of all cell extents:
+There are **two** AOI definitions in this project and they are **not** the same
+extent. CRS is law; both are stated explicitly below.
 
-| Bound | Value (EPSG:32611, m) |
-| --- | --- |
-| `min_x` | `518363.85` |
-| `max_x` | `705363.85` |
-| `min_y` | `5599583.79` |
-| `max_y` | `5761583.79` |
-| width  | `187_000` (187 km) |
-| height | `162_000` (162 km) |
-| max-tile grid | `187 × 162 = 30_294` 1 km cells if fully tiled |
+1. **Cell-sampling extent** — convex-bbox of the 500 cells in
+   `sampled_cells_bow_river_with_dates.csv` (EPSG:32611):
+
+   | Bound | Value (EPSG:32611, m) |
+   | --- | --- |
+   | `min_x` | `518363.85` |
+   | `max_x` | `705363.85` |
+   | `min_y` | `5599583.79` |
+   | `max_y` | `5761583.79` |
+   | width  | `187_000` (187 km) |
+   | height | `162_000` (162 km) |
+   | max-tile grid | `187 × 162 = 30_294` 1 km cells if fully tiled |
+
+2. **Clip / inference AOI** — `data/aoi.geojson` (EPSG:4326), the boundary that
+   `CLIPPING_PLAN.md` clips every raw dataset to:
+
+   | Bound | Value (EPSG:4326, deg) |
+   | --- | --- |
+   | `lon_min` | `-116.561936219710887` |
+   | `lon_max` | `-114.527659450240762` |
+   | `lat_min` | `50.729806886838752` |
+   | `lat_max` | `52.306672311654424` |
+
+**The clip AOI does NOT contain all 500 cells.** Reprojecting cell extents to
+EPSG:4326 shows the cell envelope spans `lon=[-116.7408, -114.0104]`,
+`lat=[50.5121, 52.0046]` — wider east/west and further south than the clip AOI.
+**156 of 500 cells (31%) have their centre outside `data/aoi.geojson`**; only
+**338 cells fall fully inside** and **344 are inside under a centre-in rule**.
+Max spillover: ~31.5 km east, ~20.5 km south, ~12.4 km west.
+
+**Decision (resolved):** `data/aoi.geojson` is the **authoritative clip and
+inference boundary by design**. Cells whose centre falls outside it are
+**intentionally dropped** — they are not served by the clipped archive and the
+grid generator MUST filter them out. The cell-sampling extent above is retained
+only as provenance for how the cells were originally drawn; it is **not** the
+sweep extent.
+
+**Grid-generator contract (mode A):** load the CSV, reproject each cell to
+EPSG:4326, keep a cell iff its centre lies within `data/aoi.geojson`
+(centre-in rule → **344 cells**), drop the rest. A `--require-fully-inside` flag
+restricts to the **338** fully-contained cells. Emit a manifest of kept/dropped
+cell ids for auditability.
 
 **Decision required before FDD (see §8 Q3):** sweep mode.
-- **(A) Sample-only:** infer over the 500 CSV cells only. Cheap (~500 cells).
-- **(B) Full tile:** infer over all ~30 k cells in the AOI bbox. Storage and
-  compute are ~60× larger; needs explicit GPU budget.
+- **(A) Sample-only:** infer over the in-AOI CSV cells only (~344 cells after
+  the AOI filter above). Cheap.
+- **(B) Full tile:** tile the **clip AOI** (`data/aoi.geojson`), not the wider
+  cell-sampling bbox. Storage and compute are ~60× larger; needs explicit GPU
+  budget.
 
 Plan assumes **(A)** as default. (B) is a configuration switch on the grid
-generator.
+generator. **Both modes are bounded by `data/aoi.geojson`, never by the wider
+cell-sampling bbox** — the clipped archive contains no data outside the AOI.
 
 ### Grid + CRS
 
@@ -80,7 +117,7 @@ generator.
 | Per-cell export CRS | `EPSG:4326`, `scale=10` | Matches `create_ee_image`; downstream loader assumes this. Scale 10 equates to `0.0000898315` degrees. |
 | Daily mosaic CRS | `EPSG:32611` | Mosaic stays in metric CRS for analysis. **Per-cell rasters in 4326, mosaic in UTM is intentional** — per-cell tifs feed the loader unchanged; mosaic is a separate output product. Reprojection happens once, at mosaic-write time, on 10×10 FSC outputs (low IO). |
 | Grid cell size | 1000 m × 1000 m (dims ≈ 159×100 px in EPSG:4326 due to latitude convergence at 51°N) | `EXPORTED_HEIGHT_WIDTH_METRES`. Converging longitudes stretch WGS84 cell width to ~159 px, satisfying `H >= 100` and `W >= 100` for dataset cropping. |
-| Cell layout | Non-overlapping; centred on CSV `center_x, center_y` for mode (A) or tiled from `min_x, min_y` for mode (B) | Matches existing CSV semantics |
+| Cell layout | Non-overlapping; centred on CSV `center_x, center_y` (mode A, after AOI filter) or tiled across `data/aoi.geojson` (mode B) | Matches existing CSV semantics; both modes bounded by the clip AOI |
 
 **CRS is law** — every cell carries an explicit `transform`, `crs`, and `shape`
 triple that all adapters must conform to.
@@ -88,8 +125,8 @@ triple that all adapters must conform to.
 ### Fixed Extent Mosaic & Scene Coverage Complexity
 
 A fixed spatial extent is provided for the full Bow Valley AOI desired daily mosaic. This introduces significant operational complexity:
-- **Multi-Scene Composition**: The full AOI bbox is approximately 187 km × 162 km. This massive area requires a grid of roughly 2x2 product scenes (close to 4 scenes total of Landsat or Sentinel-2) to achieve complete spatial coverage.
-- **Incomplete Daily Coverage**: Because of sensor orbit path timings, swath widths, and scene collection grids, we will **never** have 100% spatial coverage of the full AOI on a single acquisition day/timestamp. Some parts of the AOI will have scenes on day `d`, while other parts will have nodata.
+- **Multi-Scene Composition**: The clip AOI (`data/aoi.geojson`) is approximately 140 km × 175 km. This exceeds a single Sentinel-2 tile and requires the 2×2 tile grid (`T11UNS/NT/PS/PT`, ~4 scenes of Landsat or Sentinel-2) to approach complete spatial coverage. (Note: the wider 187 km × 162 km figure refers to the cell-sampling bbox, not the clip AOI — see §3 AOI.)
+- **Incomplete Daily Coverage**: Because of sensor orbit path timings, swath widths, and scene collection grids, we will **never** have 100% spatial coverage of the full AOI on a single acquisition day/timestamp. Some parts of the AOI will have scenes on day `d`, while other parts will have nodata. **This is quantified per-source from the archive in "Per-Timestep, Per-Source Partial AOI Coverage" below.**
 - **Orbit/Swath Boundary Nodata**: Scenes near orbit boundaries or swath edges often contain significant regions of native nodata. Cells that overlap scene edges will have partial observations.
 - **Mosaicing & Composite Strategy in Direct-Source Pipeline**:
   - For a given 1 km x 1 km grid cell, it may fall in the overlap region of multiple adjacent/swath-overlapping scenes on the same day, or it may fall on the edge of a scene where part of the cell is nodata.
@@ -98,6 +135,54 @@ A fixed spatial extent is provided for the full Bow Valley AOI desired daily mos
 - **Heterogeneous Daily Coverage in daily mosaic**:
   - The final daily mosaic will always be incomplete (heterogeneous coverage). Some 1 km grid cells will be completely invalid (all `-9999` inputs, leading to `nodata` in predictions), while others will have valid outputs.
   - The `DailyMosaicWriter` must be robust to missing grid cells or cells with degenerate outputs, stitching only valid predictions into the daily UTM 11N COG.
+
+### Per-Timestep, Per-Source Partial AOI Coverage (first-class concern)
+
+The complexity above is not just about *cell-edge* nodata — it is a structural
+property of the whole AOI: **on any given timestep `d`, most observational
+sources cover only part of `data/aoi.geojson`, and some cover none of it.** The
+AOI is ~140 km × 175 km, which exceeds a single Sentinel-2 tile (110 km), a
+single MODIS/VIIRS sinusoidal-tile footprint, and a single S1/S3 swath. No
+source's per-day footprint is a superset of the AOI.
+
+**This is verified from the archive, not assumed:**
+
+| Source | Per-timestep AOI coverage (observed in `data/bow_valley_selection_raw`) |
+| --- | --- |
+| **Sentinel-2** | 4-tile AOI grid (`T11UNS/NT/PS/PT`). Of all acquisition dates: **13** cover all 4 tiles, **10** cover 3, **12** cover 2, **2** cover only 1. Most days are **partial**. |
+| **Sentinel-1** | Only **16 acquisition dates** over the full 2025-03→05 span (6–12 day revisit), 2 scenes each. **The majority of inference days have NO S1 at all** (→ full `-9999` for the S1 group); on covered days, only a swath-width strip of the AOI is observed. |
+| **Landsat 8/9** | 16-day revisit each (≈8-day combined). On a given day, at most one path crosses the AOI → a single ~185 km swath, frequently only partial AOI overlap; many days have neither L8 nor L9. |
+| **Sentinel-3 OLCI** | Daily but swath-geometry (~1270 km swath, so usually full AOI when present) — still subject to orbit gaps and edge nodata. |
+| **MODIS / VIIRS** | Daily, single sinusoidal tile `h10v03`. Tile footprint does **not** span the full AOI; AOI cells outside the tile are nodata even on a "covered" day. Cross-tile cells need a tile mosaic. |
+| **ERA5-Land** | Continuous 0.1° grid → full AOI every day (the only source with guaranteed complete spatial coverage). |
+
+**Implications the pipeline MUST encode (not optional):**
+
+1. **Coverage is per (source, day, cell), not per day.** The per-cell
+   `-9999`-placeholder path (`create_placeholder`) is the *normal* case for many
+   (source, day) pairs, not an error. The model's masking is the designed
+   mechanism for this; do not treat partial coverage as a pipeline failure.
+2. **Per-source mosaic-before-crop is mandatory and per-day.** For each source
+   and each day, mosaic **all** granules/scenes/tiles intersecting the AOI
+   before cropping to any cell (already stated as non-negotiable in §9). A cell
+   on a tile/swath seam draws from multiple inputs; a cell outside every
+   footprint for that day gets `-9999`.
+3. **The 8-day window is what makes partial daily coverage tolerable.** Each
+   inference covers `[d-7, d]`; a cell rarely has the same source on all 8 days,
+   but usually has *some* coverage across the window. Phase 0 MUST profile, per
+   in-AOI cell, the fraction of the 8-day window each source actually populates
+   — this is the realistic input-completeness distribution the model sees, and
+   it bounds achievable FSC quality. Do not assume dense coverage.
+4. **S1 sparsity is the dominant risk.** With S1 present on only ~16 days, many
+   windows will have **zero** S1 timesteps. Quantify how often the S1 group is
+   fully masked across the inference range in Phase 0; if it is the common case,
+   surface it before committing compute — it materially changes what the
+   high-res group contributes.
+5. **`DailyMosaicWriter` heterogeneity is structural.** A daily output COG will
+   have large `nodata` regions wherever no source covered that part of the AOI
+   on that window — expected, not a bug. Record per-day AOI-coverage fraction as
+   an output metric so downstream consumers know how complete each daily mosaic
+   is.
 
 ### Raw Archive Directory Formats and Structures
 
@@ -130,10 +215,37 @@ Based on the raw data archive under `data/bow_valley_selection_raw/`, direct-sou
 
 ### Temporal window
 
+The default window is **derived from actual archive coverage**, not chosen for
+seasonal convenience. A prior draft defaulted to `2024-02-01 → 2024-04-30`;
+**there is no 2024 data in the archive** — every modality spans 2025-03 to
+2025-06 (verified file listing below). The 2024 default would have produced an
+all-`-9999` cube.
+
+**Per-modality archive coverage (verified from `data/bow_valley_selection_raw`):**
+
+| Modality | First acquisition | Last acquisition |
+| --- | --- | --- |
+| ERA5-Land | 2025-03 | 2025-05 |
+| MODIS (`A2025060`–`A2025151`) | 2025-03-01 | 2025-05-31 |
+| VIIRS (`A2025060`–`A2025151`) | 2025-03-01 | 2025-05-31 |
+| Sentinel-3 OLCI | 2025-03-01 | 2025-06-09 |
+| Landsat 8 | 2025-03-02 | 2025-05-28 |
+| Landsat 9 | 2025-03-01 | 2025-05-29 |
+| **Sentinel-1 GRD** | **2025-03-30** | 2025-05-31 |
+| Sentinel-2 L1C | 2025-03-01 | 2025-05-30 |
+
+**Binding constraints:**
+- **S1 start (2025-03-30) is the latest-starting modality.** It dictates the
+  earliest *fully-populated* 8-day window. With the non-negotiable 7-day
+  prefill, the first inference day with S1 present across the whole window is
+  **2025-04-06**.
+- **S2 / Landsat 8 end (2025-05-28–30) is the earliest-ending optical modality.**
+  It caps the inference range.
+
 | Parameter | Value | Source |
 | --- | --- | --- |
-| Cube inference period | Configurable; default `2024-02-01 → 2024-04-30` (snowmelt) | TBD per §8 Q2 |
-| **Archive ingest period** | `start - 7 days → end` | Needed to fill the 8-day window for `d = start` |
+| Cube inference period | Configurable; **default `2025-04-06 → 2025-05-28`** | Archive coverage; S1-start-limited start, S2/L8-end-limited end |
+| **Archive ingest period** | `start - 7 days → end` (default `2025-03-30 → 2025-05-28`) | Needed to fill the 8-day window for `d = start` |
 | Timestep stride | 1 day (`DAYS_PER_TIMESTEP`) | `config.py` |
 | Window per inference | 8 days (`NUM_TIMESTEPS`) | `config.py` |
 | Prediction cadence | 1 prediction per cell per day, `d ∈ [start, end]` | sliding window |
@@ -141,6 +253,13 @@ Based on the raw data archive under `data/bow_valley_selection_raw/`, direct-sou
 The 7-day prefill is non-negotiable: the model needs 8 timesteps. Phase 0
 archive audit MUST verify ingest coverage of `start − 7` through `end`, not
 just the inference range.
+
+**Earlier-start option:** if S1-absent days are acceptable as `-9999` for the
+S1 group (the model masks them), the window may start as early as **2025-03-08**
+(`start − 7 = 2025-03-01`, the common start of the other modalities). This
+trades S1 coverage on the first ~3 weeks for a longer inference span. Decide in
+Phase 0 against the audited S1 gap profile; do **not** silently assume S1 is
+present before 2025-03-30.
 
 ### Filename convention (CONTRACT — resolved here)
 
@@ -496,22 +615,35 @@ before approval.
 ## 8. Open Questions (need user input before FDD)
 
 1. **Archive locations. [RESOLVED]** Located under the symlink `data/bow_valley_selection_raw` pointing to the `/archive/data/ai4snow/bow_valley_selection_raw/` directory. Folder structure matches the raw selection with subfolders `dem`, `era5`, `landsat8`, `landsat9`, `modis`, `sentinel1`, `sentinel2`, `sentinel3`, `viirs`, and `worldcover`.
-2. **Date window.** Confirm `2024-02-01 → 2024-04-30` default. Available
-   CSV-recorded dates span 2024-01-05 to 2025-12-22.
-3. **Sweep mode.** (A) infer only the 500 CSV cells, or (B) full 30 k-cell
-   AOI tile? (drives compute estimate; default (A))
-4. **CSV `date` column semantics.** Does the date in
-   `sampled_cells_bow_river_with_dates.csv` represent the
+2. **Date window. [RESOLVED]** Default set to **`2025-04-06 → 2025-05-28`**,
+   derived from verified archive coverage (see §3 Temporal window). The earlier
+   `2024-02-01 → 2024-04-30` draft had **no archive data** and is discarded.
+   **Note:** the CSV-recorded dates (2024-01-05 → 2025-12-22, cited in a prior
+   draft) are *cell-sampling* metadata, **not** archive acquisition dates — do
+   not use them to scope ingestion. See Q4 for what the CSV date column means.
+3. **Sweep mode. [PARTIALLY RESOLVED]** Default **(A)** sample-only, over the
+   **in-AOI** CSV cells (~344 after the `data/aoi.geojson` centre-in filter, see
+   §3). Mode (B) tiles `data/aoi.geojson`, not the wider cell-sampling bbox.
+   Remaining input: confirm A vs B for the production run (drives compute).
+4. **CSV `date` column semantics. [OPEN — now higher priority]** Does the
+   `date` in `sampled_cells_bow_river_with_dates.csv` represent the
    *prediction day for that cell* (cell-specific window-end) or just sampling
-   metadata to ignore? If per-row prediction days, the driver loop changes
-   from "all cells, every day" to "each cell, its assigned day."
+   metadata to ignore? This now matters more: CSV dates span 2024–2025, but the
+   **archive only covers 2025-03 → 2025-06**. If the CSV date is a per-cell
+   prediction day, **every cell whose date falls outside the archive window
+   cannot be served** — and the driver loop changes from "all cells, every day"
+   to "each cell, its assigned day," intersected with archive coverage. Must be
+   resolved before the grid generator is specified.
 5. **Output destination.** Local disk vs object storage for daily COGs?
 6. **Checkpoint.** Which finetuned `EncoderWithHead` checkpoint feeds
    inference? Path?
 7. **Compute budget.** GPU count and wall-clock target. Mode (A): ~45 k
    forwards, hours on one GPU. Mode (B): ~2.7 M forwards, needs multi-GPU.
-8. **Sentinel-2 product level.** Confirm L1C (matches `S2_HARMONIZED` value
-   domain) vs L2A (would break normalization).
+8. **Sentinel-2 product level. [RESOLVED]** Verified: all 116 archive granules
+   are **L1C** (`MSIL1C`, zero `MSIL2A`), processing baseline **`N0511`**
+   (= 04.00+) across the board. Matches `S2_HARMONIZED` value domain. The
+   −1000 DN harmonization (§3, DATA_ANALYSIS §S2) is **required for every
+   granule**. Tiles present: `T11UNS, T11UNT, T11UPS, T11UPT` (the 2×2 grid).
 9. **`PR` filename prefix meaning. [RESOLVED]** Inspected the codebase and existing files. `data/eval_tifs` only contains `LC09` files. The prefix `PR` is unused on disk but supported in `src/fsc/landsat_eval.py` parser, making it fully safe to use as the prefix for our synthetic/predicted direct-source input files to ensure correct downstream coordinate parsing.
 10. **Cloud-flag emission.** Keep emitting (default; preserves GEE byte
     layout, dropped downstream) or skip to save IO? Recommend keep.
