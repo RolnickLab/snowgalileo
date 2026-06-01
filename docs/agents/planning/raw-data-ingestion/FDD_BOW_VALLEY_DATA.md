@@ -1,0 +1,165 @@
+# Formal Design Document — Bow Valley Direct-Source Data Cube & Daily Snow Cover Inference
+
+> Design of record for the direct-source pipeline. Sourced from
+> `PLAN_BOW_VALLEY_DATA.md` (architecture, FMEA, phasing), `DATA_ANALYSIS.md`
+> (tensor contract, source-by-source value domains), `CLIPPING_PLAN.md` (clip
+> stage), and `docs/agents/KNOWLEDGE.md` (gotchas). The acceptance criteria
+> derived from this FDD live in `SPEC_BOW_VALLEY_DATA.md`.
+
+---
+
+## 1. 🎯 Scope & Context
+
+Replace Google Earth Engine ingestion for the Bow Valley (Alberta) with a
+direct-source pipeline that clips a 326 GB multi-modal raw archive to
+`data/aoi.geojson`, assembles per-cell multiband GeoTIFFs byte- and
+value-compatible with `create_ee_image`, and runs the pretrained
+`EncoderWithHead` as a per-day 1 km grid sweep into a daily FSC COG. **Hard
+constraints:** downstream code (`Dataset`, `LandsatEvalDataset`,
+`EncoderWithHead`, `Normalizer`, metrics) must remain untouched — band order,
+tensor shapes, mask semantics, normalization domain, and the `-9999` / `-28672`
+nodata conventions are fixed; the archive only spans 2025-03 → 2025-06 and no
+source's per-day footprint covers the whole AOI.
+
+---
+
+## 2. 🧠 Architectural Approach (Trade-offs & Strategy)
+
+- **Ports & Adapters (Clean Architecture).** The existing `Dataset` is a
+  *consumer* of a logical raster stack. We add a `LocalSourceExporter` (the port,
+  mirroring `EarthEngineExporter.create_ee_image`) behind which one adapter per
+  modality (the adapters) produces the canonical band layout. This keeps business
+  logic independent of I/O drivers and lets us swap GEE → local files without
+  touching the consumer — the central interchangeability requirement.
+- **Three sequential stages, clip is on-path.** Raw archive → **AOI clip** →
+  clipped archive → cube/inference. The data-flow contract is resolved: adapters
+  read the **clipped** archive. Consequence (DRY + contract-first): the
+  footprint-vs-AOI **intersect gate runs once, in the clip stage**, not
+  re-implemented across 9 adapters. `data/aoi.geojson` is the single binding
+  extent end-to-end.
+- **Mosaic-before-crop per (source, day).** GEE's naive `.first()` selection
+  fabricates nodata seams on cells crossing swath/tile boundaries. We mosaic all
+  AOI-intersecting granules for a day *before* cropping to any cell. Accepted
+  trade-off: more I/O per day, but eliminates artificial intra-cell nodata.
+- **Per-modality per-(cell, day) `.npz` cache, not per-window tifs.** Consecutive
+  8-day windows overlap by 7 days; caching at the assembled-tif level would ~8×
+  the storage. Accepted trade-off: assembly cost per window in exchange for ~72 GB
+  vs ~575 GB cache.
+- **Partial coverage is a first-class normal state, not an error.** Clipping
+  crops but never fabricates coverage; missing `(source, day, cell)` → `-9999`
+  placeholder, which the model's masking is designed to consume. The 8-day window
+  is what makes sparse daily coverage tolerable (esp. S1: only ~16 archive dates).
+- **Cells/dates come from a generated cross-product CSV, not the legacy training
+  CSV.** The grid generator emits a CSV (canonical schema, consumable unchanged by
+  `export_from_csv_utm`) enumerating every in-AOI cell × every inference-window
+  day. This single artifact *is* the sweep, and the GEE reference-patch run
+  samples a subset of it — so parity cells are in-AOI/in-archive by construction.
+  Rejected alternative: reuse `sampled_cells_bow_river_with_dates.csv` directly —
+  rejected because its `date` is train/eval label metadata, 31% of its cells are
+  out-of-AOI, and most dates predate the archive.
+- **Rejected alternative — adapters read the raw archive (clip optional).**
+  Rejected: it duplicates the intersect gate across 9 adapters, makes the AOI a
+  per-adapter concern, and leaves `create_placeholder`/footprint logic scattered.
+  The clipped-archive contract centralizes the boundary at one audited stage.
+- **Rejected alternative — single MODIS/VIIRS resolution + `[0,1200]` clamp.**
+  Rejected (correctness bug): MOD09GA/VNP09GA carry two co-registered grids
+  (1 km = 1200², 500 m = 2400²); one clamp truncates half of every 500 m science
+  band. Each grid is indexed at its own resolution.
+
+---
+
+## 3. 🛡️ Verification & Failure Modes (FMEA)
+
+### Test Strategy
+
+- **Tracer-bullet integration test (the Red entry point, written first).**
+  `test_tracer_end_to_end.py`: export one cell × one window-end-day from the
+  **clipped** archive, read it through `LandsatEvalDataset`, run `EncoderWithHead`,
+  and assert the nine PLAN §6 conditions — tensor shapes
+  (`space_time_high_res_x==(100,100,8,15)`, `med==(5,5,8,2)`,
+  `low==(2,2,8,11)`, `time_x==(8,9)`, `space_x==(100,100,14)`, `static_x==(3,)`),
+  FSC `(10,10) ∈ [0,1]`, masks set on `-9999`/threshold, and filename parses to
+  the expected month. This is Step 2's failing test and the spine of Phase 3.
+- **Contract tests (before any adapter):** `test_filename_contract.py` (regex +
+  `prediction_month_from_file`), `test_grid.py` (344/338 counts, non-overlap,
+  kept/dropped manifest sums to 500), band-name equality vs `create_ee_image`
+  via `layout.py`.
+- **Clip-stage unit tests:** synthetic footprint outside → `SKIP_NO_OVERLAP`+no
+  file; sub-threshold → `SKIP_DEGENERATE_OVERLAP`+no file; ~8% Landsat → `CLIP`
+  with >0 valid pixels; per-grid MODIS extent equality; native-CRS preservation;
+  non-destructive pixel equality; post-run zero-all-nodata audit; manifest
+  one-row-per-product.
+- **Per-adapter tests:** golden-grid `(transform, shape, crs)`; declared
+  `bands_out` order; missing-day `-9999`; plus source-specific value-domain
+  asserts (S2 −1000 DN on N0511, MODIS `-28672` preserved, Landsat L9→L8 three
+  cases, VIIRS coarse `(4,H,W)` raster, DEM slope-on-10 m grid).
+- **Parity tests vs GEE reference patches** (generated in Phase 0): per-source
+  numeric diff within documented tolerance; full-stack `test_exporter_parity.py`.
+- **Inference/mosaic:** COG validity in EPSG:32611, all-masked cell → nodata,
+  per-day coverage metric recorded, 2×2 non-overlapping seam test, NN-only FSC
+  reprojection.
+
+### Known Risks
+
+- **S1 sparsity (dominant).** Present on ~16 dates → many windows have zero S1
+  timesteps. Phase 0 must quantify the fully-masked-S1-window rate before
+  committing compute; it materially changes the high-res group's contribution.
+- **Value-domain drift (S1, S2 highest).** SAR preprocessing and S2 baseline
+  harmonization materially shift pixel values; mitigated by running S1/S2 parity
+  spikes *first* (Phase 3 Step 0) as a go/no-go decision point.
+- **MODIS native fill stripped.** `landsat_eval.py:317,331` treats `-28672` as a
+  "data present" sentinel; stripping it crashes the loader. Adapter test guards.
+- **CRS / cross-zone reprojection (Landsat 32612→4326).** Mismatched alignment
+  silently corrupts the high-res stack; golden-grid + Landsat parity test guard.
+- **DEM slope/aspect scale sensitivity.** Computing on native 30 m then
+  reprojecting yields wrong gradients; compute on the 10 m-reprojected grid.
+- **`PR` filename-prefix meaning.** RESOLVED (unused on disk, parser-supported);
+  if it reopens, the only permitted downstream change is an additive allowlist
+  patch at `landsat_eval.py:172` in the same PR.
+- **External dependency failure modes:** clip reads a corrupt SAFE/HDF →
+  fail-safe skip + manifest row, never a partial output; GEE reference-patch
+  generation unavailable → parity ACs blocked (flagged, not silently passed).
+- **Security surface:** archive paths and the cache cap are config
+  (`pydantic-settings` / `cube.yaml`), no hardcoded paths/secrets; inputs
+  validated at the clip and adapter boundaries (geometry type, CRS presence,
+  expected subdatasets).
+- **CSV `date` semantics (resolved, was Q4).** The CSV `date` is train/eval
+  label-sampling metadata, not a per-cell prediction day. This is an inference
+  run: the driver iterates the configured window × all in-AOI cells and reads the
+  CSV for cell geometry only. The earlier "each-cell×assigned-day∩archive" branch
+  was a category error and is not a risk. (SPEC AC-31 tests that the loop ignores
+  the CSV `date`.)
+
+---
+
+## 4. 📋 Granular Implementation Steps
+
+Sequenced so each step is a Red→Green→Refactor cycle, ordered by dependency.
+
+1. **Audit archive + generate cube CSV + GEE reference patches (Phase 0)** —
+   catalog paths/formats/CRS/coverage, profile per-cell per-source 8-day-window
+   completeness, assert DEM/WorldCover mosaics reach lat 52.31; emit the
+   full-cross-product cube CSV (`grid.py` geometry half) and run
+   `export_for_inference.py` over a 5–10 row sample of it to emit
+   `tests/fixtures/gee_reference_patches/` consumed by every parity test.
+2. **Implement the AOI clip stage (Phase 0.5)** — `clip_dataset.py` Typer CLI +
+   the two-stage intersect gate + per-source manifest; Red: clip unit tests
+   (skip/keep/per-grid/non-destructive); exit gate: zero all-nodata audit.
+3. **Define the contract** — `base.py` (`LocalSourceAdapter`, `GridCell`), `grid.py`,
+   `layout.py`, `cube_cache.py`; Red: `test_grid.py`, `test_filename_contract.py`.
+4. **Build placeholder exporter + tracer test** — `LocalSourceExporter` with
+   all-`-9999` placeholder adapters; Red: `test_tracer_end_to_end.py` passes
+   (degenerate FSC) and band-name equality holds — pipeline plumbed end to end.
+5. **Run S1/S2 parity spikes (throwaway, de-risk)** — minimal download+reproject;
+   quantify drift vs reference patches; decision point before full adapter build.
+6. **Implement adapters in difficulty/parity order** — worldcover → dem → era5 →
+   modis → viirs → s3 → landsat → s2 → s1; each its own Red value-domain/CRS test
+   replacing the placeholder, then full-stack `test_exporter_parity.py` on green.
+7. **Wire `InferenceGridDriver` + `DailyMosaicWriter`** — per-day window build,
+   GPU-batched inference, EPSG:32611 COG with NN reprojection; Red:
+   `test_inference_driver.py` + 2×2 mosaic seam test.
+8. **Add entry-point scripts** — `export_bow_valley_cube.py`,
+   `infer_bow_valley_daily_fsc.py`, with `cube.yaml` / `inference.yaml`.
+
+Each step passes `uv run pre-commit run --all-files`, and its test set before its approval gate.
+

@@ -4,16 +4,17 @@ This plan outlines the design and implementation of a spatial clipping utility t
 
 The transformation is strictly **non-destructive** (preserves native pixel values, projections, data formats, and coordinate reference systems) and writes clipped outputs to `data/clipped_bow_valley_selection_raw`.
 
-> **Data-flow contract (resolve before implementing the adapters).** This clip
-> stage and the direct-source adapters in `PLAN_BOW_VALLEY_DATA.md §4` form a
-> two-stage pipeline whose hand-off must be explicit: do the `LocalSource*`
-> adapters read **`data/clipped_bow_valley_selection_raw`** (this stage's output)
-> or the **raw** `data/bow_valley_selection_raw`? Pick one and state it in both
-> documents. If adapters read the clipped output, the AOI is the binding extent
-> for inference (consistent with §1 below). If they read raw, this clip stage is
-> dead work for the inference pipeline and exists only to shrink the on-disk
-> archive. As of this writing `data/clipped_bow_valley_selection_raw` is empty
-> (clip not yet run), so the contract can still be fixed cheaply.
+> **Data-flow contract (RESOLVED).** This clip stage and the direct-source
+> adapters in `PLAN_BOW_VALLEY_DATA.md §4` form a two-stage pipeline. The
+> hand-off is now fixed: **the `LocalSource*` adapters read
+> `data/clipped_bow_valley_selection_raw` (this stage's output), not the raw
+> `data/bow_valley_selection_raw`.** This clip stage is therefore a **mandatory
+> on-path prerequisite** (formalized as `PLAN_BOW_VALLEY_DATA.md §3 "Pipeline
+> Stages & Data Flow"` and §7 Phase 0.5), not optional storage-shrink work, and
+> `data/aoi.geojson` is the **single binding extent** for the whole pipeline. The
+> §2.0 intersect gate below is consequently the *one* place footprint-vs-AOI
+> filtering happens — adapters do not re-implement it. As of this writing
+> `data/clipped_bow_valley_selection_raw` is empty (clip not yet run).
 >
 > **Partial AOI coverage per timestep (expected, not an error).** No
 > observational source's per-day footprint is a superset of this AOI

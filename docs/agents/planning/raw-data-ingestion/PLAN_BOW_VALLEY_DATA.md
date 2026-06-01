@@ -22,6 +22,11 @@ and an inference-grid driver.
 ## 2. Scope & Non-Goals
 
 **In scope**
+- A **non-destructive AOI clip stage** (`CLIPPING_PLAN.md`) that crops every raw
+  dataset in `data/bow_valley_selection_raw` to `data/aoi.geojson` and writes
+  `data/clipped_bow_valley_selection_raw`. This is a **mandatory upstream stage**,
+  not an optional utility — the adapters below read the **clipped** archive (see
+  §3 "Pipeline Stages & Data Flow").
 - Local-file adapters for S1, S2, Landsat 8/9, S3 OLCI, MODIS MOD09GA,
   VIIRS VNP09GA, ERA5-Land, Copernicus DEM GLO-30, ESA WorldCover v200.
 - Producer of per-cell GeoTIFFs matching `create_ee_image` layout (dynamic
@@ -49,6 +54,55 @@ and an inference-grid driver.
 ---
 
 ## 3. AOI, Grid, and Temporal Window
+
+### Pipeline Stages & Data Flow (where clipping happens — RESOLVED)
+
+The full pipeline is **three sequential stages**. The clip stage was previously
+only implicit; it is formalized here as a mandatory stage with its own approval
+gate (§7 Phase 0.5).
+
+```
+  Stage 0 — RAW ARCHIVE (read-only, never mutated)
+    data/bow_valley_selection_raw/   (10 modalities, native CRS/format)
+        │
+        │  AOI clip  (CLIPPING_PLAN.md):
+        │  • §2.0 intersect gate runs HERE, once per product
+        │  • non-destructive: native pixels/CRS/format preserved
+        │  • out-of-AOI products skipped (no output file)
+        ▼
+  Stage 1 — CLIPPED ARCHIVE   ◄── the adapters' archive root
+    data/clipped_bow_valley_selection_raw/   (same layout, cropped to aoi.geojson)
+        │
+        │  LocalSource* adapters (§4) + LocalSourceExporter
+        │  • per-(cell, day) reprojection to EPSG:4326 scale=10
+        │  • mosaic-before-crop, -9999 placeholders
+        ▼
+  Stage 2 — CUBE + INFERENCE
+    per-cell multiband tifs → EncoderWithHead → DailyMosaicWriter (daily COG)
+```
+
+**Data-flow contract (RESOLVED).** The `LocalSource*` adapters in §4 read
+**`data/clipped_bow_valley_selection_raw`** (Stage 1 output), **not** the raw
+archive. Consequences, binding on every downstream component:
+
+1. **The clip stage is on the inference path and is a hard prerequisite.** It
+   must run (and pass its post-run audit) before any adapter, cube export, or
+   inference job. It is **not** a storage-shrink convenience.
+2. **`data/aoi.geojson` is the single binding extent end-to-end.** Because the
+   clipped archive contains no data outside the AOI, the §2.0 intersect gate is
+   the *one* place footprint-vs-AOI filtering happens. Adapters do **not**
+   re-implement it — they assume every product they see already intersects the
+   AOI. This keeps the gate from being duplicated across 9 adapters (DRY;
+   contract-first).
+3. **Adapters still handle partial coverage.** Clipping crops to the AOI but does
+   not fabricate coverage: a clipped product may still cover only part of the AOI
+   (the 8–42% Landsat case), and many (source, day) pairs have no product at all.
+   Adapters emit `-9999` placeholders for those — see "Per-Timestep, Per-Source
+   Partial AOI Coverage" below. The clip stage and the placeholder path are
+   complementary, not redundant.
+4. **Config wiring.** `configs/bow_valley/cube.yaml` `archive_root` points at
+   `data/clipped_bow_valley_selection_raw`. The raw path appears **only** in the
+   clip stage's config, nowhere in the adapter/exporter config.
 
 ### AOI — two distinct definitions (DO NOT CONFLATE)
 
@@ -92,11 +146,37 @@ grid generator MUST filter them out. The cell-sampling extent above is retained
 only as provenance for how the cells were originally drawn; it is **not** the
 sweep extent.
 
-**Grid-generator contract (mode A):** load the CSV, reproject each cell to
-EPSG:4326, keep a cell iff its centre lies within `data/aoi.geojson`
-(centre-in rule → **344 cells**), drop the rest. A `--require-fully-inside` flag
-restricts to the **338** fully-contained cells. Emit a manifest of kept/dropped
-cell ids for auditability.
+**Grid-generator contract (mode A):** load the legacy CSV **for cell geometry
+only**, reproject each cell to EPSG:4326, keep a cell iff its centre lies within
+`data/aoi.geojson` (centre-in rule → **344 cells**), drop the rest. A
+`--require-fully-inside` flag restricts to the **338** fully-contained cells.
+Emit a manifest of kept/dropped cell ids for auditability.
+
+**Generated cube CSV (the pipeline's actual cell/date input — RESOLVED).** The
+grid generator does **not** consume the legacy
+`sampled_cells_bow_river_with_dates.csv` `date` column (that column is train/eval
+label-sampling metadata — see §8 Q4). Instead it **emits its own CSV** with the
+canonical schema `date, crs, center_x, center_y, min_x, min_y, max_x, max_y`
+(EPSG:32611) so that `EarthEngineExporterEval.export_from_csv_utm`
+(`src/data/earthengine/eo_eval.py:576`) consumes it **unchanged**. Content is the
+**full cross-product**: every in-AOI cell × every day in the inference window
+(default `2025-04-06 → 2025-05-28`), one row per `(cell, day)`. This generated
+CSV **is** the inference sweep enumeration:
+- **Mode A:** cells are the 344 in-AOI legacy-CSV cells (geometry only) × window
+  days ≈ 344 × 53 ≈ **18 k rows**.
+- **Mode B:** cells are tiled directly from `data/aoi.geojson` (legacy CSV not
+  needed at all) × window days.
+- Per-row `date` is the window-end; the GEE/export side derives
+  window-start = `date − (NUM_TIMESTEPS−1)`. The direct-source driver reads the
+  same rows. This does **not** reintroduce Q4: the dates here are simply the
+  configured inference window enumerated, not per-cell label days.
+- The **Phase 0 GEE reference-patch** run (§7) samples a **small subset (5–10
+  rows)** of this same generated CSV — guaranteeing the parity cells are in-AOI
+  and in-archive by construction.
+
+Coordinates are load-bearing: `center_x/y` build the per-cell filename (→
+`static_x` location) and `min/max_*` build the export polygon
+(`eo_eval.py:599, 606`).
 
 **Decision required before FDD (see §8 Q3):** sweep mode.
 - **(A) Sample-only:** infer over the in-AOI CSV cells only (~344 cells after
@@ -184,9 +264,15 @@ source's per-day footprint is a superset of the AOI.
    an output metric so downstream consumers know how complete each daily mosaic
    is.
 
-### Raw Archive Directory Formats and Structures
+### Archive Directory Formats and Structures
 
-Based on the raw data archive under `data/bow_valley_selection_raw/`, direct-source ingestion must handle the following structures, files, and nested formats for the 9 modalities:
+The clip stage (Stage 0→1) **preserves** these structures, formats, and nested
+layouts — it only crops pixel extents (see `CLIPPING_PLAN.md`). So the formats
+below describe **both** the raw archive (`data/bow_valley_selection_raw/`, the
+clip stage's input) and the clipped archive
+(`data/clipped_bow_valley_selection_raw/`, which the adapters read). Direct-source
+ingestion must handle the following structures, files, and nested formats for the
+9 modalities:
 
 - **dem** (Copernicus DEM GLO-30):
   - Path: `data/bow_valley_selection_raw/dem/DEM1_SAR_DGE_30_[meta]/Copernicus_DSM_10_[tile]/`
@@ -305,9 +391,17 @@ in the same PR (touches `landsat_eval.py:172` — minimal additive change).
 Ports & Adapters. The existing `Dataset` is a *consumer* of a logical raster
 stack. We introduce a `LocalSourceExporter` that produces the same stack from
 local files, plus an `InferenceGridDriver` that orchestrates per-cell
-inference.
+inference. **Upstream of all of it sits the AOI clip stage** (§3 Pipeline
+Stages); the adapters' archive root is the clipped output it produces.
 
 ```
+                ┌──────────────────────────────────────────┐
+                │   AOI Clip Stage (CLIPPING_PLAN.md)      │
+                │   raw archive → clipped archive           │
+                │   §2.0 intersect gate runs here, once     │
+                └────────────┬─────────────────────────────┘
+                             │ data/clipped_bow_valley_selection_raw
+                             ▼
                 ┌──────────────────────────────────────────┐
                 │       InferenceGridDriver (new)          │
                 │  AOI → 1 km grid → per-cell jobs          │
@@ -557,31 +651,56 @@ These nine assertions are the SPEC's primary ACs.
 
 Each phase ends with an explicit approval gate per CLAUDE.md workflow rules.
 
-1. **Phase 0 — Archive Audit + GEE Reference Patch Generation (no production
-   code).**
+1. **Phase 0 — Archive Audit + Cube CSV + GEE Reference Patch Generation (no
+   production adapters).**
    - Catalog every file we have for each modality: paths, formats (SAFE / HDF /
      NetCDF / COG), CRS, native scale, coverage of `[start-7, end]` × AOI,
      gaps.
-   - Run the existing GEE exporter (`scripts/export_for_eval.py`) over a
-     5–10 cell × 3-day held-out sample to produce **GEE reference patches**
-     used by every parity test in Phase 2/3.
+   - **Generate the cube CSV** (§3 "Generated cube CSV"): stand up the geometry
+     half of the grid generator (`grid.py`, pure CRS/polygon math — no adapters)
+     and emit the full-cross-product CSV (in-AOI cells × inference-window days)
+     in the canonical schema. This artifact drives both the sweep and the
+     reference run.
+   - Run the existing CSV-driven GEE exporter
+     (`scripts/export_for_inference.py` → `EarthEngineExporterEval.export_from_csv_utm`,
+     `src/data/earthengine/eo_eval.py:576` — **not** `export_for_eval.py`) over a
+     **5–10 row sample of the generated cube CSV** to produce **GEE reference
+     patches** used by every parity test in Phase 2/3. Sampling from the
+     generated CSV guarantees each reference cell is in-AOI and in-archive by
+     construction.
    - Verify the meaning of the `PR` filename prefix in `landsat_eval.py:172`.
    - Output: `docs/agents/planning/bow_valley/ARCHIVE_AUDIT.md` +
+     `configs/bow_valley/cube_cells.csv` (generated) +
      `tests/fixtures/gee_reference_patches/`.
-2. **Phase 1 — FDD.** Formal Design Document per planning skill, including the
+2. **Phase 0.5 — AOI Clip (prerequisite stage, per `CLIPPING_PLAN.md`).**
+   Produces `data/clipped_bow_valley_selection_raw`, the archive root every
+   adapter reads (§3 Pipeline Stages, §4). Must complete before any adapter
+   work in Phase 3 — the cube cannot be built from the raw archive.
+   - Implement `scripts/developer_scripts/clip_dataset.py` (Typer CLI) and its
+     validation script per `CLIPPING_PLAN.md §3`.
+   - Run the §2.0 intersect gate per product; emit the per-source clip manifest.
+   - **Exit gate (mandatory):** the post-run audit asserts
+     `data/clipped_bow_valley_selection_raw` contains **zero** all-nodata /
+     zero-valid-pixel outputs, and the clip manifest accounts for every input
+     product (`CLIP | SKIP_NO_OVERLAP | SKIP_DEGENERATE_OVERLAP`). Phase 0's
+     static-layer coverage assertion (DEM/WorldCover mosaics reach `lat 52.31`)
+     is re-checked against the clipped output. Approval gate.
+3. **Phase 1 — FDD.** Formal Design Document per planning skill, including the
    tracer test of §6 with the nine concrete assertions. Approval gate.
-3. **Phase 2 — SPEC.** Acceptance criteria as test sentences. Per-adapter
+4. **Phase 2 — SPEC.** Acceptance criteria as test sentences. Per-adapter
    value-domain assertions, per-adapter parity thresholds (numeric diff
    tolerance) vs GEE reference patches generated in Phase 0. Approval gate.
-4. **Phase 3 — Tasks (vertical slices).** Re-ordered to de-risk high-impact
+5. **Phase 3 — Tasks (vertical slices).** Re-ordered to de-risk high-impact
    adapters early.
    - **Step 0 — Parity spikes (throwaway).** Stand up minimal S1 and S2 GRD/L1C
      download + reprojection scripts. Compare to GEE reference patches.
      Quantify drift. *Decision point:* if drift is too large to recover with
      processing, escalate before sinking effort into the full ports/adapters
      stack.
-   - **Step 1 — Contract.** `base.py` + `GridCell` + `grid.py` + `layout.py` +
-     `cube_cache.py`. `test_grid.py`, `test_filename_contract.py` pass.
+   - **Step 1 — Contract.** `base.py` + `GridCell` + `grid.py` (productionize the
+     geometry half built in Phase 0: cross-product CSV emission, kept/dropped
+     manifest, mode A/B) + `layout.py` + `cube_cache.py`. `test_grid.py`,
+     `test_filename_contract.py` pass.
    - **Step 2 — Placeholder exporter + tracer test.** `LocalSourceExporter` +
      placeholder adapters returning `-9999`. `test_tracer_end_to_end.py` passes
      with all-`-9999` cubes (FSC will be degenerate but pipeline plumbed).
@@ -614,7 +733,16 @@ before approval.
 
 ## 8. Open Questions (need user input before FDD)
 
-1. **Archive locations. [RESOLVED]** Located under the symlink `data/bow_valley_selection_raw` pointing to the `/archive/data/ai4snow/bow_valley_selection_raw/` directory. Folder structure matches the raw selection with subfolders `dem`, `era5`, `landsat8`, `landsat9`, `modis`, `sentinel1`, `sentinel2`, `sentinel3`, `viirs`, and `worldcover`.
+1. **Archive locations & data-flow contract. [RESOLVED]** Raw archive under the
+   symlink `data/bow_valley_selection_raw` → `/archive/data/ai4snow/bow_valley_selection_raw/`,
+   with subfolders `dem`, `era5`, `landsat8`, `landsat9`, `modis`, `sentinel1`,
+   `sentinel2`, `sentinel3`, `viirs`, `worldcover`. The AOI clip stage
+   (`CLIPPING_PLAN.md`, §7 Phase 0.5) writes a same-layout **clipped** mirror at
+   the symlink `data/clipped_bow_valley_selection_raw`. **Contract resolved: the
+   `LocalSource*` adapters read the clipped archive, not the raw one** (see §3
+   "Pipeline Stages & Data Flow"). The clip stage is therefore a mandatory
+   on-path prerequisite, and `data/aoi.geojson` is the single binding extent
+   end-to-end.
 2. **Date window. [RESOLVED]** Default set to **`2025-04-06 → 2025-05-28`**,
    derived from verified archive coverage (see §3 Temporal window). The earlier
    `2024-02-01 → 2024-04-30` draft had **no archive data** and is discarded.
@@ -625,15 +753,21 @@ before approval.
    **in-AOI** CSV cells (~344 after the `data/aoi.geojson` centre-in filter, see
    §3). Mode (B) tiles `data/aoi.geojson`, not the wider cell-sampling bbox.
    Remaining input: confirm A vs B for the production run (drives compute).
-4. **CSV `date` column semantics. [OPEN — now higher priority]** Does the
-   `date` in `sampled_cells_bow_river_with_dates.csv` represent the
-   *prediction day for that cell* (cell-specific window-end) or just sampling
-   metadata to ignore? This now matters more: CSV dates span 2024–2025, but the
-   **archive only covers 2025-03 → 2025-06**. If the CSV date is a per-cell
-   prediction day, **every cell whose date falls outside the archive window
-   cannot be served** — and the driver loop changes from "all cells, every day"
-   to "each cell, its assigned day," intersected with archive coverage. Must be
-   resolved before the grid generator is specified.
+4. **CSV `date` column semantics. [RESOLVED]** The `date` column in
+   `sampled_cells_bow_river_with_dates.csv` is **training/evaluation sampling
+   metadata** — the day each cell was drawn for label pairing in the existing
+   train/eval pipeline (`LandsatEvalDataset` matches an input tif to a label tif
+   by date+coords). **It is NOT a per-cell prediction day for this inference
+   run.** This plan is an *inference* job: the driver iterates the configured
+   window from §3 (`2025-04-06 → 2025-05-28`, every day, every in-AOI cell) and
+   **does not read the CSV `date` at all**. The CSV is consumed here for **cell
+   geometry only** (`center_x/y` and bounds) when building the mode-A grid; the
+   `date` column is ignored. Consequences: the driver loop is "all in-AOI cells ×
+   every day in the configured window" (no per-cell date intersection), and the
+   2024–2025 span of the CSV dates is irrelevant to ingestion scoping. The
+   earlier worry that "cells whose date falls outside the archive cannot be
+   served" was a category error — it imported train/eval label-pairing semantics
+   into an inference run.
 5. **Output destination.** Local disk vs object storage for daily COGs?
 6. **Checkpoint.** Which finetuned `EncoderWithHead` checkpoint feeds
    inference? Path?
