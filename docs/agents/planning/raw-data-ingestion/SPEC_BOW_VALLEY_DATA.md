@@ -66,7 +66,15 @@ sentence and maps to at least one step in the Verification Plan (§7).
 - [ ] FR-7: Each adapter implements the `LocalSourceAdapter` contract (`fetch(cell,
   day) -> np.ndarray` of shape `(C, H, W)`, `-9999` nodata) and reprojects to the
   cell target grid (`EPSG:4326`, scale=10) using **bilinear** for continuous
-  bands and **nearest** for QA/categorical.
+  bands and **nearest** for QA/categorical. Bilinear resampling is
+  **nodata-aware**: before warping, fill/nodata pixels (`-9999`, and the native
+  `-28672` for MODIS) are masked to NaN so the interpolator never blends a valid
+  value with a fill sentinel; the output restores `-9999` (or `-28672`) wherever
+  the contributing source pixels were fill. This guards against edge-bleed (a
+  valid reflectance interpolated against `-28672` would otherwise produce garbage
+  negatives that bypass the `CHANNEL_WISE_INVALID_DATA_THRESHOLDS`). This rule
+  lives in the shared `base.py` resampler so every continuous adapter inherits it
+  (MODIS, S2 swath edges, Landsat scene borders, etc.), not just MODIS.
 - [ ] FR-8: A missing acquisition for `(source, day)` returns a `-9999` array of
   the declared shape (`create_placeholder` equivalent) — not an error.
 - [ ] FR-9: For each source and each day, the adapter **mosaics all** AOI-
@@ -83,7 +91,11 @@ sentence and maps to at least one step in the Verification Plan (§7).
 - [ ] FR-10: The MODIS adapter preserves the native `-28672` fill value in
   addition to `-9999`.
 - [ ] FR-11: The S2 adapter checks each granule's processing baseline and
-  subtracts 1000 DN when baseline ≥ `04.00` (N0511) to match `S2_HARMONIZED`.
+  subtracts 1000 DN when baseline ≥ `04.00` (N0511) to match `S2_HARMONIZED`. The
+  baseline is read from `<PROCESSING_BASELINE>` in the granule's `MTD_MSIL1C.xml`
+  (verified present as `05.11`), falling back to the `N0511`-from-path token if
+  the tag is absent. (Q8 already verified all 116 archive granules are N0511, so
+  the subtraction applies to every granule here.)
 - [ ] FR-12: The Landsat adapter encapsulates the L9→L8 fallback internally and
   emits renamed bands `B2_landsat … B7_landsat`.
 - [ ] FR-13: The VIIRS coarse adapter emits a per-pixel raster on the cell grid
@@ -94,8 +106,19 @@ sentence and maps to at least one step in the Verification Plan (§7).
   day-shift**: the daily total for day `i` is read from the **`i+1` `00:00` slice**
   (`tp[index] → day index−1`). Instantaneous temp/wind vars carry **no** shift. Missing
   day → `-9999`.
-- [ ] FR-15: The DEM adapter reprojects elevation to the 10 m cell grid **before**
-  computing slope and aspect; emits `DEM, slope, aspect`.
+- [ ] FR-15: The DEM adapter computes slope and aspect with **latitude-correct
+  metric pixel spacing**, matching GEE's `ee.Terrain.slope`/`aspect`
+  (`src/data/earthengine/copernicus_dem.py:14-16`), then resamples elevation +
+  slope + aspect to the 10 m cell grid (`EPSG:4326`, scale=10); emits
+  `DEM, slope, aspect`. **Parity note (CRS is law):** GEE computes terrain on the
+  DEM's native grid using true ground pixel dimensions (it does *not* take naive
+  `dz/dx` in raw degree units), so the adapter must do the same — supply the
+  correct metres-per-pixel in x/y at the cell's latitude to the slope/aspect
+  kernel. Do **not** detour through EPSG:32611 to compute terrain: the GEE
+  reference patches (AC-21) were never computed in a UTM frame, so a UTM-computed
+  slope/aspect would fail parity. The risk being closed is running Horn's kernel
+  on a degree grid with unit (`1°≈1 m`) pixel spacing, which scales gradients by
+  ~111,000× — fixed by correct metric spacing, not by a projection change.
 - [ ] FR-16: The WorldCover adapter ignores `day`, returns the v200 2021 `Map`
   band (single categorical band, not one-hot).
 - [ ] FR-17: `LocalSourceExporter` writes a per-(cell, window-end-day) multiband
@@ -118,8 +141,13 @@ sentence and maps to at least one step in the Verification Plan (§7).
   per `(cell, day)`); this CSV is the inference sweep enumeration. The legacy
   CSV's `date` column is **not** read.
 - [ ] FR-20: The cube cache stores per-modality per-(cell, day) `.npz` arrays
-  (not per-window) in `data/bow_valley_processing/cube_cache/`, FIFO-evicted with
-  a configurable size cap.
+  (not per-window) in `data/bow_valley_processing/cube_cache/`, **sharded one
+  subdirectory per cell** (`cube_cache/{cell_id}/{day}_{modality}.npz`),
+  FIFO-evicted with a configurable size cap. A flat layout would put ~300k files
+  (mode A: ~344 cells × ~96 archive days × ~9 modalities) in a single directory,
+  degrading ext4/xfs directory indexing to O(N); the per-cell shard keeps each
+  directory under ~1k entries. (Per-cell sharding suffices — no hash-prefix tier
+  needed.)
 - [ ] FR-20b: All Stage 2 (cube/inference) artifacts are written under
   `data/bow_valley_processing/`, each process to its **own subdirectory**:
   `cube_cache/` (.npz, intermediate/cleanable), `cubes/` (assembled 8-day cube
@@ -295,9 +323,12 @@ explicit.
   slice value (the accumulation closing day `d`), **not** the day-`d` slice. The same
   test asserts an instantaneous variable (`temperature_2m`) for day `d` is read from the
   day-`d` slice (no shift). (Guards the silent off-by-one.)
-- [ ] AC-21: **DEM** computes slope/aspect on the 10 m-reprojected grid (asserted
-  by comparing against GEE-derived slope/aspect within threshold), emits
-  `[DEM, slope, aspect]`.
+- [ ] AC-21: **DEM** computes slope/aspect with latitude-correct metric pixel
+  spacing matching `ee.Terrain` (asserted by comparing against GEE-derived
+  slope/aspect within threshold — NOT against a EPSG:32611-computed reference),
+  resamples to the 10 m cell grid, emits `[DEM, slope, aspect]`. A degenerate
+  guard asserts slopes are **not** all ≈90° (the failure mode of running the
+  kernel on a degree grid with unit pixel spacing).
 - [ ] AC-22: **WorldCover** emits a single `Map` band with class codes in
   `{10,20,…,95,100}` (not one-hot), independent of `day`.
 
@@ -316,7 +347,11 @@ explicit.
   list (band-order regression guard via `layout.py` re-export from `eo.py`).
 - [ ] AC-27: Full-stack numeric parity: per-source diff between the direct-source
   cube and the Phase 0 GEE reference patches is within each source's documented
-  tolerance.
+  tolerance. **Coordinate reconciliation:** parity pairs the direct-source cube to
+  its GEE reference by **shared `cube_cells.csv` row** (FR-19b) — both pipelines
+  are driven by the same generated CSV — not by raw filename-string equality, so
+  the UTM-CSV (`export_from_csv_utm`) vs degree-filename (`PR_…_{LAT}_{LON}_…`)
+  representation difference does not affect matching.
 
 **Inference & mosaic**
 - [ ] AC-28: `DailyMosaicWriter` output is a valid COG in EPSG:32611; cells with

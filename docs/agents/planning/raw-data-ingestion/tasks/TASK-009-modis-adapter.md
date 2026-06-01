@@ -31,15 +31,25 @@ value** in addition to `-9999`.
 ## 3. Subtasks
 - [ ] 1. Write `test_modis_adapter.py` (Red): golden-grid triple; `bands_out =
       sur_refl_b01..b07`; **`-28672` present** in output where the source had it; missing
-      day → all-`-9999`; reads the 500 m grid (not the 1 km clamp).
+      day → all-`-9999`; reads the 500 m grid (not the 1 km clamp); **nodata-aware
+      bilinear: no interpolated value bleeds toward `-28672` at a fill edge (assert
+      no out-of-domain negative appears adjacent to a fill pixel)**.
 - [ ] 2. Implement `modis.py`: read 500 m subdatasets via `gdal_translate`, mosaic tiles,
       reproject sinusoidal→cell grid, stack `(7, H, W)`; `native_fill=-28672`.
 - [ ] 3. Implement the `state_1km` cloud-flag path (NN), emitted in the cloud slot.
 - [ ] 4. Wire into exporter. 5. Green + Refactor.
 
 ## 4. Requirements & Constraints
-- **Technical:** Per-grid indexing (no hardcoded `1200`); bilinear for science bands,
-  NN for `state_1km`; system GDAL HDF4 driver.
+- **Technical:** Per-grid indexing (no hardcoded `1200`); **nodata-aware**
+  bilinear for science bands, NN for `state_1km`; system GDAL HDF4 driver.
+- **Nodata-aware bilinear (edge-bleed guard).** Before the bilinear warp, mask
+  `-28672` and `-9999` pixels to NaN so the interpolator never blends a valid
+  reflectance with the fill sentinel; restore `-28672`/`-9999` in the output where
+  the contributing source pixels were fill. A naive bilinear across a valid value
+  and `-28672` yields a garbage negative (e.g. `-5000`) that slips past
+  `CHANNEL_WISE_INVALID_DATA_THRESHOLDS`. This logic lives in the shared `base.py`
+  resampler (TASK-003) — MODIS is its highest-risk consumer, not its only one.
+  (REVIEW_AUDIT.md verdict #4.)
 - **Business:** `-28672` MUST survive into the output (loader sentinel). Do not apply
   the MODIS scale factor (changes the numeric domain vs normalization constants).
 - **Out of scope:** NDSI/NDVI derivation (loader), VIIRS (TASK-010).

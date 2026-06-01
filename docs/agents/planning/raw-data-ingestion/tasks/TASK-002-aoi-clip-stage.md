@@ -55,6 +55,14 @@ check, emits a per-source manifest, and passes a post-run zero-all-nodata audit.
   resampling/rescaling). Landsat stays in native EPSG:32612 (cross-zone reprojection
   to the 4326 cell grid happens later, in the Landsat adapter — TASK-012). Fail-safe
   on corrupt SAFE/HDF: skip + manifest row, never a partial output.
+- **Landsat CRS — read the band header, don't assume.** Verified: every archive
+  Landsat scene is natively `EPSG:32612` (`gdalinfo LC09_..._B4.TIF` →
+  `ID["EPSG",32612]`; USGS assigns each WRS-2 path/row its own UTM zone regardless
+  of AOI longitude). So `crs == 32612` here is correct, **not** the bug a prior
+  review claimed (it reasoned from AOI longitude → UTM 11). Still, **query each
+  band's CRS dynamically** and reproject the AOI to *that* CRS rather than
+  hardcoding 32612 — defensive against a future mixed-zone pull. (REVIEW_AUDIT.md
+  verdict #2.)
 - **Out of scope:** No reprojection to the cell grid, no band assembly, no `-9999`
   placeholder fabrication (that is the adapter layer). This stage only crops extents.
 - **Write boundary:** writes **only** `data/clipped_bow_valley_selection_raw`. Never

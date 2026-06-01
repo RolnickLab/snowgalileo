@@ -17,8 +17,11 @@ on the cell grid, subtracting 1000 DN for baseline ≥ 04.00 (N0511) granules to
   - Clipped SAFE JP2, `EPSG:32611`, tiles `T11UNS/NT/PS/PT`; `uint16`.
   - Bands `B2,B3,B4,B8,B11,B12` (10 m + 20 m SWIR resampled onto the grid).
   - **Harmonization:** direct Copernicus L1C does NOT have the GEE +1000 DN harmonization.
-    Read granule metadata, check processing baseline; if `≥ 04.00` (N0511) subtract 1000
+    Read the processing baseline from `<PROCESSING_BASELINE>` in the granule's
+    `MTD_MSIL1C.xml` (verified present as `05.11`), falling back to the
+    `N0511`-from-path token if the tag is missing; if `≥ 04.00` (N0511) subtract 1000
     DN. **All 116 archive granules are N0511 → required for every granule** (Q8).
+    (REVIEW_AUDIT.md verdict #6.)
   - ÷10000 downstream; valid `>= -1`.
   - `QA60` cloud flag emitted separately in the S2 cloud slot.
   - `spatial_kind="high"`.
@@ -41,8 +44,9 @@ on the cell grid, subtracting 1000 DN for baseline ≥ 04.00 (N0511) granules to
 - [ ] 4. Wire into exporter (replace spike). 5. Green + Refactor.
 
 ## 4. Requirements & Constraints
-- **Technical:** Bilinear for reflectance, NN for `QA60`; baseline parsed from granule
-  metadata; deterministic product order by processing time.
+- **Technical:** Bilinear for reflectance, NN for `QA60`; baseline parsed from
+  `MTD_MSIL1C.xml` `<PROCESSING_BASELINE>` (fallback: `N0511`-from-path);
+  deterministic product order by processing time.
 - **Business:** −1000 DN harmonization is required for every (N0511) granule. Coalesce
   is a valid-pixel union, never an average.
 - **Out of scope:** L2A surface reflectance (not interchangeable), S1 (TASK-014).

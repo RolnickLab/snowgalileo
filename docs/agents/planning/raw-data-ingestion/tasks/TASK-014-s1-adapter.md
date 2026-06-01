@@ -14,6 +14,12 @@ using windowed reads of the cell footprint — never full-scene loads.
   TASK-003, TASK-001 (reference patches).
 - **Source semantics (DATA_ANALYSIS.md §Sentinel-1 + §Verified Catalog):**
   - `.zip` SAFE, swath/sensor geometry, `uint16`, scene shape ~`(16708, 26079)`.
+  - **Range geometry, GCPs only — verified.** `gdalinfo` on archive measurement
+    TIFFs shows `GCP Projection = GEOGCRS["WGS 84"]`, 210 GCPs, **no `PROJCRS`**,
+    raw pixel grid (`UL (0,0) → LR (26079,16708)`). A prior review wrongly claimed
+    these GRD products are already UTM-projected; they are not. Terrain-correction
+    to a map grid (this task) is therefore required, and the clip stage's GCP-based
+    slice (`CLIPPING_PLAN.md §2.5`) is correct. (REVIEW_AUDIT.md verdict #5.)
   - Bands `[VV, VH, angle]`; IW mode; `angle` in degrees.
   - Preprocessing to match GEE `S1_GRD`: orbit metadata, thermal/border noise,
     radiometric calibration, terrain correction to the map grid; convert to dB.

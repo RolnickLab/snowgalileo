@@ -545,6 +545,16 @@ Rules enforced by `base.py`:
 - Output reprojected to the cell's target grid (`EPSG:4326`, scale=10) using:
   - **bilinear** for continuous bands,
   - **nearest** for QA / categorical (WorldCover, cloud flags).
+- **Nodata-aware bilinear (mandatory in the shared resampler).** Before a
+  bilinear warp, fill/nodata pixels (`-9999`, and MODIS `-28672`) are masked to
+  NaN so the interpolator never blends a valid value with a fill sentinel; the
+  output restores `-9999`/`-28672` wherever the contributing source pixels were
+  fill. Without this, a valid reflectance interpolated against `-28672` yields a
+  garbage negative (e.g. `-5000`) that slips past the
+  `CHANNEL_WISE_INVALID_DATA_THRESHOLDS` and pollutes model input. This is an
+  edge-bleed risk for **every** continuous band near a nodata edge — MODIS fill,
+  S2/S1 swath edges, Landsat scene borders — so it lives in `base.py`, not just
+  the MODIS adapter.
 - Missing acquisition → return `-9999` array of declared shape
   (`create_placeholder` equivalent).
 - **Same-tile/date coalesce before mosaic-before-crop.** For scene/granule
@@ -582,7 +592,20 @@ Rules enforced by `base.py`:
   for temps/winds; for precip take the end-of-day accumulation (the next day's `00:00`),
   never a naive 24-value sum and never stopping at 23:00. See `DATA_ANALYSIS.md` → ERA5
   accumulation gotcha.
-- **Copernicus DEM terrain metrics**: Slope and aspect are scale-sensitive. GEE computes them on the fly from the 10 m resampled elevation DEM. The local DEM adapter must reproject the elevation DEM to the target 10 m cell grid first before computing slope and aspect to avoid scale distortion.
+- **Copernicus DEM terrain metrics**: Slope and aspect are scale-sensitive. GEE
+  (`src/data/earthengine/copernicus_dem.py:14-16`) computes `ee.Terrain.slope`/
+  `aspect` on the DEM's **native grid** using true ground pixel dimensions
+  (latitude-aware metres-per-pixel), *then* the export resamples to the 4326/
+  scale=10 cell grid. The local DEM adapter must replicate that: compute slope/
+  aspect with **latitude-correct metric pixel spacing** (supply the real
+  metres-per-pixel in x/y at the cell's latitude to the Horn kernel), then
+  resample DEM+slope+aspect to the 10 m cell grid. **Do NOT detour through
+  EPSG:32611 to compute terrain** — the GEE reference patches were never computed
+  in a UTM frame, so a UTM-computed slope/aspect fails parity (AC-21). The bug to
+  avoid is running the kernel on a degree grid with unit (`1°≈1 m`) pixel
+  spacing, which scales gradients by ~111,000× and forces all slopes toward 90° —
+  that is a *pixel-spacing* error, not a projection error, and is fixed by
+  passing correct metric spacing, not by changing CRS.
 - **Sentinel-3 OLCI geolocation**: S3 OLCI SAFE products contain separate NetCDF files georeferenced by coordinate tie-point grids. The local adapter must use these geolocation arrays to precisely project OLCI radiance bands onto the target cell grid.
 - WorldCover adapter ignores `day` and returns the v200 2021 map. Hardcoded.
 
@@ -613,6 +636,20 @@ duplicate ~8× the storage. The exporter:
 
 The per-day `.npz` cache lives in `data/bow_valley_processing/cube_cache/`; both
 roots derive from `processing_root` in `cube.yaml` (see §3 Directory layout).
+
+**Cache directory sharding (filesystem-performance fix).** The cache is **sharded
+one subdirectory per cell**:
+
+```
+cube_cache/{cell_id}/{day}_{modality}.npz
+```
+
+A flat `cube_cache/{cell_id}_{day}_{modality}.npz` layout would put **~300k
+files** (mode A: ~344 cells × ~96 archive days × ~9 modalities) in a single
+directory, degrading ext4/xfs directory indexing to O(N) on every lookup and
+eviction scan. Per-cell sharding keeps each directory under ~1k entries
+(~96 days × ~9 modalities ≈ 864 files/cell). Per-cell is enough — no hash-prefix
+tier required at this scale.
 
 Storage estimate (mode A, 500 cells × 90 inference days = 96 archive days):
 

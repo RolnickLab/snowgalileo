@@ -167,7 +167,17 @@ only if it yields real pixels).
   4. Iterate through archive members:
      - If the member is a `.TIF` or `.tif` file:
        - Extract to a temporary directory.
-       - Reproject the WGS84 AOI polygon to the band's UTM Zone 12N CRS (`EPSG:32612`).
+       - **Read the band's native CRS from its header** and reproject the WGS84
+         AOI polygon to that CRS. For this archive every Landsat scene is
+         natively **`EPSG:32612` (UTM 12N)** — verified by `gdalinfo` on
+         `LC09_..._B4.TIF` (`ID["EPSG",32612]`) and recorded in
+         `DATA_ANALYSIS.md:545-546`. USGS delivers each WRS-2 path/row in its
+         **assigned** UTM zone regardless of AOI longitude, so 32612 is correct
+         here even though the AOI's longitude band (−116.5°…−114.5°) would suggest
+         UTM 11. **Querying the band CRS dynamically (rather than asserting 32612)
+         is the defensive choice** — it keeps the clip correct if a future, less
+         curated pull mixes zones. Do not hardcode a single UTM zone for the AOI
+         reprojection.
        - Crop using `rasterio.mask.mask` with `crop=True`.
        - Write the cropped TIFF, and add it to the output tarball.
      - Otherwise (MTL text, angles, XML):
@@ -197,9 +207,24 @@ only if it yields real pixels).
   1. Open the Sentinel-1 `.zip` file. Parse the geographic coordinates from `manifest.safe` or `preview/map-overlay.kml`.
   2. **Apply the §2.0 intersect gate** (polygon intersection + min-overlap) against the GML footprint. On `SKIP_*`, log and write nothing — do **not** create an output zip. (S1 swaths are the most likely to miss the AOI; the gate matters most here.)
   3. Create a new output `.zip` archive **only after the gate passes**.
+  > **Range-geometry verified — GCP slicing is required, not over-engineering.**
+  > A prior external review claimed S1 GRD-on-land ships orthorectified UTM
+  > GeoTIFFs and that this GCP path is unnecessary. **Refuted empirically:**
+  > `gdalinfo` on three archive measurement TIFFs shows only a `GCP Projection =
+  > GEOGCRS["WGS 84"]` with 210 GCPs and **no `PROJCRS`**, and a raw pixel grid
+  > (`Upper Left (0.0, 0.0) → Lower Right (26079, 16708)`). These `S1C` GRD
+  > products are in **range geometry**, georeferenced by GCPs only — there is no
+  > affine transform for `rasterio.mask.mask` to use, so the GCP-based slice below
+  > is necessary. **Defensive fallback:** open the TIFF and check for a resolvable
+  > CRS+transform first; only if absent (the case here) fall back to the GCP
+  > slicing. This future-proofs a mixed archive without breaking the current one.
+  >
   4. For each file member inside the zip:
      - If it is a `.tiff` file in the `measurement/` directory:
        - Extract the file.
+       - **If the TIFF resolves a real CRS + affine transform, clip it like a
+         standard GeoTIFF (§2.1).** Otherwise (the verified case for this
+         archive — range geometry, GCPs only):
        - Extract all Ground Control Points (GCPs) from the TIFF header.
        - Find the min/max `row` and `col` of all GCPs whose geographical `x` (lon) and `y` (lat) overlap the WGS84 AOI (expanded with a 200-pixel buffer).
        - Slice the pixel grid using this bounding box: `array[:, row_min:row_max, col_min:col_max]`.
