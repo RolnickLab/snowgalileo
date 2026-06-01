@@ -25,7 +25,7 @@ and an inference-grid driver.
 - Local-file adapters for S1, S2, Landsat 8/9, S3 OLCI, MODIS MOD09GA,
   VIIRS VNP09GA, ERA5-Land, Copernicus DEM GLO-30, ESA WorldCover v200.
 - Producer of per-cell GeoTIFFs matching `create_ee_image` layout (dynamic
-  stack + static stack, `-9999` nodata, `EPSG:4326`, scale=10, dims ~100×100,
+  stack + static stack, `-9999` nodata, `EPSG:4326`, scale=10 (approx. `0.0000898315` deg), dims ≈ 159×100 due to latitude convergence at ~51°N,
   `MODIS_FILL_VALUE=-28672` preserved in MODIS bands).
 - A 1 km grid generator covering the Bow Valley AOI in EPSG:32611.
 - A daily-stride inference driver that, for each day `d` in the configured
@@ -77,9 +77,9 @@ generator.
 | Parameter | Value | Source / Rationale |
 | --- | --- | --- |
 | Grid math CRS | `EPSG:32611` (UTM 11N) | Matches CSV cell extents; preserves 1 km cell metric. |
-| Per-cell export CRS | `EPSG:4326`, `scale=10` | Matches `create_ee_image`; downstream loader assumes this. |
+| Per-cell export CRS | `EPSG:4326`, `scale=10` | Matches `create_ee_image`; downstream loader assumes this. Scale 10 equates to `0.0000898315` degrees. |
 | Daily mosaic CRS | `EPSG:32611` | Mosaic stays in metric CRS for analysis. **Per-cell rasters in 4326, mosaic in UTM is intentional** — per-cell tifs feed the loader unchanged; mosaic is a separate output product. Reprojection happens once, at mosaic-write time, on 10×10 FSC outputs (low IO). |
-| Grid cell size | 1000 m × 1000 m (≈ 100×100 px @ 10 m) | `EXPORTED_HEIGHT_WIDTH_METRES` |
+| Grid cell size | 1000 m × 1000 m (dims ≈ 159×100 px in EPSG:4326 due to latitude convergence at 51°N) | `EXPORTED_HEIGHT_WIDTH_METRES`. Converging longitudes stretch WGS84 cell width to ~159 px, satisfying `H >= 100` and `W >= 100` for dataset cropping. |
 | Cell layout | Non-overlapping; centred on CSV `center_x, center_y` for mode (A) or tiled from `min_x, min_y` for mode (B) | Matches existing CSV semantics |
 
 **CRS is law** — every cell carries an explicit `transform`, `crs`, and `shape`
@@ -495,8 +495,7 @@ before approval.
 
 ## 8. Open Questions (need user input before FDD)
 
-1. **Archive locations.** Where on disk does each modality live? Naming
-   conventions? (blocks Phase 0)
+1. **Archive locations. [RESOLVED]** Located under the symlink `data/bow_valley_selection_raw` pointing to the `/archive/data/ai4snow/bow_valley_selection_raw/` directory. Folder structure matches the raw selection with subfolders `dem`, `era5`, `landsat8`, `landsat9`, `modis`, `sentinel1`, `sentinel2`, `sentinel3`, `viirs`, and `worldcover`.
 2. **Date window.** Confirm `2024-02-01 → 2024-04-30` default. Available
    CSV-recorded dates span 2024-01-05 to 2025-12-22.
 3. **Sweep mode.** (A) infer only the 500 CSV cells, or (B) full 30 k-cell
@@ -513,10 +512,7 @@ before approval.
    forwards, hours on one GPU. Mode (B): ~2.7 M forwards, needs multi-GPU.
 8. **Sentinel-2 product level.** Confirm L1C (matches `S2_HARMONIZED` value
    domain) vs L2A (would break normalization).
-9. **`PR` filename prefix meaning.** Inspect existing eval tifs to confirm
-   what `PR` originally denoted. If it's used by another data source already
-   on disk, pick a different prefix (e.g. `SY` for synthetic) and add to the
-   parser allowlist at `src/fsc/landsat_eval.py:172` in the same PR.
+9. **`PR` filename prefix meaning. [RESOLVED]** Inspected the codebase and existing files. `data/eval_tifs` only contains `LC09` files. The prefix `PR` is unused on disk but supported in `src/fsc/landsat_eval.py` parser, making it fully safe to use as the prefix for our synthetic/predicted direct-source input files to ensure correct downstream coordinate parsing.
 10. **Cloud-flag emission.** Keep emitting (default; preserves GEE byte
     layout, dropped downstream) or skip to save IO? Recommend keep.
 
