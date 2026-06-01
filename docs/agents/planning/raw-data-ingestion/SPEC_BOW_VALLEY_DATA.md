@@ -72,6 +72,14 @@ sentence and maps to at least one step in the Verification Plan (§7).
 - [ ] FR-9: For each source and each day, the adapter **mosaics all** AOI-
   intersecting granules/scenes/tiles **before** cropping to any cell
   (mosaic-before-crop).
+- [ ] FR-9b: For scene/granule sources (S2, Landsat, swath sources), when more
+  than one product shares the same (reference tile, date) — different
+  orbit/satellite/reprocessing — the adapter **coalesces all of them per pixel**
+  (first valid non-nodata/in-threshold value wins, fall through to the next where
+  nodata; `-9999` only where all are nodata), in deterministic product order
+  (latest processing time first). Coalesce is a valid-pixel union, **not** an
+  average, and runs per-tile **before** FR-9's cross-tile mosaic. It replaces
+  GEE's `.first()` selection.
 - [ ] FR-10: The MODIS adapter preserves the native `-28672` fill value in
   addition to `-9999`.
 - [ ] FR-11: The S2 adapter checks each granule's processing baseline and
@@ -106,13 +114,23 @@ sentence and maps to at least one step in the Verification Plan (§7).
   per `(cell, day)`); this CSV is the inference sweep enumeration. The legacy
   CSV's `date` column is **not** read.
 - [ ] FR-20: The cube cache stores per-modality per-(cell, day) `.npz` arrays
-  (not per-window), FIFO-evicted with a configurable size cap.
+  (not per-window) in `data/bow_valley_processing/cube_cache/`, FIFO-evicted with
+  a configurable size cap.
+- [ ] FR-20b: All Stage 2 (cube/inference) artifacts are written under
+  `data/bow_valley_processing/`, each process to its **own subdirectory**:
+  `cube_cache/` (.npz, intermediate/cleanable), `cubes/` (assembled 8-day cube
+  tifs — final destination), `daily_fsc/` (daily FSC COGs — deliverable),
+  `manifests/`, `scratch/` (transient/cleanable). No Stage 2 process writes into
+  `data/clipped_bow_valley_selection_raw` or `data/bow_valley_selection_raw`. The
+  clip stage writes **only** `data/clipped_bow_valley_selection_raw`.
+  `processing_root` is a `cube.yaml` setting; subdirs derive from it.
 
 **Stage 2 — Inference & Mosaic (per `PLAN §5`)**
 - [ ] FR-21: `InferenceGridDriver` builds, for each inference day `d ∈ [start,
   end]`, the 8-day window `[d-7, d]` per cell, exports the cube, batches cells,
   runs `EncoderWithHead`, and produces per-cell 10×10 FSC.
-- [ ] FR-22: `DailyMosaicWriter` writes one COG per day in EPSG:32611,
+- [ ] FR-22: `DailyMosaicWriter` writes one COG per day in EPSG:32611 to
+  `data/bow_valley_processing/daily_fsc/` (overridable per Q5),
   reprojecting each 10×10 FSC patch from EPSG:4326 with **nearest-neighbour**,
   stitching only valid predictions and recording per-day AOI-coverage fraction.
 
@@ -127,8 +145,11 @@ sentence and maps to at least one step in the Verification Plan (§7).
   archives use windowed reads of the cell footprint, never full-scene loads.
   Mode A (~344 cells × ~53 days) is hours on one GPU; mode B needs multi-GPU
   budget (Q7).
-- **Storage:** Mode A cache ≈ 72 GB + ≈ 75 GB assembled tifs; cache size cap
-  configurable (default 200 GB) in `cube.yaml`.
+- **Storage:** all under `data/bow_valley_processing/` (intermediate
+  `cube_cache/`+`scratch/` cleanable mid-run; `cubes/`+`daily_fsc/` kept). Mode A
+  cache ≈ 72 GB + ≈ 75 GB assembled cubes in `cubes/`; cache size cap
+  configurable (default 200 GB) in `cube.yaml`. Clipped archive
+  (`data/clipped_bow_valley_selection_raw`) is written only by the clip stage.
 - **Observability:** `structlog` JSON logging throughout; the clip manifest and
   the per-day coverage metric are the audit artifacts.
 - **Security:** No hardcoded secrets; archive paths via config, not literals.
@@ -146,6 +167,14 @@ sentence and maps to at least one step in the Verification Plan (§7).
   `pathlib`, `polars`, `typer`; `rasterio`, `pyproj`, `xarray`/`h5netcdf`,
   `h5py`, system `gdalinfo`/`gdal_translate` (rasterio's GDAL build lacks the
   HDF4 driver — verified).
+
+**Directory roots (per `PLAN §3` Directory layout)**
+- `data/bow_valley_selection_raw/` — raw archive, read-only.
+- `data/clipped_bow_valley_selection_raw/` — clipped archive; **written only by
+  the clip stage**, read-only to everything else.
+- `data/bow_valley_processing/` — all Stage 2 writes, one subdir per process
+  (`cube_cache/`, `cubes/`, `daily_fsc/`, `manifests/`, `scratch/`); intermediate
+  subdirs cleanable mid-run, `cubes/` + `daily_fsc/` are the kept deliverables.
 
 **Key fixed constants (from `config.py` / `DATA_ANALYSIS.md`)**
 - `NUM_TIMESTEPS=8`, `DAYS_PER_TIMESTEP=1`, `EXPORTED_HEIGHT_WIDTH_METRES=1000`,
@@ -236,6 +265,13 @@ explicit.
 - [ ] AC-15: **S2** output bands `[B2,B3,B4,B8,B11,B12]`; for an N0511 granule the
   adapter subtracts 1000 DN; reflectance domain matches `S2_HARMONIZED` (÷10000
   downstream); parity within threshold.
+- [ ] AC-15b: **Same-tile/date coalesce.** Given two products for the same tile
+  and date with **complementary** nodata masks (each valid where the other is
+  nodata), the coalesced adapter output has **zero** `-9999` at any pixel valid in
+  at least one product, and at pixels valid in both the value equals the
+  deterministic-order winner (latest processing time). With a real S2 case
+  (`20250420 T11UNT`: R113 vs R070), coalesced valid-pixel count ≥ the
+  max of either product alone. (Guards against `.first()` false nodata.)
 - [ ] AC-16: **Landsat** exercises three cases — L9 present, L9 missing+L8
   present, both missing → all-`-9999`; output bands are renamed `B*_landsat`;
   cross-zone 32612→4326 reprojection asserted against the cell grid.
@@ -290,6 +326,15 @@ explicit.
   has no effect on the inference loop). The CSV is consumed for cell geometry
   (`center_x/y`, bounds) only.
 
+**Directory contract**
+- [ ] AC-32: After a cube+inference run, all new files live under
+  `data/bow_valley_processing/` in the correct subdirs (assembled cubes in
+  `cubes/`, daily COGs in `daily_fsc/`, `.npz` in `cube_cache/`); a test asserts
+  **no** file was created or modified under `data/clipped_bow_valley_selection_raw`
+  or `data/bow_valley_selection_raw` by the cube/inference stage, and that
+  deleting `cube_cache/` + `scratch/` does not remove any file in `cubes/` or
+  `daily_fsc/` (intermediate/deliverable separation).
+
 ---
 
 ## 5. Dependencies
@@ -308,6 +353,9 @@ explicit.
   (AC-14,15,21,27) consumes these.
 - **External data semantics:** Copernicus (S1/S2/S3/DEM), USGS (Landsat),
   NASA LP DAAC (MODIS/VIIRS), ECMWF CDS (ERA5), ESA (WorldCover).
+- **Outputs:** clipped archive → `data/clipped_bow_valley_selection_raw` (clip
+  stage only); all Stage 2 artifacts → `data/bow_valley_processing/` (assembled
+  cubes in `cubes/`, daily FSC COGs in `daily_fsc/`; see §3 Directory roots).
 - **Stage ordering:** Clip stage (FR-1…FR-5) is a hard prerequisite for all
   adapter/exporter/inference ACs — the cube is built from the clipped archive.
 
@@ -351,9 +399,11 @@ Ordered to match `PLAN §7` phasing; each AC maps to ≥1 step.
    **AC-14, AC-15** drift quantified against reference patches; decision point.
 6. **Phase 3 Step 3 — Adapters in difficulty/parity order** (worldcover, dem,
    era5, modis, viirs, s3, landsat, s2, s1), one `test_<modality>_adapter.py`
-   each. → **AC-12, AC-16…AC-22** (+ AC-14/15 promoted to production).
-7. **Phase 3 Step 4 — Driver + mosaic.** → **AC-21(driver), AC-28, AC-29**
-   (`test_inference_driver.py`, 2×2 mosaic test).
+   each. → **AC-12, AC-15b, AC-16…AC-22** (+ AC-14/15 promoted to production).
+   AC-15b (same-tile/date coalesce) is exercised in the S2 and Landsat adapter
+   tests.
+7. **Phase 3 Step 4 — Driver + mosaic.** → **AC-21(driver), AC-28, AC-29, AC-32**
+   (`test_inference_driver.py`, 2×2 mosaic test, directory-contract test).
 8. **Full-stack parity gate.** `test_exporter_parity.py` over the reference
    patches. → **AC-27**.
 9. **Driver-loop semantics test** (part of Phase 3 Step 4): assert the driver

@@ -77,8 +77,9 @@ gate (§7 Phase 0.5).
         │  • per-(cell, day) reprojection to EPSG:4326 scale=10
         │  • mosaic-before-crop, -9999 placeholders
         ▼
-  Stage 2 — CUBE + INFERENCE
-    per-cell multiband tifs → EncoderWithHead → DailyMosaicWriter (daily COG)
+  Stage 2 — CUBE + INFERENCE   (all writes under data/bow_valley_processing/)
+    .npz cache (cube_cache/) → assembled 8-day cubes (cubes/)
+      → EncoderWithHead → DailyMosaicWriter (daily COG → daily_fsc/)
 ```
 
 **Data-flow contract (RESOLVED).** The `LocalSource*` adapters in §4 read
@@ -103,6 +104,45 @@ archive. Consequences, binding on every downstream component:
 4. **Config wiring.** `configs/bow_valley/cube.yaml` `archive_root` points at
    `data/clipped_bow_valley_selection_raw`. The raw path appears **only** in the
    clip stage's config, nowhere in the adapter/exporter config.
+
+### Directory layout (inputs, processing, outputs — RESOLVED)
+
+Three disk roots, with **strictly separated** read/write semantics. CRS is law;
+so is provenance — nothing downstream of the clip stage ever writes back into the
+archives.
+
+| Root | R/W | Lifetime | Contents |
+| --- | --- | --- | --- |
+| `data/bow_valley_selection_raw/` | **read-only** | permanent (source) | Raw archive (Stage 0 input). Never mutated. |
+| `data/clipped_bow_valley_selection_raw/` | clip stage writes; everything else **read-only** | permanent (until re-clip) | Clipped archive (Stage 1). Same layout as raw. The **only** thing the clip stage writes; **no other process writes here.** |
+| `data/bow_valley_processing/` | all Stage 2 processes write | **ephemeral — safe to delete and regenerate**, except `cubes/` and `daily_fsc/` which are the deliverables | All intermediate and final cube/inference artifacts. **Each process gets its own subdirectory** (below). |
+
+**`data/bow_valley_processing/` subdirectory contract — every process writes only
+to its own subdir:**
+
+```
+data/bow_valley_processing/
+  cube_cache/     # cube_cache.py — per-(modality, cell, day) .npz. Intermediate; FIFO-evicted, cleanable.
+  cubes/          # LocalSourceExporter — assembled 8-day multiband cube tifs (per (cell, window-end-day)). FINAL DESTINATION of the cubes.
+  daily_fsc/      # DailyMosaicWriter — daily FSC COGs over the AOI (the inference deliverable). (See §8 Q5 for object-storage option.)
+  manifests/      # clip manifest copy + per-cell/per-source 8-day-window coverage profiles + kept/dropped cell manifest.
+  scratch/        # transient per-worker temp (unpacked SAFE members, intermediate reprojections). Always cleanable mid-run.
+```
+
+- **Intermediate vs deliverable:** `cube_cache/` and `scratch/` are throwaway —
+  a run may delete them to reclaim space and regenerate on demand. `cubes/`
+  (assembled 8-day cubes) and `daily_fsc/` (daily FSC COGs) are the **kept
+  outputs**.
+- **No cross-writing:** the clip stage writes **only**
+  `data/clipped_bow_valley_selection_raw`; the cube/inference stage writes
+  **only** under `data/bow_valley_processing/`. Neither writes into the other's
+  root, and neither writes into `data/bow_valley_selection_raw`.
+- **Config wiring (cont.):** `cube.yaml` carries `archive_root`
+  (`…/clipped_bow_valley_selection_raw`), `processing_root`
+  (`…/bow_valley_processing`), and the cache size cap; the exporter derives
+  `cube_cache/`, `cubes/`, `scratch/`, `manifests/` from `processing_root`.
+  `inference.yaml` points the daily-COG output at
+  `…/bow_valley_processing/daily_fsc/` (overridable per Q5).
 
 ### AOI — two distinct definitions (DO NOT CONFLATE)
 
@@ -468,8 +508,9 @@ scripts/
   infer_bow_valley_daily_fsc.py # run model + mosaic per day
 
 configs/bow_valley/
-  cube.yaml          # archive paths, AOI bbox, date range, CRS, mode A/B
-  inference.yaml     # checkpoint path, batch size, output dir, days
+  cube.yaml          # archive_root (clipped), processing_root, AOI bbox, date range, CRS, mode A/B, cache cap
+  inference.yaml     # checkpoint path, batch size, output dir (default processing_root/daily_fsc), days
+  cube_cells.csv     # generated cross-product CSV (cells × window days); emitted by grid.py
 
 tests/test_local_sources/
   test_grid.py
@@ -506,6 +547,16 @@ Rules enforced by `base.py`:
   - **nearest** for QA / categorical (WorldCover, cloud flags).
 - Missing acquisition → return `-9999` array of declared shape
   (`create_placeholder` equivalent).
+- **Same-tile/date coalesce before mosaic-before-crop.** For scene/granule
+  sources (S2, Landsat, and any swath source), an adapter resolving a `(cell,
+  day)` MUST gather **all** products sharing the same (reference tile, date) — not
+  `.first()` — and coalesce them per pixel: first valid (non-nodata, in-threshold)
+  value wins, fall through to the next product where nodata, `-9999` only where
+  all are nodata. Deterministic order = latest processing time first. This
+  coalesce runs **per tile, before** the cross-tile mosaic-before-crop step. It is
+  a valid-pixel union, not an average (preserves GEE value domain). Prevents
+  false `-9999` when one product has a swath-edge/cloud gap that another product
+  fills. (Non-negotiable §9; rationale in `DATA_ANALYSIS.md`.)
 - MODIS adapter MUST preserve the native `-28672` fill value in addition to
   `-9999`. The downstream NDSI/NDVI computation at
   `src/fsc/landsat_eval.py:317, 331` asserts the fill value is *encountered*
@@ -546,7 +597,11 @@ duplicate ~8× the storage. The exporter:
    `cube_cache.get(modality, cell_id, day)`.
 2. On miss, calls the adapter, writes the array to `.npz`, returns it.
 3. After all 8 days × all modalities are gathered, assembles the multiband tif
-   in the canonical band order and writes it to the exporter output dir.
+   in the canonical band order and writes it to
+   `data/bow_valley_processing/cubes/` (the assembled-cube final destination).
+
+The per-day `.npz` cache lives in `data/bow_valley_processing/cube_cache/`; both
+roots derive from `processing_root` in `cube.yaml` (see §3 Directory layout).
 
 Storage estimate (mode A, 500 cells × 90 inference days = 96 archive days):
 
@@ -556,8 +611,10 @@ Storage estimate (mode A, 500 cells × 90 inference days = 96 archive days):
 - 500 cells × 96 days × 1.5 MB ≈ **72 GB cache**, plus ~75 GB of assembled
   multiband tifs (500 × 90 × ~1.6 MB).
 
-Cache is FIFO-evicted with a size cap (configurable, default 200 GB). Scratch
-dir is configured in `cube.yaml`.
+Cache (`data/bow_valley_processing/cube_cache/`) is FIFO-evicted with a size cap
+(configurable, default 200 GB); it and `scratch/` are intermediate and cleanable
+mid-run. `processing_root` is configured in `cube.yaml` (see §3 Directory
+layout).
 
 ---
 
@@ -582,7 +639,9 @@ Key design choices:
 - **Cube reuse:** see §4 cache layout — per-modality per-day, not per-window.
 - **Parallelism:** per-cell export is embarrassingly parallel
   (`multiprocessing.Pool`). Inference is GPU-batched across cells.
-- **Mosaic:** `DailyMosaicWriter` writes one COG per day in EPSG:32611. Each
+- **Mosaic:** `DailyMosaicWriter` writes one COG per day in EPSG:32611 to
+  `data/bow_valley_processing/daily_fsc/` (the inference deliverable; overridable
+  to object storage per §8 Q5). Each
   cell's 10×10 FSC patch maps to a 100 m pixel grid (`100 m × 10 px = 1 km`
   cell). Cells with all input groups masked fall back to `nodata`. The 10×10
   FSC raster from each cell is reprojected from EPSG:4326 (the loader's grid)
@@ -608,6 +667,7 @@ Key design choices:
 | Landsat L9→L8 fallback regression | Landsat adapter test exercises 3 scenarios: L9 present, L9 missing + L8 present, both missing → `-9999`. |
 | VIIRS coarse pre-averaging breaks `time_x` | VIIRS coarse adapter returns shape `(4, 100, 100)`, not `(4,)`. Test asserts shape and that the loader's spatial mean reproduces GEE values. |
 | Mosaic seams between adjacent cells | Cells are non-overlapping by design; verify via overlap=0 assertion in `grid.py` and a 2×2 mosaic visual test. Cross-cell context limitation documented separately. |
+| **False `-9999` from picking one of several same-tile/date products** (S2 R070-vs-R113, S2A/S2B, reprocessing dupes; Landsat 9 dupes — verified in archive) | Adapter coalesces **all** same-(tile,date) products per pixel (first valid wins, fall through nodata), never `.first()`. Test: two synthetic same-tile/date products with complementary nodata masks → coalesced output has **zero** nodata where either input was valid, and the surviving value matches the deterministic-order winner. |
 | Memory/IO blowup on full AOI sweep | Per-modality per-(cell, day) `.npz` cache, FIFO-evicted, size cap. S1 SAFE archives processed via windowed reads (read-only the cell footprint), not full-scene loads. Concrete sizing: §4. |
 | Cloud flag bands dropped silently downstream | Emit them in the GeoTIFF anyway; loader will drop them. Documented. Keeps GEE byte-layout parity. |
 | ERA5 normalization bug accidentally "fixed" | Adapter emits Kelvin; bug lives in `Normalizer` and stays as-is (out of scope per §2). |
@@ -768,7 +828,10 @@ before approval.
    earlier worry that "cells whose date falls outside the archive cannot be
    served" was a category error — it imported train/eval label-pairing semantics
    into an inference run.
-5. **Output destination.** Local disk vs object storage for daily COGs?
+5. **Output destination.** Daily COGs default to local disk at
+   `data/bow_valley_processing/daily_fsc/` (see §3 Directory layout). Remaining
+   input: confirm local disk vs object storage for the production run
+   (`inference.yaml` output path is the switch).
 6. **Checkpoint.** Which finetuned `EncoderWithHead` checkpoint feeds
    inference? Path?
 7. **Compute budget.** GPU count and wall-clock target. Mode (A): ~45 k
@@ -798,4 +861,5 @@ before approval.
   loader (not the adapter) does the spatial mean into `time_x`.
 - Landsat L9→L8 fallback is encapsulated inside the Landsat adapter.
 - **Mosaicing overlapping daily scenes is mandatory**: Any scene overlaps or swath edge boundaries must be composite-mosaiced prior to cropping to avoid artificial nodata boundaries within a single 1 km grid cell.
+- **Same-tile/date multi-product valid-pixel coalescing is mandatory** (distinct from the cross-tile mosaic above): when more than one product covers the *same* reference tile on the *same* date (different orbit/satellite/reprocessing — verified for S2 and Landsat 9 in this archive), the adapter must coalesce them per pixel — take the first product with a valid (non-nodata, in-threshold) value, fall through to the next where nodata, and emit `-9999` only where **all** same-tile-date products are nodata. Deterministic product order (latest processing time first) settles ties. **No value blending** (coalesce, not average) to preserve the GEE value domain. Replacing GEE's `.first()` with this coalesce is what prevents false `-9999` from a swath-edge/cloud gap in one product when another product has the pixel. See `DATA_ANALYSIS.md` → "Same-tile/date multi-product overlap".
 

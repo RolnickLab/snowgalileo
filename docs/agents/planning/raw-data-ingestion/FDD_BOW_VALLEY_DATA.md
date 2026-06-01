@@ -41,6 +41,17 @@ source's per-day footprint covers the whole AOI.
   fabricates nodata seams on cells crossing swath/tile boundaries. We mosaic all
   AOI-intersecting granules for a day *before* cropping to any cell. Accepted
   trade-off: more I/O per day, but eliminates artificial intra-cell nodata.
+- **Same-tile/date valid-pixel coalesce (replaces `.first()`).** Distinct from
+  cross-tile mosaicing: one tile on one date can have multiple products
+  (different orbit/satellite/reprocessing) with differing nodata footprints
+  (verified — S2 has ≥7 such groups, Landsat 9 one). `.first()` would emit a
+  false `-9999` wherever the chosen product is nodata but another product has the
+  pixel. We coalesce all same-(tile,date) products per pixel (first valid wins,
+  deterministic order), running per-tile *before* the cross-tile mosaic. Chosen
+  over per-pixel QA-quality picking (adds cloud-bitfield decoding the pipeline
+  deliberately does not do — scope/parity risk) and over averaging (blends values
+  → breaks the GEE value domain). Coalesce is a pure valid-pixel union: no value
+  blending, value domain preserved.
 - **Per-modality per-(cell, day) `.npz` cache, not per-window tifs.** Consecutive
   8-day windows overlap by 7 days; caching at the assembled-tif level would ~8×
   the storage. Accepted trade-off: assembly cost per window in exchange for ~72 GB
@@ -49,6 +60,16 @@ source's per-day footprint covers the whole AOI.
   crops but never fabricates coverage; missing `(source, day, cell)` → `-9999`
   placeholder, which the model's masking is designed to consume. The 8-day window
   is what makes sparse daily coverage tolerable (esp. S1: only ~16 archive dates).
+- **Three disk roots with separated write semantics.** Raw
+  (`data/bow_valley_selection_raw`, read-only) → clip stage → clipped
+  (`data/clipped_bow_valley_selection_raw`, written **only** by the clip stage) →
+  Stage 2 writes **only** under `data/bow_valley_processing/`, one subdir per
+  process (`cube_cache/`, `cubes/`, `daily_fsc/`, `manifests/`, `scratch/`).
+  Intermediate subdirs (`cube_cache/`, `scratch/`) are cleanable mid-run; `cubes/`
+  (assembled 8-day cubes) and `daily_fsc/` (daily COGs) are the kept deliverables.
+  Rationale: provenance — no stage writes back into an upstream archive — and a
+  single cleanable root for ephemeral work. `processing_root` is config, not a
+  literal.
 - **Cells/dates come from a generated cross-product CSV, not the legacy training
   CSV.** The grid generator emits a CSV (canonical schema, consumable unchanged by
   `export_from_csv_utm`) enumerating every in-AOI cell × every inference-window
@@ -109,6 +130,11 @@ source's per-day footprint covers the whole AOI.
   spikes *first* (Phase 3 Step 0) as a go/no-go decision point.
 - **MODIS native fill stripped.** `landsat_eval.py:317,331` treats `-28672` as a
   "data present" sentinel; stripping it crashes the loader. Adapter test guards.
+- **False `-9999` from same-tile/date multi-product selection.** Picking one of
+  several products for a tile+date (S2 R070/R113, S2A/S2B, reprocessing dupes;
+  Landsat 9 dupes — verified) emits nodata where another product has the pixel.
+  Guarded by the coalesce rule + AC-15b (complementary-mask test: zero nodata
+  where either input valid). Affects S2 and Landsat adapters.
 - **CRS / cross-zone reprojection (Landsat 32612→4326).** Mismatched alignment
   silently corrupts the high-res stack; golden-grid + Landsat parity test guard.
 - **DEM slope/aspect scale sensitivity.** Computing on native 30 m then
@@ -119,10 +145,11 @@ source's per-day footprint covers the whole AOI.
 - **External dependency failure modes:** clip reads a corrupt SAFE/HDF →
   fail-safe skip + manifest row, never a partial output; GEE reference-patch
   generation unavailable → parity ACs blocked (flagged, not silently passed).
-- **Security surface:** archive paths and the cache cap are config
-  (`pydantic-settings` / `cube.yaml`), no hardcoded paths/secrets; inputs
-  validated at the clip and adapter boundaries (geometry type, CRS presence,
-  expected subdatasets).
+- **Security surface:** `archive_root`, `processing_root`, and the cache cap are
+  config (`pydantic-settings` / `cube.yaml`), no hardcoded paths/secrets; Stage 2
+  writes are confined to `processing_root` subdirs (AC-32 asserts no write to the
+  archives); inputs validated at the clip and adapter boundaries (geometry type,
+  CRS presence, expected subdatasets).
 - **CSV `date` semantics (resolved, was Q4).** The CSV `date` is train/eval
   label-sampling metadata, not a per-cell prediction day. This is an inference
   run: the driver iterates the configured window × all in-AOI cells and reads the
@@ -159,7 +186,9 @@ Sequenced so each step is a Red→Green→Refactor cycle, ordered by dependency.
    GPU-batched inference, EPSG:32611 COG with NN reprojection; Red:
    `test_inference_driver.py` + 2×2 mosaic seam test.
 8. **Add entry-point scripts** — `export_bow_valley_cube.py`,
-   `infer_bow_valley_daily_fsc.py`, with `cube.yaml` / `inference.yaml`.
+   `infer_bow_valley_daily_fsc.py`, with `cube.yaml` (`archive_root`,
+   `processing_root`, cache cap) / `inference.yaml` (daily-COG output →
+   `processing_root/daily_fsc/`); Red: directory-contract test (AC-32).
 
 Each step passes `uv run pre-commit run --all-files`, and its test set before its approval gate.
 
