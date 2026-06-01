@@ -519,6 +519,45 @@ Based on the raw data archive under `data/bow_valley_selection_raw/`, direct-sou
   - Path: `data/bow_valley_selection_raw/worldcover/ESA_WorldCover_10m_2021_v200_[tile]_Map/`
   - Format: Categorical GeoTIFF file (`..._Map.tif`) under its respective tile directory.
 
+## Verified Raw Data Catalog (Bow Valley Selection)
+
+Detailed inventory and parsed metadata of raw assets under `data/bow_valley_selection_raw` (target: `/archive/data/ai4snow/bow_valley_selection_raw`). Spans **~325.8 GB** across **10 datasets**.
+
+### Summary Matrix
+
+| Dataset | Subdirectory | File Count | Total Size | Primary Format | Coordinate System (CRS) | Spatial Resolution | Temporal Frequency |
+| :--- | :--- | :---: | :---: | :--- | :--- | :---: | :--- |
+| **DEM** | `dem/` | 126 | 422 MB | GeoTIFF / KML | `EPSG:4326` (WGS 84) | ~30m (1 arc-sec) | Static |
+| **WorldCover** | `worldcover/` | 8 | 377 MB | GeoTIFF | `EPSG:4326` (WGS 84) | 10m (~8.33e-5°) | Static (2021) |
+| **ERA5** | `era5/` | 15 | 4.4 MB | NetCDF-4 (`.nc`) | `EPSG:4326` (WGS 84) | 0.1° (~10km) | Daily Aggregated |
+| **Landsat 8** | `landsat8/` | 19 | 24 GB | `.tar` (GeoTIFFs) | `EPSG:32612` (UTM 12N) | 30m | 16-day Revisit |
+| **Landsat 9** | `landsat9/` | 30 | 36 GB | `.tar` (GeoTIFFs) | `EPSG:32612` (UTM 12N) | 30m | 16-day Revisit |
+| **MODIS** | `modis/` | 93 | 12 GB | HDF4 (`.hdf`) | Custom Sinusoidal | 500m / 1km | Daily |
+| **Sentinel-1** | `sentinel1/` | 32 | 53 GB | `.zip` (SAFE/TIFF) | *Swath / Sensor* | 10m | 6 to 12 days |
+| **Sentinel-2** | `sentinel2/` | 116 | 75 GB | `.zip` (SAFE/JP2) | `EPSG:32611` (UTM 11N) | 10m / 20m / 60m | 5-day Revisit |
+| **Sentinel-3** | `sentinel3/` | 125 | 112 GB | `.zip` (SEN3/NetCDF)| *Swath / Sensor* | ~300m | Daily |
+| **VIIRS** | `viirs/` | 93 | 13 GB | HDF5 (`.h5`) | Custom Sinusoidal | 500m / 1km | Daily |
+
+### Spatial-Temporal Characteristics
+
+- **DEM (Digital Elevation Model):** Copernicus GLO-30 / GLO-10. Single band. Shape `(3601, 2401)`. Bounded `[-117.0002, 49.9998, -115.9997, 51.0001]`. `float32`.
+- **WorldCover:** ESA WorldCover 10m. Categorical landcover. Shape `(36000, 36000)`. Bounded `[-117.0, 48.0, -114.0, 51.0]`. `uint8`.
+- **ERA5-Land:** Daily aggregates in NetCDF format (read via `h5py`). Variables: `tp` (precip, shape `(31, 61, 61)`), `t2m` (temp), `skt` (skin temp), `u10`/`v10` (winds). Extent `[-120.0, -114.0, 48.0, 54.0]`. Temporal span: March 2025.
+- **Landsat 8 & 9:** L1TP Collection 2 TOA reflectance. Scene shape `(8191, 8101)` (L8), `(8181, 8111)` (L9). Extent around UTM Zone 12N `[176080, 5607800, 420900, 5853300]`. 11 spectral bands + QA_PIXEL + QA_RADSAT. `uint16`.
+- **MODIS:** MOD09GA daily surface reflectance HDF4. Shape `(1200, 1200)` per sinusoidal tile (tile `h10v03`). 22 subdatasets containing bands 1-7, quality flags, geometries. `uint16`.
+- **Sentinel-1:** C-band GRD dual-pol (VV + VH). Swath range geometry. Scene shape `(16708, 26079)`. `uint16`.
+- **Sentinel-2:** MultiSpectral Instrument Level-1C. Tile shape `(10980, 10980)` (tiles `T11UPS`, `T11UPT`, `T11UNS`, `T11UNT`). `uint16`.
+- **Sentinel-3:** OLCI Level-1 EFR radiance NetCDF. Shape `(4091, 4865)` per orbit segment. 21 radiance bands. `uint16`.
+- **VIIRS:** VNP09GA daily surface reflectance HDF5. Shape `(1200, 1200)` (tile `h10v03`). 67 datasets (M-bands, I-bands). `int16`/`uint16`.
+
+### Strategic Processing Recommendations
+
+1. **Common UTM Target Grid:** Project all inputs to local **UTM Zone 11N (EPSG:32611)**. Preserves metrics and aligns exactly with downstream fractional snow cover (FSC) labels in the Bow Valley catchment.
+2. **8-Day Temporal compositing:** Map daily observational platforms (MODIS, VIIRS, S3, ERA5) to 8-day composited stats. Align Sentinel-2 and Landsat observations into identical temporal slots. Use **`-9999`** flag for all missing or cloud-contaminated pixel windows to activate model mask mechanics.
+3. **Out-of-Core Processing (COGs/Zarr):** Convert processed, aligned multi-modal inputs to Cloud Optimized GeoTIFFs (COGs) or Zarr array. Allows streaming `100 x 100` pixel chips on-the-fly without loading massive scene-wide grids into RAM.
+4. **Atmospheric Correction (Level 2):** Rescale Landsat and Sentinel-2 to Level-2 surface reflectance (L2A) to ensure spectral consistency and physical matching with MODIS and VIIRS.
+5. **Spatial Indexing:** Maintain lightweight spatial indices in **GeoParquet** or file-based STAC catalogs for fast querying over the Bow Valley grid.
+
 ## Direct-source Interchangeability Requirements
 
 If this repository stops using Google Earth Engine and downloads products from
