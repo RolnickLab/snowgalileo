@@ -570,7 +570,18 @@ Rules enforced by `base.py`:
 - Landsat adapter encapsulates the L9→L8 fallback internally (single
   `bands_out=["B2_landsat",..,"B7_landsat"]`), matching GEE behaviour.
 - **Sentinel-2 harmonization**: Sentinel-2 data in GEE (both Level-1C and Level-2A) are harmonized to correct for the processing baseline baseline 04.00+ offset (+1000 DN). Direct Copernicus products do NOT have this harmonization. The local S2 adapter must check the processing baseline version of each input granule and subtract 1000 from the digital numbers if the baseline is `04.00` or later to ensure a harmonized time series matching the model's expectations.
-- **ERA5-Land daily aggregation**: GEE's daily ERA5 aggregates represent UTC day bounds (00:00 to 23:00 UTC). The local adapter must aggregate hourly ECMWF CDS datasets to daily steps, computing the mean for temperatures/winds and the sum for daily total precipitation.
+- **ERA5-Land daily aggregation + precip day-shift**: the archive on disk is **already
+  daily-aggregated** (one slice/day), so the adapter reads daily files directly — it does
+  **not** re-aggregate hourly data. **`total_precipitation` is a forecast accumulation**
+  (`GRIB_stepType=accum`, units m), and ERA5-Land stamps the total that closes day `i` at
+  **`00:00` of day `i+1`**. The adapter MUST therefore read precip for day `i` from the
+  **`i+1` `00:00` slice** (equivalently `tp[index] → day index−1`). The instantaneous
+  temp/wind vars (`t2m`, `skt`, `u10`, `v10`) are daily means with **no** day shift. A
+  naive label-based precip read is a silent off-by-one (passes shape/type checks). If
+  daily files ever need regenerating from hourly CDS data: daily mean over the UTC day
+  for temps/winds; for precip take the end-of-day accumulation (the next day's `00:00`),
+  never a naive 24-value sum and never stopping at 23:00. See `DATA_ANALYSIS.md` → ERA5
+  accumulation gotcha.
 - **Copernicus DEM terrain metrics**: Slope and aspect are scale-sensitive. GEE computes them on the fly from the 10 m resampled elevation DEM. The local DEM adapter must reproject the elevation DEM to the target 10 m cell grid first before computing slope and aspect to avoid scale distortion.
 - **Sentinel-3 OLCI geolocation**: S3 OLCI SAFE products contain separate NetCDF files georeferenced by coordinate tie-point grids. The local adapter must use these geolocation arrays to precisely project OLCI radiance bands onto the target cell grid.
 - WorldCover adapter ignores `day` and returns the v200 2021 map. Hardcoded.

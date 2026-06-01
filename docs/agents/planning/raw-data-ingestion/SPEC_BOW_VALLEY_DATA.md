@@ -88,8 +88,12 @@ sentence and maps to at least one step in the Verification Plan (§7).
   emits renamed bands `B2_landsat … B7_landsat`.
 - [ ] FR-13: The VIIRS coarse adapter emits a per-pixel raster on the cell grid
   (shape `(4, H, W)`), not a pre-averaged vector.
-- [ ] FR-14: The ERA5 adapter emits raw Kelvin / native units and aggregates
-  hourly to daily (mean for temps/winds, sum for precip) over UTC day bounds.
+- [ ] FR-14: The ERA5 adapter emits raw Kelvin / native units, reading the
+  already-daily archive files (one slice per day; no hourly re-aggregation). For
+  `total_precipitation_sum` (a `stepType=accum` field) it applies the **ERA5-Land
+  day-shift**: the daily total for day `i` is read from the **`i+1` `00:00` slice**
+  (`tp[index] → day index−1`). Instantaneous temp/wind vars carry **no** shift. Missing
+  day → `-9999`.
 - [ ] FR-15: The DEM adapter reprojects elevation to the 10 m cell grid **before**
   computing slope and aspect; emits `DEM, slope, aspect`.
 - [ ] FR-16: The WorldCover adapter ignores `day`, returns the v200 2021 `Map`
@@ -283,8 +287,14 @@ explicit.
 - [ ] AC-19: **VIIRS** fine emits `[I1, I3]` (shape `(2,H,W)`); coarse emits
   `[M5,M7,M10,M11]` as a per-pixel raster (shape `(4,H,W)`), and the loader's
   spatial mean over that raster reproduces the GEE `time_x` values.
-- [ ] AC-20: **ERA5** emits the five bands in Kelvin/native units; daily mean for
-  temps/winds and daily sum for precipitation; missing day → `-9999`.
+- [ ] AC-20: **ERA5** emits the five bands in Kelvin/native units from the daily archive
+  files; missing day → `-9999`.
+- [ ] AC-20b: **ERA5 precip day-shift.** Given a synthetic `tp` array where the `00:00`
+  slice stamped day `d+1` holds a known nonzero total and day `d`'s slice holds a
+  different value, the adapter's precip output for inference day `d` equals the `d+1`
+  slice value (the accumulation closing day `d`), **not** the day-`d` slice. The same
+  test asserts an instantaneous variable (`temperature_2m`) for day `d` is read from the
+  day-`d` slice (no shift). (Guards the silent off-by-one.)
 - [ ] AC-21: **DEM** computes slope/aspect on the 10 m-reprojected grid (asserted
   by comparing against GEE-derived slope/aspect within threshold), emits
   `[DEM, slope, aspect]`.

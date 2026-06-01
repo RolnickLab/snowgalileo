@@ -427,6 +427,18 @@ dataset and grouped masks, but does not train a neural prediction head. Instead:
     saying the intent is to shift to Celsius.
   - Valid thresholds are `temperature >= 184 K`, `precipitation >= -1`, and
     wind components `>= -53`.
+  - **ERA5-Land accumulation / day-shift gotcha (`total_precipitation_sum` only).**
+    `total_precipitation` is a forecast **accumulation** field (`GRIB_stepType = accum`,
+    units = m), not an instantaneous value, and ERA5-Land stamps the accumulation that
+    *closes* day `i` (the 00→24 h total) at **`00:00` of day `i+1`**. Therefore the daily
+    precip total for day `i` is read from the `i+1` `00:00` slice — **not** the slice
+    labelled `i`. Verified in `data/bow_valley_selection_raw/era5/*_totalprecip.nc`:
+    `tp` has `valid_time` of length = days-in-month, each stamped `YYYY-MM-DDT00:00`,
+    `GRIB_stepType=accum`, `units=m`. The instantaneous variables
+    (`temperature_2m`, `skin_temperature`, `u/v_component_of_wind_10m`) are **not**
+    accumulations and carry **no** day shift — they align to their own label. A naive
+    label-based precip read attributes every day's rain to the wrong (previous) day, a
+    silent off-by-one. (See `CLIPPING_PLAN.md`/adapter rules; SPEC FR-14/AC-20.)
 
 ### Copernicus DEM
 
@@ -542,7 +554,7 @@ Detailed inventory and parsed metadata of raw assets under `data/bow_valley_sele
 
 - **DEM (Digital Elevation Model):** Copernicus GLO-30 / GLO-10. Single band. Shape `(3601, 2401)`. Bounded `[-117.0002, 49.9998, -115.9997, 51.0001]` **per tile** (126 tiles total; the archive *mosaic* extends north past lat 51 — Phase 0 must confirm coverage to the AOI `lat_max = 52.31`). `float32`.
 - **WorldCover:** ESA WorldCover 10m. Categorical landcover. Shape `(36000, 36000)` **per tile**. Single tile bounded `[-117.0, 48.0, -114.0, 51.0]`; 8 tiles total (the mosaic must cover the AOI north to lat 52.31 — Phase 0 audit assertion). `uint8`.
-- **ERA5-Land:** Daily aggregates in NetCDF format (read via `h5py`). Variables: `tp` (precip, shape `(31, 61, 61)`), `t2m` (temp), `skt` (skin temp), `u10`/`v10` (winds). Extent `[-120.0, -114.0, 48.0, 54.0]`. Temporal span: March 2025.
+- **ERA5-Land:** Already-daily aggregates in NetCDF (`h5netcdf`/`h5py`), one slice per day. Precip lives in `YYYYMM_ERA5LAND_totalprecip.nc`: var `tp`, dims `(valid_time, latitude, longitude)` = `(days-in-month, 61, 61)`, **`GRIB_stepType=accum`, `units=m`**, `valid_time` stamped `YYYY-MM-DDT00:00`. Instantaneous vars in `YYYYMM_ERA5LAND/` (`t2m`, `skt`, `u10`/`v10`) as `*_daily-mean.nc`. Extent `[-120.0, -114.0, 48.0, 54.0]`. Archive span 2025-03 → 2025-05. **Day-shift (precip only): day `i`'s total is in the `i+1` `00:00` slice — see the ERA5-Land accumulation gotcha above.**
 - **Landsat 8 & 9:** L1TP Collection 2 TOA reflectance. Scene shape `(8191, 8101)` (L8), `(8181, 8111)` (L9). Extent around UTM Zone 12N `[176080, 5607800, 420900, 5853300]`. 11 spectral bands + QA_PIXEL + QA_RADSAT. `uint16`.
 - **MODIS:** MOD09GA daily surface reflectance HDF4 (tile `h10v03`). **Two co-registered sinusoidal grids per file** (verified via `gdalinfo`): a 1 km grid (`MODIS_Grid_1km_2D`, **1200×1200**, holds `state_1km` + geometry) and a 500 m grid (`MODIS_Grid_500m_2D`, **2400×2400**, holds the science bands `sur_refl_b01`–`b07`). 22 subdatasets total. `uint16`. **Clipping must index each grid at its own resolution — see `CLIPPING_PLAN.md §2.7`.**
 - **Sentinel-1:** C-band GRD dual-pol (VV + VH). Swath range geometry. Scene shape `(16708, 26079)`. `uint16`.
@@ -739,7 +751,24 @@ Direct-source requirements:
 
 - Download ERA5-Land variables from the ECMWF Climate Data Store or another
   authoritative ECMWF endpoint.
-- Produce daily aggregates that match GEE's `DAILY_AGGR` by downloading hourly forecast/reanalysis data from the ECMWF CDS and aggregating across the exact UTC day bounds (00:00 to 23:00 UTC). Specifically: compute the daily mean for `skin_temperature`, `temperature_2m`, `u_component_of_wind_10m`, and `v_component_of_wind_10m`; compute the daily sum of accumulated hourly forecasts for `total_precipitation_sum`.
+- **The archive on disk is already daily-aggregated** (`YYYYMM_ERA5LAND_totalprecip.nc`
+  + per-variable `*_daily-mean.nc`), so this archive's adapter does **not** re-aggregate
+  hourly data — it reads one slice per day. (The CDS hourly→daily aggregation below
+  describes how such daily files are *produced*, for reference / re-download only.)
+  If producing daily files from hourly CDS data: daily **mean** over the UTC day
+  (00:00–23:00) for `skin_temperature`, `temperature_2m`, `u_component_of_wind_10m`,
+  `v_component_of_wind_10m`; for `total_precipitation` (a forecast accumulation) the
+  daily total is the accumulation valid at the **end** of the day — i.e. take the
+  `00:00` accumulation of the **following** day (or difference consecutive hourly
+  accumulations and sum the hourly rates). Do **not** naively sum the 24 accumulation
+  values (double-counts) and do **not** stop at 23:00 (drops the closing step).
+- **Day-shift on read (`total_precipitation_sum` only) — load-bearing.** Because the
+  accumulation closing day `i` is stamped at `00:00` of day `i+1`, the adapter must read
+  precip for day `i` from the **`i+1` `00:00` slice**, equivalently `tp[index] → precip
+  for day (index − 1)`. The instantaneous temp/wind variables carry **no** shift. Getting
+  this wrong is a silent off-by-one that passes shape/type checks. Verified file facts:
+  `tp` dims `(valid_time=days, latitude, longitude)`, `GRIB_stepType=accum`, `units=m`,
+  `valid_time` stamped `YYYY-MM-DDT00:00`.
 - Emit `skin_temperature`, `temperature_2m`, `total_precipitation_sum`,
   `u_component_of_wind_10m`, and `v_component_of_wind_10m`.
 - Preserve units expected by the current code: temperature in Kelvin,
