@@ -14,6 +14,7 @@ dependencies = [
     "einops>=0.8.2",
     "geobench>=1.0.0",
     "geopandas>=1.0.1",
+    "h5netcdf>=1.8.1",
     "h5py>=3.16.0",
     "numpy==1.26.4",
     "pystac>=1.14.3",
