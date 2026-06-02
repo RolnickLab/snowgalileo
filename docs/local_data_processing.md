@@ -81,17 +81,46 @@ products that miss the AOI (no output file). Per-source manifest records every
 decision.
 
 ```bash
-# Dry-run: gate only, no pixels decoded, no writes — sanity check first
+# Dry-run: gate only, no pixels decoded, no writes — sanity check first.
+# NOTE: a dry-run can hide footprint-reader bugs (see Gotchas). Don't treat its
+# CLIP/SKIP tally as proof of correctness.
 uv run python scripts/developer_scripts/clip_dataset.py clip-all --dry-run
 
-# Real clip (all sources). Or one: clip-source worldcover
+# Real clip (all sources, serial).
 uv run python scripts/developer_scripts/clip_dataset.py clip-all
 
-# Post-run audit: zero all-nodata outputs, static mosaics reach lat 52.31
-uv run python scripts/developer_scripts/clip_audit.py --root data/clipped_bow_valley_selection_raw
+# ...or run sources in parallel (they are independent processes). Example:
+uv run python scripts/developer_scripts/clip_dataset.py clip-source sentinel2 &
+uv run python scripts/developer_scripts/clip_dataset.py clip-source sentinel3 &
+uv run python scripts/developer_scripts/clip_dataset.py clip-source viirs &
+wait
+# Parallel clip-source jobs each write only their own per-source manifest; the
+# combined root manifest is NOT produced. Regenerate it (header once, then every
+# per-source body) before running the audit:
+{ head -1 data/clipped_bow_valley_selection_raw/dem/clip_manifest.csv; \
+  for m in data/clipped_bow_valley_selection_raw/*/clip_manifest.csv; do \
+    tail -n +2 "$m"; done; \
+} > data/clipped_bow_valley_selection_raw/clip_manifest.csv
+
+# Post-run audit: zero all-nodata outputs, static mosaics reach lat 52.31.
+# (Single-command Typer app — no subcommand. --root defaults to the clipped dir.)
+uv run python scripts/developer_scripts/clip_audit.py
 
 uv run pytest tests/test_clip_dataset.py -q
 ```
+
+**CLI flags** (both `clip-all` and `clip-source`): `--input-dir`
+(default `data/bow_valley_selection_raw`), `--output-dir`
+(default `data/clipped_bow_valley_selection_raw`), `--aoi`
+(default `data/aoi.geojson`), `--dry-run`. `clip-all` also takes `--only
+a,b,c` to run a comma-separated subset **serially** (and it *does* write the
+combined manifest for that subset — unlike separate `clip-source` jobs).
+
+**Runtime.** Budget roughly 60–90 min for a full serial `clip-all` on this
+archive; **Sentinel-2 alone is ~45 min** (JP2 decode per band) and is the long
+pole — it is not hung. MODIS/VIIRS are fast per granule but emit thousands of
+per-grid GeoTIFFs. Running the four heavy sources (S1/S2/S3/viirs) in parallel
+roughly halves wall-clock.
 
 **Code lives in the package**, not the scripts: `src/data/local_sources/clip/`
 (`settings`, `gate`, `footprints`, `gdal_io`, `clippers`, `manifest`,
@@ -103,17 +132,57 @@ uv run pytest tests/test_clip_dataset.py -q
 - `data/clipped_bow_valley_selection_raw/<source>/clip_manifest.csv` +
   combined `clip_manifest.csv` at the root.
 
+**Manifest schema** — one row per input product, columns:
+`product_id, source, footprint_bbox, intersects, aoi_overlap_km2,
+valid_pixel_count, action, output_path`. The `action` is one of `CLIP`,
+`SKIP_NO_OVERLAP` (footprint disjoint from AOI), or `SKIP_DEGENERATE_OVERLAP`
+(overlap below `CLIP_MIN_AOI_OVERLAP_AREA_KM2`, or post-clip zero valid pixels).
+Skips have an empty `output_path` and no file on disk.
+
+**Real run result (2026-06-02):** 533 products → **531 CLIP / 2 SKIP_NO_OVERLAP**
+(the 2 skips are the W120 WorldCover tiles, west of the AOI). Audit passed; full
+test suite at baseline (0 new failures). Per-source counts: dem 9, worldcover 2,
+era5 15, landsat8 19, landsat9 29, modis 92, sentinel1 32, sentinel2 116,
+sentinel3 125, viirs 92.
+
+**Parallelism.** Sources are independent (separate input/output dirs and
+manifests), so `clip-source <name>` jobs run in parallel safely. Sentinel-2 is
+the long pole (JP2 decode per band); MODIS/VIIRS are CPU-light but emit many
+files. There is no combined-manifest step when you run sources separately —
+regenerate the root `clip_manifest.csv` by concatenating the per-source ones.
+
 **Gotchas:**
 - Intersect gate is the **one** place footprint-vs-AOI filtering happens.
   Adapters must not re-implement it. `CLIP_MIN_AOI_OVERLAP_AREA_KM2` (default
   1 km²) is env-overridable.
+- **`--dry-run` proves the gate runs, not that footprints are read correctly.**
+  A footprint reader that returns `None` shows up as a legitimate-looking
+  `SKIP_NO_OVERLAP`. If an in-coverage modality skips ~100 %, suspect the reader,
+  not the geography. (The first real run caught three such bugs — see below.)
+  Diagnose by dumping one footprint and comparing its bounds to the AOI:
+  ```python
+  from pathlib import Path
+  from src.data.local_sources.clip.settings import load_aoi_polygon
+  from src.data.local_sources.clip import orchestrator as o
+  aoi = load_aoi_polygon(Path("data/aoi.geojson"))
+  fn = o.MODALITIES["sentinel1"].gate_footprint          # the reader for that source
+  fp = fn(sorted(Path("data/bow_valley_selection_raw/sentinel1").glob("*.zip"))[0])
+  print(fp)                                              # None => reader bug, not geography
+  print(fp.bounds, fp.intersects(aoi))                   # else compare to aoi.bounds
+  ```
 - MODIS/VIIRS output is **per-grid GeoTIFFs** (`<grid>__<band>.tif`), one per
   subdataset. The 500 m grid clips to ~2× the 1 km grid — indexed from each
   grid's own geotransform, never a hardcoded 1200 clamp.
 - Landsat stays EPSG:32612, S2 stays EPSG:32611. Cross-zone reprojection to the
   cell grid is the adapter's job (TASK-012), not the clip stage.
-- Expected dry-run verdict on the curated archive: ~531 CLIP / 2 SKIP_NO_OVERLAP
-  (the two W120 WorldCover tiles sit west of the AOI).
+
+**Footprint/subdataset parsing — modality quirks (fixed, regression-tested):**
+- **Sentinel-1** manifest `<gml:coordinates>` is `"lat,lon lat,lon"` (comma
+  within each pair); the parser normalises commas to whitespace.
+- **Sentinel-3** footprint lives in `<gml:posList>`, not `<gml:coordinates>`.
+- **VIIRS** HDF5 subdataset descriptor is `HDF5:"path"://…/GRID/…/BAND` (group
+  path after `://`); grid/band are parsed by splitting on `/`, unlike the MODIS
+  HDF4 `…:"path":GRID:BAND` (`:`-delimited) form. Both go through system GDAL.
 ---
 
 ## 4. Spatiotemporal alignment & 8-day cube assembly
@@ -126,7 +195,7 @@ Ensures spatial location and date matching are preserved from raw clipped source
 - **Filename Contract:** Assembled cubes written to `data/bow_valley_processing/cubes/` with standard format `PR_{YYYYMMDD}_{LAT}_{LON}_SC00.tif` (signed decimal degrees of cell center and window-end date). Validated via `test_filename_contract.py` to match `LandsatEvalDataset` parser.
 
 ### Pipeline & Data-Flow Integration
-1. **Clip Stage Footprint manifest (`combined_clip_manifest.csv`):** Keeps record of geographic bounds, overlaps, and pixel validity of clipped source archives on disk.
+1. **Clip Stage Footprint manifest (root `clip_manifest.csv`):** Keeps record of geographic bounds, overlaps, and pixel validity of clipped source archives on disk (schema in §3).
 2. **Adapter Date Parsing:** `LocalSource*` adapters scan clipped directory for files matching specific target days $i \in [d-7, d]$. Empty days filled with `-9999` placeholder. Sentinel-2 baseline version DN offset (-1000) applied for baseline 04.00+.
 3. **Reprojection & 10 m Resampling:**
    - Adapter reprojects target UTM 11N bounding box to native source CRS:

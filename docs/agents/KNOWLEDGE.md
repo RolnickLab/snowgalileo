@@ -55,16 +55,43 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   stages: (1) metadata-only footprint∩AOI polygon test → `SKIP_NO_OVERLAP`;
   (2) overlap area < `CLIP_MIN_AOI_OVERLAP_AREA_KM2` (pydantic-settings,
   default 1 km²) **or** post-clip zero valid pixels → `SKIP_DEGENERATE_OVERLAP`.
-  Skips write **no output file**. Adapters must NOT re-implement this. Verified
-  dry-run over the full archive: 531 CLIP / 2 SKIP_NO_OVERLAP (the two W120
-  WorldCover tiles, which sit west of lon −116.56).
+  Skips write **no output file**. Adapters must NOT re-implement this. The real
+  full-archive clip-all run (2026-06-02) produced **531 CLIP / 2 SKIP_NO_OVERLAP**
+  (533 products; the 2 skips are the W120 WorldCover tiles west of lon −116.56),
+  and the post-run audit passed.
+- **Do not trust a `--dry-run` gate tally as proof of correctness.** The dry-run
+  evaluates the *same* footprint readers the real run uses; a footprint reader
+  that silently returns `None` makes the gate emit `SKIP_NO_OVERLAP`, which in a
+  dry-run looks like a legitimate geographic skip. The first real run exposed
+  three footprint/subdataset readers that were silently wrong (see next bullet) —
+  the prior "531 CLIP / 2 SKIP dry-run" figure had masked them because nobody
+  tallied the skips *per source*. Always sanity-check that an in-coverage
+  modality is not skipping 100 %.
+- **Three footprint/subdataset parsing bugs the first real clip-all surfaced**
+  (all fixed + regression-tested, commit `735d92d8`):
+  - **Sentinel-1** GML `<gml:coordinates>` is comma-within-pair
+    (`"lat,lon lat,lon"`), not whitespace scalars. The parser `.split()` on
+    whitespace yielded too few tokens → `None` → all 32 S1 wrongly skipped.
+    Fix: normalise commas to spaces in `_parse_gml_coordinates`.
+  - **Sentinel-3** stores the footprint in `<gml:posList>`, not
+    `<gml:coordinates>` → all 125 S3 would skip. Fix: posList fallback regex.
+  - **VIIRS** HDF5 subdataset descriptor `HDF5:"path"://group/.../band` was
+    parsed with the MODIS HDF4 `:`-split, leaking quotes/slashes into the output
+    filename and crashing `gdal_translate` on the first product. Fix:
+    `gdal_io._parse_grid_band` splits the HDF5 group path on `/`, leaves the
+    HDF4 `:`-form unchanged. MODIS output was unaffected (verified identical
+    tokens), so MODIS did **not** need re-clipping.
 - **MODIS/VIIRS clip output = per-grid GeoTIFFs, one per subdataset**, written to
   `<out>/modis/<granule_stem>/<GRID>__<band>.tif`, preserving native sinusoidal
   CRS+geotransform via `gdal_translate`. Indices are computed from **each grid's own**
   `src.res`/`src.bounds` — so the 500 m grid (2400²) clips to ~2× the 1 km grid
-  (1200²) dims. rasterio's GDAL build lacks the **HDF4** driver, so MODIS footprint +
-  subdataset extraction go through system `gdalinfo`/`gdal_translate` (`clip/gdal_io.py`);
-  VIIRS HDF5 opens in rasterio directly.
+  (1200²) dims. Both MODIS (HDF4) and VIIRS (HDF5) subdataset enumeration +
+  extraction go through system `gdalinfo`/`gdal_translate` (`clip/gdal_io.py`),
+  because rasterio's GDAL build lacks the HDF4 driver and the two descriptor
+  dialects need format-aware grid/band parsing (`_parse_grid_band`): HDF4 is
+  `…:"path":GRID:BAND` (`:`-delimited), HDF5 is `HDF5:"path"://…/GRID/…/BAND`
+  (group path after `://`, `/`-delimited). VIIRS per-granule grids: 1 km (1200²)
+  and 500 m (2400²), clipping to ~190×451 and ~379×902 over this AOI.
 - **Landsat clips stay native EPSG:32612, S2 stays EPSG:32611.** The clip queries
   each band's CRS dynamically (no hardcoded zone) and reprojects the AOI to it. The
   cross-zone 32612→4326 reprojection is the Landsat adapter's job (TASK-012), not the
