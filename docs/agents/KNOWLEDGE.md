@@ -37,3 +37,38 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   month at `parts[1][4:6]`). Parity matching is by shared cube-CSV row, not filename
   string (SPEC AC-27). Filename ownership is resolved in TASK-004.
 
+### Clip stage (Phase 0.5 / TASK-002)
+
+- **The clip logic lives in the package, the CLIs are thin entrypoints.** The
+  importable package is `src/data/local_sources/clip/` (`settings`, `gate`,
+  `footprints`, `clippers`, `gdal_io`, `manifest`, `orchestrator`) — sibling to
+  `grid.py`, since this is pipeline domain code, not a side script. The two Typer
+  CLIs `scripts/developer_scripts/clip_dataset.py` (`clip-source`, `clip-all`,
+  `--dry-run`) and `scripts/developer_scripts/clip_audit.py` only do argument
+  parsing + `from src.data.local_sources.clip ...` imports (run via `uv run`, which
+  uses the editable install). The old flat `scripts/developer_scripts/clip_dataset.py`
+  + `scripts/.../test_clip_dataset.py` prototype was **removed** — it had no intersect
+  gate, crashed (degenerate-size `assert`) instead of skipping non-overlapping tiles,
+  and hardcoded a `min(1200,…)` MODIS clamp that truncated the 500 m science grid.
+  Pytest tests live at `tests/test_clip_dataset.py`.
+- **The §2.0 intersect gate is the one place footprint filtering happens.** Two
+  stages: (1) metadata-only footprint∩AOI polygon test → `SKIP_NO_OVERLAP`;
+  (2) overlap area < `CLIP_MIN_AOI_OVERLAP_AREA_KM2` (pydantic-settings,
+  default 1 km²) **or** post-clip zero valid pixels → `SKIP_DEGENERATE_OVERLAP`.
+  Skips write **no output file**. Adapters must NOT re-implement this. Verified
+  dry-run over the full archive: 531 CLIP / 2 SKIP_NO_OVERLAP (the two W120
+  WorldCover tiles, which sit west of lon −116.56).
+- **MODIS/VIIRS clip output = per-grid GeoTIFFs, one per subdataset**, written to
+  `<out>/modis/<granule_stem>/<GRID>__<band>.tif`, preserving native sinusoidal
+  CRS+geotransform via `gdal_translate`. Indices are computed from **each grid's own**
+  `src.res`/`src.bounds` — so the 500 m grid (2400²) clips to ~2× the 1 km grid
+  (1200²) dims. rasterio's GDAL build lacks the **HDF4** driver, so MODIS footprint +
+  subdataset extraction go through system `gdalinfo`/`gdal_translate` (`clip/gdal_io.py`);
+  VIIRS HDF5 opens in rasterio directly.
+- **Landsat clips stay native EPSG:32612, S2 stays EPSG:32611.** The clip queries
+  each band's CRS dynamically (no hardcoded zone) and reprojects the AOI to it. The
+  cross-zone 32612→4326 reprojection is the Landsat adapter's job (TASK-012), not the
+  clip stage. S1 measurement TIFFs are range-geometry (GCPs, no affine) → sliced by
+  the AOI-overlapping GCP pixel window with shifted GCPs (defensive CRS+transform
+  fast-path if a future pull ships orthorectified UTM).
+

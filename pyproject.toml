@@ -17,6 +17,7 @@ dependencies = [
     "h5netcdf>=1.8.1",
     "h5py>=3.16.0",
     "numpy==1.26.4",
+    "pydantic-settings>=2.14.1",
     "pystac>=1.14.3",
     "pystac-client>=0.9.0",
     "python-dotenv>=1.2.2",

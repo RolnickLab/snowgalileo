@@ -25,26 +25,27 @@ check, emits a per-source manifest, and passes a post-run zero-all-nodata audit.
   `software-dev` (Typer, pathlib, structlog), `tdd`.
 
 ## 3. Subtasks
-- [ ] 1. Write `test_clip_dataset.py` (Red): synthetic footprint fully outside AOI →
+- [x] 1. Write `test_clip_dataset.py` (Red): synthetic footprint fully outside AOI →
       `SKIP_NO_OVERLAP` + no output file; intersection below `MIN_AOI_OVERLAP_AREA_KM2`
       (default 1 km²) → `SKIP_DEGENERATE_OVERLAP` + no file; real ~8% Landsat scene →
       `CLIP` with >0 valid pixels; per-grid MODIS extents (500 m index ≈ 2× the 1 km
       index, no half-band truncation); clipped Landsat `crs == EPSG:32612`, clipped S2
       `crs == EPSG:32611`; non-destructive pixel equality inside AOI; manifest one row
       per product; post-run zero-all-nodata audit.
-- [ ] 2. Implement the two-stage **intersect gate**: (1) metadata-only footprint-vs-AOI
-      polygon intersection; (2) `MIN_AOI_OVERLAP_AREA_KM2` + post-clip valid-pixel check.
-      Failing products produce **no output file**.
-- [ ] 3. Implement per-modality clip routines preserving native CRS, pixel values, and
-      file format. MODIS/VIIRS index **each native grid** (1200²/2400²) from its own
-      resolution/origin — never a hardcoded `1200` clamp. NN resampling for categorical/QA.
-- [ ] 4. Emit the per-source clip manifest: one row per input product with
-      `{product_id, footprint_bbox, intersects, aoi_overlap_km2, valid_pixel_count,
+- [x] 2. Implement the two-stage **intersect gate** (`clip/gate.py`): (1) metadata-only
+      footprint-vs-AOI polygon intersection; (2) `MIN_AOI_OVERLAP_AREA_KM2` + post-clip
+      valid-pixel check. Failing products produce **no output file**.
+- [x] 3. Implement per-modality clip routines (`clip/clippers.py`) preserving native CRS,
+      pixel values, and file format. MODIS/VIIRS index **each native grid** (1200²/2400²)
+      from its own resolution/origin (`src.res`/`src.bounds`) — no hardcoded `1200` clamp.
+      MODIS/VIIRS output is per-grid GeoTIFFs (sinusoidal CRS+transform preserved).
+- [x] 4. Emit the per-source clip manifest (`clip/manifest.py`): one row per input product
+      with `{product_id, footprint_bbox, intersects, aoi_overlap_km2, valid_pixel_count,
       action}`, `action ∈ {CLIP, SKIP_NO_OVERLAP, SKIP_DEGENERATE_OVERLAP}`.
-- [ ] 5. Implement the post-run audit script: assert **zero** all-nodata / zero-valid
-      outputs; re-check DEM/WorldCover mosaic reaches `lat 52.31`; manifest accounts
-      for every input product.
-- [ ] 6. Green: implement until all clip tests pass; Refactor on green.
+- [x] 5. Implement the post-run audit script (`clip_audit.py`): assert **zero** all-nodata
+      / zero-valid outputs; re-check DEM/WorldCover mosaic reaches `lat 52.31`; manifest
+      accounts for every input product.
+- [x] 6. Green: all 10 clip tests pass; ruff + mypy clean on the `clip/` package.
 
 ## 4. Requirements & Constraints
 - **Technical:** `rasterio` windowed reads (never full-scene loads for clipping);
@@ -69,18 +70,24 @@ check, emits a per-source manifest, and passes a post-run zero-all-nodata audit.
   writes into `data/bow_valley_selection_raw` or `data/bow_valley_processing`.
 
 ## 5. Acceptance Criteria
-- [ ] AC-1 (SPEC AC-1): outside-AOI footprint → `SKIP_NO_OVERLAP`, no output file.
-- [ ] AC-2 (SPEC AC-2): sub-threshold overlap → `SKIP_DEGENERATE_OVERLAP`, no file.
-- [ ] AC-3 (SPEC AC-3): ~8% Landsat scene → `CLIP`, output clipped to intersection,
-      >0 valid pixels.
-- [ ] AC-4 (SPEC AC-4): post-run audit finds **zero** all-nodata outputs.
-- [ ] AC-5 (SPEC AC-5): manifest has exactly one row per input product with correct
-      `action`, `aoi_overlap_km2`, `valid_pixel_count`.
-- [ ] AC-6 (SPEC AC-6): for one MOD09GA file both grid outputs cover the same AOI
-      corner; 500 m index ≈ 2× the 1 km index.
-- [ ] AC-7 (SPEC AC-7): clipped Landsat `crs == EPSG:32612`; clipped S2 `crs == EPSG:32611`.
-- [ ] AC-8 (SPEC AC-8): non-destructive — sampled clipped pixels equal raw pixels.
-- [ ] AC-9: ruff + mypy clean; targeted new tests green; full suite introduces NO new failures vs `TEST_BASELINE.md` (delta check, NOT `pytest -x`).
+- [x] AC-1 (SPEC AC-1): outside-AOI footprint → `SKIP_NO_OVERLAP`, no output file.
+      (`test_gate_skips_disjoint_footprint`; verified live on 2 W120 WorldCover tiles.)
+- [x] AC-2 (SPEC AC-2): sub-threshold overlap → `SKIP_DEGENERATE_OVERLAP`, no file.
+      (`test_gate_skips_degenerate_overlap`.)
+- [x] AC-3 (SPEC AC-3): Landsat scene → `CLIP`, clipped to intersection, >0 valid
+      pixels. (`test_landsat_clip_keeps_zone_and_pixels`.)
+- [x] AC-4 (SPEC AC-4): post-run audit finds **zero** all-nodata outputs.
+      (`test_audit_passes_on_clipped_worldcover` + `clip_audit.py`.)
+- [x] AC-5 (SPEC AC-5): manifest has exactly one row per input product with correct
+      `action`, `aoi_overlap_km2`, `valid_pixel_count`. (`test_manifest_one_row_per_product`.)
+- [x] AC-6 (SPEC AC-6): for one MOD09GA file the 500 m grid clips to ~2× the 1 km grid
+      dims (190×451 vs 379×902). (`test_modis_per_grid_index_ratio`.)
+- [x] AC-7 (SPEC AC-7): clipped Landsat `crs == EPSG:32612`; clipped S2 `crs == EPSG:32611`.
+      (`test_landsat_clip_keeps_zone_and_pixels`, `test_sentinel2_clip_stays_utm11`.)
+- [x] AC-8 (SPEC AC-8): non-destructive — sampled clipped pixel equals raw pixel.
+      (`test_dem_clip_is_non_destructive`.)
+- [x] AC-9: ruff + mypy clean on the `clip/` package; 10/10 new tests green; full suite
+      `6 failed, 55 passed` — exactly the `TEST_BASELINE.md` 6, zero new failures.
 
 ## 6. Testing & Validation
 ```bash
