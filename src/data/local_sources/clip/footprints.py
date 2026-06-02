@@ -68,13 +68,37 @@ def landsat_footprint(tar_path: Path) -> Optional[Polygon]:
 
 
 def _parse_gml_coordinates(text: str) -> Optional[Polygon]:
-    """Parse a SAFE manifest GML footprint (whitespace ``lat lon`` pairs)."""
+    """Parse a SAFE manifest GML footprint into a ``(lon, lat)`` polygon.
+
+    SAFE products encode the footprint with one of two GML elements, both listing
+    ``lat`` before ``lon`` (the GML default axis order):
+
+    * **Sentinel-1 / Sentinel-2**: ``<gml:coordinates>``. S1 uses
+      comma-within-pair, space-between-pairs (``"lat,lon lat,lon ..."``); S2 uses
+      pure whitespace (``"lat lon lat lon ..."``).
+    * **Sentinel-3**: ``<gml:posList>`` with pure whitespace
+      (``"lat lon lat lon ..."``).
+
+    Both are normalised to a flat ``lat lon lat lon`` token list, then re-ordered
+    to the ``(lon, lat)`` tuples shapely expects.
+
+    Args:
+        text: The manifest XML text.
+
+    Returns:
+        The footprint as a shapely ``Polygon`` in EPSG:4326, or ``None`` if
+        neither element with a valid coordinate list is present.
+    """
     match = re.search(r"<gml:coordinates>(.*?)</gml:coordinates>", text, re.DOTALL)
+    if match is None:
+        match = re.search(r"<gml:posList[^>]*>(.*?)</gml:posList>", text, re.DOTALL)
     if match is None:
         match = re.search(r"coordinates>(.*?)<", text, re.DOTALL)
     if match is None:
         return None
-    tokens = match.group(1).split()
+    # Normalise both conventions: commas (S1 intra-pair separator) become spaces,
+    # then split on any whitespace into a flat scalar list.
+    tokens = match.group(1).replace(",", " ").split()
     if len(tokens) < 6 or len(tokens) % 2 != 0:
         return None
     # SAFE GML lists coordinates as "lat lon lat lon ..."; shapely wants (lon, lat).

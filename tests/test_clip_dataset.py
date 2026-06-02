@@ -19,11 +19,13 @@ import rasterio
 from shapely.geometry import Polygon, box
 
 from src.data.local_sources.clip import clippers
+from src.data.local_sources.clip.footprints import _parse_gml_coordinates
 from src.data.local_sources.clip.gate import (
     ClipAction,
     evaluate_gate,
     geodesic_area_km2,
 )
+from src.data.local_sources.clip.gdal_io import _parse_grid_band
 from src.data.local_sources.clip.settings import ClipSettings, load_aoi_polygon
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -93,6 +95,97 @@ def test_geodesic_area_positive(aoi):
     """The AOI has a plausible geodesic area (~24 800 km²)."""
     area = geodesic_area_km2(aoi)
     assert 20_000 < area < 30_000
+
+
+# --------------------------------------------------------------------------- #
+# Manifest GML footprint parsing (no archive needed)
+#
+# Regression guards for two SAFE-manifest dialects that the live full-archive
+# run revealed the parser silently dropped (returning None -> every product
+# wrongly SKIP_NO_OVERLAP):
+#   * Sentinel-1: <gml:coordinates> with comma-within-pair "lat,lon lat,lon".
+#   * Sentinel-3: <gml:posList> instead of <gml:coordinates>.
+# --------------------------------------------------------------------------- #
+def test_parse_gml_coordinates_s1_comma_pairs():
+    """S1 manifest lists ``lat,lon`` comma-pairs; parser must yield (lon, lat)."""
+    xml = (
+        "<safe:footPrint><gml:coordinates>"
+        "51.355087,-119.420021 51.760925,-115.716866 "
+        "50.265179,-115.352760 49.861259,-118.940010"
+        "</gml:coordinates></safe:footPrint>"
+    )
+    poly = _parse_gml_coordinates(xml)
+    assert poly is not None
+    lon_min, lat_min, lon_max, lat_max = poly.bounds
+    # Axis order: longitudes are the negative values, latitudes ~50.
+    assert -119.5 < lon_min < -115.3
+    assert 49.8 < lat_min < 51.8
+
+
+def test_parse_gml_coordinates_s2_whitespace_pairs():
+    """S2 manifest lists pure-whitespace ``lat lon`` pairs; must still parse."""
+    xml = (
+        "<gml:coordinates>"
+        "51.94998 -115.40237 52.00999 -115.69954 "
+        "52.01011 -115.69948 51.95001 -115.40240"
+        "</gml:coordinates>"
+    )
+    poly = _parse_gml_coordinates(xml)
+    assert poly is not None
+    lon_min, _, lon_max, lat_max = poly.bounds
+    assert -115.7 < lon_min < -115.39
+    assert 51.9 < lat_max < 52.1
+
+
+def test_parse_gml_coordinates_s3_poslist():
+    """S3 manifest uses ``<gml:posList>`` (not coordinates); must parse it."""
+    xml = (
+        '<sentinel-safe:footPrint><gml:posList srsName="EPSG:4326">'
+        "52.4625 -132.682 52.4015 -131.676 50.1045 -115.216 49.8966 -114.294"
+        "</gml:posList></sentinel-safe:footPrint>"
+    )
+    poly = _parse_gml_coordinates(xml)
+    assert poly is not None
+    lon_min, lat_min, lon_max, lat_max = poly.bounds
+    assert -132.7 < lon_min < -114.2
+    assert 49.8 < lat_min < 52.5
+
+
+def test_parse_gml_coordinates_returns_none_when_absent():
+    """No coordinate element -> None (fail-safe toward SKIP_NO_OVERLAP)."""
+    assert _parse_gml_coordinates("<manifest><noCoords/></manifest>") is None
+
+
+# --------------------------------------------------------------------------- #
+# HDF subdataset grid/band parsing (no archive needed)
+#
+# Regression guard for the HDF5 (VIIRS) descriptor, whose "://group/path" form
+# the MODIS-shaped ``:``-split mangled — leaking quotes and slashes into output
+# filenames and crashing ``gdal_translate`` on the first product.
+# --------------------------------------------------------------------------- #
+def test_parse_grid_band_hdf5_viirs():
+    """VIIRS HDF5 ``://...`` descriptor yields clean grid/band identifiers."""
+    name = (
+        'HDF5:"data/.../VNP09GA.A2025060.h10v03.h5"://HDFEOS/GRIDS/'
+        "VIIRS_Grid_1km_2D/Data_Fields/SurfReflect_M4_1"
+    )
+    grid, band = _parse_grid_band(name)
+    assert grid == "VIIRS_Grid_1km_2D"
+    assert band == "SurfReflect_M4_1"
+    # No quote/slash may leak into tokens used to build output filenames.
+    for token in (grid, band):
+        assert '"' not in token and "/" not in token
+
+
+def test_parse_grid_band_hdf4_modis():
+    """MODIS HDF4 ``:``-delimited descriptor still parses (no regression)."""
+    name = (
+        'HDF4_EOS:EOS_GRID:"data/.../MOD09GA.A2025060.h10v03.hdf":'
+        "MODIS_Grid_500m_2D:sur_refl_b01_1"
+    )
+    grid, band = _parse_grid_band(name)
+    assert grid == "MODIS_Grid_500m_2D"
+    assert band == "sur_refl_b01_1"
 
 
 # --------------------------------------------------------------------------- #
@@ -221,3 +314,29 @@ def test_audit_passes_on_clipped_worldcover(tmp_path, aoi, settings):
         with rasterio.open(tif) as src:
             data = src.read()
             assert (data != src.nodata).any() if src.nodata is not None else data.size
+
+
+@requires_archive
+def test_viirs_clip_writes_per_grid_tifs(tmp_path, aoi, settings):
+    """A VIIRS HDF5 granule clips to per-grid GeoTIFFs (HDF5 descriptor parse).
+
+    Guards the HDF5 ``://group/path`` subdataset descriptor that crashed
+    ``gdal_translate`` on the live run: the test fails fast if the parse
+    regresses (no tiles written) and asserts the 500 m grid clips to ~2× the
+    1 km grid, mirroring the MODIS per-grid check.
+    """
+    src = sorted((RAW_ROOT / "viirs").glob("*.h5"))[0]
+    row = clippers.clip_sinusoidal(
+        src_path=src, dst_dir=tmp_path, source="viirs", aoi_4326=aoi, settings=settings
+    )
+    assert row.action is ClipAction.CLIP
+
+    out = tmp_path / src.stem
+    km1 = next(out.glob("VIIRS_Grid_1km_2D__*.tif"))
+    m500 = next(out.glob("VIIRS_Grid_500m_2D__*.tif"))
+    with rasterio.open(km1) as r1, rasterio.open(m500) as r5:
+        h1, w1 = r1.shape
+        h5, w5 = r5.shape
+    assert h1 > 0 and w1 > 0 and h5 > 0 and w5 > 0
+    assert abs(h5 - 2 * h1) <= 2
+    assert abs(w5 - 2 * w1) <= 2

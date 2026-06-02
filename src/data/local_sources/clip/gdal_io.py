@@ -73,10 +73,7 @@ def list_subdatasets(hdf_path: Path) -> list[SubdatasetInfo]:
     for name in names:
         sub_meta = gdalinfo_json(name)
         size = sub_meta.get("size", [0, 0])
-        # Connection string form: HDF4_EOS:EOS_GRID:"path":GRID_NAME:BAND_NAME
-        parts = name.split(":")
-        grid = parts[-2] if len(parts) >= 2 else ""
-        band = parts[-1] if parts else ""
+        grid, band = _parse_grid_band(name)
         infos.append(
             SubdatasetInfo(
                 name=name,
@@ -87,6 +84,50 @@ def list_subdatasets(hdf_path: Path) -> list[SubdatasetInfo]:
             )
         )
     return infos
+
+
+def _parse_grid_band(name: str) -> tuple[str, str]:
+    """Parse ``(grid, band)`` tokens from a GDAL subdataset connection string.
+
+    Two descriptor dialects appear in this pipeline, and they delimit the grid
+    and band differently:
+
+    * **HDF4 (MODIS)** — ``HDF4_EOS:EOS_GRID:"path":GRID:BAND``. Grid and band are
+      the last two ``:``-delimited fields.
+    * **HDF5 (VIIRS)** — ``HDF5:"path"://HDFEOS/GRIDS/GRID/Data_Fields/BAND``. The
+      grid and band live inside the HDF5 group path *after* ``://`` and are
+      ``/``-delimited; a ``:``-split would wrongly capture the quoted file path
+      and the slash-laden group path.
+
+    Both dialects yield clean identifier tokens (no quotes or slashes), safe to
+    use in output filenames.
+
+    Args:
+        name: The GDAL subdataset connection string.
+
+    Returns:
+        A ``(grid, band)`` tuple. Empty strings if the form is unrecognised.
+    """
+    # HDF5 group-path form: everything after the "://" is a "/"-delimited path.
+    if "://" in name:
+        group_path = name.split("://", 1)[1]
+        segments = [s for s in group_path.split("/") if s]
+        band = segments[-1] if segments else ""
+        # The grid is the segment following the "GRIDS" container, when present.
+        grid = ""
+        if "GRIDS" in segments:
+            idx = segments.index("GRIDS")
+            if idx + 1 < len(segments):
+                grid = segments[idx + 1]
+        elif len(segments) >= 2:
+            grid = segments[-2]
+        return grid, band
+
+    # HDF4 ":"-delimited form: GRID and BAND are the last two fields.
+    parts = name.split(":")
+    grid = parts[-2] if len(parts) >= 2 else ""
+    band = parts[-1] if parts else ""
+    return grid, band
 
 
 def translate_subdataset(subdataset_name: str, out_tif: Path) -> None:
