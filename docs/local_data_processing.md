@@ -114,6 +114,30 @@ uv run pytest tests/test_clip_dataset.py -q
   cell grid is the adapter's job (TASK-012), not the clip stage.
 - Expected dry-run verdict on the curated archive: ~531 CLIP / 2 SKIP_NO_OVERLAP
   (the two W120 WorldCover tiles sit west of the AOI).
+---
+
+## 4. Spatiotemporal alignment & 8-day cube assembly
+
+Ensures spatial location and date matching are preserved from raw clipped sources when building 308-band assembled cubes.
+
+### Location & Date Safeguards
+- **Spatial Grid (`cube_cells.csv`):** Authoritative cell geometry defined in UTM 11N (`EPSG:32611`). Bounding boxes (`min_x`, `min_y`, `max_x`, `max_y`) map to target cell coordinates.
+- **Date Target:** Row `date` defines sliding window end day $d$; sliding window spans 8 days $[d-7, d]$.
+- **Filename Contract:** Assembled cubes written to `data/bow_valley_processing/cubes/` with standard format `PR_{YYYYMMDD}_{LAT}_{LON}_SC00.tif` (signed decimal degrees of cell center and window-end date). Validated via `test_filename_contract.py` to match `LandsatEvalDataset` parser.
+
+### Pipeline & Data-Flow Integration
+1. **Clip Stage Footprint manifest (`combined_clip_manifest.csv`):** Keeps record of geographic bounds, overlaps, and pixel validity of clipped source archives on disk.
+2. **Adapter Date Parsing:** `LocalSource*` adapters scan clipped directory for files matching specific target days $i \in [d-7, d]$. Empty days filled with `-9999` placeholder. Sentinel-2 baseline version DN offset (-1000) applied for baseline 04.00+.
+3. **Reprojection & 10 m Resampling:**
+   - Adapter reprojects target UTM 11N bounding box to native source CRS:
+     - Landsat: `EPSG:32612` (UTM 12N)
+     - Sentinel-2: `EPSG:32611` (UTM 11N)
+     - Sentinel-1: GCP range geometry window (GCP-based pixel slice)
+     - MODIS/VIIRS: Sinusoidal projection (`+proj=sinu +R=6371007.181`)
+   - Resampled to $100 \times 100$ pixel grid via robust resampler in `base.py`.
+   - Coalesces overlapping orbit/scene pixels (first valid wins) to prevent false `-9999` nodata.
+4. **Intermediate Cache Sharding:** Per-day per-cell arrays cached under `data/bow_valley_processing/cube_cache/{cell_id}/{day}_{modality}.npz`. Avoids 8x storage duplicate of sliding windows and filesystem indexing limits.
+5. **Cube Assembly (`LocalSourceExporter`):** Composites 8 daily cached arrays in exact canonical band order (308 bands).
 
 ---
 
