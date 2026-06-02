@@ -539,8 +539,8 @@ Detailed inventory and parsed metadata of raw assets under `data/bow_valley_sele
 
 | Dataset | Subdirectory | File Count | Total Size | Primary Format | Coordinate System (CRS) | Spatial Resolution | Temporal Frequency |
 | :--- | :--- | :---: | :---: | :--- | :--- | :---: | :--- |
-| **DEM** | `dem/` | 126 | 422 MB | GeoTIFF / KML | `EPSG:4326` (WGS 84) | ~30m (1 arc-sec) | Static |
-| **WorldCover** | `worldcover/` | 8 | 377 MB | GeoTIFF | `EPSG:4326` (WGS 84) | 10m (~8.33e-5°) | Static (2021) |
+| **DEM** | `dem/` | 196 files / **9 `*_DEM.tif` tiles** | 632 MB | GeoTIFF / KML (nested SAFE) | `EPSG:4326` (WGS 84) | ~30m (1 arc-sec) | Static |
+| **WorldCover** | `worldcover/` | 8 files / **4 `*_Map.tif` tiles** | 377 MB | GeoTIFF | `EPSG:4326` (WGS 84) | 10m (~8.33e-5°) | Static (2021) |
 | **ERA5** | `era5/` | 15 | 4.4 MB | NetCDF-4 (`.nc`) | `EPSG:4326` (WGS 84) | 0.1° (~10km) | Daily Aggregated |
 | **Landsat 8** | `landsat8/` | 19 | 24 GB | `.tar` (GeoTIFFs) | `EPSG:32612` (UTM 12N) | 30m | 16-day Revisit |
 | **Landsat 9** | `landsat9/` | 30 | 36 GB | `.tar` (GeoTIFFs) | `EPSG:32612` (UTM 12N) | 30m | 16-day Revisit |
@@ -552,8 +552,8 @@ Detailed inventory and parsed metadata of raw assets under `data/bow_valley_sele
 
 ### Spatial-Temporal Characteristics
 
-- **DEM (Digital Elevation Model):** Copernicus GLO-30 / GLO-10. Single band. Shape `(3601, 2401)`. Bounded `[-117.0002, 49.9998, -115.9997, 51.0001]` **per tile** (126 tiles total; the archive *mosaic* extends north past lat 51 — Phase 0 must confirm coverage to the AOI `lat_max = 52.31`). `float32`.
-- **WorldCover:** ESA WorldCover 10m. Categorical landcover. Shape `(36000, 36000)` **per tile**. Single tile bounded `[-117.0, 48.0, -114.0, 51.0]`; 8 tiles total (the mosaic must cover the AOI north to lat 52.31 — Phase 0 audit assertion). `uint8`.
+- **DEM (Digital Elevation Model):** Copernicus GLO-30 / GLO-10. Single band. Shape `(3601, 2401)` per 1°×1° tile. **9 `*_DEM.tif` tiles** (`N50–N52 × W115–W117`); each tile sits in a nested SAFE folder alongside KML/XML/PDF and auxiliary FLM/EDM/HEM/WBM rasters (~196 files total, 99 tifs — only the `*_DEM.tif` are elevation). **Verified mosaic extent `lon[-117,-114] lat[50,53]`** ⊇ AOI to `lat_max = 52.31`. `float32`.
+- **WorldCover:** ESA WorldCover 10m. Categorical landcover. Shape `(36000, 36000)` **per 3°×3° tile**. **4 `*_Map.tif` tiles** (+ 4 `*_InputQuality.tif` companions = 8 tifs; clip only `*_Map.tif`). **Verified mosaic extent `lon[-120,-114] lat[48,54]`** ⊇ AOI to lat 52.31. `uint8`.
 - **ERA5-Land:** Already-daily aggregates in NetCDF (`h5netcdf`/`h5py`), one slice per day. Precip lives in `YYYYMM_ERA5LAND_totalprecip.nc`: var `tp`, dims `(valid_time, latitude, longitude)` = `(days-in-month, 61, 61)`, **`GRIB_stepType=accum`, `units=m`**, `valid_time` stamped `YYYY-MM-DDT00:00`. Instantaneous vars in `YYYYMM_ERA5LAND/` (`t2m`, `skt`, `u10`/`v10`) as `*_daily-mean.nc`. Extent `[-120.0, -114.0, 48.0, 54.0]`. Archive span 2025-03 → 2025-05. **Day-shift (precip only): day `i`'s total is in the `i+1` `00:00` slice — see the ERA5-Land accumulation gotcha above.**
 - **Landsat 8 & 9:** L1TP Collection 2 TOA reflectance. Scene shape `(8191, 8101)` (L8), `(8181, 8111)` (L9). Extent around UTM Zone 12N `[176080, 5607800, 420900, 5853300]`. 11 spectral bands + QA_PIXEL + QA_RADSAT. `uint16`.
 - **MODIS:** MOD09GA daily surface reflectance HDF4 (tile `h10v03`). **Two co-registered sinusoidal grids per file** (verified via `gdalinfo`): a 1 km grid (`MODIS_Grid_1km_2D`, **1200×1200**, holds `state_1km` + geometry) and a 500 m grid (`MODIS_Grid_500m_2D`, **2400×2400**, holds the science bands `sur_refl_b01`–`b07`). 22 subdatasets total. `uint16`. **Clipping must index each grid at its own resolution — see `CLIPPING_PLAN.md §2.7`.**

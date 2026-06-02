@@ -49,7 +49,7 @@ test has ground-truth fixtures to diff against.
       schema, EPSG:32611. This file IS the sweep enumeration.
 - [ ] 5. Write the archive audit: catalog per-modality paths/formats/CRS/native
       scale; verify ingest coverage of `start-7 → end` (`2025-03-30 → 2025-05-28`);
-      assert DEM (126 tiles) and WorldCover (8 tiles) mosaics reach `lat_max=52.31`;
+      assert DEM (9 `*_DEM.tif` tiles) and WorldCover (4 `*_Map.tif` tiles) mosaics reach `lat_max=52.31`;
       profile per-in-AOI-cell per-source 8-day-window completeness; **report the
       S1-fully-masked-window rate** across the inference range (S1 on ~16 dates only).
 - [ ] 6. Verify the `PR` filename prefix meaning in `landsat_eval.py:172` and record

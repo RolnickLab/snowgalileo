@@ -224,9 +224,10 @@ sentence and maps to at least one step in the Verification Plan (§7).
 - `sampled_cells_bow_river_with_dates.csv` is consumed for **cell geometry only**
   (`center_x/y`, bounds). Its `date` column is train/eval label-sampling
   metadata and is **not read** by this inference pipeline.
-- DEM (126 tiles) and WorldCover (8 tiles) mosaics must cover the AOI to
-  `lat_max = 52.31` — Phase 0 asserts this; per-tile bounds in `DATA_ANALYSIS.md`
-  are examples, not the mosaic extent.
+- DEM (9 elevation tiles) and WorldCover (4 `Map` tiles) mosaics must cover the
+  AOI to `lat_max = 52.31` — Phase 0 asserts this (verified: DEM mosaic
+  `lat[50,53]`, WorldCover `lat[48,54]`, both ⊇ AOI); per-tile bounds in
+  `DATA_ANALYSIS.md` are examples, not the mosaic extent.
 - The known ERA5 temperature-shift sign and S3 identity-normalization TODO are
   **preserved as-is** (model-numeric-domain concerns, out of scope).
 

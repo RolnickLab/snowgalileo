@@ -27,3 +27,6 @@ old_slurms/
 error*
 ee-marlena-*
 .antigravitycli
+
+# Local environment overrides (EE_PROJECT, etc.) — never commit
+.env

@@ -69,8 +69,10 @@ The target AOI boundary parsed from [aoi.geojson](file:///home/dev/projects/pres
 > latitude. The single-tile bounds quoted in `DATA_ANALYSIS.md` (DEM example
 > tile north edge `51.0001`, WorldCover catalog north edge `51.0`) are
 > *per-tile examples*, not the archive mosaic extent. Phase 0 audit MUST assert
-> the DEM (126 files) and WorldCover (8 files) mosaics cover `[lon_min, lat_min,
-> lon_max, lat_max]` before relying on them.
+> the DEM (9 `*_DEM.tif` elevation tiles) and WorldCover (4 `*_Map.tif` tiles)
+> mosaics cover `[lon_min, lat_min, lon_max, lat_max]` before relying on them.
+> (Verified in Phase 0: DEM mosaic `lat[50,53] lon[-117,-114]`, WorldCover
+> `lat[48,54] lon[-120,-114]` — both contain the AOI to lat 52.31.)
 
 ---
 
@@ -139,7 +141,7 @@ only if it yields real pixels).
 ### 2.1 Standard GeoTIFFs (DEM & WorldCover)
 * **Sources:** `dem`, `worldcover`
 * **Format:** Local `.tif` files.
-* **Note:** These are **multi-tile** archives (DEM: 126 tiles; WorldCover: 8 tiles). Individual tiles can lie fully outside the AOI — the §2.0 gate must run per tile so non-intersecting tiles are skipped, not clipped to empty.
+* **Note:** These are **multi-tile** archives (DEM: 9 `*_DEM.tif` elevation tiles, in a nested SAFE layout with ~196 files total incl. KML/XML/PDF + auxiliary FLM/EDM/HEM/WBM rasters; WorldCover: 4 `*_Map.tif` tiles, plus 4 `*_InputQuality.tif` companions = 8 tifs). Clip only the `*_DEM.tif` / `*_Map.tif` rasters. Individual tiles can lie fully outside the AOI — the §2.0 gate must run per tile so non-intersecting tiles are skipped, not clipped to empty.
 * **Strategy:**
   1. Open the file with `rasterio`; read its bounds.
   2. **Apply the §2.0 intersect gate** per tile. On `SKIP_*`, write nothing.

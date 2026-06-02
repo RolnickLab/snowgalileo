@@ -11,3 +11,29 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
 - We mix the projections a little: during pre-training, we use Galileo’s approach and export all data in WGS84 (https://github.com/marlens123/presto-v3/blob/9591fec0a91a9f0e061aedd17beea78e673b8fef/src/data/earthengine/eo.py#L620), for fine-tuning, we use the original projection of our snow labels, which are in UTM (code link). For inference, we ideally want to follow the second approach I would say, but this is not implemented yet.
 - Sidenote: We always use the Google Earth Engine URL mode for downloading (has some restrictions, but because it’s fast and for free).
 
+## Bow Valley direct-source pipeline — conventions
+
+- **DataFrames: use `pandas`, not `polars`.** The repo already depends on
+  `pandas` (8+ modules) and uses zero `polars`. The GEE exporter boundary we must
+  feed, `EarthEngineExporterEval.export_from_csv_utm`
+  (`src/data/earthengine/eo_eval.py:576`), reads the cube CSV with `pd.read_csv`.
+  Adding `polars` would introduce a new dependency purely for the Bow Valley grid
+  generator with no benefit and a type-mismatch seam at exactly the contract
+  boundary. Planning docs (PLAN/SPEC/TASK-00x) mention `polars` as a default
+  preference; that preference is **overridden here** — pandas is the project
+  standard for this pipeline. (Decided 2026-06-01.)
+- **Generated cube CSV schema is fixed by the GEE exporter** — exactly
+  `date, crs, center_x, center_y, min_x, min_y, max_x, max_y`, read column-by-column
+  at `eo_eval.py:577-585`. The legacy `sampled_cells_bow_river_with_dates.csv`
+  already uses this same 8-column schema; the grid generator reuses cell geometry
+  (`center_x/y`, bounds, `crs=EPSG:32611`) and rewrites only the `date` column to
+  the inference-window cross-product. The legacy `date` (all `20250515` /
+  label-sampling metadata) is never read.
+- **GEE export filename vs LocalSourceExporter filename differ (known, by design).**
+  `export_from_csv_utm` emits `PR_{date}_{center_x:.16f}_{center_y:.16f}.tif`
+  (3 fields, UTM coords) for the reference patches; the new `LocalSourceExporter`
+  emits `PR_{YYYYMMDD}_{LAT}_{LON}_SC00.tif` (5 fields, signed degrees). Both parse
+  through the `PR` branch of `LandsatEvalDataset` (`src/fsc/landsat_eval.py:171-176`,
+  month at `parts[1][4:6]`). Parity matching is by shared cube-CSV row, not filename
+  string (SPEC AC-27). Filename ownership is resolved in TASK-004.
+
