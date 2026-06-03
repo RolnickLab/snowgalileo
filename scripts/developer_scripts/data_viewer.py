@@ -36,9 +36,18 @@ _PRODUCTS: list[ProductRow] = load_products(_SETTINGS)
 _AOI_GEOJSON = load_aoi_geojson(_SETTINGS)
 _AOI_BOUNDS = aoi_bounds_4326(_AOI_GEOJSON)
 
-# Sources that currently have a registered renderer (Phase 2). Others are listed
-# but flagged as not-yet-rendered so the UI is honest about coverage.
-_RENDERABLE_SOURCES = {"dem", "worldcover", "modis", "viirs"}
+# Sources that currently have a registered renderer (Phases 2-3). Others (era5, S3)
+# are listed but flagged as not-yet-rendered so the UI is honest about coverage.
+_RENDERABLE_SOURCES = {
+    "dem",
+    "worldcover",
+    "modis",
+    "viirs",
+    "landsat8",
+    "landsat9",
+    "sentinel2",
+    "sentinel1",
+}
 
 _SOURCES: list[str] = sorted({p.source for p in _PRODUCTS})
 

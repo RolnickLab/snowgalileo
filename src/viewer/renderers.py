@@ -25,6 +25,13 @@ from rasterio.transform import array_bounds
 from rasterio.transform import from_bounds as transform_from_bounds
 from rasterio.warp import calculate_default_transform, reproject, transform_bounds
 
+from src.viewer.archives import (
+    find_member,
+    list_tar_members,
+    list_zip_members,
+    vsitar_path,
+    vsizip_path,
+)
 from src.viewer.manifest import ProductRow
 from src.viewer.quicklook import QuicklookResult, register
 
@@ -94,8 +101,13 @@ class _Decimated:
     bounds_4326: tuple[float, float, float, float]
 
 
-def _read_band_decimated(path: Path, *, band: int, long_edge: int) -> _Decimated:
-    """Read one band decimated, keeping the native grid (CRS + transform)."""
+def _read_band_decimated(path: str | Path, *, band: int, long_edge: int) -> _Decimated:
+    """Read one band decimated, keeping the native grid (CRS + transform).
+
+    ``path`` may be a real file path or a GDAL ``/vsizip/`` / ``/vsitar/`` string;
+    the latter MUST be passed through as ``str`` — wrapping it in ``Path`` collapses
+    the ``//`` after the ``/vsi*/`` prefix and GDAL can no longer find the archive.
+    """
     with rasterio.open(path) as src:
         out_h, out_w = _decimated_shape(width=src.width, height=src.height, long_edge=long_edge)
         arr = src.read(
@@ -304,6 +316,160 @@ class _ViirsRenderer:
         )
 
 
+# --------------------------------------------------------------------------- #
+# Phase 3 — archive renderers (Landsat tar, S2 zip, S1 zip via /vsi*/)
+# --------------------------------------------------------------------------- #
+
+
+def _read_rgb_paths_4326(
+    paths: tuple[str, str, str], *, long_edge: int
+) -> tuple[npt.NDArray[np.uint8], tuple[float, float, float, float], str]:
+    """Read three georeferenced single-band rasters → 4326 RGB, stretched to uint8.
+
+    Each path is a GDAL-openable source (incl. ``/vsizip/`` / ``/vsitar/``). Bands
+    are read decimated, reprojected to EPSG:4326, then percentile-stretched. The
+    three bands must share a grid (true for Landsat/S2 band stacks). ``0`` is the
+    Landsat/S2 fill value → masked to NaN so it neither stretches nor reprojects in.
+    """
+    chans: list[npt.NDArray[np.floating]] = []
+    bounds: tuple[float, float, float, float] | None = None
+    crs = ""
+    for p in paths:
+        dec = _read_band_decimated(p, band=1, long_edge=long_edge)
+        masked = np.where(dec.array == 0, np.nan, dec.array)
+        arr_4326, bounds = _to_4326(
+            _Decimated(
+                array=masked,
+                transform=dec.transform,
+                crs=dec.crs,
+                bounds_4326=dec.bounds_4326,
+            )
+        )
+        chans.append(arr_4326)
+        crs = str(dec.crs)
+    assert bounds is not None
+    rgb = np.dstack(chans)
+    return _stretch_uint8(rgb), bounds, crs
+
+
+def _read_gcp_band_4326(
+    src_path: str, *, long_edge: int
+) -> tuple[npt.NDArray[np.floating], tuple[float, float, float, float], str]:
+    """Decimated read of a GCP-georeferenced band, warped to EPSG:4326.
+
+    Sentinel-1 measurement TIFFs report ``crs=None`` + an identity transform but
+    carry GCPs in EPSG:4326 (F3). We compute a GCP-based source transform, read the
+    band decimated, then ``reproject`` to 4326 — never a full-res load (~146 MB).
+
+    Returns ``(array_4326, bounds_4326, gcp_crs)``.
+
+    Raises:
+        ValueError: If the source carries no GCPs.
+    """
+    with rasterio.open(src_path) as src:
+        gcps, gcp_crs = src.gcps
+        if not gcps:
+            raise ValueError("source has no GCPs; cannot georeference")
+
+        out_h, out_w = _decimated_shape(width=src.width, height=src.height, long_edge=long_edge)
+        arr = src.read(1, out_shape=(out_h, out_w), resampling=Resampling.average).astype(
+            "float32"
+        )
+        # GCP transform for the *decimated* grid: derive the full-res GCP transform,
+        # then scale it by the read ratio (GCP pixel coords are in full-res space).
+        full_transform = rasterio.transform.from_gcps(gcps)
+        src_transform = full_transform * full_transform.scale(
+            src.width / out_w, src.height / out_h
+        )
+
+    dec = _Decimated(
+        array=arr,
+        transform=src_transform,
+        crs=CRS.from_user_input(gcp_crs),
+        bounds_4326=array_bounds(out_h, out_w, src_transform),
+    )
+    arr_4326, bounds = _to_4326(dec)
+    return arr_4326, bounds, str(gcp_crs)
+
+
+def _landsat_band(archive: Path, band_token: str) -> str:
+    members = list_tar_members(archive)
+    return vsitar_path(archive, find_member(members, suffix=f"_{band_token}.TIF"))
+
+
+class _LandsatRenderer:
+    def __init__(self, source: str) -> None:
+        self.source = source
+
+    def render(self, row: ProductRow, *, long_edge: int) -> QuicklookResult:
+        assert row.path is not None
+        # True-colour B4/B3/B2 from the tar via /vsitar/ (per-scene UTM, F2).
+        paths = (
+            _landsat_band(row.path, "B4"),
+            _landsat_band(row.path, "B3"),
+            _landsat_band(row.path, "B2"),
+        )
+        rgb, bounds, crs = _read_rgb_paths_4326(paths, long_edge=long_edge)
+        return QuicklookResult(
+            kind="georef_raster",
+            image=rgb,
+            bounds_4326=bounds,
+            src_crs=crs,
+            label=f"{self.source} true-colour (B4/B3/B2)",
+        )
+
+
+class _Sentinel2Renderer:
+    source = "sentinel2"
+
+    def render(self, row: ProductRow, *, long_edge: int) -> QuicklookResult:
+        assert row.path is not None
+        archive = row.path
+        members = list_zip_members(archive)
+
+        def band(token: str) -> str:
+            member = find_member(members, suffix=f"_{token}.jp2", contains="IMG_DATA")
+            return vsizip_path(archive, member)
+
+        # True-colour B04/B03/B02 jp2 via /vsizip/ (EPSG:32611, F3).
+        paths = (band("B04"), band("B03"), band("B02"))
+        rgb, bounds, crs = _read_rgb_paths_4326(paths, long_edge=long_edge)
+        return QuicklookResult(
+            kind="georef_raster",
+            image=rgb,
+            bounds_4326=bounds,
+            src_crs=crs,
+            label="S2 true-colour (B04/B03/B02)",
+        )
+
+
+class _Sentinel1Renderer:
+    source = "sentinel1"
+
+    def render(self, row: ProductRow, *, long_edge: int) -> QuicklookResult:
+        assert row.path is not None
+        members = list_zip_members(row.path)
+        # VV measurement TIFF (fallback VH); GCP-warped (F3 corrected).
+        try:
+            member = find_member(members, suffix=".tiff", contains="-vv-")
+            pol = "VV"
+        except FileNotFoundError:
+            member = find_member(members, suffix=".tiff", contains="-vh-")
+            pol = "VH"
+        path = vsizip_path(row.path, member)
+        arr_4326, bounds, crs = _read_gcp_band_4326(path, long_edge=long_edge)
+        # dB-stretch the backscatter amplitude for display.
+        with np.errstate(divide="ignore", invalid="ignore"):
+            db = 10.0 * np.log10(np.where(arr_4326 > 0, arr_4326, np.nan))
+        return QuicklookResult(
+            kind="georef_raster",
+            image=_stretch_uint8(db),
+            bounds_4326=bounds,
+            src_crs=crs,
+            label=f"S1 GRD {pol} (dB, GCP-warped)",
+        )
+
+
 def result_to_geotiff(result: QuicklookResult, dst: Path) -> Path:
     """Write a ``georef_raster`` quicklook to a small EPSG:4326 GeoTIFF for display.
 
@@ -376,15 +542,21 @@ def result_to_geotiff(result: QuicklookResult, dst: Path) -> Path:
     return dst
 
 
-def register_phase2() -> None:
-    """Register the Phase-2 plain-GeoTIFF renderers in the dispatch registry."""
+def register_renderers() -> None:
+    """Register every implemented renderer in the dispatch registry."""
     for renderer in (
+        # Phase 2 — plain GeoTIFFs.
         _DemRenderer(),
         _WorldCoverRenderer(),
         _ModisRenderer(),
         _ViirsRenderer(),
+        # Phase 3 — archives via /vsi*/.
+        _LandsatRenderer("landsat8"),
+        _LandsatRenderer("landsat9"),
+        _Sentinel2Renderer(),
+        _Sentinel1Renderer(),
     ):
         register(renderer)
 
 
-register_phase2()
+register_renderers()
