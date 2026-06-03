@@ -242,8 +242,15 @@ only if it yields real pixels).
   1. Open the Sentinel-3 `.zip` file. Parse geographic coordinates from `xfdumanifest.xml`.
   2. **Apply the §2.0 intersect gate** (polygon intersection + min-overlap) against the manifest footprint. On `SKIP_*`, log and write nothing — do **not** create an output zip.
   3. Create a new output `.zip` archive **only after the gate passes**.
-  4. Extract `geo_coordinates.nc` first. Read 2D `latitude` and `longitude` grids.
-  5. Find the bounding box `[row_min, col_min, row_max, col_max]` of all indices where:
+  4. Extract `geo_coordinates.nc` first. Read 2D `latitude` and `longitude` grids
+     and **decode their CF scaling** (`scale_factor`, optional `add_offset`) to
+     degrees BEFORE comparing to the AOI. ⚠️ These grids are `int32` with
+     `scale_factor ≈ 1e-6` (raw `49896598` = `49.896598°`); comparing the **raw
+     integers** to degree bounds makes the mask empty and every radiance band clips
+     to `(0,0)` — a silent all-empty clip (the valid-pixel gate is fooled by the
+     full-copied non-grid datasets). Use a `_cf_scaled()` decoder.
+  5. Find the bounding box `[row_min, col_min, row_max, col_max]` of all indices where
+     (with the **decoded** degree coordinates):
      - `lon_min <= longitude[row, col] <= lon_max` and `lat_min <= latitude[row, col] <= lat_max` (expanded with a 10-pixel buffer).
   6. For each `.nc` file in the zip:
      - Extract, open with `h5py`.

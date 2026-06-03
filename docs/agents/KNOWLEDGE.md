@@ -117,4 +117,20 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   clip stage. S1 measurement TIFFs are range-geometry (GCPs, no affine) → sliced by
   the AOI-overlapping GCP pixel window with shifted GCPs (defensive CRS+transform
   fast-path if a future pull ships orthorectified UTM).
+- **S3 OLCI lat/lon are CF-scaled int32 — apply `scale_factor` before the AOI mask
+  (or every radiance band clips to (0,0)).** `geo_coordinates.nc` stores `latitude`
+  / `longitude` as `int32` with `scale_factor ≈ 1e-6` (raw `49896598` means
+  `49.896598°`). The S3 clip masks the swath to the AOI bbox from these grids; the
+  original code compared the **raw integers** against degree bounds, so the mask was
+  always empty → `r0,r1,c0,c1 = 0,0,0,0` → every `Oa*_radiance.nc` sliced to `(0,0)`.
+  The failure was **silent**: `_slice_s3_netcdf` counts valid pixels over *every* 2D
+  dataset matching the geo grid, and non-grid datasets (`removed_pixels`,
+  `instrument_data`) are full-copied, so the manifest still reported ~33 M "valid
+  pixels" while the science bands held nothing. Fix: `_cf_scaled()` decodes
+  `scale_factor`/`add_offset` before the mask; radiance now clips to the real swath
+  window (e.g. `(734, 722)`, varying per overpass geometry). **Found by the
+  clip-viewer Phase-4 probe**, not a test — same lesson as the sinusoidal shear:
+  a units/projection mismatch that produces a wrong window is invisible to a
+  valid-pixel-count gate when unrelated datasets pad the count. Re-clip with
+  `clip-source sentinel3` (~125 products) and rebuild the combined manifest.
 

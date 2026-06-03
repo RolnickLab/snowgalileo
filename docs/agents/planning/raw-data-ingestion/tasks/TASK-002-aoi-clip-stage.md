@@ -49,6 +49,14 @@ check, emits a per-source manifest, and passes a post-run zero-all-nodata audit.
       rectangle shears, so that bbox was ~5× too wide in X and kept a 10°-wide block of
       data instead of the AOI's ~2°-wide diagonal band. Fixed to geometry masking; MODIS +
       VIIRS re-clipped. See CLIPPING_PLAN §2.7 + `docs/agents/KNOWLEDGE.md`.
+      **Second correction (2026-06-03):** the S3 OLCI clip compared `geo_coordinates`
+      lat/lon (CF-scaled int32, `scale_factor ≈ 1e-6`) as **raw integers** against degree
+      AOI bounds → empty mask → all 125 S3 products clipped with `(0,0)` radiance while the
+      manifest still showed ~33 M valid pixels (counted from full-copied non-science
+      datasets). Fixed with `_cf_scaled()` (decode scaling before the mask); S3 re-clipped.
+      See CLIPPING_PLAN §2.6 + `docs/agents/KNOWLEDGE.md`. Both bugs were surfaced by the
+      clip-viewer, not the test suite — a valid-pixel gate can't catch a wrong window when
+      unrelated datasets pad the count.
 - [x] 4. Emit the per-source clip manifest (`clip/manifest.py`): one row per input product
       with `{product_id, footprint_bbox, intersects, aoi_overlap_km2, valid_pixel_count,
       action}`, `action ∈ {CLIP, SKIP_NO_OVERLAP, SKIP_DEGENERATE_OVERLAP}`.

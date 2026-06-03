@@ -465,17 +465,24 @@ def clip_sentinel3(
         geo_name = next(n for n in src_zip.namelist() if "geo_coordinates.nc" in n)
         src_zip.extract(geo_name, path=tmp_dir)
         with h5py.File(tmp_dir / geo_name, "r") as geo:
-            lats = geo["latitude"][:]
-            lons = geo["longitude"][:]
+            # S3 geo_coordinates store lat/lon as scaled int32 (scale_factor ≈ 1e-6,
+            # optional add_offset). Compare in DEGREES — applying the CF scaling —
+            # never the raw integers, or the AOI mask is empty and the radiance
+            # clips to (0, 0) while unrelated full-copied datasets still inflate the
+            # valid-pixel count (silent all-empty clip).
+            lats = _cf_scaled(geo["latitude"])
+            lons = _cf_scaled(geo["longitude"])
+        n_rows, n_cols = int(lats.shape[0]), int(lats.shape[1])
+        grid_shape: tuple[int, int] = (n_rows, n_cols)
         mask = (lons >= lon_min) & (lons <= lon_max) & (lats >= lat_min) & (lats <= lat_max)
         rows, cols = mask.nonzero()
         if len(rows) == 0:
             r0, r1, c0, c1 = 0, 0, 0, 0
         else:
             r0 = max(0, int(rows.min()) - buf)
-            r1 = min(lats.shape[0], int(rows.max()) + buf)
+            r1 = min(n_rows, int(rows.max()) + buf)
             c0 = max(0, int(cols.min()) - buf)
-            c1 = min(lats.shape[1], int(cols.max()) + buf)
+            c1 = min(n_cols, int(cols.max()) + buf)
 
         for name in src_zip.namelist():
             if name.endswith("/"):
@@ -484,7 +491,7 @@ def clip_sentinel3(
             extracted = tmp_dir / name
             if name.lower().endswith(".nc"):
                 clipped = tmp_dir / f"clipped_{Path(name).name}"
-                total_valid += _slice_s3_netcdf(extracted, clipped, lats.shape, r0, r1, c0, c1)
+                total_valid += _slice_s3_netcdf(extracted, clipped, grid_shape, r0, r1, c0, c1)
                 dst_zip.write(clipped, arcname=name)
             else:
                 dst_zip.write(extracted, arcname=name)
@@ -499,6 +506,25 @@ def clip_sentinel3(
         rel_output=dst_path.name,
         settings=settings,
     )
+
+
+def _cf_scaled(dataset: object) -> np.ndarray:
+    """Decode a CF-scaled HDF5 dataset to physical units (``scale_factor`` /
+    ``add_offset``).
+
+    S3 ``geo_coordinates`` lat/lon are int32 with ``scale_factor = 1e-6``; the raw
+    integers are meaningless against degree bounds. Returns a ``float64`` array in
+    physical units; a dataset without scaling attrs is returned unchanged (as float).
+    """
+    values = dataset[:].astype("float64")  # type: ignore[index]
+    attrs = dataset.attrs  # type: ignore[attr-defined]
+    scale = attrs.get("scale_factor")
+    offset = attrs.get("add_offset")
+    if scale is not None:
+        values = values * float(np.asarray(scale).reshape(-1)[0])
+    if offset is not None:
+        values = values + float(np.asarray(offset).reshape(-1)[0])
+    return values
 
 
 def _slice_s3_netcdf(

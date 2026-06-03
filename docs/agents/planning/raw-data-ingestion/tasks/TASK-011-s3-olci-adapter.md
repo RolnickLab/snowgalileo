@@ -11,6 +11,15 @@ grids, with identity normalization preserved.
 - **PLAN:** §4 adapter rule ("S3 OLCI geolocation via tie-point grids"), §3 archive
   formats (SEN3 NetCDF: `Oa17_radiance.nc`, `Oa21_radiance.nc`, `geo_coordinates.nc`).
 - **Upstream tasks:** TASK-002 (clipped S3), TASK-003, TASK-004.
+- **Clipped S3 radiance was empty until the TASK-002 scale_factor fix (2026-06-03).**
+  The S3 clip masks the swath to the AOI from `geo_coordinates.nc`, whose lat/lon are
+  CF-scaled int32 (`scale_factor ≈ 1e-6`). The original clip compared the raw integers
+  to degree bounds → empty mask → every `Oa*_radiance.nc` clipped to `(0,0)`, while the
+  manifest still reported ~33 M valid pixels (from full-copied non-science datasets).
+  Fixed; S3 re-clipped (radiance now `(N, M)` per overpass). When building this adapter,
+  the same `geo_coordinates` grids drive tie-point georeferencing — **decode their CF
+  scaling** there too, or geolocation is silently wrong. See CLIPPING_PLAN §2.6 +
+  `docs/agents/KNOWLEDGE.md`.
 - **Source semantics (DATA_ANALYSIS.md §Sentinel-3 OLCI):**
   - SEN3 NetCDF; radiance bands in separate `.nc` files; **tie-point/coordinate grids
     in `geo_coordinates.nc`** must drive georeferencing — naive geolocation causes
