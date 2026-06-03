@@ -24,6 +24,7 @@ dependencies = [
     "rioxarray>=0.17.0",
     "satellite-cloud-generator>=0.4",
     "scikit-learn>=1.8.0",
+    "structlog>=25.5.0",
     "torch==2.2.1",
     "torchvision==0.17.1",
     "tqdm>=4.67.3",
@@ -33,11 +34,15 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "leafmap>=0.62.0",
+    "localtileserver>=0.10.6",
     "matplotlib>=3.10.9",
     "mypy>=2.1.0",
+    "pandas>=1.5.3",
     "pre-commit>=4.6.0",
     "pytest>=9.0.3",
     "ruff>=0.15.15",
+    "solara>=1.57.4",
 ]
 
 [project.scripts]
