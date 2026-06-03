@@ -136,7 +136,13 @@ def Page() -> None:
         ):
             safe = "".join(c if c.isalnum() else "_" for c in product_id)
             tif = result_to_geotiff(result, _TMPDIR / f"{source}_{safe}.tif")
-            indexes = [1, 2, 3] if result.image.ndim == 3 else None
+            # Pass the colour-band indexes explicitly. result_to_geotiff appends an
+            # alpha band to uint8 outputs (RGB→RGBA, gray→gray+alpha); the tile
+            # server applies that alpha via colorinterp on its own, so indexes must
+            # point only at the colour bands, never the alpha. Relying on a None
+            # default makes leafmap assume 3 RGB bands and index past a 2-band
+            # (gray+alpha) raster → IndexError.
+            indexes = [1, 2, 3] if result.image.ndim == 3 else [1]
             m.add_raster(
                 str(tif),
                 indexes=indexes,
