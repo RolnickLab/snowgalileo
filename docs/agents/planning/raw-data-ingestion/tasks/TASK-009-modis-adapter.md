@@ -10,6 +10,13 @@ value** in addition to `-9999`.
 - **SPEC:** FR-10, AC-12, AC-13, AC-18; Verification Plan step 6.
 - **PLAN:** §4 adapter rule (preserve `-28672`), §6 FMEA ("MODIS native fill stripped").
 - **Upstream tasks:** TASK-002 (clipped MODIS, per-grid extents), TASK-003, TASK-004.
+- **Clipped extent is a diagonal band, not a filled rectangle (TASK-002 fix,
+  2026-06-03).** MODIS is clipped by AOI *geometry* in Sinusoidal CRS, so the per-grid
+  GeoTIFFs are ~66 % nodata (the sheared corners outside the AOI) — only ~33.7 % is
+  valid data over this AOI. This is correct, not a clip defect. The adapter's
+  nodata-aware bilinear (below) already masks `-28672`/`-9999` to NaN before warping, so
+  the larger nodata fraction is handled; just don't assume the clipped tile is fully
+  populated when reasoning about valid-pixel counts.
 - **Why `-28672` is load-bearing:** `src/fsc/landsat_eval.py:317,331` asserts the MODIS
   fill value is *encountered* in NDSI/NDVI (`assert (ndsi != MODIS_FILL_VALUE).any()`,
   sentinel for "MODIS data was actually present"). Stripping it **crashes the loader**.

@@ -268,32 +268,47 @@ only if it yields real pixels).
   `1200` discards the eastern/southern half of every reflectance band. This was
   a correctness bug; the strategy below computes indices **per grid**.
 
+* **⚠️ Sinusoidal-shear trap — crop by AOI _geometry_, not a corner index window.**
+  An earlier draft of this section (and the first implementation) reprojected the
+  AOI's four lon/lat **corners** to Sinusoidal and built an axis-aligned pixel
+  window from `min/max` of those corner coordinates, then clamped to each grid's
+  `[0, grid_dim]`. **This is a correctness bug.** In MODIS Sinusoidal
+  `x = R·λ·cos φ`, so a lon/lat rectangle does not map to an axis-aligned box — it
+  **shears into a parallelogram**. The bounding box of that parallelogram is several
+  times wider in X than the AOI (≈5× over the Bow Valley AOI: it kept a ~10°-wide
+  block of real data, 100 % fill, instead of the AOI's ~2°-wide diagonal band).
+  *Found by the clip-viewer (visual QA), 2026-06-03.* The per-grid 2× ratio test did
+  **not** catch it — masking by geometry preserves that ratio too.
+
 * **Strategy:**
   1. Open the HDF4/HDF5 file and enumerate subdatasets; **group them by their
-     native grid** (1 km vs 500 m). Read each grid's pixel dimensions and
-     upper-left sinusoidal coordinate from the subdataset geotransform — do
-     **not** hardcode.
-  2. Reproject the WGS84 AOI corners to the MODIS Sinusoidal projection
-     (`+proj=sinu +R=6371007.181`). **Apply the §2.0 intersect gate** against the
-     tile's sinusoidal bounds: tile `h10v03` does **not** span the full AOI, so a
-     file whose tile footprint misses the AOI is skipped (write nothing). After
-     index clamping, if the clamped window is empty on both grids → `SKIP_*`.
-  3. For **each grid independently**, compute pixel indices from *that grid's*
-     resolution (`dx`/`dy`) and origin:
-     - `col = (x - upper_left_x) / dx`
-     - `row = (upper_left_y - y) / dy`
-     - The 500 m grid uses `dx = dy ≈ 463.31 m` and dimensions `2400`; the 1 km
-       grid uses `≈ 926.625 m` and dimensions `1200`.
-  4. Clamp each grid's bounds to **`[0, grid_dim]`** (i.e. `[0, 2400]` for 500 m,
-     `[0, 1200]` for 1 km) — never a single hardcoded `1200`.
-  5. Subset each 2D science dataset using the pixel bounds of **its own** grid.
-  6. Save the cropped datasets to HDF5/HDF4 format (using system
-     `gdal_translate` per-subdataset, or `h5py` for VIIRS) into the destination
-     directory, preserving each subdataset's grid association and geotransform.
+     native grid** (1 km vs 500 m). Extract each subdataset to a GeoTIFF (system
+     `gdal_translate` per-subdataset), preserving its native sinusoidal CRS +
+     geotransform — do **not** hardcode dimensions or resolution.
+  2. Read the tile's sinusoidal footprint and **apply the §2.0 intersect gate**:
+     tile `h10v03` does **not** span the full AOI, so a file whose tile footprint
+     misses the AOI is skipped (write nothing).
+  3. For **each grid's GeoTIFF independently**, reproject the WGS84 AOI **polygon**
+     (not just its corners) into that subdataset's Sinusoidal CRS, then crop with
+     `rasterio.mask.mask(crop=True)` — the same geometry-crop §2.1 uses for plain
+     GeoTIFFs. This crops to the AOI's true (sheared) footprint; pixels outside the
+     polygon become the band's nodata, and the output extent is the geometry's
+     bounding box (legitimately wide for a diagonal band — see validation note).
+     If the crop raises (no overlap) or yields zero valid pixels → `SKIP_*`.
+  4. Each grid keeps its own native resolution and dimensions, so the 500 m grid
+     (≈463.31 m/px, 2400²) crops to ~2× the 1 km grid (≈926.625 m/px, 1200²) on each
+     axis automatically — no resolution constant, no `[0, grid_dim]` clamp, no
+     deriving one grid's window from the other.
+  5. Write each cropped grid to the destination directory as
+     `<granule_stem>/<GRID>__<band>.tif`, preserving the grid association and
+     geotransform.
 
-  > **Validation gate:** assert that, for a known AOI corner, the 500 m index is
-  > ~2× the 1 km index for the same lon/lat. A test that crops a single MODIS
-  > file and checks both grids' output extents must pass before bulk runs.
+  > **Validation gate:** assert that, for the same AOI, the 500 m grid's output is
+  > ~2× the 1 km grid's on both axes (`test_modis_per_grid_index_ratio`). **But
+  > that ratio test is not sufficient** — it passes for both the correct and the
+  > buggy approach. Also verify the cropped data's **per-row valid-column span**
+  > matches the AOI width in km (≈ AOI lon-extent × 111 km × cos φ); do **not** judge
+  > correctness by the output bounding box, which is wide for any diagonal band.
 
 ---
 

@@ -263,9 +263,13 @@ explicit.
   (post-run audit asserts this).
 - [ ] AC-5: The clip manifest contains exactly one row per input product, each
   with the correct `action` and measured `aoi_overlap_km2` / `valid_pixel_count`.
-- [ ] AC-6: For a single MOD09GA file, the clipped 500 m-grid output extent and
-  the 1 km-grid output extent both cover the same AOI corner, and the 500 m pixel
-  index is ~2× the 1 km index for that corner (no half-band truncation).
+- [ ] AC-6: For a single MOD09GA file, the clipped 500 m-grid and 1 km-grid outputs
+  both cover the AOI, and the 500 m-grid output is ~2× the 1 km-grid output on each
+  axis (no half-band truncation). NOTE: the crop is by AOI **geometry**
+  (`rasterio.mask.mask`), not a reprojected-corner index window — see CLIPPING_PLAN
+  §2.7 (sinusoidal-shear trap). This 2× ratio holds for either crop method, so it is
+  necessary but **not sufficient** to prove sinusoidal-crop correctness; also check the
+  per-row valid-column span ≈ AOI width.
 - [ ] AC-7: A clipped Landsat band asserts `crs == EPSG:32612` (native zone
   preserved); a clipped S2 band asserts `crs == EPSG:32611`.
 - [ ] AC-8: The clipped output is non-destructive: for a CLIP product, sampled

@@ -83,15 +83,34 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
     tokens), so MODIS did **not** need re-clipping.
 - **MODIS/VIIRS clip output = per-grid GeoTIFFs, one per subdataset**, written to
   `<out>/modis/<granule_stem>/<GRID>__<band>.tif`, preserving native sinusoidal
-  CRS+geotransform via `gdal_translate`. Indices are computed from **each grid's own**
-  `src.res`/`src.bounds` — so the 500 m grid (2400²) clips to ~2× the 1 km grid
-  (1200²) dims. Both MODIS (HDF4) and VIIRS (HDF5) subdataset enumeration +
-  extraction go through system `gdalinfo`/`gdal_translate` (`clip/gdal_io.py`),
-  because rasterio's GDAL build lacks the HDF4 driver and the two descriptor
-  dialects need format-aware grid/band parsing (`_parse_grid_band`): HDF4 is
-  `…:"path":GRID:BAND` (`:`-delimited), HDF5 is `HDF5:"path"://…/GRID/…/BAND`
-  (group path after `://`, `/`-delimited). VIIRS per-granule grids: 1 km (1200²)
-  and 500 m (2400²), clipping to ~190×451 and ~379×902 over this AOI.
+  CRS+geotransform via `gdal_translate`. Both MODIS (HDF4) and VIIRS (HDF5)
+  subdataset enumeration + extraction go through system `gdalinfo`/`gdal_translate`
+  (`clip/gdal_io.py`), because rasterio's GDAL build lacks the HDF4 driver and the
+  two descriptor dialects need format-aware grid/band parsing (`_parse_grid_band`):
+  HDF4 is `…:"path":GRID:BAND` (`:`-delimited), HDF5 is `HDF5:"path"://…/GRID/…/BAND`
+  (group path after `://`, `/`-delimited). The per-grid GeoTIFFs are each 1200² (1 km)
+  / 2400² (500 m) at the native tile extent; cropping is by **AOI geometry**, see next
+  bullet.
+- **MODIS/VIIRS clip crops by AOI _geometry_, NOT a reprojected-corner index window
+  (sinusoidal-shear trap).** `_clip_sinusoidal_subdataset` uses
+  `rasterio.mask.mask(crop=True)` against the AOI reprojected into the subdataset's
+  Sinusoidal CRS — identical in spirit to `_clip_geotiff_to`. The earlier approach
+  (the one CLIPPING_PLAN §2.7 originally prescribed) reprojected the AOI's four
+  lon/lat **corners** to sinusoidal and built an axis-aligned pixel window from their
+  bbox. That is wrong: in MODIS Sinusoidal `x = R·λ·cos φ`, a lon/lat rectangle
+  **shears** into a parallelogram, so its bounding window is ~5× too wide in X — the
+  clip kept a ~10°-wide block of real data (100 % fill) instead of the AOI's ~2°-wide
+  diagonal band. Geometry masking yields the correct band (~33.7 % fill over this
+  AOI; nodata in the sheared corners). **Verify clip correctness by per-row valid-col
+  span (≈ AOI width in km), never by the output bounding box** — the bbox of a
+  diagonal band is legitimately ~10° wide even when the data is correct. Found by the
+  clip-viewer (visual QA), not a unit test; the per-grid ratio test
+  (`test_modis_per_grid_index_ratio`) only checks the 500 m grid is ~2× the 1 km grid,
+  which both approaches satisfy, so it did **not** catch the shear. Re-clip after such
+  a change with `clip-source modis` / `clip-source viirs` (~10 min, 92 products each),
+  then rebuild the **combined** `clip_manifest.csv` by concatenating all 10 per-source
+  manifests in `orchestrator.SOURCES` order — `clip-all --only modis,viirs` would
+  truncate the combined manifest to just those two sources.
 - **Landsat clips stay native EPSG:32612, S2 stays EPSG:32611.** The clip queries
   each band's CRS dynamically (no hardcoded zone) and reprojects the AOI to it. The
   cross-zone 32612→4326 reprojection is the Landsat adapter's job (TASK-012), not the

@@ -75,9 +75,7 @@ def _count_valid_pixels(array: np.ndarray, nodata: Optional[float]) -> int:
     return int(np.count_nonzero(array != nodata))
 
 
-def _clip_geotiff_to(
-    src_path: Path, dst_path: Path, aoi_4326: Polygon
-) -> tuple[int, object]:
+def _clip_geotiff_to(src_path: Path, dst_path: Path, aoi_4326: Polygon) -> tuple[int, object]:
     """Crop a georeferenced raster to the AOI, preserving CRS and profile.
 
     Returns:
@@ -85,9 +83,7 @@ def _clip_geotiff_to(
     """
     with rasterio.open(src_path) as src:
         aoi_in_crs = _reproject_aoi(aoi_4326, src.crs)
-        out_image, out_transform = rasterio.mask.mask(
-            src, [mapping(aoi_in_crs)], crop=True
-        )
+        out_image, out_transform = rasterio.mask.mask(src, [mapping(aoi_in_crs)], crop=True)
         profile = src.profile.copy()
         profile.update(
             height=out_image.shape[1],
@@ -124,9 +120,7 @@ def clip_geotiff(
     product_id = src_path.stem
     if gate.action is not ClipAction.CLIP:
         logger.info("gated", product=product_id, action=gate.action.value)
-        return _skip_row(
-            product_id=product_id, source=source, footprint=footprint, gate=gate
-        )
+        return _skip_row(product_id=product_id, source=source, footprint=footprint, gate=gate)
 
     valid, crs = _clip_geotiff_to(src_path, dst_path, aoi_4326)
     return _finalize_clip(
@@ -166,16 +160,18 @@ def clip_era5(
         n_lat = ds_clip.sizes.get("latitude", 0)
         n_lon = ds_clip.sizes.get("longitude", 0)
 
-        footprint = footprints.netcdf_footprint(
-            float(lon.min()), float(lat.min()), float(lon.max()), float(lat.max())
-        ) if (lon := ds.coords["longitude"].values) is not None else None
+        footprint = (
+            footprints.netcdf_footprint(
+                float(lon.min()), float(lat.min()), float(lon.max()), float(lat.max())
+            )
+            if (lon := ds.coords["longitude"].values) is not None
+            else None
+        )
 
         if n_lat == 0 or n_lon == 0:
             gate = GateResult(ClipAction.SKIP_NO_OVERLAP, False, 0.0)
             logger.info("gated", product=product_id, action=gate.action.value)
-            return _skip_row(
-                product_id=product_id, source=source, footprint=footprint, gate=gate
-            )
+            return _skip_row(product_id=product_id, source=source, footprint=footprint, gate=gate)
 
         dst_path.parent.mkdir(parents=True, exist_ok=True)
         ds_clip.to_netcdf(dst_path, engine="h5netcdf")
@@ -218,15 +214,15 @@ def clip_landsat(
     )
     if gate.action is not ClipAction.CLIP:
         logger.info("gated", product=product_id, action=gate.action.value)
-        return _skip_row(
-            product_id=product_id, source=source, footprint=footprint, gate=gate
-        )
+        return _skip_row(product_id=product_id, source=source, footprint=footprint, gate=gate)
 
     dst_path.parent.mkdir(parents=True, exist_ok=True)
     total_valid = 0
-    with tarfile.open(src_path, "r") as src_tar, tarfile.open(
-        dst_path, "w"
-    ) as dst_tar, tempfile.TemporaryDirectory() as tmp:
+    with (
+        tarfile.open(src_path, "r") as src_tar,
+        tarfile.open(dst_path, "w") as dst_tar,
+        tempfile.TemporaryDirectory() as tmp,
+    ):
         tmp_dir = Path(tmp)
         for member in src_tar.getmembers():
             if not member.isfile():
@@ -274,15 +270,15 @@ def clip_sentinel2(
     )
     if gate.action is not ClipAction.CLIP:
         logger.info("gated", product=product_id, action=gate.action.value)
-        return _skip_row(
-            product_id=product_id, source=source, footprint=footprint, gate=gate
-        )
+        return _skip_row(product_id=product_id, source=source, footprint=footprint, gate=gate)
 
     dst_path.parent.mkdir(parents=True, exist_ok=True)
     total_valid = 0
-    with zipfile.ZipFile(src_path, "r") as src_zip, zipfile.ZipFile(
-        dst_path, "w", zipfile.ZIP_DEFLATED
-    ) as dst_zip, tempfile.TemporaryDirectory() as tmp:
+    with (
+        zipfile.ZipFile(src_path, "r") as src_zip,
+        zipfile.ZipFile(dst_path, "w", zipfile.ZIP_DEFLATED) as dst_zip,
+        tempfile.TemporaryDirectory() as tmp,
+    ):
         tmp_dir = Path(tmp)
         for name in src_zip.namelist():
             if name.endswith("/"):
@@ -330,25 +326,23 @@ def clip_sentinel1(
     )
     if gate.action is not ClipAction.CLIP:
         logger.info("gated", product=product_id, action=gate.action.value)
-        return _skip_row(
-            product_id=product_id, source=source, footprint=footprint, gate=gate
-        )
+        return _skip_row(product_id=product_id, source=source, footprint=footprint, gate=gate)
 
     lon_min, lat_min, lon_max, lat_max = aoi_4326.bounds
     dst_path.parent.mkdir(parents=True, exist_ok=True)
     total_valid = 0
-    with zipfile.ZipFile(src_path, "r") as src_zip, zipfile.ZipFile(
-        dst_path, "w", zipfile.ZIP_DEFLATED
-    ) as dst_zip, tempfile.TemporaryDirectory() as tmp:
+    with (
+        zipfile.ZipFile(src_path, "r") as src_zip,
+        zipfile.ZipFile(dst_path, "w", zipfile.ZIP_DEFLATED) as dst_zip,
+        tempfile.TemporaryDirectory() as tmp,
+    ):
         tmp_dir = Path(tmp)
         for name in src_zip.namelist():
             if name.endswith("/"):
                 continue
             src_zip.extract(name, path=tmp_dir)
             extracted = tmp_dir / name
-            is_measurement = (
-                name.lower().endswith((".tiff", ".tif")) and "measurement/" in name
-            )
+            is_measurement = name.lower().endswith((".tiff", ".tif")) and "measurement/" in name
             if is_measurement:
                 clipped = tmp_dir / f"clipped_{Path(name).name}"
                 valid = _clip_s1_measurement(
@@ -404,11 +398,7 @@ def _clip_s1_measurement(
             return int(np.count_nonzero(data))
 
         gcps, gcp_crs = src.gcps
-        in_aoi = [
-            g
-            for g in gcps
-            if lon_min <= g.x <= lon_max and lat_min <= g.y <= lat_max
-        ]
+        in_aoi = [g for g in gcps if lon_min <= g.x <= lon_max and lat_min <= g.y <= lat_max]
         if not in_aoi:  # gate passed on footprint but no GCP lands in AOI bbox
             col_min, row_min, col_max, row_max = 0, 0, 0, 0
         else:
@@ -460,26 +450,24 @@ def clip_sentinel3(
     )
     if gate.action is not ClipAction.CLIP:
         logger.info("gated", product=product_id, action=gate.action.value)
-        return _skip_row(
-            product_id=product_id, source=source, footprint=footprint, gate=gate
-        )
+        return _skip_row(product_id=product_id, source=source, footprint=footprint, gate=gate)
 
     lon_min, lat_min, lon_max, lat_max = aoi_4326.bounds
     buf = settings.swath_buffer_pixels
     dst_path.parent.mkdir(parents=True, exist_ok=True)
     total_valid = 0
-    with zipfile.ZipFile(src_path, "r") as src_zip, zipfile.ZipFile(
-        dst_path, "w", zipfile.ZIP_DEFLATED
-    ) as dst_zip, tempfile.TemporaryDirectory() as tmp:
+    with (
+        zipfile.ZipFile(src_path, "r") as src_zip,
+        zipfile.ZipFile(dst_path, "w", zipfile.ZIP_DEFLATED) as dst_zip,
+        tempfile.TemporaryDirectory() as tmp,
+    ):
         tmp_dir = Path(tmp)
         geo_name = next(n for n in src_zip.namelist() if "geo_coordinates.nc" in n)
         src_zip.extract(geo_name, path=tmp_dir)
         with h5py.File(tmp_dir / geo_name, "r") as geo:
             lats = geo["latitude"][:]
             lons = geo["longitude"][:]
-        mask = (
-            (lons >= lon_min) & (lons <= lon_max) & (lats >= lat_min) & (lats <= lat_max)
-        )
+        mask = (lons >= lon_min) & (lons <= lon_max) & (lats >= lat_min) & (lats <= lat_max)
         rows, cols = mask.nonzero()
         if len(rows) == 0:
             r0, r1, c0, c1 = 0, 0, 0, 0
@@ -496,9 +484,7 @@ def clip_sentinel3(
             extracted = tmp_dir / name
             if name.lower().endswith(".nc"):
                 clipped = tmp_dir / f"clipped_{Path(name).name}"
-                total_valid += _slice_s3_netcdf(
-                    extracted, clipped, lats.shape, r0, r1, c0, c1
-                )
+                total_valid += _slice_s3_netcdf(extracted, clipped, lats.shape, r0, r1, c0, c1)
                 dst_zip.write(clipped, arcname=name)
             else:
                 dst_zip.write(extracted, arcname=name)
@@ -583,9 +569,7 @@ def clip_sinusoidal(
     )
     if gate.action is not ClipAction.CLIP:
         logger.info("gated", product=product_id, action=gate.action.value)
-        return _skip_row(
-            product_id=product_id, source=source, footprint=footprint, gate=gate
-        )
+        return _skip_row(product_id=product_id, source=source, footprint=footprint, gate=gate)
 
     out_subdir = dst_dir / product_id
     out_subdir.mkdir(parents=True, exist_ok=True)
@@ -606,9 +590,7 @@ def clip_sinusoidal(
 
     if settings.require_valid_pixels and total_valid == 0:
         shutil.rmtree(out_subdir, ignore_errors=True)
-        downgraded = GateResult(
-            ClipAction.SKIP_DEGENERATE_OVERLAP, True, gate.aoi_overlap_km2
-        )
+        downgraded = GateResult(ClipAction.SKIP_DEGENERATE_OVERLAP, True, gate.aoi_overlap_km2)
         return _skip_row(
             product_id=product_id, source=source, footprint=footprint, gate=downgraded
         )
@@ -625,59 +607,38 @@ def clip_sinusoidal(
     )
 
 
-def _clip_sinusoidal_subdataset(
-    src_tif: Path, dst_tif: Path, aoi_4326: Polygon
-) -> int:
-    """Crop one sinusoidal-grid GeoTIFF to the AOI using its own geotransform.
+def _clip_sinusoidal_subdataset(src_tif: Path, dst_tif: Path, aoi_4326: Polygon) -> int:
+    """Crop one sinusoidal-grid GeoTIFF to the AOI by the reprojected geometry.
 
-    Indices come from the subdataset's native pixel size (``src.res``) and
-    origin (``src.bounds``), so the 500 m and 1 km grids each clip correctly.
+    Crops with ``rasterio.mask.mask(crop=True)`` against the AOI reprojected into
+    the subdataset's own sinusoidal CRS — the same geometry crop the GeoTIFF path
+    uses (:func:`_clip_geotiff_to`). A bounding-box window of the reprojected AOI
+    *corners* is wrong here: the Sinusoidal projection (``x = R·λ·cos φ``) shears
+    the AOI rectangle, so its axis-aligned pixel window is several times wider than
+    the AOI in X. Masking by the actual geometry crops to its true footprint.
 
     Returns:
         Count of non-nodata pixels written (0 if the AOI window is empty).
     """
-    transformer = Transformer.from_crs(
-        AOI_CRS, _sinusoidal_crs(src_tif), always_xy=True
-    )
-    lon_min, lat_min, lon_max, lat_max = aoi_4326.bounds
-    corners = [
-        transformer.transform(lon_min, lat_min),
-        transformer.transform(lon_max, lat_min),
-        transformer.transform(lon_max, lat_max),
-        transformer.transform(lon_min, lat_max),
-    ]
-    xs = [c[0] for c in corners]
-    ys = [c[1] for c in corners]
-
     with rasterio.open(src_tif) as src:
-        left, bottom, right, top = src.bounds
-        dx, dy = src.res
-        col_min = max(0, int((min(xs) - left) / dx))
-        col_max = min(src.width, int((max(xs) - left) / dx) + 1)
-        row_min = max(0, int((top - max(ys)) / dy))
-        row_max = min(src.height, int((top - min(ys)) / dy) + 1)
-        if col_max <= col_min or row_max <= row_min:
+        aoi_in_crs = _reproject_aoi(aoi_4326, src.crs)
+        try:
+            out_image, out_transform = rasterio.mask.mask(src, [mapping(aoi_in_crs)], crop=True)
+        except ValueError:
+            # rasterio raises when the AOI does not overlap the raster at all.
             return 0
-
-        window = Window(col_min, row_min, col_max - col_min, row_max - row_min)
-        data = src.read(window=window)
-        out_transform = src.window_transform(window)
         profile = src.profile.copy()
         profile.update(
-            height=data.shape[1], width=data.shape[2], transform=out_transform
+            height=out_image.shape[1],
+            width=out_image.shape[2],
+            transform=out_transform,
         )
         nodata = src.nodata
 
     dst_tif.parent.mkdir(parents=True, exist_ok=True)
     with rasterio.open(dst_tif, "w", **profile) as dst:
-        dst.write(data)
-    return _count_valid_pixels(data, nodata)
-
-
-def _sinusoidal_crs(src_tif: Path) -> object:
-    """Return the CRS of a sinusoidal-grid GeoTIFF for AOI reprojection."""
-    with rasterio.open(src_tif) as src:
-        return src.crs
+        dst.write(out_image)
+    return _count_valid_pixels(out_image, nodata)
 
 
 # --------------------------------------------------------------------------- #

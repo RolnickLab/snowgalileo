@@ -12,6 +12,13 @@ Replace the VIIRS placeholder with a real adapter that emits fine bands `[I1, I3
   loader averages)"), §9 ("VIIRS coarse exported as per-pixel rasters; loader does the
   spatial mean into `time_x`"), §6 FMEA.
 - **Upstream tasks:** TASK-002 (clipped VIIRS, per-grid extents), TASK-003, TASK-004.
+- **Clipped extent is a diagonal band, not a filled rectangle (TASK-002 fix,
+  2026-06-03).** VIIRS is clipped by AOI *geometry* in Sinusoidal CRS, so the per-grid
+  GeoTIFFs (500 m fine, 1 km coarse) are ~66 % nodata (the sheared corners outside the
+  AOI) — only ~33.7 % is valid over this AOI. Correct, not a clip defect. Preserve
+  `-28672` and mask fill→NaN before the bilinear reproject as planned; just don't assume
+  the clipped tile is fully populated. The coarse `(4, H, W)` per-pixel raster the loader
+  spatial-means must carry nodata through faithfully so the mean isn't biased by fill.
 - **Source semantics (DATA_ANALYSIS.md §VIIRS + §Verified Catalog):**
   - HDF5, **two co-registered grids**: `VIIRS_Grid_500m_2D` (2400², fine `I1/I3`) and
     `VIIRS_Grid_1km_2D` (1200², coarse `M5/M7/M10/M11`).
