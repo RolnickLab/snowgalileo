@@ -19,11 +19,11 @@ from pathlib import Path
 
 import solara
 
-import src.viewer.renderers  # noqa: F401  -- registers Phase-2 renderers
+import src.viewer.renderers  # noqa: F401  -- registers all renderers on import
 from src.viewer.aoi import aoi_bounds_4326, load_aoi_geojson
 from src.viewer.manifest import ProductRow, load_products
 from src.viewer.quicklook import QuicklookResult, render_product
-from src.viewer.renderers import result_to_geotiff
+from src.viewer.renderers import era5_time_steps, result_to_geotiff
 from src.viewer.settings import ViewerSettings
 
 import leafmap  # isort: skip  (heavy import, kept after local modules)
@@ -36,8 +36,8 @@ _PRODUCTS: list[ProductRow] = load_products(_SETTINGS)
 _AOI_GEOJSON = load_aoi_geojson(_SETTINGS)
 _AOI_BOUNDS = aoi_bounds_4326(_AOI_GEOJSON)
 
-# Sources that currently have a registered renderer (Phases 2-3). Others (era5, S3)
-# are listed but flagged as not-yet-rendered so the UI is honest about coverage.
+# Sources with a registered renderer (Phases 2-4 → all ten). Kept explicit so a
+# future source without a renderer is flagged rather than silently blank.
 _RENDERABLE_SOURCES = {
     "dem",
     "worldcover",
@@ -47,6 +47,8 @@ _RENDERABLE_SOURCES = {
     "landsat9",
     "sentinel2",
     "sentinel1",
+    "era5",
+    "sentinel3",
 }
 
 _SOURCES: list[str] = sorted({p.source for p in _PRODUCTS})
@@ -85,11 +87,36 @@ def MetadataPanel(row: ProductRow, result: QuicklookResult | None) -> None:
 
 
 @solara.component
+def PlainImagePanel(result: QuicklookResult) -> None:
+    """Render a non-georeferenced quicklook (S3, error fallback) in a side panel.
+
+    ``plain_image`` results have no map placement; show the array as a PNG with a
+    grayscale colormap so the radiance shape is still inspectable.
+    """
+    import io
+
+    import matplotlib.cm as cm
+    import PIL.Image
+
+    with solara.Card(result.label):
+        image = result.image
+        if image.size <= 1:
+            solara.Warning(result.note or "no image")
+            return
+        gray = image if image.ndim == 2 else image[..., 0]
+        rgba = (cm.get_cmap("gray")(gray / 255.0) * 255).astype("uint8")
+        buf = io.BytesIO()
+        PIL.Image.fromarray(rgba).save(buf, format="PNG")
+        solara.Image(buf.getvalue())
+
+
+@solara.component
 def Page() -> None:
     source, set_source = solara.use_state(_SOURCES[0] if _SOURCES else "")
     products = _products_for(source)
     ids = [p.product_id for p in products]
     product_id, set_product_id = solara.use_state(ids[0] if ids else "")
+    date_idx, set_date_idx = solara.use_state(0)
 
     # Keep product selection valid when the source changes.
     if product_id not in ids:
@@ -99,6 +126,15 @@ def Page() -> None:
         (p for p in products if p.product_id == product_id),
         products[0] if products else None,
     )
+
+    # ERA5 is time-stepped: expose a date slider over its valid_time axis.
+    era5_steps: list[str] = []
+    if source == "era5" and row is not None and row.path is not None:
+        try:
+            era5_steps = era5_time_steps(row.path)
+        except Exception:  # noqa: BLE001 — slider is best-effort
+            era5_steps = []
+    safe_date_idx = min(date_idx, len(era5_steps) - 1) if era5_steps else 0
 
     solara.Title("Clip viewer")
     with solara.Sidebar():
@@ -119,13 +155,23 @@ def Page() -> None:
             values=ids,
             on_value=set_product_id,
         )
+        if era5_steps:
+            solara.SliderInt(
+                label=f"Date: {era5_steps[safe_date_idx]}",
+                value=safe_date_idx,
+                min=0,
+                max=len(era5_steps) - 1,
+                on_value=set_date_idx,
+            )
         if row is not None:
             result = (
-                render_product(row, long_edge=_SETTINGS.long_edge)
+                render_product(row, long_edge=_SETTINGS.long_edge, date_idx=safe_date_idx)
                 if source in _RENDERABLE_SOURCES
                 else None
             )
             MetadataPanel(row, result)
+            if result is not None and result.kind == "plain_image":
+                PlainImagePanel(result)
         else:
             result = None
 

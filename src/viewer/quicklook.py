@@ -55,8 +55,12 @@ class Renderer(Protocol):
 
     source: str
 
-    def render(self, row: ProductRow, *, long_edge: int) -> QuicklookResult:
-        """Render ``row`` to a ``QuicklookResult`` using decimated reads."""
+    def render(self, row: ProductRow, *, long_edge: int, date_idx: int = 0) -> QuicklookResult:
+        """Render ``row`` to a ``QuicklookResult`` using decimated reads.
+
+        ``date_idx`` selects a time slice for time-stepped sources (ERA5); other
+        renderers ignore it.
+        """
         ...
 
 
@@ -81,7 +85,9 @@ def _error_result(label: str, exc: Exception) -> QuicklookResult:
     )
 
 
-def render_product(row: ProductRow, *, long_edge: int = 1024) -> QuicklookResult:
+def render_product(
+    row: ProductRow, *, long_edge: int = 1024, date_idx: int = 0
+) -> QuicklookResult:
     """Dispatch a product to its renderer, enforcing the failure contract.
 
     Any renderer exception (or missing renderer / unresolved path) is converted to
@@ -91,6 +97,7 @@ def render_product(row: ProductRow, *, long_edge: int = 1024) -> QuicklookResult
     Args:
         row: The product to render.
         long_edge: Decimation target passed to the renderer.
+        date_idx: Time-slice index for time-stepped sources (ERA5); ignored elsewhere.
 
     Returns:
         A ``QuicklookResult``; ``plain_image`` with a ``note`` on any failure.
@@ -107,7 +114,7 @@ def render_product(row: ProductRow, *, long_edge: int = 1024) -> QuicklookResult
             exc=NotImplementedError(f"no renderer for source {row.source!r}"),
         )
     try:
-        return renderer.render(row, long_edge=long_edge)
+        return renderer.render(row, long_edge=long_edge, date_idx=date_idx)
     except Exception as exc:  # failure contract: never propagate
         logger.warning("render_failed", source=row.source, product=row.product_id)
         return _error_result(label=f"{row.source}: {row.product_id}", exc=exc)

@@ -11,6 +11,8 @@ Archive (landsat/S2/S1) and ERA5/S3 renderers land in later phases.
 
 from __future__ import annotations
 
+import tempfile
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,6 +20,7 @@ import numpy as np
 import numpy.typing as npt
 import rasterio
 import structlog
+import xarray as xr
 from affine import Affine
 from rasterio.crs import CRS
 from rasterio.enums import ColorInterp, Resampling
@@ -223,7 +226,7 @@ def _stretch_uint8(arr: npt.NDArray[np.floating]) -> npt.NDArray[np.uint8]:
 class _DemRenderer:
     source = "dem"
 
-    def render(self, row: ProductRow, *, long_edge: int) -> QuicklookResult:
+    def render(self, row: ProductRow, *, long_edge: int, date_idx: int = 0) -> QuicklookResult:
         assert row.path is not None
         dec = _read_band_decimated(row.path, band=1, long_edge=long_edge)
         arr, bounds = _to_4326(dec)
@@ -239,7 +242,7 @@ class _DemRenderer:
 class _WorldCoverRenderer:
     source = "worldcover"
 
-    def render(self, row: ProductRow, *, long_edge: int) -> QuicklookResult:
+    def render(self, row: ProductRow, *, long_edge: int, date_idx: int = 0) -> QuicklookResult:
         assert row.path is not None
         with rasterio.open(row.path) as src:
             out_h, out_w = _decimated_shape(
@@ -275,7 +278,7 @@ def _grid_band(directory: Path, token: str) -> Path:
 class _ModisRenderer:
     source = "modis"
 
-    def render(self, row: ProductRow, *, long_edge: int) -> QuicklookResult:
+    def render(self, row: ProductRow, *, long_edge: int, date_idx: int = 0) -> QuicklookResult:
         assert row.path is not None
         # True-ish color from 500 m SR: b01 (red), b04 (green), b03 (blue).
         paths = (
@@ -296,7 +299,7 @@ class _ModisRenderer:
 class _ViirsRenderer:
     source = "viirs"
 
-    def render(self, row: ProductRow, *, long_edge: int) -> QuicklookResult:
+    def render(self, row: ProductRow, *, long_edge: int, date_idx: int = 0) -> QuicklookResult:
         assert row.path is not None
         # Single 500 m I1 SR band, stretched (PLAN §5).
         band = _grid_band(row.path, "SurfReflect_I1")
@@ -401,7 +404,7 @@ class _LandsatRenderer:
     def __init__(self, source: str) -> None:
         self.source = source
 
-    def render(self, row: ProductRow, *, long_edge: int) -> QuicklookResult:
+    def render(self, row: ProductRow, *, long_edge: int, date_idx: int = 0) -> QuicklookResult:
         assert row.path is not None
         # True-colour B4/B3/B2 from the tar via /vsitar/ (per-scene UTM, F2).
         paths = (
@@ -422,7 +425,7 @@ class _LandsatRenderer:
 class _Sentinel2Renderer:
     source = "sentinel2"
 
-    def render(self, row: ProductRow, *, long_edge: int) -> QuicklookResult:
+    def render(self, row: ProductRow, *, long_edge: int, date_idx: int = 0) -> QuicklookResult:
         assert row.path is not None
         archive = row.path
         members = list_zip_members(archive)
@@ -446,7 +449,7 @@ class _Sentinel2Renderer:
 class _Sentinel1Renderer:
     source = "sentinel1"
 
-    def render(self, row: ProductRow, *, long_edge: int) -> QuicklookResult:
+    def render(self, row: ProductRow, *, long_edge: int, date_idx: int = 0) -> QuicklookResult:
         assert row.path is not None
         members = list_zip_members(row.path)
         # VV measurement TIFF (fallback VH); GCP-warped (F3 corrected).
@@ -467,6 +470,95 @@ class _Sentinel1Renderer:
             bounds_4326=bounds,
             src_crs=crs,
             label=f"S1 GRD {pol} (dB, GCP-warped)",
+        )
+
+
+# --------------------------------------------------------------------------- #
+# Phase 4 — ERA5 (date-stepped NetCDF) + S3 (non-georeferenced radiance)
+# --------------------------------------------------------------------------- #
+
+
+def era5_time_steps(path: Path) -> list[str]:
+    """Return ISO date strings for an ERA5 NetCDF's ``valid_time`` axis (slider)."""
+    with xr.open_dataset(path, engine="h5netcdf") as ds:
+        return [str(np.datetime_as_string(t, unit="D")) for t in ds["valid_time"].values]
+
+
+class _Era5Renderer:
+    source = "era5"
+
+    def render(self, row: ProductRow, *, long_edge: int, date_idx: int = 0) -> QuicklookResult:
+        assert row.path is not None
+        with xr.open_dataset(row.path, engine="h5netcdf") as ds:
+            var = next(iter(ds.data_vars))
+            n_times = ds.sizes["valid_time"]
+            idx = max(0, min(date_idx, n_times - 1))
+            slab = ds[var].isel(valid_time=idx)
+            arr = np.asarray(slab.values, dtype="float32")
+            lats = np.asarray(ds["latitude"].values, dtype="float64")
+            lons = np.asarray(ds["longitude"].values, dtype="float64")
+            when = str(np.datetime_as_string(ds["valid_time"].values[idx], unit="D"))
+
+        # ERA5-Land is a regular EPSG:4326 grid; build bounds from coord edges.
+        dlat = abs(float(lats[1] - lats[0])) if lats.size > 1 else 0.1
+        dlon = abs(float(lons[1] - lons[0])) if lons.size > 1 else 0.1
+        bounds = (
+            float(lons.min()) - dlon / 2,
+            float(lats.min()) - dlat / 2,
+            float(lons.max()) + dlon / 2,
+            float(lats.max()) + dlat / 2,
+        )
+        # Orient north-up (descending latitude is the ERA5 convention).
+        if lats.size > 1 and lats[0] < lats[-1]:
+            arr = arr[::-1, :]
+        return QuicklookResult(
+            kind="georef_raster",
+            image=arr,
+            bounds_4326=bounds,
+            src_crs="EPSG:4326",
+            label=f"ERA5 {var} @ {when} (idx {idx}/{n_times - 1})",
+        )
+
+
+class _Sentinel3Renderer:
+    source = "sentinel3"
+
+    def render(self, row: ProductRow, *, long_edge: int, date_idx: int = 0) -> QuicklookResult:
+        assert row.path is not None
+        # S3 OLCI geolocation lives in a separate per-pixel geo_coordinates.nc with
+        # no affine/CRS — render a NON-georeferenced radiance quicklook (CONTRACT
+        # §"Non-georeferenced set"). Read one radiance band via h5py (xarray's
+        # reference handling fails on these files).
+        import h5py
+
+        with zipfile.ZipFile(row.path) as zf:
+            member = find_member(zf.namelist(), suffix="Oa08_radiance.nc")
+            with tempfile.TemporaryDirectory() as tmp:
+                out = Path(tmp) / "radiance.nc"
+                out.write_bytes(zf.read(member))
+                with h5py.File(out, "r") as f:
+                    key = next(k for k in f if "radiance" in k.lower())
+                    raw = np.asarray(f[key][()], dtype="float32")
+
+        if raw.size == 0:
+            return QuicklookResult(
+                kind="plain_image",
+                image=np.zeros((1, 1), dtype=np.uint8),
+                bounds_4326=None,
+                src_crs=None,
+                label="S3 OLCI Oa08 radiance",
+                note="empty radiance array (clip produced no pixels)",
+            )
+        # Decimate by striding to respect long_edge without a georeferenced read.
+        step = max(1, max(raw.shape) // long_edge)
+        decimated = raw[::step, ::step]
+        return QuicklookResult(
+            kind="plain_image",
+            image=_stretch_uint8(decimated),
+            bounds_4326=None,
+            src_crs=None,
+            label="S3 OLCI Oa08 radiance",
+            note="non-georeferenced (geolocation is a separate per-pixel grid)",
         )
 
 
@@ -555,6 +647,9 @@ def register_renderers() -> None:
         _LandsatRenderer("landsat9"),
         _Sentinel2Renderer(),
         _Sentinel1Renderer(),
+        # Phase 4 — ERA5 (date-stepped) + S3 (non-georeferenced).
+        _Era5Renderer(),
+        _Sentinel3Renderer(),
     ):
         register(renderer)
 
