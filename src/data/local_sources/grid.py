@@ -38,6 +38,8 @@ import typer
 from pyproj import Transformer
 from shapely.geometry import Point, Polygon, box
 
+from src.data.local_sources.paths import LocalPaths
+
 logger = structlog.get_logger(__name__)
 
 # --- Fixed contracts -------------------------------------------------------
@@ -66,7 +68,10 @@ DEFAULT_WINDOW_END: date = date(2025, 5, 28)
 
 #: Repo-root-relative default paths (resolved against the package's repo root).
 DEFAULT_LEGACY_CSV: Path = Path("sampled_cells_bow_river_with_dates.csv")
-DEFAULT_AOI_PATH: Path = Path("data/bow_valley_inference_aoi.geojson")
+#: AOI default resolves from LocalPaths (env-overridable, LOCAL_ prefix) so the
+#: grid generator and the clip stage share one source of truth — see
+#: data/BOW_VALLEY_DATA_LAYOUT.md.
+DEFAULT_AOI_PATH: Path = LocalPaths().aoi_path
 DEFAULT_OUTPUT_CSV: Path = Path("configs/bow_valley/cube_cells.csv")
 DEFAULT_MANIFEST_PATH: Path = Path("configs/bow_valley/cell_filter_manifest.csv")
 
