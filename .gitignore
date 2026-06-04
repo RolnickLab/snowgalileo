@@ -5,6 +5,15 @@ data/*
 !data/eval_tifs/
 !data/tifs/
 !data/tifs_broken/
+!data/bow_valley_inference_aoi.geojson
+!data/bow_valley_processing
+!data/bow_valley_selection_raw
+!data/clipped_bow_valley_selection_raw
+!data/processed_bow_valley_cubes
+data/bow_valley_processing/*
+data/bow_valley_selection_raw/*
+data/clipped_bow_valley_selection_raw/*
+data/processed_bow_valley_cubes/*
 .ipynb_checkpoints
 baseline_weights
 models
@@ -31,3 +40,4 @@ ee-marlena-*
 # Local environment overrides (EE_PROJECT, etc.) — never commit
 .env
 .claude
+
