@@ -1,6 +1,6 @@
 # Ingestion Phase: Non-Destructive Spatial Clipping Plan
 
-This plan outlines the design and implementation of a spatial clipping utility to crop all raw geospatial datasets in `data/bow_valley_selection_raw` to the Area of Interest (AOI) represented in `data/aoi.geojson`.
+This plan outlines the design and implementation of a spatial clipping utility to crop all raw geospatial datasets in `data/bow_valley_selection_raw` to the Area of Interest (AOI) represented in `data/bow_valley_inference_aoi.geojson`.
 
 The transformation is strictly **non-destructive** (preserves native pixel values, projections, data formats, and coordinate reference systems) and writes clipped outputs to `data/clipped_bow_valley_selection_raw`.
 
@@ -11,7 +11,7 @@ The transformation is strictly **non-destructive** (preserves native pixel value
 > `data/bow_valley_selection_raw`.** This clip stage is therefore a **mandatory
 > on-path prerequisite** (formalized as `PLAN_BOW_VALLEY_DATA.md §3 "Pipeline
 > Stages & Data Flow"` and §7 Phase 0.5), not optional storage-shrink work, and
-> `data/aoi.geojson` is the **single binding extent** for the whole pipeline. The
+> `data/bow_valley_inference_aoi.geojson` is the **single binding extent** for the whole pipeline. The
 > §2.0 intersect gate below is consequently the *one* place footprint-vs-AOI
 > filtering happens — adapters do not re-implement it. As of this writing
 > `data/clipped_bow_valley_selection_raw` is empty (clip not yet run).
@@ -47,12 +47,12 @@ The transformation is strictly **non-destructive** (preserves native pixel value
 
 ## 1. Bounding Box & Coordinate Specifications
 
-The target AOI boundary parsed from [aoi.geojson](file:///home/dev/projects/presto-v3/data/aoi.geojson) is:
+The target AOI boundary parsed from [bow_valley_inference_aoi.geojson](file:///home/dev/projects/presto-v3/data/bow_valley_inference_aoi.geojson) is:
 * **CRS:** `EPSG:4326` (WGS 84 geographic)
 * **Longitude Range ($\lambda$):** `[-116.561936219710887, -114.527659450240762]`
 * **Latitude Range ($\phi$):** `[50.729806886838752, 52.306672311654424]`
 
-> **AOI authority & scope (CRS is law).** `data/aoi.geojson` is the
+> **AOI authority & scope (CRS is law).** `data/bow_valley_inference_aoi.geojson` is the
 > **authoritative clip and inference boundary** for the whole pipeline. It is
 > **not** the same extent as the cell-sampling bbox in
 > `PLAN_BOW_VALLEY_DATA.md §3`. Reprojected to EPSG:4326, the 500 sampled cells

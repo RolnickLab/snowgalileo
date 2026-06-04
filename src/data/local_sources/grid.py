@@ -2,7 +2,7 @@
 
 This module ships the *geometry half* of the grid generator required by Phase 0
 (TASK-001): load the legacy cell-sampling CSV for **cell geometry only**, filter
-cells to ``data/aoi.geojson``, emit a kept/dropped manifest, and emit the
+cells to ``data/bow_valley_inference_aoi.geojson``, emit a kept/dropped manifest, and emit the
 generated cross-product cube CSV that drives both the inference sweep and the
 Phase 0 GEE reference-patch run.
 
@@ -66,7 +66,7 @@ DEFAULT_WINDOW_END: date = date(2025, 5, 28)
 
 #: Repo-root-relative default paths (resolved against the package's repo root).
 DEFAULT_LEGACY_CSV: Path = Path("sampled_cells_bow_river_with_dates.csv")
-DEFAULT_AOI_PATH: Path = Path("data/aoi.geojson")
+DEFAULT_AOI_PATH: Path = Path("data/bow_valley_inference_aoi.geojson")
 DEFAULT_OUTPUT_CSV: Path = Path("configs/bow_valley/cube_cells.csv")
 DEFAULT_MANIFEST_PATH: Path = Path("configs/bow_valley/cell_filter_manifest.csv")
 
@@ -100,7 +100,7 @@ def load_aoi_polygon(aoi_path: Path) -> Polygon:
     """Load the AOI boundary polygon from a GeoJSON file.
 
     Args:
-        aoi_path: Path to ``aoi.geojson`` (a single ``Polygon`` feature in
+        aoi_path: Path to ``bow_valley_inference_aoi.geojson`` (a single ``Polygon`` feature in
             CRS84 / ``EPSG:4326`` lon/lat order).
 
     Returns:

@@ -1,7 +1,7 @@
 """AOI clip stage (Phase 0.5) for the Bow Valley direct-source pipeline.
 
 This package crops every raw dataset in ``data/bow_valley_selection_raw`` to the
-authoritative AOI polygon (``data/aoi.geojson``), non-destructively, into
+authoritative AOI polygon (``data/bow_valley_inference_aoi.geojson``), non-destructively, into
 ``data/clipped_bow_valley_selection_raw`` — the single archive root every
 ``LocalSource*`` adapter reads.
 

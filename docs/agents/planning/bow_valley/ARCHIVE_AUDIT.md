@@ -63,7 +63,7 @@ count:
 
 | Rule | Kept | Dropped | Sum |
 | --- | ---: | ---: | ---: |
-| centre-in (`data/aoi.geojson`) | **344** | 156 | 500 |
+| centre-in (`data/bow_valley_inference_aoi.geojson`) | **344** | 156 | 500 |
 | `--require-fully-inside` | **338** | 162 | 500 |
 
 Reproduced from the real legacy CSV + AOI; matches PLAN §3.
@@ -93,7 +93,7 @@ acquisition is what fixes the default inference start at 2025-04-06.
 
 ## 4. Static-layer AOI coverage assertion (AC-5)
 
-AOI extent (`data/aoi.geojson`, EPSG:4326):
+AOI extent (`data/bow_valley_inference_aoi.geojson`, EPSG:4326):
 `lon [-116.562, -114.528]`, `lat [50.730, 52.307]` (reaches `lat_max = 52.31`).
 
 Mosaic extents measured via `gdalinfo` `wgs84Extent`:

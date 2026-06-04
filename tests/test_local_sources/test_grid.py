@@ -24,7 +24,7 @@ from src.data.local_sources.grid import (
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LEGACY_CSV = REPO_ROOT / "sampled_cells_bow_river_with_dates.csv"
-AOI_PATH = REPO_ROOT / "data" / "aoi.geojson"
+AOI_PATH = REPO_ROOT / "data" / "bow_valley_inference_aoi.geojson"
 
 EXPECTED_TOTAL_CELLS = 500
 EXPECTED_CENTRE_IN = 344

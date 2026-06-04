@@ -21,7 +21,7 @@ sentence and maps to at least one step in the Verification Plan (§7).
 
 - **Goal:** Replace Google Earth Engine ingestion for the Bow Valley (Alberta)
   with a direct-source pipeline that (a) clips the raw multi-modal archive to
-  `data/aoi.geojson`, (b) assembles per-cell multiband GeoTIFFs byte-compatible
+  `data/bow_valley_inference_aoi.geojson`, (b) assembles per-cell multiband GeoTIFFs byte-compatible
   with `create_ee_image`, and (c) runs the pretrained `EncoderWithHead` as a
   per-day 1 km grid sweep, mosaicking 10×10 fractional-snow-cover (FSC)
   predictions into a daily COG over the AOI.
@@ -41,7 +41,7 @@ sentence and maps to at least one step in the Verification Plan (§7).
 
 **Stage 0→1 — AOI Clip (per `CLIPPING_PLAN.md`)**
 - [ ] FR-1: A `clip_dataset.py` Typer CLI clips every raw dataset in
-  `data/bow_valley_selection_raw` to `data/aoi.geojson` and writes
+  `data/bow_valley_selection_raw` to `data/bow_valley_inference_aoi.geojson` and writes
   `data/clipped_bow_valley_selection_raw`, preserving native pixel values, CRS,
   and file format (non-destructive).
 - [ ] FR-2: A mandatory two-stage **intersect gate** runs before any clip on
@@ -129,9 +129,9 @@ sentence and maps to at least one step in the Verification Plan (§7).
   `^PR_\d{8}_-?\d+\.\d+_-?\d+\.\d+_SC\d+\.tif$` (`PR_{window_end_YYYYMMDD}_{LAT}_{LON}_SC00.tif`).
 - [ ] FR-19: The grid generator (mode A) loads the **legacy CSV for cell geometry
   only**, reprojects each cell to EPSG:4326, keeps a cell iff its centre lies
-  within `data/aoi.geojson` (→ 344 cells), supports `--require-fully-inside`
+  within `data/bow_valley_inference_aoi.geojson` (→ 344 cells), supports `--require-fully-inside`
   (→ 338 cells), and emits a kept/dropped manifest. Mode B tiles
-  `data/aoi.geojson` (legacy CSV not consumed). Both modes are bounded by the
+  `data/bow_valley_inference_aoi.geojson` (legacy CSV not consumed). Both modes are bounded by the
   AOI, never the wider cell-sampling bbox.
 - [ ] FR-19b: The grid generator **emits a generated cube CSV** with the
   canonical schema `date, crs, center_x, center_y, min_x, min_y, max_x, max_y`
@@ -219,7 +219,7 @@ sentence and maps to at least one step in the Verification Plan (§7).
   prefill is non-negotiable.
 - Sweep mode **A** (sample-only, ~344 in-AOI cells) is the default; mode B is a
   config switch (Q3 — confirm for production).
-- `data/aoi.geojson` is the single authoritative clip/inference boundary; 31% of
+- `data/bow_valley_inference_aoi.geojson` is the single authoritative clip/inference boundary; 31% of
   the original 500 cells fall outside it and are intentionally dropped.
 - `sampled_cells_bow_river_with_dates.csv` is consumed for **cell geometry only**
   (`center_x/y`, bounds). Its `date` column is train/eval label-sampling
@@ -282,7 +282,7 @@ explicit.
   `prediction_month_from_file` returns the month equal to `window_end.month`.
 - [ ] AC-10: `grid.py` mode A produces **344** cells for the centre-in rule and
   **338** for `--require-fully-inside`, emits a kept/dropped manifest summing to
-  500, and every kept cell centre lies within `data/aoi.geojson`.
+  500, and every kept cell centre lies within `data/bow_valley_inference_aoi.geojson`.
 - [ ] AC-11: Grid cells are non-overlapping (pairwise intersection area == 0).
 - [ ] AC-11b: The generated cube CSV has the canonical 8-column schema, every row
   is one `(in-AOI cell, window-day)` pair covering the full cross-product
@@ -390,7 +390,7 @@ explicit.
 ## 5. Dependencies
 
 - **Inputs:** `data/bow_valley_selection_raw` (raw, read-only),
-  `data/aoi.geojson`, `sampled_cells_bow_river_with_dates.csv` (cell geometry
+  `data/bow_valley_inference_aoi.geojson`, `sampled_cells_bow_river_with_dates.csv` (cell geometry
   only; `date` column unused — see §3 Q4).
 - **Internal modules (unchanged):** `LandsatEvalDataset`, `EncoderWithHead`,
   `Normalizer`, `eo.py` band-group dicts, `config.py` constants.

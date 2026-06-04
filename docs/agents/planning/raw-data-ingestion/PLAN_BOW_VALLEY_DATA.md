@@ -23,7 +23,7 @@ and an inference-grid driver.
 
 **In scope**
 - A **non-destructive AOI clip stage** (`CLIPPING_PLAN.md`) that crops every raw
-  dataset in `data/bow_valley_selection_raw` to `data/aoi.geojson` and writes
+  dataset in `data/bow_valley_selection_raw` to `data/bow_valley_inference_aoi.geojson` and writes
   `data/clipped_bow_valley_selection_raw`. This is a **mandatory upstream stage**,
   not an optional utility — the adapters below read the **clipped** archive (see
   §3 "Pipeline Stages & Data Flow").
@@ -71,7 +71,7 @@ gate (§7 Phase 0.5).
         │  • out-of-AOI products skipped (no output file)
         ▼
   Stage 1 — CLIPPED ARCHIVE   ◄── the adapters' archive root
-    data/clipped_bow_valley_selection_raw/   (same layout, cropped to aoi.geojson)
+    data/clipped_bow_valley_selection_raw/   (same layout, cropped to bow_valley_inference_aoi.geojson)
         │
         │  LocalSource* adapters (§4) + LocalSourceExporter
         │  • per-(cell, day) reprojection to EPSG:4326 scale=10
@@ -89,7 +89,7 @@ archive. Consequences, binding on every downstream component:
 1. **The clip stage is on the inference path and is a hard prerequisite.** It
    must run (and pass its post-run audit) before any adapter, cube export, or
    inference job. It is **not** a storage-shrink convenience.
-2. **`data/aoi.geojson` is the single binding extent end-to-end.** Because the
+2. **`data/bow_valley_inference_aoi.geojson` is the single binding extent end-to-end.** Because the
    clipped archive contains no data outside the AOI, the §2.0 intersect gate is
    the *one* place footprint-vs-AOI filtering happens. Adapters do **not**
    re-implement it — they assume every product they see already intersects the
@@ -162,7 +162,7 @@ extent. CRS is law; both are stated explicitly below.
    | height | `162_000` (162 km) |
    | max-tile grid | `187 × 162 = 30_294` 1 km cells if fully tiled |
 
-2. **Clip / inference AOI** — `data/aoi.geojson` (EPSG:4326), the boundary that
+2. **Clip / inference AOI** — `data/bow_valley_inference_aoi.geojson` (EPSG:4326), the boundary that
    `CLIPPING_PLAN.md` clips every raw dataset to:
 
    | Bound | Value (EPSG:4326, deg) |
@@ -175,11 +175,11 @@ extent. CRS is law; both are stated explicitly below.
 **The clip AOI does NOT contain all 500 cells.** Reprojecting cell extents to
 EPSG:4326 shows the cell envelope spans `lon=[-116.7408, -114.0104]`,
 `lat=[50.5121, 52.0046]` — wider east/west and further south than the clip AOI.
-**156 of 500 cells (31%) have their centre outside `data/aoi.geojson`**; only
+**156 of 500 cells (31%) have their centre outside `data/bow_valley_inference_aoi.geojson`**; only
 **338 cells fall fully inside** and **344 are inside under a centre-in rule**.
 Max spillover: ~31.5 km east, ~20.5 km south, ~12.4 km west.
 
-**Decision (resolved):** `data/aoi.geojson` is the **authoritative clip and
+**Decision (resolved):** `data/bow_valley_inference_aoi.geojson` is the **authoritative clip and
 inference boundary by design**. Cells whose centre falls outside it are
 **intentionally dropped** — they are not served by the clipped archive and the
 grid generator MUST filter them out. The cell-sampling extent above is retained
@@ -188,7 +188,7 @@ sweep extent.
 
 **Grid-generator contract (mode A):** load the legacy CSV **for cell geometry
 only**, reproject each cell to EPSG:4326, keep a cell iff its centre lies within
-`data/aoi.geojson` (centre-in rule → **344 cells**), drop the rest. A
+`data/bow_valley_inference_aoi.geojson` (centre-in rule → **344 cells**), drop the rest. A
 `--require-fully-inside` flag restricts to the **338** fully-contained cells.
 Emit a manifest of kept/dropped cell ids for auditability.
 
@@ -204,7 +204,7 @@ canonical schema `date, crs, center_x, center_y, min_x, min_y, max_x, max_y`
 CSV **is** the inference sweep enumeration:
 - **Mode A:** cells are the 344 in-AOI legacy-CSV cells (geometry only) × window
   days ≈ 344 × 53 ≈ **18 k rows**.
-- **Mode B:** cells are tiled directly from `data/aoi.geojson` (legacy CSV not
+- **Mode B:** cells are tiled directly from `data/bow_valley_inference_aoi.geojson` (legacy CSV not
   needed at all) × window days.
 - Per-row `date` is the window-end; the GEE/export side derives
   window-start = `date − (NUM_TIMESTEPS−1)`. The direct-source driver reads the
@@ -221,12 +221,12 @@ Coordinates are load-bearing: `center_x/y` build the per-cell filename (→
 **Decision required before FDD (see §8 Q3):** sweep mode.
 - **(A) Sample-only:** infer over the in-AOI CSV cells only (~344 cells after
   the AOI filter above). Cheap.
-- **(B) Full tile:** tile the **clip AOI** (`data/aoi.geojson`), not the wider
+- **(B) Full tile:** tile the **clip AOI** (`data/bow_valley_inference_aoi.geojson`), not the wider
   cell-sampling bbox. Storage and compute are ~60× larger; needs explicit GPU
   budget.
 
 Plan assumes **(A)** as default. (B) is a configuration switch on the grid
-generator. **Both modes are bounded by `data/aoi.geojson`, never by the wider
+generator. **Both modes are bounded by `data/bow_valley_inference_aoi.geojson`, never by the wider
 cell-sampling bbox** — the clipped archive contains no data outside the AOI.
 
 ### Grid + CRS
@@ -237,7 +237,7 @@ cell-sampling bbox** — the clipped archive contains no data outside the AOI.
 | Per-cell export CRS | `EPSG:4326`, `scale=10` | Matches `create_ee_image`; downstream loader assumes this. Scale 10 equates to `0.0000898315` degrees. |
 | Daily mosaic CRS | `EPSG:32611` | Mosaic stays in metric CRS for analysis. **Per-cell rasters in 4326, mosaic in UTM is intentional** — per-cell tifs feed the loader unchanged; mosaic is a separate output product. Reprojection happens once, at mosaic-write time, on 10×10 FSC outputs (low IO). |
 | Grid cell size | 1000 m × 1000 m (dims ≈ 159×100 px in EPSG:4326 due to latitude convergence at 51°N) | `EXPORTED_HEIGHT_WIDTH_METRES`. Converging longitudes stretch WGS84 cell width to ~159 px, satisfying `H >= 100` and `W >= 100` for dataset cropping. |
-| Cell layout | Non-overlapping; centred on CSV `center_x, center_y` (mode A, after AOI filter) or tiled across `data/aoi.geojson` (mode B) | Matches existing CSV semantics; both modes bounded by the clip AOI |
+| Cell layout | Non-overlapping; centred on CSV `center_x, center_y` (mode A, after AOI filter) or tiled across `data/bow_valley_inference_aoi.geojson` (mode B) | Matches existing CSV semantics; both modes bounded by the clip AOI |
 
 **CRS is law** — every cell carries an explicit `transform`, `crs`, and `shape`
 triple that all adapters must conform to.
@@ -245,7 +245,7 @@ triple that all adapters must conform to.
 ### Fixed Extent Mosaic & Scene Coverage Complexity
 
 A fixed spatial extent is provided for the full Bow Valley AOI desired daily mosaic. This introduces significant operational complexity:
-- **Multi-Scene Composition**: The clip AOI (`data/aoi.geojson`) is approximately 140 km × 175 km. This exceeds a single Sentinel-2 tile and requires the 2×2 tile grid (`T11UNS/NT/PS/PT`, ~4 scenes of Landsat or Sentinel-2) to approach complete spatial coverage. (Note: the wider 187 km × 162 km figure refers to the cell-sampling bbox, not the clip AOI — see §3 AOI.)
+- **Multi-Scene Composition**: The clip AOI (`data/bow_valley_inference_aoi.geojson`) is approximately 140 km × 175 km. This exceeds a single Sentinel-2 tile and requires the 2×2 tile grid (`T11UNS/NT/PS/PT`, ~4 scenes of Landsat or Sentinel-2) to approach complete spatial coverage. (Note: the wider 187 km × 162 km figure refers to the cell-sampling bbox, not the clip AOI — see §3 AOI.)
 - **Incomplete Daily Coverage**: Because of sensor orbit path timings, swath widths, and scene collection grids, we will **never** have 100% spatial coverage of the full AOI on a single acquisition day/timestamp. Some parts of the AOI will have scenes on day `d`, while other parts will have nodata. **This is quantified per-source from the archive in "Per-Timestep, Per-Source Partial AOI Coverage" below.**
 - **Orbit/Swath Boundary Nodata**: Scenes near orbit boundaries or swath edges often contain significant regions of native nodata. Cells that overlap scene edges will have partial observations.
 - **Mosaicing & Composite Strategy in Direct-Source Pipeline**:
@@ -260,7 +260,7 @@ A fixed spatial extent is provided for the full Bow Valley AOI desired daily mos
 
 The complexity above is not just about *cell-edge* nodata — it is a structural
 property of the whole AOI: **on any given timestep `d`, most observational
-sources cover only part of `data/aoi.geojson`, and some cover none of it.** The
+sources cover only part of `data/bow_valley_inference_aoi.geojson`, and some cover none of it.** The
 AOI is ~140 km × 175 km, which exceeds a single Sentinel-2 tile (110 km), a
 single MODIS/VIIRS sinusoidal-tile footprint, and a single S1/S3 swath. No
 source's per-day footprint is a superset of the AOI.
@@ -849,7 +849,7 @@ before approval.
    the symlink `data/clipped_bow_valley_selection_raw`. **Contract resolved: the
    `LocalSource*` adapters read the clipped archive, not the raw one** (see §3
    "Pipeline Stages & Data Flow"). The clip stage is therefore a mandatory
-   on-path prerequisite, and `data/aoi.geojson` is the single binding extent
+   on-path prerequisite, and `data/bow_valley_inference_aoi.geojson` is the single binding extent
    end-to-end.
 2. **Date window. [RESOLVED]** Default set to **`2025-04-06 → 2025-05-28`**,
    derived from verified archive coverage (see §3 Temporal window). The earlier
@@ -858,8 +858,8 @@ before approval.
    draft) are *cell-sampling* metadata, **not** archive acquisition dates — do
    not use them to scope ingestion. See Q4 for what the CSV date column means.
 3. **Sweep mode. [PARTIALLY RESOLVED]** Default **(A)** sample-only, over the
-   **in-AOI** CSV cells (~344 after the `data/aoi.geojson` centre-in filter, see
-   §3). Mode (B) tiles `data/aoi.geojson`, not the wider cell-sampling bbox.
+   **in-AOI** CSV cells (~344 after the `data/bow_valley_inference_aoi.geojson` centre-in filter, see
+   §3). Mode (B) tiles `data/bow_valley_inference_aoi.geojson`, not the wider cell-sampling bbox.
    Remaining input: confirm A vs B for the production run (drives compute).
 4. **CSV `date` column semantics. [RESOLVED]** The `date` column in
    `sampled_cells_bow_river_with_dates.csv` is **training/evaluation sampling

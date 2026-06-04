@@ -5,7 +5,7 @@ Run with::
     uv run solara run scripts/developer_scripts/data_viewer.py
 
 A developer/QA tool: pick a clipped product from the manifest, see its quicklook
-placed on a basemap with the ``data/aoi.geojson`` outline overlaid, and read the
+placed on a basemap with the ``data/bow_valley_inference_aoi.geojson`` outline overlaid, and read the
 clip-stage metadata (overlap km², valid-pixel count, action). Reads the clipped
 archive read-only; writes only transient decimated GeoTIFFs to a temp dir.
 

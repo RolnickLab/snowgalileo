@@ -27,7 +27,7 @@ clipped archive. Run steps in order. Each task appends its own section here.
 
 ```
 data/
-├── aoi.geojson                      # authoritative clip + inference boundary (EPSG:4326)
+├── bow_valley_inference_aoi.geojson                      # authoritative clip + inference boundary (EPSG:4326)
 ├── bow_valley_selection_raw/        # raw input — placed here manually
 │   ├── dem/                         # Copernicus DEM, nested SAFE; *_DEM.tif tiles
 │   ├── worldcover/                  # ESA WorldCover; *_Map.tif tiles
@@ -42,7 +42,7 @@ data/
 ```
 
 The clipped archive is the **single root every downstream adapter reads**. AOI
-authority lives in `aoi.geojson` — do not hardcode bounds elsewhere.
+authority lives in `bow_valley_inference_aoi.geojson` — do not hardcode bounds elsewhere.
 
 ---
 
@@ -75,7 +75,7 @@ uv run pytest tests/test_local_sources/test_grid.py tests/test_local_sources/tes
 
 ## 3. TASK-002 — Phase 0.5: AOI clip stage
 
-Crops every raw source to `aoi.geojson`, non-destructively, into
+Crops every raw source to `bow_valley_inference_aoi.geojson`, non-destructively, into
 `data/clipped_bow_valley_selection_raw/`. A two-stage intersect gate skips
 products that miss the AOI (no output file). Per-source manifest records every
 decision.
@@ -112,7 +112,7 @@ uv run pytest tests/test_clip_dataset.py -q
 **CLI flags** (both `clip-all` and `clip-source`): `--input-dir`
 (default `data/bow_valley_selection_raw`), `--output-dir`
 (default `data/clipped_bow_valley_selection_raw`), `--aoi`
-(default `data/aoi.geojson`), `--dry-run`. `clip-all` also takes `--only
+(default `data/bow_valley_inference_aoi.geojson`), `--dry-run`. `clip-all` also takes `--only
 a,b,c` to run a comma-separated subset **serially** (and it *does* write the
 combined manifest for that subset — unlike separate `clip-source` jobs).
 
@@ -164,7 +164,7 @@ regenerate the root `clip_manifest.csv` by concatenating the per-source ones.
   from pathlib import Path
   from src.data.local_sources.clip.settings import load_aoi_polygon
   from src.data.local_sources.clip import orchestrator as o
-  aoi = load_aoi_polygon(Path("data/aoi.geojson"))
+  aoi = load_aoi_polygon(Path("data/bow_valley_inference_aoi.geojson"))
   fn = o.MODALITIES["sentinel1"].gate_footprint          # the reader for that source
   fp = fn(sorted(Path("data/bow_valley_selection_raw/sentinel1").glob("*.zip"))[0])
   print(fp)                                              # None => reader bug, not geography

@@ -14,7 +14,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from shapely.geometry import Polygon, shape
 
-#: Authoritative geographic CRS of ``data/aoi.geojson`` and of every footprint
+#: Authoritative geographic CRS of ``data/bow_valley_inference_aoi.geojson`` and of every footprint
 #: comparison performed by the gate.
 AOI_CRS = "EPSG:4326"
 
@@ -54,7 +54,7 @@ def load_aoi_polygon(aoi_path: Path) -> Polygon:
     """Load the authoritative AOI polygon from a GeoJSON file.
 
     Args:
-        aoi_path: Path to ``data/aoi.geojson`` (EPSG:4326, single Polygon
+        aoi_path: Path to ``data/bow_valley_inference_aoi.geojson`` (EPSG:4326, single Polygon
             feature).
 
     Returns:

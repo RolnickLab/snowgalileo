@@ -1,20 +1,27 @@
+import datetime
 import os
 import re
 import tarfile
-import zipfile
-import json
 import tempfile
-import datetime
+import zipfile
 from pathlib import Path
-import rasterio
+
 import pyproj
 import pystac
-from pystac import Catalog, Collection, Item, Asset, Extent, SpatialExtent, TemporalExtent
+import rasterio
+from pystac import Asset, Catalog, Collection, Extent, Item, SpatialExtent, TemporalExtent
 
-#TODO Adapt to futur clipped dataset
+from src.data.local_sources.paths import LocalPaths
 
-base_dir = Path("/home/dev/projects/presto-v3/data/bow_valley_selection_raw")
-output_dir = Path("/home/dev/projects/presto-v3/data/stac_catalog")
+# Catalog the AOI-clipped archive (the single downstream root). Repointable to
+# another region via the LOCAL_CLIPPED_ROOT env var — see data/BOW_VALLEY_DATA_LAYOUT.md.
+# The clipped archive preserves the raw per-modality subdir + archive layout, so
+# the directory walk below is unchanged.
+_PATHS = LocalPaths()
+base_dir = _PATHS.clipped_root
+# Catalog output lives in the repo data/ tree (not inside the clipped archive,
+# which is typically a symlink to external storage). Override with STAC_OUTPUT_DIR.
+output_dir = Path(os.environ.get("STAC_OUTPUT_DIR", "data/stac_catalog"))
 
 # Standard Sinusoidal projection transformer for MODIS/VIIRS
 sinu = pyproj.Proj("+proj=sinu +R=6371007.181 +nadgrids=@null +wktext")

@@ -9,7 +9,7 @@ from src.data.local_sources.viewer.settings import ViewerSettings
 
 
 def load_aoi_geojson(settings: ViewerSettings | None = None) -> dict:
-    """Load ``data/aoi.geojson`` as a GeoJSON dict for a leafmap layer.
+    """Load ``data/bow_valley_inference_aoi.geojson`` as a GeoJSON dict for a leafmap layer.
 
     Args:
         settings: Viewer settings; defaults to ``ViewerSettings()``.

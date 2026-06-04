@@ -31,7 +31,7 @@ from src.data.local_sources.clip.settings import ClipSettings, load_aoi_polygon
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 RAW_ROOT = REPO_ROOT / "data" / "bow_valley_selection_raw"
-AOI_PATH = REPO_ROOT / "data" / "aoi.geojson"
+AOI_PATH = REPO_ROOT / "data" / "bow_valley_inference_aoi.geojson"
 
 requires_archive = pytest.mark.skipif(
     not RAW_ROOT.exists(), reason="raw archive not present on this machine"

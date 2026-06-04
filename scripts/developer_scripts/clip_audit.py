@@ -23,12 +23,16 @@ import typer
 
 from src.data.local_sources.clip.manifest import read_manifest
 from src.data.local_sources.clip.settings import load_aoi_polygon
+from src.data.local_sources.paths import LocalPaths
 
 logger = structlog.get_logger()
 app = typer.Typer(help="Audit the clipped Bow Valley archive for zero-signal outputs.")
 
-DEFAULT_ROOT = Path("data/clipped_bow_valley_selection_raw")
-DEFAULT_AOI = Path("data/aoi.geojson")
+# Path defaults resolve from LocalPaths (env-overridable, LOCAL_ prefix); see
+# data/BOW_VALLEY_DATA_LAYOUT.md.
+_PATHS = LocalPaths()
+DEFAULT_ROOT = _PATHS.clipped_root
+DEFAULT_AOI = _PATHS.aoi_path
 MANIFEST_NAME = "clip_manifest.csv"
 
 # Rasters the audit can open directly with rasterio (per-grid GeoTIFFs + tiles).

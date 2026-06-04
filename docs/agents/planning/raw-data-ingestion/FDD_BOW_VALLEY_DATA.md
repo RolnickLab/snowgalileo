@@ -12,7 +12,7 @@
 
 Replace Google Earth Engine ingestion for the Bow Valley (Alberta) with a
 direct-source pipeline that clips a 326 GB multi-modal raw archive to
-`data/aoi.geojson`, assembles per-cell multiband GeoTIFFs byte- and
+`data/bow_valley_inference_aoi.geojson`, assembles per-cell multiband GeoTIFFs byte- and
 value-compatible with `create_ee_image`, and runs the pretrained
 `EncoderWithHead` as a per-day 1 km grid sweep into a daily FSC COG. **Hard
 constraints:** downstream code (`Dataset`, `LandsatEvalDataset`,
@@ -35,7 +35,7 @@ source's per-day footprint covers the whole AOI.
   clipped archive → cube/inference. The data-flow contract is resolved: adapters
   read the **clipped** archive. Consequence (DRY + contract-first): the
   footprint-vs-AOI **intersect gate runs once, in the clip stage**, not
-  re-implemented across 9 adapters. `data/aoi.geojson` is the single binding
+  re-implemented across 9 adapters. `data/bow_valley_inference_aoi.geojson` is the single binding
   extent end-to-end.
 - **Mosaic-before-crop per (source, day).** GEE's naive `.first()` selection
   fabricates nodata seams on cells crossing swath/tile boundaries. We mosaic all

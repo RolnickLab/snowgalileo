@@ -11,13 +11,13 @@ test has ground-truth fixtures to diff against.
 - **FDD step:** §4.1 — "Audit archive + generate cube CSV + GEE reference patches (Phase 0)".
 - **SPEC:** FR-19, FR-19b, AC-10, AC-11, AC-11b, AC-30; Verification Plan step 1.
 - **PLAN:** §3 "Generated cube CSV", §7 Phase 0, §3 Temporal window, §3 AOI (two
-  definitions — `data/aoi.geojson` is authoritative).
+  definitions — `data/bow_valley_inference_aoi.geojson` is authoritative).
 - **Memory:** `bow-valley-inference-csv-decision` — the cell/date input is a
   generated CSV, NOT the legacy training CSV.
 - **Key files:**
   - `sampled_cells_bow_river_with_dates.csv` (repo root) — **cell geometry only**;
     its `date` column is train/eval metadata and is NOT read here.
-  - `data/aoi.geojson` — authoritative clip/inference boundary (EPSG:4326):
+  - `data/bow_valley_inference_aoi.geojson` — authoritative clip/inference boundary (EPSG:4326):
     `lon [-116.561936, -114.527659]`, `lat [50.729807, 52.306672]`.
   - `data/bow_valley_selection_raw/` — raw archive (read-only) to audit.
   - `scripts/export_for_inference.py` → `EarthEngineExporterEval.export_from_csv_utm`
@@ -36,7 +36,7 @@ test has ground-truth fixtures to diff against.
 ## 3. Subtasks
 - [ ] 1. Write `test_grid.py` geometry tests (Red): centre-in rule → **344** kept
       cells, `--require-fully-inside` → **338**, kept+dropped manifest sums to 500,
-      pairwise cell intersection area == 0, every kept centre within `data/aoi.geojson`.
+      pairwise cell intersection area == 0, every kept centre within `data/bow_valley_inference_aoi.geojson`.
 - [ ] 2. Write `test_cube_csv.py` (Red): generated CSV has the 8-column canonical
       schema, row count == kept-cells × window-days (full cross-product), every
       `crs == "EPSG:32611"`, and `export_from_csv_utm` parses it without error

@@ -1,4 +1,4 @@
-"""AOI clip stage CLI (Phase 0.5) — non-destructive crop to ``data/aoi.geojson``.
+"""AOI clip stage CLI (Phase 0.5) — non-destructive crop to ``data/bow_valley_inference_aoi.geojson``.
 
 Crops every raw dataset in ``data/bow_valley_selection_raw`` to the authoritative
 AOI, into ``data/clipped_bow_valley_selection_raw`` — the single archive root every
@@ -28,6 +28,7 @@ import typer
 from src.data.local_sources.clip.manifest import ManifestRow, write_manifest
 from src.data.local_sources.clip.orchestrator import SOURCES, clip_one_source
 from src.data.local_sources.clip.settings import ClipSettings, load_aoi_polygon
+from src.data.local_sources.paths import LocalPaths
 
 structlog.configure(
     processors=[
@@ -42,9 +43,13 @@ logger = structlog.get_logger()
 
 app = typer.Typer(help="Non-destructive AOI clip stage for the Bow Valley raw archive.")
 
-DEFAULT_INPUT = Path("data/bow_valley_selection_raw")
-DEFAULT_OUTPUT = Path("data/clipped_bow_valley_selection_raw")
-DEFAULT_AOI = Path("data/aoi.geojson")
+# Path defaults resolve from LocalPaths (env-overridable, LOCAL_ prefix) so the
+# clip stage can be repointed at another region without editing this CLI. The
+# --input-dir / --output-dir / --aoi flags still win for one-off runs.
+_PATHS = LocalPaths()
+DEFAULT_INPUT = _PATHS.raw_root
+DEFAULT_OUTPUT = _PATHS.clipped_root
+DEFAULT_AOI = _PATHS.aoi_path
 MANIFEST_NAME = "clip_manifest.csv"
 
 

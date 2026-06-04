@@ -3,7 +3,7 @@
 ## 1. Goal
 A quick, reusable way to **visually sanity-check** the products in
 `data/clipped_bow_valley_selection_raw/` after the TASK-002 clip stage — confirm
-each product (a) is non-empty, (b) sits inside `data/aoi.geojson`, and (c) looks
+each product (a) is non-empty, (b) sits inside `data/bow_valley_inference_aoi.geojson`, and (c) looks
 physically plausible per sensor. Covers all four content classes the user named:
 NetCDF (ERA5), nested archives (S1/S2/S3, Landsat), plain GeoTIFFs
 (DEM/WorldCover/MODIS/VIIRS), and an **AOI overlay on every product**.
@@ -23,7 +23,7 @@ into any `data/` tree.
 ## 3. Scope & non-goals
 **In scope**
 - Read `clip_manifest.csv`, list every product with its `action`/overlap/valid-px.
-- Render selected product on a leafmap map with `data/aoi.geojson` outlined.
+- Render selected product on a leafmap map with `data/bow_valley_inference_aoi.geojson` outlined.
 - Per-sensor quicklook routines (see Contract §5).
 - ERA5: variable picker + **date slider** over `valid_time`.
 - Surface manifest metadata (overlap km², valid-pixel count, action) in the UI so
@@ -131,7 +131,7 @@ src/data/local_sources/viewer/
   quicklook.py    # QuicklookResult, Protocol, dispatch-by-source
   renderers.py    # per-modality renderers (§5 table)
   archives.py     # /vsizip/ /vsitar/ path builders + member discovery
-  aoi.py          # load data/aoi.geojson -> geojson layer + bounds
+  aoi.py          # load data/bow_valley_inference_aoi.geojson -> geojson layer + bounds
 ```
 - Solara reactive state: selected `source`, selected `product_id`, ERA5
   `(variable, date_idx)`. Map rebuilds layer on change.

@@ -57,7 +57,7 @@ The app never crashes on a bad product; the reason is always shown.
   `pyproj`/`rasterio.warp.transform_bounds(always_xy=True)` — never assumed.
 
 ## AOI contract
-`aoi.py` loads `data/aoi.geojson` once → a GeoJSON layer added on top of every
+`aoi.py` loads `data/bow_valley_inference_aoi.geojson` once → a GeoJSON layer added on top of every
 `georef_raster` product so clip alignment is visually verifiable (the user's
 explicit ask). AOI bounds also seed the initial map view.
 

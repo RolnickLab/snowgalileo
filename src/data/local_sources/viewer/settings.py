@@ -4,20 +4,26 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from src.data.local_sources.paths import LocalPaths
+
+_PATHS = LocalPaths()
 
 
 class ViewerSettings(BaseSettings):
     """Runtime configuration for the clip viewer.
 
-    All paths default to the repo's standard layout; override via ``VIEWER_*``
-    environment variables.
+    Path defaults inherit from :class:`~src.data.local_sources.paths.LocalPaths`
+    (so ``LOCAL_*`` region overrides flow through), and may be further overridden
+    with the viewer-specific ``VIEWER_*`` environment prefix.
     """
 
     model_config = SettingsConfigDict(env_prefix="VIEWER_", extra="ignore")
 
-    clipped_root: Path = Path("data/clipped_bow_valley_selection_raw")
-    aoi_path: Path = Path("data/aoi.geojson")
+    clipped_root: Path = Field(default_factory=lambda: _PATHS.clipped_root)
+    aoi_path: Path = Field(default_factory=lambda: _PATHS.aoi_path)
     manifest_name: str = "clip_manifest.csv"
 
     # Decimation target for quicklook reads (long edge, px). Guards against the

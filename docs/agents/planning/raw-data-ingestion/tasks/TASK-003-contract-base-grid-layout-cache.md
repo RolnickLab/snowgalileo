@@ -53,7 +53,7 @@ constants re-exported from `eo.py`, and the per-(modality, cell, day) `.npz` cac
       (polygon, CRS, target transform, shape), `CellWindow`, the shared resampler
       (bilinear/nearest dispatch), and the `create_placeholder` `-9999` helper.
 - [ ] 4. Productionize `grid.py`: mode A (in-AOI legacy-CSV cells, geometry only) and
-      mode B (tile `data/aoi.geojson`); both bounded by the AOI; emit the cross-product
+      mode B (tile `data/bow_valley_inference_aoi.geojson`); both bounded by the AOI; emit the cross-product
       CSV + kept/dropped manifest. Re-use TASK-001 geometry.
 - [ ] 5. Implement `layout.py`: re-export the canonical dynamic + static band-order
       lists **from `src/data/earthengine/eo.py`** (single source of truth; do not

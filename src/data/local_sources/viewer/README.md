@@ -2,7 +2,7 @@
 
 A developer / QA tool for **visual validation of the AOI clip stage**
 (TASK-002). Pick a clipped product from `clip_manifest.csv`, see its quicklook
-rendered on a basemap with the `data/aoi.geojson` outline overlaid, and read the
+rendered on a basemap with the `data/bow_valley_inference_aoi.geojson` outline overlaid, and read the
 clip-stage metadata (overlap km², valid-pixel count, action) beside it.
 
 It exists because the clip-stage unit tests gate on a *valid-pixel count*, which
@@ -34,7 +34,7 @@ All via `VIEWER_*` env vars (pydantic-settings, see `settings.py`):
 | Setting | Env var | Default |
 |---|---|---|
 | Clipped root | `VIEWER_CLIPPED_ROOT` | `data/clipped_bow_valley_selection_raw` |
-| AOI GeoJSON | `VIEWER_AOI_PATH` | `data/aoi.geojson` |
+| AOI GeoJSON | `VIEWER_AOI_PATH` | `data/bow_valley_inference_aoi.geojson` |
 | Manifest name | `VIEWER_MANIFEST_NAME` | `clip_manifest.csv` |
 | Decimation long edge (px) | `VIEWER_LONG_EDGE` | `1024` |
 | Basemap | `VIEWER_DEFAULT_BASEMAP` | `Esri.WorldImagery` |

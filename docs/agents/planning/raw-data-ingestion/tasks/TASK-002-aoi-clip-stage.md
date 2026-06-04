@@ -1,7 +1,7 @@
 # TASK-002: Implement the AOI clip stage (Phase 0.5)
 
 ## 1. Goal
-Crop every raw dataset in `data/bow_valley_selection_raw` to `data/aoi.geojson`,
+Crop every raw dataset in `data/bow_valley_selection_raw` to `data/bow_valley_inference_aoi.geojson`,
 non-destructively, into `data/clipped_bow_valley_selection_raw` — the single archive
 root every adapter reads. The stage gates each product through a two-stage intersect
 check, emits a per-source manifest, and passes a post-run zero-all-nodata audit.
@@ -15,7 +15,7 @@ check, emits a per-source manifest, and passes a post-run zero-all-nodata audit.
   §2.7 per-grid MODIS/VIIRS clipping, §3 CLI.
 - **Upstream task:** TASK-001 (archive audit catalogs the formats this stage reads).
 - **Key files:**
-  - `data/aoi.geojson` — binding extent.
+  - `data/bow_valley_inference_aoi.geojson` — binding extent.
   - `scripts/developer_scripts/clip_dataset.py` — **new** Typer CLI.
   - Raw archive layout (per `DATA_ANALYSIS.md` §"Raw Archive Directory Formats"):
     DEM (nested SAFE GeoTIFF), ERA5 (NetCDF), Landsat8/9 (`.tar` GeoTIFF, EPSG:32612),
@@ -118,11 +118,11 @@ uv run pytest tests/test_clip_dataset.py -v
 
 # Dry-run the gate on a single modality (no writes)
 uv run python scripts/developer_scripts/clip_dataset.py --modality landsat9 \
-    --aoi data/aoi.geojson --dry-run
+    --aoi data/bow_valley_inference_aoi.geojson --dry-run
 
 # Full clip of one small modality, then audit
 uv run python scripts/developer_scripts/clip_dataset.py --modality worldcover \
-    --aoi data/aoi.geojson --out data/clipped_bow_valley_selection_raw
+    --aoi data/bow_valley_inference_aoi.geojson --out data/clipped_bow_valley_selection_raw
 uv run python scripts/developer_scripts/clip_audit.py \
     --root data/clipped_bow_valley_selection_raw
 
