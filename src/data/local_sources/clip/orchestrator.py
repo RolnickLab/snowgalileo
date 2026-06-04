@@ -173,5 +173,13 @@ def clip_one_source(
                 aoi_4326=aoi_4326,
                 settings=settings,
             )
+            # Restore the column's documented contract: output_path is the path
+            # RELATIVE TO THE SOURCE ROOT, not a basename. Clippers emit
+            # ``dst_path.name``, which collapses subdir-nested products that share a
+            # basename (ERA5: the same var.nc lives under 202503/202504/202505) into
+            # indistinguishable rows. Use the real relative path so every CLIP row
+            # is uniquely resolvable. (Phase-0 finding F4.)
+            if row.action is ClipAction.CLIP:
+                row.output_path = rel.as_posix()
         rows.append(row)
     return rows
