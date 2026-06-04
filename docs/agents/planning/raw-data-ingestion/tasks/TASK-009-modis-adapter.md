@@ -37,37 +37,48 @@ value** in addition to `-9999`.
 - **Relevant skills:** `geospatial` (sinusoidal reproject, mosaic, NN for QA), `tdd`.
 
 ## 3. Subtasks
-- [ ] 1. Write `test_modis_adapter.py` (Red): golden-grid triple; `bands_out =
+- [x] 1. Write `test_modis_adapter.py` (Red): golden-grid triple; `bands_out =
       sur_refl_b01..b07`; **`-28672` present** in output where the source had it; missing
       day → all-`-9999`; reads the 500 m grid (not the 1 km clamp); **nodata-aware
       bilinear: no interpolated value bleeds toward `-28672` at a fill edge (assert
       no out-of-domain negative appears adjacent to a fill pixel)**.
-- [ ] 2. Implement `modis.py`: read 500 m subdatasets via `gdal_translate`, mosaic tiles,
+- [x] 2. Implement `modis.py`: read 500 m subdatasets via `gdal_translate`, mosaic tiles,
       reproject sinusoidal→cell grid, stack `(7, H, W)`; `native_fill=-28672`.
-- [ ] 3. Implement the `state_1km` cloud-flag path (NN), emitted in the cloud slot.
-- [ ] 4. Wire into exporter. 5. Green + Refactor.
+- [x] 3. Implement the `state_1km` cloud-flag path (NN), emitted in the cloud slot.
+- [x] 4. Wire into exporter. 5. Green + Refactor.
 
 ## 4. Requirements & Constraints
-- **Technical:** Per-grid indexing (no hardcoded `1200`); **nodata-aware**
-  bilinear for science bands, NN for `state_1km`; system GDAL HDF4 driver.
-- **Nodata-aware bilinear (edge-bleed guard).** Before the bilinear warp, mask
-  `-28672` and `-9999` pixels to NaN so the interpolator never blends a valid
-  reflectance with the fill sentinel; restore `-28672`/`-9999` in the output where
-  the contributing source pixels were fill. A naive bilinear across a valid value
-  and `-28672` yields a garbage negative (e.g. `-5000`) that slips past
-  `CHANNEL_WISE_INVALID_DATA_THRESHOLDS`. This logic lives in the shared `base.py`
-  resampler (TASK-003) — MODIS is its highest-risk consumer, not its only one.
+- **Technical:** Per-grid indexing (no hardcoded `1200`); **NEAREST** for science
+  bands and `state_1km` (corrected 2026-06-04 — see below); the clip stage already
+  extracted per-band sinusoidal GeoTIFFs, so **no HDF4 driver is needed** (rasterio
+  reads them directly).
+- **Resample = NEAREST, not nodata-aware bilinear (corrected 2026-06-04).** The 500 m
+  sinusoidal grid is far coarser than the 10 m cell, so GEE upsamples it as a constant
+  block per MODIS pixel. Measured vs `PR_20250406`: nearest is **bit-exact** (median 0
+  across all 8 timesteps); bilinear smears (~322 DN, up to 941) — PARITY_SPIKE_NOTES §8.
+  Crucially, nearest also makes the `-28672` **edge-bleed risk moot**: it never
+  interpolates across the fill boundary, so no garbage negative can ever appear. We
+  preserve `-28672` via `base.reproject_to_cell(categorical=True, src_nodata=-28672,
+  restore_fill=-28672)`. (The nodata-aware-bilinear guard below was the right design
+  *if* bilinear were used; it is superseded for MODIS but remains correct in `base.py`
+  for the genuinely fine sources S2/Landsat/S1.)
+- **(Superseded for MODIS) Nodata-aware bilinear (edge-bleed guard).** Before a bilinear
+  warp, mask `-28672`/`-9999` to NaN so the interpolator never blends a valid
+  reflectance with the fill sentinel; restore the fill where contributing source pixels
+  were fill. A naive bilinear across a valid value and `-28672` yields a garbage negative
+  that slips past `CHANNEL_WISE_INVALID_DATA_THRESHOLDS`. This logic lives in the shared
+  `base.py` resampler (TASK-003) and still guards the fine-resolution consumers.
   (REVIEW_AUDIT.md verdict #4.)
 - **Business:** `-28672` MUST survive into the output (loader sentinel). Do not apply
   the MODIS scale factor (changes the numeric domain vs normalization constants).
 - **Out of scope:** NDSI/NDVI derivation (loader), VIIRS (TASK-010).
 
 ## 5. Acceptance Criteria
-- [ ] AC-1 (SPEC AC-12): golden-grid triple; `bands_out` = `sur_refl_b01..b07` in order.
-- [ ] AC-2 (SPEC AC-18): `-28672` present in output where source had it; loader NDSI/NDVI
+- [x] AC-1 (SPEC AC-12): golden-grid triple; `bands_out` = `sur_refl_b01..b07` in order.
+- [x] AC-2 (SPEC AC-18): `-28672` present in output where source had it; loader NDSI/NDVI
       assertions (`landsat_eval.py:317,331`) do not crash on this adapter's output.
-- [ ] AC-3 (SPEC AC-13): missing `(MODIS, day)` → all-`-9999`.
-- [ ] AC-4: ruff + mypy clean; targeted new tests green; full suite introduces NO new failures vs `TEST_BASELINE.md` (delta check, NOT `pytest -x`).
+- [x] AC-3 (SPEC AC-13): missing `(MODIS, day)` → all-`-9999`.
+- [x] AC-4: ruff + mypy clean; targeted new tests green; full suite introduces NO new failures vs `TEST_BASELINE.md` (delta check, NOT `pytest -x`).
 
 ## 6. Testing & Validation
 ```bash

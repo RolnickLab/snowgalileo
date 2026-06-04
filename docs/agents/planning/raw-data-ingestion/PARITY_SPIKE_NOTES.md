@@ -240,3 +240,45 @@ Routed through `base.reproject_to_cell(categorical=True)` (its nearest path).
 **Test tolerances (`tests/test_local_sources/test_era5_adapter.py`):** t2m median
 ≤0.01 K, precip median ≤0.001 m, plus a deterministic synthetic-NetCDF day-shift
 test (incl. the cross-month boundary) and a raw-Kelvin guard. **ERA5 shipped (TASK-008).**
+
+---
+
+## 8. MODIS MOD09GA parity (TASK-009, 2026-06-04)
+
+Validated the MODIS adapter against the `sur_refl_b01` band of the Phase-0 GEE
+reference patch `PR_20250406` across all 8 timesteps (DOY 089–096).
+
+**Recipe (matches GEE `MODIS/061/MOD09GA`):**
+1. Read the clip stage's per-band sinusoidal GeoTIFFs directly (no HDF4 driver):
+   `MODIS_Grid_500m_2D__sur_refl_bNN_1.tif` (science) + `MODIS_Grid_1km_2D__state_1km_1.tif`
+   (cloud). Each grid keeps its own resolution/transform — never hardcode 1200/2400.
+2. Mosaic per-tile GeoTIFFs by acquisition date `A{YYYY}{DOY}` (this AOI is single-tile
+   `h10v03`; the mosaic path holds for cells crossing a seam).
+3. Reproject sinusoidal (`+R=6371007.181`) → EPSG:32611 cell grid with **NEAREST**.
+4. **Preserve `-28672`** (`restore_fill=-28672` on the science bands) — the loader
+   sentinel. Do NOT apply the scale factor. `state_1km` is categorical (NN, bit-flag).
+
+**Resample = NEAREST (supersedes the spec's "nodata-aware bilinear").** The 500 m grid
+is far coarser than the 10 m cell — GEE upsamples it as a constant block per MODIS
+pixel. Per-timestep median |Δ| vs the reference patch (sur_refl_b01):
+
+| resample | per-ts median \|Δ\| (DN) | mean |
+|---|---|---|
+| **nearest** | 0,0,0,0,0,0,0,0 | **0** |
+| bilinear | 350,34,225,172,201,941,441,215 | 322 |
+| cubic | 347,28,189,124,134,791,373,224 | 276 |
+| average | 0×8 | 0 |
+
+**Nearest is bit-exact.** It also makes the `-28672` edge-bleed risk (the reason the
+spec mandated nodata-aware bilinear) *impossible* — nearest never interpolates across
+the fill boundary, so no garbage negative can appear. Routed through
+`base.reproject_to_cell(categorical=True, src_nodata=-28672, restore_fill=-28672)`.
+
+**Test (`tests/test_local_sources/test_modis_adapter.py`):** 8 bit-exact parity
+timesteps (median == 0), `-28672` preservation, a no-bleed guard, missing-day →
+`-9999`, and the `state_1km` cloud path. **MODIS shipped (TASK-009).**
+
+This is the **third** coarse source (after DEM §6 and ERA5 §7) where GEE's
+`create_ee_image` export resamples by nearest, not bilinear. Treat nearest as the
+default for any source coarser than the 10 m cell; reserve bilinear/aware-bilinear for
+sources at or finer than 10 m (S2/Landsat/S1).
