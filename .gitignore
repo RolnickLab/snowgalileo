@@ -30,3 +30,4 @@ ee-marlena-*
 
 # Local environment overrides (EE_PROJECT, etc.) — never commit
 .env
+.claude
