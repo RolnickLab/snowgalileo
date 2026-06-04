@@ -155,7 +155,12 @@ sibling directories elsewhere — use a per-root `.env` path for that.)
 | AOI path             | `data/bow_valley_inference_aoi.geojson`| `LOCAL_AOI_PATH` env, or `--aoi` (clip CLI); viewer: `VIEWER_AOI_PATH` |
 
 Defaults are centralized in `src.data.local_sources.paths.LocalPaths`
-(pydantic-settings, env prefix `LOCAL_`). A repo-root `.env` is loaded
-automatically (see `.env.example`). The clip CLIs additionally accept explicit
-`--input-dir` / `--output-dir` / `--aoi` flags that win over the settings
-defaults for one-off runs.
+(pydantic-settings, env prefix `LOCAL_`) and are **repo-relative** — see §3 for
+the three ways to point them at real storage (zero-config, `.env`, or symlink). A
+repo-root `.env` is loaded automatically (see `.env.example`). The clip CLIs
+additionally accept explicit `--input-dir` / `--output-dir` / `--aoi` flags that
+win over the settings defaults for one-off runs.
+
+Precedence (highest first): CLI flag → `LOCAL_*` env / `.env` → repo-relative
+default. The viewer also honours its own `VIEWER_*` prefix, which wins over
+`LOCAL_*` for the viewer only.
