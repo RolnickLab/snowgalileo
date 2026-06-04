@@ -427,6 +427,18 @@ dataset and grouped masks, but does not train a neural prediction head. Instead:
     saying the intent is to shift to Celsius.
   - Valid thresholds are `temperature >= 184 K`, `precipitation >= -1`, and
     wind components `>= -53`.
+  - **ERA5-Land accumulation / day-shift gotcha (`total_precipitation_sum` only).**
+    `total_precipitation` is a forecast **accumulation** field (`GRIB_stepType = accum`,
+    units = m), not an instantaneous value, and ERA5-Land stamps the accumulation that
+    *closes* day `i` (the 00→24 h total) at **`00:00` of day `i+1`**. Therefore the daily
+    precip total for day `i` is read from the `i+1` `00:00` slice — **not** the slice
+    labelled `i`. Verified in `data/bow_valley_selection_raw/era5/*_totalprecip.nc`:
+    `tp` has `valid_time` of length = days-in-month, each stamped `YYYY-MM-DDT00:00`,
+    `GRIB_stepType=accum`, `units=m`. The instantaneous variables
+    (`temperature_2m`, `skin_temperature`, `u/v_component_of_wind_10m`) are **not**
+    accumulations and carry **no** day shift — they align to their own label. A naive
+    label-based precip read attributes every day's rain to the wrong (previous) day, a
+    silent off-by-one. (See `CLIPPING_PLAN.md`/adapter rules; SPEC FR-14/AC-20.)
 
 ### Copernicus DEM
 
@@ -527,8 +539,8 @@ Detailed inventory and parsed metadata of raw assets under `data/bow_valley_sele
 
 | Dataset | Subdirectory | File Count | Total Size | Primary Format | Coordinate System (CRS) | Spatial Resolution | Temporal Frequency |
 | :--- | :--- | :---: | :---: | :--- | :--- | :---: | :--- |
-| **DEM** | `dem/` | 126 | 422 MB | GeoTIFF / KML | `EPSG:4326` (WGS 84) | ~30m (1 arc-sec) | Static |
-| **WorldCover** | `worldcover/` | 8 | 377 MB | GeoTIFF | `EPSG:4326` (WGS 84) | 10m (~8.33e-5°) | Static (2021) |
+| **DEM** | `dem/` | 196 files / **9 `*_DEM.tif` tiles** | 632 MB | GeoTIFF / KML (nested SAFE) | `EPSG:4326` (WGS 84) | ~30m (1 arc-sec) | Static |
+| **WorldCover** | `worldcover/` | 8 files / **4 `*_Map.tif` tiles** | 377 MB | GeoTIFF | `EPSG:4326` (WGS 84) | 10m (~8.33e-5°) | Static (2021) |
 | **ERA5** | `era5/` | 15 | 4.4 MB | NetCDF-4 (`.nc`) | `EPSG:4326` (WGS 84) | 0.1° (~10km) | Daily Aggregated |
 | **Landsat 8** | `landsat8/` | 19 | 24 GB | `.tar` (GeoTIFFs) | `EPSG:32612` (UTM 12N) | 30m | 16-day Revisit |
 | **Landsat 9** | `landsat9/` | 30 | 36 GB | `.tar` (GeoTIFFs) | `EPSG:32612` (UTM 12N) | 30m | 16-day Revisit |
@@ -540,15 +552,15 @@ Detailed inventory and parsed metadata of raw assets under `data/bow_valley_sele
 
 ### Spatial-Temporal Characteristics
 
-- **DEM (Digital Elevation Model):** Copernicus GLO-30 / GLO-10. Single band. Shape `(3601, 2401)`. Bounded `[-117.0002, 49.9998, -115.9997, 51.0001]`. `float32`.
-- **WorldCover:** ESA WorldCover 10m. Categorical landcover. Shape `(36000, 36000)`. Bounded `[-117.0, 48.0, -114.0, 51.0]`. `uint8`.
-- **ERA5-Land:** Daily aggregates in NetCDF format (read via `h5py`). Variables: `tp` (precip, shape `(31, 61, 61)`), `t2m` (temp), `skt` (skin temp), `u10`/`v10` (winds). Extent `[-120.0, -114.0, 48.0, 54.0]`. Temporal span: March 2025.
+- **DEM (Digital Elevation Model):** Copernicus GLO-30 / GLO-10. Single band. Shape `(3601, 2401)` per 1°×1° tile. **9 `*_DEM.tif` tiles** (`N50–N52 × W115–W117`); each tile sits in a nested SAFE folder alongside KML/XML/PDF and auxiliary FLM/EDM/HEM/WBM rasters (~196 files total, 99 tifs — only the `*_DEM.tif` are elevation). **Verified mosaic extent `lon[-117,-114] lat[50,53]`** ⊇ AOI to `lat_max = 52.31`. `float32`.
+- **WorldCover:** ESA WorldCover 10m. Categorical landcover. Shape `(36000, 36000)` **per 3°×3° tile**. **4 `*_Map.tif` tiles** (+ 4 `*_InputQuality.tif` companions = 8 tifs; clip only `*_Map.tif`). **Verified mosaic extent `lon[-120,-114] lat[48,54]`** ⊇ AOI to lat 52.31. `uint8`.
+- **ERA5-Land:** Already-daily aggregates in NetCDF (`h5netcdf`/`h5py`), one slice per day. Precip lives in `YYYYMM_ERA5LAND_totalprecip.nc`: var `tp`, dims `(valid_time, latitude, longitude)` = `(days-in-month, 61, 61)`, **`GRIB_stepType=accum`, `units=m`**, `valid_time` stamped `YYYY-MM-DDT00:00`. Instantaneous vars in `YYYYMM_ERA5LAND/` (`t2m`, `skt`, `u10`/`v10`) as `*_daily-mean.nc`. Extent `[-120.0, -114.0, 48.0, 54.0]`. Archive span 2025-03 → 2025-05. **Day-shift (precip only): day `i`'s total is in the `i+1` `00:00` slice — see the ERA5-Land accumulation gotcha above.**
 - **Landsat 8 & 9:** L1TP Collection 2 TOA reflectance. Scene shape `(8191, 8101)` (L8), `(8181, 8111)` (L9). Extent around UTM Zone 12N `[176080, 5607800, 420900, 5853300]`. 11 spectral bands + QA_PIXEL + QA_RADSAT. `uint16`.
-- **MODIS:** MOD09GA daily surface reflectance HDF4. Shape `(1200, 1200)` per sinusoidal tile (tile `h10v03`). 22 subdatasets containing bands 1-7, quality flags, geometries. `uint16`.
+- **MODIS:** MOD09GA daily surface reflectance HDF4 (tile `h10v03`). **Two co-registered sinusoidal grids per file** (verified via `gdalinfo`): a 1 km grid (`MODIS_Grid_1km_2D`, **1200×1200**, holds `state_1km` + geometry) and a 500 m grid (`MODIS_Grid_500m_2D`, **2400×2400**, holds the science bands `sur_refl_b01`–`b07`). 22 subdatasets total. `uint16`. **Clipping must index each grid at its own resolution — see `CLIPPING_PLAN.md §2.7`.**
 - **Sentinel-1:** C-band GRD dual-pol (VV + VH). Swath range geometry. Scene shape `(16708, 26079)`. `uint16`.
 - **Sentinel-2:** MultiSpectral Instrument Level-1C. Tile shape `(10980, 10980)` (tiles `T11UPS`, `T11UPT`, `T11UNS`, `T11UNT`). `uint16`.
 - **Sentinel-3:** OLCI Level-1 EFR radiance NetCDF. Shape `(4091, 4865)` per orbit segment. 21 radiance bands. `uint16`.
-- **VIIRS:** VNP09GA daily surface reflectance HDF5. Shape `(1200, 1200)` (tile `h10v03`). 67 datasets (M-bands, I-bands). `int16`/`uint16`.
+- **VIIRS:** VNP09GA daily surface reflectance HDF5 (tile `h10v03`). **Two co-registered grids** (verified via `gdalinfo`): `VIIRS_Grid_1km_2D` (**1200×1200**, holds the coarse M-bands `M5/M7/M10/M11` → `time_x`) and `VIIRS_Grid_500m_2D` (**2400×2400**, holds the fine I-bands `I1/I3` → `space_time_low_res_x`). 67 datasets. `int16`/`uint16`. The I-bands carry `_FillValue = -28672` (same native fill as MODIS); preserve it through clipping for the same loader-sentinel reason. **Per-grid clipping — see `CLIPPING_PLAN.md §2.7`.**
 
 ### Strategic Processing Recommendations
 
@@ -739,7 +751,24 @@ Direct-source requirements:
 
 - Download ERA5-Land variables from the ECMWF Climate Data Store or another
   authoritative ECMWF endpoint.
-- Produce daily aggregates that match GEE's `DAILY_AGGR` by downloading hourly forecast/reanalysis data from the ECMWF CDS and aggregating across the exact UTC day bounds (00:00 to 23:00 UTC). Specifically: compute the daily mean for `skin_temperature`, `temperature_2m`, `u_component_of_wind_10m`, and `v_component_of_wind_10m`; compute the daily sum of accumulated hourly forecasts for `total_precipitation_sum`.
+- **The archive on disk is already daily-aggregated** (`YYYYMM_ERA5LAND_totalprecip.nc`
+  + per-variable `*_daily-mean.nc`), so this archive's adapter does **not** re-aggregate
+  hourly data — it reads one slice per day. (The CDS hourly→daily aggregation below
+  describes how such daily files are *produced*, for reference / re-download only.)
+  If producing daily files from hourly CDS data: daily **mean** over the UTC day
+  (00:00–23:00) for `skin_temperature`, `temperature_2m`, `u_component_of_wind_10m`,
+  `v_component_of_wind_10m`; for `total_precipitation` (a forecast accumulation) the
+  daily total is the accumulation valid at the **end** of the day — i.e. take the
+  `00:00` accumulation of the **following** day (or difference consecutive hourly
+  accumulations and sum the hourly rates). Do **not** naively sum the 24 accumulation
+  values (double-counts) and do **not** stop at 23:00 (drops the closing step).
+- **Day-shift on read (`total_precipitation_sum` only) — load-bearing.** Because the
+  accumulation closing day `i` is stamped at `00:00` of day `i+1`, the adapter must read
+  precip for day `i` from the **`i+1` `00:00` slice**, equivalently `tp[index] → precip
+  for day (index − 1)`. The instantaneous temp/wind variables carry **no** shift. Getting
+  this wrong is a silent off-by-one that passes shape/type checks. Verified file facts:
+  `tp` dims `(valid_time=days, latitude, longitude)`, `GRIB_stepType=accum`, `units=m`,
+  `valid_time` stamped `YYYY-MM-DDT00:00`.
 - Emit `skin_temperature`, `temperature_2m`, `total_precipitation_sum`,
   `u_component_of_wind_10m`, and `v_component_of_wind_10m`.
 - Preserve units expected by the current code: temperature in Kelvin,
@@ -848,4 +877,5 @@ format.
   exporter run, not one.
 - **AOI Coverage and Scene Heterogeneity**: Large fixed-extent AOI mosaics (e.g. composed of a 2x2 grid of ~4 Sentinel-2 or Landsat scenes) suffer from incomplete daily coverage. On any specific date, full AOI coverage is impossible due to varying orbit paths, swathes, and scene boundaries. 
 - **Swath Boundary Nodata and Mosaicing**: Scenes/products near orbit edges or swath boundaries often contain significant nodata regions. In Earth Engine, naive `.first()` scene selection on the collection filtered by date and region is sufficient for a single small footprint but fails on cells intersecting scene boundaries or swath edges. A direct-source pipeline must mosaic all valid overlapping scenes/granules acquired on the target day prior to cell cropping to maximize pixel coverage and avoid artificial nodata boundaries within the 1 km grid cells.
+- **Same-tile/date multi-product overlap (DISTINCT from cross-tile mosaicing)**: For a *single* reference grid tile on a *single* date, the archive can contain **more than one product** — different relative orbits (e.g. S2 `R070` vs `R113` over the same tile), different satellites (`S2A`/`S2B`), or reprocessing duplicates (same orbit, different PDGS processing time). Each product spans the same tile extent but has **different nodata footprints** (swath-edge geometry, per-product cloud masking). GEE's `.first()` picks exactly one, so a pixel that is nodata in the chosen product but **valid in another same-tile-date product is silently emitted as `-9999`** — a false nodata indistinguishable from a real gap. Verified in `data/bow_valley_selection_raw`: **S2** has ≥7 same-(date,tile) groups with 2–3 products (e.g. `20250331 T11UNT` = R113×2 reprocessing + R070; `20250420 T11UNT`, `20250510 T11UNS` = R113 vs R070); **Landsat 9** has `20250425` path/row `044024` twice. A direct-source pipeline must **coalesce all products sharing the same (tile, date)** per pixel: take the first product with a valid (non-nodata, in-threshold) value at that pixel, falling through to the next where it is nodata; emit `-9999` only where **every** same-tile-date product is nodata. Deterministic product order (e.g. latest processing time first) settles ties. This is per-pixel valid coalescing, NOT averaging (no value blending → preserves the GEE value domain). It is orthogonal to and runs *before* cross-tile mosaicing.
 

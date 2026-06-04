@@ -11,3 +11,126 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
 - We mix the projections a little: during pre-training, we use Galileo’s approach and export all data in WGS84 (https://github.com/marlens123/presto-v3/blob/9591fec0a91a9f0e061aedd17beea78e673b8fef/src/data/earthengine/eo.py#L620), for fine-tuning, we use the original projection of our snow labels, which are in UTM (code link). For inference, we ideally want to follow the second approach I would say, but this is not implemented yet.
 - Sidenote: We always use the Google Earth Engine URL mode for downloading (has some restrictions, but because it’s fast and for free).
 
+## Bow Valley direct-source pipeline — conventions
+
+- **DataFrames: use `pandas`, not `polars`.** The repo already depends on
+  `pandas` (8+ modules) and uses zero `polars`. The GEE exporter boundary we must
+  feed, `EarthEngineExporterEval.export_from_csv_utm`
+  (`src/data/earthengine/eo_eval.py:576`), reads the cube CSV with `pd.read_csv`.
+  Adding `polars` would introduce a new dependency purely for the Bow Valley grid
+  generator with no benefit and a type-mismatch seam at exactly the contract
+  boundary. Planning docs (PLAN/SPEC/TASK-00x) mention `polars` as a default
+  preference; that preference is **overridden here** — pandas is the project
+  standard for this pipeline. (Decided 2026-06-01.)
+- **Generated cube CSV schema is fixed by the GEE exporter** — exactly
+  `date, crs, center_x, center_y, min_x, min_y, max_x, max_y`, read column-by-column
+  at `eo_eval.py:577-585`. The legacy `sampled_cells_bow_river_with_dates.csv`
+  already uses this same 8-column schema; the grid generator reuses cell geometry
+  (`center_x/y`, bounds, `crs=EPSG:32611`) and rewrites only the `date` column to
+  the inference-window cross-product. The legacy `date` (all `20250515` /
+  label-sampling metadata) is never read.
+- **GEE export filename vs LocalSourceExporter filename differ (known, by design).**
+  `export_from_csv_utm` emits `PR_{date}_{center_x:.16f}_{center_y:.16f}.tif`
+  (3 fields, UTM coords) for the reference patches; the new `LocalSourceExporter`
+  emits `PR_{YYYYMMDD}_{LAT}_{LON}_SC00.tif` (5 fields, signed degrees). Both parse
+  through the `PR` branch of `LandsatEvalDataset` (`src/fsc/landsat_eval.py:171-176`,
+  month at `parts[1][4:6]`). Parity matching is by shared cube-CSV row, not filename
+  string (SPEC AC-27). Filename ownership is resolved in TASK-004.
+
+### Clip stage (Phase 0.5 / TASK-002)
+
+- **The clip logic lives in the package, the CLIs are thin entrypoints.** The
+  importable package is `src/data/local_sources/clip/` (`settings`, `gate`,
+  `footprints`, `clippers`, `gdal_io`, `manifest`, `orchestrator`) — sibling to
+  `grid.py`, since this is pipeline domain code, not a side script. The two Typer
+  CLIs `scripts/developer_scripts/clip_dataset.py` (`clip-source`, `clip-all`,
+  `--dry-run`) and `scripts/developer_scripts/clip_audit.py` only do argument
+  parsing + `from src.data.local_sources.clip ...` imports (run via `uv run`, which
+  uses the editable install). The old flat `scripts/developer_scripts/clip_dataset.py`
+  + `scripts/.../test_clip_dataset.py` prototype was **removed** — it had no intersect
+  gate, crashed (degenerate-size `assert`) instead of skipping non-overlapping tiles,
+  and hardcoded a `min(1200,…)` MODIS clamp that truncated the 500 m science grid.
+  Pytest tests live at `tests/test_clip_dataset.py`.
+- **The §2.0 intersect gate is the one place footprint filtering happens.** Two
+  stages: (1) metadata-only footprint∩AOI polygon test → `SKIP_NO_OVERLAP`;
+  (2) overlap area < `CLIP_MIN_AOI_OVERLAP_AREA_KM2` (pydantic-settings,
+  default 1 km²) **or** post-clip zero valid pixels → `SKIP_DEGENERATE_OVERLAP`.
+  Skips write **no output file**. Adapters must NOT re-implement this. The real
+  full-archive clip-all run (2026-06-02) produced **531 CLIP / 2 SKIP_NO_OVERLAP**
+  (533 products; the 2 skips are the W120 WorldCover tiles west of lon −116.56),
+  and the post-run audit passed.
+- **Do not trust a `--dry-run` gate tally as proof of correctness.** The dry-run
+  evaluates the *same* footprint readers the real run uses; a footprint reader
+  that silently returns `None` makes the gate emit `SKIP_NO_OVERLAP`, which in a
+  dry-run looks like a legitimate geographic skip. The first real run exposed
+  three footprint/subdataset readers that were silently wrong (see next bullet) —
+  the prior "531 CLIP / 2 SKIP dry-run" figure had masked them because nobody
+  tallied the skips *per source*. Always sanity-check that an in-coverage
+  modality is not skipping 100 %.
+- **Three footprint/subdataset parsing bugs the first real clip-all surfaced**
+  (all fixed + regression-tested, commit `735d92d8`):
+  - **Sentinel-1** GML `<gml:coordinates>` is comma-within-pair
+    (`"lat,lon lat,lon"`), not whitespace scalars. The parser `.split()` on
+    whitespace yielded too few tokens → `None` → all 32 S1 wrongly skipped.
+    Fix: normalise commas to spaces in `_parse_gml_coordinates`.
+  - **Sentinel-3** stores the footprint in `<gml:posList>`, not
+    `<gml:coordinates>` → all 125 S3 would skip. Fix: posList fallback regex.
+  - **VIIRS** HDF5 subdataset descriptor `HDF5:"path"://group/.../band` was
+    parsed with the MODIS HDF4 `:`-split, leaking quotes/slashes into the output
+    filename and crashing `gdal_translate` on the first product. Fix:
+    `gdal_io._parse_grid_band` splits the HDF5 group path on `/`, leaves the
+    HDF4 `:`-form unchanged. MODIS output was unaffected (verified identical
+    tokens), so MODIS did **not** need re-clipping.
+- **MODIS/VIIRS clip output = per-grid GeoTIFFs, one per subdataset**, written to
+  `<out>/modis/<granule_stem>/<GRID>__<band>.tif`, preserving native sinusoidal
+  CRS+geotransform via `gdal_translate`. Both MODIS (HDF4) and VIIRS (HDF5)
+  subdataset enumeration + extraction go through system `gdalinfo`/`gdal_translate`
+  (`clip/gdal_io.py`), because rasterio's GDAL build lacks the HDF4 driver and the
+  two descriptor dialects need format-aware grid/band parsing (`_parse_grid_band`):
+  HDF4 is `…:"path":GRID:BAND` (`:`-delimited), HDF5 is `HDF5:"path"://…/GRID/…/BAND`
+  (group path after `://`, `/`-delimited). The per-grid GeoTIFFs are each 1200² (1 km)
+  / 2400² (500 m) at the native tile extent; cropping is by **AOI geometry**, see next
+  bullet.
+- **MODIS/VIIRS clip crops by AOI _geometry_, NOT a reprojected-corner index window
+  (sinusoidal-shear trap).** `_clip_sinusoidal_subdataset` uses
+  `rasterio.mask.mask(crop=True)` against the AOI reprojected into the subdataset's
+  Sinusoidal CRS — identical in spirit to `_clip_geotiff_to`. The earlier approach
+  (the one CLIPPING_PLAN §2.7 originally prescribed) reprojected the AOI's four
+  lon/lat **corners** to sinusoidal and built an axis-aligned pixel window from their
+  bbox. That is wrong: in MODIS Sinusoidal `x = R·λ·cos φ`, a lon/lat rectangle
+  **shears** into a parallelogram, so its bounding window is ~5× too wide in X — the
+  clip kept a ~10°-wide block of real data (100 % fill) instead of the AOI's ~2°-wide
+  diagonal band. Geometry masking yields the correct band (~33.7 % fill over this
+  AOI; nodata in the sheared corners). **Verify clip correctness by per-row valid-col
+  span (≈ AOI width in km), never by the output bounding box** — the bbox of a
+  diagonal band is legitimately ~10° wide even when the data is correct. Found by the
+  clip-viewer (visual QA), not a unit test; the per-grid ratio test
+  (`test_modis_per_grid_index_ratio`) only checks the 500 m grid is ~2× the 1 km grid,
+  which both approaches satisfy, so it did **not** catch the shear. Re-clip after such
+  a change with `clip-source modis` / `clip-source viirs` (~10 min, 92 products each),
+  then rebuild the **combined** `clip_manifest.csv` by concatenating all 10 per-source
+  manifests in `orchestrator.SOURCES` order — `clip-all --only modis,viirs` would
+  truncate the combined manifest to just those two sources.
+- **Landsat clips stay native EPSG:32612, S2 stays EPSG:32611.** The clip queries
+  each band's CRS dynamically (no hardcoded zone) and reprojects the AOI to it. The
+  cross-zone 32612→4326 reprojection is the Landsat adapter's job (TASK-012), not the
+  clip stage. S1 measurement TIFFs are range-geometry (GCPs, no affine) → sliced by
+  the AOI-overlapping GCP pixel window with shifted GCPs (defensive CRS+transform
+  fast-path if a future pull ships orthorectified UTM).
+- **S3 OLCI lat/lon are CF-scaled int32 — apply `scale_factor` before the AOI mask
+  (or every radiance band clips to (0,0)).** `geo_coordinates.nc` stores `latitude`
+  / `longitude` as `int32` with `scale_factor ≈ 1e-6` (raw `49896598` means
+  `49.896598°`). The S3 clip masks the swath to the AOI bbox from these grids; the
+  original code compared the **raw integers** against degree bounds, so the mask was
+  always empty → `r0,r1,c0,c1 = 0,0,0,0` → every `Oa*_radiance.nc` sliced to `(0,0)`.
+  The failure was **silent**: `_slice_s3_netcdf` counts valid pixels over *every* 2D
+  dataset matching the geo grid, and non-grid datasets (`removed_pixels`,
+  `instrument_data`) are full-copied, so the manifest still reported ~33 M "valid
+  pixels" while the science bands held nothing. Fix: `_cf_scaled()` decodes
+  `scale_factor`/`add_offset` before the mask; radiance now clips to the real swath
+  window (e.g. `(734, 722)`, varying per overpass geometry). **Found by the
+  clip-viewer Phase-4 probe**, not a test — same lesson as the sinusoidal shear:
+  a units/projection mismatch that produces a wrong window is invisible to a
+  valid-pixel-count gate when unrelated datasets pad the count. Re-clip with
+  `clip-source sentinel3` (~125 products) and rebuild the combined manifest.
+
