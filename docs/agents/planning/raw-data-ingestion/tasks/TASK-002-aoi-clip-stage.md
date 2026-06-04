@@ -72,7 +72,8 @@ check, emits a per-source manifest, and passes a post-run zero-all-nodata audit.
   magic number.
 - **Business:** Non-destructive — clipped pixels inside the AOI equal raw pixels (no
   resampling/rescaling). Landsat stays in native EPSG:32612 (cross-zone reprojection
-  to the 4326 cell grid happens later, in the Landsat adapter — TASK-012). Fail-safe
+  to the **EPSG:32611** (UTM 11N) cell grid happens later, in the Landsat adapter —
+  TASK-012; CORRECTED 2026-06-04 from "4326 cell grid", see KNOWLEDGE.md). Fail-safe
   on corrupt SAFE/HDF: skip + manifest row, never a partial output.
 - **Landsat CRS — read the band header, don't assume.** Verified: every archive
   Landsat scene is natively `EPSG:32612` (`gdalinfo LC09_..._B4.TIF` →

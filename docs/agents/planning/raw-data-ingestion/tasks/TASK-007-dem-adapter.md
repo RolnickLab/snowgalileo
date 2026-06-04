@@ -18,17 +18,30 @@ resampling to the 10 m cell grid.
   - Clipped GeoTIFF, `EPSG:4326`, single `DEM` band (`float32`), elevation in metres.
   - **Parity target = GEE.** `src/data/earthengine/copernicus_dem.py:14-16` calls
     `ee.Terrain.slope`/`aspect` on the DEM's **native grid** using latitude-aware
-    true ground pixel dimensions, then export resamples to 4326/scale=10. The
-    adapter must replicate that: compute slope/aspect (Horn, degrees) with the
-    **correct metres-per-pixel in x/y at the cell's latitude**, then resample
-    DEM+slope+aspect to the 10 m cell grid. Match GEE within tolerance.
-  - **DO NOT compute terrain in EPSG:32611.** A prior external review proposed a
-    "compute in UTM 32611, reproject slope/aspect to 4326" detour — that diverges
-    from the GEE reference patches (which were never computed in a UTM frame) and
-    fails AC-21 parity. The bug to avoid is running the kernel on a degree grid
-    with unit (`1°≈1 m`) pixel spacing (→ gradients ×111,000, all slopes → 90°);
-    that is a *pixel-spacing* error fixed by correct metric spacing, not a CRS
-    change. (See REVIEW_AUDIT.md validation verdict #1.)
+    true ground pixel dimensions, then `create_ee_image`'s export resamples the
+    `[DEM,slope,aspect]` image to the **cell grid** (`scale=10` + the export crs).
+    The adapter must replicate that **two-step** order: (1) compute slope/aspect
+    (Horn, degrees) **in the DEM's native frame** with the **correct
+    metres-per-pixel in x/y at the cell's latitude**, then (2) resample
+    DEM+slope+aspect to the cell grid. Match GEE within tolerance.
+  - **⚠️ CELL-GRID CRS CORRECTED 2026-06-04 — the resample TARGET is now
+    `EPSG:32611` (UTM 11N), 100×100, NOT `EPSG:4326`.** The cell grid is UTM 11N
+    (see PLAN §3 Grid+CRS table / `docs/agents/KNOWLEDGE.md`; the GEE *inference*
+    patches from `export_from_csv_utm` are UTM, confirmed against
+    `data/eval_tifs/LC09_*`). So step (2) resamples to the `GridCell`'s UTM
+    transform via `base.reproject_to_cell`, not 4326. This does **not** change
+    step (1): terrain is still computed in the DEM's **native** lat-aware frame.
+  - **DO NOT compute terrain in EPSG:32611 either.** This rule stands, but its
+    *original justification was stale*: it said "the reference patches were never
+    computed in a UTM frame," which conflated the **terrain-computation frame**
+    (native DEM grid — unchanged by the correction) with the **cell/export grid
+    CRS** (now UTM). The correct reason to keep terrain in the native frame is that
+    `ee.Terrain` does — computing slope/aspect *in a UTM grid* would diverge from
+    `ee.Terrain`'s native-frame result **regardless** of the final cell CRS. The
+    bug to avoid is still running the Horn kernel on a degree grid with unit
+    (`1°≈1 m`) pixel spacing (→ gradients ×111,000, all slopes → 90°) — a
+    *pixel-spacing* error fixed by correct metric spacing, not a CRS change.
+    (See REVIEW_AUDIT.md validation verdict #1.)
   - Valid thresholds: `DEM >= 0.0000001`, `slope >= 0`, `aspect >= 0`; invalid → `-9999`.
   - Identity normalization downstream.
 - **Relevant skills:** `geospatial` (terrain derivatives, reprojection order), `tdd`.
@@ -37,17 +50,22 @@ resampling to the 10 m cell grid.
 - [ ] 1. Write `test_dem_adapter.py` (Red): golden-grid triple; `bands_out ==
       [DEM, slope, aspect]`; slope/aspect match GEE reference within tolerance;
       degenerate guard (slopes NOT all ≈90°); `day` ignored.
-- [ ] 2. Implement `dem.py`: mosaic tiles → Horn slope/aspect in degrees with
-      latitude-correct metric pixel spacing (matching `ee.Terrain`) → resample
-      DEM+slope+aspect (bilinear) to the 10 m cell grid → stack `(3, H, W)`;
-      `spatial_kind="space"`, `native_fill=None`. Do NOT compute in EPSG:32611.
+- [ ] 2. Implement `dem.py`: mosaic tiles → Horn slope/aspect in degrees **in the
+      DEM's native frame** with latitude-correct metric pixel spacing (matching
+      `ee.Terrain`) → resample DEM+slope+aspect (bilinear) to the cell's
+      **EPSG:32611 100×100** grid via `base.reproject_to_cell` → stack `(3, H, W)`;
+      `spatial_kind="space"`, `native_fill=None`. Do NOT compute terrain in any
+      projected grid (native frame only); the UTM target applies to the resample
+      step only.
 - [ ] 3. Wire into exporter, replace placeholder. 4. Green + Refactor.
 
 ## 4. Requirements & Constraints
 - **Technical:** Bilinear for elevation; slope/aspect via Horn (or `richdem`/`gdaldem`
-  equivalent) on the reprojected grid; tolerance constant logged.
-- **Business:** Static (ignores `day`). Reprojection-before-derivative order is
-  non-negotiable.
+  equivalent) computed on the **native DEM grid** (NOT the reprojected grid),
+  then resampled to the UTM cell grid; tolerance constant logged.
+- **Business:** Static (ignores `day`). **Derivative-before-reprojection order is
+  non-negotiable** (compute terrain in the native lat-aware frame, *then* resample
+  to the cell grid — matching `ee.Terrain` + export).
 - **Out of scope:** WorldCover (TASK-006), ERA5 (TASK-008).
 
 ## 5. Acceptance Criteria

@@ -56,8 +56,9 @@ sentence and maps to at least one step in the Verification Plan (§7).
   = 1200², 500 m = 2400²) from each grid's own resolution/origin — never a single
   hardcoded `1200` clamp.
 - [ ] FR-5: Landsat clips in native EPSG:32612; the clipped output preserves
-  32612 (cross-zone reprojection to the 4326 cell grid happens later, in the
-  Landsat adapter).
+  32612 (cross-zone reprojection to the **EPSG:32611** (UTM 11N) cell grid happens
+  later, in the Landsat adapter — CORRECTED 2026-06-04 from "4326 cell grid", see
+  PLAN §3 / KNOWLEDGE.md).
 
 **Stage 1→2 — Adapters, Exporter, Grid (per `PLAN §4`)**
 - [ ] FR-6: All `LocalSource*` adapters read **`data/clipped_bow_valley_selection_raw`**
@@ -116,11 +117,16 @@ sentence and maps to at least one step in the Verification Plan (§7).
   DEM's native grid using true ground pixel dimensions (it does *not* take naive
   `dz/dx` in raw degree units), so the adapter must do the same — supply the
   correct metres-per-pixel in x/y at the cell's latitude to the slope/aspect
-  kernel. Do **not** detour through EPSG:32611 to compute terrain: the GEE
-  reference patches (AC-21) were never computed in a UTM frame, so a UTM-computed
-  slope/aspect would fail parity. The risk being closed is running Horn's kernel
-  on a degree grid with unit (`1°≈1 m`) pixel spacing, which scales gradients by
-  ~111,000× — fixed by correct metric spacing, not by a projection change.
+  kernel. Do **not** detour through EPSG:32611 to *compute* terrain: GEE computes
+  slope/aspect in the DEM's **native frame**, so a UTM-computed terrain would
+  diverge from `ee.Terrain` and fail AC-21 parity. (NOTE 2026-06-04: an earlier
+  draft justified this by "the patches were never computed in a UTM frame" — that
+  conflated the terrain-*computation* frame, native and unchanged, with the
+  *export/cell* grid CRS, which is now UTM 11N. Resample TARGET = UTM 11N;
+  computation FRAME = native DEM. See TASK-007 §2.) The risk being closed is
+  running Horn's kernel on a degree grid with unit (`1°≈1 m`) pixel spacing, which
+  scales gradients by ~111,000× — fixed by correct metric spacing, not by a
+  projection change.
 - [ ] FR-16: The WorldCover adapter ignores `day`, returns the v200 2021 `Map`
   band (single categorical band, not one-hot).
 - [ ] FR-17: `LocalSourceExporter` writes a per-(cell, window-end-day) multiband
@@ -314,7 +320,8 @@ explicit.
   max of either product alone. (Guards against `.first()` false nodata.)
 - [ ] AC-16: **Landsat** exercises three cases — L9 present, L9 missing+L8
   present, both missing → all-`-9999`; output bands are renamed `B*_landsat`;
-  cross-zone 32612→4326 reprojection asserted against the cell grid.
+  cross-zone **32612→32611** reprojection asserted against the cell grid (CORRECTED
+  2026-06-04 from "32612→4326"; the cell grid is UTM 11N — see KNOWLEDGE.md).
 - [ ] AC-17: **S3** emits `[Oa17_radiance, Oa21_radiance]`, georeferenced via
   tie-point grids; identity normalization preserved.
 - [ ] AC-18: **MODIS** emits `sur_refl_b01..b07`; the native `-28672` fill is

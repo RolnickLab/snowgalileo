@@ -595,17 +595,21 @@ Rules enforced by `base.py`:
 - **Copernicus DEM terrain metrics**: Slope and aspect are scale-sensitive. GEE
   (`src/data/earthengine/copernicus_dem.py:14-16`) computes `ee.Terrain.slope`/
   `aspect` on the DEM's **native grid** using true ground pixel dimensions
-  (latitude-aware metres-per-pixel), *then* the export resamples to the 4326/
-  scale=10 cell grid. The local DEM adapter must replicate that: compute slope/
-  aspect with **latitude-correct metric pixel spacing** (supply the real
-  metres-per-pixel in x/y at the cell's latitude to the Horn kernel), then
-  resample DEM+slope+aspect to the 10 m cell grid. **Do NOT detour through
-  EPSG:32611 to compute terrain** — the GEE reference patches were never computed
-  in a UTM frame, so a UTM-computed slope/aspect fails parity (AC-21). The bug to
+  (latitude-aware metres-per-pixel), *then* the export resamples to the **cell
+  grid** (`EPSG:32611` UTM 11N, scale=10 m — CORRECTED 2026-06-04 from "4326
+  scale=10"; see §3 Grid+CRS table). The local DEM adapter must replicate that
+  two-step order: compute slope/aspect with **latitude-correct metric pixel
+  spacing** (supply the real metres-per-pixel in x/y at the cell's latitude to
+  the Horn kernel) **in the DEM's native frame**, then resample DEM+slope+aspect
+  to the UTM cell grid. **Do NOT detour through EPSG:32611 to *compute*
+  terrain** — GEE computes terrain in the DEM's native frame, so a UTM-computed
+  slope/aspect diverges from `ee.Terrain` and fails parity (AC-21). (NOTE
+  2026-06-04: the earlier "patches were never computed in a UTM frame"
+  justification conflated the computation FRAME, native, with the cell/export
+  CRS, now UTM — resample target is UTM, computation frame is native.) The bug to
   avoid is running the kernel on a degree grid with unit (`1°≈1 m`) pixel
   spacing, which scales gradients by ~111,000× and forces all slopes toward 90° —
-  that is a *pixel-spacing* error, not a projection error, and is fixed by
-  passing correct metric spacing, not by changing CRS.
+  a *pixel-spacing* error fixed by correct metric spacing, not by changing CRS.
 - **Sentinel-3 OLCI geolocation**: S3 OLCI SAFE products contain separate NetCDF files georeferenced by coordinate tie-point grids. The local adapter must use these geolocation arrays to precisely project OLCI radiance bands onto the target cell grid.
 - WorldCover adapter ignores `day` and returns the v200 2021 map. Hardcoded.
 

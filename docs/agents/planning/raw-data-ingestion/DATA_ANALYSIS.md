@@ -798,8 +798,21 @@ Direct-source requirements:
 - Mosaic and crop tiles before writing the final stack.
 - Preserve elevation values in meters with the same vertical datum convention as
   the GEE product.
-- Reproject the elevation DEM to the target cell grid (10 m scale, e.g. EPSG:4326) *first* before computing terrain derivatives. Terrain slope and aspect are highly scale-sensitive; computing them on the native 30 m grid and then reprojecting will yield mismatched gradients.
-- Compute `slope` and `aspect` in degrees on the reprojected 10 m grid using Horn's algorithm or an equivalent gradient method that closely matches GEE's `ee.Terrain.slope` and `ee.Terrain.aspect` to satisfy downstream masks and normalization.
+<!-- ⚠️ CORRECTED 2026-06-04. The two bullets below originally prescribed
+"reproject DEM to the cell grid FIRST, then compute terrain on the reprojected
+grid" — that is the WRONG order and the root of the DEM distortion bug. GEE
+(`copernicus_dem.py:14-16`) computes `ee.Terrain.slope/aspect` on the DEM's
+NATIVE grid (latitude-aware metric spacing), THEN the export resamples to the
+cell grid. Replicate that order; the cell grid is EPSG:32611 (UTM 11N), not 4326.
+See REVIEW_AUDIT #1, TASK-007 §2, and docs/agents/KNOWLEDGE.md. -->
+- Compute `slope` and `aspect` in degrees **on the DEM's native grid** using Horn's
+  algorithm (or an equivalent gradient method matching GEE's `ee.Terrain.slope`/
+  `aspect`) with **latitude-correct metric pixel spacing** — NOT raw degree spacing
+  (`1°≈1 m` would scale gradients ×111,000 → all slopes ≈90°). Terrain is
+  scale-sensitive, so the metric spacing, not the grid CRS, is what matters.
+- Reproject the `[DEM, slope, aspect]` stack to the target cell grid (**EPSG:32611**,
+  10 m, 100×100) *after* computing the derivatives — matching GEE's compute-native-
+  then-export order. Do NOT compute terrain on the reprojected grid.
 - Emit bands as `DEM`, `slope`, `aspect`.
 - Preserve invalid elevation as `-9999` or values that are masked by the current
   `DEM >= 0.0000001` threshold.

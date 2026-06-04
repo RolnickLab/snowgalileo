@@ -14,8 +14,11 @@ reprojecting cross-zone EPSG:32612→4326, and coalescing same-(tile,date) produ
 - **Upstream tasks:** TASK-002 (clipped Landsat in native EPSG:32612), TASK-003
   (`base.py` declares coalesce/mosaic contract), TASK-001 (reference patches).
 - **Source semantics (DATA_ANALYSIS.md §Landsat 8/9 + §Verified Catalog):**
-  - Clipped GeoTIFF bands, **native EPSG:32612** (cross-zone reproject to the 4326 cell
-    grid happens HERE, in the adapter).
+  - Clipped GeoTIFF bands, **native EPSG:32612** (UTM 12N). The adapter reprojects
+    cross-zone to the **EPSG:32611** (UTM 11N) cell grid via `base.reproject_to_cell`
+    — CORRECTED 2026-06-04 from "the 4326 cell grid"; the cell grid is UTM 11N, not
+    4326 (see PLAN §3 Grid+CRS table / `docs/agents/KNOWLEDGE.md`). It is still a
+    cross-zone (12N→11N) reproject, just to UTM not geographic.
   - Original `B2,B3,B4,B5,B6,B7` → renamed `B2_landsat..B7_landsat` (avoid S2 collision).
   - **L9→L8 fallback:** try L9 first for date/region, fall back to L8 if L9 absent;
     both absent → all-`-9999` (renamed band names).

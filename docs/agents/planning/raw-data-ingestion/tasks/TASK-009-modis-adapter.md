@@ -26,8 +26,9 @@ value** in addition to `-9999`.
     holds `state_1km`) and 500 m (`MODIS_Grid_500m_2D`, 2400², holds `sur_refl_b01..b07`).
   - Science bands come from the **500 m** grid; index each grid at its own resolution.
   - `uint16`; native `_FillValue = -28672`.
-  - Reproject sinusoidal → cell grid (EPSG:4326); mosaic tiles when a cell crosses a
-    tile boundary (cross-tile mosaic-before-crop).
+  - Reproject sinusoidal → cell grid (**EPSG:32611** UTM 11N — CORRECTED 2026-06-04
+    from "EPSG:4326"; see KNOWLEDGE.md) via `base.reproject_to_cell`; mosaic tiles
+    when a cell crosses a tile boundary (cross-tile mosaic-before-crop).
   - Preserve value convention (integer-like MODIS range), preserve fill so the
     `MODIS_FILL_VALUE` / `>= -100` threshold checks work.
   - `spatial_kind="low"` (loader downsamples to 2×2). NDSI/NDVI are derived downstream.

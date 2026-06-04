@@ -68,6 +68,21 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
     files confirm the *grid* (UTM/100×100/10 m) but NOT the band layout — do **not**
     use them as current-layout fixtures; the loader's `num_timesteps` assert would fail.
   - Decided 2026-06-04 (user-ruled); re-validated against on-disk cubes same day.
+- **DEM terrain (TASK-007): compute slope/aspect in the DEM's NATIVE frame, then
+  resample to the UTM cell grid — two distinct CRS roles, do not collapse them.**
+  `ee.Terrain.slope/aspect` (`copernicus_dem.py:14-16`) runs on the native GLO30
+  DEM (latitude-aware true metric pixel spacing); `create_ee_image`'s export then
+  resamples `[DEM,slope,aspect]` to the cell grid. The adapter must do the same:
+  Horn kernel with latitude-correct metres-per-pixel **in the native frame**, then
+  `reproject_to_cell` to **EPSG:32611** 100×100. Do NOT compute terrain in any
+  projected grid (would diverge from `ee.Terrain`), and do NOT run the kernel on a
+  raw degree grid with `1°≈1 m` spacing (gradients ×111,000 → all slopes ≈90°).
+  **Caveat for readers of the older planning prose:** REVIEW_AUDIT #1 / earlier
+  FR-15 / PLAN drafts justified "don't compute in UTM" with "the reference patches
+  were never in a UTM frame" — that reasoning is **stale** (the cell grid IS UTM
+  now). The *conclusion* (compute in native frame) stands; the *reason* is "because
+  `ee.Terrain` is native," not "because the export is 4326." The terrain RESAMPLE
+  target is UTM; the terrain COMPUTATION frame is native. (Flagged 2026-06-04.)
 
 ### Clip stage (Phase 0.5 / TASK-002)
 
