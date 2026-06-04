@@ -36,6 +36,38 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   through the `PR` branch of `LandsatEvalDataset` (`src/fsc/landsat_eval.py:171-176`,
   month at `parts[1][4:6]`). Parity matching is by shared cube-CSV row, not filename
   string (SPEC AC-27). Filename ownership is resolved in TASK-004.
+- **Per-cell target grid is EPSG:32611 (UTM 11N) @ 10 m, 100×100 — NOT 4326
+  scale=10.** Empirically confirmed against real on-disk GEE cubes:
+  `data/eval_tifs/LC09_*` (the inference/filename-style path our pipeline mimics)
+  are **UTM (EPSG:32646/32638…), 100×100, 10 m resolution**. So `GridCell.crs="EPSG:32611"`,
+  `shape=(100,100)`, `transform=from_origin(min_x, max_y, 10, 10)`.
+  - **Two GEE export paths exist — do not conflate them (this was the planning bug).**
+    The PLAN/SPEC "EPSG:4326 scale=10, ~159×100" is **real but describes the
+    *training/label* export** (`export_for_labels`, filename `min_lat=…_dates=…`):
+    verified `data/tifs_test/min_lat=…tif` is genuinely EPSG:4326, ~101×149,
+    8.983e-05°. Our pipeline feeds the **inference** export
+    (`export_from_csv_utm` → `_export_for_polygon`, which passes the CSV `crs`
+    (`EPSG:32611`) + `scale=10` m into the EE download → UTM 11N, 100×100). The 4326
+    grid is correct *for the training path*; it is wrong for the inference path.
+  - **The loader's tensor-assembly path reads neither the tif CRS nor transform**
+    — `_tif_to_array` uses only `data.values` (+ lat/lon from the **filename**), and
+    crops to 100×100 (`subset_image`, requires H,W ≥ 100). The **prediction-write**
+    path (`landsat_eval.py:1345-1346`) *does* read `data.rio.crs`/`.transform()`, but
+    only to **copy them through** onto `*_with_preds.tif` — it asserts nothing about
+    CRS, so UTM is safe and preserved. (Earlier "reads neither CRS nor transform"
+    phrasing was imprecise: tensor path ignores them; write path copies them.)
+  - **Filename lat/lon is a SEPARATE EPSG:4326 channel, independent of the UTM
+    pixel grid.** `to_cartesian` (`dataset.py:256-257`) asserts `-90≤lat≤90` /
+    `-180≤lon≤180` ("Make sure you are in EPSG:4326") and feeds `static_x`. So the
+    filename MUST carry signed **degrees** even though the grid is UTM — the two are
+    different consumers. Do not "align" the filename to UTM to match the grid CRS;
+    `to_cartesian` would crash.
+  - **Band-count trap:** `data/eval_tifs/*` are **316-band** cubes (pre-commit
+    `5e2920f9 "remove viirs cloud flag"`). The **current** contract is **308**
+    (`38 dynamic × 8 timesteps + 4 static`, `layout.TOTAL_BANDS`). Those on-disk
+    files confirm the *grid* (UTM/100×100/10 m) but NOT the band layout — do **not**
+    use them as current-layout fixtures; the loader's `num_timesteps` assert would fail.
+  - Decided 2026-06-04 (user-ruled); re-validated against on-disk cubes same day.
 
 ### Clip stage (Phase 0.5 / TASK-002)
 

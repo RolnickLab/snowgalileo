@@ -23,7 +23,9 @@ constants re-exported from `eo.py`, and the per-(modality, cell, day) `.npz` cac
       def fetch(self, cell: GridCell, day: datetime.date | None) -> np.ndarray:
           ...  # (C, H, W); -9999 nodata
   ```
-- **`base.py` enforces:** reproject to cell target grid (EPSG:4326, scale=10) —
+- **`base.py` enforces:** reproject to cell target grid (**EPSG:32611 UTM 11N,
+  scale=10 m, 100×100** — CORRECTED 2026-06-04 from "EPSG:4326 scale=10"; matches the
+  `export_from_csv_utm` GEE reference patches, see `docs/agents/KNOWLEDGE.md`) —
   **nodata-aware bilinear** continuous, **nearest** QA/categorical; missing
   acquisition → `-9999` array of declared shape; **same-tile/date coalesce runs
   before cross-tile mosaic-before-crop** (see TASK-013/TASK-012 for the scene
@@ -70,7 +72,8 @@ constants re-exported from `eo.py`, and the per-(modality, cell, day) `.npz` cac
 
 ## 4. Requirements & Constraints
 - **Technical:** `numpy.typing` for arrays, `typing.Annotated`/`Protocol`, pydantic-settings
-  for `cube.yaml`, `pyproj`/`rasterio` for the CRS triple, `polars` for the CSV.
+  for `cube.yaml`, `pyproj`/`rasterio` for the CRS triple, `pandas` for the CSV
+  (project standard — NOT `polars`; see `docs/agents/KNOWLEDGE.md`).
   No band names hardcoded in `layout.py` — import from `eo.py`.
 - **Business:** Adapters read `archive_root` (clipped). The raw path appears **only**
   in the clip-stage config. Cache + assembled cubes never written outside

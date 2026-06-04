@@ -31,7 +31,7 @@ test has ground-truth fixtures to diff against.
   It builds `filename = f"PR_{date}_{center_x:.16f}_{center_y:.16f}.tif"` and
   `WINDOW_END_DATE = strptime(date, "%Y%m%d")`, `WINDOW_START = END - (NUM_TIMESTEPS-1)`.
 - **Relevant skills:** `geospatial` (CRS is law, GeoParquet/COG), `software-dev`
-  (pydantic-settings, pathlib, polars, structlog), `tdd`.
+  (pydantic-settings, pathlib, pandas — NOT polars, see `docs/agents/KNOWLEDGE.md`, structlog), `tdd`.
 
 ## 3. Subtasks
 - [ ] 1. Write `test_grid.py` geometry tests (Red): centre-in rule → **344** kept
@@ -61,7 +61,8 @@ test has ground-truth fixtures to diff against.
 
 ## 4. Requirements & Constraints
 - **Technical:** EPSG:32611 grid math; reproject to EPSG:4326 for the AOI test.
-  Use `polars` for the cross-product, `pyproj.Transformer(always_xy=True)`,
+  Use `pandas` for the cross-product (project standard — NOT `polars`, see
+  `docs/agents/KNOWLEDGE.md`), `pyproj.Transformer(always_xy=True)`,
   `rasterio`/`shapely` for footprint geometry, `structlog` JSON logs. System
   `gdalinfo` for HDF4 catalog (rasterio's GDAL build lacks the HDF4 driver).
 - **Business:** The generated CSV's `date` column is the configured inference
@@ -108,8 +109,8 @@ uv run python -m src.data.local_sources.grid --emit-csv --mode A \
     --window-start 2025-04-06 --window-end 2025-05-28
 
 # Confirm schema + row count
-uv run python -c "import polars as pl; df=pl.read_csv('configs/bow_valley/cube_cells.csv'); \
-print(df.columns); print(df.height); assert (df['crs']=='EPSG:32611').all()"
+uv run python -c "import pandas as pd; df=pd.read_csv('configs/bow_valley/cube_cells.csv'); \
+print(list(df.columns)); print(len(df)); assert (df['crs']=='EPSG:32611').all()"
 
 # Confirm the GEE exporter accepts the schema (dry validation of column presence)
 uv run python -c "import pandas as pd; c=pd.read_csv('configs/bow_valley/cube_cells.csv').columns; \

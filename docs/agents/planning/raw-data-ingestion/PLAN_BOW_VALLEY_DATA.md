@@ -30,7 +30,7 @@ and an inference-grid driver.
 - Local-file adapters for S1, S2, Landsat 8/9, S3 OLCI, MODIS MOD09GA,
   VIIRS VNP09GA, ERA5-Land, Copernicus DEM GLO-30, ESA WorldCover v200.
 - Producer of per-cell GeoTIFFs matching `create_ee_image` layout (dynamic
-  stack + static stack, `-9999` nodata, `EPSG:4326`, scale=10 (approx. `0.0000898315` deg), dims ≈ 159×100 due to latitude convergence at ~51°N,
+  stack + static stack, `-9999` nodata, **`EPSG:32611` (UTM 11N), scale=10 m, dims 100×100** (CORRECTED 2026-06-04 from "4326 scale=10 ~159×100"; see §3 Grid+CRS table),
   `MODIS_FILL_VALUE=-28672` preserved in MODIS bands).
 - A 1 km grid generator covering the Bow Valley AOI in EPSG:32611.
 - A daily-stride inference driver that, for each day `d` in the configured
@@ -74,7 +74,7 @@ gate (§7 Phase 0.5).
     data/clipped_bow_valley_selection_raw/   (same layout, cropped to bow_valley_inference_aoi.geojson)
         │
         │  LocalSource* adapters (§4) + LocalSourceExporter
-        │  • per-(cell, day) reprojection to EPSG:4326 scale=10
+        │  • per-(cell, day) reprojection to EPSG:32611 (UTM 11N) scale=10 m  [CORRECTED 2026-06-04]
         │  • mosaic-before-crop, -9999 placeholders
         ▼
   Stage 2 — CUBE + INFERENCE   (all writes under data/bow_valley_processing/)
@@ -234,9 +234,9 @@ cell-sampling bbox** — the clipped archive contains no data outside the AOI.
 | Parameter | Value | Source / Rationale |
 | --- | --- | --- |
 | Grid math CRS | `EPSG:32611` (UTM 11N) | Matches CSV cell extents; preserves 1 km cell metric. |
-| Per-cell export CRS | `EPSG:4326`, `scale=10` | Matches `create_ee_image`; downstream loader assumes this. Scale 10 equates to `0.0000898315` degrees. |
+| Per-cell export CRS | **`EPSG:32611` (UTM 11N), `scale=10` m** | **CORRECTED 2026-06-04 (was "EPSG:4326 scale=10"), confirmed against real on-disk cubes.** `data/eval_tifs/LC09_*` (the inference/filename-style path we mimic) are UTM, 100×100, 10 m; made by `export_from_csv_utm` (CSV `crs=EPSG:32611` + `scale=10` m). The "4326 ~159×100" wording describes the **training/label** export path (`export_for_labels`; `data/tifs_test/min_lat=…` is genuinely 4326) — a different path, not wrong, just not ours. The loader's tensor path reads neither tif CRS nor transform (lat/lon from **filename**, crops to 100×100); the prediction-write path copies them through. Filename lat/lon stays signed **degrees** (`to_cartesian` asserts 4326), independent of the UTM grid. See `docs/agents/KNOWLEDGE.md`. |
 | Daily mosaic CRS | `EPSG:32611` | Mosaic stays in metric CRS for analysis. **Per-cell rasters in 4326, mosaic in UTM is intentional** — per-cell tifs feed the loader unchanged; mosaic is a separate output product. Reprojection happens once, at mosaic-write time, on 10×10 FSC outputs (low IO). |
-| Grid cell size | 1000 m × 1000 m (dims ≈ 159×100 px in EPSG:4326 due to latitude convergence at 51°N) | `EXPORTED_HEIGHT_WIDTH_METRES`. Converging longitudes stretch WGS84 cell width to ~159 px, satisfying `H >= 100` and `W >= 100` for dataset cropping. |
+| Grid cell size | 1000 m × 1000 m → **100 × 100 px** in EPSG:32611 @ 10 m | `EXPORTED_HEIGHT_WIDTH_METRES` / 10 m = 100. Exactly satisfies the loader's `H >= 100` & `W >= 100` crop floor (`subset_image`). **CORRECTED 2026-06-04**: the prior "≈159×100 in EPSG:4326" assumed a 4326 target grid, which is wrong (see CRS row above). |
 | Cell layout | Non-overlapping; centred on CSV `center_x, center_y` (mode A, after AOI filter) or tiled across `data/bow_valley_inference_aoi.geojson` (mode B) | Matches existing CSV semantics; both modes bounded by the clip AOI |
 
 **CRS is law** — every cell carries an explicit `transform`, `crs`, and `shape`
@@ -542,7 +542,7 @@ class LocalSourceAdapter(Protocol):
 ```
 
 Rules enforced by `base.py`:
-- Output reprojected to the cell's target grid (`EPSG:4326`, scale=10) using:
+- Output reprojected to the cell's target grid (`EPSG:32611` UTM 11N, scale=10 m — CORRECTED 2026-06-04, see §3 Grid+CRS table) using:
   - **bilinear** for continuous bands,
   - **nearest** for QA / categorical (WorldCover, cloud flags).
 - **Nodata-aware bilinear (mandatory in the shared resampler).** Before a
@@ -691,10 +691,12 @@ Key design choices:
   `data/bow_valley_processing/daily_fsc/` (the inference deliverable; overridable
   to object storage per §8 Q5). Each
   cell's 10×10 FSC patch maps to a 100 m pixel grid (`100 m × 10 px = 1 km`
-  cell). Cells with all input groups masked fall back to `nodata`. The 10×10
-  FSC raster from each cell is reprojected from EPSG:4326 (the loader's grid)
-  to EPSG:32611 at mosaic-write time using nearest-neighbour (FSC is a
-  prediction; bilinear would blend invalid neighbours).
+  cell). Cells with all input groups masked fall back to `nodata`. **CORRECTED
+  2026-06-04:** with the per-cell grid now in EPSG:32611 (see §3 Grid+CRS table),
+  the per-cell FSC patch is **already in UTM 11N**, so the daily mosaic (also UTM 11N)
+  requires **no cross-CRS reprojection** — only placement into the AOI mosaic grid.
+  (The prior text reprojected "from EPSG:4326" on the now-corrected assumption the
+  cell grid was geographic. Resolve the exact resampling in TASK-015.)
 - **Per-cell independence:** the model runs one forward pass per 1 km cell
   with no cross-cell spatial context (`patch_size_high_res=10`, input 100×100,
   output 10×10 at `src/fsc/patch_predict.py:26`). Edge effects on the 100 m
@@ -900,7 +902,7 @@ before approval.
 - Dynamic band order per timestep is fixed.
 - Nodata is `-9999`. MODIS additionally preserves native
   `MODIS_FILL_VALUE=-28672` — both must survive into the exported tif.
-- Per-cell export grid is `EPSG:4326`, `scale=10`, ~100×100 px per cell.
+- Per-cell export grid is `EPSG:32611` (UTM 11N), `scale=10` m, **100×100 px** per cell (CORRECTED 2026-06-04 from "EPSG:4326 scale=10"; see §3 Grid+CRS table).
 - WorldCover stays as a single `Map` band; the loader one-hot encodes.
 - Normalization constants are tuned to GEE-exported numeric ranges — do not
   "fix" the ERA5 temperature sign or S3 identity normalization in this work.

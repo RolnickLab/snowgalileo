@@ -43,9 +43,12 @@ but every shape, band name, and mask path is proven correct before any real adap
 - [ ] 6. Refactor on green.
 
 ## 4. Requirements & Constraints
-- **Technical:** Write multiband GeoTIFF with `rasterio`; EPSG:4326, scale=10,
-  `-9999` nodata, dims ≈ 159×100 (latitude convergence at ~51°N, satisfies H,W ≥ 100
-  for the loader crop). Use `layout.py` for band order — never retype it.
+- **Technical:** Write multiband GeoTIFF with `rasterio`; **EPSG:32611 (UTM 11N),
+  scale=10 m, dims 100×100** (CORRECTED 2026-06-04 from "EPSG:4326 scale=10 ~159×100";
+  matches the `export_from_csv_utm` GEE reference patches, satisfies the loader's
+  H,W ≥ 100 crop floor — see PLAN §3 Grid+CRS table and `docs/agents/KNOWLEDGE.md`),
+  `-9999` nodata. Use `layout.py` for band order — never retype it. The
+  `GridCell` from `base.py` (TASK-003) already carries the UTM crs/transform/shape.
 - **Business:** Band order, tensor shapes, mask semantics, and the `PR` filename are
   the fixed contract; downstream code is not modified. Cubes go only to
   `cubes/`; cache to `cube_cache/`.

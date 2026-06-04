@@ -27,6 +27,11 @@ normalization.
    appended once after the time-varying stack.
 4. Export uses `crs="EPSG:4326"`, `scale=10`,
    `formatOptions={"noData": NO_DATA_VALUE}` with `NO_DATA_VALUE = -9999`, and
+   <!-- NOTE 2026-06-04: this `crs="EPSG:4326"` is `create_ee_image`/label-path's
+   DEFAULT. The Bow Valley **inference** path (`export_from_csv_utm`) overrides it
+   with the CSV's `crs=EPSG:32611`, so the reference patches and our per-cell grid
+   are UTM 11N @ 10 m (100×100), NOT 4326. See PLAN §3 Grid+CRS table / KNOWLEDGE.md. -->
+
    `img.unmask(-9999)` before export. All sources are resampled by Earth Engine
    onto the 10 m export grid, even when their native resolution is coarser, so
    the GeoTIFF is approximately `100 x 100` pixels per band per timestep.

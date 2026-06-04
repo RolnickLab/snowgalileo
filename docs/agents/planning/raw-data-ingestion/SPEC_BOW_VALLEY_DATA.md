@@ -65,7 +65,9 @@ sentence and maps to at least one step in the Verification Plan (§7).
   appears only in the clip stage's config.
 - [ ] FR-7: Each adapter implements the `LocalSourceAdapter` contract (`fetch(cell,
   day) -> np.ndarray` of shape `(C, H, W)`, `-9999` nodata) and reprojects to the
-  cell target grid (`EPSG:4326`, scale=10) using **bilinear** for continuous
+  cell target grid (`EPSG:32611` UTM 11N, scale=10 m — CORRECTED 2026-06-04 from
+  "EPSG:4326 scale=10", matches the `export_from_csv_utm` GEE reference patches; see
+  `PLAN §3` Grid+CRS table and `docs/agents/KNOWLEDGE.md`) using **bilinear** for continuous
   bands and **nearest** for QA/categorical. Bilinear resampling is
   **nodata-aware**: before warping, fill/nodata pixels (`-9999`, and the native
   `-28672` for MODIS) are masked to NaN so the interpolator never blends a valid
@@ -109,7 +111,7 @@ sentence and maps to at least one step in the Verification Plan (§7).
 - [ ] FR-15: The DEM adapter computes slope and aspect with **latitude-correct
   metric pixel spacing**, matching GEE's `ee.Terrain.slope`/`aspect`
   (`src/data/earthengine/copernicus_dem.py:14-16`), then resamples elevation +
-  slope + aspect to the 10 m cell grid (`EPSG:4326`, scale=10); emits
+  slope + aspect to the 10 m cell grid (`EPSG:32611` UTM 11N, scale=10 m — CORRECTED 2026-06-04, see PLAN §3); emits
   `DEM, slope, aspect`. **Parity note (CRS is law):** GEE computes terrain on the
   DEM's native grid using true ground pixel dimensions (it does *not* take naive
   `dz/dx` in raw degree units), so the adapter must do the same — supply the
@@ -196,7 +198,8 @@ sentence and maps to at least one step in the Verification Plan (§7).
   (`src/fsc/patch_predict.py`), `Normalizer`, band-group dicts in
   `src/data/earthengine/eo.py`, constants in `src/data/config.py`.
 - Tooling: `uv`, `ruff`, `mypy`, `pytest`; `structlog`, `pydantic-settings`,
-  `pathlib`, `polars`, `typer`; `rasterio`, `pyproj`, `xarray`/`h5netcdf`,
+  `pathlib`, `pandas` (project DataFrame standard — NOT `polars`; see
+  `docs/agents/KNOWLEDGE.md`), `typer`; `rasterio`, `pyproj`, `xarray`/`h5netcdf`,
   `h5py`, system `gdalinfo`/`gdal_translate` (rasterio's GDAL build lacks the
   HDF4 driver — verified).
 
