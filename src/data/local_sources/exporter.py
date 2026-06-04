@@ -91,16 +91,30 @@ class LocalSourceExporter:
 
         In placeholder mode all are placeholders. In real mode, the ``Map`` band
         is the real :class:`~src.data.local_sources.worldcover.WorldCoverAdapter`
-        (TASK-006); DEM/slope/aspect remain placeholders until TASK-007.
+        (TASK-006), and ``DEM``/``slope``/``aspect`` are served by the single
+        :class:`~src.data.local_sources.dem.DemAdapter` (TASK-007), which emits all
+        three terrain bands together.
         """
         adapters: list[LocalSourceAdapter] = list(static_adapters())
         if not self.placeholder:
+            from src.data.local_sources.dem import DemAdapter
             from src.data.local_sources.worldcover import WorldCoverAdapter
 
             wc = WorldCoverAdapter(archive_root=self.archive_root / "worldcover")
-            for i, adapter in enumerate(adapters):
+            dem = DemAdapter(archive_root=self.archive_root / "dem")
+            # The DEM adapter emits [DEM, slope, aspect] as one 3-band block, so it
+            # replaces the DEM placeholder and the slope/aspect placeholders are dropped.
+            rebuilt: list[LocalSourceAdapter] = []
+            for adapter in adapters:
                 if adapter.bands_out == ["Map"]:
-                    adapters[i] = wc
+                    rebuilt.append(wc)
+                elif adapter.bands_out == ["DEM"]:
+                    rebuilt.append(dem)
+                elif adapter.bands_out in (["slope"], ["aspect"]):
+                    continue  # subsumed by the DEM adapter's 3-band output
+                else:
+                    rebuilt.append(adapter)
+            adapters = rebuilt
         return adapters
 
     def _window_days(self, window_end: datetime.date) -> list[datetime.date]:
@@ -194,7 +208,7 @@ class LocalSourceExporter:
             window_end=window_end.isoformat(),
             bands=TOTAL_BANDS,
             path=str(out_path),
-            placeholder=True,
+            placeholder=self.placeholder,
         )
         return out_path
 

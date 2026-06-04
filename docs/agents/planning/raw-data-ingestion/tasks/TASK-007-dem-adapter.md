@@ -47,17 +47,17 @@ resampling to the 10 m cell grid.
 - **Relevant skills:** `geospatial` (terrain derivatives, reprojection order), `tdd`.
 
 ## 3. Subtasks
-- [ ] 1. Write `test_dem_adapter.py` (Red): golden-grid triple; `bands_out ==
+- [x] 1. Write `test_dem_adapter.py` (Red): golden-grid triple; `bands_out ==
       [DEM, slope, aspect]`; slope/aspect match GEE reference within tolerance;
       degenerate guard (slopes NOT all ≈90°); `day` ignored.
-- [ ] 2. Implement `dem.py`: mosaic tiles → Horn slope/aspect in degrees **in the
+- [x] 2. Implement `dem.py`: mosaic tiles → Horn slope/aspect in degrees **in the
       DEM's native frame** with latitude-correct metric pixel spacing (matching
       `ee.Terrain`) → resample DEM+slope+aspect (bilinear) to the cell's
       **EPSG:32611 100×100** grid via `base.reproject_to_cell` → stack `(3, H, W)`;
       `spatial_kind="space"`, `native_fill=None`. Do NOT compute terrain in any
       projected grid (native frame only); the UTM target applies to the resample
       step only.
-- [ ] 3. Wire into exporter, replace placeholder. 4. Green + Refactor.
+- [x] 3. Wire into exporter, replace placeholder. 4. Green + Refactor.
 
 ## 4. Requirements & Constraints
 - **Technical:** Bilinear for elevation; slope/aspect via Horn (or `richdem`/`gdaldem`
@@ -69,11 +69,11 @@ resampling to the 10 m cell grid.
 - **Out of scope:** WorldCover (TASK-006), ERA5 (TASK-008).
 
 ## 5. Acceptance Criteria
-- [ ] AC-1 (SPEC AC-12): golden-grid `(transform, shape, crs)`; `bands_out` in order.
-- [ ] AC-2 (SPEC AC-21): slope/aspect (latitude-correct metric spacing, matching
+- [x] AC-1 (SPEC AC-12): golden-grid `(transform, shape, crs)`; `bands_out` in order.
+- [x] AC-2 (SPEC AC-21): slope/aspect (latitude-correct metric spacing, matching
       `ee.Terrain`) within tolerance of GEE-derived values — NOT a 32611-computed
       reference; degenerate guard (slopes not all ≈90°); emits `[DEM, slope, aspect]`.
-- [ ] AC-3: ruff + mypy clean; targeted new tests green; full suite introduces NO new failures vs `TEST_BASELINE.md` (delta check, NOT `pytest -x`).
+- [x] AC-3: ruff + mypy clean; targeted new tests green; full suite introduces NO new failures vs `TEST_BASELINE.md` (delta check, NOT `pytest -x`).
 
 ## 6. Testing & Validation
 ```bash

@@ -164,3 +164,43 @@ the stated tolerances against the GEE reference patches:
   (see §2). Subset to the cell AOI before TC (4 GB writer limit + speed). Enable
   the TC incidence-angle output for the `angle` band. SNAP emits bands VH-then-VV;
   assign by name, not index.
+
+---
+
+## 6. DEM terrain parity (TASK-007, 2026-06-04)
+
+Validated the Copernicus DEM adapter recipe against the **DEM/slope/aspect bands
+(305/306/307)** of all six Phase-0 GEE reference patches.
+
+**Recipe (matches `ee.Terrain` + `create_ee_image` export):**
+1. Mosaic the clipped GLO-30 tiles in their **native EPSG:4326** frame (+0.05°
+   margin so the Horn kernel has edge neighbours).
+2. Compute slope/aspect with a 3×3 **Horn** kernel using **latitude-correct metric
+   pixel spacing**: `dy = yres·M_PER_DEG`, `dx = xres·M_PER_DEG·cos(lat)`, where
+   `M_PER_DEG = 2πR/360`, `R = 6378137 m`. (GLO-30 longitude spacing is thinned
+   poleward — the degree grid is anisotropic; raw-degree spacing would inflate
+   gradients ×111 000 → all slopes ≈90°.) Aspect = `(450 − atan2(dz_dy,−dz_dx)) mod 360`.
+3. Resample DEM + slope + aspect to the cell's EPSG:32611 grid with **NEAREST**.
+
+**Resampling decision — NEAREST, not bilinear (deliberate base-convention deviation).**
+GEE computes terrain at the native ~30 m scale then upsamples to the 10 m export
+grid; nearest replicates that pixel reuse. Measured per-patch medians (interior,
+5 px border dropped):
+
+| patch | tiles | DEM med (m) | slope med (°) | slope p95 (°) | aspect med (°) |
+|---|---|---|---|---|---|
+| 0406 | 2 | 0.000 | 0.941 | 6.09 | 2.20 |
+| 0414 | 1 | 0.217 | 0.569 | 6.06 | 5.98 |
+| 0423 | 1 | 0.000 | 0.828 | 4.78 | 1.97 |
+| 0502 | 1 | 0.000 | 0.435 | 2.85 | 7.43 |
+| 0510 | 2 | 0.491 | 1.205 | 6.12 | 10.01 |
+| 0519 | 2 | 0.176 | 0.928 | 5.08 | 10.44 |
+
+Bilinear roughly **doubles** the slope error (median ~1.7°, p95 ~6.5° on patch 0406)
+and adds DEM smoothing bias — confirming nearest is the parity-correct final step.
+Aspect medians run higher (≤10.4°) because aspect is circular and unstable on
+near-flat pixels; the test diffs it on the unit circle.
+
+**Test tolerances (`tests/test_local_sources/test_dem_adapter.py`):** DEM median
+≤1.0 m, slope median ≤1.5°, aspect median (circular) ≤12°, plus a degenerate
+guard (slopes not near-uniformly ≈90°). **DEM = GO; adapter shipped (TASK-007).**
