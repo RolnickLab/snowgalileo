@@ -45,7 +45,7 @@ from src.data.local_sources.layout import (
     build_cube_filename,
     full_band_order,
 )
-from src.data.local_sources.placeholder import dynamic_adapters, static_adapter
+from src.data.local_sources.placeholder import dynamic_adapters, static_adapters
 from src.data.local_sources.settings import CubeSettings
 
 logger = structlog.get_logger(__name__)
@@ -64,8 +64,12 @@ class LocalSourceExporter:
         out_dir: Directory the cube tif is written to. Defaults to
             :pyattr:`CubeSettings.cubes_dir` so production runs land in
             ``data/bow_valley_processing/cubes/``.
-        placeholder: When ``True`` (the only TASK-004 mode), uses the all-``-9999``
-            placeholder adapters. Real adapters replace these in later tasks.
+        placeholder: When ``True``, every band is the all-``-9999`` placeholder
+            (the deterministic tracer mode). When ``False``, real adapters are
+            substituted for the bands implemented so far (WorldCover → ``Map``,
+            TASK-006); the remaining bands stay placeholders until their tasks land.
+        archive_root: The clipped archive the real adapters read. Defaults to
+            :pyattr:`CubeSettings.archive_root`.
     """
 
     def __init__(
@@ -73,15 +77,31 @@ class LocalSourceExporter:
         *,
         out_dir: Path | None = None,
         placeholder: bool = True,
+        archive_root: Path | None = None,
     ) -> None:
-        if not placeholder:
-            raise NotImplementedError(
-                "Real adapters are introduced in TASK-006…TASK-014; "
-                "TASK-004 ships placeholder mode only."
-            )
-        self.out_dir = out_dir if out_dir is not None else CubeSettings().cubes_dir
+        settings = CubeSettings()
+        self.out_dir = out_dir if out_dir is not None else settings.cubes_dir
+        self.archive_root = archive_root if archive_root is not None else settings.archive_root
+        self.placeholder = placeholder
         self._dynamic: list[LocalSourceAdapter] = list(dynamic_adapters())
-        self._static: LocalSourceAdapter = static_adapter()
+        self._static: list[LocalSourceAdapter] = self._build_static_adapters()
+
+    def _build_static_adapters(self) -> list[LocalSourceAdapter]:
+        """Per-static-band adapters in ``STATIC_BANDS`` order.
+
+        In placeholder mode all are placeholders. In real mode, the ``Map`` band
+        is the real :class:`~src.data.local_sources.worldcover.WorldCoverAdapter`
+        (TASK-006); DEM/slope/aspect remain placeholders until TASK-007.
+        """
+        adapters: list[LocalSourceAdapter] = list(static_adapters())
+        if not self.placeholder:
+            from src.data.local_sources.worldcover import WorldCoverAdapter
+
+            wc = WorldCoverAdapter(archive_root=self.archive_root / "worldcover")
+            for i, adapter in enumerate(adapters):
+                if adapter.bands_out == ["Map"]:
+                    adapters[i] = wc
+        return adapters
 
     def _window_days(self, window_end: datetime.date) -> list[datetime.date]:
         """Return the 8 window days ascending, ending at ``window_end``."""
@@ -124,7 +144,8 @@ class LocalSourceExporter:
             for adapter in self._dynamic:
                 blocks.append(adapter.fetch(cell, day))
         # Static layers are time-invariant: day is ignored (passed None).
-        blocks.append(self._static.fetch(cell, None))
+        for adapter in self._static:
+            blocks.append(adapter.fetch(cell, None))
 
         cube = np.concatenate(blocks, axis=0).astype(np.float32)
         assert cube.shape[0] == TOTAL_BANDS, (

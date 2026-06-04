@@ -109,17 +109,23 @@ def dynamic_adapters() -> list[PlaceholderAdapter]:
     return adapters
 
 
-def static_adapter() -> PlaceholderAdapter:
-    """Return the single static (DEM/slope/aspect/Map) placeholder adapter.
+def static_adapters() -> list[PlaceholderAdapter]:
+    """Return one placeholder per static band (DEM, slope, aspect, Map), in order.
 
-    Its ``bands_out`` equals :data:`~src.data.local_sources.layout.STATIC_BANDS`
-    and it ignores ``day`` (static layers are time-invariant).
+    Splitting the static stack into per-band adapters lets a real adapter replace
+    a single band (e.g. WorldCover → ``Map`` in TASK-006, DEM/slope/aspect in
+    TASK-007) without disturbing the others. The concatenation of their
+    ``bands_out`` is exactly :data:`~src.data.local_sources.layout.STATIC_BANDS`
+    (asserted below).
 
     Returns:
-        The static-stack placeholder adapter.
+        One single-band static placeholder adapter per entry of ``STATIC_BANDS``.
     """
-    adapter = PlaceholderAdapter(bands_out=list(STATIC_BANDS), spatial_kind="static")
-    assert adapter.bands_out == STATIC_BANDS, (
+    adapters = [
+        PlaceholderAdapter(bands_out=[name], spatial_kind="static") for name in STATIC_BANDS
+    ]
+    flattened = [band for adapter in adapters for band in adapter.bands_out]
+    assert flattened == STATIC_BANDS, (
         "Placeholder static band group does not match STATIC_BANDS."
     )
-    return adapter
+    return adapters
