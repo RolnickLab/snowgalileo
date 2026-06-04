@@ -32,25 +32,29 @@ Replace the VIIRS placeholder with a real adapter that emits fine bands `[I1, I3
 - **Relevant skills:** `geospatial` (per-grid reproject, mosaic), `tdd`.
 
 ## 3. Subtasks
-- [ ] 1. Write `test_viirs_adapter.py` (Red): fine emits `(2, H, W)` `[I1, I3]`; coarse
+- [x] 1. Write `test_viirs_adapter.py` (Red): fine emits `(2, H, W)` `[I1, I3]`; coarse
       emits `(4, H, W)` `[M5,M7,M10,M11]` (per-pixel, NOT `(4,)`); loader spatial mean
       over the coarse raster reproduces GEE `time_x` values; missing day → `-9999`;
       I-band `-28672` preserved.
-- [ ] 2. Implement `viirs.py`: read both grids, reproject each to the cell grid, return
+- [x] 2. Implement `viirs.py`: read both grids, reproject each to the cell grid, return
       fine (`spatial_kind="low"`) and coarse (`spatial_kind="time"`, per-pixel) outputs.
-- [ ] 3. Wire into exporter. 4. Green + Refactor.
+- [x] 3. Wire into exporter. 4. Green + Refactor.
 
 ## 4. Requirements & Constraints
-- **Technical:** Per-grid indexing; bilinear for reflectance; preserve `-28672`.
+- **Technical:** Per-grid indexing; **NEAREST** resample (corrected 2026-06-04 — coarse
+  500 m/1 km grids; bit-exact vs GEE, PARITY_SPIKE_NOTES §9); **scale x0.0001** so values
+  are reflectance (GEE exports VNP09GA scaled — the normalizer `(x+0.795)/0.805` confirms;
+  contrast MODIS which stays raw DN); preserve `-28672`, restored **after** scaling so the
+  fill is never scaled. The clip stage already extracted per-band GeoTIFFs (no HDF5 driver).
 - **Business:** Coarse stays a per-pixel raster — pre-averaging breaks `time_x`.
 - **Out of scope:** VIIRS QF1 cloud flag (not active in `MODALITIES`), S3 (TASK-011).
 
 ## 5. Acceptance Criteria
-- [ ] AC-1 (SPEC AC-12): golden-grid triple for both fine and coarse; band order correct.
-- [ ] AC-2 (SPEC AC-19): fine `(2,H,W)`; coarse `(4,H,W)` per-pixel; loader spatial mean
+- [x] AC-1 (SPEC AC-12): golden-grid triple for both fine and coarse; band order correct.
+- [x] AC-2 (SPEC AC-19): fine `(2,H,W)`; coarse `(4,H,W)` per-pixel; loader spatial mean
       reproduces GEE `time_x`.
-- [ ] AC-3 (SPEC AC-13): missing `(VIIRS, day)` → all-`-9999`.
-- [ ] AC-4: ruff + mypy clean; targeted new tests green; full suite introduces NO new failures vs `TEST_BASELINE.md` (delta check, NOT `pytest -x`).
+- [x] AC-3 (SPEC AC-13): missing `(VIIRS, day)` → all-`-9999`.
+- [x] AC-4: ruff + mypy clean; targeted new tests green; full suite introduces NO new failures vs `TEST_BASELINE.md` (delta check, NOT `pytest -x`).
 
 ## 6. Testing & Validation
 ```bash

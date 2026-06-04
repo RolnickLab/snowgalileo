@@ -94,16 +94,16 @@ class LocalSourceExporter:
         """Dynamic-modality adapters in canonical band order.
 
         In placeholder mode all five groups are placeholders. In real mode each real
-        adapter that owns a **contiguous slice** of a multi-source group splits that
-        group's placeholder into ``[head-placeholder?, real, tail-placeholder?]`` while
-        preserving band order. Wired so far:
+        adapter that owns a **contiguous slice** of a group's bands replaces that slice,
+        and the unclaimed bands stay placeholders — a single group may be tiled by
+        several reals while preserving band order. Wired so far:
 
-        - **ERA5** (TASK-008) → the ERA5 tail of the 9-band TIME group (VIIRS-coarse
-          head stays a placeholder until TASK-010).
-        - **MODIS** ``sur_refl_b01..b07`` (TASK-009) → the head of the 9-band LOW group
-          (VIIRS ``I1,I3`` tail stays a placeholder until TASK-010).
-        - **MODIS** ``state_1km`` (TASK-009) → the head of the 3-band CLOUD group
-          (``QA60,QA_PIXEL`` stay placeholders until TASK-013/012).
+        - **TIME** group (``M5,M7,M10,M11`` + ``skin..v``) → VIIRS-coarse (TASK-010) head
+          + ERA5 (TASK-008) tail.
+        - **LOW** group (``sur_refl_b01..b07`` + ``I1,I3``) → MODIS (TASK-009) head +
+          VIIRS-fine (TASK-010) tail.
+        - **CLOUD** group (``state_1km,QA60,QA_PIXEL``) → MODIS ``state_1km`` (TASK-009)
+          head; ``QA60,QA_PIXEL`` stay placeholders until TASK-013/012.
         """
         adapters: list[LocalSourceAdapter] = list(dynamic_adapters())
         if self.placeholder:
@@ -111,11 +111,16 @@ class LocalSourceExporter:
 
         from src.data.local_sources.era5 import Era5Adapter
         from src.data.local_sources.modis import ModisAdapter, ModisCloudAdapter
+        from src.data.local_sources.viirs import ViirsCoarseAdapter, ViirsFineAdapter
 
+        modis_root = self.archive_root / "modis"
+        viirs_root = self.archive_root / "viirs"
         reals: list[LocalSourceAdapter] = [
             Era5Adapter(archive_root=self.archive_root / "era5"),
-            ModisAdapter(archive_root=self.archive_root / "modis"),
-            ModisCloudAdapter(archive_root=self.archive_root / "modis"),
+            ModisAdapter(archive_root=modis_root),
+            ModisCloudAdapter(archive_root=modis_root),
+            ViirsFineAdapter(archive_root=viirs_root),
+            ViirsCoarseAdapter(archive_root=viirs_root),
         ]
 
         rebuilt: list[LocalSourceAdapter] = []
@@ -127,38 +132,45 @@ class LocalSourceExporter:
     def _split_group(
         group: LocalSourceAdapter, reals: list[LocalSourceAdapter]
     ) -> list[LocalSourceAdapter]:
-        """Substitute any real adapter owning a contiguous slice of ``group``'s bands.
+        """Tile ``group``'s band order with any real adapters owning a contiguous slice.
 
-        Returns ``group`` unchanged if no real adapter matches; otherwise the ordered
-        ``[head-placeholder?, real, tail-placeholder?]`` list whose concatenated bands
-        equal ``group.bands_out`` exactly. Asserts the matched bands are a contiguous
-        slice — the band-layout contract is broken otherwise.
+        Walks ``group.bands_out`` left to right: at each position, emits the real adapter
+        whose ``bands_out`` begins there (verifying it is a contiguous slice), otherwise
+        accumulates the band into a trailing placeholder. The concatenated result equals
+        ``group.bands_out`` exactly. A group may be claimed by several reals (e.g. MODIS
+        head + VIIRS-fine tail of the LOW group).
         """
         bands = group.bands_out
-        for real in reals:
-            rb = real.bands_out
-            if not set(rb).issubset(bands):
-                continue
-            start = bands.index(rb[0])
-            if bands[start : start + len(rb)] != rb:
-                raise AssertionError(
-                    f"{type(real).__name__} bands are not a contiguous slice of "
-                    f"{bands} — band-layout contract broken."
-                )
-            out: list[LocalSourceAdapter] = []
-            if start > 0:
+        by_first = {r.bands_out[0]: r for r in reals if set(r.bands_out).issubset(bands)}
+
+        out: list[LocalSourceAdapter] = []
+        pending: list[str] = []
+
+        def flush() -> None:
+            if pending:
                 out.append(
-                    PlaceholderAdapter(bands_out=bands[:start], spatial_kind=group.spatial_kind)
+                    PlaceholderAdapter(bands_out=list(pending), spatial_kind=group.spatial_kind)
                 )
-            out.append(real)
-            if start + len(rb) < len(bands):
-                out.append(
-                    PlaceholderAdapter(
-                        bands_out=bands[start + len(rb) :], spatial_kind=group.spatial_kind
+                pending.clear()
+
+        i = 0
+        while i < len(bands):
+            real = by_first.get(bands[i])
+            if real is not None:
+                rb = real.bands_out
+                if bands[i : i + len(rb)] != rb:
+                    raise AssertionError(
+                        f"{type(real).__name__} bands are not a contiguous slice of "
+                        f"{bands} — band-layout contract broken."
                     )
-                )
-            return out
-        return [group]
+                flush()
+                out.append(real)
+                i += len(rb)
+            else:
+                pending.append(bands[i])
+                i += 1
+        flush()
+        return out
 
     def _build_static_adapters(self) -> list[LocalSourceAdapter]:
         """Per-static-band adapters in ``STATIC_BANDS`` order.

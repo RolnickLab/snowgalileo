@@ -282,3 +282,35 @@ This is the **third** coarse source (after DEM §6 and ERA5 §7) where GEE's
 `create_ee_image` export resamples by nearest, not bilinear. Treat nearest as the
 default for any source coarser than the 10 m cell; reserve bilinear/aware-bilinear for
 sources at or finer than 10 m (S2/Landsat/S1).
+
+---
+
+## 9. VIIRS VNP09GA parity (TASK-010, 2026-06-04)
+
+Validated the two VIIRS adapters against the I1 (fine) and M5 (coarse) bands of the
+Phase-0 reference patch `PR_20250406` across all 8 timesteps.
+
+**Recipe (matches GEE `NASA/VIIRS/002/VNP09GA`):**
+1. Read the clip stage's per-band sinusoidal GeoTIFFs (no HDF5 driver):
+   `VIIRS_Grid_500m_2D__SurfReflect_I{1,3}_1.tif` (fine),
+   `VIIRS_Grid_1km_2D__SurfReflect_M{5,7,10,11}_1.tif` (coarse).
+2. **Scale x0.0001 (reflectance).** Unlike MODIS (raw DN), GEE exports VNP09GA as
+   reflectance — confirmed by the normalizer `(x+0.795)/0.805` and a DN/ref ratio of
+   exactly 10000. Scale valid pixels; restore `-28672` **after** scaling (the fill is
+   never scaled), preserving the loader sentinel.
+3. Reproject sinusoidal → EPSG:32611 cell grid with **NEAREST** (coarse source; bit-exact).
+4. **Coarse stays a per-pixel `(4, H, W)` raster** — the loader spatial-means it into
+   `time_x`; the adapter never pre-averages (pre-averaging biases the mean over the
+   diagonal-band clip's nodata and breaks `time_x`).
+
+Per-timestep scaled median |Δ| vs the reference patch: **0.000000 for all 8 timesteps,
+both I1 and M5** (bit-exact; residual ~1e-8 in the assembled cube is float32 rounding).
+
+**MODIS vs VIIRS scale contrast (important):** MOD09GA ref values are raw DN (~7464);
+VNP09GA ref values are reflectance (~0.55). GEE keeps MODIS as DN but scales VIIRS.
+Each adapter matches its own source's GEE domain — do not unify them.
+
+**Test (`tests/test_local_sources/test_viirs_adapter.py`):** 16 bit-exact parity
+timesteps (fine + coarse), reflectance-domain guard, per-pixel-raster guard (coarse is
+`(4,H,W)` not pre-averaged), `-28672` preservation, missing-day → `-9999`.
+**VIIRS shipped (TASK-010).** Fourth coarse source confirming the GEE-nearest rule.
