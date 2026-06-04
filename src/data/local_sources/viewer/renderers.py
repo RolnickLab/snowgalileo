@@ -28,15 +28,15 @@ from rasterio.transform import array_bounds
 from rasterio.transform import from_bounds as transform_from_bounds
 from rasterio.warp import calculate_default_transform, reproject, transform_bounds
 
-from src.viewer.archives import (
+from src.data.local_sources.viewer.archives import (
     find_member,
     list_tar_members,
     list_zip_members,
     vsitar_path,
     vsizip_path,
 )
-from src.viewer.manifest import ProductRow
-from src.viewer.quicklook import QuicklookResult, register
+from src.data.local_sources.viewer.manifest import ProductRow
+from src.data.local_sources.viewer.quicklook import QuicklookResult, register
 
 logger = structlog.get_logger(__name__)
 

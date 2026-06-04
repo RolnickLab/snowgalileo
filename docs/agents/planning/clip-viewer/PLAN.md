@@ -121,11 +121,12 @@ Failure contract: any unreadable/corrupt product → `plain_image` placeholder +
 `note` with the exception class; never crash the app, never a silent blank.
 
 ## 6. Architecture
-**Decisions (locked):** module home = `src/viewer/`; deps = `solara`+`leafmap`
-(dev group); manifest I/O = `pandas`.
+**Decisions (locked):** module home = `src/data/local_sources/viewer/` (moved
+from `src/viewer/` post-Phase-5 — viewer scopes to local clipped sources); deps =
+`solara`+`leafmap` (dev group); manifest I/O = `pandas`.
 ```
 scripts/developer_scripts/data_viewer.py   # Solara entrypoint (`solara run`)
-src/viewer/
+src/data/local_sources/viewer/
   manifest.py     # load clip_manifest.csv -> list[ProductRow] (pandas)
   quicklook.py    # QuicklookResult, Protocol, dispatch-by-source
   renderers.py    # per-modality renderers (§5 table)
@@ -164,10 +165,12 @@ pipeline lean). User approved the add.
 - ERA5 date slider steps through valid_time; values change.
 - S3 renders without crashing, labeled non-georeferenced.
 - No full-res >100 MB read (decimated reads only).
-- ruff + mypy clean on `src/viewer/` + the entrypoint; manifest/archive unit tests green.
+- ruff + mypy clean on `src/data/local_sources/viewer/` + the entrypoint; manifest/archive unit tests green.
 - Suite introduces zero new failures vs TEST_BASELINE.md.
 
 ## 10. Decisions (resolved)
 1. ✅ Add `solara`+`leafmap` to a dev dep group.
-2. ✅ Module home: `src/viewer/` (importable/testable).
+2. ✅ Module home: `src/data/local_sources/viewer/` (importable/testable; moved
+   from `src/viewer/` — the viewer validates only local clipped sources, so it
+   belongs under that package).
 3. ✅ Manifest I/O: `pandas` (present transitively; pin in dev group).

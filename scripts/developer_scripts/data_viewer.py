@@ -19,12 +19,12 @@ from pathlib import Path
 
 import solara
 
-import src.viewer.renderers  # noqa: F401  -- registers all renderers on import
-from src.viewer.aoi import aoi_bounds_4326, load_aoi_geojson
-from src.viewer.manifest import ProductRow, load_products
-from src.viewer.quicklook import QuicklookResult, render_product
-from src.viewer.renderers import era5_time_steps, result_to_geotiff
-from src.viewer.settings import ViewerSettings
+import src.data.local_sources.viewer.renderers  # noqa: F401  -- registers all renderers on import
+from src.data.local_sources.viewer.aoi import aoi_bounds_4326, load_aoi_geojson
+from src.data.local_sources.viewer.manifest import ProductRow, load_products
+from src.data.local_sources.viewer.quicklook import QuicklookResult, render_product
+from src.data.local_sources.viewer.renderers import era5_time_steps, result_to_geotiff
+from src.data.local_sources.viewer.settings import ViewerSettings
 
 import leafmap  # isort: skip  (heavy import, kept after local modules)
 

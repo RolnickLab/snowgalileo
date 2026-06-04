@@ -13,7 +13,7 @@ import numpy as np
 import numpy.typing as npt
 import structlog
 
-from src.viewer.manifest import ProductRow
+from src.data.local_sources.viewer.manifest import ProductRow
 
 logger = structlog.get_logger(__name__)
 

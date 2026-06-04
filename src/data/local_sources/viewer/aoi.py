@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from src.viewer.settings import ViewerSettings
+from src.data.local_sources.viewer.settings import ViewerSettings
 
 
 def load_aoi_geojson(settings: ViewerSettings | None = None) -> dict:

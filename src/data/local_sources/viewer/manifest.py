@@ -19,7 +19,7 @@ from typing import Literal
 import pandas as pd
 import structlog
 
-from src.viewer.settings import ViewerSettings
+from src.data.local_sources.viewer.settings import ViewerSettings
 
 logger = structlog.get_logger(__name__)
 
