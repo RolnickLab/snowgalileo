@@ -1,0 +1,28 @@
+# Stage-2 cube-assembly configuration (loaded by CubeSettings).
+#
+# Precedence: CUBE_-prefixed env vars > this file > field defaults.
+# Paths default from LocalPaths (data/BOW_VALLEY_DATA_LAYOUT.md); stated here
+# explicitly for auditability. archive_root is the CLIPPED archive — the raw
+# path appears only in the clip stage's config (SPEC FR-6).
+
+# Adapters' read-root: the AOI-clipped archive (NEVER the raw archive).
+archive_root: data/clipped_bow_valley_selection_raw
+
+# Stage-2 write-root. cube_cache/, cubes/, daily_fsc/, manifests/, scratch/
+# derive from this (SPEC FR-20b); no process writes outside its own subdir.
+processing_root: data/bow_valley_processing
+
+# Sweep mode: "A" = in-AOI sample cells (~344, default); "B" = tile the AOI.
+mode: A
+
+# Inference window (inclusive). Derived from archive coverage: S1-start-limited
+# start, S2/L8-end-limited end (PLAN §3 Temporal window).
+window_start: 2025-04-06
+window_end: 2025-05-28
+
+# Per-cell target CRS — UTM 11N, matching the GEE reference patches
+# (export_from_csv_utm). NOT EPSG:4326. See docs/agents/KNOWLEDGE.md.
+cell_crs: "EPSG:32611"
+
+# FIFO entry cap on the per-(modality, cell, day) .npz cache.
+cache_max_entries: 200000
