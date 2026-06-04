@@ -1,0 +1,212 @@
+"""The local-source cube exporter — assembles the canonical 308-band cube.
+
+:class:`LocalSourceExporter` is the business-logic core of the direct-source
+pipeline (PLAN §4). It depends only on the
+:class:`~src.data.local_sources.base.LocalSourceAdapter` *port*, never on a
+concrete adapter, so swapping a placeholder (TASK-004) for a real adapter
+(TASK-006…TASK-014) does not touch this module.
+
+Per ``(cell, window_end)`` it:
+
+1. Derives the 8-day window ``[window_end - 7d … window_end]`` (one day per
+   timestep, ``DAYS_PER_TIMESTEP = 1``).
+2. For each day, calls the five **dynamic** adapters in canonical order and
+   concatenates their outputs into that day's 38-band block.
+3. Stacks the eight day-blocks (304 bands), then appends the four **static**
+   bands once (DEM/slope/aspect/Map) → **308 bands** in
+   ``create_ee_image`` order (dynamic × T, then static).
+4. Writes a multiband ``float32`` GeoTIFF on the cell's **EPSG:32611** target
+   grid (``-9999`` nodata) under the ``PR_{YYYYMMDD}_{LAT}_{LON}_SC00.tif``
+   filename the unchanged loader parses (``layout.build_cube_filename``).
+
+The band order and filename are the fixed contract; they live in
+:mod:`src.data.local_sources.layout` and are never retyped here.
+"""
+
+from __future__ import annotations
+
+import datetime
+from pathlib import Path
+
+import numpy as np
+import numpy.typing as npt
+import rasterio
+import structlog
+from pyproj import Transformer
+
+from src.data.config import DAYS_PER_TIMESTEP, NO_DATA_VALUE, NUM_TIMESTEPS
+from src.data.local_sources.base import (
+    CELL_TARGET_CRS,
+    GridCell,
+    LocalSourceAdapter,
+)
+from src.data.local_sources.layout import (
+    TOTAL_BANDS,
+    build_cube_filename,
+    full_band_order,
+)
+from src.data.local_sources.placeholder import dynamic_adapters, static_adapter
+from src.data.local_sources.settings import CubeSettings
+
+logger = structlog.get_logger(__name__)
+
+#: ``EPSG:4326`` is the geographic CRS the filename's lat/lon are expressed in —
+#: the loader feeds ``parts[2]/parts[3]`` to ``to_cartesian`` which asserts the
+#: ±90/±180 degree range, so the filename carries the cell *centre* in degrees
+#: (a separate channel from the UTM pixel grid).
+_GEOGRAPHIC_CRS: str = "EPSG:4326"
+
+
+class LocalSourceExporter:
+    """Assembles and writes the canonical 308-band cube for one ``(cell, day)``.
+
+    Args:
+        out_dir: Directory the cube tif is written to. Defaults to
+            :pyattr:`CubeSettings.cubes_dir` so production runs land in
+            ``data/bow_valley_processing/cubes/``.
+        placeholder: When ``True`` (the only TASK-004 mode), uses the all-``-9999``
+            placeholder adapters. Real adapters replace these in later tasks.
+    """
+
+    def __init__(
+        self,
+        *,
+        out_dir: Path | None = None,
+        placeholder: bool = True,
+    ) -> None:
+        if not placeholder:
+            raise NotImplementedError(
+                "Real adapters are introduced in TASK-006…TASK-014; "
+                "TASK-004 ships placeholder mode only."
+            )
+        self.out_dir = out_dir if out_dir is not None else CubeSettings().cubes_dir
+        self._dynamic: list[LocalSourceAdapter] = list(dynamic_adapters())
+        self._static: LocalSourceAdapter = static_adapter()
+
+    def _window_days(self, window_end: datetime.date) -> list[datetime.date]:
+        """Return the 8 window days ascending, ending at ``window_end``."""
+        return [
+            window_end - datetime.timedelta(days=DAYS_PER_TIMESTEP * offset)
+            for offset in reversed(range(NUM_TIMESTEPS))
+        ]
+
+    def _cell_centre_lat_lon(self, cell: GridCell) -> tuple[float, float]:
+        """Reproject the cell centre from its UTM CRS to ``EPSG:4326`` degrees.
+
+        Returns:
+            ``(lat, lon)`` of the cell centre, rounded to 4 decimals so the
+            filename stays compact while matching the FR-18 regex.
+        """
+        transformer = Transformer.from_crs(cell.crs, _GEOGRAPHIC_CRS, always_xy=True)
+        centre_x, centre_y = cell.polygon.centroid.x, cell.polygon.centroid.y
+        lon, lat = transformer.transform(centre_x, centre_y)
+        return round(lat, 4), round(lon, 4)
+
+    def _assemble(
+        self,
+        cell: GridCell,
+        window_end: datetime.date,
+    ) -> npt.NDArray[np.float32]:
+        """Build the ``(308, H, W)`` band stack in canonical order.
+
+        Args:
+            cell: Target grid cell.
+            window_end: The window-end (prediction) day.
+
+        Returns:
+            The assembled cube as a ``(TOTAL_BANDS, *cell.shape)`` ``float32`` array.
+
+        Raises:
+            AssertionError: If the assembled band count is not :data:`TOTAL_BANDS`.
+        """
+        blocks: list[npt.NDArray] = []
+        for day in self._window_days(window_end):
+            for adapter in self._dynamic:
+                blocks.append(adapter.fetch(cell, day))
+        # Static layers are time-invariant: day is ignored (passed None).
+        blocks.append(self._static.fetch(cell, None))
+
+        cube = np.concatenate(blocks, axis=0).astype(np.float32)
+        assert cube.shape[0] == TOTAL_BANDS, (
+            f"Assembled {cube.shape[0]} bands, expected {TOTAL_BANDS}."
+        )
+        return cube
+
+    def export(self, *, cell: GridCell, window_end: datetime.date) -> Path:
+        """Assemble and write one cube tif; return its path.
+
+        Args:
+            cell: Target grid cell (supplies CRS, transform, shape).
+            window_end: The 8-day window's end (prediction) day.
+
+        Returns:
+            The path of the written ``PR_*.tif``.
+        """
+        cube = self._assemble(cell, window_end)
+        lat, lon = self._cell_centre_lat_lon(cell)
+        filename = build_cube_filename(window_end=window_end, lat=lat, lon=lon)
+
+        self.out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = self.out_dir / filename
+
+        height, width = cell.shape
+        band_names = full_band_order()
+        with rasterio.open(
+            out_path,
+            "w",
+            driver="GTiff",
+            height=height,
+            width=width,
+            count=TOTAL_BANDS,
+            dtype="float32",
+            crs=CELL_TARGET_CRS,
+            transform=cell.transform,
+            nodata=NO_DATA_VALUE,
+        ) as dst:
+            dst.write(cube)
+            for index, name in enumerate(band_names, start=1):
+                dst.set_band_description(index, name)
+
+        logger.info(
+            "exported_cube",
+            cell_id=cell.cell_id,
+            window_end=window_end.isoformat(),
+            bands=TOTAL_BANDS,
+            path=str(out_path),
+            placeholder=True,
+        )
+        return out_path
+
+
+def _main() -> None:
+    """Minimal CLI for the TASK-004 verification commands (Section 6).
+
+    ``python -m src.data.local_sources.exporter --cell 0 --window-end 2025-04-06
+    --placeholder`` builds one placeholder cube using a Bow Valley UTM cell.
+    """
+    import argparse
+
+    from src.data.local_sources.grid import build_grid
+
+    parser = argparse.ArgumentParser(description="Export one placeholder cube.")
+    parser.add_argument("--cell", type=int, default=0, help="Grid cell index.")
+    parser.add_argument(
+        "--window-end",
+        type=datetime.date.fromisoformat,
+        required=True,
+        help="Window-end day (YYYY-MM-DD).",
+    )
+    parser.add_argument(
+        "--placeholder", action="store_true", help="Use placeholder adapters (required)."
+    )
+    args = parser.parse_args()
+
+    cells = build_grid()
+    cell = cells[args.cell]
+    exporter = LocalSourceExporter(placeholder=True)
+    path = exporter.export(cell=cell, window_end=args.window_end)
+    print(path)
+
+
+if __name__ == "__main__":
+    _main()
