@@ -34,23 +34,29 @@ day-shift so day `i`'s total comes from the `i+1` `00:00` accumulation slice.
 - **Relevant skills:** `geospatial`, `software-dev` (xarray/h5netcdf), `tdd`.
 
 ## 3. Subtasks
-- [ ] 1. Write `test_era5_adapter.py` (Red): golden-grid triple; five bands in order;
+- [x] 1. Write `test_era5_adapter.py` (Red): golden-grid triple; five bands in order;
       Kelvin/native units preserved (no Celsius shift in the adapter); missing day →
       all-`-9999`.
-- [ ] 2. Write the **precip day-shift test** (Red, AC-20b): build a synthetic `tp` where
+- [x] 2. Write the **precip day-shift test** (Red, AC-20b): build a synthetic `tp` where
       the `00:00` slice stamped day `d+1` has a known total and day `d`'s slice differs;
       assert the adapter's precip output for inference day `d` equals the `d+1` slice
       value (accumulation closing day `d`), and that `temperature_2m` for day `d` is read
       from the day-`d` slice (no shift). This is the test that catches the off-by-one.
-- [ ] 3. Implement `era5.py`: locate the daily NetCDF files for `day`, read one slice/day
+- [x] 3. Implement `era5.py`: locate the daily NetCDF files for `day`, read one slice/day
       (no hourly aggregation), apply the precip `i+1` day-shift, leave temps/winds
-      unshifted, reproject to cell grid (bilinear), stack `(5, H, W)`.
-- [ ] 4. Wire into exporter. 5. Green + Refactor.
+      unshifted, reproject to cell grid (**nearest** — corrected 2026-06-04, see
+      §4 Technical), stack `(5, H, W)`.
+- [x] 4. Wire into exporter. 5. Green + Refactor.
 
 ## 4. Requirements & Constraints
-- **Technical:** `xarray` + `h5netcdf` (already a dep), bilinear reproject of the coarse
-  0.1° grid. Read the `valid_time` axis explicitly to resolve the precip slice for a
-  given day — do **not** assume positional `tp[day_of_month-1]` aligns to that day.
+- **Technical:** `xarray` + `h5netcdf` (already a dep). **Reproject = NEAREST, not
+  bilinear (corrected 2026-06-04).** The 0.1° (~11 km) grid is far coarser than the
+  1 km cell, so GEE upsamples it as a constant block per ERA5 cell; nearest reproduces
+  GEE to ~1e-4 (t2m 0.0001 K) while bilinear smears across cell boundaries (~0.26 K)
+  for no benefit. Validated across the 8-day window vs `PR_20250406` (PARITY_SPIKE_NOTES
+  §7). Read the `valid_time` axis explicitly to resolve the precip slice for a given
+  day — do **not** assume positional `tp[day_of_month-1]` aligns to that day; the
+  `i+1` slice may live in the **next month's** precip file.
 - **Business:** Raw Kelvin — do NOT replicate the `Normalizer` temperature-shift bug
   here. Precip day-shift (`i+1` `00:00` slice) is **mandatory** and applies to
   `total_precipitation_sum` only; temps/winds are unshifted. The archive is already
@@ -59,14 +65,14 @@ day-shift so day `i`'s total comes from the `i+1` `00:00` accumulation slice.
   regenerating daily files from hourly CDS data (reference only, not this archive).
 
 ## 5. Acceptance Criteria
-- [ ] AC-1 (SPEC AC-12): golden-grid triple; `bands_out` = the five bands in order.
-- [ ] AC-2 (SPEC AC-20): five bands in Kelvin/native units read from the daily archive;
+- [x] AC-1 (SPEC AC-12): golden-grid triple; `bands_out` = the five bands in order.
+- [x] AC-2 (SPEC AC-20): five bands in Kelvin/native units read from the daily archive;
       missing day → `-9999`.
-- [ ] AC-2b (SPEC AC-20b): **precip day-shift** — precip for day `d` equals the `d+1`
+- [x] AC-2b (SPEC AC-20b): **precip day-shift** — precip for day `d` equals the `d+1`
       `00:00` accumulation slice; `temperature_2m` for day `d` is read from the day-`d`
       slice (no shift).
-- [ ] AC-3 (SPEC AC-13): missing `(ERA5, day)` → all-`-9999` of declared shape.
-- [ ] AC-4: ruff + mypy clean; targeted new tests green; full suite introduces NO new failures vs `TEST_BASELINE.md` (delta check, NOT `pytest -x`).
+- [x] AC-3 (SPEC AC-13): missing `(ERA5, day)` → all-`-9999` of declared shape.
+- [x] AC-4: ruff + mypy clean; targeted new tests green; full suite introduces NO new failures vs `TEST_BASELINE.md` (delta check, NOT `pytest -x`).
 
 ## 6. Testing & Validation
 ```bash

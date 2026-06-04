@@ -45,7 +45,11 @@ from src.data.local_sources.layout import (
     build_cube_filename,
     full_band_order,
 )
-from src.data.local_sources.placeholder import dynamic_adapters, static_adapters
+from src.data.local_sources.placeholder import (
+    PlaceholderAdapter,
+    dynamic_adapters,
+    static_adapters,
+)
 from src.data.local_sources.settings import CubeSettings
 
 logger = structlog.get_logger(__name__)
@@ -83,8 +87,43 @@ class LocalSourceExporter:
         self.out_dir = out_dir if out_dir is not None else settings.cubes_dir
         self.archive_root = archive_root if archive_root is not None else settings.archive_root
         self.placeholder = placeholder
-        self._dynamic: list[LocalSourceAdapter] = list(dynamic_adapters())
+        self._dynamic: list[LocalSourceAdapter] = self._build_dynamic_adapters()
         self._static: list[LocalSourceAdapter] = self._build_static_adapters()
+
+    def _build_dynamic_adapters(self) -> list[LocalSourceAdapter]:
+        """Dynamic-modality adapters in canonical band order.
+
+        In placeholder mode all groups are placeholders. In real mode, the real
+        ERA5 adapter (TASK-008) replaces the **ERA5 tail** of the 9-band TIME group;
+        the VIIRS-coarse head (``M5,M7,M10,M11``) stays a placeholder until TASK-010,
+        so the TIME group is split into two adapters that together preserve the band
+        order. Earlier groups are untouched.
+        """
+        adapters: list[LocalSourceAdapter] = list(dynamic_adapters())
+        if self.placeholder:
+            return adapters
+
+        from src.data.local_sources.era5 import Era5Adapter
+
+        era5 = Era5Adapter(archive_root=self.archive_root / "era5")
+        era5_bands = set(era5.bands_out)
+
+        rebuilt: list[LocalSourceAdapter] = []
+        for adapter in adapters:
+            if era5_bands.issubset(adapter.bands_out) and adapter.bands_out != era5.bands_out:
+                # The TIME group owns VIIRS-coarse + ERA5; split off the ERA5 tail.
+                head = [b for b in adapter.bands_out if b not in era5_bands]
+                assert adapter.bands_out == head + era5.bands_out, (
+                    "ERA5 bands are not the contiguous tail of the TIME group — "
+                    "band-layout contract broken."
+                )
+                rebuilt.append(
+                    PlaceholderAdapter(bands_out=head, spatial_kind=adapter.spatial_kind)
+                )
+                rebuilt.append(era5)
+            else:
+                rebuilt.append(adapter)
+        return rebuilt
 
     def _build_static_adapters(self) -> list[LocalSourceAdapter]:
         """Per-static-band adapters in ``STATIC_BANDS`` order.

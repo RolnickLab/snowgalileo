@@ -204,3 +204,39 @@ near-flat pixels; the test diffs it on the unit circle.
 **Test tolerances (`tests/test_local_sources/test_dem_adapter.py`):** DEM median
 ≤1.0 m, slope median ≤1.5°, aspect median (circular) ≤12°, plus a degenerate
 guard (slopes not near-uniformly ≈90°). **DEM = GO; adapter shipped (TASK-007).**
+
+---
+
+## 7. ERA5-Land parity (TASK-008, 2026-06-04)
+
+Validated the ERA5 adapter against the t2m/precip bands of the Phase-0 GEE
+reference patch `PR_20250406` across the 8-day window.
+
+**Recipe (matches GEE `ECMWF/ERA5_LAND/DAILY_AGGR`):**
+1. Read the **already-daily** archive — one slice/day, no hourly re-aggregation.
+   Instantaneous vars from the monthly `YYYYMM_ERA5LAND/` folder (`skt`, `t2m`,
+   `u10`, `v10`); precip from `YYYYMM_ERA5LAND_totalprecip.nc` (`tp`, `accum`).
+2. **Precip `i+1` day-shift:** precip for inference day `d` = the `tp` slice stamped
+   `00:00` of `d+1` (the accumulation closing day `d`). Resolved by `valid_time`
+   lookup **across month files** (April-30 reads the May precip file). Instantaneous
+   vars are unshifted (slice labelled `d`). Verified: shifted matches GEE (0.0),
+   same-day read gives 0.0029 — wrong day.
+3. Raw units (Kelvin/m/s/m). The temperature Kelvin→Celsius shift is the downstream
+   `Normalizer`'s job, NOT the adapter.
+
+**Resample = NEAREST (supersedes the spec's "bilinear" text).** The 0.1° (~11 km)
+grid is far coarser than the 1 km cell — GEE upsamples it as a constant block per
+ERA5 cell. Measured medians across 8 timesteps vs the reference patch:
+
+| resample | t2m med (K) | precip med (m) |
+|---|---|---|
+| **nearest** | **0.0001** | **0.0001** |
+| bilinear | 0.2565 | 0.0001 |
+
+Nearest is essentially exact (the patch's valid t2m is a single constant 268.32017 K,
+reproduced bit-for-bit). Bilinear smears across ERA5-cell boundaries for no benefit.
+Routed through `base.reproject_to_cell(categorical=True)` (its nearest path).
+
+**Test tolerances (`tests/test_local_sources/test_era5_adapter.py`):** t2m median
+≤0.01 K, precip median ≤0.001 m, plus a deterministic synthetic-NetCDF day-shift
+test (incl. the cross-month boundary) and a raw-Kelvin guard. **ERA5 shipped (TASK-008).**
