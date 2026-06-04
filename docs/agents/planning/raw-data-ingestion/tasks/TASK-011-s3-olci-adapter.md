@@ -16,10 +16,20 @@ grids, with identity normalization preserved.
   CF-scaled int32 (`scale_factor ≈ 1e-6`). The original clip compared the raw integers
   to degree bounds → empty mask → every `Oa*_radiance.nc` clipped to `(0,0)`, while the
   manifest still reported ~33 M valid pixels (from full-copied non-science datasets).
-  Fixed; S3 re-clipped (radiance now `(N, M)` per overpass). When building this adapter,
-  the same `geo_coordinates` grids drive tie-point georeferencing — **decode their CF
-  scaling** there too, or geolocation is silently wrong. See CLIPPING_PLAN §2.6 +
+  Fixed; S3 re-clipped (radiance now `(N, M)` per overpass — validated 125/125 products
+  non-empty, real swath windows rows 197–739 × cols 412–725, `Oa17` range ~480–48000
+  uint16, `scale_factor ≈ 0.00493`). When building this adapter, the same
+  `geo_coordinates` grids drive tie-point georeferencing — **decode their CF scaling**
+  there too, or geolocation is silently wrong. See CLIPPING_PLAN §2.6 +
   `docs/agents/KNOWLEDGE.md`.
+- **Do NOT trust the clip manifest `valid_pixel_count` as a science-pixel metric.** It
+  counts valid pixels over *every* 2D dataset matching the geo grid plus full-copied
+  non-science datasets (`removed_pixels`, `instrument_data`), so it is inflated by
+  ~100× — a clipped S3 product shows ~50–59 M in the manifest while the actual
+  `Oa17_radiance` swath holds only ~0.5 M valid pixels. This inflation is exactly what
+  masked the `(0,0)` bug (the count stayed high while science bands were empty). When
+  this adapter validates clipped inputs, count valid pixels on the **radiance array
+  itself** (`arr != _FillValue`), never the manifest column.
 - **Source semantics (DATA_ANALYSIS.md §Sentinel-3 OLCI):**
   - SEN3 NetCDF; radiance bands in separate `.nc` files; **tie-point/coordinate grids
     in `geo_coordinates.nc`** must drive georeferencing — naive geolocation causes
