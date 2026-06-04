@@ -12,9 +12,9 @@
 
 ## 0. Status
 
-- [ ] S1 spike run, drift recorded
+- [x] S1 spike run, drift recorded — **within tolerance (GO)**, §4
 - [x] S2 spike run, drift recorded — **within tolerance (GO)**, §4
-- [ ] Go/no-go verdict stated (§5)
+- [x] Go/no-go verdict stated (§5) — **GO** for both
 
 (Checked off as each completes; numbers filled in §4.)
 
@@ -50,22 +50,37 @@ chain**, in order:
 Bands `[VV, VH, angle]`; IW mode; expected domain ≈ `[-50, 1]` dB for VV/VH;
 edge mask `< -30 dB`.
 
-### Toolchain decision (user-approved 2026-06-04): **install `sarsen`, run the real spike**
+### Toolchain decision (2026-06-04): **ESA SNAP `gpt` — the engine GEE itself uses**
 
-`sarsen` 0.9.5 (+ `xarray-sentinel`, pinned `setuptools<81` for `pkg_resources`)
-in the `spikes` dependency group. `sarsen.terrain_correction(...,
-correct_radiometry=…)` does steps **4 + 5** (calibration + range-Doppler
-geocoding to the Copernicus GLO-30 DEM already in the archive), the
-load-bearing part of the chain.
+**First attempt (`sarsen`) — abandoned for S1C.** `sarsen` 0.9.5 (+ `xarray-sentinel`)
+does calibration + range-Doppler terrain correction, but `xarray-sentinel` 0.9.5
+(the latest stable) **cannot read Sentinel-1C SAFEs** — the Bow Valley archive is
+all `S1C_*`. Two distinct S1C bugs: (1) the `s1[ab]` filename regex rejects `s1c`
+(one-char shim possible), and (2) the GCP-annotation reader returns a zero-size
+array despite 210 valid GCP points in the XML, crashing
+`get_footprint_linestring`. The second is in the geolocation core terrain
+correction depends on; progressively patching the library's internal XML readers
+is library-porting, not de-risking. **Dead end for S1C.** (`sarsen`/`xarray-sentinel`
+remain in the `spikes` dep group but are NOT the working route.)
+See `docs/.../memory` note `xarray-sentinel-s1c-regex-bug`.
 
-**Documented gap (honest scope).** `sarsen` does **not** perform GRD border-noise
-removal (step 2) or thermal-noise removal (step 3). Those primarily affect scene
-edges and low-backscatter (water/shadow) pixels, which the `< -30 dB` edge mask
-already suppresses. The measured drift (§4) tells us whether the gap is material
-over this AOI; if VV/VH drift sits inside tolerance with the mask applied, the
-missing noise steps are not a blocker for TASK-014 (they can be added with
-`xarray-sentinel`'s noise LUTs if needed). This gap is called out so the verdict
-is not over-claimed.
+**Working route — ESA SNAP (user installed 2026-06-04).** GEE's
+`COPERNICUS/S1_GRD` *is* the output of the SNAP Sentinel-1 Toolbox, so running
+SNAP via headless `gpt` reproduces the reference recipe with the **same engine**,
+and SNAP fully supports S1C. The graph
+(`scripts/spikes/s1_grd_snap_graph.xml`) chains **all six steps** — Apply-Orbit →
+**ThermalNoiseRemoval → Remove-GRD-Border-Noise** → Calibration(σ⁰) →
+Terrain-Correction(**SRTM 1Sec**, EPSG:32611, 10 m) → LinearToFromdB — so the
+border/thermal-noise gap that `sarsen` could not cover **is closed**. The verdict
+is therefore unconditional (no "noise steps unmeasured" caveat).
+
+Run notes: `gpt` is at `/home/dev/esa-snap/bin/gpt` (NOT `/usr/bin/snap`, which is
+Ubuntu snapd). The graph **subsets to the AOI in radar geometry right after
+Apply-Orbit-File** — terrain-correcting the full ~250 km IW swath at 10 m overflows
+SNAP's classic-GeoTIFF 4 GB writer limit and wastes compute; the AOI subset is
+both the fix and a large speedup. SNAP auto-downloads the SRTM 1Sec + EGM96 tiles
+on first run. **SNAP writes the bands VH-then-VV** (not the `VV,VH` graph order) —
+the spike assigns them by matching against the reference medians, not by index.
 
 ## 3. What `COPERNICUS/S2_HARMONIZED` is (S2 recipe)
 
@@ -88,13 +103,25 @@ toolchain.
 
 **Measured drift** (filled by the spike run — `scripts/spikes/*` emit `structlog`):
 
-_S1 (per band, vs reference, valid pixels, −30 dB masked):_
+_S1 (per band, vs reference, valid pixels, −30 dB masked). Cell
+``PR_20250406…5653083.8`` t0, date 2025-03-30, granule ``S1C…88AD``; SNAP `gpt`
+full S1_GRD chain → EPSG:32611 → reprojected to patch grid:_
 
-| band | median |Δ| | p95 |Δ| | within tol? |
-|------|----------|---------|-------------|
-| VV   | _TBD_    | _TBD_   | _TBD_ |
-| VH   | _TBD_    | _TBD_   | _TBD_ |
-| angle| _TBD_    | _TBD_   | _TBD_ |
+| band | median \|Δ\| | p95 \|Δ\| | within tol (≤1.0 dB median)? |
+|------|--------------|-----------|------------------------------|
+| VV   | **0.54 dB**  | 2.32 dB   | ✅ |
+| VH   | **0.48 dB**  | 2.11 dB   | ✅ |
+| angle| not emitted  | —         | n/a (see note) |
+
+**Interpretation.** VV/VH agree with GEE's `COPERNICUS/S1_GRD` to **sub-dB**
+(median ~0.5 dB) using the full SNAP chain — including thermal/border-noise
+removal, so this is unconditional, not the conditional-GO fallback. p95 ~2.3 dB
+is the speckle/edge tail (SAR is inherently noisy pixel-to-pixel); the gate uses
+the median. **`angle`** (incidence) is a deterministic geometry band, not a
+value-domain drift risk; this graph did not request the TC
+`projectedLocalIncidenceAngle` output, so it is not in the spike. The reference
+angle is ~43.6° (near-constant over the 1 km patch); the real adapter (TASK-014)
+recovers it by enabling that TC output. **S1 = GO.**
 
 _S2 (per band, post −1000 DN). Cell ``PR_20250406…5653083.8`` t4, date 2025-04-03,
 tile ``T11UNS``; valid (non-0, non-−9999) reference pixels:_
@@ -118,5 +145,22 @@ reprojection), not a domain error — 19 DN ≈ 0.002 reflectance. p95 (~87 DN) 
 
 ## 5. Go / no-go verdict
 
-_TBD — stated after §4 is filled. If S1 or S2 drift is unrecoverable within
-tolerance, escalate to the user **before** TASK-006 rather than proceeding._
+**GO for both S1 and S2.** Both sources' value domains are recoverable within
+the stated tolerances against the GEE reference patches:
+
+- **S2_HARMONIZED** — −1000 DN offset is exact for the 10 m bands (0.00 DN);
+  20 m B11/B12 carry only sub-tolerance resampling noise (~19 DN median). → TASK-013.
+- **S1_GRD** — the full SNAP chain (the engine GEE uses) reproduces VV/VH to
+  ~0.5 dB median, including the noise-removal steps. → TASK-014.
+
+**Proceed to TASK-006.** No escalation needed.
+
+**Recipe hand-off to the production adapters:**
+- **TASK-013 (S2):** read L1C JP2, subtract 1000 DN (N0400+), reproject to the
+  cell grid. Trivial; bit-exact for native-res bands.
+- **TASK-014 (S1):** the adapter must run the SNAP `gpt` chain (or an equivalent
+  that includes orbit + thermal + border-noise + calibration + RD-terrain-
+  correction + dB). **It cannot use `xarray-sentinel`/`sarsen`** for S1C ingest
+  (see §2). Subset to the cell AOI before TC (4 GB writer limit + speed). Enable
+  the TC incidence-angle output for the `angle` band. SNAP emits bands VH-then-VV;
+  assign by name, not index.
