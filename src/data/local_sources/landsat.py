@@ -50,10 +50,9 @@ import numpy as np
 import numpy.typing as npt
 import rasterio
 import structlog
-from affine import Affine
-from rasterio.merge import merge
 
 from src.data.config import NO_DATA_VALUE
+from src.data.local_sources._scene_ops import BandRead, coalesce_tile, mosaic_tiles
 from src.data.local_sources.base import (
     GridCell,
     LocalSourceAdapter,
@@ -98,15 +97,6 @@ def _parse_scene(tar_path: Path) -> _SceneInfo | None:
     )
 
 
-@dataclass(frozen=True)
-class _BandRead:
-    """One band read from a scene: TOA reflectance + its native georeferencing."""
-
-    toa: npt.NDArray[np.float64]  # (H, W), ``-9999`` where DN was 0 / invalid
-    transform: Affine
-    crs: str
-
-
 def _toa_coefficients(mtl: dict, band_num: int) -> tuple[float, float, float]:
     """Return ``(mult, add, sun_elevation_deg)`` for ``band_num`` from MTL JSON."""
     root = mtl["LANDSAT_METADATA_FILE"]
@@ -134,7 +124,7 @@ class _LandsatBase(LocalSourceAdapter):
         scenes = [_parse_scene(p) for p in sorted(root.glob("*.tar"))]
         return [s for s in scenes if s is not None and s.acq == day]
 
-    def _read_band_toa(self, scene: _SceneInfo, band_num: int) -> _BandRead | None:
+    def _read_band_toa(self, scene: _SceneInfo, band_num: int) -> BandRead | None:
         """Read one band's DN from the scene tar and convert to TOA reflectance.
 
         Returns ``None`` if the scene tar lacks the MTL or the band member. ``DN == 0``
@@ -162,52 +152,7 @@ class _LandsatBase(LocalSourceAdapter):
         toa = (mult * dn + add) / np.sin(np.deg2rad(sun_elev))
         # DN == 0 is the scene fill; anything below the valid floor is no-data.
         toa[(dn == 0) | (toa < _VALID_MIN)] = float(NO_DATA_VALUE)
-        return _BandRead(toa=toa, transform=transform, crs=crs)
-
-    @staticmethod
-    def _mosaic_tiles(tile_reads: list[_BandRead]) -> tuple[npt.NDArray[np.float64], Affine, str]:
-        """Merge per-tile arrays in their native zone → ``(array, transform, crs)``.
-
-        A single tile is returned unchanged (no merge). ``merge`` requires a common CRS,
-        which holds within an archive scene-group.
-        """
-        if len(tile_reads) == 1:
-            return tile_reads[0].toa, tile_reads[0].transform, tile_reads[0].crs
-        datasets = [
-            rasterio.io.MemoryFile().open(
-                driver="GTiff",
-                height=r.toa.shape[0],
-                width=r.toa.shape[1],
-                count=1,
-                dtype="float64",
-                crs=r.crs,
-                transform=r.transform,
-                nodata=float(NO_DATA_VALUE),
-            )
-            for r in tile_reads
-        ]
-        try:
-            for ds, r in zip(datasets, tile_reads):
-                ds.write(r.toa, 1)
-            mosaic, transform = merge(datasets, nodata=float(NO_DATA_VALUE))
-            return mosaic[0], transform, tile_reads[0].crs
-        finally:
-            for ds in datasets:
-                ds.close()
-
-    def _coalesce_tile(self, reads: list[_BandRead]) -> _BandRead:
-        """Per-pixel coalesce of same-(tile, date) products: first valid wins.
-
-        ``reads`` must share a grid (same path/row → identical native transform/CRS) and
-        be ordered latest-processing-time first. The result keeps the first non-``-9999``
-        value at each pixel; ``-9999`` only where every product is fill. A valid-pixel
-        union, never an average — preserving the GEE value domain.
-        """
-        out = reads[0].toa.copy()
-        for nxt in reads[1:]:
-            fill = out == float(NO_DATA_VALUE)
-            out[fill] = nxt.toa[fill]
-        return _BandRead(toa=out, transform=reads[0].transform, crs=reads[0].crs)
+        return BandRead(values=toa, transform=transform, crs=crs)
 
     def _band_on_cell(
         self,
@@ -226,17 +171,17 @@ class _LandsatBase(LocalSourceAdapter):
         for scene in scenes:
             by_tile.setdefault(scene.pathrow, []).append(scene)
 
-        tile_reads: list[_BandRead] = []
+        tile_reads: list[BandRead] = []
         for pathrow, tile_scenes in by_tile.items():
             ordered = sorted(tile_scenes, key=lambda s: s.proc, reverse=True)
             reads = [r for s in ordered if (r := self._read_band_toa(s, band_num))]
             if reads:
-                tile_reads.append(self._coalesce_tile(reads))
+                tile_reads.append(coalesce_tile(reads))
 
         if not tile_reads:
             return None
 
-        merged, transform, crs = self._mosaic_tiles(tile_reads)
+        merged, transform, crs = mosaic_tiles(tile_reads)
         reprojected = reproject_to_cell(
             source=merged[np.newaxis, :, :],
             src_transform=transform,
@@ -321,7 +266,7 @@ class LandsatCloudAdapter(_LandsatBase):
                 (n for n in tar.getnames() if n.upper().endswith("_QA_PIXEL.TIF")), None
             )
 
-    def _read_qa(self, scene: _SceneInfo) -> _BandRead | None:
+    def _read_qa(self, scene: _SceneInfo) -> BandRead | None:
         """Read the scene's ``QA_PIXEL`` bit-flag band (no TOA conversion)."""
         member = self._qa_member(scene)
         if member is None:
@@ -329,8 +274,8 @@ class LandsatCloudAdapter(_LandsatBase):
         with tarfile.open(scene.path, "r") as tar, tempfile.TemporaryDirectory() as tmp:
             tar.extract(member, path=tmp)
             with rasterio.open(Path(tmp) / member) as ds:
-                return _BandRead(
-                    toa=ds.read(1).astype(np.float64),
+                return BandRead(
+                    values=ds.read(1).astype(np.float64),
                     transform=ds.transform,
                     crs=str(ds.crs),
                 )
@@ -353,7 +298,7 @@ class LandsatCloudAdapter(_LandsatBase):
         for scene in scenes:
             by_tile.setdefault(scene.pathrow, []).append(scene)
 
-        tile_reads: list[_BandRead] = []
+        tile_reads: list[BandRead] = []
         for tile_scenes in by_tile.values():
             ordered = sorted(tile_scenes, key=lambda s: s.proc, reverse=True)
             reads = [r for s in ordered if (r := self._read_qa(s))]
@@ -363,7 +308,7 @@ class LandsatCloudAdapter(_LandsatBase):
         if not tile_reads:
             return create_placeholder(n_bands=1, shape=cell.shape)
 
-        merged, transform, crs = self._mosaic_tiles(tile_reads)
+        merged, transform, crs = mosaic_tiles(tile_reads)
         reprojected = reproject_to_cell(
             source=merged[np.newaxis, :, :],
             src_transform=transform,
