@@ -111,13 +111,18 @@ class LocalSourceExporter:
             return adapters
 
         from src.data.local_sources.era5 import Era5Adapter
+        from src.data.local_sources.landsat import LandsatAdapter, LandsatCloudAdapter
         from src.data.local_sources.modis import ModisAdapter, ModisCloudAdapter
         from src.data.local_sources.s3 import S3Adapter
         from src.data.local_sources.viirs import ViirsCoarseAdapter, ViirsFineAdapter
 
         modis_root = self.archive_root / "modis"
         viirs_root = self.archive_root / "viirs"
+        landsat9_root = self.archive_root / "landsat9"
+        landsat8_root = self.archive_root / "landsat8"
         reals: list[LocalSourceAdapter] = [
+            LandsatAdapter(landsat9_root=landsat9_root, landsat8_root=landsat8_root),
+            LandsatCloudAdapter(landsat9_root=landsat9_root, landsat8_root=landsat8_root),
             Era5Adapter(archive_root=self.archive_root / "era5"),
             ModisAdapter(archive_root=modis_root),
             ModisCloudAdapter(archive_root=modis_root),
