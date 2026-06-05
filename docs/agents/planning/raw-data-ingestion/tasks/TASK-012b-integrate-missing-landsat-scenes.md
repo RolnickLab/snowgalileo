@@ -9,9 +9,15 @@ Landsat clip manifest, leaving the rest of the archive untouched.
 
 ## 2. Context & Why
 - TASK-012 parity stalled on a **data-coverage gap**, not an adapter bug. The adapter
-  mechanics were confirmed correct: scenes are **EPSG:32612** (cross-zone to the
-  EPSG:32611 cell), MTL carries `REFLECTANCE_MULT/ADD_BAND_*` + `SUN_ELEVATION`, and the
+  mechanics were confirmed correct: MTL carries `REFLECTANCE_MULT/ADD_BAND_*` +
+  `SUN_ELEVATION`, and the
   GEE `LANDSAT/LC0{8,9}/C02/T1_TOA` formula is `ρ = (M·DN + A) / sin(sun_elevation)`.
+  - **CRS correction (2026-06-05):** the archive is **mixed UTM zone per scene**, not
+    uniformly 32612. USGS assigns each WRS-2 scene's zone by center longitude: the 7
+    scenes integrated here (paths **043/044**) are all natively **EPSG:32611** (UTM 11N,
+    same zone as the cell grid); only path **042024** is 32612 (042025 is already 32611).
+    The clip stage preserves the native zone (no reprojection). The adapter (TASK-012)
+    must query each band's CRS, never hardcode 32612. See REVIEW_AUDIT.md #2 correction.
 - For every reference patch, the timestep where GEE has Landsat data lands on a date
   whose **imaging WRS-2 path/row is missing from the archive** (e.g. `PR_20250406` t3
   needs path/row **043/024 on 2025-04-02**; the archive's 043024 has only Mar01/Mar17/
@@ -59,12 +65,17 @@ Notes:
    patches.
 
 ## 5. Acceptance Criteria
-- [ ] The three (date, 043/024) scenes (or validated alternates) are clipped into the
-      archive in **EPSG:32612** L1TP form with `_MTL.json` + `QA_PIXEL` present.
-- [ ] Landsat `clip_manifest.csv` includes the new products; other modalities untouched.
-- [ ] For each of `PR_20250406` / `PR_20250414` / `PR_20250510`, the matching clipped
+- [x] The three (date, 043/024) scenes (or validated alternates) are clipped into the
+      archive in **native-zone EPSG:32611** L1TP form (paths 043/044 are UTM 11N, not
+      32612) with `_MTL.json` + `QA_PIXEL` present.
+- [x] Landsat `clip_manifest.csv` includes the new products; other modalities untouched.
+      (l8 19→21 rows, l9 29→34 rows, combined 55; ran `clip-all --only landsat8,landsat9`.)
+- [x] For each of `PR_20250406` / `PR_20250414` / `PR_20250510`, the matching clipped
       scene yields >50 % valid B4 pixels over the patch footprint (array-level check).
-- [ ] No new failures vs `TEST_BASELINE.md` (clip tests delta).
+      All three = 100 % valid B4 (043024 2025-04-02; **044024** 2025-04-09 covers
+      PR_20250414, not 044025; 043024 2025-05-04).
+- [x] No new failures vs `TEST_BASELINE.md` (clip tests delta). `tests/test_clip_dataset.py`
+      17 passed.
 
 ## 6. Completion Protocol
 1. Verify ACs. 2. Commit the new clipped scenes + manifest update.
