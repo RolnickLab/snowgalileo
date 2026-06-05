@@ -41,14 +41,25 @@ grids, with identity normalization preserved.
   - ~300 m, swath geometry; usually full AOI when present (1270 km swath).
 - **Relevant skills:** `geospatial` (tie-point warping, swath reprojection), `tdd`.
 
+> **As-built notes (2026-06-04).** (a) **Loose parity by design** — investigation (per
+> GEE catalog) confirmed the radiance `scale_factor` 0.00493004 is *identical* to GEE's,
+> and `geo_coordinates.nc` (full per-pixel) is the best geolocation input. The residual
+> (~18% median, corr ~0.67) is OLCI's **un-orthorectified geolocation**; GEE
+> terrain-orthorectifies in SNAP (catalog-confirmed) — the same SNAP-parity wall as S1.
+> The test asserts georeferencing alignment with a loose bound (median |Δ| ≤ 60 + corr
+> ≥ 0.4), NOT bit-exactness; SNAP ortho is a documented follow-up. (b) Used the **full
+> per-pixel `geo_coordinates.nc`**, not the ×64-subsampled tie-point grid the goal text
+> names. (c) SEN3 NetCDF is read via **h5py** (h5netcdf/xarray fail on these files'
+> HDF5 dimension-scale refs). See PARITY_SPIKE_NOTES §10.
+
 ## 3. Subtasks
-- [ ] 1. Write `test_s3_adapter.py` (Red): golden-grid triple; `bands_out =
+- [x] 1. Write `test_s3_adapter.py` (Red): golden-grid triple; `bands_out =
       [Oa17_radiance, Oa21_radiance]`; tie-point-warped output aligns with the cell grid
       (assert against GEE reference patch within tolerance); identity scaling preserved;
       missing day → `-9999`.
-- [ ] 2. Implement `s3.py`: read radiance + `geo_coordinates.nc`, warp via tie points to
+- [x] 2. Implement `s3.py`: read radiance + `geo_coordinates.nc`, warp via tie points to
       the cell grid (bilinear), stack `(2, H, W)`; `spatial_kind="med"`.
-- [ ] 3. Wire into exporter. 4. Green + Refactor.
+- [x] 3. Wire into exporter. 4. Green + Refactor.
 
 ## 4. Requirements & Constraints
 - **Technical:** `xarray`/`h5netcdf` for SEN3 NetCDF; tie-point interpolation/warp
@@ -58,11 +69,11 @@ grids, with identity normalization preserved.
 - **Out of scope:** S3 normalization fix, VIIRS (TASK-010), Landsat (TASK-012).
 
 ## 5. Acceptance Criteria
-- [ ] AC-1 (SPEC AC-12): golden-grid triple; band order correct.
-- [ ] AC-2 (SPEC AC-17): tie-point georeferencing aligns to the cell grid; identity
+- [x] AC-1 (SPEC AC-12): golden-grid triple; band order correct.
+- [x] AC-2 (SPEC AC-17): tie-point georeferencing aligns to the cell grid; identity
       normalization preserved.
-- [ ] AC-3 (SPEC AC-13): missing `(S3, day)` → all-`-9999`.
-- [ ] AC-4: ruff + mypy clean; targeted new tests green; full suite introduces NO new failures vs `TEST_BASELINE.md` (delta check, NOT `pytest -x`).
+- [x] AC-3 (SPEC AC-13): missing `(S3, day)` → all-`-9999`.
+- [x] AC-4: ruff + mypy clean; targeted new tests green; full suite introduces NO new failures vs `TEST_BASELINE.md` (delta check, NOT `pytest -x`).
 
 ## 6. Testing & Validation
 ```bash

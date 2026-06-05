@@ -314,3 +314,46 @@ Each adapter matches its own source's GEE domain — do not unify them.
 timesteps (fine + coarse), reflectance-domain guard, per-pixel-raster guard (coarse is
 `(4,H,W)` not pre-averaged), `-28672` preservation, missing-day → `-9999`.
 **VIIRS shipped (TASK-010).** Fourth coarse source confirming the GEE-nearest rule.
+
+---
+
+## 10. Sentinel-3 OLCI parity (TASK-011, 2026-06-04)
+
+Investigated the S3 adapter against Oa17_radiance of the reference patch (t2 =
+2025-04-01, the day an overpass covers the cell). **This source does NOT reach
+bit-exactness** — the reasons are understood and the residual is out of scope.
+
+**Recipe (`src/data/local_sources/s3.py`):**
+1. Read SEN3 NetCDF via **h5py** directly (h5netcdf/xarray cannot resolve these files'
+   HDF5 dimension-scale references — confirmed by traceback).
+2. **Decode CF scaling.** Radiance: uint16 × `scale_factor` (Oa17 0.00493004, Oa21
+   0.00324118). Geolocation: `geo_coordinates` lat/lon int32 × **1e-6** (the landmine
+   that once clipped radiance to (0,0); decode before any geographic use).
+3. Pick the overpass covering the cell (most valid pixels over the footprint), warp the
+   curvilinear swath → cell UTM grid with `scipy.griddata(method="nearest")`.
+
+**Investigation of the ~18% offset (per user request — checked the GEE catalog):**
+- **Scale is correct.** The GEE `COPERNICUS/S3/OLCI` catalog lists Oa17 scale
+  **0.00493004** — identical to the file `scale_factor`. The offset is NOT calibration.
+- **Geolocation input is the best available.** `geo_coordinates.nc` is the **full
+  per-pixel** grid (731×716, matches the radiance grid), better than the ×64-subsampled
+  `tie_geo_coordinates.nc` (4091×77). Decoded ×1e-6 correctly.
+- **Residual = OLCI's un-orthorectified geolocation.** Best result (S3A overpass):
+  corr **0.666**, median |Δ| **35.4** (my median 152 vs GEE 192). A rigid grid shift
+  (search ±600 m) lifts corr only to 0.73 at +150 m N and does NOT close median |Δ| —
+  so it is per-pixel terrain distortion, not a translation. The GEE catalog confirms
+  **SNAP** processing; GEE terrain-orthorectifies OLCI, which a plain swath-warp cannot
+  reproduce (the **same SNAP-parity wall as S1**, §1–5). The reference patch is only
+  ~3 OLCI pixels wide (~300 m px over a 1 km cell), so every pixel is an edge — the
+  warped value set *overlaps* GEE's value set (132/147/154/165/187/196…), confirming the
+  values are right but land on shifted cell pixels.
+
+**Decision (user-approved):** ship the georeferencing-correct swath-warp adapter with a
+**loose tolerance** (median |Δ| ≤ 60 radiance units, correlation floor 0.4); S3 has
+**identity normalization** downstream with an explicit out-of-scope norm TODO. The
+SNAP terrain-orthorectification of OLCI is recorded as a **known follow-up** (pairs with
+the S1 SNAP chain, TASK-014). **S3 shipped (TASK-011), parity-loose by design.**
+
+**Test (`tests/test_local_sources/test_s3_adapter.py`):** band order, `(2,H,W)` shape,
+radiance-domain guard, missing-day → `-9999`, and a loose georeferencing-alignment
+assertion (median |Δ| ≤ 60 + corr ≥ 0.4) — not bit-exactness.

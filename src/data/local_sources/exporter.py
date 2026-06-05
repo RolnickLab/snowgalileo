@@ -102,6 +102,7 @@ class LocalSourceExporter:
           + ERA5 (TASK-008) tail.
         - **LOW** group (``sur_refl_b01..b07`` + ``I1,I3``) → MODIS (TASK-009) head +
           VIIRS-fine (TASK-010) tail.
+        - **MED** group (``Oa17_radiance,Oa21_radiance``) → S3 OLCI (TASK-011), the whole group.
         - **CLOUD** group (``state_1km,QA60,QA_PIXEL``) → MODIS ``state_1km`` (TASK-009)
           head; ``QA60,QA_PIXEL`` stay placeholders until TASK-013/012.
         """
@@ -111,6 +112,7 @@ class LocalSourceExporter:
 
         from src.data.local_sources.era5 import Era5Adapter
         from src.data.local_sources.modis import ModisAdapter, ModisCloudAdapter
+        from src.data.local_sources.s3 import S3Adapter
         from src.data.local_sources.viirs import ViirsCoarseAdapter, ViirsFineAdapter
 
         modis_root = self.archive_root / "modis"
@@ -121,6 +123,7 @@ class LocalSourceExporter:
             ModisCloudAdapter(archive_root=modis_root),
             ViirsFineAdapter(archive_root=viirs_root),
             ViirsCoarseAdapter(archive_root=viirs_root),
+            S3Adapter(archive_root=self.archive_root / "sentinel3"),
         ]
 
         rebuilt: list[LocalSourceAdapter] = []
