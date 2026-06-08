@@ -158,6 +158,16 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   then rebuild the **combined** `clip_manifest.csv` by concatenating all 10 per-source
   manifests in `orchestrator.SOURCES` order — `clip-all --only modis,viirs` would
   truncate the combined manifest to just those two sources.
+- **Sentinel-2 archive includes S2C, not just S2A/S2B (planning docs missed it).**
+  Sentinel-2C became operational in 2025 and the Bow Valley archive carries S2C L1C
+  products (e.g. the 2025-04-08 R113 `T11U**` granules integrated by TASK-013b). S2C
+  shares the L1C SAFE structure (`manifest.safe`, `MTD_MSIL1C.xml`, `IMG_DATA/*.jp2`,
+  N0511 baseline → −1000 DN), so the **clip stage handles it transparently** (purely
+  structural, no satellite-token gating) and the **adapter regex is `S2[ABC]`**
+  (`s2.py:_GRANULE_RE`, mirrored by the test's `_archive_acq_dates` regex). The unit
+  letter is parity-irrelevant; gating on `S2[AB]` would have silently dropped every S2C
+  granule. (Flagged + fixed 2026-06-08; earlier PLAN/SPEC/TASK prose says "S2A/S2B"
+  only — read it as "S2A/S2B/S2C".)
 - **Landsat clips stay native EPSG:32612, S2 stays EPSG:32611.** The clip queries
   each band's CRS dynamically (no hardcoded zone) and reprojects the AOI to it. The
   cross-zone 32612→4326 reprojection is the Landsat adapter's job (TASK-012), not the

@@ -74,7 +74,7 @@ def _archive_acq_dates() -> set[datetime.date]:
     """Acquisition dates present in the clipped S2 archive (by granule name)."""
     dates: set[datetime.date] = set()
     for z in _S2_ROOT.glob("*.zip"):
-        m = re.match(r"S2[AB]_MSIL1C_(\d{8})T", z.name)
+        m = re.match(r"S2[ABC]_MSIL1C_(\d{8})T", z.name)
         if m:
             dates.add(datetime.datetime.strptime(m.group(1), "%Y%m%d").date())
     return dates
@@ -297,8 +297,11 @@ def real_adapter() -> S2Adapter:
 
 
 #: One covered (patch, timestep, acquisition date) per patch for the parity check.
+#: ``PR_20250414`` ts1 = 2025-04-08, integrated via TASK-013b (the manually-downloaded
+#: S2C R113 granules); bit-exact like the others (signed median 0 under nearest + −1000 DN).
 _PARITY_CASES = {
     "PR_20250406": (4, datetime.date(2025, 4, 3)),
+    "PR_20250414": (1, datetime.date(2025, 4, 8)),
     "PR_20250423": (7, datetime.date(2025, 4, 23)),
     "PR_20250510": (0, datetime.date(2025, 5, 3)),
 }

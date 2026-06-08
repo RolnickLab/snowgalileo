@@ -76,9 +76,11 @@ _HARMONIZE_MIN_BASELINE: float = 4.00
 #: The valid floor after harmonization; ``DN == 0`` (raw no-data) is excluded separately.
 _VALID_MIN: float = -1.0
 
-#: Granule SAFE-zip stem: ``S2[AB]_MSIL1C_{acq}T..._N{baseline}_R{orbit}_{tile}_{proc}T...``.
+#: Granule SAFE-zip stem: ``S2[ABC]_MSIL1C_{acq}T..._N{baseline}_R{orbit}_{tile}_{proc}T...``.
+#: Sentinel-2C (operational 2025) shares the L1C product structure; the unit letter is
+#: parity-irrelevant — gating on ``S2[AB]`` only would silently drop every S2C granule.
 _GRANULE_RE = re.compile(
-    r"^S2[AB]_MSIL1C_(?P<acq>\d{8})T\d{6}_N(?P<baseline>\d{4})_"
+    r"^S2[ABC]_MSIL1C_(?P<acq>\d{8})T\d{6}_N(?P<baseline>\d{4})_"
     r"R\d{3}_(?P<tile>T\d{2}\w{3})_(?P<proc>\d{8})T\d{6}"
 )
 

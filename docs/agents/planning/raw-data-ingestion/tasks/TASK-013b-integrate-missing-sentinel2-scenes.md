@@ -48,12 +48,18 @@ on a tile seam — grab every T11U** tile intersecting the patch footprint for t
    triples; the coverage test should flip from xfail to pass.
 
 ## 5. Acceptance Criteria
-- [ ] The 9 missing dates' covering T11U** granules are clipped into the archive
-      (EPSG:32611 L1C, `MTD_MSIL1C.xml` + JP2 bands present).
-- [ ] S2 `clip_manifest.csv` includes the new granules; other modalities untouched.
-- [ ] `test_every_patch_has_a_covered_s2_date` passes (no xfail) — every patch fully covered.
-- [ ] Added per-timestep B4 parity cases stay **bit-exact** (signed median 0).
-- [ ] No new failures vs `TEST_BASELINE.md` (clip + adapter delta).
+- [x] The 9 missing dates' covering T11U** granules are clipped into the archive
+      (EPSG:32611 L1C, `MTD_MSIL1C.xml` + JP2 bands present). The final outstanding date,
+      **2025-04-08**, was the manually-downloaded **S2C** R113 tiles (T11UNS/NT/PS/PT);
+      the earlier dates were already integrated pre-crash. All six patches now fully covered.
+- [x] S2 `clip_manifest.csv` includes the new granules (116 → 120 rows); other modalities
+      untouched. Combined `clip_manifest.csv` rebuilt by concatenating all 10 per-source
+      manifests in `orchestrator.SOURCES` order (540 → 544 rows, **+4 S2C only**, zero
+      removed — diff-verified additive, NOT a `clip-all --only` truncating overwrite).
+- [x] `test_every_patch_has_a_covered_s2_date` passes (no xfail) — every patch fully covered.
+- [x] Added per-timestep B4 parity case (`PR_20250414` ts1 = 2025-04-08) is **bit-exact**
+      (signed median 0, 100% overlap valid).
+- [x] No new failures vs `TEST_BASELINE.md` (NEW-failures delta empty; 11/11 S2 tests green).
 
 ## 6. Completion Protocol
 1. Verify ACs. 2. Commit the new clipped granules + manifest + test updates.
