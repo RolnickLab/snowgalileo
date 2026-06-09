@@ -218,6 +218,22 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   acquisition — not a pipeline bug), PR_20250423 a SNAP "Empty region!" quirk. See
   [[s1-adapter-snap-cache-and-angle]], [[xarray-sentinel-s1c-regex-bug]]. Build:
   `python -m src.data.local_sources.s1_snap`.
+- **Inference driver/mosaic (TASK-015) mosaics FSC by DIRECT UTM placement — NO reproject.**
+  The per-cell cube grid is already EPSG:32611 (not 4326), so each cell's 10×10 FSC
+  prediction is already UTM 11N at 100 m/px. `DailyMosaicWriter` (`src/inference/mosaic.py`)
+  places each patch into the daily AOI COG by **exact integer pixel offset** (block copy on
+  the shared 100 m lattice), so placement is bit-identical — no interpolation, no invented
+  FSC. The SPEC FR-22 / AC-29 / TASK-015 §2 wording "reproject each 10×10 FSC patch from
+  EPSG:4326 with nearest-neighbour" is **stale** (predates the 2026-06-04 cell-grid CRS
+  correction); the patch is not in 4326. Non-overlapping cells → disjoint blocks → a
+  double-write assertion is the seam guard. All-masked cell (every loader valid-mask all-zero)
+  → `None` → stays `nodata`; `aoi_coverage_fraction` is a COG tag. **Downstream is sacred:**
+  the driver edits no `src/fsc/*` or `src/data/earthengine/*` — it injects a ready
+  `EncoderWithHead` + `LocalSourceExporter` and drives the unchanged loader inference path
+  through one read-only shim `src/inference/_loader_bridge.py` (the `__new__`-bypass
+  tracer-test trick, isolated). The GEE `_predict_and_store_output` runner is untouched and
+  runs in parallel. Checkpoint/model build + entry-point script + multiprocessing tuning are
+  TASK-016.
 - **S3 OLCI lat/lon are CF-scaled int32 — apply `scale_factor` before the AOI mask
   (or every radiance band clips to (0,0)).** `geo_coordinates.nc` stores `latitude`
   / `longitude` as `int32` with `scale_factor ≈ 1e-6` (raw `49896598` means

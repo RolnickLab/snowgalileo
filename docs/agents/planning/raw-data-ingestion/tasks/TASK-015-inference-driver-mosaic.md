@@ -33,17 +33,38 @@ Add the inference orchestration: for each day in the configured window, build th
   (multiprocessing, GPU batching), `tdd`.
 
 ## 3. Subtasks
-- [ ] 1. Write `test_inference_driver.py` (Red): driver builds `[d-7, d]` per cell over
+- [x] 1. Write `test_inference_driver.py` (Red): driver builds `[d-7, d]` per cell over
       the configured window; **AC-31** — two cells with different legacy-CSV `date` values
       are both predicted on the same configured inference day (CSV `date` has no effect).
-- [ ] 2. Write the 2×2 mosaic seam test (Red, AC-29): four adjacent cells → non-overlapping
+- [x] 2. Write the 2×2 mosaic seam test (Red, AC-29): four adjacent cells → non-overlapping
       seams (no double-written pixels); FSC reprojected NN only.
-- [ ] 3. Write the COG-validity test (Red, AC-28): output is a valid COG in EPSG:32611;
+- [x] 3. Write the COG-validity test (Red, AC-28): output is a valid COG in EPSG:32611;
       all-input-masked cell → `nodata`; per-day coverage fraction in metadata.
-- [ ] 4. Implement `src/inference/windows.py` (sliding 8-day window builder),
+- [x] 4. Implement `src/inference/windows.py` (sliding 8-day window builder),
       `driver.py` (`InferenceGridDriver`, parallel export + GPU batching), `mosaic.py`
       (`DailyMosaicWriter`, per-day COG, NN reproject, coverage metric).
-- [ ] 5. Green + Refactor.
+- [x] 5. Green + Refactor.
+
+> **As-built notes (2026-06-09).**
+> - **Mosaic CRS — direct UTM placement, no reproject.** The per-cell grid is already
+>   EPSG:32611 (PLAN §5 corrected 2026-06-04; `cube.yaml` `cell_crs`; KNOWLEDGE.md), so each
+>   10×10 FSC patch is already UTM 11N at 100 m/px. `DailyMosaicWriter` places each patch into
+>   the AOI mosaic by **exact integer pixel offset** — a block copy, not a warp. The FR-22 /
+>   AC-29 / §2 wording "reproject each 10×10 FSC patch from EPSG:4326 with nearest-neighbour"
+>   is **stale** (predates the 2026-06-04 CRS correction): the patch is not in 4326. Nearest is
+>   still the only resampling that would ever be permitted on a prediction raster, but with
+>   aligned 100 m cells none is needed; a checkerboard-patch test proves placed values are
+>   bit-identical (no invented FSC). User-confirmed 2026-06-09.
+> - **Downstream is sacred (additive only).** No edits to `src/fsc/*`, `src/data/earthengine/*`,
+>   or any loader/model. The driver injects a ready `EncoderWithHead` + `LocalSourceExporter`
+>   and drives the **unchanged** loader inference path through a single read-only shim
+>   `src/inference/_loader_bridge.py` (the `__new__`-bypass trick, the tracer-test pattern,
+>   isolated in one file). The GEE `_predict_and_store_output` runner is untouched and runs in
+>   parallel. Model build / checkpoint / entry-point script + multiprocessing tuning are
+>   TASK-016 (the driver ships a serial-export default; the `EncoderWithHead` is injected).
+> - **Files (all net-new):** `src/inference/{__init__,windows,mosaic,driver,_loader_bridge}.py`
+>   + `tests/test_local_sources/test_inference_driver.py` (12 tests). Plan:
+>   `tasks/TASK-015-PLAN.md`.
 
 ## 4. Requirements & Constraints
 - **Technical:** `multiprocessing.Pool` for per-cell export; GPU-batched inference; COG
@@ -55,13 +76,14 @@ Add the inference orchestration: for each day in the configured window, build th
   cross-cell context (a documented modelling limitation, not fixed here).
 
 ## 5. Acceptance Criteria
-- [ ] AC-1 (SPEC AC-28): valid COG in EPSG:32611; all-masked cell → `nodata`; per-day
+- [x] AC-1 (SPEC AC-28): valid COG in EPSG:32611; all-masked cell → `nodata`; per-day
       AOI-coverage fraction recorded in metadata.
-- [ ] AC-2 (SPEC AC-29): 2×2 mosaic non-overlapping seams; FSC NN-reprojected only.
-- [ ] AC-3 (SPEC AC-31): driver iterates configured window × all in-AOI cells; two cells
+- [x] AC-2 (SPEC AC-29): 2×2 mosaic non-overlapping seams; FSC NN-reprojected only
+      (direct UTM placement; bit-identical placement proven — see As-built note).
+- [x] AC-3 (SPEC AC-31): driver iterates configured window × all in-AOI cells; two cells
       with different CSV `date` are predicted on the same configured day (CSV `date`
       ignored).
-- [ ] AC-4: ruff + mypy clean; targeted new tests green; full suite introduces NO new failures vs `TEST_BASELINE.md` (delta check, NOT `pytest -x`).
+- [x] AC-4: ruff + mypy clean; targeted new tests green (12 passed); full suite introduces NO new failures vs `TEST_BASELINE.md` (delta check, NOT `pytest -x`).
 
 ## 6. Testing & Validation
 ```bash
