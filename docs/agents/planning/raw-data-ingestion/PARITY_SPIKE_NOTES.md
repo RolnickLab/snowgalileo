@@ -351,9 +351,48 @@ bit-exactness** — the reasons are understood and the residual is out of scope.
 **Decision (user-approved):** ship the georeferencing-correct swath-warp adapter with a
 **loose tolerance** (median |Δ| ≤ 60 radiance units, correlation floor 0.4); S3 has
 **identity normalization** downstream with an explicit out-of-scope norm TODO. The
-SNAP terrain-orthorectification of OLCI is recorded as a **known follow-up** (pairs with
-the S1 SNAP chain, TASK-014). **S3 shipped (TASK-011), parity-loose by design.**
+SNAP terrain-orthorectification of OLCI was *recorded* as a known follow-up (pairing it
+with the S1 SNAP chain) — **but see §10.1: that follow-up has since been investigated and
+rejected.** **S3 shipped (TASK-011), parity-loose by design.**
 
 **Test (`tests/test_local_sources/test_s3_adapter.py`):** band order, `(2,H,W)` shape,
 radiance-domain guard, missing-day → `-9999`, and a loose georeferencing-alignment
 assertion (median |Δ| ≤ 60 + corr ≥ 0.4) — not bit-exactness.
+
+### 10.1 SNAP ortho follow-up — investigated and REJECTED (2026-06-09)
+
+Re-opened the §10 "SNAP terrain-orthorectification of OLCI is the closer for the
+residual" follow-up after TASK-014 proved SNAP closes S1's parity wall. **It does not
+transfer to S3.** The spike ran SNAP's OLCI ortho path and it went the *wrong* direction.
+
+**Spike (`scripts/spikes/s3_olci_parity_spike.py` + `s3_olci_ortho_graph.xml`, kept as
+evidence):** `Read → Subset(Oa17,Oa21 + AOI) → Reproject(orthorectify=true,
+elevationModelName="SRTM 1Sec HGT", EPSG:32611, 300 m, Nearest) → Write`. SNAP's
+`Reproject(orthorectify=true)` is the correct OLCI ortho operator — it uses the
+product's tie-point geocoding + the DEM to terrain-correct the optical swath. (The SAR
+`Terrain-Correction` / `Ellipsoid-Correction-GG` ops are radar-geometry only and reject
+an OLCI product — verified.) Diffed against the same reference patch / day / cell as §10,
+side-by-side with the production `griddata` swath-warp (identical 10403 co-valid pixels):
+
+| band | swath-warp corr | SNAP-ortho corr | Δcorr | warp median \|Δ\| | ortho median \|Δ\| |
+|------|-----------------|-----------------|-------|-------------------|--------------------|
+| Oa17_radiance | 0.666 | 0.658 | **−0.008** | 35.39 | 36.08 |
+| Oa21_radiance | 0.783 | 0.774 | **−0.009** | 22.77 | 24.01 |
+
+**Conclusion — the §10 "un-orthorectified geolocation" hypothesis is wrong (or not the
+dominant term).** If terrain distortion were the residual, SNAP's DEM ortho would have
+closed it; instead corr was flat-to-slightly-worse on both bands. The real limit is
+**sampling geometry**: the patch is ~3 OLCI pixels wide (~300 m px over a ~1 km cell), so
+corr ~0.67 is a handful of edge pixels — too coarse to separate "good" from "perfect."
+Both methods land the right *values* (the value sets overlap, §10) on a near-degenerate
+coarse sample; neither can beat the source resolution. The **`spatial_kind="med"` 5×5
+downsample erases any sub-pixel geolocation difference entirely** before the model sees it.
+
+**Decision (user-approved):** keep the `griddata` swath-warp — marginally better, no
+SNAP/DEM dependency, reads the **clipped** archive directly. (SNAP cannot: its
+netCDF-Java reader throws `IllegalStateException: DataObject doesnt start with OHDR` on
+the clip-rewritten HDF5 dimension-scale refs — the same landmine the adapter sidesteps
+via `h5py`. The ortho spike had to source the **raw** product, an extra cost the
+production adapter would inherit for zero gain.) **The SNAP-ortho follow-up is closed,
+not deferred** — do not re-attempt it; the next lever for S3 parity is the un-fixed
+identity-normalization TODO, not geolocation.

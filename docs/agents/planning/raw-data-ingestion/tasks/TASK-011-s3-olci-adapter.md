@@ -52,6 +52,19 @@ grids, with identity normalization preserved.
 > names. (c) SEN3 NetCDF is read via **h5py** (h5netcdf/xarray fail on these files'
 > HDF5 dimension-scale refs). See PARITY_SPIKE_NOTES §10.
 
+> **SNAP-ortho follow-up — REJECTED (2026-06-09).** The §50 "SNAP ortho is a documented
+> follow-up" line is now **closed, not open.** After TASK-014 proved SNAP closes the S1
+> parity wall, the OLCI-ortho hypothesis was re-tested with SNAP's actual optical ortho
+> path (`Reproject orthorectify=true` + SRTM 1Sec; `scripts/spikes/s3_olci_parity_spike.py`
+> + `s3_olci_ortho_graph.xml`, both kept as evidence). It went the **wrong direction** vs
+> the production `griddata` warp on the same patch/day/cell (10403 co-valid px): Oa17 corr
+> 0.666→0.658, Oa21 0.783→0.774. The residual is therefore **not** terrain distortion but
+> sampling geometry (patch ~3 OLCI px wide; ~300 m px on a ~1 km cell), and the `med` 5×5
+> downsample erases any sub-pixel difference regardless. SNAP also can't read the
+> **clipped** `.nc` (the h5py landmine), so ortho would force the raw product for zero
+> gain. **The swath-warp adapter stays as shipped; the open S3 lever is normalization, not
+> geolocation.** Full numbers + method: PARITY_SPIKE_NOTES §10.1.
+
 ## 3. Subtasks
 - [x] 1. Write `test_s3_adapter.py` (Red): golden-grid triple; `bands_out =
       [Oa17_radiance, Oa21_radiance]`; tie-point-warped output aligns with the cell grid

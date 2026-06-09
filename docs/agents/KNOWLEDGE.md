@@ -250,4 +250,21 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   a units/projection mismatch that produces a wrong window is invisible to a
   valid-pixel-count gate when unrelated datasets pad the count. Re-clip with
   `clip-source sentinel3` (~125 products) and rebuild the combined manifest.
+- **S3 OLCI parity does NOT improve with SNAP orthorectification — do not re-attempt it
+  (investigated and rejected 2026-06-09).** GEE terrain-orthorectifies OLCI in SNAP, so
+  the §10 note flagged "SNAP ortho is the closer for the S3 residual" as a follow-up
+  pairing with S1 (TASK-014). It was re-tested with SNAP's correct optical ortho path —
+  `Reproject orthorectify=true` + SRTM 1Sec (the SAR `Terrain-Correction` /
+  `Ellipsoid-Correction` ops reject an OLCI product) — and it went the **wrong direction**
+  vs the production `scipy.griddata` swath-warp on the same patch/day/cell (10403 co-valid
+  px): Oa17 corr 0.666→0.658, Oa21 0.783→0.774. The residual is **not** terrain distortion
+  (else DEM ortho would have closed it) — it is **sampling geometry**: the patch is ~3 OLCI
+  pixels wide (~300 m px on a ~1 km cell), so corr ~0.67 is a few edge pixels, and
+  `spatial_kind="med"` 5×5-downsamples away any sub-pixel difference before the model sees
+  it. Bonus blocker: SNAP's netCDF reader can't open the **clipped** `.nc` (HDF5 dim-scale
+  refs — the same landmine the adapter avoids via `h5py`; `IllegalStateException: DataObject
+  doesnt start with OHDR`), so ortho would force sourcing the raw product for zero gain.
+  **Keep the swath-warp; the open S3 lever is the identity-normalization TODO, not
+  geolocation.** Evidence kept: `scripts/spikes/s3_olci_parity_spike.py` +
+  `s3_olci_ortho_graph.xml`. See PARITY_SPIKE_NOTES §10.1, [[s3-snap-ortho-rejected]].
 
