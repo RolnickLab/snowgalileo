@@ -41,6 +41,7 @@ dev = [
     "pandas>=1.5.3",
     "pre-commit>=4.6.0",
     "pytest>=9.0.3",
+    "pytest-xdist>=3.6",
     "ruff>=0.15.15",
     "solara>=1.57.4",
 ]
@@ -85,8 +86,17 @@ line-length = 99
 transform-concats = true
 verbose = true
 
-[tool.pytest]
-addopts = ["-ra"]
+[tool.pytest.ini_options]
+# NOTE: the table MUST be `[tool.pytest.ini_options]`; pytest ignores `[tool.pytest]`,
+# so the old `addopts`/`testpaths` here were silently dead.
+# `-n auto` fans the suite across all cores via pytest-xdist. The slow tests
+# (S2/Landsat parity, clip_dataset) are CPU-bound, independent raster work, so they
+# parallelize cleanly. `slow` marks the >10s real-archive tests so a fast dev loop can
+# deselect them: `uv run pytest -m "not slow"`.
+addopts = ["-ra", "-n", "auto"]
 testpaths = [
     "tests",
+]
+markers = [
+    "slow: heavy real-archive / parity test (>10s); deselect with -m 'not slow'",
 ]
