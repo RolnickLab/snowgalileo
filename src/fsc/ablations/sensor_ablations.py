@@ -126,6 +126,7 @@ class SensorAblationsCloudsMetaDataset(CloudGeneratorMetaDataset):
             data_config=data_config,
             split=split,
             h5pys_only=h5pys_only,
+            eval_config=eval_config,
             exclude_prediction_date=exclude_prediction_date,
             exclude_prediction_high_res=exclude_prediction_high_res,
             exclude_prediction_sensors=exclude_prediction_sensors,
