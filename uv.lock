@@ -3139,6 +3139,7 @@ dev = [
     { name = "pytest-xdist" },
     { name = "ruff" },
     { name = "solara" },
+    { name = "typer" },
 ]
 spikes = [
     { name = "sarsen" },
@@ -3183,6 +3184,7 @@ dev = [
     { name = "pytest-xdist", specifier = ">=3.6" },
     { name = "ruff", specifier = ">=0.15.15" },
     { name = "solara", specifier = ">=1.57.4" },
+    { name = "typer", specifier = ">=0.15" },
 ]
 spikes = [
     { name = "sarsen", specifier = ">=0.9.5" },

@@ -44,6 +44,7 @@ dev = [
     "pytest-xdist>=3.6",
     "ruff>=0.15.15",
     "solara>=1.57.4",
+    "typer>=0.15",
 ]
 spikes = [
     "sarsen>=0.9.5",

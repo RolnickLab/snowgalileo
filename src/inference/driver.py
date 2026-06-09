@@ -31,6 +31,8 @@ from einops import rearrange
 
 from src.data.local_sources.base import GridCell
 from src.data.local_sources.exporter import LocalSourceExporter
+from src.data.local_sources.layout import build_cube_filename
+from src.data.local_sources.parallel_export import export_cells_parallel
 from src.fsc.patch_predict import EncoderWithHead
 from src.inference._loader_bridge import masked_output_for_tif
 from src.inference.mosaic import DEFAULT_FSC_PX_PER_CELL, DailyMosaicWriter
@@ -78,6 +80,7 @@ class InferenceGridDriver:
         device: str | torch.device = "cpu",
         batch_size: int = 8,
         fsc_px_per_cell: int = DEFAULT_FSC_PX_PER_CELL,
+        export_workers: int | None = None,
     ) -> None:
         self.exporter = exporter
         self.model = model.to(device).eval()
@@ -87,6 +90,11 @@ class InferenceGridDriver:
         self.device = torch.device(device)
         self.batch_size = batch_size
         self.fsc_px_per_cell = fsc_px_per_cell
+        self.export_workers = export_workers
+        #: Per-day ``cell_id -> cube tif`` map filled by the parallel pre-export (cleared
+        #: each day). Empty → ``_run_batch`` falls back to the injected exporter's serial
+        #: ``.export`` (the path tests with a stub exporter rely on).
+        self._tif_for_cell: dict[int, Path] = {}
         self.mosaic = DailyMosaicWriter(
             grid=grid, out_dir=out_dir, fsc_px_per_cell=fsc_px_per_cell
         )
@@ -121,6 +129,8 @@ class InferenceGridDriver:
             Map ``cell_id -> 10×10 FSC array`` (or ``None`` for a cell whose every
             input is masked → no prediction, left as nodata in the mosaic).
         """
+        self._tif_for_cell = self._pre_export_day(day)
+
         fsc_by_cell: dict[int, npt.NDArray[np.float32] | None] = {}
         batch: list[GridCell] = []
 
@@ -136,6 +146,39 @@ class InferenceGridDriver:
         flush()
         return fsc_by_cell
 
+    def _pre_export_day(self, day: datetime.date) -> dict[int, Path]:
+        """Export every cell's cube for ``day`` up front, in parallel where possible.
+
+        Only engages the process pool when ``export_workers`` resolves to >1 **and** the
+        injected exporter is a real :class:`LocalSourceExporter` (the pool rebuilds an
+        exporter per worker from its ``out_dir``/``archive_root``, which a stub lacks).
+        Otherwise returns an empty map and ``_run_batch`` exports serially through the
+        injected exporter — the path the stub-exporter tests exercise.
+        """
+        if (
+            self.export_workers is None
+            or self.export_workers <= 1
+            or not isinstance(self.exporter, LocalSourceExporter)
+        ):
+            return {}
+
+        paths = export_cells_parallel(
+            cells=self.grid,
+            window_end=day,
+            out_dir=self.exporter.out_dir,
+            archive_root=self.exporter.archive_root,
+            workers=self.export_workers,
+        )
+        # Map back to cell_id by the filename the exporter wrote (PR_<date>_<lat>_<lon>).
+        by_name = {p.name: p for p in paths}
+        tif_for_cell: dict[int, Path] = {}
+        for cell in self.grid:
+            lat, lon = self.exporter._cell_centre_lat_lon(cell)
+            name = build_cube_filename(window_end=day, lat=lat, lon=lon)
+            if name in by_name:
+                tif_for_cell[cell.cell_id] = by_name[name]
+        return tif_for_cell
+
     def _run_batch(
         self,
         cells: list[GridCell],
@@ -146,7 +189,10 @@ class InferenceGridDriver:
         masked_outputs = []
         all_masked: list[bool] = []
         for cell in cells:
-            tif = self.exporter.export(cell=cell, window_end=day)
+            # Prefer the parallel pre-export's tif; else export serially (stub-exporter path).
+            tif = self._tif_for_cell.get(cell.cell_id)
+            if tif is None:
+                tif = self.exporter.export(cell=cell, window_end=day)
             mo = masked_output_for_tif(tif)
             masked_outputs.append(mo)
             all_masked.append(self._is_fully_masked(mo))
