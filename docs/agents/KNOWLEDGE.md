@@ -234,6 +234,19 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   tracer-test trick, isolated). The GEE `_predict_and_store_output` runner is untouched and
   runs in parallel. Checkpoint/model build + entry-point script + multiprocessing tuning are
   TASK-016.
+- **Slow real-archive parity tests are serialized on one xdist worker — a parity "failure"
+  in a full `-n auto` run may be I/O oversubscription, not a regression.** The suite runs
+  `-n auto --dist loadgroup`; every `@pytest.mark.slow` test is paired with
+  `@pytest.mark.xdist_group("slow_archive")` so the heavy GDAL-decoding real-archive tests
+  (S2/Landsat parity, `test_clip_dataset`, S2 spike) run serialized on a single worker
+  instead of competing 16-wide for disk/GDAL I/O. Before the group, a 7m51s full run
+  false-failed `test_parity_b4_against_gee[PR_20250414/PR_20250423]` while they are
+  deterministic (`PR_20250423` = 96.0 % bit-exact every run, > the 0.90 gate) and pass
+  standalone / under `-n 4` / on a 3m49s full run. **xdist's `loadgroup` ignores a group
+  added dynamically in a collection hook** — the marker must be static on each test
+  (`tests/conftest.py` only documents the `SLOW_XDIST_GROUP` constant). **Triage rule:** a
+  real-archive parity failure is only real if it reproduces **isolated** (`pytest <nodeid>
+  -p no:xdist`); otherwise it is scheduling noise. See TEST_BASELINE.md.
 - **S3 OLCI lat/lon are CF-scaled int32 — apply `scale_factor` before the AOI mask
   (or every radiance band clips to (0,0)).** `geo_coordinates.nc` stores `latitude`
   / `longitude` as `int32` with `scale_factor ≈ 1e-6` (raw `49896598` means

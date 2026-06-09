@@ -320,6 +320,7 @@ def real_adapter() -> LandsatAdapter:
 
 
 @pytest.mark.slow
+@pytest.mark.xdist_group("slow_archive")
 @pytest.mark.parametrize("patch_key", list(_PARITY_CASES))
 def test_parity_b4_landsat_against_gee(real_adapter: LandsatAdapter, patch_key: str) -> None:
     """B4_landsat matches the GEE reference patch at its Landsat timestep (AC-12)."""

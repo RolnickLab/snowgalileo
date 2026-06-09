@@ -408,6 +408,7 @@ _B4_MIN_EXACT_FRAC = 0.90
 
 
 @pytest.mark.slow
+@pytest.mark.xdist_group("slow_archive")
 @pytest.mark.parametrize("patch_key", list(_PARITY_CASES))
 def test_parity_b4_against_gee(real_adapter: S2Adapter, patch_key: str) -> None:
     """B4 matches the GEE reference (bit-exact for ≥90 % of valid pixels) (AC-12/AC-15)."""
@@ -437,6 +438,7 @@ _QA60_MIN_EXACT_FRAC = 0.90
 
 
 @pytest.mark.slow
+@pytest.mark.xdist_group("slow_archive")
 @pytest.mark.parametrize("patch_key", list(_PARITY_CASES))
 def test_parity_qa60_against_gee(patch_key: str) -> None:
     """Reconstructed QA60 matches GEE's ``S2_HARMONIZED`` QA60 for ≥90 % of pixels (AC-2)."""

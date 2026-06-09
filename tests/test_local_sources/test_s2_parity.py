@@ -70,6 +70,7 @@ def _reference_band(index: int) -> np.ndarray:
 
 
 @pytest.mark.slow
+@pytest.mark.xdist_group("slow_archive")
 def test_s2_drift_within_tolerance(spike_output: dict[str, np.ndarray]) -> None:
     """Each S2 band's median |spike − reference| is within the documented tolerance."""
     drift: dict[str, float] = {}

@@ -89,14 +89,19 @@ verbose = true
 [tool.pytest.ini_options]
 # NOTE: the table MUST be `[tool.pytest.ini_options]`; pytest ignores `[tool.pytest]`,
 # so the old `addopts`/`testpaths` here were silently dead.
-# `-n auto` fans the suite across all cores via pytest-xdist. The slow tests
-# (S2/Landsat parity, clip_dataset) are CPU-bound, independent raster work, so they
-# parallelize cleanly. `slow` marks the >10s real-archive tests so a fast dev loop can
-# deselect them: `uv run pytest -m "not slow"`.
-addopts = ["-ra", "-n", "auto"]
+# `-n auto` fans the suite across all cores via pytest-xdist. `--dist loadgroup`
+# keeps `load` scheduling for the fast suite but honours `xdist_group` markers:
+# tests/conftest.py pins every `slow` test to one group so the heavy real-archive
+# tests (S2/Landsat parity, clip_dataset) run serialized on a single worker instead
+# of oversubscribing GDAL I/O 16-wide (which on a loaded host could stall a worker
+# long enough to false-fail an otherwise-deterministic parity test). `slow` marks
+# the >10s real-archive tests so a fast dev loop can deselect them:
+# `uv run pytest -m "not slow"`.
+addopts = ["-ra", "-n", "auto", "--dist", "loadgroup"]
 testpaths = [
     "tests",
 ]
 markers = [
     "slow: heavy real-archive / parity test (>10s); deselect with -m 'not slow'",
+    "xdist_group: pin a test to a single xdist worker (see tests/conftest.py); used to serialize slow real-archive tests under --dist loadgroup",
 ]

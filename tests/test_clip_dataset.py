@@ -192,6 +192,7 @@ def test_parse_grid_band_hdf4_modis():
 # Real-archive clips
 # --------------------------------------------------------------------------- #
 @pytest.mark.slow
+@pytest.mark.xdist_group("slow_archive")
 @requires_archive
 def test_landsat_clip_keeps_zone_and_pixels(tmp_path, aoi, settings):
     """AC-3 + AC-7: a partial Landsat scene clips with >0 valid px, stays 32612."""
@@ -214,6 +215,7 @@ def test_landsat_clip_keeps_zone_and_pixels(tmp_path, aoi, settings):
 
 
 @pytest.mark.slow
+@pytest.mark.xdist_group("slow_archive")
 @requires_archive
 def test_sentinel2_clip_stays_utm11(tmp_path, aoi, settings):
     """AC-7: clipped Sentinel-2 JP2 bands stay EPSG:32611."""
@@ -233,6 +235,7 @@ def test_sentinel2_clip_stays_utm11(tmp_path, aoi, settings):
 
 
 @pytest.mark.slow
+@pytest.mark.xdist_group("slow_archive")
 @requires_archive
 def test_sentinel2_clip_is_lossless(tmp_path, aoi, settings):
     """AC-8 (S2): the clipped JP2 bands are bit-exact to the raw SAFE — no lossy recompress.
@@ -328,6 +331,7 @@ def test_dem_clip_is_non_destructive(tmp_path, aoi, settings):
 
 
 @pytest.mark.slow
+@pytest.mark.xdist_group("slow_archive")
 @requires_archive
 def test_manifest_one_row_per_product(tmp_path, aoi, settings):
     """AC-5: clipping WorldCover yields one manifest row per input tile."""
@@ -348,6 +352,7 @@ def test_manifest_one_row_per_product(tmp_path, aoi, settings):
 
 
 @pytest.mark.slow
+@pytest.mark.xdist_group("slow_archive")
 @requires_archive
 def test_audit_passes_on_clipped_worldcover(tmp_path, aoi, settings):
     """AC-4: the post-run audit finds zero all-nodata outputs after a real clip."""

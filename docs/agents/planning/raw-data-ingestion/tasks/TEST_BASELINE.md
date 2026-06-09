@@ -62,3 +62,23 @@ comm -13 /tmp/current_failures.txt /tmp/baseline_failures.txt
 
 **Pass condition:** the "NEW failures" list is empty. The task's own new test files
 pass on their own (`pytest tests/test_local_sources/<file> -v` green).
+
+## Slow real-archive tests are serialized under xdist (2026-06-09)
+
+`@pytest.mark.slow` tests (S2/Landsat parity, `test_clip_dataset` lossless/CRS, S2
+parity spike) each GDAL-decode multi-band real-archive rasters. `-n auto` spawns one
+worker per core (16 on this box, zero headroom); when several slow tests are scheduled
+concurrently they oversubscribe disk + GDAL I/O, and on a loaded host a worker can stall
+long enough that xdist reports a test as **failed/crashed rather than slow**. This was
+observed once as `test_s2_adapter::test_parity_b4_against_gee[PR_20250414/PR_20250423]`
+"failing" on a 7m51s full run — while the tests are **deterministic** (`PR_20250423` is
+96.0 % bit-exact every run, > the 0.90 gate) and pass standalone, under `-n 4`, and on a
+faster (3m49s) full run. It was an oversubscription artifact, **not** a parity regression.
+
+**Fix:** each `slow` test also carries `@pytest.mark.xdist_group("slow_archive")`, and
+the suite runs `--dist loadgroup` (`pyproject.toml`), so all slow tests run **serialized
+on one worker** while the fast suite still fans out. (xdist's `loadgroup` reads the group
+from worker-side collection and does **not** honour a group added dynamically in a
+collection hook, so the marker is paired statically at each test; `tests/conftest.py`
+documents the constant.) If a real-archive parity test ever fails, **re-run it isolated**
+(`pytest <nodeid> -p no:xdist`) before treating it as a regression — see KNOWLEDGE.md.
