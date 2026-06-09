@@ -10,7 +10,7 @@ from src.data import EarthEngineExporterEval
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--mode", type=str, default="url")
 argparser.add_argument("--check_gcp", type=bool, default=False)
-argparser.add_argument("--tifs_folder", type=str, default="rockies_march")
+argparser.add_argument("--tifs_folder", type=str, default="rockies_september")
 argparser.add_argument("--path_to_csv", type=str, default="rockies_march.csv")
 args = argparser.parse_args().__dict__
 
