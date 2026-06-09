@@ -27,9 +27,14 @@ T11UNT`` R113 vs R070); gather all, first-valid-wins per pixel (latest-processin
 order), then mosaic neighbouring tiles before the reproject. Valid-pixel union, not an
 average.
 
-``QA60`` is **out of scope here** (TASK-013c): N0511 SAFEs ship no ``QA60.jp2`` (replaced
-by ``MSK_CLASSI``), and a naive repack does not reproduce GEE's backfilled ``QA60``. It
-stays the ``-9999`` placeholder until TASK-013c reverse-engineers the mapping.
+``QA60`` is emitted by :class:`S2CloudAdapter` (TASK-013c). N0400+ SAFEs ship no
+``QA60.jp2`` (replaced by ``QI_DATA/MSK_CLASSI_B00.jp2``); GEE's ``S2_HARMONIZED``
+reconstructs QA60 as ``opaque<<10 | cirrus<<11`` (opaque precedence, snow excluded) — a
+deterministic MSK_CLASSI repack, **verified against a direct GEE pull**, not a separate
+cloud algorithm. The reconstruction requires the clipped MSK_CLASSI to be **lossless**;
+the clip stage was lossy-recompressing S2 JP2 (corrupting both reflectance and the
+categorical mask) until fixed in ``clip/clippers.py`` (``_clip_geotiff_to`` lossless-JP2
+guard).
 """
 
 from __future__ import annotations
@@ -237,3 +242,131 @@ class S2Adapter(LocalSourceAdapter):
             tiles=sorted({g.tile for g in granules}),
         )
         return np.stack(bands, axis=0).astype(np.float32)
+
+
+#: QA60 bit values — opaque clouds at bit 10, cirrus at bit 11 (the legacy QA60 layout
+#: GEE's ``COPERNICUS/S2_HARMONIZED`` reconstructs for baseline ≥ N0400, verified by a
+#: direct GEE pull: ``QA60 == MSK_CLASSI_OPAQUE<<10 | MSK_CLASSI_CIRRUS<<11`` with opaque
+#: precedence and snow excluded — the value domain is exactly ``{0, 1024, 2048}``.
+_QA60_OPAQUE_BIT: int = 1 << 10  # 1024
+_QA60_CIRRUS_BIT: int = 1 << 11  # 2048
+
+#: ``MSK_CLASSI_B00.jp2`` band indices (1-based): opaque, cirrus, snow_ice (60 m uint8).
+_MSK_OPAQUE_BAND: int = 1
+_MSK_CIRRUS_BAND: int = 2
+
+
+def _qa60_from_msk_classi(
+    opaque: npt.NDArray[np.floating], cirrus: npt.NDArray[np.floating]
+) -> npt.NDArray[np.float64]:
+    """Pack ESA ``MSK_CLASSI`` opaque/cirrus masks into the GEE ``QA60`` bit layout.
+
+    Reproduces GEE's post-2024-02-28 reconstruction (verified against a direct GEE pull):
+    opaque → bit 10 (1024), cirrus → bit 11 (2048), **opaque takes precedence** (where a
+    pixel is flagged opaque the cirrus bit is suppressed), snow excluded. The MSK_CLASSI
+    classes are ``{0 clear, 1 present, 2 …}``; any non-zero is treated as the class present.
+
+    Args:
+        opaque: ``MSK_CLASSI`` opaque-cloud band (non-zero == opaque).
+        cirrus: ``MSK_CLASSI`` cirrus-cloud band (non-zero == cirrus).
+
+    Returns:
+        QA60 values in ``{0, 1024, 2048}`` matching ``COPERNICUS/S2_HARMONIZED``.
+    """
+    is_opaque = opaque > 0
+    is_cirrus = cirrus > 0
+    qa = np.zeros(opaque.shape, dtype=np.float64)
+    qa[is_cirrus] = _QA60_CIRRUS_BIT
+    qa[is_opaque] = _QA60_OPAQUE_BIT  # opaque precedence overwrites cirrus
+    return qa
+
+
+class S2CloudAdapter(LocalSourceAdapter):
+    """Sentinel-2 ``QA60`` cloud-flag adapter (``time`` tier, categorical/NN, cloud slot).
+
+    Emits the GEE ``COPERNICUS/S2_HARMONIZED`` ``QA60`` band, reconstructed from the ESA
+    ``QI_DATA/MSK_CLASSI_B00.jp2`` mask that N0400+ SAFEs ship in place of the legacy
+    ``QA60.jp2`` (see :func:`_qa60_from_msk_classi`). Shares the S2 granule discovery and
+    the same-(tile, date) coalesce + cross-tile mosaic-before-crop path as
+    :class:`S2Adapter`; QA60 is categorical so the reproject is **nearest**.
+
+    Requires the clipped MSK_CLASSI JP2 to be **lossless** — a lossy clip corrupts the
+    categorical classes (class flips), which silently breaks the QA60 reconstruction.
+
+    Args:
+        archive_root: The clipped S2 archive root (holds ``S2?_MSIL1C_*.zip`` granules).
+    """
+
+    bands_out = ["QA60"]
+    spatial_kind = "time"
+    native_fill = None
+
+    def __init__(self, *, archive_root: Path) -> None:
+        self.archive_root = archive_root
+
+    def _granules_for_day(self, day: datetime.date) -> list[_GranuleInfo]:
+        """All clipped granules acquired on ``day`` (any tile)."""
+        granules = [_parse_granule(p) for p in sorted(self.archive_root.glob("*.zip"))]
+        return [g for g in granules if g is not None and g.acq == day]
+
+    def _read_qa60(self, granule: _GranuleInfo) -> BandRead | None:
+        """Read ``MSK_CLASSI_B00.jp2`` and pack it into QA60; ``None`` if the mask is absent."""
+        with zipfile.ZipFile(granule.path) as zf:
+            msk = next(
+                (n for n in zf.namelist() if n.endswith("MSK_CLASSI_B00.jp2") and "/QI_DATA/" in n),
+                None,
+            )
+            if msk is None:
+                return None
+
+        with rasterio.open(f"/vsizip/{granule.path}/{msk}") as ds:
+            opaque = ds.read(_MSK_OPAQUE_BAND).astype(np.float64)
+            cirrus = ds.read(_MSK_CIRRUS_BAND).astype(np.float64)
+            transform = ds.transform
+            crs = str(ds.crs)
+
+        qa = _qa60_from_msk_classi(opaque, cirrus)
+        return BandRead(values=qa, transform=transform, crs=crs)
+
+    def fetch(
+        self,
+        cell: GridCell,
+        day: datetime.date | None,
+    ) -> npt.NDArray[np.floating]:
+        """Return the reconstructed ``QA60`` band on the cell grid (``-9999`` if missing)."""
+        if day is None:
+            return create_placeholder(n_bands=1, shape=cell.shape)
+        granules = self._granules_for_day(day)
+        if not granules:
+            return create_placeholder(n_bands=1, shape=cell.shape)
+
+        by_tile: dict[str, list[_GranuleInfo]] = {}
+        for granule in granules:
+            by_tile.setdefault(granule.tile, []).append(granule)
+
+        tile_reads: list[BandRead] = []
+        for tile_granules in by_tile.values():
+            ordered = sorted(tile_granules, key=lambda g: g.proc, reverse=True)
+            reads = [r for g in ordered if (r := self._read_qa60(g))]
+            if reads:
+                tile_reads.append(coalesce_tile(reads))
+
+        if not tile_reads:
+            return create_placeholder(n_bands=1, shape=cell.shape)
+
+        merged, transform, crs = mosaic_tiles(tile_reads)
+        reprojected = reproject_to_cell(
+            source=merged[np.newaxis, :, :],
+            src_transform=transform,
+            src_crs=crs,
+            cell=cell,
+            categorical=True,  # QA60 is a bit-flag — never interpolate
+            src_nodata=float(NO_DATA_VALUE),
+        )
+        logger.info(
+            "s2_cloud_fetch",
+            cell_id=cell.cell_id,
+            day=day.isoformat(),
+            granules=len(granules),
+        )
+        return reprojected.astype(np.float32)

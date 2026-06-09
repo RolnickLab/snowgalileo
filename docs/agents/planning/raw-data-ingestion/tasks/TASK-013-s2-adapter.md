@@ -65,8 +65,12 @@ on the cell grid, subtracting 1000 DN for baseline ≥ 04.00 (N0511) granules to
 - **Out of scope:** L2A surface reflectance (not interchangeable), S1 (TASK-014).
 
 ## 5. Acceptance Criteria
-- [x] AC-1 (SPEC AC-15): `bands_out` correct; N0511 → −1000 DN; **bit-exact** B4 parity
-      (signed median 0) on the covered patches (`S2_HARMONIZED` domain reproduced).
+- [x] AC-1 (SPEC AC-15): `bands_out` correct; N0511 → −1000 DN; B4 parity on the covered
+      patches (`S2_HARMONIZED` domain reproduced). **CAVEAT (2026-06-08):** the original
+      assertion was *signed-median == 0*, which a later finding showed was a **false-green** —
+      the clip stage was lossy-recompressing S2 JP2 (±~2 DN), and median-0 survives symmetric
+      noise. Fixed by the lossless-JP2 clip guard + S2 re-clip; parity is now genuinely
+      bit-exact (see [[s2-clip-lossy-jp2-bug]] / TASK-013c §6).
 - [x] AC-2 (SPEC AC-15b): complementary-mask coalesce → zero false `-9999`; surviving value
       = latest-proc winner. (Real R113-vs-R070 case lives in the archive; the unit test uses
       synthetic complementary masks for determinism.)

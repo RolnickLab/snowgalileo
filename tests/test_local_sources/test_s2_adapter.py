@@ -33,7 +33,11 @@ from shapely.geometry import box
 
 from src.data.config import NO_DATA_VALUE
 from src.data.local_sources.base import GridCell
-from src.data.local_sources.s2 import S2Adapter
+from src.data.local_sources.s2 import (
+    S2Adapter,
+    S2CloudAdapter,
+    _qa60_from_msk_classi,
+)
 
 _S2_ROOT = Path("data/clipped_bow_valley_selection_raw/sentinel2")
 _REF_DIR = Path("tests/fixtures/gee_reference_patches")
@@ -42,6 +46,9 @@ _DYNAMIC_PER_TS = 38
 
 #: B4 offset inside the 38-band dynamic block (VV,VH,angle,B2,B3,B4 → 5).
 _OFF_B4 = 5
+
+#: QA60 offset inside the 38-band dynamic block (CLOUD group: state_1km=35, QA60=36).
+_OFF_QA60 = 36
 
 #: Valid floor after harmonization (matches the adapter's ``_VALID_MIN``).
 _VALID_MIN = -1.0
@@ -101,6 +108,15 @@ _MTD = (
 )
 
 
+def _write_msk_classi(path: Path, mask: np.ndarray, transform: Affine, crs: str) -> None:
+    """Write a 3-band uint8 MSK_CLASSI JP2 (opaque, cirrus, snow), lossless."""
+    with rasterio.open(
+        path, "w", driver="JP2OpenJPEG", height=mask.shape[1], width=mask.shape[2],
+        count=3, dtype="uint8", crs=crs, transform=transform, QUALITY=100, REVERSIBLE=True,
+    ) as ds:
+        ds.write(mask.astype(np.uint8))
+
+
 def _make_granule_zip(
     *,
     zip_path: Path,
@@ -111,16 +127,26 @@ def _make_granule_zip(
     crs: str,
     baseline: str = "05.11",
     tmp: Path,
+    msk_classi: np.ndarray | None = None,
 ) -> None:
-    """Build a minimal SAFE zip: ``MTD_MSIL1C.xml`` + ``IMG_DATA`` JP2 bands."""
+    """Build a minimal SAFE zip: ``MTD_MSIL1C.xml`` + ``IMG_DATA`` JP2 bands.
+
+    If ``msk_classi`` (a ``(3, H, W)`` uint8 array) is given, also writes
+    ``QI_DATA/MSK_CLASSI_B00.jp2`` for the cloud adapter.
+    """
     safe = f"{stem}.SAFE"
-    img_dir = f"{safe}/GRANULE/L1C_{tile}_A000000_20250101T000000/IMG_DATA"
+    granule = f"{safe}/GRANULE/L1C_{tile}_A000000_20250101T000000"
+    img_dir = f"{granule}/IMG_DATA"
     with zipfile.ZipFile(zip_path, "w") as zf:
         zf.writestr(f"{safe}/MTD_MSIL1C.xml", _MTD.format(baseline=baseline))
         for suffix, dn in dn_by_suffix.items():
             jp2 = tmp / f"{tile}_{suffix}.jp2"
             _write_jp2(jp2, dn, transform, crs)
             zf.write(jp2, arcname=f"{img_dir}/{tile}_20250101T000000_{suffix}.jp2")
+        if msk_classi is not None:
+            mk = tmp / f"{tile}_MSK_CLASSI_B00.jp2"
+            _write_msk_classi(mk, msk_classi, transform, crs)
+            zf.write(mk, arcname=f"{granule}/QI_DATA/MSK_CLASSI_B00.jp2")
 
 
 def _harm(dn: float, baseline_ge_400: bool = True) -> float:
@@ -287,6 +313,71 @@ def test_every_patch_has_a_covered_s2_date() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# S2 cloud adapter — QA60 reconstruction from MSK_CLASSI (TASK-013c)
+# --------------------------------------------------------------------------- #
+def test_qa60_packing_bit_layout() -> None:
+    """``_qa60_from_msk_classi`` packs opaque→1024, cirrus→2048, opaque precedence."""
+    opaque = np.array([[0, 1, 0, 2]], dtype=np.float64)
+    cirrus = np.array([[0, 0, 1, 1]], dtype=np.float64)
+    qa = _qa60_from_msk_classi(opaque, cirrus)
+    # clear→0 ; opaque-only→1024 ; cirrus-only→2048 ; both→1024 (opaque precedence).
+    np.testing.assert_array_equal(qa, np.array([[0.0, 1024.0, 2048.0, 1024.0]]))
+    # Value domain is exactly the GEE set {0,1024,2048} — never the naive 3072.
+    assert set(np.unique(qa).tolist()).issubset({0.0, 1024.0, 2048.0})
+
+
+def test_qa60_snow_excluded() -> None:
+    """Snow (MSK_CLASSI band 3) is not packed — only opaque/cirrus reach QA60."""
+    opaque = np.zeros((1, 3), dtype=np.float64)
+    cirrus = np.zeros((1, 3), dtype=np.float64)
+    qa = _qa60_from_msk_classi(opaque, cirrus)  # snow band never passed in
+    np.testing.assert_array_equal(qa, np.zeros((1, 3)))
+
+
+def test_cloud_bands_out_and_kind() -> None:
+    """``S2CloudAdapter`` emits a single ``QA60`` band on the ``time`` tier."""
+    adapter = S2CloudAdapter(archive_root=_S2_ROOT)
+    assert adapter.bands_out == ["QA60"]
+    assert adapter.spatial_kind == "time"
+
+
+def test_cloud_missing_day_is_placeholder(synthetic_cell: GridCell, tmp_path: Path) -> None:
+    """A day with no granule → all-``-9999`` (1, H, W)."""
+    (tmp_path / "s2").mkdir()
+    adapter = S2CloudAdapter(archive_root=tmp_path / "s2")
+    out = adapter.fetch(synthetic_cell, day=datetime.date(2025, 4, 3))
+    assert out.shape == (1, *synthetic_cell.shape)
+    assert (out == NO_DATA_VALUE).all()
+
+
+def test_cloud_fetch_reconstructs_qa60(synthetic_cell: GridCell, tmp_path: Path) -> None:
+    """End-to-end: an opaque-flagged synthetic MSK_CLASSI → QA60 == 1024 on the cell grid."""
+    s2 = tmp_path / "s2"
+    s2.mkdir()
+    tmp = tmp_path / "scratch"
+    tmp.mkdir()
+    h = w = 24
+    transform = _src_transform(synthetic_cell)
+    # Left half opaque (→1024), right half clear (→0); cirrus all 0.
+    mask = np.zeros((3, h, w), dtype=np.uint8)
+    mask[0, :, : w // 2] = 1  # opaque band
+    stem = "S2C_MSIL1C_20250408T185831_N0511_R113_T11UNS_20250408T235929"
+    _make_granule_zip(
+        zip_path=s2 / f"{stem}.zip", stem=stem, tile="T11UNS",
+        dn_by_suffix={s: np.full((h, w), 3000, dtype=np.uint16) for s in _S2_BANDS_SUFFIX},
+        transform=transform, crs=synthetic_cell.crs, tmp=tmp,
+        msk_classi=mask,
+    )
+    adapter = S2CloudAdapter(archive_root=s2)
+    out = adapter.fetch(synthetic_cell, day=datetime.date(2025, 4, 8))
+    assert out.shape == (1, *synthetic_cell.shape)
+    qa = out[0]
+    assert set(np.unique(qa).tolist()).issubset({0.0, 1024.0})
+    left = qa[:, : synthetic_cell.shape[1] // 2]
+    assert (left == 1024.0).mean() > 0.9, "opaque half should be QA60=1024"
+
+
+# --------------------------------------------------------------------------- #
 # Real-archive parity (covered dates) — bit-exact B4 under nearest + −1000 DN
 # --------------------------------------------------------------------------- #
 @pytest.fixture()
@@ -307,9 +398,18 @@ _PARITY_CASES = {
 }
 
 
+#: Min fraction of overlapping valid B4 pixels that must be **exactly** equal to GEE.
+#: The clip is now lossless (bit-exact DN); the residual <~6 % is sub-pixel grid
+#: registration between our ``reproject_to_cell`` and GEE's export warp (irreducible
+#: without replicating GEE's exact resampling), concentrated at swath/cloud edges.
+#: NOTE the old *signed-median == 0* check was a false-green: it survived the lossy-clip
+#: ±2 DN corruption (symmetric noise keeps the median 0). Exact-match fraction exposes it.
+_B4_MIN_EXACT_FRAC = 0.90
+
+
 @pytest.mark.parametrize("patch_key", list(_PARITY_CASES))
 def test_parity_b4_against_gee(real_adapter: S2Adapter, patch_key: str) -> None:
-    """B4 matches the GEE reference bit-exactly at a covered S2 timestep (AC-12/AC-15)."""
+    """B4 matches the GEE reference (bit-exact for ≥90 % of valid pixels) (AC-12/AC-15)."""
     ts, acq = _PARITY_CASES[patch_key]
     patches = sorted(_REF_DIR.glob(f"{patch_key}_*.tif"))
     if not patches:
@@ -323,6 +423,39 @@ def test_parity_b4_against_gee(real_adapter: S2Adapter, patch_key: str) -> None:
 
     valid = (ref != NO_DATA_VALUE) & (ref > _VALID_MIN) & (out[2] != NO_DATA_VALUE)
     assert valid.sum() > 0.5 * ref.size, f"{patch_key}: <50% overlapping valid B4 pixels"
-    # Signed median 0 == bit-exact for ≥half the pixels (nearest + −1000 reproduces GEE).
-    med = float(np.median(out[2][valid] - ref[valid]))
-    assert med == 0.0, f"{patch_key}: B4 not bit-exact vs GEE (signed median {med:.4f})"
+    exact = float((out[2][valid] == ref[valid]).mean())
+    assert exact >= _B4_MIN_EXACT_FRAC, (
+        f"{patch_key}: B4 only {exact:.1%} bit-exact vs GEE (< {_B4_MIN_EXACT_FRAC:.0%}); "
+        "lossy clip regression? — see test_clip_dataset.py::test_sentinel2_clip_is_lossless"
+    )
+
+
+#: Min fraction of valid QA60 pixels that must equal the GEE reference (same sub-pixel
+#: registration residual as B4; the repack itself is exact — verified by direct GEE pull).
+_QA60_MIN_EXACT_FRAC = 0.90
+
+
+@pytest.mark.parametrize("patch_key", list(_PARITY_CASES))
+def test_parity_qa60_against_gee(patch_key: str) -> None:
+    """Reconstructed QA60 matches GEE's ``S2_HARMONIZED`` QA60 for ≥90 % of pixels (AC-2)."""
+    if not any(_S2_ROOT.glob("*.zip")):
+        pytest.skip("No clipped S2 archive")
+    ts, acq = _PARITY_CASES[patch_key]
+    patches = sorted(_REF_DIR.glob(f"{patch_key}_*.tif"))
+    if not patches:
+        pytest.skip(f"No reference patch for {patch_key}")
+    patch = patches[0]
+    cell = _cell_from_patch(patch)
+
+    out = S2CloudAdapter(archive_root=_S2_ROOT).fetch(cell, day=acq)
+    with rasterio.open(patch) as ds:
+        ref = ds.read(_DYNAMIC_PER_TS * ts + _OFF_QA60 + 1)
+
+    valid = ref != NO_DATA_VALUE
+    assert valid.sum() > 0.5 * ref.size, f"{patch_key}: <50% valid QA60 reference pixels"
+    # Domain is the GEE set; never the naive combined 3072.
+    assert set(np.unique(out[0]).tolist()).issubset({float(NO_DATA_VALUE), 0.0, 1024.0, 2048.0})
+    exact = float((out[0][valid] == ref[valid]).mean())
+    assert exact >= _QA60_MIN_EXACT_FRAC, (
+        f"{patch_key}: QA60 only {exact:.1%} match vs GEE (< {_QA60_MIN_EXACT_FRAC:.0%})"
+    )

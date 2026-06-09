@@ -107,9 +107,8 @@ class LocalSourceExporter:
           VIIRS-fine (TASK-010) tail.
         - **MED** group (``Oa17_radiance,Oa21_radiance``) → S3 OLCI (TASK-011), the whole group.
         - **CLOUD** group (``state_1km,QA60,QA_PIXEL``) → MODIS ``state_1km`` (TASK-009)
-          + Landsat ``QA_PIXEL`` (TASK-012); ``QA60`` stays a placeholder until TASK-013c
-          (N0511 SAFEs ship no QA60.jp2; reconstructing GEE's QA60 from MSK_CLASSI is
-          deferred).
+          + S2 ``QA60`` (TASK-013c, reconstructed from MSK_CLASSI) + Landsat ``QA_PIXEL``
+          (TASK-012).
         """
         adapters: list[LocalSourceAdapter] = list(dynamic_adapters())
         if self.placeholder:
@@ -118,7 +117,7 @@ class LocalSourceExporter:
         from src.data.local_sources.era5 import Era5Adapter
         from src.data.local_sources.landsat import LandsatAdapter, LandsatCloudAdapter
         from src.data.local_sources.modis import ModisAdapter, ModisCloudAdapter
-        from src.data.local_sources.s2 import S2Adapter
+        from src.data.local_sources.s2 import S2Adapter, S2CloudAdapter
         from src.data.local_sources.s3 import S3Adapter
         from src.data.local_sources.viirs import ViirsCoarseAdapter, ViirsFineAdapter
 
@@ -128,6 +127,7 @@ class LocalSourceExporter:
         landsat8_root = self.archive_root / "landsat8"
         reals: list[LocalSourceAdapter] = [
             S2Adapter(archive_root=self.archive_root / "sentinel2"),
+            S2CloudAdapter(archive_root=self.archive_root / "sentinel2"),
             LandsatAdapter(landsat9_root=landsat9_root, landsat8_root=landsat8_root),
             LandsatCloudAdapter(landsat9_root=landsat9_root, landsat8_root=landsat8_root),
             Era5Adapter(archive_root=self.archive_root / "era5"),

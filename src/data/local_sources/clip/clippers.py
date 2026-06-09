@@ -76,7 +76,18 @@ def _count_valid_pixels(array: np.ndarray, nodata: Optional[float]) -> int:
 
 
 def _clip_geotiff_to(src_path: Path, dst_path: Path, aoi_4326: Polygon) -> tuple[int, object]:
-    """Crop a georeferenced raster to the AOI, preserving CRS and profile.
+    """Crop a georeferenced raster to the AOI, preserving CRS, profile, and pixel values.
+
+    The clip is non-destructive: ``rasterio.mask.mask`` only crops (nearest, no
+    resampling), so the written pixels must equal the raw pixels inside the AOI.
+
+    **Lossless-JP2 guard.** Sentinel-2 bands are JPEG-2000. GDAL's ``JP2OpenJPEG``
+    writer defaults to *lossy* even when the source profile came from a lossless
+    JP2, which silently corrupts both reflectance (±~2 DN) and the categorical
+    ``MSK_CLASSI`` cloud mask (class flips). When the output is a ``.jp2`` we force
+    reversible (lossless) wavelet + full quality so the crop stays bit-exact. The
+    same setting the S2 test fixtures use (``REVERSIBLE``/``QUALITY=100``). Other
+    sources (GeoTIFF: DEFLATE/LZW/none) are already lossless and unaffected.
 
     Returns:
         ``(valid_pixel_count, crs)`` of the written output.
@@ -92,6 +103,10 @@ def _clip_geotiff_to(src_path: Path, dst_path: Path, aoi_4326: Polygon) -> tuple
         )
         crs = src.crs
         nodata = src.nodata
+
+    if str(dst_path).lower().endswith(".jp2"):
+        # Force lossless JPEG-2000; GDAL's JP2OpenJPEG default is lossy.
+        profile.update(driver="JP2OpenJPEG", REVERSIBLE="YES", QUALITY="100")
 
     dst_path.parent.mkdir(parents=True, exist_ok=True)
     with rasterio.open(dst_path, "w", **profile) as dst:

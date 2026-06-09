@@ -231,6 +231,55 @@ def test_sentinel2_clip_stays_utm11(tmp_path, aoi, settings):
 
 
 @requires_archive
+def test_sentinel2_clip_is_lossless(tmp_path, aoi, settings):
+    """AC-8 (S2): the clipped JP2 bands are bit-exact to the raw SAFE — no lossy recompress.
+
+    Regression for the lossy-JP2 bug: ``_clip_geotiff_to`` copied the source profile but
+    GDAL's ``JP2OpenJPEG`` writer defaults to *lossy*, silently corrupting reflectance
+    (±~2 DN) and the categorical ``MSK_CLASSI`` cloud mask (class flips). The earlier
+    median-0 S2 parity check could not see this. We assert both the compression label
+    (LOSSLESS) and exact pixel equality over an interior window.
+    """
+    import zipfile
+
+    import numpy as np
+    from rasterio.windows import from_bounds
+
+    src = sorted((RAW_ROOT / "sentinel2").glob("*.zip"))[0]
+    dst = tmp_path / "s2.zip"
+    row = clippers.clip_sentinel2(
+        src_path=src, dst_path=dst, source="sentinel2", aoi_4326=aoi, settings=settings
+    )
+    assert row.action is ClipAction.CLIP
+
+    def _open_member(zip_path: Path, suffix: str) -> str:
+        with zipfile.ZipFile(zip_path) as zf:
+            return next(n for n in zf.namelist() if n.endswith(suffix))
+
+    b04 = "_B04.jp2"
+    raw_band = _open_member(src, b04)
+    clp_band = _open_member(dst, b04)
+
+    with rasterio.open(f"/vsizip/{dst}/{clp_band}") as clipped:
+        # GDAL reports reversibility in the tags; a lossy write would say LOSSY.
+        rev = clipped.tags(ns="IMAGE_STRUCTURE").get("COMPRESSION_REVERSIBILITY", "")
+        assert rev.upper() != "LOSSY", "clipped S2 JP2 is lossy — recompression corrupts pixels"
+        cb = clipped.bounds
+
+    # Pixel equality over the interior of the clipped footprint (avoid crop-edge alignment).
+    ix0, iy0 = cb.left + (cb.right - cb.left) * 0.25, cb.bottom + (cb.top - cb.bottom) * 0.25
+    ix1, iy1 = cb.left + (cb.right - cb.left) * 0.75, cb.bottom + (cb.top - cb.bottom) * 0.75
+    with rasterio.open(f"/vsizip/{src}/{raw_band}") as r, rasterio.open(f"/vsizip/{dst}/{clp_band}") as c:
+        rwin = from_bounds(ix0, iy0, ix1, iy1, r.transform)
+        cwin = from_bounds(ix0, iy0, ix1, iy1, c.transform)
+        rd = r.read(1, window=rwin)
+        cd = c.read(1, window=cwin)
+    h, w = min(rd.shape[0], cd.shape[0]), min(rd.shape[1], cd.shape[1])
+    assert h > 0 and w > 0
+    assert np.array_equal(rd[:h, :w], cd[:h, :w]), "clipped S2 B04 not bit-exact to raw"
+
+
+@requires_archive
 def test_modis_per_grid_index_ratio(tmp_path, aoi, settings):
     """AC-6: MODIS 500 m grid clips to ~2× the 1 km grid dimensions (no 1200 clamp)."""
     src = sorted((RAW_ROOT / "modis").glob("*.hdf"))[0]

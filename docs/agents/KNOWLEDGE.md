@@ -168,6 +168,32 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   letter is parity-irrelevant; gating on `S2[AB]` would have silently dropped every S2C
   granule. (Flagged + fixed 2026-06-08; earlier PLAN/SPEC/TASK prose says "S2A/S2B"
   only — read it as "S2A/S2B/S2C".)
+- **The clip stage was lossy-recompressing every Sentinel-2 JP2 (FIXED 2026-06-08).**
+  `_clip_geotiff_to` (`clip/clippers.py`) crops with `rasterio.mask.mask` (values preserved
+  in memory) but wrote via GDAL's `JP2OpenJPEG` driver copying `src.profile`, which
+  **defaults to LOSSY**. Raw SAFE JP2s are `COMPRESSION_REVERSIBILITY=LOSSLESS`; clipped
+  ones came out `LOSSY` → reflectance corrupted ±~2 DN (B04: 12 % exact, max 12 DN over a
+  patch) and the categorical `MSK_CLASSI` mask class-flipped (patch opaque 1→0). **Only S2
+  is affected** — it is the only JP2 source; DEM/WorldCover/Landsat (DEFLATE/LZW/none) and
+  S1/MODIS/VIIRS (uncompressed/NetCDF) are already lossless (audited 2026-06-08). Fix:
+  `_clip_geotiff_to` forces `REVERSIBLE=YES, QUALITY=100` when the output is `.jp2`. After
+  the fix, clipped B04 over the patch is **100 % bit-exact** to raw. **Re-clip S2** after
+  this change (`clip-source sentinel2`) and rebuild the combined manifest additively.
+  Guard: `test_clip_dataset.py::test_sentinel2_clip_is_lossless`. **TASK-013's "bit-exact B4
+  parity" had been a false-green** — its assertion was *signed-median == 0*, which lossy
+  ±2 DN noise preserves. See [[s2-clip-lossy-jp2-bug]].
+- **Sentinel-2 `QA60` IS reconstructable — a deterministic MSK_CLASSI repack (TASK-013c,
+  S2CloudAdapter).** GEE's `COPERNICUS/S2_HARMONIZED` rebuilds QA60 (post-2024-02-28) as
+  `MSK_CLASSI_OPAQUE<<10 | MSK_CLASSI_CIRRUS<<11`, **opaque precedence, snow excluded** →
+  value domain exactly `{0,1024,2048}`. **Verified by a direct GEE pull** (project
+  `bow-valley-inference`, persistent creds): for `…_T11UNT` 2025-04-08 over PR_20250414 the
+  GEE bands give QA60=1024, OPAQUE=1, CIRRUS=0 — and the **raw** SAFE MSK_CLASSI opaque
+  matches (=1). The earlier "infeasible / different algorithm" conclusion was **WRONG**: it
+  read the *lossy-corrupted* clipped mask (opaque flipped to 0). Once the clip is lossless,
+  the repack reproduces GEE. (NOT a separate cloud algorithm; the SNAP-route idea does not
+  apply — QA60 is an ESA L1C band, not a SNAP product.) `S2CloudAdapter` (`s2.py`) packs it
+  with nearest 60 m→10 m reproject + the same coalesce/mosaic path as `S2Adapter`. See
+  [[s2-qa60-reconstructed-from-msk-classi]].
 - **Landsat clips stay native EPSG:32612, S2 stays EPSG:32611.** The clip queries
   each band's CRS dynamically (no hardcoded zone) and reprojects the AOI to it. The
   cross-zone 32612→4326 reprojection is the Landsat adapter's job (TASK-012), not the
