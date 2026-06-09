@@ -99,8 +99,8 @@ class LocalSourceExporter:
         several reals while preserving band order. Wired so far:
 
         - **HIGH** group (``VV,VH,angle,B2,B3,B4,B8,B11,B12,B2_landsat..B7_landsat``) →
-          S2 (TASK-013) for ``B2..B12`` + Landsat (TASK-012) for ``B2_landsat..B7_landsat``;
-          ``VV,VH,angle`` stay placeholders until S1 (TASK-014).
+          S1 (TASK-014) for ``VV,VH,angle`` + S2 (TASK-013) for ``B2..B12`` + Landsat
+          (TASK-012) for ``B2_landsat..B7_landsat``.
         - **TIME** group (``M5,M7,M10,M11`` + ``skin..v``) → VIIRS-coarse (TASK-010) head
           + ERA5 (TASK-008) tail.
         - **LOW** group (``sur_refl_b01..b07`` + ``I1,I3``) → MODIS (TASK-009) head +
@@ -117,6 +117,7 @@ class LocalSourceExporter:
         from src.data.local_sources.era5 import Era5Adapter
         from src.data.local_sources.landsat import LandsatAdapter, LandsatCloudAdapter
         from src.data.local_sources.modis import ModisAdapter, ModisCloudAdapter
+        from src.data.local_sources.s1 import S1Adapter
         from src.data.local_sources.s2 import S2Adapter, S2CloudAdapter
         from src.data.local_sources.s3 import S3Adapter
         from src.data.local_sources.viirs import ViirsCoarseAdapter, ViirsFineAdapter
@@ -126,6 +127,9 @@ class LocalSourceExporter:
         landsat9_root = self.archive_root / "landsat9"
         landsat8_root = self.archive_root / "landsat8"
         reals: list[LocalSourceAdapter] = [
+            # S1 reads the SNAP dB+angle cache (built once, offline, by s1_snap.py),
+            # NOT the raw clipped SAFEs — see src/data/local_sources/s1.py.
+            S1Adapter(cache_root=self.archive_root / "sentinel1_snap"),
             S2Adapter(archive_root=self.archive_root / "sentinel2"),
             S2CloudAdapter(archive_root=self.archive_root / "sentinel2"),
             LandsatAdapter(landsat9_root=landsat9_root, landsat8_root=landsat8_root),

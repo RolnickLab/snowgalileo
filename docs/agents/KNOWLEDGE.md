@@ -200,6 +200,24 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   clip stage. S1 measurement TIFFs are range-geometry (GCPs, no affine) → sliced by
   the AOI-overlapping GCP pixel window with shifted GCPs (defensive CRS+transform
   fast-path if a future pull ships orthorectified UTM).
+- **S1 adapter runs ESA SNAP once per (granule, cell) into a cached dB+angle GeoTIFF
+  (TASK-014); the clip stage does NOT preprocess S1.** The clip is a range-geometry
+  pixel *crop* (GCPs, no CRS), so the clipped scene's geographic extent is still the
+  whole ~250 km swath. SNAP terrain-correction over the full AOI bbox (840 NPEs, 3.3 GB)
+  OR the full clipped scene (1060 NPEs, 651 Mpx) both **NPE-corrupt** on swath-empty
+  regions — only a small **per-cell `Subset` geoRegion** runs clean. So `s1_snap.py`
+  (graph `s1_grd_graph.xml`) builds an offline per-cell cache (`s1_grd_<granule>_cell{id}.tif`,
+  3-band: Sigma0_VH, Sigma0_VV linear, ellipsoid-incidence angle); `s1.py` reads it
+  (pure raster, no SNAP), `10·log10` for VV/VH, angle passthrough, `< -30 dB` edge mask
+  (VV/VH only). **dB is done in the adapter, not SNAP** — `LinearToFromdB` scoped to σ⁰
+  drops the angle band; the cache stores linear σ⁰. **`angle` = ellipsoid incidence**
+  (`saveIncidenceAngleFromEllipsoid`, matches reference patches ≤0.4°), NOT local
+  incidence. **Band order pinned by index** (BigTIFF persists no descriptions). Parity
+  proven on PR_20250519 (VV 0.38 / VH 0.40 dB, angle 0.24°); PR_20250406 is a
+  GEE-pull-confirmed single-scene anomaly (GEE VV −2.63 vs our −12.7 dB, *same*
+  acquisition — not a pipeline bug), PR_20250423 a SNAP "Empty region!" quirk. See
+  [[s1-adapter-snap-cache-and-angle]], [[xarray-sentinel-s1c-regex-bug]]. Build:
+  `python -m src.data.local_sources.s1_snap`.
 - **S3 OLCI lat/lon are CF-scaled int32 — apply `scale_factor` before the AOI mask
   (or every radiance band clips to (0,0)).** `geo_coordinates.nc` stores `latitude`
   / `longitude` as `int32` with `scale_factor ≈ 1e-6` (raw `49896598` means

@@ -1,0 +1,151 @@
+<graph id="s1_grd_cop_chain">
+  <version>1.0</version>
+
+  <!--
+    Production SNAP graph for the Sentinel-1 adapter (TASK-014). Reproduces GEE
+    COPERNICUS/S1_GRD preprocessing with the ESA Sentinel-1 Toolbox (the same
+    engine GEE uses), emitting VV/VH sigma0 in dB PLUS the ellipsoid incidence
+    angle, terrain-corrected onto EPSG:32611 at 10 m.
+
+    Chain (matching the GEE S1_GRD recipe up to terrain correction):
+      Read -> Apply-Orbit-File -> Subset (AOI n footprint, radar geometry)
+        -> ThermalNoiseRemoval -> Remove-GRD-Border-Noise
+        -> Calibration (sigma0, LINEAR) -> Terrain-Correction (SRTM 1Sec,
+           EPSG:32611, + saveIncidenceAngleFromEllipsoid) -> Write (GeoTIFF-BigTIFF)
+
+    The Subset to the AOI n granule-footprint (in radar geometry, after orbit so
+    GCPs survive) is the adapter's "windowed read": terrain-correcting the full
+    ~250 km IW swath at 10 m overflows SNAP's writer AND wastes compute. The
+    footprint intersection (done in s1_snap.py) also avoids SNAP's "Empty region!"
+    error on AOI areas this granule's swath does not cover.
+
+    Output band ORDER (pinned; BigTIFF persists no band names): SNAP emits
+    sigma0 VH first, then VV, then the angle band, i.e.
+      band 1 = Sigma0_VH (linear), band 2 = Sigma0_VV (linear),
+      band 3 = incidenceAngleFromEllipsoid (degrees).
+    The S1Adapter maps by this fixed index order (descriptions are None under the
+    BigTIFF writer) and asserts the angle domain at parity time.
+
+    Key design notes (vs the throwaway TASK-005 spike graph):
+      1. Terrain-Correction emits the ellipsoid incidence angle band
+         (saveIncidenceAngleFromEllipsoid=true). The GEE S1_GRD `angle` band is the
+         ellipsoid incidence (varies with range across the swath), NOT the local
+         incidence angle (which swings with terrain).
+      2. dB conversion is done in the ADAPTER (Python 10*log10), NOT in SNAP.
+         LinearToFromdB scoped to the sigma0 bands DROPS the angle band from the
+         output (it passes through only its named bands); converting all bands would
+         log-scale the angle. Storing LINEAR sigma0 + angle keeps all 3 bands and
+         the dB step (10*log10) is identical math, applied to VV/VH in s1.py.
+      3. Write uses GeoTIFF-BigTIFF: the full-AOI-n-footprint output exceeds the
+         classic GeoTIFF 4 GB cap; BigGeoTiffProductWriter handles it.
+
+    Run via src/data/local_sources/s1_snap.py::build_s1_cache, or directly:
+      <snap>/bin/gpt src/data/local_sources/s1_grd_graph.xml \
+        -Pinput=<extracted .SAFE>/manifest.safe \
+        -Pregion='POLYGON((lon lat, ...))' \
+        -Poutput=<cache>/s1_grd_<granule>.tif
+    (absolute gpt path; /usr/bin/snap is snapd, NOT ESA SNAP)
+  -->
+
+  <node id="Read">
+    <operator>Read</operator>
+    <sources/>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <file>${input}</file>
+    </parameters>
+  </node>
+
+  <node id="Apply-Orbit-File">
+    <operator>Apply-Orbit-File</operator>
+    <sources>
+      <sourceProduct refid="Read"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <orbitType>Sentinel Precise (Auto Download)</orbitType>
+      <polyDegree>3</polyDegree>
+      <!-- Don't fail the whole chain if the precise orbit isn't published yet;
+           SNAP falls back to restituted. -->
+      <continueOnFail>true</continueOnFail>
+    </parameters>
+  </node>
+
+  <node id="Subset">
+    <operator>Subset</operator>
+    <sources>
+      <sourceProduct refid="Apply-Orbit-File"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <geoRegion>${region}</geoRegion>
+      <copyMetadata>true</copyMetadata>
+    </parameters>
+  </node>
+
+  <node id="ThermalNoiseRemoval">
+    <operator>ThermalNoiseRemoval</operator>
+    <sources>
+      <sourceProduct refid="Subset"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <selectedPolarisations>VV,VH</selectedPolarisations>
+      <removeThermalNoise>true</removeThermalNoise>
+    </parameters>
+  </node>
+
+  <node id="Remove-GRD-Border-Noise">
+    <operator>Remove-GRD-Border-Noise</operator>
+    <sources>
+      <sourceProduct refid="ThermalNoiseRemoval"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <selectedPolarisations>VV,VH</selectedPolarisations>
+      <borderLimit>500</borderLimit>
+      <trimThreshold>0.5</trimThreshold>
+    </parameters>
+  </node>
+
+  <node id="Calibration">
+    <operator>Calibration</operator>
+    <sources>
+      <sourceProduct refid="Remove-GRD-Border-Noise"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <selectedPolarisations>VV,VH</selectedPolarisations>
+      <outputSigmaBand>true</outputSigmaBand>
+      <outputImageScaleInDb>false</outputImageScaleInDb>
+    </parameters>
+  </node>
+
+  <node id="Terrain-Correction">
+    <operator>Terrain-Correction</operator>
+    <sources>
+      <sourceProduct refid="Calibration"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <demName>SRTM 1Sec HGT</demName>
+      <demResamplingMethod>BILINEAR_INTERPOLATION</demResamplingMethod>
+      <imgResamplingMethod>BILINEAR_INTERPOLATION</imgResamplingMethod>
+      <pixelSpacingInMeter>10.0</pixelSpacingInMeter>
+      <!-- EPSG:32611 (UTM 11N) to match the cube cell grid. -->
+      <mapProjection>EPSG:32611</mapProjection>
+      <nodataValueAtSea>false</nodataValueAtSea>
+      <saveSelectedSourceBand>true</saveSelectedSourceBand>
+      <!-- Emit the GEE `angle` band: ellipsoid incidence, NOT local incidence. -->
+      <saveIncidenceAngleFromEllipsoid>true</saveIncidenceAngleFromEllipsoid>
+    </parameters>
+  </node>
+
+  <!-- NO LinearToFromdB node: dB conversion (10*log10) is done in the adapter on
+       VV/VH only (s1.py), so the angle band survives and stays in degrees. The
+       cache stores LINEAR sigma0 + angle. -->
+
+  <node id="Write">
+    <operator>Write</operator>
+    <sources>
+      <sourceProduct refid="Terrain-Correction"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <file>${output}</file>
+      <formatName>GeoTIFF-BigTIFF</formatName>
+    </parameters>
+  </node>
+</graph>
