@@ -52,7 +52,12 @@ import rasterio
 import structlog
 
 from src.data.config import NO_DATA_VALUE
-from src.data.local_sources._scene_ops import BandRead, coalesce_tile, mosaic_tiles
+from src.data.local_sources._scene_ops import (
+    BandRead,
+    cell_window,
+    coalesce_tile,
+    mosaic_tiles,
+)
 from src.data.local_sources.base import (
     GridCell,
     LocalSourceAdapter,
@@ -124,11 +129,15 @@ class _LandsatBase(LocalSourceAdapter):
         scenes = [_parse_scene(p) for p in sorted(root.glob("*.tar"))]
         return [s for s in scenes if s is not None and s.acq == day]
 
-    def _read_band_toa(self, scene: _SceneInfo, band_num: int) -> BandRead | None:
-        """Read one band's DN from the scene tar and convert to TOA reflectance.
+    def _read_band_toa(
+        self, scene: _SceneInfo, band_num: int, cell: GridCell
+    ) -> BandRead | None:
+        """Read one band's DN over the cell footprint and convert to TOA reflectance.
 
-        Returns ``None`` if the scene tar lacks the MTL or the band member. ``DN == 0``
-        (scene no-data) and out-of-threshold values become ``-9999``.
+        Windowed to the cell neighbourhood (see :func:`cell_window`) so a full Landsat
+        scene band is never materialized whole. Returns ``None`` if the scene tar lacks the
+        MTL or band member, or the cell does not intersect the scene. ``DN == 0`` (scene
+        no-data) and out-of-threshold values become ``-9999``.
         """
         with tarfile.open(scene.path, "r") as tar:
             mtl_name = next(
@@ -144,8 +153,11 @@ class _LandsatBase(LocalSourceAdapter):
             with tempfile.TemporaryDirectory() as tmp:
                 tar.extract(band_member, path=tmp)
                 with rasterio.open(Path(tmp) / band_member) as ds:
-                    dn = ds.read(1).astype(np.float64)
-                    transform = ds.transform
+                    window = cell_window(ds, cell)
+                    if window is None:
+                        return None
+                    dn = ds.read(1, window=window).astype(np.float64)
+                    transform = ds.window_transform(window)
                     crs = str(ds.crs)
 
         mult, add, sun_elev = _toa_coefficients(mtl, band_num)
@@ -174,7 +186,7 @@ class _LandsatBase(LocalSourceAdapter):
         tile_reads: list[BandRead] = []
         for pathrow, tile_scenes in by_tile.items():
             ordered = sorted(tile_scenes, key=lambda s: s.proc, reverse=True)
-            reads = [r for s in ordered if (r := self._read_band_toa(s, band_num))]
+            reads = [r for s in ordered if (r := self._read_band_toa(s, band_num, cell))]
             if reads:
                 tile_reads.append(coalesce_tile(reads))
 
@@ -266,17 +278,24 @@ class LandsatCloudAdapter(_LandsatBase):
                 (n for n in tar.getnames() if n.upper().endswith("_QA_PIXEL.TIF")), None
             )
 
-    def _read_qa(self, scene: _SceneInfo) -> BandRead | None:
-        """Read the scene's ``QA_PIXEL`` bit-flag band (no TOA conversion)."""
+    def _read_qa(self, scene: _SceneInfo, cell: GridCell) -> BandRead | None:
+        """Read the scene's ``QA_PIXEL`` bit-flag band over the cell footprint (no TOA).
+
+        Windowed to the cell neighbourhood (see :func:`cell_window`); ``None`` if the band
+        is absent or the cell does not intersect the scene.
+        """
         member = self._qa_member(scene)
         if member is None:
             return None
         with tarfile.open(scene.path, "r") as tar, tempfile.TemporaryDirectory() as tmp:
             tar.extract(member, path=tmp)
             with rasterio.open(Path(tmp) / member) as ds:
+                window = cell_window(ds, cell)
+                if window is None:
+                    return None
                 return BandRead(
-                    values=ds.read(1).astype(np.float64),
-                    transform=ds.transform,
+                    values=ds.read(1, window=window).astype(np.float64),
+                    transform=ds.window_transform(window),
                     crs=str(ds.crs),
                 )
 
@@ -301,7 +320,7 @@ class LandsatCloudAdapter(_LandsatBase):
         tile_reads: list[BandRead] = []
         for tile_scenes in by_tile.values():
             ordered = sorted(tile_scenes, key=lambda s: s.proc, reverse=True)
-            reads = [r for s in ordered if (r := self._read_qa(s))]
+            reads = [r for s in ordered if (r := self._read_qa(s, cell))]
             if reads:
                 tile_reads.append(reads[0])  # latest processing time wins
 

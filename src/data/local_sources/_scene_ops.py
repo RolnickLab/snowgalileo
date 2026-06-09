@@ -19,11 +19,67 @@ from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
+import rasterio
 from affine import Affine
+from rasterio.errors import WindowError
 from rasterio.io import MemoryFile
 from rasterio.merge import merge
+from rasterio.warp import transform_bounds
+from rasterio.windows import Window, from_bounds
 
 from src.data.config import NO_DATA_VALUE
+from src.data.local_sources.base import GridCell
+
+#: Pixels of margin added around the cell footprint when windowing a source band, so the
+#: nearest/bilinear reproject onto the cell grid has the neighbouring source pixels it needs
+#: at the edges (a too-tight window would nodata the cell border → parity regression). Four
+#: 10–30 m source pixels comfortably brackets a 10 m cell pixel under either resampler.
+_WINDOW_MARGIN_PX: int = 4
+
+
+def cell_window(ds: rasterio.io.DatasetReader, cell: GridCell) -> Window | None:
+    """Pixel window over ``ds`` covering ``cell``'s footprint plus a safety margin.
+
+    Lets an adapter read **only** the cell's neighbourhood out of a full UTM tile
+    (a 10980×10980 S2/Landsat band is ~900 MB as float64 if read whole — the windowed
+    read is a few KB). The window is the cell's bounds reprojected into the band's CRS,
+    converted to pixels, padded by :data:`_WINDOW_MARGIN_PX`, and clamped to the dataset.
+
+    The window is intentionally a few pixels larger than the cell so the subsequent
+    nearest/bilinear :func:`~src.data.local_sources.base.reproject_to_cell` has full
+    edge coverage — the reprojected output is bit-identical to one taken from the full
+    band (the reproject only ever samples source pixels inside the cell footprint).
+
+    Args:
+        ds: An open rasterio dataset for one source band (native CRS/transform).
+        cell: The target grid cell (its ``polygon`` is in :data:`CELL_TARGET_CRS`).
+
+    Returns:
+        A clamped :class:`rasterio.windows.Window`, or ``None`` if the cell footprint
+        does not intersect the band at all (caller treats as "band absent here").
+    """
+    min_x, min_y, max_x, max_y = cell.polygon.bounds
+    left, bottom, right, top = transform_bounds(
+        cell.crs, ds.crs, min_x, min_y, max_x, max_y
+    )
+    win = from_bounds(left, bottom, right, top, transform=ds.transform)
+    # Pad by the margin, then clamp to the dataset extent. ``Window.intersection`` raises
+    # ``WindowError`` when the two windows are disjoint (cell outside the tile) — treat that
+    # as "band absent here" (None), the same as a tile the cell does not cover.
+    padded = Window(
+        col_off=win.col_off - _WINDOW_MARGIN_PX,
+        row_off=win.row_off - _WINDOW_MARGIN_PX,
+        width=win.width + 2 * _WINDOW_MARGIN_PX,
+        height=win.height + 2 * _WINDOW_MARGIN_PX,
+    )
+    try:
+        clamped = padded.intersection(Window(0, 0, ds.width, ds.height))
+    except WindowError:
+        return None
+    if clamped.width <= 0 or clamped.height <= 0:
+        return None
+    # Round to whole pixels (windows must be integer for a clean read+transform).
+    return clamped.round_offsets(op="floor").round_lengths(op="ceil")
 
 
 @dataclass(frozen=True)

@@ -52,7 +52,12 @@ import rasterio
 import structlog
 
 from src.data.config import NO_DATA_VALUE
-from src.data.local_sources._scene_ops import BandRead, coalesce_tile, mosaic_tiles
+from src.data.local_sources._scene_ops import (
+    BandRead,
+    cell_window,
+    coalesce_tile,
+    mosaic_tiles,
+)
 from src.data.local_sources.base import (
     GridCell,
     LocalSourceAdapter,
@@ -154,11 +159,16 @@ class S2Adapter(LocalSourceAdapter):
         granules = [_parse_granule(p) for p in sorted(self.archive_root.glob("*.zip"))]
         return [g for g in granules if g is not None and g.acq == day]
 
-    def _read_band(self, granule: _GranuleInfo, band_suffix: str) -> BandRead | None:
-        """Read one JP2 band, apply the −1000 DN harmonization, return a :class:`BandRead`.
+    def _read_band(
+        self, granule: _GranuleInfo, band_suffix: str, cell: GridCell
+    ) -> BandRead | None:
+        """Read one JP2 band over the cell footprint, harmonize, return a :class:`BandRead`.
 
-        Returns ``None`` if the granule lacks the band JP2. ``DN == 0`` (L1C no-data) and
-        sub-floor values become ``-9999``.
+        Reads only the cell's neighbourhood out of the full 10980×10980 UTM tile (a
+        windowed read — see :func:`cell_window`); reading the whole band would be ~900 MB
+        as float64 and is what previously OOM'd a multi-cell sweep. Returns ``None`` if the
+        granule lacks the band JP2 or the cell does not intersect the tile. ``DN == 0``
+        (L1C no-data) and sub-floor values become ``-9999``.
         """
         with zipfile.ZipFile(granule.path) as zf:
             jp2 = next(
@@ -170,8 +180,11 @@ class S2Adapter(LocalSourceAdapter):
             baseline = _read_baseline(zf, granule.baseline)
 
         with rasterio.open(f"/vsizip/{granule.path}/{jp2}") as ds:
-            dn = ds.read(1).astype(np.float64)
-            transform = ds.transform
+            window = cell_window(ds, cell)
+            if window is None:
+                return None
+            dn = ds.read(1, window=window).astype(np.float64)
+            transform = ds.window_transform(window)
             crs = str(ds.crs)
 
         raw_zero = dn == 0
@@ -195,7 +208,7 @@ class S2Adapter(LocalSourceAdapter):
         tile_reads: list[BandRead] = []
         for tile_granules in by_tile.values():
             ordered = sorted(tile_granules, key=lambda g: g.proc, reverse=True)
-            reads = [r for g in ordered if (r := self._read_band(g, band_suffix))]
+            reads = [r for g in ordered if (r := self._read_band(g, band_suffix, cell))]
             if reads:
                 tile_reads.append(coalesce_tile(reads))
 
@@ -309,8 +322,13 @@ class S2CloudAdapter(LocalSourceAdapter):
         granules = [_parse_granule(p) for p in sorted(self.archive_root.glob("*.zip"))]
         return [g for g in granules if g is not None and g.acq == day]
 
-    def _read_qa60(self, granule: _GranuleInfo) -> BandRead | None:
-        """Read ``MSK_CLASSI_B00.jp2`` and pack it into QA60; ``None`` if the mask is absent."""
+    def _read_qa60(self, granule: _GranuleInfo, cell: GridCell) -> BandRead | None:
+        """Read ``MSK_CLASSI_B00.jp2`` over the cell footprint, pack into QA60.
+
+        Windowed to the cell neighbourhood (see :func:`cell_window`) for the same memory
+        reason as the reflectance bands. ``None`` if the mask is absent or the cell does
+        not intersect the tile.
+        """
         with zipfile.ZipFile(granule.path) as zf:
             msk = next(
                 (n for n in zf.namelist() if n.endswith("MSK_CLASSI_B00.jp2") and "/QI_DATA/" in n),
@@ -320,9 +338,12 @@ class S2CloudAdapter(LocalSourceAdapter):
                 return None
 
         with rasterio.open(f"/vsizip/{granule.path}/{msk}") as ds:
-            opaque = ds.read(_MSK_OPAQUE_BAND).astype(np.float64)
-            cirrus = ds.read(_MSK_CIRRUS_BAND).astype(np.float64)
-            transform = ds.transform
+            window = cell_window(ds, cell)
+            if window is None:
+                return None
+            opaque = ds.read(_MSK_OPAQUE_BAND, window=window).astype(np.float64)
+            cirrus = ds.read(_MSK_CIRRUS_BAND, window=window).astype(np.float64)
+            transform = ds.window_transform(window)
             crs = str(ds.crs)
 
         qa = _qa60_from_msk_classi(opaque, cirrus)
@@ -347,7 +368,7 @@ class S2CloudAdapter(LocalSourceAdapter):
         tile_reads: list[BandRead] = []
         for tile_granules in by_tile.values():
             ordered = sorted(tile_granules, key=lambda g: g.proc, reverse=True)
-            reads = [r for g in ordered if (r := self._read_qa60(g))]
+            reads = [r for g in ordered if (r := self._read_qa60(g, cell))]
             if reads:
                 tile_reads.append(coalesce_tile(reads))
 
