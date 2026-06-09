@@ -281,3 +281,36 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   geolocation.** Evidence kept: `scripts/spikes/s3_olci_parity_spike.py` +
   `s3_olci_ortho_graph.xml`. See PARITY_SPIKE_NOTES §10.1, [[s3-snap-ortho-rejected]].
 
+
+## TASK-016 — downstream value-domain & inference invariants (AC-4)
+
+These five are *preserved-as-is* contracts the direct-source pipeline must not "fix"
+(they are model-numeric-domain or downstream-loader concerns, out of scope per SPEC §6):
+
+- **MODIS `-28672` native fill is load-bearing — never strip or blend it.** The loader
+  treats `-28672` as a "data present" sentinel (`landsat_eval.py:317,331` NDSI/NDVI);
+  the MODIS adapter must preserve it in addition to `-9999`, and the nodata-aware
+  resampler masks it to NaN before any bilinear so it never bleeds into a valid pixel.
+  See [[modis-fill-28672-load-bearing]].
+- **ERA5 temperature-shift sign is preserved, not corrected.** The known temp-sign quirk
+  is a model-numeric-domain concern; the adapter emits raw Kelvin/native units and does
+  **not** "fix" the sign (SPEC §6 out of scope). Separately, `total_precipitation` carries
+  the ERA5-Land day-shift (day `i` ← `i+1` 00:00 accum slice); temps/winds are unshifted.
+  See [[era5-precip-accumulation-day-shift]].
+- **S3 identity-normalization is intentional.** The S3 OLCI radiances are passed through
+  with identity normalization on purpose (downstream concern, out of scope to change); the
+  open S3 lever is this norm TODO, **not** geolocation/ortho ([[s3-snap-ortho-rejected]]).
+- **`PR` filename prefix is supported and currently unused on disk.** The loader's filename
+  parser accepts the `PR_` prefix (`PR_{YYYYMMDD}_{LAT}_{LON}_SC00.tif`); the exporter emits
+  exactly that. If the prefix meaning ever reopens, the **only** permitted downstream change
+  is an additive allowlist patch at `landsat_eval.py:172` in the same PR (RESOLVED — no patch
+  needed today).
+- **Per-cell inference has NO cross-cell context.** Each cell is an independent
+  `EncoderWithHead` forward on its own 308-band cube; the driver batches cells only for GPU
+  throughput, never to share spatial context across cells. The daily mosaic stitches the
+  independent 10×10 predictions by exact UTM pixel offset ([[inference-driver-direct-utm-mosaic]]).
+
+- **Scene adapters (S2/Landsat) windowed-read the cell footprint, never the full UTM tile.**
+  The clip keeps the full tile; reading a whole band is ~900 MB float64 → multi-GB OOM on a
+  sweep. `_scene_ops.cell_window` reads only the cell neighbourhood (+4 px margin); output is
+  bit-identical to the full read. See [[s2-landsat-windowed-read-oom]].
