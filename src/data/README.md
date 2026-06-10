@@ -14,4 +14,4 @@ Current dataset structure:
 - 2 non-exportet time varying channels (NDVI, NDSI)
 - 4 space-only channels
 
-The end.
+The end...
