@@ -573,7 +573,6 @@ class EarthEngineExporterEval(EarthEngineExporter):
             self.sync_local_and_gcloud()
             print("Finished sync")
 
-
     def export_from_csv_utm(self, csv_file) -> None:
         df = pd.read_csv(csv_file)
         dates = df["date"].tolist()

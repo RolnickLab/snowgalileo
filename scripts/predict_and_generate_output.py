@@ -56,10 +56,7 @@ argparser.add_argument(
     default="test_run",
     help="ID for the evaluation run.",
 )
-argparser.add_argument(
-    "--h5pys_only",
-    action="store_true"
-)
+argparser.add_argument("--h5pys_only", action="store_true")
 argparser.add_argument(
     "--decoding_strategy",
     type=str,
@@ -109,6 +106,4 @@ eval_task = LandsatEval(
     decoder_mode=decoder_mode,
 )
 
-eval_task.predict_and_store_output(
-    model=model, id=args["id"]
-)
+eval_task.predict_and_store_output(model=model, id=args["id"])

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
 import torch
 from torch.utils.data import DataLoader
@@ -15,14 +16,15 @@ from src.data.dataset import Normalizer
 from src.fsc.downstream_augmentation import DownstreamAugmentation
 from src.fsc.landsat_eval import LandsatEvalDataset as BaseDataset
 from src.utils import config_dir
-import numpy as np
 
 
 def plot_distribution(data, channel_name, folder, filename):
     data = data.numpy().flatten()
     plt.figure(figsize=(10, 6))
     sns.histplot(data, bins=100, kde=True)
-    plt.title(f"Distribution of {channel_name}, mean: {np.mean(data)}, std: {np.std(data)}, total num pixels: {len(data)}")
+    plt.title(
+        f"Distribution of {channel_name}, mean: {np.mean(data)}, std: {np.std(data)}, total num pixels: {len(data)}"
+    )
     plt.xlabel("Value")
     plt.ylabel("Frequency")
     plt.savefig(Path(folder) / filename)
@@ -236,7 +238,10 @@ if __name__ == "__main__":
             )
         ):
             plot_distribution(
-                data, channel_name, save_folder, f"{channel_name.replace(' ', '_')}_distribution.png"
+                data,
+                channel_name,
+                save_folder,
+                f"{channel_name.replace(' ', '_')}_distribution.png",
             )
 
         # print the number of values that are below -1 or above 1 for NDSI and NDVI
@@ -283,7 +288,10 @@ if __name__ == "__main__":
             )
         ):
             plot_distribution(
-                data, channel_name, save_folder, f"{channel_name.replace(' ', '_')}_distribution.png"
+                data,
+                channel_name,
+                save_folder,
+                f"{channel_name.replace(' ', '_')}_distribution.png",
             )
 
         for idx, (data, channel_name) in enumerate(
@@ -313,12 +321,18 @@ if __name__ == "__main__":
             )
         ):
             plot_distribution(
-                data, channel_name, save_folder, f"{channel_name.replace(' ', '_')}_distribution.png"
+                data,
+                channel_name,
+                save_folder,
+                f"{channel_name.replace(' ', '_')}_distribution.png",
             )
 
         for idx, (data, channel_name) in enumerate(
             zip([st_x_c0_valid, st_x_c1_valid, st_x_c2_valid], ["x", "y", "z"])
         ):
             plot_distribution(
-                data, channel_name, save_folder, f"{channel_name.replace(' ', '_')}_distribution.png"
+                data,
+                channel_name,
+                save_folder,
+                f"{channel_name.replace(' ', '_')}_distribution.png",
             )

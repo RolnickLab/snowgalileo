@@ -13,6 +13,7 @@ import wandb
 import xarray as xr
 from einops import rearrange, reduce, repeat
 from sklearn.ensemble import BaggingRegressor, RandomForestRegressor
+from sklearn.metrics import root_mean_squared_error
 from sklearn.neural_network import MLPRegressor
 from sklearn.svm import SVR
 from torch.utils.data import DataLoader, Subset
@@ -22,7 +23,6 @@ from src.data.config import DATA_FOLDER, RESULTS_FOLDER
 from src.data.dataset import Normalizer
 from src.data.earthengine.eo_eval import SPACE_TIME_HIGH_RES_BANDS, TIME_BANDS
 from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset, masked_output_np_to_tensor
-from sklearn.metrics import root_mean_squared_error
 from src.fsc.metrics import compute_regression_metrics
 
 
@@ -682,7 +682,9 @@ class LandsatEvalSklearn(LandsatEval):
         if hyperparameters == {}:
             hyperparameters = self.eval_config[f"hyperparameters_{self.model_type}"]
 
-        assert self.eval_config["cloud_generation"]["cloud_prob_pred_day"] == 0.0 or self.h5pys_only, "Cloud generation is only supported with h5pys to this point."
+        assert (
+            self.eval_config["cloud_generation"]["cloud_prob_pred_day"] == 0.0 or self.h5pys_only
+        ), "Cloud generation is only supported with h5pys to this point."
 
         train_data_checkpoint_path = (
             Path(DATA_FOLDER) / self.eval_config["data"]["sklearn_train_data_checkpoint_folder"]
@@ -1041,7 +1043,9 @@ class LandsatEvalSklearn(LandsatEval):
                 run_folder.mkdir(exist_ok=True)
                 sample_id = filename[0].split(".tif")[0]
                 sample_preds_path = Path(f"./{run_folder}/{sample_id}_{self.model_type}_preds.npy")
-                sample_labels_path = Path(f"./{run_folder}/{sample_id}_{self.model_type}_labels.npy")
+                sample_labels_path = Path(
+                    f"./{run_folder}/{sample_id}_{self.model_type}_labels.npy"
+                )
                 np.save(sample_preds_path, pred_to_save)
                 np.save(sample_labels_path, label_to_save)
 
@@ -1050,7 +1054,6 @@ class LandsatEvalSklearn(LandsatEval):
                 # append results to csv with filename, r2, rmse
                 with open(results_csv_path, "a") as f:
                     f.write(f"{filename[0]},{rmse}\n")
-
 
         test_preds = torch.cat(all_preds, dim=0).numpy()
         test_labels = torch.cat(all_test_labels, dim=0).numpy()

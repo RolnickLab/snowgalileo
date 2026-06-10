@@ -75,7 +75,7 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
         "S3": {
             "band_names": ["Oa17_radiance", "Oa21_radiance"],
             "apply_clouds": [True, True],
-            "channel_magnitudes": [1.7589,  0.3781],
+            "channel_magnitudes": [1.7589, 0.3781],
             "scaling_factors": [0.00493004, 0.00324118],
         },
     },
@@ -124,31 +124,35 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
     },
 }
 
-FULL_CONFIG={'min_lvl': [0.5,0.9],
-             'max_lvl': 1.0,
-             'const_scale':True,
-             'decay_factor':1.0,
-             'clear_threshold':0.0,
-             'locality_degree':1,
-             'cloud_color':[True,False],
-             'channel_offset':2,
-             'blur_scaling':2
-            }
+FULL_CONFIG = {
+    "min_lvl": [0.5, 0.9],
+    "max_lvl": 1.0,
+    "const_scale": True,
+    "decay_factor": 1.0,
+    "clear_threshold": 0.0,
+    "locality_degree": 1,
+    "cloud_color": [True, False],
+    "channel_offset": 2,
+    "blur_scaling": 2,
+}
 
 # thick local
-LOCAL_CONFIG={'min_lvl':0.0,
-              'max_lvl':1.0,
-              'const_scale':True,
-              'decay_factor':1.0,
-              'clear_threshold':[0.0,0.2],
-              'locality_degree':[2,4],
-              'cloud_color':True,
-              'channel_offset':2,
-              'blur_scaling':2
-             }
+LOCAL_CONFIG = {
+    "min_lvl": 0.0,
+    "max_lvl": 1.0,
+    "const_scale": True,
+    "decay_factor": 1.0,
+    "clear_threshold": [0.0, 0.2],
+    "locality_degree": [2, 4],
+    "cloud_color": True,
+    "channel_offset": 2,
+    "blur_scaling": 2,
+}
 
 
-def generate_clouds(band_stack, band_weights, scaling_factors, cloud_type="random", cloud_prob=0.0, shadow_prob=0.0):
+def generate_clouds(
+    band_stack, band_weights, scaling_factors, cloud_type="random", cloud_prob=0.0, shadow_prob=0.0
+):
     """Function to generate clouds. Input image should be in shape [B,C,H,W]. Band weights should be in shape [B,C,1,1]."""
 
     # the generator function takes reflectance values, but some inputs are in DN format.
@@ -318,9 +322,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
 
         if self.eval_config["cloud_generation"]["cloud_prob_pred_day"] > 0.0:
             apply_clouds_at_timestep(
-                -1,
-                self.eval_config["cloud_generation"]["cloud_prob_pred_day"],
-                cloud_type
+                -1, self.eval_config["cloud_generation"]["cloud_prob_pred_day"], cloud_type
             )
 
         if self.eval_config["cloud_generation"]["cloud_prob_timeseries"] > 0.0:
@@ -588,7 +590,6 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         [h, w, t, 1] representing NDI,
         (band_1 - band_2) / (band_1 + band_2)
         """
-
 
         for b in [band_1, band_2]:
             assert b in SPACE_TIME_LOW_RES_BANDS

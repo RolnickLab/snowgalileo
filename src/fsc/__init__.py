@@ -12,5 +12,5 @@ __all__ = [
     "TimeseriesAblationsEval",
     "DatasetSizeAblationsEval",
     "PixelAblationsEval",
-    "CloudGeneratorEval"
+    "CloudGeneratorEval",
 ]

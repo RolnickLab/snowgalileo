@@ -5,9 +5,9 @@ import psutil
 from src.config import DEFAULT_SEED
 from src.data.config import NORMALIZATION_DICT_FILENAME
 from src.data.dataset import Normalizer
+from src.fsc.cloud_generator import CloudGeneratorMetaDataset
 from src.fsc.landsat_eval import LandsatEval, LandsatEvalDataset
 from src.utils import config_dir, masked_output_np_to_tensor, seed_everything
-from src.fsc.cloud_generator import CloudGeneratorMetaDataset   
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -107,7 +107,7 @@ class SensorAblationsMetaDataset(LandsatEvalDataset):
             label,
             filename,
         )
-    
+
 
 class SensorAblationsCloudsMetaDataset(CloudGeneratorMetaDataset):
     def __init__(
@@ -269,6 +269,7 @@ class SensorAblationsEval(LandsatEval):
         ds.normalizer = normalizer
 
         return ds
+
 
 class SensorAblationsEvalWithClouds(LandsatEval):
     regression = True

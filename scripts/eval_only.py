@@ -6,7 +6,7 @@ import psutil
 import torch
 
 from src.config import DEFAULT_SEED
-from src.fsc import LandsatEval, SensorAblationsEval, TimeseriesAblationsEval, CloudGeneratorEval
+from src.fsc import CloudGeneratorEval, LandsatEval, SensorAblationsEval, TimeseriesAblationsEval
 from src.fsc.patch_predict import EncoderWithHead
 from src.snowgalileo import Encoder
 from src.utils import checkpoints_dir, device, load_check_config, seed_everything
@@ -146,4 +146,6 @@ else:
         decoder_mode=decoder_mode,
     )
 
-eval_task.evaluate_model_on_task(model=model, id=args["identifier"], checkpoint_name=args["checkpoint_name"], log_wandb=True)
+eval_task.evaluate_model_on_task(
+    model=model, id=args["identifier"], checkpoint_name=args["checkpoint_name"], log_wandb=True
+)

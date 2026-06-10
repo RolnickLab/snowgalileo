@@ -55,11 +55,7 @@ argparser.add_argument(
 argparser.add_argument(
     "--model_checkpoint_path", default="landsat_rf_model_rf_50est_19012026.joblib"
 )
-argparser.add_argument(
-    "--run_id",
-    type=str,
-    default="default"
-)
+argparser.add_argument("--run_id", type=str, default="default")
 argparser.add_argument(
     "--h5pys_only",
     action="store_true",
@@ -95,4 +91,9 @@ rf = LandsatEvalSklearn(
     model_type=args["model_type"],
     normalizing_dict=normalizing_dict,
 )
-rf.predict_only(model=model, id=id, save_results=True, normalization=args["normalization"],)
+rf.predict_only(
+    model=model,
+    id=id,
+    save_results=True,
+    normalization=args["normalization"],
+)
