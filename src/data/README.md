@@ -13,3 +13,5 @@ Current dataset structure:
 - 8 timesteps
 - 2 non-exportet time varying channels (NDVI, NDSI)
 - 4 space-only channels
+
+The end.
