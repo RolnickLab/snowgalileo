@@ -40,10 +40,12 @@ sentence and maps to at least one step in the Verification Plan (§7).
 ### Functional Requirements
 
 **Stage 0→1 — AOI Clip (per `CLIPPING_PLAN.md`)**
-- [ ] FR-1: A `clip_dataset.py` Typer CLI clips every raw dataset in
-  `data/bow_valley_selection_raw` to `data/bow_valley_inference_aoi.geojson` and writes
-  `data/clipped_bow_valley_selection_raw`, preserving native pixel values, CRS,
-  and file format (non-destructive).
+- [ ] FR-1: A `process_raw_dataset.py` Typer CLI (formerly `clip_dataset.py`) clips every
+  raw dataset in `data/bow_valley_selection_raw` to `data/bow_valley_inference_aoi.geojson`
+  and writes `data/clipped_bow_valley_selection_raw`, preserving native pixel values, CRS,
+  and file format (non-destructive). **Exception: Sentinel-1 is processed, not clipped** —
+  it is terrain-corrected via ESA SNAP (`process-s1`) into `sentinel1_snap/`; see
+  [`PLAN-S1-PERGRANULE-SNAP.md`](PLAN-S1-PERGRANULE-SNAP.md).
 - [ ] FR-2: A mandatory two-stage **intersect gate** runs before any clip on
   every product: (1) metadata-only footprint-vs-AOI **polygon** intersection;
   (2) minimum-useful-overlap (`MIN_AOI_OVERLAP_AREA_KM2`, default 1 km²) plus a

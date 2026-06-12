@@ -30,10 +30,10 @@ image:          np.ndarray            # HxW (gray) or HxWx3 (RGB), uint8 or floa
 bounds_4326:    tuple|None            # (minx,miny,maxx,maxy); None => plain_image
 src_crs:        str|None              # native CRS of the rendered raster
 label:          str                   # e.g. "S2 true-color (B04/B03/B02)"
-note:           str|None              # e.g. "S1 GRD: non-georeferenced (no CRS)"
+note:           str|None              # e.g. "S3 OLCI: non-georeferenced (no CRS)"
 ```
 - `georef_raster` → leafmap places it via `bounds_4326` (reprojected from `src_crs`).
-- `plain_image`   → shown in a side panel, NOT on the map (S1, S3, error fallback).
+- `plain_image`   → shown in a side panel, NOT on the map (S3, error fallback).
 
 ## Renderer protocol
 ```python
@@ -43,7 +43,8 @@ class Renderer(Protocol):
 ```
 - Dispatch by `row.source` via a registry `RENDERERS: dict[str, Renderer]`.
 - `long_edge` is the decimation target (ViewerSettings, default 1024). Renderers
-  MUST use decimated/overview reads (`out_shape`) — never full-res (F3: S1 ~146 MB).
+  MUST use decimated/overview reads (`out_shape`) — never full-res (large sources, e.g.
+  raw S1 was ~146 MB; processed S1 SNAP tifs are AOI-cropped but the rule still applies).
 
 ## Failure contract
 Any exception inside a renderer is caught by the dispatcher and converted to a
@@ -63,12 +64,19 @@ explicit ask). AOI bounds also seed the initial map view.
 
 ## Non-georeferenced set (v1)
 `{sentinel3}` → always `plain_image` (its geolocation is a separate per-pixel
-`geo_coordinates.nc`, no GCPs in the radiance file). **S1 is NOT in this set** — it
-carries EPSG:4326 GCPs and renders as a `georef_raster` via GCP warp (F3 corrected).
-Documented, deliberate. Not a gap to be silently filled.
+`geo_coordinates.nc`, no GCPs in the radiance file). **S1 is NOT in this set** — it is
+processed via SNAP into a map-projected EPSG:32611 GeoTIFF and renders as a
+`georef_raster` (see below). Documented, deliberate. Not a gap to be silently filled.
 
-## GCP-warp path (S1)
-S1 has `crs=None` + identity transform but real GCPs. The S1 renderer reads the
-decimated VV band, then `rasterio.warp.reproject(..., gcps=src.gcps[0],
-src_crs=src.gcps[1])` to web-mercator/4326 to obtain `image` + `bounds_4326`.
-Returns `kind="georef_raster"`.
+## S1 render path (processed SNAP tif — supersedes the GCP-warp path)
+> **SUPERSEDED (2026-06-11).** S1 is no longer clipped/GCP-warped. It is processed via
+> ESA SNAP into a per-granule `sentinel1_snap/s1_grd_*.tif` (EPSG:32611, terrain-
+> corrected). The viewer discovers S1 from that cache (not the clip manifest;
+> `manifest._discover_s1_products`) and the renderer reads **band 2 (VV, linear σ⁰)**
+> decimated, converts to dB, and reprojects to 4326 via the standard georeferenced-raster
+> path (`_read_band_decimated` + `_to_4326`) — no GCPs. Returns `kind="georef_raster"`.
+> See [`../raw-data-ingestion/PLAN-S1-PERGRANULE-SNAP.md`](../raw-data-ingestion/PLAN-S1-PERGRANULE-SNAP.md).
+>
+> *Original (historical) GCP-warp path:* S1 had `crs=None` + identity transform but real
+> GCPs; the renderer warped the decimated VV band via `rasterio.warp.reproject(...,
+> gcps=...)`. Removed along with `clip_sentinel1`.

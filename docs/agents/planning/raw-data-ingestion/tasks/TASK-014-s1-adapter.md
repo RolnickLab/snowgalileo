@@ -1,5 +1,15 @@
 # TASK-014: Implement the Sentinel-1 GRD adapter (windowed reads, edge mask)
 
+> **PARTIALLY SUPERSEDED (2026-06-11).** The adapter's band semantics (`[VV, VH, angle]`,
+> linear σ⁰ → dB, `< -30` edge mask, ellipsoid incidence) are unchanged and current. But
+> the **S1 processing pipeline** described here was reworked: SNAP now runs **once per RAW
+> granule** (not per `(granule, cell)`) with the geoRegion Subset applied **after**
+> Terrain-Correction, producing one AOI-wide `sentinel1_snap/s1_grd_<granule>.tif` that the
+> adapter windows per cell. S1 is **no longer clipped** at all (references to "clipped S1" /
+> TASK-002 below are stale for S1). The same SNAP cache feeds both the cube and the viewer.
+> See [`../PLAN-S1-PERGRANULE-SNAP.md`](../PLAN-S1-PERGRANULE-SNAP.md) for the current
+> design; this task doc is retained for the adapter's parity/edge-mask rationale.
+
 ## 1. Goal
 Promote the S1 parity spike to a production adapter that emits `[VV, VH, angle]` on the
 cell grid from GRD SAFE archives, applying the project edge mask (pixels `< -30.0`) and
@@ -60,10 +70,13 @@ using windowed reads of the cell footprint — never full-scene loads.
 - [x] AC-2 (SPEC AC-12): band order [VV, VH, angle]; output on the cell grid.
 - [x] AC-3 (SPEC AC-13): missing `(S1, day)` → all-`-9999` (the common case — ~16 dates).
 - [~] AC-4: windowed read — **reinterpreted**: the "no full-scene load" guarantee is met by
-      the **offline per-cell SNAP `Subset`** (`s1_snap.py`), not a `rasterio` window. SNAP
-      terrain-corrects only the cell neighbourhood; the adapter then reads a small cached tif.
-      Full-scene/full-AOI SNAP runs were proven to NPE-corrupt (see §6), so per-cell bounding
-      is mandatory, not optional.
+      the offline SNAP `Subset` (`s1_snap.py`), not a `rasterio` window. The adapter reads a
+      small cached tif and windows it per cell.
+      > **CORRECTED 2026-06-11:** this AC originally concluded *per-cell* SNAP bounding was
+      > "mandatory" because full-AOI runs NPE-corrupted. That was an artifact of subsetting in
+      > **radar geometry before** Terrain-Correction. Moving the `Subset` to **after** TC (map
+      > geometry) makes a single **per-granule, full-AOI** run clean — so the cache is now one
+      > AOI-wide tif per granule, NOT per cell. See `../PLAN-S1-PERGRANULE-SNAP.md`.
 - [x] AC-5: ruff + mypy clean; 8 synthetic + 1 parity green, 2 documented xfail; full-suite
       delta = 0 new failures.
 

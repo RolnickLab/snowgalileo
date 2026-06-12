@@ -203,9 +203,21 @@ only if it yields real pixels).
        - Copy directly to the output zip file unchanged.
 
 ### 2.5 Sentinel-1 GCP-Based Swaths (Sentinel-1)
+
+> **SUPERSEDED (2026-06-11) — Sentinel-1 is no longer clipped.** S1 is *processed*
+> from the raw granules via ESA SNAP (calibration + terrain correction) into a
+> per-granule, AOI-wide dB+angle cache (`sentinel1_snap/s1_grd_*.tif`), the single S1
+> product both the cube adapter and the viewer read. The GCP-slicing clip below
+> (`clip_sentinel1` / `_clip_s1_measurement`) was **removed**; `sentinel1` is no longer
+> a clip source. The range-geometry analysis below stays as the design-trail for *why* a
+> plain raster clip never worked for S1 (radar geometry, not map-projected — exactly why
+> SNAP terrain correction is required). See
+> [`PLAN-S1-PERGRANULE-SNAP.md`](PLAN-S1-PERGRANULE-SNAP.md); the stage runs via
+> `process_raw_dataset.py process-s1`.
+
 * **Source:** `sentinel1`
 * **Format:** `.zip` archives containing the SAFE product with `.tiff` measurements in range geometry (`CRS: None` with GCPs).
-* **Strategy:**
+* **Strategy (HISTORICAL — superseded by SNAP processing, see banner above):**
   1. Open the Sentinel-1 `.zip` file. Parse the geographic coordinates from `manifest.safe` or `preview/map-overlay.kml`.
   2. **Apply the §2.0 intersect gate** (polygon intersection + min-overlap) against the GML footprint. On `SKIP_*`, log and write nothing — do **not** create an output zip. (S1 swaths are the most likely to miss the AOI; the gate matters most here.)
   3. Create a new output `.zip` archive **only after the gate passes**.
@@ -321,8 +333,9 @@ only if it yields real pixels).
 
 ## 3. Implementation Workflow
 
-1. **Typer CLI Script (`scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py`):**
-   * Uses `typer` to provide a robust CLI with commands `clip-all` and `clip-source`.
+1. **Typer CLI Script (`scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py`, formerly `clip_dataset.py`):**
+   * Uses `typer` to provide a robust CLI with commands `clip-all`, `clip-source`,
+     `process-s1`, and `process-all` (S1 is processed via SNAP, not clipped — see §2.5).
    * Accepts `--aoi-path`, `--input-dir`, and `--output-dir` arguments.
    * Leverages verbose logging (`structlog` or `logging`) to output detailed step-by-step progress.
    * Includes strict validations and assertions (checking file existence, geometry types, and projection alignment).

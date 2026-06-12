@@ -5,8 +5,9 @@ A quick, reusable way to **visually sanity-check** the products in
 `data/clipped_bow_valley_selection_raw/` after the TASK-002 clip stage — confirm
 each product (a) is non-empty, (b) sits inside `data/bow_valley_inference_aoi.geojson`, and (c) looks
 physically plausible per sensor. Covers all four content classes the user named:
-NetCDF (ERA5), nested archives (S1/S2/S3, Landsat), plain GeoTIFFs
-(DEM/WorldCover/MODIS/VIIRS), and an **AOI overlay on every product**.
+NetCDF (ERA5), nested archives (S2/S3, Landsat), plain GeoTIFFs
+(DEM/WorldCover/MODIS/VIIRS + the processed S1 SNAP tif), and an **AOI overlay on every
+product**.
 
 This is a **developer/QA tool**, deliberately separate from the TASK-001…016
 ingestion adapters. It reads the clipped archive read-only; it writes nothing
@@ -46,15 +47,16 @@ into any `data/` tree.
 - **F2 — Landsat is genuinely MIXED-ZONE.** Path 042024 scenes = EPSG:32612,
   path 042025 = EPSG:32611 (verified per-scene). Not a clip bug; vindicates the
   dynamic-CRS rule. Renderer hardcodes no zone; leafmap reprojects each scene.
-- **F3 (CORRECTED) — Sentinel-1 IS georeferenceable via GCPs.** The S1 measurement
-  TIFF reports `crs=None` + identity transform (a naive `src.crs` read says "no
-  projection" — the initial spike's misleading result), BUT it carries **GCPs in
-  EPSG:4326** (raw: 210; clipped: 42, preserved through the clip). This is why it
-  opens in QGIS — GDAL warps on the fly from the GCPs. → **S1 renders as a
-  `georef_raster` via GCP warp** (rasterio.warp with `gcps=`), placed on the
-  basemap with the AOI overlay like S2/Landsat. User-approved. Only **S3** remains
-  non-georeferenced (its geolocation is a separate per-pixel `geo_coordinates.nc`,
-  no GCPs in the radiance file).
+- **F3 (CORRECTED, then SUPERSEDED 2026-06-11) — S1 is read from the processed SNAP tif,
+  not GCP-warped.** *Original finding:* the raw/clipped S1 measurement TIFF carries GCPs
+  in EPSG:4326 and renders via on-the-fly GCP warp (`rasterio.warp` with `gcps=`). *Now:*
+  S1 is no longer clipped — it is processed via ESA SNAP into a per-granule, map-projected
+  `sentinel1_snap/s1_grd_*.tif` (EPSG:32611, terrain-corrected σ⁰). The viewer discovers S1
+  from that cache (not the clip manifest) and the renderer reads band 2 (VV, linear σ⁰) as
+  a plain `georef_raster` → dB — **no GCP warp, no zip**. See
+  [`../raw-data-ingestion/PLAN-S1-PERGRANULE-SNAP.md`](../raw-data-ingestion/PLAN-S1-PERGRANULE-SNAP.md).
+  Only **S3** remains non-georeferenced (its geolocation is a separate per-pixel
+  `geo_coordinates.nc`, no GCPs in the radiance file).
 - **F4 (RESOLVED in clip stage) — ERA5 manifest rows were not month-disambiguable.**
   Root cause: clippers recorded `output_path = dst_path.name`, dropping the
   `<YYYYMM>_ERA5LAND/` subdir, so the 3 monthly copies of each wind/temp var
@@ -73,9 +75,9 @@ into any `data/` tree.
 2. **Landsat CRS is per-scene EPSG:32612** (USGS WRS-2 zone, not AOI zone — see
    TASK-002 REVIEW_AUDIT verdict #2). Quicklook must read each band's CRS
    dynamically; leafmap reprojects to web-mercator for display.
-3. **S2 is EPSG:32611 JP2**, S1 is per-scene UTM GeoTIFF — both read via
-   `/vsizip/`. GDAL needs the JP2 driver (present in project's rasterio build —
-   verify in subtask 0).
+3. **S2 is EPSG:32611 JP2** read via `/vsizip/` (GDAL needs the JP2 driver, present in
+   the project's rasterio build — verify in subtask 0). **S1 is no longer an archive read**
+   — it is the processed `sentinel1_snap/s1_grd_*.tif` (EPSG:32611, plain GeoTIFF; see F3).
 4. **Archives are genuinely cropped** (clipped S2 88 MB vs raw 229 MB), so the
    viewer shows the clipped extent, which is the point.
 5. **Manifest I/O = pandas** (user decision). `polars` is not installed; `pandas`
@@ -85,8 +87,10 @@ into any `data/` tree.
    (scoped to this dev tool only).
 6. ERA5 NetCDFs are tiny regular grids (16×20 × 31 days), lat/lon coords, EPSG:4326
    — trivially georeferenceable via rioxarray `write_crs(4326)`.
-7. **Big-file guard:** S1 measurement TIFFs are ~146 MB each. Quicklooks MUST use
-   rasterio `overview`/decimated reads (`out_shape`), never full-res loads
+7. **Big-file guard:** the largest quicklook sources (raw S1 measurement TIFFs were
+   ~146 MB; processed S1 SNAP tifs are AOI-cropped and smaller, but the guard still
+   applies generally). Quicklooks MUST use rasterio `overview`/decimated reads
+   (`out_shape`), never full-res loads
    (geospatial skill: no eager multi-GB loads).
 
 ## 5. Contract — `quicklook(product) -> QuicklookResult` (define BEFORE impl)
@@ -113,7 +117,7 @@ Per-modality renderers (each ≤ ~40 lines, dispatched by `source`):
 | modis / viirs | RGB or single SR band | sur_refl b1/b4/b3 (MODIS), I1 (VIIRS) |
 | landsat8/9 | georef RGB true-color (decimated, per-scene CRS) | B4/B3/B2 from tar via /vsitar/ |
 | sentinel2 | georef RGB true-color (decimated) | B04/B03/B02 jp2 via /vsizip/ |
-| sentinel1 | **georef** dB-stretched via GCP warp (F3 corrected) | VV (fallback VH) via /vsizip/ |
+| sentinel1 | **georef** dB-stretched (SNAP terrain-corrected, plain GeoTIFF; F3 superseded) | VV (band 2, linear σ⁰→dB) from `sentinel1_snap/s1_grd_*.tif` |
 | sentinel3 | plain_image, single radiance (NO geo) | Oa08_radiance |
 | era5 | georef single-band + date slider | tp / t2m / winds, valid_time idx |
 
@@ -153,7 +157,8 @@ pipeline lean). User approved the add.
 - **Phase 2 — GeoTIFF renderers + map shell:** dem/worldcover/modis/viirs +
   Solara map with AOI overlay + product picker. The "GeoTIFFs already easy, but
   one-stop with AOI" win lands here. → STOP.
-- **Phase 3 — archive renderers:** landsat, S2, S1 via vsi paths, decimated RGB. → STOP.
+- **Phase 3 — archive renderers:** landsat, S2 via vsi paths, decimated RGB; S1 from the
+  processed SNAP GeoTIFF (F3 superseded — no longer an archive read). → STOP.
 - **Phase 4 — ERA5 + S3:** ERA5 date slider; S3 plain_image with note. → STOP.
 - **Phase 5 — polish + docs:** README run instructions, ruff/mypy clean, a couple
   of unit tests on `manifest.py`/`archives.py` path building (pure funcs, no I/O).
