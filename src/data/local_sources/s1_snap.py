@@ -221,13 +221,21 @@ def build_granule_cache(
         logger.info("s1_snap_cache_hit", granule=granule_zip.stem)
         return [out_tif]
 
-    # SNAP writes to a temp path INSIDE cache_dir, then we atomically rename into place
-    # only on success. A crash / SIGKILL / disk-full mid-write therefore leaves a stray
-    # ``.partial`` (not matched by the s1_grd_*.tif cache glob), never a truncated final
-    # tif that the next run would mistake for a valid cache hit — the build stays safely
-    # idempotent. (The temp must be on the same filesystem as out_tif for an atomic
-    # rename, hence cache_dir, not the system tmp.)
-    partial_tif = out_tif.with_suffix(out_tif.suffix + ".partial")
+    # SNAP writes to a temp path, then we atomically rename it into place only on success.
+    # A crash / SIGKILL / disk-full mid-write therefore leaves a stray temp file the cache
+    # glob never sees, never a truncated final tif that the next run would mistake for a
+    # valid cache hit — the build stays idempotent.
+    #
+    # The temp lives in a ``.partial/`` SUBDIRECTORY of cache_dir (not a sibling with a
+    # ``.partial`` suffix): SNAP's BigGeoTIFF writer FORCES a ``.tif`` extension on the
+    # output path, so a ``…tif.partial`` sibling gets silently rewritten to
+    # ``…tif.partial.tif`` and the rename source vanishes. Keeping the temp name itself a
+    # plain ``.tif`` avoids the mangling; putting it one directory down keeps it out of the
+    # non-recursive ``s1_grd_*.tif`` cache glob (s1.py / viewer manifest.py). The subdir is
+    # on the same filesystem as out_tif, so the rename is still atomic.
+    partial_dir = cache_dir / ".partial"
+    partial_dir.mkdir(parents=True, exist_ok=True)
+    partial_tif = partial_dir / out_tif.name
     partial_tif.unlink(missing_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         tmp_dir = Path(tmp)

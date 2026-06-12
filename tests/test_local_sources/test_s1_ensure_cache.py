@@ -166,10 +166,13 @@ def test_build_skips_existing_tif_idempotent(
 def test_build_writes_atomically_via_partial(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """SNAP writes a .partial in cache_dir; success renames it to the final tif.
+    """SNAP writes into the ``.partial/`` subdir; success renames it to the final tif.
 
-    Proves a crash mid-write leaves no truncated FINAL tif (the .partial is not matched
-    by the s1_grd_*.tif cache glob), keeping the build safely idempotent.
+    Proves a crash mid-write leaves no truncated FINAL tif and nothing the non-recursive
+    ``s1_grd_*.tif`` cache glob can see, keeping the build safely idempotent. The fake
+    chain mimics SNAP's BigGeoTIFF writer, which FORCES a ``.tif`` extension on its output
+    — the bug that broke a ``…tif.partial`` sibling temp (it became ``…tif.partial.tif`` and
+    the rename source vanished). The temp must therefore be a plain ``.tif``.
     """
     monkeypatch.setattr(snap, "sentinel_safe_footprint", lambda *a, **k: box(-180, -90, 180, 90))
     archive = tmp_path / "sentinel1"
@@ -182,8 +185,12 @@ def test_build_writes_atomically_via_partial(
 
     def _fake_chain(*, safe_manifest, region_wkt, out_tif, gpt, graph):  # type: ignore[no-untyped-def]
         seen_targets.append(out_tif)
-        assert out_tif.suffix == ".partial", "SNAP must write the .partial, not the final tif"
+        # SNAP forces a .tif suffix; a temp path not ending in .tif would be mangled.
+        assert out_tif.suffix == ".tif", "temp path must end in .tif (SNAP forces it)"
+        assert out_tif.parent == cache / ".partial", "temp must live in the .partial/ subdir"
         assert not final.exists(), "final tif must not exist during the SNAP write"
+        # No cache-visible file may exist mid-write (the glob is non-recursive).
+        assert list(cache.glob("s1_grd_*.tif")) == []
         out_tif.write_bytes(b"snap-output")
         return out_tif
 
@@ -194,8 +201,8 @@ def test_build_writes_atomically_via_partial(
     )
     assert out == [final]
     assert final.exists() and final.read_bytes() == b"snap-output"
-    assert not final.with_suffix(final.suffix + ".partial").exists()  # renamed away
-    assert seen_targets and seen_targets[0].suffix == ".partial"
+    assert list((cache / ".partial").glob("*.tif")) == []  # temp renamed away
+    assert seen_targets and seen_targets[0].parent == cache / ".partial"
 
 
 def test_build_skips_empty_region_granule(
@@ -225,7 +232,7 @@ def test_build_skips_empty_region_granule(
     )
     assert out == []
     assert not final.exists()
-    assert not final.with_suffix(final.suffix + ".partial").exists()  # partial removed
+    assert list((cache / ".partial").glob("*.tif")) == []  # partial removed
 
 
 def test_build_does_not_mutate_raw_granule(
