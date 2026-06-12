@@ -8,7 +8,7 @@
 # Finetuned EncoderWithHead checkpoint (Q6 — real weights on disk). Encoder size is
 # read from the eval config's filename token (ai4snow_tiny → 192/12/3). The inference
 # script asserts this file exists and fails loudly; it never silently random-inits.
-checkpoint: logging_checkpoints/snowgalileo_finetune/clear_pretrained_20_216tcxve.pth
+checkpoint: logging_checkpoints/snowgalileo_finetune/clouds_pretrained_42_lfdciemu.pth
 
 # Eval JSON under configs/eval/ — drives the encoder-size token, sigmoid_slope, and the
 # per-mode head config for the EncoderWithHead build (mirrors scripts/eval_only.py).
