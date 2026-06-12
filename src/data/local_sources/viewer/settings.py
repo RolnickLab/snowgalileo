@@ -26,6 +26,10 @@ class ViewerSettings(BaseSettings):
     aoi_path: Path = Field(default_factory=lambda: _PATHS.aoi_path)
     manifest_name: str = "clip_manifest.csv"
 
+    # Stage-2 output roots for the cube + daily-FSC tabs (pipeline outputs, not the
+    # clipped archive). Default from LocalPaths.processing_root; VIEWER_* overridable.
+    processing_root: Path = Field(default_factory=lambda: _PATHS.processing_root)
+
     # Decimation target for quicklook reads (long edge, px). Guards against the
     # ~146 MB S1 full-res loads (geospatial skill: no eager multi-GB reads).
     long_edge: int = 1024
@@ -35,3 +39,13 @@ class ViewerSettings(BaseSettings):
     @property
     def manifest_path(self) -> Path:
         return self.clipped_root / self.manifest_name
+
+    @property
+    def cubes_dir(self) -> Path:
+        """Directory of assembled per-cell cubes (``PR_*.tif``)."""
+        return self.processing_root / "cubes"
+
+    @property
+    def daily_fsc_dir(self) -> Path:
+        """Directory of daily fractional-snow-cover COGs (``fsc_*.tif``)."""
+        return self.processing_root / "daily_fsc"

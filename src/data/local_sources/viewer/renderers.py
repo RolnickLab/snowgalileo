@@ -562,6 +562,133 @@ class _Sentinel3Renderer:
         )
 
 
+# --------------------------------------------------------------------------- #
+# PLAN-V2 — cube band + daily-FSC renderers (Stage-2 outputs, EPSG:32611)
+# --------------------------------------------------------------------------- #
+
+# Cube + FSC nodata sentinel (the exporter / mosaic writer fill).
+_OUTPUT_NODATA = -9999.0
+
+# Fixed FSC display range — FSC is an absolute fraction, so the colormap is pinned to
+# [0, 1] (NOT a per-image percentile stretch, which would misrepresent the fraction).
+_FSC_VMIN, _FSC_VMAX = 0.0, 1.0
+# ``turbo`` (blue→cyan→green→yellow→red) reads clearly over a dark satellite basemap and,
+# unlike ``cool``, gives strong, distinct colour steps across the mid range (0.3–0.7) so
+# partial snow cover is legible, not a muddy periwinkle band. turbo(0)=(48,18,59) is dark
+# but non-black, so valid FSC=0 keeps a non-zero colour band and is not dropped by
+# result_to_geotiff's all-zero-RGB transparency heuristic (only the forced-black NaN/nodata
+# pixels are). The on-map colour scale (see data_viewer ``_FSC_COLORBAR_*``) is sampled
+# from this same colormap so legend and pixels agree.
+_FSC_COLORMAP = "turbo"
+
+
+def _read_output_band_4326(
+    path: Path, *, band: int, long_edge: int
+) -> tuple[npt.NDArray[np.floating], tuple[float, float, float, float], str]:
+    """Decimated read of one band of a 32611 output raster, warped to EPSG:4326.
+
+    Masks the ``-9999`` output nodata to NaN before the warp so it neither stretches
+    nor reprojects in. Returns ``(array_4326, bounds_4326, src_crs)``.
+    """
+    dec = _read_band_decimated(path, band=band, long_edge=long_edge)
+    masked = np.where(dec.array == _OUTPUT_NODATA, np.nan, dec.array)
+    arr_4326, bounds = _to_4326(
+        _Decimated(
+            array=masked, transform=dec.transform, crs=dec.crs, bounds_4326=dec.bounds_4326
+        )
+    )
+    return arr_4326, bounds, str(dec.crs)
+
+
+def render_cube_band(
+    *, path: Path, var: str, timestep: int, is_static: bool, long_edge: int
+) -> QuicklookResult:
+    """Render one cube band ``(var, timestep)`` as a georeferenced quicklook.
+
+    Cube bands span wildly different domains (dB, reflectance, Kelvin, radians), so the
+    band is **percentile-stretched** to uint8 for display — this is a diagnostic look,
+    not a calibrated product. Band selection is by description (see
+    :func:`~src.data.local_sources.viewer.outputs.band_index`).
+
+    Args:
+        path: A cube ``PR_*.tif``.
+        var: Variable name (dynamic root or static name).
+        timestep: Timestep for a dynamic var; ignored for statics.
+        is_static: Whether ``var`` is a static band (timestep then carries no meaning).
+        long_edge: Decimation target (px).
+
+    Returns:
+        A ``georef_raster`` ``QuicklookResult``.
+    """
+    from src.data.local_sources.viewer.outputs import band_index
+
+    band = band_index(path, var=var, timestep=timestep)
+    arr_4326, bounds, crs = _read_output_band_4326(path, band=band, long_edge=long_edge)
+    label = f"{var} (static)" if is_static else f"{var} @ t{timestep}"
+    return QuicklookResult(
+        kind="georef_raster",
+        image=_stretch_uint8(arr_4326),
+        bounds_4326=bounds,
+        src_crs=crs,
+        label=label,
+    )
+
+
+def render_fsc(*, path: Path, long_edge: int) -> QuicklookResult:
+    """Render a daily-FSC COG with a fixed ``[0, 1]`` colormap as a georef quicklook.
+
+    Unlike the cube bands, FSC is an absolute fraction: the colormap is pinned to
+    ``[0, 1]`` (:data:`_FSC_VMIN`/``_FSC_VMAX``) so colour means the same across dates —
+    a per-image stretch would lie. NaN (the ``-9999`` nodata) is left as NaN → rendered
+    transparent by :func:`result_to_geotiff`.
+
+    Args:
+        path: A daily-FSC ``fsc_*.tif`` (single band).
+        long_edge: Decimation target (px).
+
+    Returns:
+        A ``georef_raster`` ``QuicklookResult`` carrying an RGB colormapped image.
+    """
+    import matplotlib
+
+    arr_4326, bounds, crs = _read_output_band_4326(path, band=1, long_edge=long_edge)
+
+    # Pin to [0, 1], colormap → RGB uint8; keep NaN pixels transparent.
+    cmap = matplotlib.colormaps[_FSC_COLORMAP]
+    normed = np.clip((arr_4326 - _FSC_VMIN) / (_FSC_VMAX - _FSC_VMIN), 0.0, 1.0)
+    rgba = cmap(np.nan_to_num(normed, nan=0.0))  # HxWx4 floats in [0, 1]
+    rgb = (rgba[..., :3] * 255).astype(np.uint8)
+    # Force NaN (nodata) pixels to pure black so result_to_geotiff drops them as
+    # transparent (its all-zero-RGB heuristic); valid FSC=0 keeps turbo's dark-indigo
+    # (48,18,59), which is opaque (a non-zero colour band) and distinct from this sentinel.
+    rgb[~np.isfinite(arr_4326)] = 0
+    return QuicklookResult(
+        kind="georef_raster",
+        image=rgb,
+        bounds_4326=bounds,
+        src_crs=crs,
+        label=f"Daily FSC (0–1, {_FSC_COLORMAP})",
+    )
+
+
+def fsc_colorbar() -> tuple[list[str], float, float]:
+    """The on-map FSC legend, sampled from the same colormap the pixels use.
+
+    Returns ``(hex_colours, vmin, vmax)`` where ``hex_colours`` are 11 stops sampled at
+    ``0.0, 0.1, …, 1.0`` of :data:`_FSC_COLORMAP`. Sourcing the legend from the same
+    colormap (and the same ``_FSC_VMIN``/``_FSC_VMAX`` range) guarantees the colour scale
+    and the rendered pixels cannot drift apart.
+
+    Returns:
+        ``(hex_colours, vmin, vmax)`` for a leafmap ``add_colorbar`` call.
+    """
+    import matplotlib
+
+    cmap = matplotlib.colormaps[_FSC_COLORMAP]
+    stops = [matplotlib.colors.to_hex(cmap(i / 10.0)) for i in range(11)]
+    return stops, _FSC_VMIN, _FSC_VMAX
+
+
 def result_to_geotiff(result: QuicklookResult, dst: Path) -> Path:
     """Write a ``georef_raster`` quicklook to a small EPSG:4326 GeoTIFF for display.
 
