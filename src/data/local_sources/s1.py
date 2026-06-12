@@ -62,7 +62,7 @@ import rasterio
 import structlog
 
 from src.data.config import NO_DATA_VALUE
-from src.data.local_sources._scene_ops import BandRead, coalesce_tile, mosaic_tiles
+from src.data.local_sources._scene_ops import BandRead, cell_window, mosaic_tiles
 from src.data.local_sources.base import (
     GridCell,
     LocalSourceAdapter,
@@ -152,20 +152,32 @@ class S1Adapter(LocalSourceAdapter):
         granules = [_parse_granule(p) for p in sorted(self.cache_root.glob("s1_grd_*.tif"))]
         return [g for g in granules if g is not None and g.acq == day]
 
-    def _read_band(self, granule: _GranuleInfo, band_name: str) -> BandRead | None:
+    def _read_band(
+        self, granule: _GranuleInfo, band_name: str, cell: GridCell
+    ) -> BandRead | None:
         """Read one band from a cache tif: linear→dB for VV/VH, edge-mask, nodata-clean.
+
+        Reads **only the cell's windowed footprint** (via :func:`cell_window`), never the
+        full granule — a per-granule SNAP swath can be 14466×9637 (~1.1 GB/band as float64),
+        and a full read ×3 bands ×8 parallel workers exhausts memory and OOM-kills a worker
+        (surfacing as ``BrokenProcessPool``). The window is the same neighbourhood-padded
+        read the S2/Landsat adapters use, so the subsequent reproject is bit-identical.
 
         VV/VH are stored as linear σ⁰; they are converted to dB (``10·log10``) and
         pixels ``< -30`` dB (or with non-positive σ⁰, where log is undefined) become
         ``-9999``. The ``angle`` band is left in degrees and never edge-masked (it is
-        geometry), only nodata-cleaned. Returns ``None`` if the band index is absent.
+        geometry), only nodata-cleaned. Returns ``None`` if the band index is absent **or**
+        the cell does not intersect this granule (``cell_window`` → ``None``).
         """
         idx = _BAND_INDEX[band_name]
         with rasterio.open(granule.path) as ds:
             if idx > ds.count:
                 return None
-            values = ds.read(idx).astype(np.float64)
-            transform = ds.transform
+            window = cell_window(ds, cell)
+            if window is None:
+                return None
+            values = ds.read(idx, window=window).astype(np.float64)
+            transform = ds.window_transform(window)
             crs = str(ds.crs)
 
         if band_name in _DB_BANDS:
@@ -182,20 +194,26 @@ class S1Adapter(LocalSourceAdapter):
     def _band_on_cell(
         self, granules: list[_GranuleInfo], band_name: str, cell: GridCell
     ) -> npt.NDArray[np.float32] | None:
-        """Coalesce same-date granules, mosaic, reproject one band onto the cell grid.
+        """Mosaic same-date granules, reproject one band onto the cell grid.
 
         Returns ``None`` if no granule yields the band.
         """
-        # S1 cache is single-zone (EPSG:32611): all same-date granules share the grid,
-        # so they coalesce as one "tile" group (latest-uid first), then mosaic is a no-op
-        # for one group / a true merge across overlapping passes.
+        # Same-date S1 granules are distinct per-granule SNAP outputs: same zone
+        # (EPSG:32611) and 10 m res, but **different footprints/extents** (adjacent
+        # sub-swath segments of one pass — verified: a 393×550 segment alongside a
+        # 14466×9637 one on 2025-04-06). They are the *mosaic* case, not the coalesce
+        # case — each granule is its own single-read "tile". ``mosaic_tiles`` merges
+        # across the differing grids (``rasterio.merge`` method="first": first dataset's
+        # valid pixels win, later granules fill only nodata gaps), so ordering
+        # latest-uid first preserves the deterministic-winner rule. Routing these
+        # through ``coalesce_tile`` (which assumes one shared grid) raised an IndexError
+        # on the shape mismatch.
         ordered = sorted(granules, key=lambda g: g.uid, reverse=True)
-        reads = [r for g in ordered if (r := self._read_band(g, band_name))]
+        reads = [r for g in ordered if (r := self._read_band(g, band_name, cell))]
         if not reads:
             return None
 
-        coalesced = coalesce_tile(reads)
-        merged, transform, crs = mosaic_tiles([coalesced])
+        merged, transform, crs = mosaic_tiles(reads)
         # Bilinear/continuous: S1 is already on the 10 m 32611 grid post-TC; this is a
         # grid-snap/crop to the exact cell transform. dB σ⁰ + angle are continuous.
         reprojected = reproject_to_cell(

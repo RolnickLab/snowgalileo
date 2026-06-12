@@ -309,6 +309,41 @@ def test_reproject_zone_agnostic(synthetic_cell: GridCell, tmp_path: Path, crs: 
     np.testing.assert_allclose(np.median(valid), _toa(20000), atol=1e-4)
 
 
+def test_mixed_zone_scenes_same_day(synthetic_cell: GridCell, tmp_path: Path) -> None:
+    """Two scenes on one day in **different UTM zones** combine without a CRS-merge error.
+
+    Regression for the real archive (paths 043/044 → EPSG:32611, 042024 → EPSG:32612):
+    when a cell's day has scenes from both zones, the per-tile reads span two CRSs.
+    The prior code passed them straight to ``mosaic_tiles`` → ``rasterio.merge``, which
+    requires a single CRS and raised ``RasterioError: CRS mismatch with source`` — that
+    propagated as a ``BrokenProcessPool`` and aborted the whole parallel sweep. The fix
+    mosaics within each zone, reprojects each zone to the cell grid, then first-valid-
+    combines on the common grid. Here a 32611 scene (043024) and a 32612 scene (042024),
+    both placed over the cell, must yield a valid, hole-free result.
+    """
+    l9 = tmp_path / "l9"
+    l8 = tmp_path / "l8"
+    l8.mkdir()
+    tmp = tmp_path / "scratch"
+    tmp.mkdir()
+    # Same-zone scene (043024 → cell's own 32611).
+    _build_single_scene(
+        l9, "LC09", "043024", "20250402", "20250402", dn=20000, cell=synthetic_cell,
+        tmp=tmp, crs="EPSG:32611",
+    )
+    # Cross-zone scene (042024 → 32612) over the same ground area, same day.
+    _build_single_scene(
+        l9, "LC09", "042024", "20250402", "20250402", dn=20000, cell=synthetic_cell,
+        tmp=tmp, crs="EPSG:32612",
+    )
+    adapter = LandsatAdapter(landsat9_root=l9, landsat8_root=l8)
+    out = adapter.fetch(synthetic_cell, day=datetime.date(2025, 4, 2))
+    assert out.shape == (6, *synthetic_cell.shape)
+    valid = out[2][out[2] != NO_DATA_VALUE]
+    assert valid.size > 0, "mixed-zone scenes produced no valid pixels"
+    np.testing.assert_allclose(np.median(valid), _toa(20000), atol=1e-4)
+
+
 # --------------------------------------------------------------------------- #
 # Real-archive parity against the GEE reference patches (TASK-012b unblocked)
 # --------------------------------------------------------------------------- #

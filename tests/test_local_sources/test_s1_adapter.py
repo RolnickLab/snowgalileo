@@ -263,6 +263,50 @@ def test_coalesce_complementary_masks(synthetic_cell: GridCell, tmp_path: Path) 
     np.testing.assert_allclose(np.median(vv[:, half:]), -10.0, atol=1e-3)  # B fills right
 
 
+def test_same_date_granules_with_different_footprints(
+    synthetic_cell: GridCell, tmp_path: Path
+) -> None:
+    """Same-date granules with **different extents** mosaic without a shape error.
+
+    Regression for the real-archive case (verified on 2025-04-06): one pass emits two
+    per-granule SNAP outputs that are the same zone (EPSG:32611) + 10 m res but cover
+    **different footprints** (adjacent sub-swath segments — e.g. a 393×550 segment
+    alongside a 14466×9637 one). They are the *mosaic* case, not the coalesce case; the
+    prior code forced both through ``coalesce_tile`` (one-shared-grid assumption), which
+    raised ``IndexError: boolean index did not match indexed array`` on the shape
+    mismatch and aborted the whole sweep. One granule covers the cell; the other is a
+    far-away segment that does not. The fetch must succeed and return the covering
+    granule's values on the cell.
+    """
+    cache = tmp_path / "s1"
+    cache.mkdir(parents=True)
+    h = w = 24
+    angle = np.full((h, w), 43.6, np.float32)
+    vh = np.full((h, w), -14.0, np.float32)
+
+    # Granule A (latest uid) covers the cell, on the 24×24 grid centred on it.
+    _write_cache_tif(
+        cache / cache_tif_name(_granule_stem("20250406", uid="FFFF")),
+        vv_db=np.full((h, w), -7.0, np.float32), vh_db=vh, angle=angle,
+        transform=_src_transform(synthetic_cell), crs=synthetic_cell.crs,
+    )
+    # Granule B (earlier uid) is a far-away swath segment with a *different* size and
+    # origin (a few hundred km north) — disjoint from the cell. This is what crashed.
+    _write_cache_tif(
+        cache / cache_tif_name(_granule_stem("20250406", end="013814", uid="0000")),
+        vv_db=np.full((550, 393), -3.0, np.float32),
+        vh_db=np.full((550, 393), -14.0, np.float32),
+        angle=np.full((550, 393), 43.6, np.float32),
+        transform=from_origin(528488.0, 5800300.0, 10.0, 10.0), crs=synthetic_cell.crs,
+    )
+
+    out = S1Adapter(cache_root=cache).fetch(synthetic_cell, day=datetime.date(2025, 4, 6))
+    assert out.shape == (3, *synthetic_cell.shape)
+    # Only granule A covers the cell, so the covering granule's value fills it.
+    assert not (out[_OFF_VV] == NO_DATA_VALUE).any(), "covering granule should fill the cell"
+    np.testing.assert_allclose(np.median(out[_OFF_VV]), -7.0, atol=1e-2)
+
+
 # --------------------------------------------------------------------------- #
 # Real-archive parity — skips unless the SNAP cache is built
 # --------------------------------------------------------------------------- #

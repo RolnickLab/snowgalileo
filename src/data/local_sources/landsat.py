@@ -56,13 +56,12 @@ from src.data.local_sources._scene_ops import (
     BandRead,
     cell_window,
     coalesce_tile,
-    mosaic_tiles,
+    mosaic_to_cell,
 )
 from src.data.local_sources.base import (
     GridCell,
     LocalSourceAdapter,
     create_placeholder,
-    reproject_to_cell,
 )
 
 logger = structlog.get_logger(__name__)
@@ -193,16 +192,10 @@ class _LandsatBase(LocalSourceAdapter):
         if not tile_reads:
             return None
 
-        merged, transform, crs = mosaic_tiles(tile_reads)
-        reprojected = reproject_to_cell(
-            source=merged[np.newaxis, :, :],
-            src_transform=transform,
-            src_crs=crs,
-            cell=cell,
-            categorical=categorical,
-            src_nodata=float(NO_DATA_VALUE),
-        )
-        return reprojected[0]
+        # Mixed-UTM-zone safe (paths 043/044 → 32611, 042024 → 32612): mosaic within each
+        # zone, reproject each to the cell grid, then first-valid-combine. ``mosaic_tiles``
+        # alone would raise ``CRS mismatch`` on a cross-zone day. See ``mosaic_to_cell``.
+        return mosaic_to_cell(tile_reads, cell, categorical=categorical)
 
     def _select_scenes(self, day: datetime.date) -> list[_SceneInfo]:
         """L9→L8 fallback: L9 scenes for the day if any, else L8 scenes."""
@@ -327,14 +320,9 @@ class LandsatCloudAdapter(_LandsatBase):
         if not tile_reads:
             return create_placeholder(n_bands=1, shape=cell.shape)
 
-        merged, transform, crs = mosaic_tiles(tile_reads)
-        reprojected = reproject_to_cell(
-            source=merged[np.newaxis, :, :],
-            src_transform=transform,
-            src_crs=crs,
-            cell=cell,
-            categorical=True,
-            src_nodata=float(NO_DATA_VALUE),
-        )
+        # Mixed-UTM-zone safe (same as the optical path): mosaic within each zone, reproject
+        # to the cell grid, first-valid-combine. ``mosaic_tiles`` alone raises ``CRS
+        # mismatch`` on a cross-zone day (042024=32612 alongside 043/044=32611).
+        combined = mosaic_to_cell(tile_reads, cell, categorical=True)
         logger.info("landsat_cloud_fetch", cell_id=cell.cell_id, day=day.isoformat())
-        return reprojected.astype(np.float32)
+        return combined[np.newaxis, :, :].astype(np.float32)

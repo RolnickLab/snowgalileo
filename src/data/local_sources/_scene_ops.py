@@ -28,7 +28,7 @@ from rasterio.warp import transform_bounds
 from rasterio.windows import Window, from_bounds
 
 from src.data.config import NO_DATA_VALUE
-from src.data.local_sources.base import GridCell
+from src.data.local_sources.base import GridCell, reproject_to_cell
 
 #: Pixels of margin added around the cell footprint when windowing a source band, so the
 #: nearest/bilinear reproject onto the cell grid has the neighbouring source pixels it needs
@@ -154,3 +154,53 @@ def mosaic_tiles(tile_reads: list[BandRead]) -> tuple[npt.NDArray[np.float64], A
     finally:
         for ds in datasets:
             ds.close()
+
+
+def mosaic_to_cell(
+    tile_reads: list[BandRead], cell: GridCell, *, categorical: bool
+) -> npt.NDArray[np.float32]:
+    """Mosaic per-tile reads onto the cell grid, **safe across mixed CRSs**.
+
+    :func:`mosaic_tiles` → ``rasterio.merge`` requires every input share one CRS and
+    raises ``RasterioError: CRS mismatch`` otherwise. The Landsat archive is **mixed-UTM-
+    zone per scene** (paths 043/044 → EPSG:32611, 042024 → EPSG:32612), so a cell whose day
+    draws scenes from both zones yields ``tile_reads`` spanning two CRSs. This helper groups
+    the reads by native CRS, merges only **within** a zone (where ``merge`` is valid),
+    reprojects each zone's mosaic to the cell grid in its own native CRS, then
+    first-valid-combines on the common cell grid — a valid-pixel union (first seen wins),
+    never an average (same semantics as :func:`coalesce_tile`, just across zones on the
+    shared grid). The single-CRS case is unchanged: one merge, one reproject (bit-exact
+    with the prior path).
+
+    Args:
+        tile_reads: One :class:`BandRead` per tile (non-empty), already coalesced.
+        cell: The target grid cell (supplies the destination ``crs``/``transform``/``shape``).
+        categorical: ``True`` → nearest resample (QA/categorical); ``False`` → nodata-aware
+            bilinear (continuous bands).
+
+    Returns:
+        The combined band on the cell grid, ``(H, W)`` ``float32``; ``-9999`` where no zone
+        had a valid pixel.
+    """
+    by_crs: dict[str, list[BandRead]] = {}
+    for read in tile_reads:
+        by_crs.setdefault(read.crs, []).append(read)
+
+    cell_arrays: list[npt.NDArray[np.floating]] = []
+    for crs_reads in by_crs.values():
+        merged, transform, crs = mosaic_tiles(crs_reads)
+        reprojected = reproject_to_cell(
+            source=merged[np.newaxis, :, :],
+            src_transform=transform,
+            src_crs=crs,
+            cell=cell,
+            categorical=categorical,
+            src_nodata=float(NO_DATA_VALUE),
+        )
+        cell_arrays.append(reprojected[0])
+
+    out = cell_arrays[0].copy()
+    for nxt in cell_arrays[1:]:
+        fill = out == float(NO_DATA_VALUE)
+        out[fill] = nxt[fill]
+    return out.astype(np.float32)
