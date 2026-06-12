@@ -6,12 +6,12 @@ terrain-corrected backscatter in **dB** for VV/VH, plus the ellipsoid **incidenc
 angle** in degrees, on the cell grid. The project edge mask invalidates VV/VH
 pixels ``< -30.0`` dB; the angle band (pure geometry) is never masked.
 
-**Why this adapter is pure-raster despite S1 being the heaviest source.** The clip
-stage does *not* preprocess S1 (``clip_sentinel1`` only GCP-slices the raw
-range-geometry measurement TIFFs). The expensive ESA SNAP chain — Apply-Orbit →
-ThermalNoise → Border-Noise → Calibration(σ⁰) → Terrain-Correction(EPSG:32611,
-+ ellipsoid incidence) → LinearToFromdB — runs **once per granule, offline**, into
-a cached 3-band dB+angle GeoTIFF (:mod:`src.data.local_sources.s1_snap`). This
+**Why this adapter is pure-raster despite S1 being the heaviest source.** S1 is not
+clipped — it is *processed* from the raw granules. The expensive ESA SNAP chain —
+Apply-Orbit → ThermalNoise → Border-Noise → Calibration(σ⁰) → Terrain-Correction(
+EPSG:32611, + ellipsoid incidence) → post-TC AOI Subset — runs **once per raw granule,
+offline**, into a cached 3-band dB+angle GeoTIFF
+(:mod:`src.data.local_sources.s1_snap`). This
 adapter reads that cache and runs the same coalesce → mosaic → reproject path as
 the S2/Landsat scene adapters, with **no SNAP dependency** — so it is fast and
 unit-testable. Build the cache before exporting cubes:
@@ -90,25 +90,24 @@ _BAND_INDEX: dict[str, int] = {
 #: (``10·log10``) — the backscatter bands. The angle band is left in degrees.
 _DB_BANDS: frozenset[str] = frozenset({"VV", "VH"})
 
-#: Cache-tif stem (per-(granule, cell)):
-#: ``s1_grd_S1[A-Z]_IW_GRDH_..._{acq}T..._{end}T..._{orbit}_{batch}_{uid}_cell{id}``.
+#: Cache-tif stem (per-granule, AOI-wide):
+#: ``s1_grd_S1[A-Z]_IW_GRDH_..._{acq}T..._{end}T..._{orbit}_{batch}_{uid}``.
 #: ``uid`` is the product's unique-id hex; sorting on it gives a deterministic, stable
-#: coalesce order (proxy for processing recency — later products sort higher). ``cell``
-#: is the :class:`GridCell` id the SNAP subset was bounded to (see s1_snap.py).
+#: coalesce order (proxy for processing recency — later products sort higher). One tif
+#: per granule covers the whole AOI; the adapter windows it per cell (see s1_snap.py).
 _GRANULE_RE = re.compile(
     r"^s1_grd_S1[A-Z]_IW_GRDH_\w+?_(?P<acq>\d{8})T\d{6}_"
-    r"\d{8}T\d{6}_\d{6}_[0-9A-F]{6}_(?P<uid>[0-9A-F]{4})_cell(?P<cell>\d+)$"
+    r"\d{8}T\d{6}_\d{6}_[0-9A-F]{6}_(?P<uid>[0-9A-F]{4})$"
 )
 
 
 @dataclass(frozen=True)
 class _GranuleInfo:
-    """Parsed identity of one cached per-cell S1 dB+angle GeoTIFF."""
+    """Parsed identity of one cached per-granule AOI-wide S1 dB+angle GeoTIFF."""
 
     path: Path
     acq: datetime.date
     uid: str  # product unique-id hex; deterministic coalesce order key
-    cell_id: int  # the GridCell the SNAP subset was bounded to
 
 
 def _parse_granule(tif_path: Path) -> _GranuleInfo | None:
@@ -120,7 +119,6 @@ def _parse_granule(tif_path: Path) -> _GranuleInfo | None:
         path=tif_path,
         acq=datetime.datetime.strptime(m.group("acq"), "%Y%m%d").date(),
         uid=m.group("uid"),
-        cell_id=int(m.group("cell")),
     )
 
 
@@ -133,8 +131,8 @@ class S1Adapter(LocalSourceAdapter):
     returns the ``-9999`` placeholder.
 
     Args:
-        cache_root: Directory holding the ``s1_grd_*.tif`` SNAP cache (NOT the raw
-            clipped SAFE archive — run ``build_s1_cache`` first).
+        cache_root: Directory holding the per-granule ``s1_grd_*.tif`` AOI-wide SNAP
+            cache (NOT the raw SAFE archive — run ``build_s1_cache`` offline first).
     """
 
     bands_out = ["VV", "VH", "angle"]
@@ -144,17 +142,15 @@ class S1Adapter(LocalSourceAdapter):
     def __init__(self, *, cache_root: Path) -> None:
         self.cache_root = cache_root
 
-    def _cached_for(self, cell: GridCell, day: datetime.date) -> list[_GranuleInfo]:
-        """Cached granules acquired on ``day`` whose subset is bounded to ``cell``.
+    def _cached_for(self, day: datetime.date) -> list[_GranuleInfo]:
+        """Cached AOI-wide granules acquired on ``day``.
 
-        The cache is keyed by (granule, cell); only this cell's tifs are read, so a
-        granule's per-cell tifs never bleed into a neighbour's fetch.
+        The cache is keyed by granule (one AOI-wide tif each); every same-day granule
+        is read, then coalesced/mosaicked and windowed to the cell by
+        :meth:`_band_on_cell` (``reproject_to_cell`` crops the AOI tif to the cell).
         """
         granules = [_parse_granule(p) for p in sorted(self.cache_root.glob("s1_grd_*.tif"))]
-        return [
-            g for g in granules
-            if g is not None and g.acq == day and g.cell_id == cell.cell_id
-        ]
+        return [g for g in granules if g is not None and g.acq == day]
 
     def _read_band(self, granule: _GranuleInfo, band_name: str) -> BandRead | None:
         """Read one band from a cache tif: linear→dB for VV/VH, edge-mask, nodata-clean.
@@ -220,7 +216,7 @@ class S1Adapter(LocalSourceAdapter):
         """Return the [VV, VH, angle] bands on the cell grid (``-9999`` if missing)."""
         if day is None:
             return create_placeholder(n_bands=len(self.bands_out), shape=cell.shape)
-        granules = self._cached_for(cell, day)
+        granules = self._cached_for(day)
         if not granules:
             return create_placeholder(n_bands=len(self.bands_out), shape=cell.shape)
 

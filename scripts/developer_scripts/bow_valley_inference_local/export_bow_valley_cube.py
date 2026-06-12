@@ -48,13 +48,15 @@ def main(
         Optional[int],
         typer.Option(help="Parallel export workers; None = default (~8), clamped to cores/cells."),
     ] = None,
-    build_s1_cache: Annotated[
+    verify_s1_cache: Annotated[
         bool,
         typer.Option(
-            help="Let workers build the S1 SNAP cache on demand. Off by default — build it "
-            "once first with scripts/developer_scripts/bow_valley_inference_local/build_bow_valley_s1_cache.py, then bulk-export.",
+            help="Verify the offline per-granule S1 SNAP cache covers each cell's window "
+            "(fail loud if missing). On by default; build the cache first with "
+            "scripts/developer_scripts/bow_valley_inference_local/build_bow_valley_s1_cache.py. "
+            "Pass --no-verify-s1-cache to deliberately allow S1-free cubes.",
         ),
-    ] = False,
+    ] = True,
 ) -> None:
     """Export one cube per ``(cell, window_end)`` from the clipped archive (parallel)."""
     settings = CubeSettings.from_yaml(config)
@@ -82,7 +84,7 @@ def main(
         out_dir=settings.cubes_dir,
         archive_root=settings.archive_root,
         workers=workers,
-        auto_build_s1_cache=build_s1_cache,
+        verify_s1_cache=verify_s1_cache,
     )
     logger.info("cube_export_complete", cubes=len(paths), out_dir=str(settings.cubes_dir))
 

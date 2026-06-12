@@ -33,6 +33,7 @@ import numpy.typing as npt
 import rasterio
 import structlog
 from pyproj import Transformer
+from shapely.geometry import box
 
 from src.data.config import DAYS_PER_TIMESTEP, NO_DATA_VALUE, NUM_TIMESTEPS
 from src.data.local_sources.base import (
@@ -45,6 +46,7 @@ from src.data.local_sources.layout import (
     build_cube_filename,
     full_band_order,
 )
+from src.data.local_sources.paths import LocalPaths
 from src.data.local_sources.placeholder import (
     PlaceholderAdapter,
     dynamic_adapters,
@@ -82,17 +84,20 @@ class LocalSourceExporter:
         out_dir: Path | None = None,
         placeholder: bool = True,
         archive_root: Path | None = None,
-        auto_build_s1_cache: bool = True,
+        verify_s1_cache: bool = True,
     ) -> None:
         settings = CubeSettings()
         self.out_dir = out_dir if out_dir is not None else settings.cubes_dir
         self.archive_root = archive_root if archive_root is not None else settings.archive_root
         self.placeholder = placeholder
-        # In real mode, guarantee the S1 SNAP cache covers each cell's window before
-        # assembly (see _ensure_s1_cache) — never silently emit an all-(-9999) S1 block.
-        self.auto_build_s1_cache = auto_build_s1_cache
-        # The clipped S1 SAFE archive + the SNAP dB+angle cache the S1Adapter reads.
-        self.s1_archive_root = self.archive_root / "sentinel1"
+        # In real mode, verify the offline per-granule S1 SNAP cache covers each cell's
+        # window before assembly (see _ensure_s1_cache) — fail loud rather than silently
+        # emit an all-(-9999) S1 block. The cache is BUILT offline (s1_snap.py / the
+        # build_bow_valley_s1_cache.py driver), never inline here.
+        self.verify_s1_cache = verify_s1_cache
+        # The per-granule SNAP dB+angle cache the S1Adapter reads (built offline). The
+        # verify pre-flight reads the RAW archive to know which granules the window needs.
+        self.s1_raw_archive_root = LocalPaths().raw_root / "sentinel1"
         self.s1_cache_dir = self.archive_root / "sentinel1_snap"
         self._dynamic: list[LocalSourceAdapter] = self._build_dynamic_adapters()
         self._static: list[LocalSourceAdapter] = self._build_static_adapters()
@@ -249,20 +254,30 @@ class LocalSourceExporter:
         return round(lat, 4), round(lon, 4)
 
     def _ensure_s1_cache(self, cell: GridCell, window_end: datetime.date) -> None:
-        """Pre-flight: guarantee the S1 cache covers this cell's window before assembly.
+        """Pre-flight: verify the offline per-granule S1 cache covers this cell's window.
 
-        Real mode only. Builds any missing-but-coverable ``(granule, cell)`` cache tifs
-        (or raises if SNAP/SAFEs are unavailable), so the S1 adapter never silently falls
-        back to an all-``-9999`` block. A cell with genuinely no S1 in its window needs
-        nothing built and is left S1-free — see :func:`s1_snap.ensure_s1_cache`.
+        Real mode only, **verification only** (it does not run SNAP — the cache is built
+        offline by ``build_bow_valley_s1_cache.py``). Raises
+        :class:`~src.data.local_sources.s1_snap.S1CacheUnavailableError` if a needed
+        per-granule tif is missing, so the S1 adapter never silently falls back to an
+        all-``-9999`` block. A window with genuinely no S1 over this cell needs nothing
+        and does not trip the guard — see :func:`s1_snap.ensure_s1_cache`.
         """
-        if self.placeholder or not self.auto_build_s1_cache:
+        if self.placeholder or not self.verify_s1_cache:
             return
         from src.data.local_sources.s1_snap import ensure_s1_cache
 
+        # The cell's 4326 bbox is the region we need S1 over: a granule whose swath does
+        # not cover this cell is not "missing", so a legitimately S1-free cell passes.
+        transformer = Transformer.from_crs(cell.crs, _GEOGRAPHIC_CRS, always_xy=True)
+        min_x, min_y, max_x, max_y = cell.polygon.bounds
+        lon0, lat0 = transformer.transform(min_x, min_y)
+        lon1, lat1 = transformer.transform(max_x, max_y)
+        cell_bbox_4326 = box(min(lon0, lon1), min(lat0, lat1), max(lon0, lon1), max(lat0, lat1))
+
         ensure_s1_cache(
-            archive_root=self.s1_archive_root,
-            cells=[cell],
+            raw_archive_root=self.s1_raw_archive_root,
+            aoi_4326=cell_bbox_4326,
             cache_dir=self.s1_cache_dir,
             window_days=self._window_days(window_end),
         )

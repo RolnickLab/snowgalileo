@@ -39,7 +39,7 @@ _WORKER_EXPORTER: LocalSourceExporter | None = None
 
 
 def _init_worker(
-    out_dir: Path, archive_root: Path, placeholder: bool, auto_build_s1_cache: bool
+    out_dir: Path, archive_root: Path, placeholder: bool, verify_s1_cache: bool
 ) -> None:
     """Build this worker process's single exporter (runs once per process)."""
     global _WORKER_EXPORTER
@@ -47,7 +47,7 @@ def _init_worker(
         out_dir=out_dir,
         placeholder=placeholder,
         archive_root=archive_root,
-        auto_build_s1_cache=auto_build_s1_cache,
+        verify_s1_cache=verify_s1_cache,
     )
 
 
@@ -74,7 +74,7 @@ def export_cells_parallel(
     archive_root: Path,
     workers: int | None = None,
     placeholder: bool = False,
-    auto_build_s1_cache: bool = False,
+    verify_s1_cache: bool = True,
 ) -> list[Path]:
     """Export one cube per cell across a process pool; return the written paths.
 
@@ -92,10 +92,13 @@ def export_cells_parallel(
             ``[1, min(cpu_count, len(cells))]``.
         placeholder: Build placeholder (all-``-9999``) exporters in the workers — the
             archive-free tracer mode (default ``False`` = real adapters).
-        auto_build_s1_cache: Let each worker build the S1 SNAP cache on demand. **Default
-            ``False``** for the bulk path: many workers each spawning a heavy SNAP JVM (and
-            racing on the shared cache dir) is wasteful and fragile. Build the cache once up
-            front with ``scripts/developer_scripts/bow_valley_inference_local/build_bow_valley_s1_cache.py``, then bulk-export against it.
+        verify_s1_cache: Have each worker's exporter **verify** (not build) that the
+            offline per-granule S1 SNAP cache covers each cell's window, failing loud if a
+            needed tif is missing. **Default ``True``** — the check is cheap (a cache-dir
+            glob, no SNAP) and catches a missing/incomplete cache before a long bulk run
+            silently emits all-``-9999`` S1. Build the cache once up front with
+            ``scripts/developer_scripts/bow_valley_inference_local/build_bow_valley_s1_cache.py``;
+            set ``False`` only to deliberately allow S1-free cubes.
 
     Returns:
         The written cube paths (order not guaranteed — sort if needed).
@@ -107,7 +110,7 @@ def export_cells_parallel(
     items = [(cell, window_end) for cell in cells]
 
     if n_workers == 1:
-        _init_worker(out_dir, archive_root, placeholder, auto_build_s1_cache)
+        _init_worker(out_dir, archive_root, placeholder, verify_s1_cache)
         paths = [Path(_export_one(item)[1]) for item in items]
         logger.info("exported_cells_serial", cells=len(paths), out_dir=str(out_dir))
         return paths
@@ -123,7 +126,7 @@ def export_cells_parallel(
     with ProcessPoolExecutor(
         max_workers=n_workers,
         initializer=_init_worker,
-        initargs=(out_dir, archive_root, placeholder, auto_build_s1_cache),
+        initargs=(out_dir, archive_root, placeholder, verify_s1_cache),
     ) as pool:
         futures = [pool.submit(_export_one, item) for item in items]
         done = 0

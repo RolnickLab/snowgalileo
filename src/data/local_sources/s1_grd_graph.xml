@@ -8,16 +8,22 @@
     angle, terrain-corrected onto EPSG:32611 at 10 m.
 
     Chain (matching the GEE S1_GRD recipe up to terrain correction):
-      Read -> Apply-Orbit-File -> Subset (AOI n footprint, radar geometry)
-        -> ThermalNoiseRemoval -> Remove-GRD-Border-Noise
+      Read -> Apply-Orbit-File -> ThermalNoiseRemoval -> Remove-GRD-Border-Noise
         -> Calibration (sigma0, LINEAR) -> Terrain-Correction (SRTM 1Sec,
-           EPSG:32611, + saveIncidenceAngleFromEllipsoid) -> Write (GeoTIFF-BigTIFF)
+           EPSG:32611, + saveIncidenceAngleFromEllipsoid)
+        -> Subset (AOI bbox, MAP geometry) -> Write (GeoTIFF-BigTIFF)
 
-    The Subset to the AOI n granule-footprint (in radar geometry, after orbit so
-    GCPs survive) is the adapter's "windowed read": terrain-correcting the full
-    ~250 km IW swath at 10 m overflows SNAP's writer AND wastes compute. The
-    footprint intersection (done in s1_snap.py) also avoids SNAP's "Empty region!"
-    error on AOI areas this granule's swath does not cover.
+    The Subset is applied AFTER Terrain-Correction (S1 GRD best practice): the
+    radiometric/noise/calibration/TC steps run on the full product in radar geometry,
+    then the geoRegion crop windows the already-projected EPSG:32611 raster — an
+    ordinary map-geometry bbox crop, NOT a radar-geometry back-projection. This is
+    what eliminates SNAP's "Empty region!" NPE that the old pre-TC (radar-geometry)
+    Subset triggered on cells the GCP-clipped scene did not actually cover, and it
+    follows the recommended GRD ordering. The crop still bounds compute: terrain-
+    correcting the full ~250 km IW swath at 10 m and writing it overflows SNAP's
+    writer; cropping to the AOI bbox keeps the output bounded. The SNAP stage runs
+    once per RAW granule over the whole AOI (s1_snap.py), so ${region} is the AOI
+    bbox; the adapter then windows that AOI-wide tif to each cell (reproject_to_cell).
 
     Output band ORDER (pinned; BigTIFF persists no band names): SNAP emits
     sigma0 VH first, then VV, then the angle band, i.e.
@@ -69,21 +75,10 @@
     </parameters>
   </node>
 
-  <node id="Subset">
-    <operator>Subset</operator>
-    <sources>
-      <sourceProduct refid="Apply-Orbit-File"/>
-    </sources>
-    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
-      <geoRegion>${region}</geoRegion>
-      <copyMetadata>true</copyMetadata>
-    </parameters>
-  </node>
-
   <node id="ThermalNoiseRemoval">
     <operator>ThermalNoiseRemoval</operator>
     <sources>
-      <sourceProduct refid="Subset"/>
+      <sourceProduct refid="Apply-Orbit-File"/>
     </sources>
     <parameters class="com.bc.ceres.binding.dom.XppDomElement">
       <selectedPolarisations>VV,VH</selectedPolarisations>
@@ -134,6 +129,23 @@
     </parameters>
   </node>
 
+  <!-- Subset AFTER Terrain-Correction (S1 GRD best practice): the geoRegion crop is
+       applied to the already-projected EPSG:32611 raster — an ordinary map-geometry
+       bbox window, NOT a radar-geometry back-projection. This eliminates the
+       "Empty region!" NPE that the old pre-TC (radar-geometry) Subset triggered on
+       cells the GCP-clipped scene did not actually cover. ${region} is the AOI bbox
+       (the SNAP stage runs once per RAW granule over the whole AOI, not per cell). -->
+  <node id="Subset">
+    <operator>Subset</operator>
+    <sources>
+      <sourceProduct refid="Terrain-Correction"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <geoRegion>${region}</geoRegion>
+      <copyMetadata>true</copyMetadata>
+    </parameters>
+  </node>
+
   <!-- NO LinearToFromdB node: dB conversion (10*log10) is done in the adapter on
        VV/VH only (s1.py), so the angle band survives and stays in degrees. The
        cache stores LINEAR sigma0 + angle. -->
@@ -141,7 +153,7 @@
   <node id="Write">
     <operator>Write</operator>
     <sources>
-      <sourceProduct refid="Terrain-Correction"/>
+      <sourceProduct refid="Subset"/>
     </sources>
     <parameters class="com.bc.ceres.binding.dom.XppDomElement">
       <file>${output}</file>

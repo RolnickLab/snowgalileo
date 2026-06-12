@@ -135,7 +135,7 @@ def _build_cache_granule(
             np.full((h, w), angle, np.float32),
         )
     stem = _granule_stem(acq, end=end, uid=uid)
-    path = cache_root / cache_tif_name(stem, cell.cell_id)
+    path = cache_root / cache_tif_name(stem)
     _write_cache_tif(
         path, vv_db=arrays[0], vh_db=arrays[1], angle=arrays[2],
         transform=_src_transform(cell), crs=cell.crs,
@@ -155,12 +155,12 @@ def test_bands_out_and_kind() -> None:
 
 
 def test_granule_name_parses_s1c() -> None:
-    """The granule regex parses S1C + the per-cell key (archive is S1C, not S1A/B)."""
+    """The granule regex parses the per-granule S1C cache name (archive is S1C, not S1A/B)."""
     stem = _granule_stem("20250406")
-    info = _parse_granule(Path(cache_tif_name(stem, 7)))
+    info = _parse_granule(Path(cache_tif_name(stem)))
     assert info is not None
     assert info.acq == datetime.date(2025, 4, 6)
-    assert info.cell_id == 7
+    assert info.uid == "88AD"
 
 
 def test_missing_day_is_all_nodata(synthetic_cell: GridCell, tmp_path: Path) -> None:
@@ -266,39 +266,35 @@ def test_coalesce_complementary_masks(synthetic_cell: GridCell, tmp_path: Path) 
 # --------------------------------------------------------------------------- #
 # Real-archive parity — skips unless the SNAP cache is built
 # --------------------------------------------------------------------------- #
-_S1_ARCHIVE = Path("data/clipped_bow_valley_selection_raw/sentinel1")
+_S1_ARCHIVE = Path("data/bow_valley_selection_raw/sentinel1")
 
 #: patch-key → (timestep with S1, acquisition date, a stable parity cell_id). Each
 #: patch carries S1 on its window-end timestep (ts7 = the patch/prediction date), all
-#: present in the clipped archive. The cell_id keys the per-(granule, cell) SNAP cache
-#: so the three patch caches never collide.
+#: present in the raw archive. Each parity case has a distinct acquisition date → distinct
+#: granules → distinct per-granule cache tifs, so the patch caches never collide.
 _PARITY_CASES = {
     "PR_20250406": (7, datetime.date(2025, 4, 6), 90406),
     "PR_20250423": (7, datetime.date(2025, 4, 23), 90423),
     "PR_20250519": (7, datetime.date(2025, 5, 19), 90519),
 }
 
-#: Patches the parity gate proves the pipeline on. PR_20250519 reproduces GEE
-#: ``COPERNICUS/S1_GRD`` to 0.38 dB VV / 0.40 dB VH / 0.24° angle — the decisive
-#: full-chain proof (SNAP σ⁰ → adapter dB → edge mask → reproject).
-_PARITY_PROVEN = {"PR_20250519"}
+#: Patches the parity gate proves the pipeline on. ALL THREE now reproduce GEE
+#: ``COPERNICUS/S1_GRD`` within tolerance under the per-granule (raw, post-TC-Subset)
+#: pipeline — verified 2026-06-11 on a SNAP-capable run:
+#:   PR_20250519: VV 0.401 / VH 0.421 dB, angle 0.240°  (the long-proven case)
+#:   PR_20250423: VV 0.427 / VH 0.468 dB, angle 0.343°  (was "Empty region!" under the
+#:                old pre-TC radar-geometry Subset — the post-TC ordering fixed it)
+#:   PR_20250406: VV 0.579 / VH 0.509 dB, angle 0.784°  (was a ~10 dB "single-scene
+#:                anomaly" under the old CLIPPED + pre-TC path; the anomaly was OUR
+#:                processing, not GEE's data — processing the RAW full swath with the
+#:                post-TC Subset reproduces GEE faithfully).
+#: All comfortably under the 1.0 dB / 1.0° tolerances, so they assert as real passes
+#: (no xfail). A regression in the SNAP chain or adapter now fails the gate loudly.
+_PARITY_PROVEN = {"PR_20250406", "PR_20250423", "PR_20250519"}
 
-#: Known non-adapter failures (xfail), root-caused 2026-06-08:
-#: - ``PR_20250406``: a confirmed **single-scene anomaly**. A direct GEE pull shows
-#:   GEE's S1_GRD VV = −2.63 dB over the patch for the *same* acquisition (S1C
-#:   2025-04-06 01:29:13 ASC relOrbit 20, angle 34.84°), while our SNAP σ⁰ = −12.7 dB
-#:   (the physically-typical value). The offset is non-uniform (VV 10.1 / VH 5.8 dB),
-#:   so not a calibration gain — something intrinsic to GEE's processing of *that*
-#:   scene our chain does not reproduce. The identical chain nails 0519, so it is not
-#:   a pipeline defect. Tracked for a follow-up (σ⁰-vs-γ⁰ / per-scene aux forensics).
-#: - ``PR_20250423``: SNAP ``Subset`` returns "Empty region!" for this granule+cell,
-#:   so σ⁰ comes back empty (the angle band, pure geometry, still fills) — a SNAP
-#:   Subset-on-GCP-clipped-product quirk, not an adapter bug. Follow-up: wider GCP
-#:   clip buffer / drop Remove-GRD-Border-Noise for edge cells.
-_PARITY_XFAIL = {
-    "PR_20250406": "single-scene anomaly vs GEE (GEE-pull-confirmed, not a pipeline bug)",
-    "PR_20250423": "SNAP Subset 'Empty region!' on this GCP-clipped granule+cell",
-}
+#: No known non-adapter parity failures remain — the per-granule refactor resolved both
+#: prior xfails (see _PARITY_PROVEN). Kept as an (empty) extension point.
+_PARITY_XFAIL: dict[str, str] = {}
 
 #: TASK-005 tolerance: median |Δ| ≤ 1.0 dB for VV/VH (SAR is speckly → median).
 _S1_DRIFT_TOLERANCE_DB = 1.0
@@ -316,20 +312,24 @@ def _cell_from_patch(patch: Path, cell_id: int) -> GridCell:
 
 
 def _ensure_patch_cache(cell: GridCell, acq: datetime.date) -> S1Adapter:
-    """Build (idempotently) the per-cell SNAP cache for ``acq``'s granules; skip w/o SNAP.
+    """Build (idempotently) the per-granule SNAP cache for ``acq``'s granules; skip w/o SNAP.
 
-    Drives the real pipeline end-to-end: SNAP-subset each clipped granule acquired on
-    ``acq`` to this patch-cell, into ``_S1_CACHE``. Skips cleanly if the archive or ESA
-    SNAP is absent (CI), so the parity check only runs where it can.
+    Drives the real pipeline end-to-end: SNAP-process each **raw** granule acquired on
+    ``acq`` over the patch-cell's 4326 bbox (the post-TC Subset region), into ``_S1_CACHE``.
+    The adapter then windows the AOI-wide tif to the cell. Skips cleanly if the archive or
+    ESA SNAP is absent (CI), so the parity check only runs where it can.
     """
     import datetime as _dt
+
+    from pyproj import Transformer
+    from shapely.geometry import box as _box
 
     from src.data.local_sources.s1_snap import _DEFAULT_GPT, build_granule_cache
 
     if not _DEFAULT_GPT.exists():
         pytest.skip(f"ESA SNAP gpt not found at {_DEFAULT_GPT}; cannot build S1 cache.")
     if not _S1_ARCHIVE.exists():
-        pytest.skip("No clipped S1 archive.")
+        pytest.skip("No raw S1 archive.")
 
     granules = [
         z for z in sorted(_S1_ARCHIVE.glob("S1*_IW_GRDH_*.zip"))
@@ -338,17 +338,28 @@ def _ensure_patch_cache(cell: GridCell, acq: datetime.date) -> S1Adapter:
     if not granules:
         pytest.skip(f"No S1 granule in the archive for {acq}.")
 
+    # The patch cell's 4326 bbox is the post-TC Subset region for this parity build.
+    tr = Transformer.from_crs(cell.crs, "EPSG:4326", always_xy=True)
+    x0, y0, x1, y1 = cell.polygon.bounds
+    lon0, lat0 = tr.transform(x0, y0)
+    lon1, lat1 = tr.transform(x1, y1)
+    cell_bbox_4326 = _box(min(lon0, lon1), min(lat0, lat1), max(lon0, lon1), max(lat0, lat1))
+
     _S1_CACHE.mkdir(parents=True, exist_ok=True)
     for granule_zip in granules:
-        build_granule_cache(granule_zip=granule_zip, cells=[cell], cache_dir=_S1_CACHE)
+        build_granule_cache(
+            granule_zip=granule_zip, aoi_4326=cell_bbox_4326, cache_dir=_S1_CACHE
+        )
     return S1Adapter(cache_root=_S1_CACHE)
 
 
 def _parity_params() -> list[object]:
-    """One param per patch; the known non-adapter cases carry an ``xfail`` mark."""
+    """One param per patch. Any keys in ``_PARITY_XFAIL`` carry an ``xfail`` mark; it is
+    currently empty (all three patches pass under the per-granule pipeline).
+    """
     params: list[object] = []
     for key in _PARITY_CASES:
-        marks = ()
+        marks: tuple[pytest.MarkDecorator, ...] = ()
         if key in _PARITY_XFAIL:
             marks = (pytest.mark.xfail(reason=_PARITY_XFAIL[key], strict=False),)
         params.append(pytest.param(key, marks=marks, id=key))
@@ -359,9 +370,10 @@ def _parity_params() -> list[object]:
 def test_parity_vv_vh_angle_against_gee(patch_key: str) -> None:
     """VV/VH within 1.0 dB and angle within 1° of the GEE reference patch (AC-14).
 
-    ``PR_20250519`` is the decisive proof (0.38 dB VV / 0.40 dB VH / 0.24° angle);
-    ``PR_20250406`` (GEE-confirmed single-scene anomaly) and ``PR_20250423`` (SNAP
-    Subset 'Empty region!') are xfail with documented, non-adapter root causes.
+    All three patches pass under the per-granule (raw, post-TC-Subset) pipeline — see
+    ``_PARITY_PROVEN`` for the measured per-patch margins. The post-TC ordering fixed the
+    two cases that previously xfailed (PR_20250423 "Empty region!" and PR_20250406, whose
+    ~10 dB "anomaly" was our old clipped+pre-TC processing, not GEE's data).
     """
     ts, acq, cell_id = _PARITY_CASES[patch_key]
     patches = sorted(_REF_DIR.glob(f"{patch_key}_*.tif"))

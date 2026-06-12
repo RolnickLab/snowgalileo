@@ -1,23 +1,22 @@
-"""Build the Bow Valley Sentinel-1 per-cell SNAP dB+angle cache (offline prestep).
+"""Build the Bow Valley Sentinel-1 per-granule SNAP dB+angle cache (offline prestep).
 
 The cube exporter's :class:`~src.data.local_sources.s1.S1Adapter` reads a **pre-built**
-per-``(granule, cell)`` cache of terrain-corrected σ⁰ (dB) + local-incidence-angle tifs;
-it does **not** run SNAP itself (a thin, hermetic read port). This script is that build
-step — the S1 analogue of the clip stage — running ESA SNAP ``gpt`` once per covered
-``(granule, cell)`` over the production grid.
+per-granule, AOI-wide cache of terrain-corrected σ⁰ + ellipsoid-incidence-angle tifs; it
+does **not** run SNAP itself (a thin, hermetic read port). This script is that build
+step — running ESA SNAP ``gpt`` **once per raw granule** over the AOI, with the
+``geoRegion`` Subset applied after Terrain-Correction (map geometry — no "Empty region!"
+NPE; S1 GRD best practice). One AOI-wide tif per granule; the adapter windows it to each
+cell, so it serves both grid modes (no per-cell or per-mode build).
 
-Run it whenever the clipped S1 archive changes, before exporting cubes::
+Run it whenever the **raw** S1 archive changes, before exporting cubes::
 
     uv run python scripts/developer_scripts/bow_valley_inference_local/build_bow_valley_s1_cache.py
     # then (re-)export cubes — S1 bands will be populated, not -9999.
 
-It is idempotent: already-cached ``(granule, cell)`` tifs are skipped unless
-``--overwrite``. SNAP terrain correction is bounded **per cell** (a full-AOI/full-scene
-run NPE-corrupts on the clip's range-geometry empty regions), so the cache is keyed by
-``cache_tif_name(stem, cell.cell_id)`` — the same key the adapter resolves by.
+It is idempotent: already-cached per-granule tifs are skipped unless ``--overwrite``.
 
-Fails loudly up front if ESA SNAP ``gpt``, the SNAP graph, or the clipped S1 archive is
-missing, rather than producing a partial/empty cache.
+Fails loudly up front if ESA SNAP ``gpt``, the SNAP graph, the raw S1 archive, or the
+AOI is missing, rather than producing a partial/empty cache.
 """
 
 from __future__ import annotations
@@ -28,7 +27,7 @@ from pathlib import Path
 
 import structlog
 
-from src.data.local_sources.grid import build_grid
+from src.data.local_sources.clip.settings import load_aoi_polygon
 from src.data.local_sources.paths import LocalPaths
 from src.data.local_sources.s1_snap import (
     _DEFAULT_GPT,
@@ -42,25 +41,25 @@ logger = structlog.get_logger(__name__)
 def _parse_args() -> argparse.Namespace:
     paths = LocalPaths()
     parser = argparse.ArgumentParser(
-        description="Build the Bow Valley Sentinel-1 per-cell SNAP cache.",
+        description="Build the Bow Valley Sentinel-1 per-granule SNAP cache.",
     )
     parser.add_argument(
         "--archive-root",
         type=Path,
-        default=paths.clipped_root / "sentinel1",
-        help="Clipped S1 archive holding S1*_IW_GRDH_*.zip (default: %(default)s).",
+        default=paths.raw_root / "sentinel1",
+        help="Raw S1 archive holding full-swath S1*_IW_GRDH_*.zip (default: %(default)s).",
     )
     parser.add_argument(
         "--cache-dir",
         type=Path,
         default=paths.clipped_root / "sentinel1_snap",
-        help="Output directory for the s1_grd_*_cell*.tif cache (default: %(default)s).",
+        help="Output directory for the s1_grd_*.tif cache (default: %(default)s).",
     )
     parser.add_argument(
-        "--mode",
-        choices=("A", "B"),
-        default="A",
-        help="Grid sweep mode (A=legacy-CSV cells in AOI; B=AOI tiling). Default: %(default)s.",
+        "--aoi",
+        type=Path,
+        default=paths.aoi_path,
+        help="AOI polygon (EPSG:4326 GeoJSON) the post-TC Subset crops to (default: %(default)s).",
     )
     parser.add_argument(
         "--gpt", type=Path, default=_DEFAULT_GPT, help="ESA SNAP gpt executable."
@@ -83,8 +82,10 @@ def _preflight(args: argparse.Namespace) -> None:
         problems.append(f"ESA SNAP gpt not found at {args.gpt} (install SNAP or pass --gpt).")
     if not args.graph.exists():
         problems.append(f"SNAP graph not found at {args.graph}.")
+    if not args.aoi.exists():
+        problems.append(f"AOI polygon not found at {args.aoi}.")
     if not args.archive_root.exists():
-        problems.append(f"Clipped S1 archive not found at {args.archive_root}.")
+        problems.append(f"Raw S1 archive not found at {args.archive_root}.")
     else:
         n_granules = len(list(args.archive_root.glob("S1*_IW_GRDH_*.zip")))
         if n_granules == 0:
@@ -101,12 +102,11 @@ def main() -> None:
     args = _parse_args()
     _preflight(args)
 
-    cells = build_grid(args.mode)
+    aoi = load_aoi_polygon(args.aoi)
     n_granules = len(list(args.archive_root.glob("S1*_IW_GRDH_*.zip")))
     logger.info(
         "s1_cache_build_begin",
         n_granules=n_granules,
-        n_cells=len(cells),
         archive_root=str(args.archive_root),
         cache_dir=str(args.cache_dir),
         overwrite=args.overwrite,
@@ -114,7 +114,7 @@ def main() -> None:
 
     cached = build_s1_cache(
         archive_root=args.archive_root,
-        cells=cells,
+        aoi_4326=aoi,
         cache_dir=args.cache_dir,
         gpt=args.gpt,
         graph=args.graph,
