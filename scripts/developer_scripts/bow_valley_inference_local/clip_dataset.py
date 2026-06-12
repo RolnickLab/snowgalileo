@@ -13,7 +13,7 @@ Commands:
 Run ``--dry-run`` to evaluate only the metadata gate (no pixels decoded, no writes).
 
 The clip routines and gate live in the ``src.data.local_sources.clip`` package; this
-module is just the CLI boundary. Run via ``uv run python scripts/developer_scripts/clip_dataset.py``.
+module is just the CLI boundary. Run via ``uv run python scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py``.
 """
 
 from __future__ import annotations

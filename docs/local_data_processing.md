@@ -84,15 +84,15 @@ decision.
 # Dry-run: gate only, no pixels decoded, no writes — sanity check first.
 # NOTE: a dry-run can hide footprint-reader bugs (see Gotchas). Don't treat its
 # CLIP/SKIP tally as proof of correctness.
-uv run python scripts/developer_scripts/clip_dataset.py clip-all --dry-run
+uv run python scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py clip-all --dry-run
 
 # Real clip (all sources, serial).
-uv run python scripts/developer_scripts/clip_dataset.py clip-all
+uv run python scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py clip-all
 
 # ...or run sources in parallel (they are independent processes). Example:
-uv run python scripts/developer_scripts/clip_dataset.py clip-source sentinel2 &
-uv run python scripts/developer_scripts/clip_dataset.py clip-source sentinel3 &
-uv run python scripts/developer_scripts/clip_dataset.py clip-source viirs &
+uv run python scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py clip-source sentinel2 &
+uv run python scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py clip-source sentinel3 &
+uv run python scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py clip-source viirs &
 wait
 # Parallel clip-source jobs each write only their own per-source manifest; the
 # combined root manifest is NOT produced. Regenerate it (header once, then every
@@ -104,7 +104,7 @@ wait
 
 # Post-run audit: zero all-nodata outputs, static mosaics reach lat 52.31.
 # (Single-command Typer app — no subcommand. --root defaults to the clipped dir.)
-uv run python scripts/developer_scripts/clip_audit.py
+uv run python scripts/developer_scripts/bow_valley_inference_local/clip_audit.py
 
 uv run pytest tests/test_clip_dataset.py -q
 ```

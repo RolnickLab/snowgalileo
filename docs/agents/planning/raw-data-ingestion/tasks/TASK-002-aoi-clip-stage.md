@@ -16,7 +16,7 @@ check, emits a per-source manifest, and passes a post-run zero-all-nodata audit.
 - **Upstream task:** TASK-001 (archive audit catalogs the formats this stage reads).
 - **Key files:**
   - `data/bow_valley_inference_aoi.geojson` — binding extent.
-  - `scripts/developer_scripts/clip_dataset.py` — **new** Typer CLI.
+  - `scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py` — **new** Typer CLI.
   - Raw archive layout (per `DATA_ANALYSIS.md` §"Raw Archive Directory Formats"):
     DEM (nested SAFE GeoTIFF), ERA5 (NetCDF), Landsat8/9 (`.tar` GeoTIFF, EPSG:32612),
     S1 (`.zip` SAFE TIFF), S2 (`.zip` SAFE JP2, EPSG:32611), S3 (`.zip` SEN3 NetCDF),
@@ -118,17 +118,17 @@ cd /home/dev/projects/presto-v3
 uv run pytest tests/test_clip_dataset.py -v
 
 # Dry-run the gate on a single modality (no writes)
-uv run python scripts/developer_scripts/clip_dataset.py --modality landsat9 \
+uv run python scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py --modality landsat9 \
     --aoi data/bow_valley_inference_aoi.geojson --dry-run
 
 # Full clip of one small modality, then audit
-uv run python scripts/developer_scripts/clip_dataset.py --modality worldcover \
+uv run python scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py --modality worldcover \
     --aoi data/bow_valley_inference_aoi.geojson --out data/clipped_bow_valley_selection_raw
-uv run python scripts/developer_scripts/clip_audit.py \
+uv run python scripts/developer_scripts/bow_valley_inference_local/clip_audit.py \
     --root data/clipped_bow_valley_selection_raw
 
-uv run ruff check scripts/developer_scripts/clip_dataset.py
-uv run mypy scripts/developer_scripts/clip_dataset.py
+uv run ruff check scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py
+uv run mypy scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py
 ```
 Expected: clip tests green; manifest written with one row per product; audit reports
 zero all-nodata outputs and exits 0; ruff/mypy exit 0.
@@ -140,7 +140,7 @@ zero all-nodata outputs and exits 0; ruff/mypy exit 0.
 2. Run all Section 6 commands; confirm expected output.
 3. Commit:
    ```bash
-   git add scripts/developer_scripts/clip_dataset.py scripts/developer_scripts/clip_audit.py \
+   git add scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py scripts/developer_scripts/bow_valley_inference_local/clip_audit.py \
            tests/test_clip_dataset.py
    git commit -m "feat(bow-valley): AOI clip stage with intersect gate + manifest + audit — closes TASK-002"
    ```

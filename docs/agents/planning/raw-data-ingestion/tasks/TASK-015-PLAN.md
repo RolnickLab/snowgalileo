@@ -113,5 +113,5 @@ uv run mypy src/inference/driver.py src/inference/mosaic.py src/inference/window
 Full-suite delta vs TEST_BASELINE.md — NEW-failures list empty. NOT pytest -x.
 
 ## Out of scope (TASK-016)
-Entry-point scripts (`scripts/infer_bow_valley_daily_fsc.py`), checkpoint/model build,
+Entry-point scripts (`scripts/developer_scripts/bow_valley_inference_local/infer_bow_valley_daily_fsc.py`), checkpoint/model build,
 full-stack parity gate, real GPU batched run, multiprocessing tuning.

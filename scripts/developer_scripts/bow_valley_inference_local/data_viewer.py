@@ -2,7 +2,7 @@
 
 Run with::
 
-    uv run solara run scripts/developer_scripts/data_viewer.py
+    uv run solara run scripts/developer_scripts/bow_valley_inference_local/data_viewer.py
 
 A developer/QA tool with three tabs, each a leafmap map with the
 ``data/bow_valley_inference_aoi.geojson`` outline overlaid:

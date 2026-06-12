@@ -9,7 +9,7 @@ This is the cube half of Stage 2. It is **additive** — it composes existing co
 path is untouched.
 
 Example:
-    uv run python scripts/export_bow_valley_cube.py \\
+    uv run python scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py \\
         --config configs/bow_valley/cube.yaml --limit 4
 """
 
@@ -48,6 +48,13 @@ def main(
         Optional[int],
         typer.Option(help="Parallel export workers; None = default (~8), clamped to cores/cells."),
     ] = None,
+    build_s1_cache: Annotated[
+        bool,
+        typer.Option(
+            help="Let workers build the S1 SNAP cache on demand. Off by default — build it "
+            "once first with scripts/developer_scripts/bow_valley_inference_local/build_bow_valley_s1_cache.py, then bulk-export.",
+        ),
+    ] = False,
 ) -> None:
     """Export one cube per ``(cell, window_end)`` from the clipped archive (parallel)."""
     settings = CubeSettings.from_yaml(config)
@@ -75,6 +82,7 @@ def main(
         out_dir=settings.cubes_dir,
         archive_root=settings.archive_root,
         workers=workers,
+        auto_build_s1_cache=build_s1_cache,
     )
     logger.info("cube_export_complete", cubes=len(paths), out_dir=str(settings.cubes_dir))
 

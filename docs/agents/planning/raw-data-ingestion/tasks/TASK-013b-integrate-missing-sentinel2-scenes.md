@@ -39,7 +39,7 @@ on a tile seam — grab every T11U** tile intersecting the patch footprint for t
 ## 4. Integration steps (after download lands)
 1. Place new raw granules in `data/bow_valley_selection_raw/sentinel2/`.
 2. Re-run the AOI clip stage for **S2 only**:
-   `uv run python scripts/developer_scripts/clip_dataset.py clip-all --only sentinel2`
+   `uv run python scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py clip-all --only sentinel2`
    (re-walks the dir, idempotent; do not re-clip other modalities).
 3. The S2 `clip_manifest.csv` is rebuilt automatically by the clip stage.
 4. Verify each new clipped granule has valid (>0) **B04** pixels over its target patch

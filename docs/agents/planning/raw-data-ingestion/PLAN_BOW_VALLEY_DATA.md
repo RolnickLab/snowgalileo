@@ -790,7 +790,7 @@ Each phase ends with an explicit approval gate per CLAUDE.md workflow rules.
    Produces `data/clipped_bow_valley_selection_raw`, the archive root every
    adapter reads (§3 Pipeline Stages, §4). Must complete before any adapter
    work in Phase 3 — the cube cannot be built from the raw archive.
-   - Implement `scripts/developer_scripts/clip_dataset.py` (Typer CLI) and its
+   - Implement `scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py` (Typer CLI) and its
      validation script per `CLIPPING_PLAN.md §3`.
    - Run the §2.0 intersect gate per product; emit the per-source clip manifest.
    - **Exit gate (mandatory):** the post-run audit asserts
@@ -829,8 +829,8 @@ Each phase ends with an explicit approval gate per CLAUDE.md workflow rules.
      8. `s2.py` (parity spike already done, now production)
      9. `s1.py` (parity spike already done, now production)
    - **Step 4 — `InferenceGridDriver` + `DailyMosaicWriter`.**
-   - **Step 5 — `scripts/export_bow_valley_cube.py` and
-     `scripts/infer_bow_valley_daily_fsc.py`.**
+   - **Step 5 — `scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py` and
+     `scripts/developer_scripts/bow_valley_inference_local/infer_bow_valley_daily_fsc.py`.**
 
 ### Tooling per task
 

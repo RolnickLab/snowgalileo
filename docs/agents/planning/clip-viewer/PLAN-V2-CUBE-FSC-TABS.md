@@ -69,7 +69,7 @@ src/data/local_sources/viewer/
                  #      render_fsc(path,long_edge) -> QuicklookResult (colormapped)
   settings.py    # ADD: processing_root + cubes_dir/daily_fsc_dir (LocalPaths default,
                  #      VIEWER_* overridable)
-scripts/developer_scripts/data_viewer.py  # WRAP existing Page body in solara.lab.Tabs;
+scripts/developer_scripts/bow_valley_inference_local/data_viewer.py  # WRAP existing Page body in solara.lab.Tabs;
                                           # add CubeTab + FscTab components
 ```
 No edits to `quicklook.py` contract, `manifest.py`, `aoi.py`, `archives.py`, or any
@@ -159,9 +159,9 @@ already consumes.
 ```bash
 cd /home/dev/projects/presto-v3
 uv run pytest tests/test_local_sources/test_viewer_outputs.py -v
-uv run ruff check src/data/local_sources/viewer/ scripts/developer_scripts/data_viewer.py
+uv run ruff check src/data/local_sources/viewer/ scripts/developer_scripts/bow_valley_inference_local/data_viewer.py
 uv run mypy  src/data/local_sources/viewer/outputs.py src/data/local_sources/viewer/renderers.py
-# Manual: uv run solara run scripts/developer_scripts/data_viewer.py
+# Manual: uv run solara run scripts/developer_scripts/bow_valley_inference_local/data_viewer.py
 #   → Clip / Cube / Daily FSC tabs; cube var+timestep on map; FSC date slider on map; AOI on all.
 # Full-suite delta (TEST_BASELINE.md): NEW-failures list MUST be empty. NOT pytest -x.
 ```

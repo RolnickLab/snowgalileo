@@ -45,7 +45,7 @@ pattern (`env_prefix="INFER_"`), loaded from `inference.yaml`. Fields:
 Rationale: keep `cube.yaml` the authority for *what* the sweep is (window, mode, roots);
 `inference.yaml` only carries *how to run the model* (checkpoint, batch, device, output).
 
-### 2. `scripts/export_bow_valley_cube.py` (NEW, Typer)
+### 2. `scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py` (NEW, Typer)
 `--config configs/bow_valley/cube.yaml`, `--limit N` (cap cells for a smoke run),
 `--window-end YYYY-MM-DD` (optional; default = `cube.yaml` `window_end`). Builds the grid
 (`build_grid(mode=settings.mode)`), a real-adapter `LocalSourceExporter(placeholder=False,
@@ -53,7 +53,7 @@ archive_root=settings.archive_root, out_dir=settings.cubes_dir)`, and exports on
 `(cell, window_end)` for the (optionally limited) grid. `structlog` JSON. This is the cube
 half (AC-3, first script).
 
-### 3. `scripts/infer_bow_valley_daily_fsc.py` (NEW, Typer)
+### 3. `scripts/developer_scripts/bow_valley_inference_local/infer_bow_valley_daily_fsc.py` (NEW, Typer)
 `--cube-config cube.yaml`, `--config inference.yaml`, `--limit N`. Loads both settings,
 builds the model from the checkpoint via the **existing** path, builds the grid, constructs
 `InferenceGridDriver(exporter=real_exporter, model=model, grid=grid[:limit],

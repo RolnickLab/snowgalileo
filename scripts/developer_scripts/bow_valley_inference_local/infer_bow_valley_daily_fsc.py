@@ -14,7 +14,7 @@ than silently initializing random weights (an all-random sweep would yield a pla
 meaningless COG).
 
 Example:
-    uv run python scripts/infer_bow_valley_daily_fsc.py \\
+    uv run python scripts/developer_scripts/bow_valley_inference_local/infer_bow_valley_daily_fsc.py \\
         --cube-config configs/bow_valley/cube.yaml \\
         --config configs/bow_valley/inference.yaml --limit 4
 """

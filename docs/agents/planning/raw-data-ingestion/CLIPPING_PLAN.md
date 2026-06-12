@@ -321,7 +321,7 @@ only if it yields real pixels).
 
 ## 3. Implementation Workflow
 
-1. **Typer CLI Script (`scripts/developer_scripts/clip_dataset.py`):**
+1. **Typer CLI Script (`scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py`):**
    * Uses `typer` to provide a robust CLI with commands `clip-all` and `clip-source`.
    * Accepts `--aoi-path`, `--input-dir`, and `--output-dir` arguments.
    * Leverages verbose logging (`structlog` or `logging`) to output detailed step-by-step progress.

@@ -125,7 +125,7 @@ Failure contract: any unreadable/corrupt product → `plain_image` placeholder +
 from `src/viewer/` post-Phase-5 — viewer scopes to local clipped sources); deps =
 `solara`+`leafmap` (dev group); manifest I/O = `pandas`.
 ```
-scripts/developer_scripts/data_viewer.py   # Solara entrypoint (`solara run`)
+scripts/developer_scripts/bow_valley_inference_local/data_viewer.py   # Solara entrypoint (`solara run`)
 src/data/local_sources/viewer/
   manifest.py     # load clip_manifest.csv -> list[ProductRow] (pandas)
   quicklook.py    # QuicklookResult, Protocol, dispatch-by-source
@@ -159,7 +159,7 @@ pipeline lean). User approved the add.
   of unit tests on `manifest.py`/`archives.py` path building (pure funcs, no I/O).
 
 ## 9. Acceptance
-- `solara run scripts/developer_scripts/data_viewer.py` opens; every manifest row
+- `solara run scripts/developer_scripts/bow_valley_inference_local/data_viewer.py` opens; every manifest row
   selectable; CLIP rows render, SKIP rows show their skip reason.
 - AOI outline visible on every georef_raster product.
 - ERA5 date slider steps through valid_time; values change.

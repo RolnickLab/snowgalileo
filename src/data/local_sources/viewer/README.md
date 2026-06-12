@@ -14,7 +14,7 @@ bug and the S3 `scale_factor` bug. See `docs/agents/KNOWLEDGE.md`.
 ## Run
 
 ```bash
-uv run solara run scripts/developer_scripts/data_viewer.py
+uv run solara run scripts/developer_scripts/bow_valley_inference_local/data_viewer.py
 ```
 
 Opens at <http://localhost:8765>. The page loads every manifest row; select a
