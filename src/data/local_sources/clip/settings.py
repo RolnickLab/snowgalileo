@@ -36,8 +36,6 @@ class ClipSettings(BaseSettings):
         require_valid_pixels: When True, a clip yielding zero non-nodata pixels
             is suppressed (no output file) even if its footprint passed the area
             test — a degenerate sliver on the product's own border nodata.
-        gcp_buffer_pixels: Padding (pixels) added around the AOI-overlapping GCP
-            window for Sentinel-1 range-geometry slicing.
         swath_buffer_pixels: Padding (pixels) added around the AOI-overlapping
             grid window for Sentinel-3 tie-point-grid slicing.
     """
@@ -46,7 +44,6 @@ class ClipSettings(BaseSettings):
 
     min_aoi_overlap_area_km2: Annotated[float, Field(gt=0)] = 1.0
     require_valid_pixels: bool = True
-    gcp_buffer_pixels: Annotated[int, Field(ge=0)] = 200
     swath_buffer_pixels: Annotated[int, Field(ge=0)] = 10
 
 

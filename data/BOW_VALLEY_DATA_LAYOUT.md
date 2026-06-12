@@ -39,14 +39,22 @@ written by pipeline code. Per-modality subdirs (`dem/`, `worldcover/`, `era5/`,
 `landsat8/`, `landsat9/`, `modis/`, `viirs/`, `sentinel1/`, `sentinel2/`,
 `sentinel3/`). Layout and per-sensor formats are detailed in
 [`../docs/local_data_processing.md` §1](../docs/local_data_processing.md).
-Read by: `clip_dataset.py`, `create_stac_catalog.py`.
+Read by: `process_raw_dataset.py`, `create_stac_catalog.py`. The raw Sentinel-1
+granules here are also read by `process_raw_dataset.py process-s1` (ESA SNAP) —
+read-only — into the S1 SNAP cache.
 
-### `clipped_bow_valley_selection_raw/` — clip output
-Output of the clip stage: every raw product cropped to the AOI, same
-per-modality subdir layout, plus a per-source `clip_manifest.csv` (and a combined
-manifest at the root). This is the **single archive root every downstream adapter
-reads** — adapters never reach back into the raw archive. Written by
-`clip_dataset.py`; read by `clip_audit.py` and the viewer
+### `clipped_bow_valley_selection_raw/` — processing output (clip + S1 SNAP)
+Output of the raw-processing stage. Most modalities: every raw product cropped to
+the AOI, same per-modality subdir layout, plus a per-source `clip_manifest.csv`
+(and a combined manifest at the root). **Sentinel-1 is the exception — it is
+*processed*, not clipped**: it has no `sentinel1/` clip subdir and no manifest rows.
+Instead it gets a per-granule, AOI-wide SNAP dB+angle cache under `sentinel1_snap/`
+(`s1_grd_<granule>.tif`) — terrain-corrected σ⁰ + ellipsoid incidence. This is the
+**single** S1 product everything downstream reads: both the cube `S1Adapter` and the
+viewer's S1 quicklook (the viewer discovers S1 from this dir, not the manifest). This
+root is the **single archive every downstream adapter reads** — adapters never reach
+back into the raw archive. Written by `process_raw_dataset.py` (`clip-all` +
+`process-s1`); read by `process_raw_audit.py` and the viewer
 (`src/data/local_sources/viewer/`).
 
 ### `bow_valley_processing/` — assembly tree
@@ -70,10 +78,11 @@ as `processing_root/"cubes"`.)
 
 ```
 bow_valley_selection_raw/        (raw, manual)
-        │  clip_dataset.py  (AOI intersect gate + per-modality clip)
+        │  process_raw_dataset.py clip-all   (AOI gate + per-modality clip)
+        │  process_raw_dataset.py process-s1 (raw S1 → ESA SNAP dB+angle cache)
         ▼
-clipped_bow_valley_selection_raw/  + clip_manifest.csv
-        │  clip_audit.py   (zero-signal QA)   ── viewer (visual QA)
+clipped_bow_valley_selection_raw/  + clip_manifest.csv + sentinel1_snap/
+        │  process_raw_audit.py   (zero-signal QA + S1 cache coverage) ── viewer
         │  Stage 2 assembly (adapters → cube_cache → cubes)
         ▼
 bow_valley_processing/           (cube_cache/, cubes/ ← 8-day cubes, daily_fsc/)

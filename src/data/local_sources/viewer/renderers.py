@@ -320,7 +320,7 @@ class _ViirsRenderer:
 
 
 # --------------------------------------------------------------------------- #
-# Phase 3 — archive renderers (Landsat tar, S2 zip, S1 zip via /vsi*/)
+# Phase 3 — archive renderers (Landsat tar, S2 zip via /vsi*/; S1 = processed SNAP tif)
 # --------------------------------------------------------------------------- #
 
 
@@ -353,46 +353,6 @@ def _read_rgb_paths_4326(
     assert bounds is not None
     rgb = np.dstack(chans)
     return _stretch_uint8(rgb), bounds, crs
-
-
-def _read_gcp_band_4326(
-    src_path: str, *, long_edge: int
-) -> tuple[npt.NDArray[np.floating], tuple[float, float, float, float], str]:
-    """Decimated read of a GCP-georeferenced band, warped to EPSG:4326.
-
-    Sentinel-1 measurement TIFFs report ``crs=None`` + an identity transform but
-    carry GCPs in EPSG:4326 (F3). We compute a GCP-based source transform, read the
-    band decimated, then ``reproject`` to 4326 — never a full-res load (~146 MB).
-
-    Returns ``(array_4326, bounds_4326, gcp_crs)``.
-
-    Raises:
-        ValueError: If the source carries no GCPs.
-    """
-    with rasterio.open(src_path) as src:
-        gcps, gcp_crs = src.gcps
-        if not gcps:
-            raise ValueError("source has no GCPs; cannot georeference")
-
-        out_h, out_w = _decimated_shape(width=src.width, height=src.height, long_edge=long_edge)
-        arr = src.read(1, out_shape=(out_h, out_w), resampling=Resampling.average).astype(
-            "float32"
-        )
-        # GCP transform for the *decimated* grid: derive the full-res GCP transform,
-        # then scale it by the read ratio (GCP pixel coords are in full-res space).
-        full_transform = rasterio.transform.from_gcps(gcps)
-        src_transform = full_transform * full_transform.scale(
-            src.width / out_w, src.height / out_h
-        )
-
-    dec = _Decimated(
-        array=arr,
-        transform=src_transform,
-        crs=CRS.from_user_input(gcp_crs),
-        bounds_4326=array_bounds(out_h, out_w, src_transform),
-    )
-    arr_4326, bounds = _to_4326(dec)
-    return arr_4326, bounds, str(gcp_crs)
 
 
 def _landsat_band(archive: Path, band_token: str) -> str:
@@ -446,30 +406,32 @@ class _Sentinel2Renderer:
         )
 
 
+#: Processed-S1 SNAP-cache band order (s1_snap.py / s1_grd_graph.xml; BigTIFF keeps no
+#: band names): 1 = Sigma0_VH (linear), 2 = Sigma0_VV (linear), 3 = angle (degrees).
+_S1_VV_BAND = 2
+
+
 class _Sentinel1Renderer:
     source = "sentinel1"
 
     def render(self, row: ProductRow, *, long_edge: int, date_idx: int = 0) -> QuicklookResult:
         assert row.path is not None
-        members = list_zip_members(row.path)
-        # VV measurement TIFF (fallback VH); GCP-warped (F3 corrected).
-        try:
-            member = find_member(members, suffix=".tiff", contains="-vv-")
-            pol = "VV"
-        except FileNotFoundError:
-            member = find_member(members, suffix=".tiff", contains="-vh-")
-            pol = "VH"
-        path = vsizip_path(row.path, member)
-        arr_4326, bounds, crs = _read_gcp_band_4326(path, long_edge=long_edge)
-        # dB-stretch the backscatter amplitude for display.
+        # The processed SNAP tif is a plain EPSG:32611 GeoTIFF (no zip, no GCPs): read VV
+        # (linear sigma0) decimated, convert to dB, reproject to 4326 — the standard
+        # georeferenced-raster path. (The old renderer GCP-warped raw-DN from the clipped
+        # SAFE; S1 is no longer clipped — both cube and viewer read this processed cache.)
+        dec = _read_band_decimated(row.path, band=_S1_VV_BAND, long_edge=long_edge)
         with np.errstate(divide="ignore", invalid="ignore"):
-            db = 10.0 * np.log10(np.where(arr_4326 > 0, arr_4326, np.nan))
+            db = 10.0 * np.log10(np.where(dec.array > 0, dec.array, np.nan))
+        arr_4326, bounds = _to_4326(
+            _Decimated(array=db, transform=dec.transform, crs=dec.crs, bounds_4326=dec.bounds_4326)
+        )
         return QuicklookResult(
             kind="georef_raster",
-            image=_stretch_uint8(db),
+            image=_stretch_uint8(arr_4326),
             bounds_4326=bounds,
-            src_crs=crs,
-            label=f"S1 GRD {pol} (dB, GCP-warped)",
+            src_crs=str(dec.crs),
+            label="S1 GRD VV (dB, SNAP terrain-corrected)",
         )
 
 

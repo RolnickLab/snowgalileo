@@ -1,23 +1,32 @@
-"""Load and resolve products from ``clip_manifest.csv``.
+"""Load and resolve products for the viewer.
 
-The manifest is the single source of truth for product identity and location
-(Phase-0 finding F1). ``output_path`` semantics vary by modality:
+The clip manifest (``clip_manifest.csv``) is the source of truth for the **clipped**
+modalities (Phase-0 finding F1). ``output_path`` semantics vary by modality:
 
-* flat file directly under ``<root>/<source>/`` (landsat tar, s2/s1/s3 zip, era5 nc);
+* flat file directly under ``<root>/<source>/`` (landsat tar, s2/s3 zip, era5 nc);
 * a *basename* whose real file is nested several dirs deep (DEM) — resolved via
   ``rglob``;
 * a *directory* of per-grid GeoTIFFs (MODIS/VIIRS) — kept as the dir, the renderer
   picks a representative band inside.
+
+**Sentinel-1 is the exception**: it is *processed* (ESA SNAP), not clipped, so it has
+no manifest rows. Its products are discovered directly from the per-granule SNAP cache
+(``sentinel1_snap/s1_grd_*.tif``) by :func:`_discover_s1_products` and appended — the
+same processed tifs the cube ``S1Adapter`` reads.
 """
 
 from __future__ import annotations
 
+import datetime
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
 import pandas as pd
+import rasterio
 import structlog
+from pyproj import Transformer
 
 from src.data.local_sources.viewer.settings import ViewerSettings
 
@@ -86,6 +95,60 @@ def _resolve_path(
     return None
 
 
+#: Acquisition date token in a processed S1 cache stem (``s1_grd_S1C_..._<YYYYMMDD>T...``).
+_S1_SNAP_ACQ = re.compile(r"_(\d{8})T\d{6}_")
+
+
+def _tif_bbox_4326(path: Path) -> tuple[float, float, float, float]:
+    """Return a raster's bounds as an EPSG:4326 ``(minx, miny, maxx, maxy)`` bbox."""
+    with rasterio.open(path) as src:
+        b = src.bounds
+        if src.crs is None or src.crs.to_epsg() == 4326:
+            return (b.left, b.bottom, b.right, b.top)
+        tr = Transformer.from_crs(src.crs, "EPSG:4326", always_xy=True)
+        xs, ys = tr.transform([b.left, b.right, b.left, b.right], [b.bottom, b.bottom, b.top, b.top])
+    return (min(xs), min(ys), max(xs), max(ys))
+
+
+def _discover_s1_products(settings: ViewerSettings) -> list[ProductRow]:
+    """Synthesize ``ProductRow``s for processed S1 directly from the SNAP cache dir.
+
+    S1 is processed (ESA SNAP), not clipped, so it has no clip-manifest rows. Each
+    per-granule ``s1_grd_*.tif`` becomes one ``CLIP`` ``ProductRow`` (``source="sentinel1"``)
+    pointing at the processed tif — what the viewer's S1 renderer reads. Returns ``[]`` if
+    the SNAP cache dir does not exist (S1 not processed yet).
+    """
+    snap_dir = settings.s1_snap_dir
+    if not snap_dir.exists():
+        return []
+    rows: list[ProductRow] = []
+    for tif in sorted(snap_dir.glob("s1_grd_*.tif")):
+        m = _S1_SNAP_ACQ.search(tif.stem)
+        acq = (
+            datetime.datetime.strptime(m.group(1), "%Y%m%d").date().isoformat()
+            if m
+            else tif.stem
+        )
+        try:
+            bbox = _tif_bbox_4326(tif)
+        except rasterio.errors.RasterioIOError:
+            logger.warning("s1_snap_unreadable", path=str(tif))
+            continue
+        rows.append(
+            ProductRow(
+                product_id=f"S1 {acq} ({tif.stem})",
+                source="sentinel1",
+                footprint_bbox=bbox,
+                intersects=True,
+                aoi_overlap_km2=0.0,  # not gated by area — processed, not clipped
+                valid_pixel_count=0,  # unknown/irrelevant for the processed product
+                action="CLIP",
+                path=tif,
+            )
+        )
+    return rows
+
+
 def load_products(settings: ViewerSettings | None = None) -> list[ProductRow]:
     """Read the clip manifest and resolve every row to a ``ProductRow``.
 
@@ -122,4 +185,7 @@ def load_products(settings: ViewerSettings | None = None) -> list[ProductRow]:
                 ),
             )
         )
+    # S1 is processed (SNAP), not clipped — it has no manifest rows. Discover its products
+    # from the SNAP cache dir and append them so the viewer lists processed S1.
+    rows.extend(_discover_s1_products(settings))
     return rows

@@ -41,6 +41,16 @@ class ViewerSettings(BaseSettings):
         return self.clipped_root / self.manifest_name
 
     @property
+    def s1_snap_dir(self) -> Path:
+        """Directory of per-granule processed S1 SNAP tifs (``s1_grd_*.tif``).
+
+        S1 is processed (ESA SNAP), not clipped, so it has no clip-manifest rows; the
+        viewer discovers its products directly from this cache (the same one the cube
+        ``S1Adapter`` reads). See ``load_products``.
+        """
+        return self.clipped_root / "sentinel1_snap"
+
+    @property
     def cubes_dir(self) -> Path:
         """Directory of assembled per-cell cubes (``PR_*.tif``)."""
         return self.processing_root / "cubes"

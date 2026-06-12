@@ -90,10 +90,12 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   importable package is `src/data/local_sources/clip/` (`settings`, `gate`,
   `footprints`, `clippers`, `gdal_io`, `manifest`, `orchestrator`) — sibling to
   `grid.py`, since this is pipeline domain code, not a side script. The two Typer
-  CLIs `scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py` (`clip-source`, `clip-all`,
-  `--dry-run`) and `scripts/developer_scripts/bow_valley_inference_local/clip_audit.py` only do argument
-  parsing + `from src.data.local_sources.clip ...` imports (run via `uv run`, which
-  uses the editable install). The old flat `scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py`
+  CLIs `scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py`
+  (`clip-source`, `clip-all`, `process-s1`, `process-all`, `--dry-run`) and
+  `scripts/developer_scripts/bow_valley_inference_local/process_raw_audit.py` only do
+  argument parsing + `from src.data.local_sources ...` imports (run via `uv run`, which
+  uses the editable install). They were named `clip_dataset.py` / `clip_audit.py` until
+  S1 gained a SNAP step (`process-s1`), making "clip" too narrow. The old flat `scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py`
   + `scripts/.../test_clip_dataset.py` prototype was **removed** — it had no intersect
   gate, crashed (degenerate-size `assert`) instead of skipping non-overlapping tiles,
   and hardcoded a `min(1200,…)` MODIS clamp that truncated the 500 m science grid.

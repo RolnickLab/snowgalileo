@@ -13,11 +13,14 @@ import numpy as np
 import rasterio
 from affine import Affine
 
+from src.data.local_sources.viewer.manifest import _discover_s1_products
+from src.data.local_sources.viewer.quicklook import RENDERERS
 from src.data.local_sources.viewer.renderers import (
     render_cube_band,
     render_fsc,
     result_to_geotiff,
 )
+from src.data.local_sources.viewer.settings import ViewerSettings
 
 # EPSG:32611 (UTM 11N) grid — production cube/FSC CRS.
 _TRANSFORM = Affine(10.0, 0.0, 547_000.0, 0.0, -10.0, 5_620_000.0)
@@ -142,3 +145,70 @@ def test_render_fsc_roundtrips_through_geotiff(tmp_path: Path) -> None:
         assert src.crs.to_epsg() == 4326
         assert src.count == 4  # RGB + alpha
         assert src.colorinterp[-1].name == "alpha"
+
+
+# --------------------------------------------------------------------------- #
+# Sentinel-1 — processed SNAP tif (not clipped): discovery + renderer
+# --------------------------------------------------------------------------- #
+_S1_STEM = "s1_grd_S1C_IW_GRDH_1SDV_20250519T012124_20250519T012149_002393_005073_3D71"
+
+
+def _write_s1_snap(path: Path) -> None:
+    """Write a 3-band processed-S1 SNAP tif: VH(1), VV(2) linear σ⁰, angle(3) deg."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    h = w = 16
+    vh = np.full((h, w), 10.0 ** (-1.4), dtype="float32")  # ~-14 dB linear
+    vv = np.full((h, w), 10.0 ** (-0.8), dtype="float32")  # ~-8 dB linear
+    angle = np.full((h, w), 43.6, dtype="float32")
+    with rasterio.open(
+        path, "w", driver="GTiff", height=h, width=w, count=3,
+        dtype="float32", crs="EPSG:32611", transform=_TRANSFORM,
+    ) as dst:
+        dst.write(vh, 1)
+        dst.write(vv, 2)
+        dst.write(angle, 3)
+
+
+def test_discover_s1_products_from_snap_cache(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """S1 products are synthesized from sentinel1_snap/ tifs (no clip manifest rows)."""
+    snap_dir = tmp_path / "clipped" / "sentinel1_snap"
+    _write_s1_snap(snap_dir / f"{_S1_STEM}.tif")
+    settings = ViewerSettings(clipped_root=tmp_path / "clipped")
+
+    rows = _discover_s1_products(settings)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.source == "sentinel1"
+    assert row.action == "CLIP"
+    assert row.path is not None and row.path.name == f"{_S1_STEM}.tif"
+    assert "2025-05-19" in row.product_id  # acq date parsed from the stem
+    # bbox is a real 4326 extent reprojected from the 32611 tif.
+    minx, miny, maxx, maxy = row.footprint_bbox
+    assert minx < maxx and miny < maxy and -180 <= minx <= 180
+
+
+def test_discover_s1_products_empty_when_no_cache(tmp_path: Path) -> None:
+    """No SNAP cache dir → no S1 products (S1 simply not processed yet), no error."""
+    settings = ViewerSettings(clipped_root=tmp_path / "clipped")  # dir absent
+    assert _discover_s1_products(settings) == []
+
+
+def test_sentinel1_renderer_reads_processed_tif(tmp_path: Path) -> None:
+    """The S1 renderer reads VV (band 2) from the processed tif → dB georef raster."""
+    path = tmp_path / f"{_S1_STEM}.tif"
+    _write_s1_snap(path)
+    from src.data.local_sources.viewer.manifest import ProductRow
+
+    row = ProductRow(
+        product_id="S1 test", source="sentinel1",
+        footprint_bbox=(-116.5, 50.7, -114.5, 52.3), intersects=True,
+        aoi_overlap_km2=0.0, valid_pixel_count=0, action="CLIP", path=path,
+    )
+    result = RENDERERS["sentinel1"].render(row, long_edge=64)
+
+    assert result.kind == "georef_raster"
+    assert result.src_crs is not None and "32611" in result.src_crs
+    assert result.image.dtype == np.uint8
+    assert result.bounds_4326 is not None
+    assert "VV" in result.label and "dB" in result.label

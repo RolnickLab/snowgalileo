@@ -22,6 +22,10 @@ from .settings import ClipSettings
 logger = structlog.get_logger()
 
 #: Source directory names handled by the clip stage, in a stable order.
+#: NOTE: Sentinel-1 is intentionally absent — S1 is *processed* from raw via ESA SNAP
+#: (``process_raw_dataset.py process-s1`` → ``sentinel1_snap/``), NOT clipped. Everything
+#: downstream (cube adapter AND viewer) reads the processed SNAP cache; there is no use
+#: for raw-DN clipped S1. See PLAN-S1-PERGRANULE-SNAP.md.
 SOURCES = [
     "dem",
     "worldcover",
@@ -29,7 +33,6 @@ SOURCES = [
     "landsat8",
     "landsat9",
     "modis",
-    "sentinel1",
     "sentinel2",
     "sentinel3",
     "viirs",
@@ -55,10 +58,6 @@ class _Modality:
     gate_footprint: Optional[Callable[[Path], Optional[Polygon]]] = None
 
 
-def _s1_footprint(p: Path) -> Optional[Polygon]:
-    return footprints.sentinel_safe_footprint(p, "manifest.safe")
-
-
 def _s2_footprint(p: Path) -> Optional[Polygon]:
     return footprints.sentinel_safe_footprint(p, "manifest.safe")
 
@@ -73,7 +72,6 @@ MODALITIES: dict[str, _Modality] = {
     "era5": _Modality("**/*.nc", False, clippers.clip_era5, None),
     "landsat8": _Modality("*.tar", False, clippers.clip_landsat, footprints.landsat_footprint),
     "landsat9": _Modality("*.tar", False, clippers.clip_landsat, footprints.landsat_footprint),
-    "sentinel1": _Modality("*.zip", False, clippers.clip_sentinel1, _s1_footprint),
     "sentinel2": _Modality("*.zip", False, clippers.clip_sentinel2, _s2_footprint),
     "sentinel3": _Modality("*.zip", False, clippers.clip_sentinel3, _s3_footprint),
     "modis": _Modality("*.hdf", True, clippers.clip_sinusoidal, footprints.sinusoidal_tile_footprint),

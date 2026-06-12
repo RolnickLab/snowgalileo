@@ -84,15 +84,15 @@ decision.
 # Dry-run: gate only, no pixels decoded, no writes — sanity check first.
 # NOTE: a dry-run can hide footprint-reader bugs (see Gotchas). Don't treat its
 # CLIP/SKIP tally as proof of correctness.
-uv run python scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py clip-all --dry-run
+uv run python scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py clip-all --dry-run
 
 # Real clip (all sources, serial).
-uv run python scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py clip-all
+uv run python scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py clip-all
 
 # ...or run sources in parallel (they are independent processes). Example:
-uv run python scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py clip-source sentinel2 &
-uv run python scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py clip-source sentinel3 &
-uv run python scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py clip-source viirs &
+uv run python scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py clip-source sentinel2 &
+uv run python scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py clip-source sentinel3 &
+uv run python scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py clip-source viirs &
 wait
 # Parallel clip-source jobs each write only their own per-source manifest; the
 # combined root manifest is NOT produced. Regenerate it (header once, then every
@@ -102,11 +102,20 @@ wait
     tail -n +2 "$m"; done; \
 } > data/clipped_bow_valley_selection_raw/clip_manifest.csv
 
-# Post-run audit: zero all-nodata outputs, static mosaics reach lat 52.31.
-# (Single-command Typer app — no subcommand. --root defaults to the clipped dir.)
-uv run python scripts/developer_scripts/bow_valley_inference_local/clip_audit.py
+# Sentinel-1 is processed, NOT clipped — process it from RAW through ESA SNAP into the
+# per-granule AOI-wide dB+angle cache (offline, hours; idempotent; raw granules are
+# read-only). This is the SINGLE S1 product: both the cube S1Adapter AND the viewer's S1
+# quicklook read it. (clip-all does not touch S1 — there is no raw-DN clipped S1.)
+uv run python scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py process-s1
 
-uv run pytest tests/test_clip_dataset.py -q
+# ...or do the whole raw → read-roots pipeline in one go (process-s1 FIRST, then clip-all
+# of every other modality — the process-then-clip order):
+uv run python scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py process-all
+
+# Post-run audit: zero all-nodata outputs, static mosaics reach lat 52.31, and the S1
+# SNAP cache covers every AOI-overlapping raw granule.
+# (Single-command Typer app — no subcommand. --root defaults to the clipped dir.)
+uv run python scripts/developer_scripts/bow_valley_inference_local/process_raw_audit.py
 ```
 
 **CLI flags** (both `clip-all` and `clip-source`): `--input-dir`
