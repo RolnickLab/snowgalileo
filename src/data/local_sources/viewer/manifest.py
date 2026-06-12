@@ -168,6 +168,16 @@ def load_products(settings: ViewerSettings | None = None) -> list[ProductRow]:
     df = pd.read_csv(settings.manifest_path)
     rows: list[ProductRow] = []
     for record in df.to_dict(orient="records"):
+        # Skip any ``sentinel1`` manifest rows. S1 is now *processed* (ESA SNAP), not
+        # clipped, so the live product is the per-granule ``sentinel1_snap/s1_grd_*.tif``
+        # discovered below — never the clip manifest. Some manifests still carry **legacy**
+        # S1 rows whose ``output_path`` points at the raw ``sentinel1/*.zip`` SAFE archive
+        # (a leftover from before the SNAP migration); those zips are not a raster, so the
+        # renderer raised ``RasterioIOError`` and fell back to a broken ``plain_image``.
+        # Honour the documented contract ("S1 has no manifest rows") at the viewer boundary,
+        # robust to whatever the manifest happens to contain.
+        if str(record["source"]) == "sentinel1":
+            continue
         rows.append(
             ProductRow(
                 product_id=str(record["product_id"]),
@@ -185,7 +195,8 @@ def load_products(settings: ViewerSettings | None = None) -> list[ProductRow]:
                 ),
             )
         )
-    # S1 is processed (SNAP), not clipped — it has no manifest rows. Discover its products
-    # from the SNAP cache dir and append them so the viewer lists processed S1.
+    # S1 is processed (SNAP), not clipped — any clip-manifest S1 rows were skipped above.
+    # Discover its live products from the SNAP cache dir and append them so the viewer lists
+    # processed S1.
     rows.extend(_discover_s1_products(settings))
     return rows
