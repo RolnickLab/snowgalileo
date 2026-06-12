@@ -1,4 +1,4 @@
-"""Filename-contract tests for the local-source exporter (TASK-003, AC-9).
+r"""Filename-contract tests for the local-source exporter (TASK-003, AC-9).
 
 The ``LocalSourceExporter`` (TASK-004) writes one multiband GeoTIFF per
 ``(cell, window-end-day)`` whose **filename** must be parsed correctly by the

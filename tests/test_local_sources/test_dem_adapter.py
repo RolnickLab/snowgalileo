@@ -30,7 +30,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 import rasterio
-from affine import Affine
 from shapely.geometry import box
 
 from src.data.local_sources.base import CELL_TARGET_CRS, GridCell
