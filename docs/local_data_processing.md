@@ -1,10 +1,34 @@
 # Local Data Processing — Bow Valley Direct-Source Pipeline
 
-How to recreate the Bow Valley inference data pipeline from raw archive to
-clipped archive. Run steps in order. Each task appends its own section here.
+How to recreate the Bow Valley inference pipeline end to end — from the raw
+download archive to daily fractional-snow-cover (FSC) COGs — without Earth
+Engine. Run the stages in order. Each task appends its own section here.
 
 > **Living doc.** Future tasks (TASK-003+) add their steps below. Keep it
 > concise: commands, paths, and gotchas — not narrative.
+
+## Stage order at a glance
+
+Every operator script lives in
+`scripts/developer_scripts/bow_valley_inference_local/`; each is a thin Typer CLI
+over package code, run with `uv run python …` (the viewer with `uv run solara
+run …`). Run the stages top to bottom:
+
+| # | Stage | Script | Output |
+|---|-------|--------|--------|
+| 0 | Grid + reference patches (§2) | `python -m src.data.local_sources.grid --emit-csv` | `configs/bow_valley/cube_cells.csv`, parity fixtures |
+| 1 | Process raw → read roots (§3) | `process_raw_dataset.py process-all` | clipped archive + `sentinel1_snap/` cache |
+| 1a | (S1 only, standalone) | `process_raw_dataset.py process-s1` **or** `build_bow_valley_s1_cache.py` | `sentinel1_snap/s1_grd_<granule>.tif` |
+| 1b | Audit stage 1 | `process_raw_audit.py` | exit 0 = clean |
+| 2 | Assemble 308-band cubes (§5) | `export_bow_valley_cube.py` | `processing_root/cubes/PR_*.tif` |
+| 3 | Daily FSC inference (§6) | `infer_bow_valley_daily_fsc.py` | `processing_root/daily_fsc/*.tif` |
+| 4 | Inspect / QA (§7) | `solara run data_viewer.py` | Clip / Cube / Daily-FSC tabs |
+
+**Key ordering rule (stage 1):** Sentinel-1 is **processed, never clipped** — it
+must go through ESA SNAP *before* anything reads it. `process-all` enforces this:
+it runs `process-s1` **first** (raw S1 → SNAP cache), then `clip-all` for every
+other modality. The single S1 product (`sentinel1_snap/`) is read by both the
+cube `S1Adapter` and the viewer. There is no raw-DN clipped-S1 product.
 
 ---
 
@@ -210,12 +234,104 @@ Ensures spatial location and date matching are preserved from raw clipped source
    - Adapter reprojects target UTM 11N bounding box to native source CRS:
      - Landsat: `EPSG:32612` (UTM 12N)
      - Sentinel-2: `EPSG:32611` (UTM 11N)
-     - Sentinel-1: GCP range geometry window (GCP-based pixel slice)
+     - Sentinel-1: reads the per-granule SNAP `sentinel1_snap/` cache
+       (EPSG:32611, terrain-corrected dB+angle), windowed per cell — **not** a
+       raw GCP slice (that path was removed; see §3)
      - MODIS/VIIRS: Sinusoidal projection (`+proj=sinu +R=6371007.181`)
    - Resampled to $100 \times 100$ pixel grid via robust resampler in `base.py`.
    - Coalesces overlapping orbit/scene pixels (first valid wins) to prevent false `-9999` nodata.
 4. **Intermediate Cache Sharding:** Per-day per-cell arrays cached under `data/bow_valley_processing/cube_cache/{cell_id}/{day}_{modality}.npz`. Avoids 8x storage duplicate of sliding windows and filesystem indexing limits.
 5. **Cube Assembly (`LocalSourceExporter`):** Composites 8 daily cached arrays in exact canonical band order (308 bands).
+
+---
+
+## 5. Stage 2 — assemble the cubes (`export_bow_valley_cube.py`)
+
+Builds the in-AOI grid and writes one canonical **308-band** cube tif per
+`(cell, window_end)` into `processing_root/cubes/`, using the **real-adapter**
+exporter (`LocalSourceExporter`, `placeholder=False`) over the read roots from
+stage 1. Additive: composes `build_grid` + the parallel exporter, touches no
+GEE-path code.
+
+```bash
+# Smoke run — 4 cells, default window from cube.yaml.
+uv run python scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py \
+    --config configs/bow_valley/cube.yaml --limit 4
+
+# Full sweep (all 344 in-AOI cells), explicit window-end, 8 workers.
+uv run python scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py \
+    --config configs/bow_valley/cube.yaml --window-end 2025-05-28 --workers 8
+```
+
+**Flags:** `--config` (default `configs/bow_valley/cube.yaml`), `--limit`
+(cap cells for a smoke run; `None` = all), `--window-end` (`YYYY-MM-DD`; default
+from `cube.yaml`), `--workers` (default ~8, clamped to cores/cells),
+`--verify-s1-cache` / `--no-verify-s1-cache`.
+
+**S1 pre-flight (on by default).** `--verify-s1-cache` checks the per-granule
+SNAP cache covers each cell's window and **fails loud** if a needed
+`sentinel1_snap/s1_grd_*.tif` is missing — the cube exporter never runs SNAP
+inline (it is the heavy offline stage 1a). Pass `--no-verify-s1-cache` only to
+deliberately produce S1-free cubes.
+
+**Outputs:** `processing_root/cubes/PR_{YYYYMMDD}_{LAT}_{LON}_SC00.tif` (filename
+contract in §4); intermediate per-day/per-cell arrays cached under
+`processing_root/cube_cache/` (§4 item 4).
+
+---
+
+## 6. Stage 3 — daily FSC inference (`infer_bow_valley_daily_fsc.py`)
+
+Runs the pretrained model over the sweep and writes one daily fractional-snow-
+cover **COG per inference day** into `processing_root/daily_fsc/`. Reads
+`cube.yaml` (sweep window/mode/roots) **and** `inference.yaml` (checkpoint, eval
+config, batch, device); builds `EncoderWithHead` via the **same** load path as
+`scripts/eval_only.py` (`Encoder(**enc_cfg)` → `EncoderWithHead` →
+`load_state_dict`), then drives `InferenceGridDriver`.
+
+```bash
+# Smoke run — 4 cells.
+uv run python scripts/developer_scripts/bow_valley_inference_local/infer_bow_valley_daily_fsc.py \
+    --cube-config configs/bow_valley/cube.yaml \
+    --config configs/bow_valley/inference.yaml --limit 4
+```
+
+**Flags:** `--cube-config` (default `configs/bow_valley/cube.yaml`), `--config`
+(default `configs/bow_valley/inference.yaml`), `--limit`.
+
+**Checkpoint is required — fails loud if absent.** A missing checkpoint aborts
+the run rather than silently initializing random weights (a random sweep would
+emit a plausible-looking but meaningless COG). No downstream/GEE code is touched.
+
+**Outputs:** one daily FSC COG per inference day in
+`processing_root/daily_fsc/` (the value domain is 0–1).
+
+---
+
+## 7. Inspect / QA — the data viewer (`data_viewer.py`)
+
+A developer/QA Solara app; each tab is a leafmap map with the AOI outline
+overlaid. Read-only on the archive and `processing_root`; writes only transient
+decimated GeoTIFFs to a temp dir.
+
+```bash
+uv run solara run scripts/developer_scripts/bow_valley_inference_local/data_viewer.py
+```
+
+Three tabs, one per pipeline output:
+
+- **Clip** — pick a clipped product from the manifest; see its quicklook on a
+  basemap plus clip-stage metadata (overlap km², valid-pixel count, action). S1
+  here renders from the `sentinel1_snap/` cache, not the clip manifest.
+- **Cube** — inspect an assembled per-cell cube (stage 2): pick prediction date →
+  cell → variable, then step the timestep slider. Variable/timestep selection is
+  **availability-filtered** (only var/timestep combinations that actually exist
+  in that cube are selectable).
+- **Daily FSC** — step a date slider through the daily FSC COGs (stage 3); the
+  selected day renders colormapped (0–1) on the map.
+
+See `docs/agents/planning/clip-viewer/PLAN.md`, `CONTRACT.md`, and
+`PLAN-V2-CUBE-FSC-TABS.md`.
 
 ---
 
