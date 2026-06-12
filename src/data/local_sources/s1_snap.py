@@ -35,6 +35,8 @@ regex bug), which is why this chain uses SNAP. See the
 
 from __future__ import annotations
 
+import datetime
+import re
 import subprocess
 import tempfile
 import zipfile
@@ -61,6 +63,20 @@ _CACHE_PREFIX = "s1_grd_"
 #: Margin (degrees) added around a cell's bbox so terrain correction has context at
 #: the cell edges (no edge artefacts after the reproject crop).
 _CELL_MARGIN_DEG: float = 0.02
+
+#: Acquisition ``YYYYMMDD`` in a raw S1 granule stem (``S1C_IW_GRDH_1SDV_<acq>T...``).
+_GRANULE_ACQ_PATTERN = re.compile(r"_(\d{8})T\d{6}_")
+
+
+def _granule_acq_date(granule_zip: Path) -> datetime.date | None:
+    """Parse the acquisition date from a raw S1 granule ``.zip`` stem.
+
+    Returns ``None`` if the stem carries no parseable ``_<YYYYMMDD>T<HHMMSS>_`` token.
+    """
+    match = _GRANULE_ACQ_PATTERN.search(granule_zip.stem)
+    if match is None:
+        return None
+    return datetime.datetime.strptime(match.group(1), "%Y%m%d").date()
 
 
 def cache_tif_name(granule_stem: str, cell_id: int) -> str:
@@ -271,6 +287,108 @@ def build_s1_cache(
         )
     logger.info("s1_snap_build_done", n_cached=len(cached))
     return cached
+
+
+class S1CacheUnavailableError(RuntimeError):
+    """A needed S1 cache tif is missing and cannot be built (no gpt / no raw SAFEs).
+
+    Raised by :func:`ensure_s1_cache` so cube export fails loudly instead of silently
+    assembling an all-``-9999`` S1 block (the historical silent-dropout bug).
+    """
+
+
+def ensure_s1_cache(
+    *,
+    archive_root: Path,
+    cells: list[GridCell],
+    cache_dir: Path,
+    window_days: list[datetime.date],
+    gpt: Path = _DEFAULT_GPT,
+    graph: Path = _DEFAULT_GRAPH,
+) -> None:
+    """Guarantee the S1 cache covers every ``(cell, window-day)`` granule before export.
+
+    Computes the **needed** ``(granule, cell)`` cache tifs — raw granules whose
+    acquisition day is in ``window_days`` and whose footprint intersects the cell — and:
+
+    * returns immediately if all needed tifs already exist (no SNAP run);
+    * builds only the missing ones via :func:`build_granule_cache` when ``gpt`` and the
+      raw SAFEs are present;
+    * **raises** :class:`S1CacheUnavailableError` if any are missing and the cache cannot
+      be built (``gpt`` absent or no raw granules) — so the cube is never silently filled
+      with ``-9999`` S1.
+
+    The check is footprint-aware: a window-day granule that does not cover a cell is **not**
+    "missing" (it genuinely has no data there), so a legitimately S1-free cell does not
+    trip the guard. By the same rule, a cell with **no covering granule in the window at
+    all** (no S1 acquired over it this window) needs nothing built and is left with its
+    ``-9999`` S1 block — genuinely-absent S1 is acceptable; only a *buildable-but-unbuilt*
+    cache trips the guard.
+
+    Args:
+        archive_root: The clipped S1 archive (holds ``S1*_IW_GRDH_*.zip``).
+        cells: The cells about to be exported (each needs its bounded subset).
+        cache_dir: The SNAP cache directory the :class:`S1Adapter` reads.
+        window_days: The export window's days (the adapter reads one timestep per day).
+        gpt: Path to the ESA SNAP ``gpt`` executable.
+        graph: Path to the production SNAP graph XML.
+
+    Raises:
+        S1CacheUnavailableError: If a needed cache tif is missing and unbuildable.
+    """
+    window = set(window_days)
+    granules = sorted(archive_root.glob("S1*_IW_GRDH_*.zip"))
+    in_window = [g for g in granules if _granule_acq_date(g) in window]
+
+    # Which (granule, cell) tifs are needed but absent? Footprint-gate per granule so an
+    # uncovered cell is not counted as missing.
+    missing_by_granule: dict[Path, list[GridCell]] = {}
+    for granule_zip in in_window:
+        footprint = sentinel_safe_footprint(granule_zip, "manifest.safe")
+        for cell in cells:
+            if not _cell_intersects_footprint(cell, footprint):
+                continue
+            tif = cache_dir / cache_tif_name(granule_zip.stem, cell.cell_id)
+            if not tif.exists():
+                missing_by_granule.setdefault(granule_zip, []).append(cell)
+
+    if not missing_by_granule:
+        return
+
+    n_missing = sum(len(v) for v in missing_by_granule.values())
+    if not gpt.exists():
+        raise S1CacheUnavailableError(
+            f"{n_missing} S1 cache tif(s) across {len(missing_by_granule)} granule(s) are "
+            f"missing and ESA SNAP gpt was not found at {gpt}. Build the cache first: "
+            f"`uv run python scripts/developer_scripts/bow_valley_inference_local/build_bow_valley_s1_cache.py` (or pass a valid --gpt). "
+            f"Missing granules: {[g.stem for g in missing_by_granule]}."
+        )
+
+    logger.info(
+        "s1_cache_ensure_building",
+        n_granules=len(missing_by_granule), n_tifs=n_missing, cache_dir=str(cache_dir),
+    )
+    for granule_zip, granule_cells in missing_by_granule.items():
+        try:
+            build_granule_cache(
+                granule_zip=granule_zip,
+                cells=granule_cells,
+                cache_dir=cache_dir,
+                gpt=gpt,
+                graph=graph,
+            )
+        except subprocess.CalledProcessError as exc:
+            # A per-(granule, cell) SNAP failure — e.g. the known Subset "Empty region!"
+            # anomaly where the footprint overlaps but the GCP-clipped scene has no pixels
+            # over the cell — means S1 genuinely cannot be produced there. Log loudly and
+            # leave that cell S1-free (the user's "absent S1 is OK" rule) rather than
+            # aborting the whole cube. A *systemic* failure (no gpt) already raised above.
+            logger.warning(
+                "s1_cache_snap_failed",
+                granule=granule_zip.stem,
+                cells=[c.cell_id for c in granule_cells],
+                returncode=exc.returncode,
+            )
 
 
 def _main() -> None:

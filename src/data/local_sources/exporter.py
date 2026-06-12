@@ -82,11 +82,18 @@ class LocalSourceExporter:
         out_dir: Path | None = None,
         placeholder: bool = True,
         archive_root: Path | None = None,
+        auto_build_s1_cache: bool = True,
     ) -> None:
         settings = CubeSettings()
         self.out_dir = out_dir if out_dir is not None else settings.cubes_dir
         self.archive_root = archive_root if archive_root is not None else settings.archive_root
         self.placeholder = placeholder
+        # In real mode, guarantee the S1 SNAP cache covers each cell's window before
+        # assembly (see _ensure_s1_cache) — never silently emit an all-(-9999) S1 block.
+        self.auto_build_s1_cache = auto_build_s1_cache
+        # The clipped S1 SAFE archive + the SNAP dB+angle cache the S1Adapter reads.
+        self.s1_archive_root = self.archive_root / "sentinel1"
+        self.s1_cache_dir = self.archive_root / "sentinel1_snap"
         self._dynamic: list[LocalSourceAdapter] = self._build_dynamic_adapters()
         self._static: list[LocalSourceAdapter] = self._build_static_adapters()
 
@@ -129,7 +136,7 @@ class LocalSourceExporter:
         reals: list[LocalSourceAdapter] = [
             # S1 reads the SNAP dB+angle cache (built once, offline, by s1_snap.py),
             # NOT the raw clipped SAFEs — see src/data/local_sources/s1.py.
-            S1Adapter(cache_root=self.archive_root / "sentinel1_snap"),
+            S1Adapter(cache_root=self.s1_cache_dir),
             S2Adapter(archive_root=self.archive_root / "sentinel2"),
             S2CloudAdapter(archive_root=self.archive_root / "sentinel2"),
             LandsatAdapter(landsat9_root=landsat9_root, landsat8_root=landsat8_root),
@@ -241,6 +248,25 @@ class LocalSourceExporter:
         lon, lat = transformer.transform(centre_x, centre_y)
         return round(lat, 4), round(lon, 4)
 
+    def _ensure_s1_cache(self, cell: GridCell, window_end: datetime.date) -> None:
+        """Pre-flight: guarantee the S1 cache covers this cell's window before assembly.
+
+        Real mode only. Builds any missing-but-coverable ``(granule, cell)`` cache tifs
+        (or raises if SNAP/SAFEs are unavailable), so the S1 adapter never silently falls
+        back to an all-``-9999`` block. A cell with genuinely no S1 in its window needs
+        nothing built and is left S1-free — see :func:`s1_snap.ensure_s1_cache`.
+        """
+        if self.placeholder or not self.auto_build_s1_cache:
+            return
+        from src.data.local_sources.s1_snap import ensure_s1_cache
+
+        ensure_s1_cache(
+            archive_root=self.s1_archive_root,
+            cells=[cell],
+            cache_dir=self.s1_cache_dir,
+            window_days=self._window_days(window_end),
+        )
+
     def _assemble(
         self,
         cell: GridCell,
@@ -282,6 +308,7 @@ class LocalSourceExporter:
         Returns:
             The path of the written ``PR_*.tif``.
         """
+        self._ensure_s1_cache(cell, window_end)
         cube = self._assemble(cell, window_end)
         lat, lon = self._cell_centre_lat_lon(cell)
         filename = build_cube_filename(window_end=window_end, lat=lat, lon=lon)

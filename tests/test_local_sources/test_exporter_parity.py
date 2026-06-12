@@ -125,7 +125,12 @@ def test_full_stack_optical_parity(patch_key: str, _have_archive: bool) -> None:
     window_end: date = case["window_end"]  # type: ignore[assignment]
 
     cell = _cell_from_patch(patch)
-    exporter = LocalSourceExporter(placeholder=False, archive_root=_ARCHIVE)
+    # This is an *optical* (S2/Landsat) parity test — S1 is not asserted. Disable the S1
+    # SNAP cache pre-flight so the test stays hermetic and doesn't invoke ESA SNAP (which
+    # would also surface the known per-cell "Empty region" anomaly unrelated to optical).
+    exporter = LocalSourceExporter(
+        placeholder=False, archive_root=_ARCHIVE, auto_build_s1_cache=False
+    )
     cube_path = exporter.export(cell=cell, window_end=window_end)
 
     by_source = {
