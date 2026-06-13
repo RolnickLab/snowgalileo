@@ -115,6 +115,8 @@ def main(
         out_dir=cube.cubes_dir,
         placeholder=False,
         archive_root=cube.archive_root,
+        cube_cache_dir=cube.cube_cache_dir,
+        cache_max_entries=cube.cache_max_entries,
     )
     model = _build_model(infer)
     out_dir = infer.out_dir if infer.out_dir is not None else cube.daily_fsc_dir

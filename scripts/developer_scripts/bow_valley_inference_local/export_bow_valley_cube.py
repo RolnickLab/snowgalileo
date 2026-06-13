@@ -85,6 +85,8 @@ def main(
         archive_root=settings.archive_root,
         workers=workers,
         verify_s1_cache=verify_s1_cache,
+        cube_cache_dir=settings.cube_cache_dir,
+        cache_max_entries=settings.cache_max_entries,
     )
     logger.info("cube_export_complete", cubes=len(paths), out_dir=str(settings.cubes_dir))
 

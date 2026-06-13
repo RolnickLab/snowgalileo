@@ -30,6 +30,7 @@ import torch
 from einops import rearrange
 
 from src.data.local_sources.base import GridCell
+from src.data.local_sources.cube_cache import DEFAULT_MAX_ENTRIES
 from src.data.local_sources.exporter import LocalSourceExporter
 from src.data.local_sources.layout import build_cube_filename
 from src.data.local_sources.parallel_export import export_cells_parallel
@@ -162,12 +163,19 @@ class InferenceGridDriver:
         ):
             return {}
 
+        # Share the injected exporter's cube cache (if any) with the worker pool so the
+        # per-(modality, cell, day) memo is reused across the sweep's overlapping windows.
+        # The exporter is the single source of truth — derive the cache root/cap from it
+        # rather than re-plumbing settings through the driver.
+        cache = self.exporter._cache
         paths = export_cells_parallel(
             cells=self.grid,
             window_end=day,
             out_dir=self.exporter.out_dir,
             archive_root=self.exporter.archive_root,
             workers=self.export_workers,
+            cube_cache_dir=cache.root if cache is not None else None,
+            cache_max_entries=cache.max_entries if cache is not None else DEFAULT_MAX_ENTRIES,
         )
         # Map back to cell_id by the filename the exporter wrote (PR_<date>_<lat>_<lon>).
         by_name = {p.name: p for p in paths}

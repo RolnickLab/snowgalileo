@@ -374,3 +374,60 @@ def test_driver_end_to_end_with_real_loader_and_encoder(tmp_path: Path) -> None:
         assert src.crs.to_epsg() == 32611
         assert src.nodata == NO_DATA_VALUE
         assert "aoi_coverage_fraction" in src.tags()
+
+
+def test_driver_forwards_cube_cache_to_parallel_export(
+    grid_2x2: list[GridCell], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Driver shares the injected exporter's cube cache with the worker pool (step 4).
+
+    With ``export_workers > 1`` and a real ``LocalSourceExporter`` carrying a cache,
+    ``_pre_export_day`` must call ``export_cells_parallel`` with that cache's root and
+    cap — otherwise the workers each build an uncached exporter and the sweep gains
+    nothing. Monkeypatch ``export_cells_parallel`` to capture its kwargs (no pool, no
+    archive).
+    """
+    from src.data.local_sources.exporter import LocalSourceExporter
+    from src.inference.driver import InferenceGridDriver
+
+    captured: dict[str, object] = {}
+
+    def _fake_parallel(**kwargs: object) -> list[Path]:
+        captured.update(kwargs)
+        return []  # empty map → _run_batch falls back to serial .export (also cached)
+
+    monkeypatch.setattr("src.inference.driver.export_cells_parallel", _fake_parallel)
+    monkeypatch.setattr(
+        "src.inference.driver.masked_output_for_tif",
+        lambda _t: (*[torch.zeros(1)] * 6, *[torch.ones(1)] * 6, torch.zeros(1, dtype=torch.long)),
+    )
+
+    cache_dir = tmp_path / "cube_cache"
+    exporter = LocalSourceExporter(
+        out_dir=tmp_path / "cubes",
+        placeholder=False,
+        archive_root=tmp_path / "arch",
+        verify_s1_cache=False,
+        cube_cache_dir=cache_dir,
+        cache_max_entries=4242,
+    )
+    # Serial .export would read the (empty) archive; stub it — we only assert the
+    # pre-export forwarded the cache, not the cube bytes.
+    monkeypatch.setattr(
+        exporter, "export", lambda *, cell, window_end: tmp_path / f"PR_{cell.cell_id}.tif"
+    )
+
+    driver = InferenceGridDriver(
+        exporter=exporter,
+        model=_StubModel(),  # type: ignore[arg-type]
+        grid=grid_2x2,
+        window_start=date(2025, 4, 6),
+        window_end=date(2025, 4, 6),
+        out_dir=tmp_path / "fsc",
+        batch_size=4,
+        export_workers=2,  # >1 → engages the parallel pre-export path
+    )
+    driver.run()
+
+    assert captured["cube_cache_dir"] == cache_dir
+    assert captured["cache_max_entries"] == 4242
