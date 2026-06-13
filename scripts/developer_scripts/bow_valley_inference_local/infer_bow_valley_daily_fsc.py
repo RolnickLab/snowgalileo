@@ -107,7 +107,7 @@ def main(
     cube = CubeSettings.from_yaml(cube_config)
     infer = InferenceSettings.from_yaml(config)
 
-    grid = build_grid(mode=cube.mode)
+    grid = build_grid(mode=cube.mode, mode_b_inset_m=cube.mode_b_inset_m)
     if limit is not None:
         grid = grid[:limit]
 

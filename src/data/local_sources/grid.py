@@ -291,25 +291,49 @@ def _cell_to_gridcell(cell: CellGeometry) -> GridCell:
     )
 
 
-def _tile_aoi_to_cells(aoi: Polygon) -> list[CellGeometry]:
+def _tile_aoi_to_cells(aoi: Polygon, inset_m: float = 0.0) -> list[CellGeometry]:
     """Tile the AOI into a regular 1 km grid in :data:`GRID_MATH_CRS` (mode B).
 
-    The AOI (lon/lat) is reprojected to UTM 11N, snapped to a
-    :data:`CELL_SIZE_M` lattice over its bounding box, and every tile whose
-    geometry intersects the reprojected AOI is kept (so mode B is bounded by the
-    AOI, never the wider cell-sampling bbox). The legacy CSV is not consumed.
+    The AOI (lon/lat) is reprojected to UTM 11N, optionally **eroded inward** by
+    ``inset_m`` metres (a negative polygon buffer), snapped to a
+    :data:`CELL_SIZE_M` lattice over its (inset) bounding box, and every tile whose
+    geometry intersects the (inset) AOI is kept (so mode B is bounded by the AOI,
+    never the wider cell-sampling bbox). The legacy CSV is not consumed.
+
+    The inset follows the AOI's true shape, eroding ``inset_m`` from every edge: a
+    100 km square becomes an 80 km square about the same centroid for
+    ``inset_m=10_000``, while an irregular AOI shrinks uniformly inward (concave
+    notches and necks narrower than ``2·inset_m`` may disappear). The buffer is
+    applied in UTM metres — buffering in lon/lat degrees would be geometrically
+    wrong (CRS is law).
 
     Args:
         aoi: AOI polygon in :data:`GEOGRAPHIC_CRS` (lon/lat).
+        inset_m: Inward erosion in metres (``shapely`` ``buffer(-inset_m)`` in UTM).
+            ``0.0`` (default) reproduces the un-inset tiling.
 
     Returns:
         One :class:`CellGeometry` per kept tile, ``cell_id`` in row-major order
         (south-to-north, west-to-east), in UTM metres.
+
+    Raises:
+        ValueError: If ``inset_m`` is negative, or if the inset erases the AOI
+            entirely (no area left to tile).
     """
+    if inset_m < 0:
+        raise ValueError(f"inset_m must be >= 0, got {inset_m}.")
+
     to_utm = Transformer.from_crs(GEOGRAPHIC_CRS, GRID_MATH_CRS, always_xy=True)
     aoi_utm = shapely_transform(
         lambda xs, ys: to_utm.transform(xs, ys), aoi
     )
+    if inset_m > 0:
+        aoi_utm = aoi_utm.buffer(-inset_m)
+        if aoi_utm.is_empty or aoi_utm.area == 0.0:
+            raise ValueError(
+                f"inset_m={inset_m} erodes the entire AOI; nothing left to tile."
+            )
+
     min_x, min_y, max_x, max_y = aoi_utm.bounds
 
     # Snap the origin down to a whole-cell multiple so tiles align deterministically.
@@ -339,7 +363,7 @@ def _tile_aoi_to_cells(aoi: Polygon) -> list[CellGeometry]:
             x += CELL_SIZE_M
         y += CELL_SIZE_M
 
-    logger.info("tiled_aoi", mode="B", cells=len(cells))
+    logger.info("tiled_aoi", mode="B", cells=len(cells), inset_m=inset_m)
     return cells
 
 
@@ -348,6 +372,7 @@ def build_grid(
     legacy_csv: Path = DEFAULT_LEGACY_CSV,
     aoi_path: Path = DEFAULT_AOI_PATH,
     require_fully_inside: bool = False,
+    mode_b_inset_m: float = 0.0,
 ) -> list[GridCell]:
     """Build the inference sweep grid as productionized :class:`GridCell` objects.
 
@@ -363,12 +388,17 @@ def build_grid(
         aoi_path: Authoritative AOI GeoJSON (both modes).
         require_fully_inside: Mode A only — keep only fully-contained cells
             (→ 338) instead of the centre-in rule (→ 344).
+        mode_b_inset_m: Mode B only — erode the AOI inward by this many metres
+            (negative polygon buffer in UTM) before tiling, dropping an
+            ``mode_b_inset_m``-wide border ring. ``0.0`` (default) tiles the full
+            AOI. Ignored in mode A.
 
     Returns:
         The grid cells, each carrying the UTM 11N / 10 m / 100×100 target triple.
 
     Raises:
-        ValueError: If ``mode`` is not ``"A"`` or ``"B"``.
+        ValueError: If ``mode`` is not ``"A"`` or ``"B"``, or if a mode-B inset
+            erodes the entire AOI.
     """
     aoi = load_aoi_polygon(aoi_path)
 
@@ -377,7 +407,7 @@ def build_grid(
         cells = load_cells(legacy_csv)
         kept, _ = filter_cells(cells, aoi, keep_rule=keep_rule)
     elif mode == "B":
-        kept = _tile_aoi_to_cells(aoi)
+        kept = _tile_aoi_to_cells(aoi, inset_m=mode_b_inset_m)
     else:
         raise ValueError(f"Unknown sweep mode {mode!r}; expected 'A' or 'B'.")
 

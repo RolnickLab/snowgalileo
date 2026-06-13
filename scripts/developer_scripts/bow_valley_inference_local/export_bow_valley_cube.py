@@ -66,7 +66,7 @@ def main(
         else settings.window_end
     )
 
-    grid = build_grid(mode=settings.mode)
+    grid = build_grid(mode=settings.mode, mode_b_inset_m=settings.mode_b_inset_m)
     if limit is not None:
         grid = grid[:limit]
 

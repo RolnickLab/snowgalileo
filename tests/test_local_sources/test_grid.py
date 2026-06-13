@@ -223,3 +223,72 @@ def test_invalid_mode_rejected():
     """An unknown sweep mode is rejected explicitly (no silent default)."""
     with pytest.raises((ValueError, KeyError)):
         build_grid(mode="Z", legacy_csv=LEGACY_CSV, aoi_path=AOI_PATH)
+
+
+# --------------------------------------------------------------------------- #
+# Mode B internal inset (negative AOI buffer)                                  #
+# --------------------------------------------------------------------------- #
+
+INSET_M = 10_000.0  # 10 km internal border drop
+
+
+@pytest.fixture(scope="module")
+def grid_b_inset():
+    """Mode-B grid with a 10 km internal inset (border ring dropped)."""
+    return build_grid(mode="B", aoi_path=AOI_PATH, mode_b_inset_m=INSET_M)
+
+
+def test_inset_drops_border_cells(grid_b, grid_b_inset):
+    """A 10 km inset yields strictly fewer cells than the un-inset Mode B tiling."""
+    assert 0 < len(grid_b_inset) < len(grid_b)
+
+
+def test_inset_cells_are_a_spatial_subset(grid_b, grid_b_inset):
+    """Every inset cell coincides with an un-inset cell (the inset only *removes*).
+
+    The lattice origin snaps to the inset AOI's own bbox, so cells could in principle
+    shift by a fraction of a cell. Assert instead that each inset cell centre lands
+    inside some un-inset cell — i.e. the inset never invents tiles outside the full
+    Mode B coverage, it only erodes the border.
+    """
+    full = [c.polygon for c in grid_b]
+    for cell in grid_b_inset:
+        c = cell.polygon.centroid
+        assert any(p.contains(c) for p in full), "inset cell falls outside full grid"
+
+
+def test_inset_cells_clear_the_aoi_edge(grid_b_inset):
+    """Every inset cell centre lies at least ~inset distance inside the AOI edge.
+
+    Reproject the AOI to UTM, erode it by the inset, and assert each kept cell
+    intersects the eroded polygon (that is the tiling rule). Guards against the
+    inset being applied in the wrong CRS (degrees) or sign.
+    """
+    from pyproj import Transformer
+    from shapely.ops import transform as shapely_transform
+
+    aoi = load_aoi_polygon(AOI_PATH)
+    to_utm = Transformer.from_crs("EPSG:4326", GRID_MATH_CRS, always_xy=True)
+    aoi_utm = shapely_transform(lambda xs, ys: to_utm.transform(xs, ys), aoi)
+    eroded = aoi_utm.buffer(-INSET_M)
+    assert not eroded.is_empty
+    for cell in grid_b_inset:
+        assert cell.polygon.intersects(eroded)
+
+
+def test_inset_negative_rejected():
+    """A negative inset is rejected (it would *grow* the AOI)."""
+    with pytest.raises(ValueError, match="inset_m must be >= 0"):
+        build_grid(mode="B", aoi_path=AOI_PATH, mode_b_inset_m=-1.0)
+
+
+def test_inset_that_erases_aoi_raises():
+    """An inset larger than the AOI's half-extent erodes it to nothing → ValueError."""
+    with pytest.raises(ValueError, match="erodes the entire AOI"):
+        build_grid(mode="B", aoi_path=AOI_PATH, mode_b_inset_m=1_000_000.0)
+
+
+def test_inset_zero_matches_plain_mode_b(grid_b):
+    """inset_m=0 is identical to plain Mode B (default-safe, no behaviour change)."""
+    grid0 = build_grid(mode="B", aoi_path=AOI_PATH, mode_b_inset_m=0.0)
+    assert len(grid0) == len(grid_b)

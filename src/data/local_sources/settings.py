@@ -49,6 +49,10 @@ class CubeSettings(BaseSettings):
         archive_root: The **clipped** archive every adapter reads (FR-6).
         processing_root: Stage-2 write-root; all subdirs derive from it.
         mode: Sweep mode — ``"A"`` (in-AOI sample cells) or ``"B"`` (tile the AOI).
+        mode_b_inset_m: Mode B only — erode the AOI inward by this many metres
+            (negative polygon buffer) before tiling, dropping a border ring of that
+            width. ``0`` (default) tiles the full AOI; e.g. ``10000`` drops a 10 km
+            edge. Ignored in mode A.
         window_start: First inference day (inclusive).
         window_end: Last inference day (inclusive).
         cell_crs: Per-cell target CRS — UTM 11N (matches the GEE reference
@@ -63,6 +67,7 @@ class CubeSettings(BaseSettings):
     archive_root: Path = _PATHS.clipped_root
     processing_root: Path = _PATHS.processing_root
     mode: SweepMode = "A"
+    mode_b_inset_m: Annotated[float, Field(ge=0)] = 0.0
     window_start: date = DEFAULT_WINDOW_START
     window_end: date = DEFAULT_WINDOW_END
     cell_crs: str = "EPSG:32611"
