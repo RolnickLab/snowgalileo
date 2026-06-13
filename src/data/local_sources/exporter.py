@@ -41,6 +41,7 @@ from src.data.local_sources.base import (
     GridCell,
     LocalSourceAdapter,
 )
+from src.data.local_sources.cube_cache import DEFAULT_MAX_ENTRIES, CubeCache
 from src.data.local_sources.layout import (
     TOTAL_BANDS,
     build_cube_filename,
@@ -76,6 +77,15 @@ class LocalSourceExporter:
             TASK-006); the remaining bands stay placeholders until their tasks land.
         archive_root: The clipped archive the real adapters read. Defaults to
             :pyattr:`CubeSettings.archive_root`.
+        cube_cache_dir: Optional per-(modality, cell, day) ``.npz`` cache root. When
+            given **and** ``placeholder`` is ``False``, ``_assemble`` reads each
+            dynamic block through a :class:`CubeCache` (write-back on miss), so the
+            ~7/8 of dynamic fetches shared between overlapping windows are reused
+            instead of recomputed. ``None`` (default) disables the cache — assembly
+            is byte-identical to the un-cached path, so every existing caller and the
+            stub-exporter tests are unaffected.
+        cache_max_entries: FIFO entry cap for the cube cache (only used when
+            ``cube_cache_dir`` is set).
     """
 
     def __init__(
@@ -85,11 +95,21 @@ class LocalSourceExporter:
         placeholder: bool = True,
         archive_root: Path | None = None,
         verify_s1_cache: bool = True,
+        cube_cache_dir: Path | None = None,
+        cache_max_entries: int = DEFAULT_MAX_ENTRIES,
     ) -> None:
         settings = CubeSettings()
         self.out_dir = out_dir if out_dir is not None else settings.cubes_dir
         self.archive_root = archive_root if archive_root is not None else settings.archive_root
         self.placeholder = placeholder
+        # Per-(modality, cell, day) memo of dynamic blocks. Only in real mode with an
+        # explicit cache dir — placeholder mode is a deterministic tracer with nothing
+        # worth caching, and a None cache keeps the un-cached assembly path bit-identical.
+        self._cache: CubeCache | None = (
+            CubeCache(cube_cache_dir, cache_max_entries)
+            if cube_cache_dir is not None and not placeholder
+            else None
+        )
         # In real mode, verify the offline per-granule S1 SNAP cache covers each cell's
         # window before assembly (see _ensure_s1_cache) — fail loud rather than silently
         # emit an all-(-9999) S1 block. The cache is BUILT offline (s1_snap.py / the
@@ -158,6 +178,19 @@ class LocalSourceExporter:
         for adapter in adapters:
             rebuilt.extend(self._split_group(adapter, reals))
         return rebuilt
+
+    @staticmethod
+    def _modality_tag(adapter: LocalSourceAdapter) -> str:
+        """Stable cache tag for one dynamic adapter slot.
+
+        Derived from the slot's **band signature** — ``spatial_kind``, first band, and
+        band count — so it is unique per contiguous band slice within a cube and stable
+        across a placeholder↔real swap of the *same* slice (both emit the same bands, so
+        a cached entry stays valid). Class name would collide (every
+        :class:`PlaceholderAdapter` shares one name); a bare position index would be
+        fragile to band-order edits.
+        """
+        return f"{adapter.spatial_kind}_{adapter.bands_out[0]}_{len(adapter.bands_out)}"
 
     @staticmethod
     def _split_group(
