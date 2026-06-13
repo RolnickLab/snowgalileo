@@ -246,15 +246,19 @@ def test_inset_drops_border_cells(grid_b, grid_b_inset):
 def test_inset_cells_are_a_spatial_subset(grid_b, grid_b_inset):
     """Every inset cell coincides with an un-inset cell (the inset only *removes*).
 
-    The lattice origin snaps to the inset AOI's own bbox, so cells could in principle
-    shift by a fraction of a cell. Assert instead that each inset cell centre lands
-    inside some un-inset cell — i.e. the inset never invents tiles outside the full
-    Mode B coverage, it only erodes the border.
+    Both grids snap their lattice origin with the same ``floor(v / CELL_SIZE_M) *
+    CELL_SIZE_M`` rule, and a 10 km inset is a whole-cell multiple, so the two
+    lattices coincide exactly — an inset cell is identical to a full-grid cell iff
+    their UTM origins match. Compare origin sets (O(n)); the inset set must be a
+    strict subset of the full set, i.e. the inset only erodes the border and never
+    invents a tile outside the full Mode B coverage.
+
+    (The previous form did a brute-force ``centroid in polygon`` over every full
+    cell — ~19k×25k ≈ 480M shapely calls — which hung the suite for ~10 min.)
     """
-    full = [c.polygon for c in grid_b]
-    for cell in grid_b_inset:
-        c = cell.polygon.centroid
-        assert any(p.contains(c) for p in full), "inset cell falls outside full grid"
+    full_origins = {(c.transform.c, c.transform.f) for c in grid_b}
+    inset_origins = {(c.transform.c, c.transform.f) for c in grid_b_inset}
+    assert inset_origins < full_origins, "inset cells are not a strict subset of full grid"
 
 
 def test_inset_cells_clear_the_aoi_edge(grid_b_inset):
