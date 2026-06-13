@@ -12,8 +12,10 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
+from src.data.local_sources import parallel_export
 from src.data.local_sources.base import GridCell
 from src.data.local_sources.parallel_export import (
+    _init_worker,
     _resolve_workers,
     export_cells_parallel,
 )
@@ -71,3 +73,30 @@ def test_parallel_path_writes_all_cubes(tmp_path: Path) -> None:
     assert len(out) == len(grid)
     assert len({p.name for p in out}) == len(grid)  # distinct files
     assert all(p.exists() for p in out)
+
+
+def test_init_worker_threads_cache_into_exporter(tmp_path: Path) -> None:
+    """``cube_cache_dir``/``cache_max_entries`` reach the worker's exporter (step 3).
+
+    Calls the worker initializer directly (no pool) and inspects the exporter it builds.
+    Guards the param plumbing — the actual Step-3 risk — without an archive: real mode +
+    a cache dir → the exporter owns a ``CubeCache`` with the requested cap; ``None`` →
+    no cache.
+    """
+    from src.data.local_sources.cube_cache import CubeCache
+
+    # Real mode + cache dir → exporter owns a CubeCache with the given cap.
+    _init_worker(
+        tmp_path / "cubes", tmp_path / "arch", False, False,
+        tmp_path / "cube_cache", 1234,
+    )
+    exp = parallel_export._WORKER_EXPORTER
+    assert exp is not None
+    assert isinstance(exp._cache, CubeCache)
+    assert exp._cache.max_entries == 1234
+    assert exp._cache.root == tmp_path / "cube_cache"
+
+    # No cache dir → no cache (behaviour-identical to pre-step-3).
+    _init_worker(tmp_path / "cubes", tmp_path / "arch", False, False, None, 1234)
+    exp2 = parallel_export._WORKER_EXPORTER
+    assert exp2 is not None and exp2._cache is None

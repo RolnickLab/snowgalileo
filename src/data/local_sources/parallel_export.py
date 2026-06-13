@@ -26,6 +26,7 @@ from pathlib import Path
 import structlog
 
 from src.data.local_sources.base import GridCell
+from src.data.local_sources.cube_cache import DEFAULT_MAX_ENTRIES
 from src.data.local_sources.exporter import LocalSourceExporter
 
 logger = structlog.get_logger(__name__)
@@ -39,15 +40,28 @@ _WORKER_EXPORTER: LocalSourceExporter | None = None
 
 
 def _init_worker(
-    out_dir: Path, archive_root: Path, placeholder: bool, verify_s1_cache: bool
+    out_dir: Path,
+    archive_root: Path,
+    placeholder: bool,
+    verify_s1_cache: bool,
+    cube_cache_dir: Path | None,
+    cache_max_entries: int,
 ) -> None:
-    """Build this worker process's single exporter (runs once per process)."""
+    """Build this worker process's single exporter (runs once per process).
+
+    All workers pass the **same** ``cube_cache_dir``; the cache is file-based, so they
+    share it through the filesystem (atomic ``put`` makes concurrent writes safe). FIFO
+    eviction is per-process, so callers must size ``cache_max_entries`` above the run's
+    working set to keep eviction from racing across workers (PLAN §Concurrency).
+    """
     global _WORKER_EXPORTER
     _WORKER_EXPORTER = LocalSourceExporter(
         out_dir=out_dir,
         placeholder=placeholder,
         archive_root=archive_root,
         verify_s1_cache=verify_s1_cache,
+        cube_cache_dir=cube_cache_dir,
+        cache_max_entries=cache_max_entries,
     )
 
 
@@ -75,6 +89,8 @@ def export_cells_parallel(
     workers: int | None = None,
     placeholder: bool = False,
     verify_s1_cache: bool = True,
+    cube_cache_dir: Path | None = None,
+    cache_max_entries: int = DEFAULT_MAX_ENTRIES,
 ) -> list[Path]:
     """Export one cube per cell across a process pool; return the written paths.
 
@@ -99,6 +115,13 @@ def export_cells_parallel(
             silently emits all-``-9999`` S1. Build the cache once up front with
             ``scripts/developer_scripts/bow_valley_inference_local/build_bow_valley_s1_cache.py``;
             set ``False`` only to deliberately allow S1-free cubes.
+        cube_cache_dir: Optional per-(modality, cell, day) ``.npz`` cache root shared by
+            every worker (file-based, so no IPC). ``None`` (default) disables it — each
+            worker's exporter assembles uncached, behaviour-identical to before. Across a
+            multi-day sweep this reuses the ~7/8 of dynamic blocks shared between
+            overlapping windows.
+        cache_max_entries: FIFO cap for the cube cache; size it above the run's working
+            set so per-process eviction never races across workers (PLAN §Concurrency).
 
     Returns:
         The written cube paths (order not guaranteed — sort if needed).
@@ -110,7 +133,10 @@ def export_cells_parallel(
     items = [(cell, window_end) for cell in cells]
 
     if n_workers == 1:
-        _init_worker(out_dir, archive_root, placeholder, verify_s1_cache)
+        _init_worker(
+            out_dir, archive_root, placeholder, verify_s1_cache,
+            cube_cache_dir, cache_max_entries,
+        )
         paths = [Path(_export_one(item)[1]) for item in items]
         logger.info("exported_cells_serial", cells=len(paths), out_dir=str(out_dir))
         return paths
@@ -126,7 +152,10 @@ def export_cells_parallel(
     with ProcessPoolExecutor(
         max_workers=n_workers,
         initializer=_init_worker,
-        initargs=(out_dir, archive_root, placeholder, verify_s1_cache),
+        initargs=(
+            out_dir, archive_root, placeholder, verify_s1_cache,
+            cube_cache_dir, cache_max_entries,
+        ),
     ) as pool:
         futures = [pool.submit(_export_one, item) for item in items]
         done = 0
