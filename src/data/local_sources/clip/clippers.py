@@ -159,8 +159,22 @@ def clip_era5(
     aoi_4326: Polygon,
     settings: ClipSettings,
 ) -> ManifestRow:
-    """Clip an ERA5-Land NetCDF by slicing its lat/lon coordinate dimensions."""
+    """Clip an ERA5-Land NetCDF by slicing its lat/lon coordinate dimensions.
+
+    The slice is padded by ``settings.era5_pad_degrees`` on every side. ERA5 clips by
+    pixel **centre** (``xarray`` label slice), so an unpadded slice can drop the source
+    pixel that an AOI-edge cell needs: the kept pixel's nearest-resample catchment is
+    its centre ± half-resolution, and a cell just outside that band gets no source and
+    exports all-nodata. The pad (≥ one 0.1° native pixel) keeps that extra ring.
+    """
     lon_min, lat_min, lon_max, lat_max = aoi_4326.bounds
+    pad = settings.era5_pad_degrees
+    lon_min, lat_min, lon_max, lat_max = (
+        lon_min - pad,
+        lat_min - pad,
+        lon_max + pad,
+        lat_max + pad,
+    )
     product_id = src_path.stem
 
     with xr.open_dataset(src_path, engine="h5netcdf") as ds:

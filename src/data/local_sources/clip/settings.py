@@ -38,6 +38,14 @@ class ClipSettings(BaseSettings):
             test — a degenerate sliver on the product's own border nodata.
         swath_buffer_pixels: Padding (pixels) added around the AOI-overlapping
             grid window for Sentinel-3 tie-point-grid slicing.
+        era5_pad_degrees: Buffer (degrees) added to the AOI bounds before the
+            ERA5-Land lat/lon ``sel`` slice. ERA5 clips by **pixel centre** (xarray
+            label slice), so without a pad the southernmost kept centre can sit
+            *inside* the AOI, leaving edge cells beyond that pixel's nearest-resample
+            catchment (centre ± half-resolution) with no source → all-nodata. Must be
+            ≥ one native ERA5-Land pixel (0.1°); the default 0.15° clears a full pixel
+            plus slack on every side. Mirrors GEE, which samples the unbounded global
+            ERA5 collection (our clip is the only artificial boundary).
     """
 
     model_config = SettingsConfigDict(env_prefix="CLIP_", frozen=True)
@@ -45,6 +53,7 @@ class ClipSettings(BaseSettings):
     min_aoi_overlap_area_km2: Annotated[float, Field(gt=0)] = 1.0
     require_valid_pixels: bool = True
     swath_buffer_pixels: Annotated[int, Field(ge=0)] = 10
+    era5_pad_degrees: Annotated[float, Field(ge=0.1)] = 0.15
 
 
 def load_aoi_polygon(aoi_path: Path) -> Polygon:

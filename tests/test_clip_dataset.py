@@ -399,3 +399,57 @@ def test_viirs_clip_writes_per_grid_tifs(tmp_path, aoi, settings):
     assert h1 > 0 and w1 > 0 and h5 > 0 and w5 > 0
     assert abs(h5 - 2 * h1) <= 2
     assert abs(w5 - 2 * w1) <= 2
+
+
+# --------------------------------------------------------------------------- #
+# ERA5 buffered clip (no archive needed — synthetic NetCDF)
+# --------------------------------------------------------------------------- #
+def test_era5_clip_pad_keeps_edge_pixel(tmp_path, settings):
+    """The padded ERA5 clip keeps the source pixel an AOI-edge cell needs.
+
+    ERA5 clips by pixel *centre* (xarray label slice). On the real Bow Valley AOI the
+    south bound is 50.7298, but cells extend to centre ~50.73 — below the southernmost
+    *unpadded* kept centre (50.80) and outside its nearest-resample catchment
+    (50.80 - 0.05 = 50.750), so those cells exported all-nodata. ``era5_pad_degrees``
+    widens the slice by ≥1 native 0.1° pixel so the 50.70 centre survives and covers
+    down to 50.65. Build a synthetic 0.1° grid and assert the padded clip keeps the
+    sub-AOI-bound row the unpadded slice drops.
+    """
+    import numpy as np
+    import xarray as xr
+
+    # 0.1° grid, descending latitude (ERA5 convention), spanning the AOI south edge.
+    lats = np.round(np.arange(52.4, 50.5 - 1e-9, -0.1), 2)
+    lons = np.round(np.arange(-116.7, -114.4 + 1e-9, 0.1), 2)
+    data = np.broadcast_to(
+        lats[:, None], (lats.size, lons.size)
+    ).astype("float32")  # value == latitude, so we can read back which rows survived.
+    ds = xr.Dataset(
+        {"t2m": (("latitude", "longitude"), data)},
+        coords={"latitude": lats, "longitude": lons},
+    )
+    src = tmp_path / "synthetic_ERA5LAND.nc"
+    ds.to_netcdf(src, engine="h5netcdf")
+
+    # Tight AOI: south bound 50.7298 (matches the real Bow Valley AOI south edge).
+    aoi = box(-116.5619, 50.7298, -114.5277, 52.3067)
+
+    dst = tmp_path / "clipped.nc"
+    row = clippers.clip_era5(
+        src_path=src, dst_path=dst, source="era5", aoi_4326=aoi, settings=settings
+    )
+    assert row.action is ClipAction.CLIP
+
+    with xr.open_dataset(dst, engine="h5netcdf") as out:
+        kept = np.round(out["latitude"].values, 2)
+    south_edge = float(kept.min())
+
+    # Unpadded slice would keep 50.80 as the southernmost centre (catchment floor 50.75),
+    # leaving the 50.73 cell uncovered. With the ≥0.1° pad the 50.70 row survives, whose
+    # catchment reaches 50.65 — fully covering the 50.73 cell.
+    assert south_edge <= 50.70 + 1e-9, (
+        f"padded ERA5 clip dropped the edge pixel: south_edge={south_edge}"
+    )
+    assert south_edge - 0.05 <= 50.73, "kept pixel does not cover the 50.73 AOI-edge cell"
+
+
