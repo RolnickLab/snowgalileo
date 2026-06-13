@@ -453,3 +453,58 @@ def test_era5_clip_pad_keeps_edge_pixel(tmp_path, settings):
     assert south_edge - 0.05 <= 50.73, "kept pixel does not cover the 50.73 AOI-edge cell"
 
 
+# --------------------------------------------------------------------------- #
+# Sinusoidal clip uses intersect (all_touched), not centroid (no archive)
+# --------------------------------------------------------------------------- #
+def test_sinusoidal_clip_keeps_boundary_ring_via_all_touched(tmp_path):
+    """Coarse MODIS/VIIRS clip keeps AOI-edge pixels that *touch* the AOI.
+
+    Regression for the ragged-hole bug: with the rasterio default
+    (``all_touched=False``) a ~1 km sinusoidal pixel is kept only when the AOI
+    covers its *centre*, so boundary pixels that partially overlap are dropped and
+    become nodata wedges after the adapter resamples onto the 10 m cell. The fix
+    masks with ``all_touched=True`` (intersect). Build a sinusoidal raster whose
+    pixel column straddles the AOI's eastern edge and assert the touched path keeps
+    strictly more pixels than the centroid path would.
+    """
+    import numpy as np
+    import rasterio
+    from affine import Affine
+    from pyproj import Transformer
+    from rasterio.crs import CRS
+    from rasterio.mask import mask
+    from shapely.geometry import box, mapping
+
+    from src.data.local_sources.clip.clippers import (
+        _clip_sinusoidal_subdataset,
+        _reproject_aoi,
+    )
+
+    sinu = CRS.from_proj4("+proj=sinu +R=6371007.181 +units=m +no_defs")
+    res = 926.625  # ~1 km, matching the MODIS 1 km grid
+    fwd = Transformer.from_crs("EPSG:4326", sinu, always_xy=True)
+    # AOI box in lon/lat; its edges bisect raster columns/rows once reprojected.
+    aoi = box(-115.50, 50.90, -115.00, 51.10)
+    # Raster origin west & north of the AOI so the grid straddles every edge.
+    x0, y1 = fwd.transform(-115.60, 51.20)
+    transform = Affine(res, 0, x0, 0, -res, y1)
+    h = w = 80
+    src_tif = tmp_path / "sinu_src.tif"
+    with rasterio.open(
+        src_tif, "w", driver="GTiff", height=h, width=w, count=1,
+        dtype="int16", crs=sinu, transform=transform, nodata=-28672,
+    ) as dst:
+        dst.write(np.ones((1, h, w), dtype="int16"))
+
+    # Centroid baseline (rasterio default all_touched=False) vs the production path.
+    with rasterio.open(src_tif) as s:
+        geom = [mapping(_reproject_aoi(aoi, s.crs))]
+        centroid_img, _ = mask(s, geom, crop=True, all_touched=False)
+        centroid_valid = int((centroid_img != s.nodata).sum())
+
+    touched_valid = _clip_sinusoidal_subdataset(src_tif, tmp_path / "sinu_clip.tif", aoi)
+
+    assert touched_valid > centroid_valid, (
+        f"all_touched did not add the boundary ring: "
+        f"touched={touched_valid} centroid={centroid_valid}"
+    )

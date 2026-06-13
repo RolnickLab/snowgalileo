@@ -549,12 +549,24 @@ def clip_sinusoidal(
 def _clip_sinusoidal_subdataset(src_tif: Path, dst_tif: Path, aoi_4326: Polygon) -> int:
     """Crop one sinusoidal-grid GeoTIFF to the AOI by the reprojected geometry.
 
-    Crops with ``rasterio.mask.mask(crop=True)`` against the AOI reprojected into
-    the subdataset's own sinusoidal CRS — the same geometry crop the GeoTIFF path
-    uses (:func:`_clip_geotiff_to`). A bounding-box window of the reprojected AOI
-    *corners* is wrong here: the Sinusoidal projection (``x = R·λ·cos φ``) shears
-    the AOI rectangle, so its axis-aligned pixel window is several times wider than
-    the AOI in X. Masking by the actual geometry crops to its true footprint.
+    Crops with ``rasterio.mask.mask(crop=True, all_touched=True)`` against the AOI
+    reprojected into the subdataset's own sinusoidal CRS. A bounding-box window of
+    the reprojected AOI *corners* is wrong here: the Sinusoidal projection
+    (``x = R·λ·cos φ``) shears the AOI rectangle, so its axis-aligned pixel window is
+    several times wider than the AOI in X. Masking by the actual geometry crops to
+    its true footprint.
+
+    ``all_touched=True`` (intersect, **not** centroid) is load-bearing for these
+    coarse grids. With the rasterio default (``all_touched=False``) a ~1 km MODIS /
+    VIIRS pixel is kept only when the AOI covers its *centre*, so edge pixels that
+    partially overlap the AOI are dropped. After the adapter resamples the coarse
+    grid onto the 10 m cell, each dropped source pixel becomes a visible hole — a
+    ragged nodata wedge along the (sheared) AOI boundary, leaving AOI-edge cubes with
+    partial MODIS/VIIRS bands. Intersect-semantics keep the boundary ring, restoring
+    GEE parity (GEE reprojects the unbounded global grid and never drops these). The
+    interior pixels are unchanged; only the boundary ring is added back. The fine
+    GeoTIFF clippers (:func:`_clip_geotiff_to`) keep the default — at 10–30 m a
+    one-pixel centre-drop is sub-cell and vanishes under reprojection.
 
     Returns:
         Count of non-nodata pixels written (0 if the AOI window is empty).
@@ -562,7 +574,9 @@ def _clip_sinusoidal_subdataset(src_tif: Path, dst_tif: Path, aoi_4326: Polygon)
     with rasterio.open(src_tif) as src:
         aoi_in_crs = _reproject_aoi(aoi_4326, src.crs)
         try:
-            out_image, out_transform = rasterio.mask.mask(src, [mapping(aoi_in_crs)], crop=True)
+            out_image, out_transform = rasterio.mask.mask(
+                src, [mapping(aoi_in_crs)], crop=True, all_touched=True
+            )
         except ValueError:
             # rasterio raises when the AOI does not overlap the raster at all.
             return 0
