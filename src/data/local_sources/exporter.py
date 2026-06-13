@@ -335,8 +335,10 @@ class LocalSourceExporter:
         blocks: list[npt.NDArray] = []
         for day in self._window_days(window_end):
             for adapter in self._dynamic:
-                blocks.append(adapter.fetch(cell, day))
-        # Static layers are time-invariant: day is ignored (passed None).
+                blocks.append(self._dynamic_block(adapter, cell, day))
+        # Static layers are time-invariant: day is ignored (passed None). Not cached —
+        # one fetch per cube (not ×NUM_TIMESTEPS), so the memo would buy little and add a
+        # day=None key wart.
         for adapter in self._static:
             blocks.append(adapter.fetch(cell, None))
 
@@ -345,6 +347,35 @@ class LocalSourceExporter:
             f"Assembled {cube.shape[0]} bands, expected {TOTAL_BANDS}."
         )
         return cube
+
+    def _dynamic_block(
+        self,
+        adapter: LocalSourceAdapter,
+        cell: GridCell,
+        day: datetime.date,
+    ) -> npt.NDArray:
+        """Fetch one dynamic ``(modality, cell, day)`` block, through the cache if enabled.
+
+        ``adapter.fetch(cell, day)`` is a pure function of ``(adapter, cell, day)`` — no
+        window dependence — so a block cached under one window-end is valid in every
+        window that includes ``day``. With no cache (``self._cache is None``) this is a
+        plain ``fetch``, byte-identical to the un-cached assembly.
+
+        On a cache hit whose leading dim does not match the adapter's band count
+        (a stale entry from a band-layout change), the hit is discarded and the block is
+        re-fetched and overwritten — never assemble a mis-shaped cube from a stale memo.
+        """
+        if self._cache is None:
+            return adapter.fetch(cell, day)
+
+        tag = self._modality_tag(adapter)
+        cached = self._cache.get(modality=tag, cell_id=cell.cell_id, day=day)
+        if cached is not None and cached.shape[0] == len(adapter.bands_out):
+            return cached
+
+        block = adapter.fetch(cell, day)
+        self._cache.put(modality=tag, cell_id=cell.cell_id, day=day, array=block)
+        return block
 
     def export(self, *, cell: GridCell, window_end: datetime.date) -> Path:
         """Assemble and write one cube tif; return its path.
