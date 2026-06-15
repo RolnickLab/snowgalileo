@@ -16,7 +16,11 @@ from datetime import date
 import numpy as np
 import pytest
 
-from src.data.local_sources.cube_cache import CubeCache
+from src.data.local_sources.cube_cache import (
+    _VERSION_STAMP,
+    CACHE_VERSION,
+    CubeCache,
+)
 
 DAY = date(2025, 4, 6)
 
@@ -95,3 +99,105 @@ def test_eviction_survives_reopen(tmp_path):
     c2.put(modality="modis", cell_id=0, day=date(2025, 4, 8), array=arr)
     # cap still 2 after reopen → exactly 2 files, oldest evicted.
     assert len(list(root.rglob("*.npz"))) == 2
+
+
+# --- invalidation: version stamp + overwrite (PLAN-CUBE-CACHE-INVALIDATION) -- #
+
+
+def _seed(root, n=2):
+    """Populate a cache dir with `n` distinct entries and return the cache."""
+    cache = CubeCache(root=root, max_entries=100)
+    arr = np.ones((1, 2, 2), dtype=np.float32)
+    for i in range(n):
+        cache.put(modality="s2", cell_id=i, day=DAY, array=arr)
+    return cache
+
+
+def test_fresh_dir_writes_stamp(tmp_path):
+    """A brand-new dir is stamped with CACHE_VERSION and nothing is cleared."""
+    root = tmp_path / "cube_cache"
+    CubeCache(root=root, max_entries=3)
+    stamp = root / _VERSION_STAMP
+    assert stamp.exists()
+    assert int(stamp.read_text().strip()) == CACHE_VERSION
+
+
+def test_matching_stamp_reuses_entries(tmp_path):
+    """Same version on reopen → entries survive, count unchanged (no spurious clear)."""
+    root = tmp_path / "cube_cache"
+    _seed(root, n=2)
+    reopened = CubeCache(root=root, max_entries=100)  # stamp matches CACHE_VERSION
+    assert len(reopened) == 2
+    assert reopened.get(modality="s2", cell_id=0, day=DAY) is not None
+
+
+def test_version_mismatch_force_clears(tmp_path):
+    """A stale stamp force-clears entries and rewrites the current stamp."""
+    root = tmp_path / "cube_cache"
+    _seed(root, n=2)
+    (root / _VERSION_STAMP).write_text(f"{CACHE_VERSION + 1}\n")  # simulate old format
+
+    reopened = CubeCache(root=root, max_entries=100)
+    assert len(reopened) == 0
+    assert not list(root.rglob("*.npz"))
+    assert int((root / _VERSION_STAMP).read_text().strip()) == CACHE_VERSION
+
+
+def test_version_mismatch_overrides_overwrite_false(tmp_path):
+    """Version mismatch clears even with overwrite=False (it is unconditional)."""
+    root = tmp_path / "cube_cache"
+    _seed(root, n=2)
+    (root / _VERSION_STAMP).write_text("999\n")
+    reopened = CubeCache(root=root, max_entries=100, overwrite=False)
+    assert len(reopened) == 0
+
+
+def test_corrupt_stamp_treated_as_mismatch(tmp_path):
+    """An unreadable/non-integer stamp is a mismatch → force-clear + rewrite."""
+    root = tmp_path / "cube_cache"
+    _seed(root, n=2)
+    (root / _VERSION_STAMP).write_text("not-an-int\n")
+    reopened = CubeCache(root=root, max_entries=100)
+    assert len(reopened) == 0
+    assert int((root / _VERSION_STAMP).read_text().strip()) == CACHE_VERSION
+
+
+def test_overwrite_clears_and_rewrites_stamp(tmp_path):
+    """overwrite=True clears existing entries and (re)writes the stamp."""
+    root = tmp_path / "cube_cache"
+    _seed(root, n=3)
+    cleared = CubeCache(root=root, max_entries=100, overwrite=True)
+    assert len(cleared) == 0
+    assert not list(root.rglob("*.npz"))
+    assert int((root / _VERSION_STAMP).read_text().strip()) == CACHE_VERSION
+
+
+def test_overwrite_on_fresh_dir_just_stamps(tmp_path):
+    """overwrite=True on an empty dir writes the stamp, has nothing to clear."""
+    root = tmp_path / "cube_cache"
+    cache = CubeCache(root=root, max_entries=3, overwrite=True)
+    assert len(cache) == 0
+    assert (root / _VERSION_STAMP).exists()
+
+
+def test_stamp_not_counted_as_entry_and_survives_clear(tmp_path):
+    """The stamp file is never a cache entry and persists across a clear."""
+    root = tmp_path / "cube_cache"
+    cache = _seed(root, n=2)
+    assert len(cache) == 2  # stamp not counted among the 2 entries
+    cache._clear()
+    assert len(cache) == 0
+    assert (root / _VERSION_STAMP).exists()
+    # _scan_existing globs *.npz only → the stamp is invisible to it.
+    assert _VERSION_STAMP not in cache._scan_existing()
+
+
+def test_clear_removes_empty_shard_dirs(tmp_path):
+    """_clear drops now-empty per-cell shard subdirs (leaves root + stamp)."""
+    root = tmp_path / "cube_cache"
+    cache = _seed(root, n=2)
+    assert (root / "0").is_dir() and (root / "1").is_dir()
+    cache._clear()
+    assert not (root / "0").exists()
+    assert not (root / "1").exists()
+    assert root.is_dir()

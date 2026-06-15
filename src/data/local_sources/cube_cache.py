@@ -37,6 +37,17 @@ logger = structlog.get_logger(__name__)
 #: Key under which the single band array is stored inside each ``.npz``.
 _ARRAY_KEY = "array"
 
+#: Cache format/content version. **Bump in the same diff that changes any adapter's
+#: ``fetch`` or clip logic** — a stamped dir whose version differs is force-cleared on
+#: construction (a known-incompatible cache can never be reused by mistake). The
+#: interactive ``--cache-policy`` prompt backstops the *forgot-to-bump* case (see
+#: PLAN-CUBE-CACHE-INVALIDATION.md).
+CACHE_VERSION: int = 1
+
+#: Name of the stamp file written at the cache root holding :data:`CACHE_VERSION`.
+#: Never counted as a cache entry — ``_scan_existing`` globs ``*.npz`` only.
+_VERSION_STAMP = ".cache_version"
+
 #: Default FIFO entry cap. PLAN §4 sizes the cache by total bytes (~200 GB);
 #: an entry cap is the simpler, deterministic proxy used here — each entry is one
 #: per-(modality, cell, day) array of bounded size (~40 KB × bands). The exporter
@@ -52,19 +63,99 @@ class CubeCache:
             Created if absent.
         max_entries: Maximum number of cached ``.npz`` files; the oldest-written
             entry is evicted when a new ``put`` would exceed it.
+        overwrite: Clear the dir up front (then rewrite the stamp) before scanning.
+            **Must only ever be set by a single, parent-process construction** — if
+            concurrent worker constructions each cleared, one would wipe another's
+            fresh entries mid-run (PLAN-CUBE-CACHE-INVALIDATION.md §Concurrency rule).
 
     Raises:
         ValueError: If ``max_entries`` is not positive.
     """
 
-    def __init__(self, root: Path, max_entries: int = DEFAULT_MAX_ENTRIES) -> None:
+    def __init__(
+        self,
+        root: Path,
+        max_entries: int = DEFAULT_MAX_ENTRIES,
+        *,
+        overwrite: bool = False,
+    ) -> None:
         if max_entries <= 0:
             raise ValueError(f"max_entries must be positive, got {max_entries}.")
         self.root = Path(root)
         self.max_entries = max_entries
         self.root.mkdir(parents=True, exist_ok=True)
+
+        # Invalidation gate (runs before any scan). Order matters: a version mismatch is
+        # force-cleared regardless of `overwrite`, so a known-incompatible cache can never
+        # be reused. Then an explicit `overwrite` clears. Otherwise the stamp is reconciled
+        # (written if absent) and existing entries are kept.
+        if self._stamped_version_mismatch():
+            self._clear()
+            logger.info(
+                "cube_cache_version_invalidated",
+                root=str(self.root),
+                version=CACHE_VERSION,
+            )
+        elif overwrite:
+            self._clear()
+            logger.info("cube_cache_overwritten", root=str(self.root))
+        else:
+            self._write_stamp_if_absent()
+
         # Ordered oldest → newest; values are the on-disk paths.
         self._order: OrderedDict[str, Path] = self._scan_existing()
+
+    # --- version stamp / invalidation -------------------------------------- #
+
+    @property
+    def _stamp_path(self) -> Path:
+        return self.root / _VERSION_STAMP
+
+    def _read_stamp(self) -> int | None:
+        """Return the integer in the stamp file, or ``None`` if absent/unreadable."""
+        if not self._stamp_path.exists():
+            return None
+        try:
+            return int(self._stamp_path.read_text().strip())
+        except (ValueError, OSError):
+            # A corrupt/unreadable stamp is treated as a mismatch → force-clear.
+            return None
+
+    def _stamped_version_mismatch(self) -> bool:
+        """True when a stamp is present (or corrupt) and differs from ``CACHE_VERSION``.
+
+        A fresh dir (no stamp) is **not** a mismatch — it is reconciled by writing the
+        current stamp, so a brand-new cache is never spuriously cleared.
+        """
+        if not self._stamp_path.exists():
+            return False
+        return self._read_stamp() != CACHE_VERSION
+
+    def _write_stamp(self) -> None:
+        """Write ``CACHE_VERSION`` to the stamp file (atomic replace)."""
+        tmp = self._stamp_path.with_name(_VERSION_STAMP + ".tmp")
+        tmp.write_text(f"{CACHE_VERSION}\n")
+        tmp.replace(self._stamp_path)
+
+    def _write_stamp_if_absent(self) -> None:
+        """Stamp a fresh dir; leave a matching stamp untouched."""
+        if not self._stamp_path.exists():
+            self._write_stamp()
+
+    def _clear(self) -> None:
+        """Remove every cached ``.npz`` (and now-empty shard dirs), then (re)write the stamp.
+
+        Resets in-memory order. The stamp file is preserved/rewritten and is **never** a
+        cache entry (``_scan_existing`` globs ``*.npz`` only).
+        """
+        for path in self.root.rglob("*.npz"):
+            path.unlink(missing_ok=True)
+        # Drop now-empty shard subdirs (leave the root and the stamp).
+        for child in sorted(self.root.rglob("*"), reverse=True):
+            if child.is_dir() and not any(child.iterdir()):
+                child.rmdir()
+        self._order = OrderedDict()
+        self._write_stamp()
 
     # --- key / path helpers ------------------------------------------------- #
 

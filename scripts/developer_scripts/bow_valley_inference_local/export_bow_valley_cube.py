@@ -10,7 +10,11 @@ path is untouched.
 
 Example:
     uv run python scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py \\
-        --config configs/bow_valley/cube.yaml --limit 4
+        export --config configs/bow_valley/cube.yaml --limit 4
+
+    # Wipe the cube cache on demand (reports entries removed):
+    uv run python scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py \\
+        clean-cache --config configs/bow_valley/cube.yaml
 """
 
 from __future__ import annotations
@@ -22,6 +26,7 @@ from typing import Annotated, Optional
 import structlog
 import typer
 
+from src.data.local_sources.cube_cache import CubeCache
 from src.data.local_sources.grid import build_grid
 from src.data.local_sources.parallel_export import export_cells_parallel
 from src.data.local_sources.settings import CubeSettings
@@ -32,7 +37,7 @@ app = typer.Typer(add_completion=False, help="Assemble Bow Valley direct-source 
 
 
 @app.command()
-def main(
+def export(
     config: Annotated[
         Path, typer.Option(help="Path to cube.yaml.")
     ] = Path("configs/bow_valley/cube.yaml"),
@@ -89,6 +94,27 @@ def main(
         cache_max_entries=settings.cache_max_entries,
     )
     logger.info("cube_export_complete", cubes=len(paths), out_dir=str(settings.cubes_dir))
+
+
+@app.command("clean-cache")
+def clean_cache(
+    config: Annotated[
+        Path, typer.Option(help="Path to cube.yaml.")
+    ] = Path("configs/bow_valley/cube.yaml"),
+) -> None:
+    """Wipe the cube cache (``CubeSettings.cube_cache_dir``), reporting entries removed.
+
+    A manual reset for the "did my clips/adapters change?" case the version stamp can't
+    catch. Constructs the cache once with ``overwrite=True`` — the only path that clears —
+    in this single parent process, so there is no cross-worker clear race.
+    """
+    settings = CubeSettings.from_yaml(config)
+    root = settings.cube_cache_dir
+    # Count first (read-only scan), then clear via the overwrite path.
+    before = len(CubeCache(root, settings.cache_max_entries))
+    CubeCache(root, settings.cache_max_entries, overwrite=True)
+    logger.info("cube_cache_cleaned", root=str(root), entries_removed=before)
+    typer.echo(f"Cleared {before} cube cache entr{'y' if before == 1 else 'ies'} from {root}")
 
 
 if __name__ == "__main__":

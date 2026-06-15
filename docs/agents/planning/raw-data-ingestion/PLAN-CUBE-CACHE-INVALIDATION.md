@@ -37,30 +37,47 @@ model). Two mechanisms:
   Default `False` → behaviour-identical to today.
 
 ### Parallel export (`export_cells_parallel`, `_init_worker`)
-- New `overwrite_cache: bool = False`, threaded into the per-worker exporter.
+- **NO `overwrite_cache` arg added here** (DECIDED — "CLI only" clear site). The parallel
+  fn and `_init_worker` stay as wired today; workers always *reuse* an already-clean dir.
 - **Concurrency rule (critical):** only the FIRST cache construction may clear. If 8
   workers each built with `overwrite=True`, worker 2 would wipe worker 1's fresh entries
   mid-run. **Resolution:** the CLI clears the cache ONCE, up front, in the parent process
-  (before the pool spawns), then passes `overwrite_cache=False` to the workers. The workers
-  never clear — they only read/write/version-check an already-clean dir. So `overwrite_cache`
-  on `export_cells_parallel` is effectively "clear once before spawning", implemented by
-  constructing a throwaway `CubeCache(root, overwrite=True)` in the parent, then spawning
-  workers with `overwrite=False`.
+  (before the pool spawns), by constructing a throwaway `CubeCache(root, overwrite=True)`,
+  then spawns the pool normally (workers reuse). The workers never clear — they only
+  read/write/version-check the already-clean dir. The smallest surface that makes the race
+  impossible by construction.
 
 ### CLI (`infer_bow_valley_daily_fsc.py`, `export_bow_valley_cube.py`)
 - New option `--cache-policy {prompt|reuse|overwrite}`, default `prompt`.
-- Resolution at startup, in the parent process:
-  - `reuse` → `overwrite_cache=False`.
-  - `overwrite` → clear once up front (`overwrite_cache=True` path), workers reuse.
+- A shared `resolve_cache_policy(root, policy)` helper (in a small CLI-side module, e.g.
+  `cube_cache_cli.py`) does the resolution + the parent-process clear, returning nothing
+  (it has already cleared if needed). Both CLIs call it before constructing any exporter
+  or spawning any pool. Resolution at startup, in the parent process:
+  - `reuse` → no clear.
+  - `overwrite` → clear once up front (`CubeCache(root, overwrite=True)` in the parent).
   - `prompt`:
-    - cache dir empty/absent → no question, proceed (`reuse`, nothing to lose).
+    - cache dir empty/absent → no question, proceed (reuse, nothing to lose).
     - cache non-empty **and** stdin is a TTY → ask "Existing cube cache has N entries.
       [r]euse / [o]verwrite?"; map answer to reuse/overwrite.
     - cache non-empty **and NOT a TTY** → **error out** with a clear message instructing
       to pass `--cache-policy reuse|overwrite` (no hang, no silent staleness). This is the
       chosen no-TTY behaviour.
-- A standalone **`clean-cache`** command (in `process_raw_dataset.py`, alongside the clip
-  phases) wipes `CubeSettings.cube_cache_dir` on demand, reporting entries removed.
+- `infer_*`: builds ONE parent exporter; since the clear already happened up front, it
+  builds the exporter with `overwrite_cache=False` (the default) — the version-stamp check
+  still runs in `CubeCache.__init__`. No race (single construction in parent; driver pool
+  workers reuse).
+- A standalone **`clean-cache`** command lives in **`export_bow_valley_cube.py`** (DECIDED —
+  Q1). This converts that script from a single-command Typer app to multi-command: the
+  existing run command is named `export`, with `clean-cache` alongside. **Invocation
+  changes**: `export_bow_valley_cube.py --config …` → `export_bow_valley_cube.py export
+  --config …`. `clean-cache` wipes `CubeSettings.cube_cache_dir` on demand, reporting
+  entries removed.
+
+### Exporter `overwrite_cache` arg
+- Still added (plan §Exporter above) and forwarded into `CubeCache(..., overwrite=...)`,
+  but with "CLI only" clearing the CLIs always pass `False`. The arg exists so a *direct*
+  single-construction caller (a test, or a future serial tool) can request a clear without
+  going through the CLI helper. It is never set `True` on any multi-construction path.
 
 ## Why this shape
 - Stamp catches *known* incompatibilities deterministically (developer bumps it in the same
@@ -100,6 +117,7 @@ source = interactive prompt + manual constant backstop; no-TTY = error requiring
      clip/process phases — the natural "data prep" home.
    - Alternative: `export_bow_valley_cube.py`.
    - → DECIDE: which file.
+   - -> Decision : `export_bow_valley_cube.py`, because that's when they are needed. before that (in `process_raw_dataset.py`), we only want to do the minimum amount of processing to make the data compatible with our cube process.
 
 2. **Commit shape — one unit or incremental?**
    - The change spans ~4 components (`CubeCache`, exporter, `parallel_export`, the two
@@ -109,6 +127,7 @@ source = interactive prompt + manual constant backstop; no-TTY = error requiring
      (b) thread `overwrite_cache` through exporter / `parallel_export` / CLIs +
      `--cache-policy`.
    - → DECIDE: accept two-commit split, or different granularity.
+   - -> Decision : two-commit split
 
 ### ⚠️ CRITICAL IMPLEMENTATION NOTE (do not lose)
 Clearing must happen **once in the parent process, before the worker pool spawns** — never
