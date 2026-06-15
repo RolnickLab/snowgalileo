@@ -97,6 +97,41 @@ def test_render_cube_band_masks_nodata(tmp_path: Path) -> None:
     assert result.image.shape[0] > 0
 
 
+def test_render_cube_band_uniform_valid_stays_opaque(tmp_path: Path) -> None:
+    """A uniform-valued valid band must render opaque, not be dropped as nodata.
+
+    Regression: a constant field (e.g. ERA5 total_precipitation_sum) and dark-but-valid
+    pixels (S3 radiance) stretch to 0 in ``_stretch_uint8`` — the old all-zero-RGB alpha
+    heuristic dropped every such pixel as transparent, so the whole band read as nodata
+    (ERA5) or pocked with false holes (S3). The explicit ``alpha_mask`` (real NaN-nodata)
+    must keep the valid pixels opaque even though they stretch to 0.
+    """
+    arr = np.full((16, 16), 0.5, dtype="float32")  # constant valid field → stretches to 0
+    arr[:8, :] = _NODATA  # top half genuine nodata
+    path = tmp_path / "PR_20250519_50.0_-116.0_SC00.tif"
+    _write_cube(path, {"B2_t0": arr, "DEM": arr})
+
+    result = render_cube_band(
+        path=path, var="B2", timestep=0, is_static=False, long_edge=64
+    )
+
+    # The renderer must hand the writer a real validity mask, not rely on pixel value.
+    assert result.alpha_mask is not None
+    assert result.alpha_mask.shape == result.image.shape[:2]
+
+    out = result_to_geotiff(result, tmp_path / "out.tif")
+    with rasterio.open(out) as src:
+        assert src.count == 2  # gray + alpha
+        assert src.colorinterp[-1].name == "alpha"
+        alpha = src.read(2)
+
+    # Alpha must track the validity mask: every valid pixel opaque (even the zero-stretched
+    # uniform half), every nodata pixel transparent.
+    valid = result.alpha_mask
+    assert np.all(alpha[valid] > 0), "valid pixels were falsely dropped as nodata"
+    assert np.all(alpha[~valid] == 0), "nodata pixels were not made transparent"
+
+
 # --------------------------------------------------------------------------- #
 # render_fsc
 # --------------------------------------------------------------------------- #

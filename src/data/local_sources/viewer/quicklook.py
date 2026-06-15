@@ -39,6 +39,13 @@ class QuicklookResult:
         src_crs: Native CRS string of the rendered raster, else ``None``.
         label: Human-readable description (e.g. band combination).
         note: Optional caveat (non-georeferenced, error fallback, ...).
+        alpha_mask: Optional ``HxW`` boolean validity mask (``True`` = real data,
+            ``False`` = nodata → transparent). When set, ``result_to_geotiff`` builds
+            the alpha band from this *explicit* mask instead of inferring transparency
+            from stretched value (the all-zero-RGB heuristic). Required for sources
+            whose valid data can legitimately stretch to 0 — e.g. cube bands, where a
+            dark-but-valid or uniform field would otherwise be falsely dropped as
+            nodata. Must match ``image`` height/width.
     """
 
     kind: Kind
@@ -47,6 +54,7 @@ class QuicklookResult:
     src_crs: str | None
     label: str
     note: str | None = None
+    alpha_mask: npt.NDArray[np.bool_] | None = None
 
 
 @runtime_checkable

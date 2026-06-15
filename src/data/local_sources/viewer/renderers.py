@@ -587,12 +587,17 @@ def render_cube_band(
     band = band_index(path, var=var, timestep=timestep)
     arr_4326, bounds, crs = _read_output_band_4326(path, band=band, long_edge=long_edge)
     label = f"{var} (static)" if is_static else f"{var} @ t{timestep}"
+    # Transparency must follow *real* nodata (the -9999 masked to NaN in
+    # _read_output_band_4326), NOT the stretched value: dark-but-valid pixels (S3
+    # radiance) and uniform fields (ERA5, which _stretch_uint8 collapses to all-zeros)
+    # legitimately stretch to 0 and would otherwise be falsely dropped as nodata holes.
     return QuicklookResult(
         kind="georef_raster",
         image=_stretch_uint8(arr_4326),
         bounds_4326=bounds,
         src_crs=crs,
         label=label,
+        alpha_mask=np.isfinite(arr_4326),
     )
 
 
@@ -683,14 +688,22 @@ def result_to_geotiff(result: QuicklookResult, dst: Path) -> Path:
     if is_rgb or image.dtype == np.uint8:
         data = image.astype(np.uint8)
         bands = [data[..., i] for i in range(3)] if is_rgb else [data]
-        # Reprojecting a sheared (e.g. sinusoidal) AOI leaves large fill regions
-        # that ``_stretch_uint8`` zeroed. Add an alpha band so those areas render
-        # transparent (basemap shows through) instead of as a black rectangle.
-        # Heuristic: a pixel is masked iff every colour band is 0 (genuinely pure
-        # black valid pixels are vanishingly rare in stretched reflectance).
-        opaque = np.zeros((height, width), dtype=bool)
-        for b in bands:
-            opaque |= b > 0
+        # Build the alpha (transparency) band. Prefer an *explicit* validity mask when
+        # the renderer supplied one: stretched value == 0 is NOT a reliable nodata proxy
+        # — valid-but-dark pixels (S3 radiance) and uniform fields (ERA5, where
+        # ``_stretch_uint8`` returns all-zeros) legitimately stretch to 0 and would be
+        # falsely dropped as nodata by the all-zero heuristic. The cube tab passes
+        # ``alpha_mask`` (real NaN-nodata mask) for exactly this reason.
+        if result.alpha_mask is not None:
+            opaque = np.asarray(result.alpha_mask, dtype=bool)
+        else:
+            # Fallback (Clip tab): reprojecting a sheared (e.g. sinusoidal) AOI leaves
+            # large fill regions that ``_stretch_uint8`` zeroed. A pixel is masked iff
+            # every colour band is 0 (genuinely pure-black valid pixels are vanishingly
+            # rare in stretched reflectance).
+            opaque = np.zeros((height, width), dtype=bool)
+            for b in bands:
+                opaque |= b > 0
         alpha = np.where(opaque, 255, 0).astype(np.uint8)
         out_bands = [*bands, alpha]
         dtype: str = "uint8"
