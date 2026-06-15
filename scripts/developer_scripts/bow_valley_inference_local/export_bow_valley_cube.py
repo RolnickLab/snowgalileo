@@ -27,6 +27,11 @@ import structlog
 import typer
 
 from src.data.local_sources.cube_cache import CubeCache
+from src.data.local_sources.cube_cache_cli import (
+    CachePolicy,
+    CachePolicyError,
+    resolve_cache_policy,
+)
 from src.data.local_sources.grid import build_grid
 from src.data.local_sources.parallel_export import export_cells_parallel
 from src.data.local_sources.settings import CubeSettings
@@ -62,9 +67,30 @@ def export(
             "Pass --no-verify-s1-cache to deliberately allow S1-free cubes.",
         ),
     ] = True,
+    cache_policy: Annotated[
+        CachePolicy,
+        typer.Option(
+            help="How to treat an existing cube cache: 'prompt' (ask if non-empty; errors "
+            "on a non-TTY), 'reuse' (keep it), or 'overwrite' (clear once up front). Use "
+            "'overwrite' after an adapter or clip change that the version stamp can't catch.",
+        ),
+    ] = CachePolicy.PROMPT,
 ) -> None:
     """Export one cube per ``(cell, window_end)`` from the clipped archive (parallel)."""
     settings = CubeSettings.from_yaml(config)
+
+    # Resolve reuse/overwrite ONCE in this parent process before any worker spawns; the
+    # pool then reuses the resulting (clean or kept) dir. Fail loud on a non-TTY prompt
+    # rather than silently reusing a possibly-stale cache.
+    try:
+        resolve_cache_policy(
+            root=settings.cube_cache_dir,
+            policy=cache_policy,
+            max_entries=settings.cache_max_entries,
+        )
+    except CachePolicyError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
     end = (
         datetime.date.fromisoformat(window_end)
         if window_end is not None

@@ -100,3 +100,29 @@ def test_init_worker_threads_cache_into_exporter(tmp_path: Path) -> None:
     _init_worker(tmp_path / "cubes", tmp_path / "arch", False, False, None, 1234)
     exp2 = parallel_export._WORKER_EXPORTER
     assert exp2 is not None and exp2._cache is None
+
+
+def test_init_worker_never_clears_an_existing_cache(tmp_path: Path) -> None:
+    """A worker exporter never clears the cache (PLAN-INVALIDATION test #5).
+
+    ``_init_worker`` has no ``overwrite`` arg by construction — clearing happens only
+    once in the parent (the CLI), never per-worker, so a worker building over a populated
+    dir must leave every entry intact. This is the plan's single most important
+    correctness constraint.
+    """
+    import numpy as np
+
+    from src.data.local_sources.cube_cache import CubeCache
+
+    cache_root = tmp_path / "cube_cache"
+    seed = CubeCache(root=cache_root, max_entries=100)
+    seed.put(
+        modality="s2", cell_id=0, day=date(2025, 4, 6),
+        array=np.ones((1, 2, 2), dtype=np.float32),
+    )
+    assert len(list(cache_root.rglob("*.npz"))) == 1
+
+    _init_worker(tmp_path / "cubes", tmp_path / "arch", False, False, cache_root, 100)
+
+    # Entry survived — the worker reused, did not clear.
+    assert len(list(cache_root.rglob("*.npz"))) == 1

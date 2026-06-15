@@ -86,6 +86,13 @@ class LocalSourceExporter:
             stub-exporter tests are unaffected.
         cache_max_entries: FIFO entry cap for the cube cache (only used when
             ``cube_cache_dir`` is set).
+        overwrite_cache: Clear the cache dir up front when constructing the
+            :class:`CubeCache` (forwarded as ``overwrite=``). **Only safe on a single,
+            parent-process construction** — never on a parallel-worker exporter, or one
+            worker would wipe another's fresh entries mid-run. The CLIs therefore clear
+            once up front and always pass ``False`` here (see ``cube_cache_cli`` /
+            PLAN-CUBE-CACHE-INVALIDATION.md §Concurrency rule). Default ``False`` →
+            behaviour-identical to today; the version stamp still invalidates a stale dir.
     """
 
     def __init__(
@@ -97,6 +104,7 @@ class LocalSourceExporter:
         verify_s1_cache: bool = True,
         cube_cache_dir: Path | None = None,
         cache_max_entries: int = DEFAULT_MAX_ENTRIES,
+        overwrite_cache: bool = False,
     ) -> None:
         settings = CubeSettings()
         self.out_dir = out_dir if out_dir is not None else settings.cubes_dir
@@ -106,7 +114,7 @@ class LocalSourceExporter:
         # explicit cache dir — placeholder mode is a deterministic tracer with nothing
         # worth caching, and a None cache keeps the un-cached assembly path bit-identical.
         self._cache: CubeCache | None = (
-            CubeCache(cube_cache_dir, cache_max_entries)
+            CubeCache(cube_cache_dir, cache_max_entries, overwrite=overwrite_cache)
             if cube_cache_dir is not None and not placeholder
             else None
         )

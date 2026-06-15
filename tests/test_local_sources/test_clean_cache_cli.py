@@ -76,3 +76,33 @@ def test_clean_cache_on_empty_cache_reports_zero(tmp_path, monkeypatch):
 
     assert result.exit_code == 0, result.output
     assert "Cleared 0 cube cache entries" in result.output
+
+
+def test_export_prompt_nonempty_non_tty_aborts(tmp_path, monkeypatch):
+    """`export --cache-policy prompt` on a non-empty cache (non-TTY) aborts before work.
+
+    CliRunner provides a non-TTY stdin, so the prompt policy must error out with the
+    actionable --cache-policy message rather than hang or silently reuse — and it must
+    fail *before* any grid build / export happens.
+    """
+    monkeypatch.delenv("CUBE_processing_root", raising=False)
+    config = _write_cube_yaml(tmp_path)
+
+    cache_root = tmp_path / "proc" / "cube_cache"
+    cache = CubeCache(root=cache_root, max_entries=100)
+    cache.put(
+        modality="s2",
+        cell_id=0,
+        day=datetime.date(2025, 4, 6),
+        array=np.ones((1, 2, 2), dtype=np.float32),
+    )
+
+    module = _load_cli()
+    result = CliRunner().invoke(
+        module.app, ["export", "--config", str(config), "--cache-policy", "prompt"]
+    )
+
+    assert result.exit_code != 0
+    assert "--cache-policy" in result.output
+    # Cache untouched (the run aborted, nothing cleared).
+    assert len(list(cache_root.rglob("*.npz"))) == 1

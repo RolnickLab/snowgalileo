@@ -29,6 +29,11 @@ import structlog
 import torch
 import typer
 
+from src.data.local_sources.cube_cache_cli import (
+    CachePolicy,
+    CachePolicyError,
+    resolve_cache_policy,
+)
 from src.data.local_sources.exporter import LocalSourceExporter
 from src.data.local_sources.grid import build_grid
 from src.data.local_sources.settings import CubeSettings, InferenceSettings
@@ -102,10 +107,31 @@ def main(
         Optional[int],
         typer.Option(help="Cap the number of cells (smoke run); None = all in-AOI cells."),
     ] = None,
+    cache_policy: Annotated[
+        CachePolicy,
+        typer.Option(
+            help="How to treat an existing cube cache: 'prompt' (ask if non-empty; errors "
+            "on a non-TTY), 'reuse' (keep it), or 'overwrite' (clear once up front). Use "
+            "'overwrite' after an adapter or clip change that the version stamp can't catch.",
+        ),
+    ] = CachePolicy.PROMPT,
 ) -> None:
     """Run the daily FSC inference sweep and write one COG per day."""
     cube = CubeSettings.from_yaml(cube_config)
     infer = InferenceSettings.from_yaml(config)
+
+    # Resolve reuse/overwrite ONCE here in the parent before the exporter (and the
+    # driver's worker pool) are built; they then reuse the resulting dir. The exporter
+    # below is constructed with overwrite_cache=False (its default) — the clear, if any,
+    # already happened.
+    try:
+        resolve_cache_policy(
+            root=cube.cube_cache_dir,
+            policy=cache_policy,
+            max_entries=cube.cache_max_entries,
+        )
+    except CachePolicyError as exc:
+        raise typer.BadParameter(str(exc)) from exc
 
     grid = build_grid(mode=cube.mode, mode_b_inset_m=cube.mode_b_inset_m)
     if limit is not None:
