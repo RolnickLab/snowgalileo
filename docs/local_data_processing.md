@@ -337,6 +337,79 @@ emit a plausible-looking but meaningless COG). No downstream/GEE code is touched
 
 ---
 
+## 6.5. Full Mode-B AOI sweep (`cube_full_run.yaml` / `inference_full_run.yaml`)
+
+The Mode-A run (§5–§6, `cube.yaml`) sweeps only the ~344 in-AOI **sample** cells.
+The full run tiles the **entire AOI** into a 1 km lattice (mode B) and runs the
+same two stages over it, writing into an **isolated** processing root so the
+Mode-A deliverables are never touched.
+
+**Config pair (sibling to the Mode-A configs):**
+
+| File | Differences from Mode-A config |
+|------|--------------------------------|
+| `configs/bow_valley/cube_full_run.yaml` | `mode: B`, `mode_b_inset_m: 5000`, `processing_root: data/bow_valley_processing/full_run` |
+| `configs/bow_valley/inference_full_run.yaml` | `export_workers: 16` (vs 8); everything else identical |
+
+**Grid: 5 km negative buffer.** `mode_b_inset_m: 5000` erodes the AOI inward by
+5 km (a `buffer(-5000)` in UTM 11N, `grid.py:_tile_aoi_to_cells`) **before** tiling,
+dropping the outer 5 km ring of output cells: **25,078 → 21,985 cells (−12%)**. This
+removes edge cells whose 8-day source windows may have degraded coverage near the AOI
+boundary. It does **not** add a data margin around retained cells — every cell still
+reads whatever clipped source overlaps it. The buffer is a *code capability* defaulting
+to `0.0`; it is active **only** because this config sets it.
+
+**Isolated output root.** `data/bow_valley_processing` is a symlink to
+`/archive/data/ai4snow/bow_valley_processing` (7.8 TB free), so `full_run/` resolves
+to `/archive/data/ai4snow/bow_valley_processing/full_run/`. The `cube_cache/`, `cubes/`,
+`daily_fsc/`, `manifests/`, and `scratch/` subdirs all derive from this root — created
+on first write, never overlapping the Mode-A tree.
+
+```bash
+# Stage 2 — assemble the full-AOI cubes (21,985 cells × 21 days = 461,685 cubes).
+# 'reuse' is wrong here (fresh isolated cache); 'overwrite' clears the empty full_run
+# cache up front and runs non-interactively (safe for a long batch run).
+uv run python scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py \
+    export --config configs/bow_valley/cube_full_run.yaml --workers 16 --cache-policy overwrite
+
+# Stage 3 — daily FSC inference over the full grid (writes one COG per inference day).
+uv run python scripts/developer_scripts/bow_valley_inference_local/infer_bow_valley_daily_fsc.py \
+    --cube-config configs/bow_valley/cube_full_run.yaml \
+    --config configs/bow_valley/inference_full_run.yaml --cache-policy overwrite
+```
+
+> The inference driver re-exports each day's cubes into its own cache as it runs, so
+> stage 3 can be run on its own (it does not require stage 2 to have run first). Running
+> stage 2 separately is only useful to materialise/QA the cubes before inference.
+
+**Scale & runtime (21-day window, 5 km inset = 21,985 cells, 16 workers):**
+
+| Resource | Mode A (measured) | Full Mode B (projected) |
+|----------|-------------------|--------------------------|
+| Cells | 344 | 21,985 |
+| Cube exports | 7,224 | 461,685 |
+| Wall-clock | 31 min (8 workers) | **~18–25 h** (16 workers) |
+| `cubes/` on disk (~12.3 MB each) | ~88 GB | **~5.7 TB** |
+| `daily_fsc/` COGs | 21 × ~0.35 MB | 21 × a few MB |
+
+The wall-clock is **export-bound**, not GPU-bound; doubling workers (8→16) gives a
+sub-linear speedup (I/O contention + the serial GPU forward), hence the range. The
+first 8 days are slower while the sliding-window cube cache fills. Disk is the prior
+blocker resolved by the `/archive` symlink (7.8 TB free ≫ 5.7 TB).
+
+**Gotchas:**
+- **Run in the background / detached.** A ~20 h sweep must survive disconnects — run
+  under `nohup`/`tmux`, tee stdout into `full_run/scratch/`, and use `--cache-policy
+  overwrite` so it never blocks on an interactive cache prompt (the `prompt` default
+  errors on a non-TTY by design — §5).
+- **`cache_max_entries: 3000000`** is sized for the Mode-B live window (~1.58 M) plus
+  the day-boundary transient (~1.78 M). Do not lower it for this run or the over-cap
+  prune fires inside the live window.
+- The 5 km inset follows the AOI's true shape; concave notches narrower than 10 km may
+  close. Verify the kept-cell extent in the viewer (§7) before trusting the output AOI.
+
+---
+
 ## 7. Inspect / QA — the data viewer (`data_viewer.py`)
 
 A developer/QA Solara app; each tab is a leafmap map with the AOI outline

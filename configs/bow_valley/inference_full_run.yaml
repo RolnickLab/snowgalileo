@@ -1,0 +1,34 @@
+# Stage-2 inference-run configuration — FULL MODE-B RUN (loaded by InferenceSettings).
+#
+# Sibling of inference.yaml. Carries only *how to run the model*; the sweep
+# definition (window, mode, roots) lives in cube_full_run.yaml. out_dir is left
+# unset so daily FSC COGs land in CubeSettings.daily_fsc_dir, which resolves to
+# data/bow_valley_processing/full_run/daily_fsc/ for this run.
+#
+# Precedence: INFER_-prefixed env vars > this file > field defaults.
+
+# Finetuned EncoderWithHead checkpoint (same weights as the Mode-A run).
+checkpoint: logging_checkpoints/snowgalileo_finetune/clouds_pretrained_42_lfdciemu.pth
+
+# Eval JSON under configs/eval/ — drives encoder-size token, sigmoid_slope, head config.
+eval_config_name: fsc_inference_bow_river_tiny.json
+
+# Head decoding strategy: finetune | linear_probe | attention_probe.
+decoder_mode: finetune
+
+# Cells per encoder forward pass (RTX 3060, 12 GB). The per-cell cube export, not the
+# forward pass, is the sweep's bottleneck — leave at 16.
+batch_size: 16
+
+# Torch device: cpu | cuda. cuda uses the local RTX 3060; no automatic fallback.
+device: cuda
+
+# Process-pool workers for the driver's per-day parallel cube pre-export. Export
+# dominates the Mode-B sweep, so this is the main speedup lever. 16 cores available;
+# each worker holds ~600 MB (windowed reads) -> ~10 GB of 62 GB at 16 workers. Clamped
+# to min(cpu_count, cells) at run time.
+export_workers: 16
+
+# Daily-FSC COG output dir: unset -> CubeSettings.daily_fsc_dir
+# (data/bow_valley_processing/full_run/daily_fsc/).
+# out_dir: data/bow_valley_processing/full_run/daily_fsc
