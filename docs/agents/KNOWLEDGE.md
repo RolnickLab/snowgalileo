@@ -220,6 +220,24 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   acquisition — not a pipeline bug), PR_20250423 a SNAP "Empty region!" quirk. See
   [[s1-adapter-snap-cache-and-angle]], [[xarray-sentinel-s1c-regex-bug]]. Build:
   `python -m src.data.local_sources.s1_snap`.
+- **A truncated SNAP cache tif silently dropped S1 from cubes — guarded since
+  commit `b90a8955`.** An *interrupted* offline build can exit 0 yet publish a tiny
+  truncated sliver (~0.4 % of the AOI); the idempotent cache-hit check
+  (`out_tif.exists() and not overwrite`) then **skips** it on the next build, so the
+  sliver masquerades as a valid entry and every cube over the missing area gets an
+  all-`-9999` S1 block. `s1_snap._output_extent_is_plausible` now runs **before the
+  atomic publish**: it rejects an output whose UTM area is `< _MIN_EXTENT_RATIO`
+  (0.25) of the expected AOI∩footprint, and rejects unreadable/corrupt outputs
+  (`rasterio.errors.RasterioIOError`). A rejected output stays a `.partial` (retried
+  next build), never a false cache hit. **This was NOT a path/manifest/border-noise/
+  coverage bug** — those were all ruled out by A/B diagnostic. **If S1 looks missing
+  again, run `scripts/spikes/verify_s1_cache.py` first** (per-granule extent-ratio +
+  valid-pixel) — a sliver/truncated tif is the prime suspect; sparse-across-timesteps
+  S1 is otherwise **EXPECTED** (S1 only on ~16 acquisition dates, and only on cells a
+  granule footprint covers — a full-window scan of 7223 cubes shows valid S1 on
+  exactly the 7 in-window acq dates, 0 everywhere else). Guard tests:
+  `tests/test_local_sources/test_s1_snap_extent_guard.py`. See
+  [[s1-truncated-snap-cache-silent-dropout]].
 - **Inference driver/mosaic (TASK-015) mosaics FSC by DIRECT UTM placement — NO reproject.**
   The per-cell cube grid is already EPSG:32611 (not 4326), so each cell's 10×10 FSC
   prediction is already UTM 11N at 100 m/px. `DailyMosaicWriter` (`src/inference/mosaic.py`)
@@ -282,6 +300,39 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   **Keep the swath-warp; the open S3 lever is the identity-normalization TODO, not
   geolocation.** Evidence kept: `scripts/spikes/s3_olci_parity_spike.py` +
   `s3_olci_ortho_graph.xml`. See PARITY_SPIKE_NOTES §10.1, [[s3-snap-ortho-rejected]].
+
+
+### Cube cache (`cube_cache.py`) — invalidation & eviction
+
+- **`CACHE_VERSION` versions the PROCESSING CODE, not the data — keep it a code
+  constant, never config.** It is bumped *in the same diff* that changes any
+  adapter `fetch`/clip logic; a cache dir whose `.cache_version` stamp differs is
+  **force-cleared on construction** (so a known-incompatible cache can never be
+  reused). A fresh dir (no stamp) is reconciled, never spuriously cleared. Putting
+  it in `cube.yaml` would let one cluster's stale value silently reuse another's
+  incompatible cache — exactly the disaster the stamp prevents. See
+  [[cube-cache-version-stamp-invalidation]].
+- **The `--cache-policy {prompt|reuse|overwrite}` flag backstops the forgot-to-bump
+  case.** `prompt` (default) asks if the cache is non-empty and **errors on a
+  non-TTY** (never silently reuses a possibly-stale cache in a batch job); `reuse`
+  keeps it; `overwrite` clears once. **Clearing happens ONLY in the single parent
+  process** (`resolve_cache_policy` before any worker spawns, or the `clean-cache`
+  command) — a worker constructing with `overwrite=True` would wipe a sibling's
+  fresh entries mid-run. Workers never clear. `export_bow_valley_cube.py` is now a
+  **multi-command** Typer app: `export …` (was the bare script) **and**
+  `clean-cache …`. `infer_bow_valley_daily_fsc.py` also takes `--cache-policy`.
+- **Eviction is day-frontier, lazy, parent-only — not FIFO-eager.** `prune_before_day`
+  is the **only** eviction path, called once per day in the parent before that day's
+  pool spawns. It exploits the day-ordered sweep invariant (a cube for day D reads
+  only `[D − window_days … D]`), so any entry with `day < D − window_days` is provably
+  dead. **Lazy:** a no-op while `len ≤ max_entries` (Mode A is behaviour-identical to
+  no eviction); only past the cap does it drop the dead frontier — giving a wide margin
+  so a many-worker cluster never races to evict a still-live entry. It **never** evicts
+  the live window; if still over cap after pruning (live window alone exceeds it) it
+  logs `cube_cache_over_cap_after_prune` and returns. `cache_max_entries` is configurable
+  (`cube.yaml`; `DEFAULT_MAX_ENTRIES = 200_000`, set to `3_000_000` for Mode B's full
+  18 232-row sweep). The old `_evict_to_cap` FIFO path was **removed**. See
+  [[cube-cache-day-frontier-eviction]].
 
 
 ## TASK-016 — downstream value-domain & inference invariants (AC-4)

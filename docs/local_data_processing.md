@@ -132,6 +132,12 @@ wait
 # quicklook read it. (clip-all does not touch S1 — there is no raw-DN clipped S1.)
 uv run python scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py process-s1
 
+# Verify the SNAP cache before assembling cubes. An INTERRUPTED build can publish a
+# truncated sliver tif that the idempotent cache-hit check then refuses to overwrite,
+# silently dropping S1 from every cube over the missing area. The build now guards
+# against this (extent check before atomic publish), but verify regardless:
+uv run python scripts/spikes/verify_s1_cache.py   # per-granule extent-ratio + valid-pixel
+
 # ...or do the whole raw → read-roots pipeline in one go (process-s1 FIRST, then clip-all
 # of every other modality — the process-then-clip order):
 uv run python scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py process-all
@@ -241,6 +247,8 @@ Ensures spatial location and date matching are preserved from raw clipped source
    - Resampled to $100 \times 100$ pixel grid via robust resampler in `base.py`.
    - Coalesces overlapping orbit/scene pixels (first valid wins) to prevent false `-9999` nodata.
 4. **Intermediate Cache Sharding:** Per-day per-cell arrays cached under `data/bow_valley_processing/cube_cache/{cell_id}/{day}_{modality}.npz`. Avoids 8x storage duplicate of sliding windows and filesystem indexing limits.
+   - **Invalidation:** a `.cache_version` stamp at the root holds `cube_cache.CACHE_VERSION`. On construction, a dir whose stamp differs is **force-cleared** (a code change to any adapter `fetch`/clip logic must bump `CACHE_VERSION` in the same diff). The `--cache-policy` flag (§5) is the manual backstop for the forgot-to-bump case. **All clearing happens only in the parent process**, never in a worker (concurrent clears would race).
+   - **Eviction (Mode B scale):** `prune_before_day` runs once per day in the parent before the pool spawns. It is **lazy** (a no-op while entries ≤ `cache_max_entries`, so Mode A behaves as if uncapped) and **day-frontier** — past the cap it drops only entries provably dead under the sliding window (`day < current_day − 7`), never the live window. `cache_max_entries` is set in `cube.yaml` (default 200 000; 3 000 000 for the full Mode B sweep).
 5. **Cube Assembly (`LocalSourceExporter`):** Composites 8 daily cached arrays in exact canonical band order (308 bands).
 
 ---
@@ -253,20 +261,40 @@ exporter (`LocalSourceExporter`, `placeholder=False`) over the read roots from
 stage 1. Additive: composes `build_grid` + the parallel exporter, touches no
 GEE-path code.
 
+> **Invocation note:** this script is now a **multi-command** Typer app — the cube
+> build is the `export` subcommand (it used to be the bare script). There is also a
+> `clean-cache` subcommand (below).
+
 ```bash
 # Smoke run — 4 cells, default window from cube.yaml.
 uv run python scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py \
-    --config configs/bow_valley/cube.yaml --limit 4
+    export --config configs/bow_valley/cube.yaml --limit 4
 
 # Full sweep (all 344 in-AOI cells), explicit window-end, 8 workers.
 uv run python scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py \
-    --config configs/bow_valley/cube.yaml --window-end 2025-05-28 --workers 8
+    export --config configs/bow_valley/cube.yaml --window-end 2025-05-28 --workers 8
+
+# Wipe the cube cache on demand (reports entries removed) — for the "did my
+# clips/adapters change?" case the version stamp can't catch.
+uv run python scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py \
+    clean-cache --config configs/bow_valley/cube.yaml
 ```
 
-**Flags:** `--config` (default `configs/bow_valley/cube.yaml`), `--limit`
+**`export` flags:** `--config` (default `configs/bow_valley/cube.yaml`), `--limit`
 (cap cells for a smoke run; `None` = all), `--window-end` (`YYYY-MM-DD`; default
 from `cube.yaml`), `--workers` (default ~8, clamped to cores/cells),
-`--verify-s1-cache` / `--no-verify-s1-cache`.
+`--verify-s1-cache` / `--no-verify-s1-cache`, `--cache-policy`
+(`prompt` | `reuse` | `overwrite`, default `prompt`).
+
+**Cube-cache policy (`--cache-policy`).** The per-(modality, cell, day) `cube_cache`
+is reused across runs. `prompt` (default) asks before reusing a non-empty cache and
+**errors on a non-TTY** — so a batch/SLURM run never silently builds cubes from a
+possibly-stale cache. `reuse` keeps it without asking; `overwrite` clears it **once,
+in this parent process**, before any worker spawns (workers never clear — that would
+race). Use `overwrite` after an adapter or clip change that the `CACHE_VERSION` stamp
+didn't catch (a version bump force-clears automatically). A code change to any adapter
+`fetch`/clip logic should bump `cube_cache.CACHE_VERSION` in the same diff; the stamp
+then invalidates stale caches everywhere on next construction.
 
 **S1 pre-flight (on by default).** `--verify-s1-cache` checks the per-granule
 SNAP cache covers each cell's window and **fails loud** if a needed
@@ -297,7 +325,8 @@ uv run python scripts/developer_scripts/bow_valley_inference_local/infer_bow_val
 ```
 
 **Flags:** `--cube-config` (default `configs/bow_valley/cube.yaml`), `--config`
-(default `configs/bow_valley/inference.yaml`), `--limit`.
+(default `configs/bow_valley/inference.yaml`), `--limit`, `--cache-policy`
+(`prompt` | `reuse` | `overwrite`, default `prompt`; same cube-cache semantics as §5).
 
 **Checkpoint is required — fails loud if absent.** A missing checkpoint aborts
 the run rather than silently initializing random weights (a random sweep would
