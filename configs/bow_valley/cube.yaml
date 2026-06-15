@@ -18,11 +18,21 @@ mode: A
 # Inference window (inclusive). Derived from archive coverage: S1-start-limited
 # start, S2/L8-end-limited end (PLAN §3 Temporal window).
 window_start: 2025-04-06
-window_end: 2025-05-28
+window_end: 2025-04-26
 
 # Per-cell target CRS — UTM 11N, matching the GEE reference patches
 # (export_from_csv_utm). NOT EPSG:4326. See docs/agents/KNOWLEDGE.md.
 cell_crs: "EPSG:32611"
 
-# FIFO entry cap on the per-(modality, cell, day) .npz cache.
-cache_max_entries: 200000
+# Entry cap on the per-(modality, cell, day) .npz cache. Eviction is day-frontier
+# and lazy (see PLAN-CUBE-CACHE-DAY-EVICTION.md): nothing is evicted while at/under
+# this cap, and past it only entries older than the live 8-day window are pruned
+# (between days, in the parent) — the live window is never evicted. So size this to
+# the live+recent window you want on disk, NOT the full-sweep working set.
+#   Mode A (~344 cells): live window ~87k; 200k was ample.
+#   Mode B (~25,078 cells): live window (8d × ~9 modalities) ≈ 1.81M, transient peak
+#     at a day boundary ≈ 2.03M. 3,000,000 keeps the over-cap warning from firing
+#     with ~1.5× headroom (~3–12 GB on disk at ~1–4 KB/entry).
+# The higher cap is harmless for Mode A (working set never approaches it; prune stays
+# a no-op). Lower it if disk-bound and you accept frontier pruning closer to the window.
+cache_max_entries: 3000000
