@@ -39,27 +39,41 @@ regex bug), which is why this chain uses SNAP. See the
 from __future__ import annotations
 
 import datetime
+import os
 import re
 import subprocess
 import tempfile
 import zipfile
 from pathlib import Path
 
+import rasterio
 import structlog
+from pyproj import Transformer
 from shapely.geometry import Polygon, box
+from shapely.ops import transform as shapely_transform
 
 from src.data.local_sources.clip.footprints import sentinel_safe_footprint
 
 logger = structlog.get_logger(__name__)
 
 #: Default ESA SNAP ``gpt`` location (NOT ``/usr/bin/snap``, which is snapd).
-_DEFAULT_GPT = Path("/home/dev/esa-snap/bin/gpt")
+_HOME = os.getenv("HOME")
+_DEFAULT_GPT = Path(f"{_HOME}/esa-snap/bin/gpt")
 
 #: The production SNAP graph (beside this module).
 _DEFAULT_GRAPH = Path(__file__).with_name("s1_grd_graph.xml")
 
 #: Cache-tif filename prefix.
 _CACHE_PREFIX = "s1_grd_"
+
+#: Minimum acceptable ratio of a SNAP output's georeferenced footprint to the expected
+#: AOI∩granule-footprint area. An interrupted/failed SNAP run can exit 0 yet write a tiny
+#: truncated raster (observed: 3 S1C segments published as ~4×5.5 km / ~0.4% slivers while
+#: the cache-hit logic then refused to overwrite them). This guard rejects an output whose
+#: extent is implausibly small for the AOI overlap, so the truncated tif is never published
+#: as a valid cache entry (PLAN-S1-PERGRANULE-SNAP). 0.25 is deliberately generous — a
+#: legitimately partial swath still clears it; only a gross truncation trips it.
+_MIN_EXTENT_RATIO: float = 0.25
 
 #: Margin (degrees) added around the AOI bbox so the post-TC crop keeps context at the
 #: AOI edges (no edge artefacts when the adapter later windows per cell).
@@ -180,6 +194,78 @@ def _run_snap_chain(
     return out_tif
 
 
+def _utm_area_m2(geom_4326: Polygon, *, utm_epsg: int = 32611) -> float:
+    """Area (m²) of a lon/lat polygon reprojected to the cube's UTM zone."""
+    if geom_4326.is_empty:
+        return 0.0
+    to_utm = Transformer.from_crs("EPSG:4326", f"EPSG:{utm_epsg}", always_xy=True).transform
+    return shapely_transform(to_utm, geom_4326).area
+
+
+def _output_extent_is_plausible(
+    *,
+    out_tif: Path,
+    aoi_4326: Polygon,
+    footprint_4326: Polygon | None,
+    region_wkt: str,
+    min_ratio: float = _MIN_EXTENT_RATIO,
+) -> bool:
+    """True if the SNAP output's georeferenced extent is large enough to be trusted.
+
+    Guards against the **silent-truncation** failure: an interrupted SNAP run can exit 0
+    yet write a tiny raster (observed: ~0.4% slivers published as valid cache hits). The
+    expected covered area is the AOI-bbox-with-margin (the ``geoRegion``) intersected with
+    the granule footprint, in the cube's UTM metres. The output's own georeferenced bbox
+    area is compared to it; below ``min_ratio`` → reject (truncated).
+
+    A footprint we cannot read (``None``) falls back to the AOI region area alone — still
+    catches a gross sliver. The check is cheap (raster bounds only, no pixel read).
+
+    Args:
+        out_tif: The SNAP output GeoTIFF to validate.
+        aoi_4326: AOI polygon (EPSG:4326).
+        footprint_4326: Granule footprint (EPSG:4326), or ``None`` if unreadable.
+        region_wkt: The ``geoRegion`` WKT the Subset used (AOI bbox + margin).
+        min_ratio: Reject below this output/expected area ratio.
+
+    Returns:
+        ``True`` if plausible (publish), ``False`` if implausibly small (reject).
+    """
+    from shapely import wkt as shapely_wkt
+
+    region = shapely_wkt.loads(region_wkt)
+    expected_geom = region.intersection(footprint_4326) if footprint_4326 is not None else region
+    expected_m2 = _utm_area_m2(expected_geom)
+    if expected_m2 <= 0.0:
+        # Nothing expected (no overlap) — don't second-guess SNAP here; the no-overlap
+        # gate already ran upstream. Treat as plausible.
+        return True
+
+    try:
+        with rasterio.open(out_tif) as ds:
+            b = ds.bounds
+            out_m2 = abs((b.right - b.left) * (b.top - b.bottom))  # output already in UTM m
+    except rasterio.errors.RasterioIOError:
+        # An unreadable output is certainly not a valid full-extent raster — reject it
+        # (same disposition as a truncated sliver). Defends against a 0-byte / corrupt
+        # write that exited 0.
+        logger.warning("s1_snap_output_unreadable", out=out_tif.name)
+        return False
+
+    ratio = out_m2 / expected_m2
+    if ratio < min_ratio:
+        logger.warning(
+            "s1_snap_output_truncated",
+            out=out_tif.name,
+            output_km2=round(out_m2 / 1e6, 1),
+            expected_km2=round(expected_m2 / 1e6, 1),
+            ratio=round(ratio, 4),
+            min_ratio=min_ratio,
+        )
+        return False
+    return True
+
+
 def build_granule_cache(
     *,
     granule_zip: Path,
@@ -264,6 +350,22 @@ def build_granule_cache(
                 "s1_snap_chain_failed", granule=granule_zip.stem, returncode=exc.returncode
             )
             return []
+
+    # Extent sanity gate (BEFORE publishing): a SNAP run can exit 0 yet emit a truncated
+    # sliver (an earlier interrupted build published 3 such ~0.4% tifs, which the cache-hit
+    # logic then refused to overwrite). Reject an output too small for the AOI overlap so it
+    # is never published as a valid cache entry — leave it as a discarded partial; the next
+    # build retries it (the cache stays "missing" rather than "wrongly satisfied").
+    if not _output_extent_is_plausible(
+        out_tif=partial_tif,
+        aoi_4326=aoi_4326,
+        footprint_4326=footprint,
+        region_wkt=_aoi_region_wkt(aoi_4326),
+    ):
+        partial_tif.unlink(missing_ok=True)
+        logger.warning("s1_snap_output_rejected_truncated", granule=granule_zip.stem)
+        return []
+
     # Success — publish atomically (overwrites a prior tif under --overwrite).
     partial_tif.replace(out_tif)
     return [out_tif]

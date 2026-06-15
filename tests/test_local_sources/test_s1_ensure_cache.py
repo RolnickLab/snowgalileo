@@ -175,6 +175,10 @@ def test_build_writes_atomically_via_partial(
     the rename source vanished). The temp must therefore be a plain ``.tif``.
     """
     monkeypatch.setattr(snap, "sentinel_safe_footprint", lambda *a, **k: box(-180, -90, 180, 90))
+    # This test exercises the atomic-write plumbing with a non-raster fake output; the
+    # extent guard (which would rasterio.open it) has its own dedicated test file, so stub
+    # it to True here.
+    monkeypatch.setattr(snap, "_output_extent_is_plausible", lambda **k: True)
     archive = tmp_path / "sentinel1"
     cache = tmp_path / "sentinel1_snap"
     cache.mkdir(parents=True)
@@ -240,6 +244,8 @@ def test_build_does_not_mutate_raw_granule(
 ) -> None:
     """The raw granule .zip is read-only: its bytes are unchanged after a build run."""
     monkeypatch.setattr(snap, "sentinel_safe_footprint", lambda *a, **k: box(-180, -90, 180, 90))
+    # Plumbing test (raw-immutability) with a non-raster fake output; stub the extent guard.
+    monkeypatch.setattr(snap, "_output_extent_is_plausible", lambda **k: True)
     archive = tmp_path / "sentinel1"
     cache = tmp_path / "sentinel1_snap"
     cache.mkdir(parents=True)

@@ -1,0 +1,104 @@
+<graph id="s1_grd_cop_chain_no_border_noise">
+  <version>1.0</version>
+
+  <!--
+    DIAGNOSTIC variant of src/data/local_sources/s1_grd_graph.xml with the
+    Remove-GRD-Border-Noise node REMOVED (Calibration sources directly from
+    ThermalNoiseRemoval). Everything else is byte-identical to production.
+
+    Purpose: 3 S1C granule segments came out of the production chain as ~4x5.5 km
+    slivers despite full-size raw input and 27-61% AOI footprint overlap
+    (...0406...71B5, ...0423...F75D, ...0519...3D71). The legacy
+    Remove-GRD-Border-Noise op (borderLimit=500, trimThreshold=0.5) is the prime
+    suspect for over-trimming these S1C segments. If output fills out with this op
+    removed, that is the cause; if it stays tiny, the fault is upstream (DEM voids in
+    Terrain-Correction -> switch demName to Copernicus 30m).
+
+    DO NOT use for production cache builds — border-noise removal IS part of the GEE
+    S1_GRD recipe. This is a one-granule A/B diagnostic only.
+  -->
+
+  <node id="Read">
+    <operator>Read</operator>
+    <sources/>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <file>${input}</file>
+    </parameters>
+  </node>
+
+  <node id="Apply-Orbit-File">
+    <operator>Apply-Orbit-File</operator>
+    <sources>
+      <sourceProduct refid="Read"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <orbitType>Sentinel Precise (Auto Download)</orbitType>
+      <polyDegree>3</polyDegree>
+      <continueOnFail>true</continueOnFail>
+    </parameters>
+  </node>
+
+  <node id="ThermalNoiseRemoval">
+    <operator>ThermalNoiseRemoval</operator>
+    <sources>
+      <sourceProduct refid="Apply-Orbit-File"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <selectedPolarisations>VV,VH</selectedPolarisations>
+      <removeThermalNoise>true</removeThermalNoise>
+    </parameters>
+  </node>
+
+  <!-- Remove-GRD-Border-Noise DELETED for this diagnostic: Calibration sources
+       straight from ThermalNoiseRemoval. -->
+  <node id="Calibration">
+    <operator>Calibration</operator>
+    <sources>
+      <sourceProduct refid="ThermalNoiseRemoval"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <selectedPolarisations>VV,VH</selectedPolarisations>
+      <outputSigmaBand>true</outputSigmaBand>
+      <outputImageScaleInDb>false</outputImageScaleInDb>
+    </parameters>
+  </node>
+
+  <node id="Terrain-Correction">
+    <operator>Terrain-Correction</operator>
+    <sources>
+      <sourceProduct refid="Calibration"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <demName>SRTM 1Sec HGT</demName>
+      <demResamplingMethod>BILINEAR_INTERPOLATION</demResamplingMethod>
+      <imgResamplingMethod>BILINEAR_INTERPOLATION</imgResamplingMethod>
+      <pixelSpacingInMeter>10.0</pixelSpacingInMeter>
+      <mapProjection>EPSG:32611</mapProjection>
+      <nodataValueAtSea>false</nodataValueAtSea>
+      <saveSelectedSourceBand>true</saveSelectedSourceBand>
+      <saveIncidenceAngleFromEllipsoid>true</saveIncidenceAngleFromEllipsoid>
+    </parameters>
+  </node>
+
+  <node id="Subset">
+    <operator>Subset</operator>
+    <sources>
+      <sourceProduct refid="Terrain-Correction"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <geoRegion>${region}</geoRegion>
+      <copyMetadata>true</copyMetadata>
+    </parameters>
+  </node>
+
+  <node id="Write">
+    <operator>Write</operator>
+    <sources>
+      <sourceProduct refid="Subset"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <file>${output}</file>
+      <formatName>GeoTIFF-BigTIFF</formatName>
+    </parameters>
+  </node>
+</graph>
