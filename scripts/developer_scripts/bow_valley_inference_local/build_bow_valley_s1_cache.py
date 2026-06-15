@@ -21,11 +21,10 @@ AOI is missing, rather than producing a partial/empty cache.
 
 from __future__ import annotations
 
-import argparse
-import sys
 from pathlib import Path
 
 import structlog
+import typer
 
 from src.data.local_sources.clip.settings import load_aoi_polygon
 from src.data.local_sources.paths import LocalPaths
@@ -37,97 +36,103 @@ from src.data.local_sources.s1_snap import (
 
 logger = structlog.get_logger(__name__)
 
+app = typer.Typer(
+    add_completion=False,
+    help="Build the Bow Valley Sentinel-1 per-granule SNAP cache.",
+)
 
-def _parse_args() -> argparse.Namespace:
-    paths = LocalPaths()
-    parser = argparse.ArgumentParser(
-        description="Build the Bow Valley Sentinel-1 per-granule SNAP cache.",
-    )
-    parser.add_argument(
-        "--archive-root",
-        type=Path,
-        default=paths.raw_root / "sentinel1",
-        help="Raw S1 archive holding full-swath S1*_IW_GRDH_*.zip (default: %(default)s).",
-    )
-    parser.add_argument(
-        "--cache-dir",
-        type=Path,
-        default=paths.clipped_root / "sentinel1_snap",
-        help="Output directory for the s1_grd_*.tif cache (default: %(default)s).",
-    )
-    parser.add_argument(
-        "--aoi",
-        type=Path,
-        default=paths.aoi_path,
-        help="AOI polygon (EPSG:4326 GeoJSON) the post-TC Subset crops to (default: %(default)s).",
-    )
-    parser.add_argument(
-        "--gpt", type=Path, default=_DEFAULT_GPT, help="ESA SNAP gpt executable."
-    )
-    parser.add_argument(
-        "--graph", type=Path, default=_DEFAULT_GRAPH, help="Production SNAP graph XML."
-    )
-    parser.add_argument(
-        "--overwrite",
-        action="store_true",
-        help="Re-run SNAP even where a cache tif already exists.",
-    )
-    return parser.parse_args()
+# Path defaults resolve from LocalPaths (env-overridable, LOCAL_ prefix) so the driver
+# can be repointed at another region without editing this CLI; the flags win per-run.
+_PATHS = LocalPaths()
+DEFAULT_ARCHIVE_ROOT = _PATHS.raw_root / "sentinel1"
+DEFAULT_CACHE_DIR = _PATHS.clipped_root / "sentinel1_snap"
+DEFAULT_AOI = _PATHS.aoi_path
 
 
-def _preflight(args: argparse.Namespace) -> None:
-    """Fail loudly before any SNAP run if a hard prerequisite is missing."""
+def _preflight(
+    *, archive_root: Path, cache_dir: Path, aoi: Path, gpt: Path, graph: Path
+) -> None:
+    """Fail loudly (``typer.Exit(1)``) before any SNAP run if a prerequisite is missing.
+
+    Args:
+        archive_root: Raw S1 archive holding full-swath ``S1*_IW_GRDH_*.zip``.
+        cache_dir: Output directory for the ``s1_grd_*.tif`` cache (unchecked — created).
+        aoi: AOI polygon GeoJSON.
+        gpt: ESA SNAP ``gpt`` executable.
+        graph: Production SNAP graph XML.
+
+    Raises:
+        typer.Exit: With code ``1`` if any hard prerequisite is missing.
+    """
     problems: list[str] = []
-    if not args.gpt.exists():
-        problems.append(f"ESA SNAP gpt not found at {args.gpt} (install SNAP or pass --gpt).")
-    if not args.graph.exists():
-        problems.append(f"SNAP graph not found at {args.graph}.")
-    if not args.aoi.exists():
-        problems.append(f"AOI polygon not found at {args.aoi}.")
-    if not args.archive_root.exists():
-        problems.append(f"Raw S1 archive not found at {args.archive_root}.")
-    else:
-        n_granules = len(list(args.archive_root.glob("S1*_IW_GRDH_*.zip")))
-        if n_granules == 0:
-            problems.append(
-                f"No S1*_IW_GRDH_*.zip granules under {args.archive_root} — nothing to build."
-            )
+    if not gpt.exists():
+        problems.append(f"ESA SNAP gpt not found at {gpt} (install SNAP or pass --gpt).")
+    if not graph.exists():
+        problems.append(f"SNAP graph not found at {graph}.")
+    if not aoi.exists():
+        problems.append(f"AOI polygon not found at {aoi}.")
+    if not archive_root.exists():
+        problems.append(f"Raw S1 archive not found at {archive_root}.")
+    elif not list(archive_root.glob("S1*_IW_GRDH_*.zip")):
+        problems.append(
+            f"No S1*_IW_GRDH_*.zip granules under {archive_root} — nothing to build."
+        )
     if problems:
         for problem in problems:
             logger.error("s1_cache_preflight_failed", problem=problem)
-        sys.exit(1)
+        raise typer.Exit(code=1)
 
 
-def main() -> None:
-    args = _parse_args()
-    _preflight(args)
+@app.command()
+def build(
+    archive_root: Path = typer.Option(
+        DEFAULT_ARCHIVE_ROOT,
+        "--archive-root",
+        help="Raw S1 archive holding full-swath S1*_IW_GRDH_*.zip.",
+    ),
+    cache_dir: Path = typer.Option(
+        DEFAULT_CACHE_DIR, "--cache-dir", help="Output directory for the s1_grd_*.tif cache."
+    ),
+    aoi: Path = typer.Option(
+        DEFAULT_AOI,
+        "--aoi",
+        help="AOI polygon (EPSG:4326 GeoJSON) the post-TC Subset crops to.",
+    ),
+    gpt: Path = typer.Option(_DEFAULT_GPT, "--gpt", help="ESA SNAP gpt executable."),
+    graph: Path = typer.Option(_DEFAULT_GRAPH, "--graph", help="Production SNAP graph XML."),
+    overwrite: bool = typer.Option(
+        False, "--overwrite", help="Re-run SNAP even where a cache tif already exists."
+    ),
+) -> None:
+    """Build the per-granule S1 SNAP dB+angle cache from raw (offline, heavy)."""
+    _preflight(archive_root=archive_root, cache_dir=cache_dir, aoi=aoi, gpt=gpt, graph=graph)
 
-    aoi = load_aoi_polygon(args.aoi)
-    n_granules = len(list(args.archive_root.glob("S1*_IW_GRDH_*.zip")))
+    aoi_polygon = load_aoi_polygon(aoi)
+    n_granules = len(list(archive_root.glob("S1*_IW_GRDH_*.zip")))
     logger.info(
         "s1_cache_build_begin",
         n_granules=n_granules,
-        archive_root=str(args.archive_root),
-        cache_dir=str(args.cache_dir),
-        overwrite=args.overwrite,
+        archive_root=str(archive_root),
+        cache_dir=str(cache_dir),
+        overwrite=overwrite,
     )
 
     cached = build_s1_cache(
-        archive_root=args.archive_root,
-        aoi_4326=aoi,
-        cache_dir=args.cache_dir,
-        gpt=args.gpt,
-        graph=args.graph,
-        overwrite=args.overwrite,
+        archive_root=archive_root,
+        aoi_4326=aoi_polygon,
+        cache_dir=cache_dir,
+        gpt=gpt,
+        graph=graph,
+        overwrite=overwrite,
     )
 
     logger.info(
         "s1_cache_build_complete",
         n_cache_tifs=len(cached),
-        cache_dir=str(args.cache_dir),
+        cache_dir=str(cache_dir),
     )
-    print(f"Built/verified {len(cached)} S1 cache tif(s) in {args.cache_dir}")
+    typer.echo(f"Built/verified {len(cached)} S1 cache tif(s) in {cache_dir}")
 
 
 if __name__ == "__main__":
-    main()
+    app()

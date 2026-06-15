@@ -432,35 +432,43 @@ class LocalSourceExporter:
         return out_path
 
 
-def _main() -> None:
-    """Minimal CLI for the TASK-004 verification commands (Section 6).
+def cli() -> None:
+    """Minimal Typer CLI for the TASK-004 verification commands (Section 6).
 
-    ``python -m src.data.local_sources.exporter --cell 0 --window-end 2025-04-06
-    --placeholder`` builds one placeholder cube using a Bow Valley UTM cell.
+    ``python -m src.data.local_sources.exporter --window-end 2025-04-06 --cell 0``
+    builds one placeholder cube using a Bow Valley UTM cell.
+
+    ``typer`` is imported here, not at module scope: this module is on the cube-export
+    and inference hot paths (``parallel_export``, ``driver``), and the CLI only runs
+    under ``python -m`` — so the import stays out of every library import.
     """
-    import argparse
+    import typer
 
     from src.data.local_sources.grid import build_grid
 
-    parser = argparse.ArgumentParser(description="Export one placeholder cube.")
-    parser.add_argument("--cell", type=int, default=0, help="Grid cell index.")
-    parser.add_argument(
-        "--window-end",
-        type=datetime.date.fromisoformat,
-        required=True,
-        help="Window-end day (YYYY-MM-DD).",
-    )
-    parser.add_argument(
-        "--placeholder", action="store_true", help="Use placeholder adapters (required)."
-    )
-    args = parser.parse_args()
+    app = typer.Typer(add_completion=False, help="Export one placeholder cube.")
 
-    cells = build_grid()
-    cell = cells[args.cell]
-    exporter = LocalSourceExporter(placeholder=True)
-    path = exporter.export(cell=cell, window_end=args.window_end)
-    print(path)
+    @app.command()
+    def export(
+        window_end: str = typer.Option(
+            ..., "--window-end", help="Window-end day (YYYY-MM-DD)."
+        ),
+        cell: int = typer.Option(0, "--cell", help="Grid cell index."),
+        placeholder: bool = typer.Option(
+            True, "--placeholder/--no-placeholder", help="Use placeholder adapters (required)."
+        ),
+    ) -> None:
+        """Build one placeholder cube for a Bow Valley UTM cell and print its path."""
+        # typer/click has no native datetime.date param type; parse the ISO string here
+        # (matches export_bow_valley_cube.py's --window-end handling).
+        end = datetime.date.fromisoformat(window_end)
+        cells = build_grid()
+        exporter = LocalSourceExporter(placeholder=placeholder)
+        path = exporter.export(cell=cells[cell], window_end=end)
+        typer.echo(str(path))
+
+    app()
 
 
 if __name__ == "__main__":
-    _main()
+    cli()

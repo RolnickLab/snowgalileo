@@ -488,51 +488,58 @@ def ensure_s1_cache(
     )
 
 
-def _main() -> None:
-    """CLI: build the per-granule S1 SNAP cache (the offline preprocessing step).
+def cli() -> None:
+    """Single-command Typer CLI for the offline S1 SNAP cache build.
 
     Runs SNAP **once per raw granule** over the AOI bbox (the geoRegion Subset is applied
     after Terrain-Correction). For the operator-facing entry point with preflight checks,
     use ``scripts/developer_scripts/bow_valley_inference_local/build_bow_valley_s1_cache.py``.
+
+    ``typer`` is imported here, not at module scope: this module is read on the S1-adapter
+    hot path (``s1.py``), and the CLI only runs under ``python -m`` — so the import stays
+    out of every library import.
     """
-    import argparse
+    import typer
 
     from src.data.local_sources.clip.settings import load_aoi_polygon
     from src.data.local_sources.paths import LocalPaths
 
     paths = LocalPaths()
-    parser = argparse.ArgumentParser(description="Build the Sentinel-1 per-granule SNAP cache.")
-    parser.add_argument(
-        "--archive-root",
-        type=Path,
-        default=paths.raw_root / "sentinel1",
-        help="Raw S1 archive (holds full-swath S1*_IW_GRDH_*.zip).",
-    )
-    parser.add_argument(
-        "--cache-dir",
-        type=Path,
-        default=paths.clipped_root / "sentinel1_snap",
-        help="Output directory for the s1_grd_*.tif cache.",
-    )
-    parser.add_argument(
-        "--aoi", type=Path, default=paths.aoi_path, help="AOI polygon (EPSG:4326 GeoJSON)."
-    )
-    parser.add_argument("--gpt", type=Path, default=_DEFAULT_GPT)
-    parser.add_argument("--graph", type=Path, default=_DEFAULT_GRAPH)
-    parser.add_argument("--overwrite", action="store_true")
-    args = parser.parse_args()
+    app = typer.Typer(add_completion=False, help="Build the Sentinel-1 per-granule SNAP cache.")
 
-    cached = build_s1_cache(
-        archive_root=args.archive_root,
-        aoi_4326=load_aoi_polygon(args.aoi),
-        cache_dir=args.cache_dir,
-        gpt=args.gpt,
-        graph=args.graph,
-        overwrite=args.overwrite,
-    )
-    for path in cached:
-        print(path)
+    @app.command()
+    def build(
+        archive_root: Path = typer.Option(
+            paths.raw_root / "sentinel1",
+            "--archive-root",
+            help="Raw S1 archive (holds full-swath S1*_IW_GRDH_*.zip).",
+        ),
+        cache_dir: Path = typer.Option(
+            paths.clipped_root / "sentinel1_snap",
+            "--cache-dir",
+            help="Output directory for the s1_grd_*.tif cache.",
+        ),
+        aoi: Path = typer.Option(
+            paths.aoi_path, "--aoi", help="AOI polygon (EPSG:4326 GeoJSON)."
+        ),
+        gpt: Path = typer.Option(_DEFAULT_GPT, "--gpt"),
+        graph: Path = typer.Option(_DEFAULT_GRAPH, "--graph"),
+        overwrite: bool = typer.Option(False, "--overwrite"),
+    ) -> None:
+        """Build the per-granule AOI-wide SNAP dB+angle cache from raw."""
+        cached = build_s1_cache(
+            archive_root=archive_root,
+            aoi_4326=load_aoi_polygon(aoi),
+            cache_dir=cache_dir,
+            gpt=gpt,
+            graph=graph,
+            overwrite=overwrite,
+        )
+        for path in cached:
+            typer.echo(str(path))
+
+    app()
 
 
 if __name__ == "__main__":
-    _main()
+    cli()
