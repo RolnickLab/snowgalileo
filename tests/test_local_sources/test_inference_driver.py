@@ -290,6 +290,77 @@ def test_driver_iterates_window_x_cells_ignoring_csv_date(
         assert days_for_cell == {date(2025, 4, 6), date(2025, 4, 7), date(2025, 4, 8)}
 
 
+class _SpyCache:
+    """Records ``prune_before_day`` invocations (day, window_days)."""
+
+    def __init__(self) -> None:
+        self.prune_calls: list[tuple[date, int]] = []
+
+    def prune_before_day(self, current_day: date, *, window_days: int) -> int:
+        self.prune_calls.append((current_day, window_days))
+        return 0
+
+
+def test_driver_prunes_cache_once_per_ascending_day(
+    grid_2x2: list[GridCell], patched_loader: None, tmp_path: Path
+) -> None:
+    """The driver prunes the cache once per day, in ascending order, before export.
+
+    Guards the Mode-B day-frontier eviction hook (PLAN-CUBE-CACHE-DAY-EVICTION): the
+    parent prunes between days, with the exporter's backlook window, and the prune for
+    day D precedes that day's export (recorded interleaving).
+    """
+    from src.inference.driver import CACHE_WINDOW_DAYS, InferenceGridDriver
+
+    spy_cache = _SpyCache()
+
+    class _CachingStubExporter(_StubExporter):
+        _cache = spy_cache
+
+        def export(self, *, cell: GridCell, window_end: date) -> Path:
+            # Prune for this day must have happened before any export of it.
+            assert (window_end, CACHE_WINDOW_DAYS) in spy_cache.prune_calls
+            return super().export(cell=cell, window_end=window_end)
+
+    driver = InferenceGridDriver(
+        exporter=_CachingStubExporter(),  # type: ignore[arg-type]
+        model=_StubModel(),  # type: ignore[arg-type]
+        grid=grid_2x2,
+        window_start=date(2025, 4, 6),
+        window_end=date(2025, 4, 8),
+        out_dir=tmp_path,
+        batch_size=2,
+    )
+    driver.run()
+
+    # Pruned once per day, ascending, with the exporter's backlook window.
+    assert spy_cache.prune_calls == [
+        (date(2025, 4, 6), CACHE_WINDOW_DAYS),
+        (date(2025, 4, 7), CACHE_WINDOW_DAYS),
+        (date(2025, 4, 8), CACHE_WINDOW_DAYS),
+    ]
+
+
+def test_driver_without_cache_does_not_prune(
+    grid_2x2: list[GridCell], patched_loader: None, tmp_path: Path
+) -> None:
+    """A stub exporter with no ``_cache`` is fine — the driver simply skips pruning."""
+    from src.inference.driver import InferenceGridDriver
+
+    # _StubExporter has no _cache attribute; getattr(..., None) → no prune, no error.
+    driver = InferenceGridDriver(
+        exporter=_StubExporter(),  # type: ignore[arg-type]
+        model=_StubModel(),  # type: ignore[arg-type]
+        grid=grid_2x2,
+        window_start=date(2025, 4, 6),
+        window_end=date(2025, 4, 7),
+        out_dir=tmp_path,
+        batch_size=2,
+    )
+    outputs = driver.run()
+    assert len(outputs) == 2
+
+
 def test_driver_drops_fully_masked_cell_to_nodata(
     grid_2x2: list[GridCell], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

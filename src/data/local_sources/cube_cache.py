@@ -16,10 +16,18 @@ degrading ext4/xfs directory indexing to O(N) on every lookup and eviction scan.
 Per-cell sharding keeps each directory under ~1k entries (~864 files/cell). Per-cell
 is sufficient at this scale — no hash-prefix tier needed.
 
-**Eviction.** FIFO with a configurable entry cap. Insertion order is recovered
-from file mtime on construction so the cap holds across process restarts (the
-exporter may run in successive processes). Cache + ``scratch/`` are intermediate
-and cleanable mid-run; ``cubes/`` and ``daily_fsc/`` are the kept deliverables.
+**Eviction (day-frontier, parent-only).** The sweep is day-ordered and each cube
+reads only an 8-day window ``[day - 7 … day]``, so once the driver advances past a
+day every entry older than the live window is provably dead. Eviction therefore
+prunes by that **day frontier**, not FIFO recency, and runs **once per day in the
+parent process** (``prune_before_day``) — never in a worker, so concurrent workers
+can never delete each other's entries (the Mode-B cross-process race; see
+PLAN-CUBE-CACHE-DAY-EVICTION.md). It is **lazy**: a no-op while the cache is at or
+under the configurable ``max_entries`` cap (Mode A never evicts), pruning only past
+the cap and never touching the live window. ``put`` does not evict. Insertion order
+is recovered from file mtime on construction so ``__len__`` and the cap hold across
+process restarts. Cache + ``scratch/`` are intermediate and cleanable mid-run;
+``cubes/`` and ``daily_fsc/`` are the kept deliverables.
 """
 
 from __future__ import annotations
@@ -150,12 +158,15 @@ class CubeCache:
         """
         for path in self.root.rglob("*.npz"):
             path.unlink(missing_ok=True)
-        # Drop now-empty shard subdirs (leave the root and the stamp).
+        self._remove_empty_shard_dirs()
+        self._order = OrderedDict()
+        self._write_stamp()
+
+    def _remove_empty_shard_dirs(self) -> None:
+        """Drop now-empty per-cell shard subdirs (leave the root and the stamp file)."""
         for child in sorted(self.root.rglob("*"), reverse=True):
             if child.is_dir() and not any(child.iterdir()):
                 child.rmdir()
-        self._order = OrderedDict()
-        self._write_stamp()
 
     # --- key / path helpers ------------------------------------------------- #
 
@@ -245,19 +256,81 @@ class CubeCache:
             np.savez(handle, **{_ARRAY_KEY: array})
         tmp.replace(path)
 
-        # Refresh recency (overwrite moves the key to newest).
+        # Track the entry (overwrite moves the key to newest). `put` no longer evicts:
+        # eviction is exclusively the parent's day-frontier prune (prune_before_day), so
+        # concurrent workers never delete each other's entries (PLAN-CUBE-CACHE-DAY-EVICTION).
         self._order.pop(key, None)
         self._order[key] = path
-
-        self._evict_to_cap()
         return path
 
-    def _evict_to_cap(self) -> None:
-        """Drop oldest entries until the cache holds at most ``max_entries``."""
-        while len(self._order) > self.max_entries:
-            old_key, old_path = self._order.popitem(last=False)  # FIFO: oldest first
-            old_path.unlink(missing_ok=True)
-            logger.info("cube_cache_evicted", key=old_key)
+    def prune_before_day(self, current_day: datetime.date, *, window_days: int) -> int:
+        """Drop entries strictly older than the live window — the **only** eviction path.
+
+        Called once per day, in the **parent** process, before that day's worker pool
+        spawns. The sweep is day-ordered and each cube reads only ``[day - window_days …
+        day]``; so any entry with ``day < current_day - window_days`` is provably dead and
+        safe to remove regardless of worker count. The live window is **never** touched.
+
+        **Lazy:** a no-op while the cache is at or under ``max_entries`` — below the cap
+        nothing is evicted (Mode A behaviour-identical). Only past the cap does it prune the
+        dead frontier. If the cache is *still* over cap after pruning (the live window alone
+        exceeds it), it logs a warning and returns — it never evicts a live entry.
+
+        Args:
+            current_day: The day about to be exported (the sweep's current position).
+            window_days: Backlook span; entries with ``day < current_day - window_days``
+                are dead. The exporter's ``(NUM_TIMESTEPS - 1) * DAYS_PER_TIMESTEP``.
+
+        Returns:
+            The number of entries removed.
+        """
+        if len(self._order) <= self.max_entries:
+            return 0
+
+        frontier = current_day - datetime.timedelta(days=window_days)
+        removed = 0
+        for key, path in list(self._order.items()):
+            day = self._key_day(key)
+            if day is None:
+                # Unrecognised name → never delete (defensive).
+                continue
+            if day < frontier:
+                path.unlink(missing_ok=True)
+                del self._order[key]
+                removed += 1
+
+        self._remove_empty_shard_dirs()
+
+        if len(self._order) > self.max_entries:
+            logger.warning(
+                "cube_cache_over_cap_after_prune",
+                root=str(self.root),
+                entries=len(self._order),
+                max_entries=self.max_entries,
+                live_window_days=window_days,
+            )
+        logger.info(
+            "cube_cache_pruned",
+            root=str(self.root),
+            removed=removed,
+            before_day=current_day.isoformat(),
+            frontier=frontier.isoformat(),
+        )
+        return removed
+
+    @staticmethod
+    def _key_day(key: str) -> datetime.date | None:
+        """Parse the ``day`` from an entry key ``{cell_id}/{YYYYMMDD}_{modality}``.
+
+        Returns ``None`` if the date head does not parse (a stray/foreign file) — the
+        caller leaves such entries untouched rather than risk deleting an unknown file.
+        """
+        stem = key.rsplit("/", 1)[-1]  # "{YYYYMMDD}_{modality}"
+        head = stem.split("_", 1)[0]
+        try:
+            return datetime.datetime.strptime(head, "%Y%m%d").date()
+        except ValueError:
+            return None
 
     def __len__(self) -> int:
         """Number of entries currently tracked."""

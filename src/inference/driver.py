@@ -29,6 +29,7 @@ import structlog
 import torch
 from einops import rearrange
 
+from src.data.config import DAYS_PER_TIMESTEP, NUM_TIMESTEPS
 from src.data.local_sources.base import GridCell
 from src.data.local_sources.cube_cache import DEFAULT_MAX_ENTRIES
 from src.data.local_sources.exporter import LocalSourceExporter
@@ -40,6 +41,11 @@ from src.inference.mosaic import DEFAULT_FSC_PX_PER_CELL, DailyMosaicWriter
 from src.inference.windows import inference_days
 
 logger = structlog.get_logger(__name__)
+
+#: Cube-cache backlook span (days). Each cube for day ``D`` reads cache entries for
+#: ``[D - CACHE_WINDOW_DAYS … D]`` (the exporter's 8-day window). The day-ordered sweep
+#: makes anything older than this frontier dead, so the parent prunes it between days.
+CACHE_WINDOW_DAYS: int = (NUM_TIMESTEPS - 1) * DAYS_PER_TIMESTEP
 
 #: Indices of the six valid-data masks within the loader's 13-tuple MaskedOutput
 #: (s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m). Convention: 1=valid, 0=invalid.
@@ -108,6 +114,14 @@ class InferenceGridDriver:
         """
         outputs: list[Path] = []
         for day in inference_days(self.window_start, self.window_end):
+            # Day-frontier cache prune, in the parent, BEFORE this day's worker pool
+            # spawns: drop entries older than the live window so the cache stays bounded
+            # at Mode-B scale without any worker ever evicting (PLAN-CUBE-CACHE-DAY-EVICTION).
+            # Lazy — a no-op while under the cap, so Mode A is unchanged. Only a real
+            # exporter owns a cache; a stub exporter (tests) has none → nothing to prune.
+            cache = getattr(self.exporter, "_cache", None)
+            if cache is not None:
+                cache.prune_before_day(day, window_days=CACHE_WINDOW_DAYS)
             fsc_by_cell = self._predict_day(day)
             outputs.append(self.mosaic.write_day(day, fsc_by_cell))
         logger.info(
