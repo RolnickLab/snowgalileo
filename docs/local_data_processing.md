@@ -388,23 +388,84 @@ uv run python scripts/developer_scripts/bow_valley_inference_local/infer_bow_val
 |----------|-------------------|--------------------------|
 | Cells | 344 | 21,985 |
 | Cube exports | 7,224 | 461,685 |
-| Wall-clock | 31 min (8 workers) | **~18–25 h** (16 workers) |
-| `cubes/` on disk (~12.3 MB each) | ~88 GB | **~5.7 TB** |
-| `daily_fsc/` COGs | 21 × ~0.35 MB | 21 × a few MB |
+| Wall-clock | 31 min (8 workers) | **~33 h measured** (14–16 workers; see breakdown below) |
+| `cubes/` on disk (~12.3 MB each) | ~88 GB | **~5.7 TB** (stays on `/archive`) |
+| `cube_cache/` (~130 KB/entry) | ~few GB | **~250–390 GB** (on SSD — see below) |
+| `daily_fsc/` COGs | 21 × ~0.35 MB | 21 × a few MB (on SSD) |
 
-The wall-clock is **export-bound**, not GPU-bound; doubling workers (8→16) gives a
-sub-linear speedup (I/O contention + the serial GPU forward), hence the range. The
-first 8 days are slower while the sliding-window cube cache fills. Disk is the prior
-blocker resolved by the `/archive` symlink (7.8 TB free ≫ 5.7 TB).
+The wall-clock is **export-bound and CPU-bound** (not I/O- or GPU-bound). Day 1 measured
+**~1.2 cubes/s**; profiling one cold cube export (`cProfile`, cache off) shows the per-cube
+CPU split:
+
+| Source | Share | Cost |
+|--------|-------|------|
+| **Sentinel-2** | **~42%** | JP2 decode (`rasterio.open`, ~60 opens/cube) — single-threaded, heavy |
+| **ERA5** | ~20% | NetCDF `open_dataset` (h5netcdf, ~40 opens/cube) |
+| **Sentinel-3** | ~19% | `scipy.griddata` swath warp (irreducible per the S3 design) |
+| Landsat / MODIS / VIIRS | ~19% | cheap (MODIS/VIIRS sinusoidal warp is NOT a hot spot) |
+
+Both disks sit **<15% util** during the sweep (all 16 cores pegged, load avg ~32, zero
+workers in I/O-wait) — the export bottleneck is **CPU**, specifically JP2 decode + repeated
+file opens, not disk.
+
+The sweep has **two sequential stages per day**, and each dominates at a different point:
+
+1. **Export** (CPU-bound). **Day 1 is fully cold (~5 h)**; the `cube_cache` then amortises
+   the repeated opens — **day 2 measured ~9.4 cubes/s, ~8× the cold ~1.2** (it reuses 7/8 of
+   the sliding window), so days 2–21 export in **~35–40 min each**.
+2. **Inference + mosaic** (GPU forward over all 21,985 cells + assembling the AOI-wide
+   1360×1690 COG). Measured **~50 min/day** and **constant** — it does NOT benefit from the
+   cube cache, so once export goes warm this stage *dominates*: ~50 min × 21 ≈ **~18 h**.
+
+Net end-to-end ≈ **~33 h** (≈ 5 h cold day-1 export + ~20 × ~38 min warm export + ~21 ×
+~50 min inference, stages serial per day). The earlier flat "~50 h" (extrapolating the cold
+day-1 export rate) and "~20–30 h" (ignoring the per-day inference stage) were both wrong —
+day 1 is the slow export, but **inference+mosaic is the steady-state floor**.
+
+**Worker count is a CPU lever.** 16 workers on a 16-core host slightly oversubscribe
+(parent + GPU thread + per-worker rasterio/h5py helpers → ~14% system time, 20k
+ctx-switch/s); `inference_full_run.yaml` sets `export_workers: 14` to leave the
+coordinator headroom. There is **no I/O lever** — the SSD split below is correct hygiene
+(keeps small-file churn off the HDD, frees `/archive` seeks for cube writes) but does not
+change throughput, because I/O was never the limiter.
+
+**I/O split across two drives (hygiene, not a speedup).** `cubes/` (~5.7 TB) must stay on
+`/archive` (only it has the room). The `cube_cache/` is millions of tiny `.npz` files; put
+them (and the trivially-small `daily_fsc/`) on a separate SSD so that small-file churn
+leaves the HDD. NOTE: **moving an existing cache HDD→SSD is not worth it** — 1.9 M tiny
+files copy at ~50/file/s (~12 h, HDD-random-read-bound) regardless of `mv`/`tar`; start a
+fresh cache on the SSD instead (`--cache-policy overwrite`).
+
+```bash
+# data/bow_valley_fast_processing -> /storage/data/bow_valley_fast_processing (SSD).
+SSD=data/bow_valley_fast_processing/full_run ; RUN=data/bow_valley_processing/full_run
+mkdir -p "$SSD/cube_cache" "$SSD/daily_fsc"
+# If a cache already exists, MOVE it (don't recreate empty — preserves the warm window):
+mv "$RUN/cube_cache" "$SSD/cube_cache" 2>/dev/null || true
+ln -s "$(readlink -f "$SSD/cube_cache")" "$RUN/cube_cache"
+ln -s "$(readlink -f "$SSD/daily_fsc")"  "$RUN/daily_fsc"
+```
+
+The source reads + cube writes stay HDD-bound, so this is a partial (not 3×) speedup —
+it removes the cache-thrash contention, the part the SSD actually fixes.
 
 **Gotchas:**
-- **Run in the background / detached.** A ~20 h sweep must survive disconnects — run
-  under `nohup`/`tmux`, tee stdout into `full_run/scratch/`, and use `--cache-policy
-  overwrite` so it never blocks on an interactive cache prompt (the `prompt` default
-  errors on a non-TTY by design — §5).
+- **Run in the background / detached.** A multi-day sweep must survive disconnects —
+  run under `nohup`/`tmux`, tee stdout into `full_run/scratch/`, and pass an explicit
+  `--cache-policy` (never the `prompt` default — it errors on a non-TTY by design, §5).
+  Use `overwrite` for a clean start; use **`reuse`** to **resume** on top of a warm
+  cache without re-fetching (e.g. after a crash — `export()` rewrites the day's cubes
+  but every modality fetch is a cache hit, so the resume is cache-fast).
+- **Edge-cell guard (Mode B only).** AOI-edge tiles can produce a sub-pixel scene read
+  window that rounds to a 0-px axis; before the `cell_window`/`reproject_to_cell` guards
+  (`_scene_ops.py`, `base.py`) this raised `CPLE_AppDefinedError: Invalid dataset
+  dimensions : 0 x N` inside a worker and killed the whole pool. Interior cells (Mode A,
+  small smoke slices) never hit it — smoke-test the **tail** cells (`grid[-300:]`) when
+  validating a Mode-B change, not just `--limit N` (which takes the head).
 - **`cache_max_entries: 3000000`** is sized for the Mode-B live window (~1.58 M) plus
-  the day-boundary transient (~1.78 M). Do not lower it for this run or the over-cap
-  prune fires inside the live window.
+  the day-boundary transient (~1.78 M). At ~130 KB/entry that is ~250–390 GB on disk —
+  fits the SSD with headroom. Do not lower it for this run or the over-cap prune fires
+  inside the live window.
 - The 5 km inset follows the AOI's true shape; concave notches narrower than 10 km may
   close. Verify the kept-cell extent in the viewer (§7) before trusting the output AOI.
 

@@ -23,11 +23,15 @@ batch_size: 16
 # Torch device: cpu | cuda. cuda uses the local RTX 3060; no automatic fallback.
 device: cuda
 
-# Process-pool workers for the driver's per-day parallel cube pre-export. Export
-# dominates the Mode-B sweep, so this is the main speedup lever. 16 cores available;
-# each worker holds ~600 MB (windowed reads) -> ~10 GB of 62 GB at 16 workers. Clamped
-# to min(cpu_count, cells) at run time.
-export_workers: 16
+# Process-pool workers for the driver's per-day parallel cube pre-export. The export is
+# CPU-bound (profiled: S2 JP2 decode ~42%, ERA5 NetCDF opens ~20%, S3 scipy griddata ~19%
+# of per-cube wall — all single-threaded), NOT I/O-bound (both disks sit <15% util). So
+# this is a CPU lever, not an I/O one. On a 16-core host, 16 workers slightly oversubscribe
+# (the parent + GPU thread + per-worker rasterio/h5py helpers compete -> ~14% system time,
+# 20k ctx-switch/s); 14 leaves headroom for the coordinator and trims that tax for a small
+# net gain on CPU-bound work. Each worker holds ~600 MB-1.8 GB; 14 fits 62 GB easily.
+# Clamped to min(cpu_count, cells) at run time.
+export_workers: 14
 
 # Daily-FSC COG output dir: unset -> CubeSettings.daily_fsc_dir
 # (data/bow_valley_processing/full_run/daily_fsc/).
