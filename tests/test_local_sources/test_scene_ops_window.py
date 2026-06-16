@@ -101,6 +101,49 @@ def test_windowed_read_reproject_is_bit_identical_to_full_read() -> None:
     ds.close()
 
 
+def test_edge_sliver_cell_returns_none_not_degenerate_window() -> None:
+    """An AOI-edge cell that clips the tile by a sub-pixel sliver yields None, not a
+    zero-width window that later crashes ``reproject`` (Mode-B day-1 pool-killer).
+
+    Regression: the full Mode-B sweep died ~5 h in on an edge tile whose S2 QA60 read
+    window rounded to ``0 x N``; ``ds.read`` returned an empty array, and ``reproject``
+    raised ``CPLE_AppDefinedError: Invalid dataset dimensions : 0 x N``, killing the
+    whole worker pool. ``cell_window`` must re-clamp after pixel rounding and reject a
+    degenerate result.
+    """
+    # Tile right edge at x = 450000 + 1000*10 = 460000. Place a cell whose footprint sits
+    # just past the right edge so only a thin sub-pixel sliver overlaps.
+    tile_tf = from_origin(450_000.0, 5_660_000.0, 10.0, 10.0)
+    ds = _band_memfile(1000, 1000, tile_tf)  # 10 km tile
+    edge_cell = _cell(459_999.0, 5_655_000.0)  # 1 km cell starting 1 m before the edge
+
+    win = cell_window(ds, edge_cell)
+    # Either a valid in-bounds window or None — never a window that reads to 0 px.
+    if win is not None:
+        assert win.width > 0 and win.height > 0
+        read = ds.read(1, window=win)
+        assert read.shape[0] > 0 and read.shape[1] > 0
+    ds.close()
+
+
+def test_reproject_to_cell_zero_dim_source_returns_fill() -> None:
+    """A degenerate (0-px axis) source returns cell-shaped fill, not a GDAL crash.
+
+    Shared-chokepoint backstop for the ``cell_window`` fix: any adapter path that hands a
+    source with a 0-width/height axis must get the fill value back, not the cryptic
+    ``Invalid dataset dimensions : 0 x N`` that propagates through the process pool.
+    """
+    cell = _cell(455_000.0, 5_650_000.0)
+    for shape in ((1, 0, 25), (1, 25, 0)):
+        source = np.empty(shape, dtype=np.float64)
+        out = reproject_to_cell(
+            source=source, src_transform=from_origin(455_000.0, 5_651_000.0, 10.0, 10.0),
+            src_crs=_CRS, cell=cell, categorical=True, src_nodata=float(NO_DATA_VALUE),
+        )
+        assert out.shape == (1, *cell.shape)
+        assert np.all(out == float(NO_DATA_VALUE))
+
+
 def test_window_handles_cross_zone_bounds() -> None:
     """A UTM-12N cell over a UTM-11N tile transforms bounds before windowing (no crash)."""
     tile_tf = from_origin(450_000.0, 5_660_000.0, 10.0, 10.0)

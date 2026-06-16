@@ -258,6 +258,14 @@ def reproject_to_cell(
         The reprojected stack ``(C, *cell.shape)`` as ``float32``.
     """
     n_bands = source.shape[0]
+    # Guard a degenerate source (a 0-px axis from an AOI-edge sliver window): rasterio's
+    # ``reproject`` builds a source MemoryDataset and fails deep inside GDAL with
+    # "Invalid dataset dimensions : 0 x N" — a cryptic, pool-killing error. A source with
+    # no pixels contributes nothing, so return the cell-shaped fill instead (callers treat
+    # ``restore_fill``/nodata as "band absent here"). Upstream ``cell_window`` already
+    # rejects such windows; this is the shared-chokepoint backstop for any other path.
+    if source.shape[1] == 0 or source.shape[2] == 0:
+        return np.full((n_bands, *cell.shape), restore_fill, dtype=np.float32)
     dst = np.empty((n_bands, *cell.shape), dtype=np.float64)
 
     if categorical:

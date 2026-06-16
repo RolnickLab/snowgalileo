@@ -79,7 +79,19 @@ def cell_window(ds: rasterio.io.DatasetReader, cell: GridCell) -> Window | None:
     if clamped.width <= 0 or clamped.height <= 0:
         return None
     # Round to whole pixels (windows must be integer for a clean read+transform).
-    return clamped.round_offsets(op="floor").round_lengths(op="ceil")
+    rounded = clamped.round_offsets(op="floor").round_lengths(op="ceil")
+    # Re-clamp after rounding and reject a degenerate (zero-px) result. ``floor``/``ceil``
+    # on a sub-pixel sliver at the tile edge can push the window past the dataset bound so
+    # ``ds.read`` returns a 0-width/height array, which later crashes ``reproject`` with
+    # "Invalid dataset dimensions : 0 x N". This surfaces only on AOI-edge cells (Mode B),
+    # never on interior sample cells (Mode A). Treat it as "band absent here" (None).
+    try:
+        rounded = rounded.intersection(Window(0, 0, ds.width, ds.height))
+    except WindowError:
+        return None
+    if rounded.width <= 0 or rounded.height <= 0:
+        return None
+    return rounded
 
 
 @dataclass(frozen=True)
