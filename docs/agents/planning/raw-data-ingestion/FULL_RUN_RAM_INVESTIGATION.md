@@ -22,7 +22,7 @@ GDAL_CACHEMAX (effective) = 3,367,286,988 bytes ≈ 3.37 GB  per process
 - Measured per-worker RSS (4.5–5.2 GB) = ~3.37 GB GDAL cache + ~1–2 GB Python/arrays.
   16 × ~3.5 GB ≈ 54–57 GB total — **matches the observed peak exactly.**
 
-### Why heavy days peak higher (it is NOT a leak)
+### Why heavy days peak higher (it is NOT a leak, and NOT a rising trend)
 
 GDAL fills its block cache **lazily** as raster blocks are read, up to the cap. A light day
 (few granules per cell) never fills the 3.37 GB cap; a heavy day (more distinct
@@ -31,6 +31,32 @@ worker's cache fills closer to its full 3.37 GB ceiling → the total climbs tow
 The peak is **bounded** (by the cap × workers) and **resets** every day when the pool is
 torn down for the inference phase — confirmed 8× — so it is a *too-high ceiling*, not
 unbounded growth.
+
+**What makes a day "heavy" = Sentinel-2 presence in the 8-day window (periodic, not
+escalating).** Per-day export durations oscillate, they do **not** trend up:
+
+| window_end | s2_fetch events | export duration |
+|------------|-----------------|-----------------|
+| 04-07 | 0 | 40 min (light) |
+| 04-08 | 21,985 | 62 min (heavy) |
+| 04-09 | 0 | 32 min (light) |
+| 04-10 | 21,985 | 92 min (heavy) |
+| 04-11 | 0 | 45 min (light) |
+| 04-12 | 0 | 30 min (light) |
+| 04-13 | 21,985 | 81 min (heavy) |
+| 04-14 | 0 | 33 min (light) |
+
+The correlation is exact: **every heavy day has S2 in its 8-day lookback, every light day
+has zero S2.** Sentinel-2 has a ~5-day revisit over the AOI; when an inference day's
+`[d-7, d]` window contains an S2 acquisition, all 21,985 cells fetch + **JP2-decode** S2
+— the 42 % CPU hot spot AND the dominant GDAL-block-cache filler — so that day is both
+slower and higher-RAM. When the window has no S2 pass, only the cheap coarse sources run.
+S2's 5-day cadence beating against the 8-day window produces the heavy/light alternation.
+
+**Consequence:** the earlier-observed "49.5 → 54 → 57 GB trend" was consecutive *heavy*
+(S2) days sampled in a row — periodic oscillation misread as escalation. There is **no
+rising floor**; the 57 GB (pre-fix) figure is the heavy-day ceiling, hit only on S2 days,
+not a climbing trend. Light days sit far lower.
 
 ## Why it was invisible until now
 
