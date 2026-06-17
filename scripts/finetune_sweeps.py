@@ -6,7 +6,7 @@ from pathlib import Path
 import wandb
 
 from src.config import DEFAULT_SEED
-from src.data.config import DATA_FOLDER
+from src.data.config import DATA_FOLDER, WANDB_ENTITY
 from src.fsc import LandsatEval
 from src.fsc.eval import EvalTask
 from src.snowgalileo import Encoder
@@ -14,11 +14,16 @@ from src.utils import device, load_check_config, seed_everything
 
 seed_everything(DEFAULT_SEED)
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(
+    description="Starter script for hyperparameter sweeps for SnowGalileo finetuning."
+)
 parser.add_argument("--pretrain", default="none", type=str, choices=["none", "snow"])
-parser.add_argument("--resample", action="store_true")
+parser.add_argument(
+    "--resample",
+    action="store_true",
+    help="Whether to use oversampling. Not used in current evaluation.",
+)
 parser.add_argument("--num_finetune_epochs", type=int, default=25)
-# TODO: make the choices of naming more descriptive
 parser.add_argument(
     "--decoding_strategy",
     type=str,
@@ -128,7 +133,9 @@ def main():
     # number of runs in the sweep
     count = 100
 
-    sweep_id = wandb.sweep(sweep=sweep_config, project="ai4snow_sweeps_23022026", entity="sea-ice")
+    sweep_id = wandb.sweep(
+        sweep=sweep_config, project="ai4snow_sweeps_23022026", entity=WANDB_ENTITY
+    )
     wandb.agent(sweep_id, function=train_and_validate, count=count)
 
     wandb.finish()

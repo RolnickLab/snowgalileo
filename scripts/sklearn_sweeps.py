@@ -6,14 +6,16 @@ from pathlib import Path
 import wandb
 
 from src.config import DEFAULT_SEED
-from src.data.config import NORMALIZATION_DICT_FILENAME
+from src.data.config import NORMALIZATION_DICT_FILENAME, WANDB_ENTITY
 from src.data.dataset import Dataset
 from src.fsc.landsat_baselines import LandsatEvalSklearn
 from src.utils import config_dir, seed_everything
 
 seed_everything(DEFAULT_SEED)
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(
+    description="Starter script for hyperparameter sweeps of the sklearn models."
+)
 
 parser.add_argument(
     "--model_type",
@@ -122,7 +124,6 @@ def train_and_validate():
             exclude_prediction_date=False,
             exclude_prediction_high_res=args.exclude_prediction_high_res,
             exclude_prediction_era5=True,
-            resample=False,
             eval_config=config,
             model_type=args.model_type,
             h5pys_only=args.h5pys_only,
@@ -161,7 +162,9 @@ def main():
     count = 100
 
     sweep_id = wandb.sweep(
-        sweep=sweep_config, project=f"ai4snow_{args.model_type}_sweeps_small_set", entity="sea-ice"
+        sweep=sweep_config,
+        project=f"ai4snow_{args.model_type}_sweeps_small_set",
+        entity=WANDB_ENTITY,
     )
     wandb.agent(sweep_id, function=train_and_validate, count=count)
 

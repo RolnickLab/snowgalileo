@@ -1,3 +1,11 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
+### Modifications by marlens123:
+### - Included medium and low resolution data
+
 import argparse
 import json
 import os
@@ -27,6 +35,7 @@ from src.data.config import (
     NORMALIZATION_DICT_FILENAME,
     OPTIMIZER_FILENAME,
     OUTPUT_FOLDER,
+    WANDB_ENTITY,
 )
 from src.loss import do_loss
 from src.snowgalileo import Encoder, GalileoPixelDecoder, adjust_learning_rate
@@ -49,17 +58,39 @@ os.environ["GOOGLE_CLOUD_PROJECT"] = EE_PROJECT
 torch.backends.cuda.matmul.allow_tf32 = True
 autocast_device = torch.bfloat16 if is_bf16_available() else torch.float32
 
-argparser = argparse.ArgumentParser()
-argparser.add_argument("--config_file", type=str, default="ai4snow_tiny.json")
-argparser.add_argument("--run_name_prefix", type=str, default="")
-argparser.add_argument("--h5py_folder", type=str, default="data/h5pys_pretrain")
-argparser.add_argument("--output_folder", type=str, default="")
-argparser.add_argument("--download", dest="download", action="store_true")
-argparser.add_argument("--h5pys_only", dest="h5pys_only", action="store_true")
+argparser = argparse.ArgumentParser(description="The main pre-training starter script.")
+argparser.add_argument(
+    "--config_file",
+    type=str,
+    default="ai4snow_tiny.json",
+    help="The name of the pre-training config to be used. Must be stored in configs/pretrain/. Creates a random config when one of 'random_tiny', 'random_vitb-tiny' or 'random_base'.",
+)
+argparser.add_argument("--run_name_prefix", type=str, default="", help="Used as wandb identifier.")
+argparser.add_argument(
+    "--h5py_folder",
+    type=str,
+    default="data/h5pys_pretrain",
+    help="If a h5py_folder is given, tif processing will be skipped, which speeds up training significantly.",
+)
+argparser.add_argument(
+    "--output_folder", type=str, default="", help="For storing model checkpoints."
+)
+argparser.add_argument(
+    "--download",
+    dest="download",
+    action="store_true",
+    help="If tifs should be downloaded from Google Cloud Bucket. Only relevant if data is stored in Google Cloud Bucket.",
+)
+argparser.add_argument(
+    "--h5pys_only",
+    dest="h5pys_only",
+    action="store_true",
+    help="Speeds up training. Make sure that all pre-training files to be used are stored in the h5pys folder.",
+)
 argparser.add_argument("--num_workers", dest="num_workers", default=0)
 argparser.add_argument("--batch_size", dest="batch_size", default="")
 argparser.add_argument("--checkpoint_every_epoch", type=int, default=50)
-argparser.add_argument("--tifs_folder", type=str, default="tifs_all_bands_500m")
+argparser.add_argument("--tifs_folder", type=str, default="tifs_all_bands")
 argparser.add_argument(
     "--dataset_subset_size", type=int, default=0, help="0 for using the entire dataset"
 )
@@ -98,7 +129,7 @@ else:
 
 start_epoch = 0
 wandb_enabled = True
-wandb_org = "sea-ice"
+wandb_org = WANDB_ENTITY
 wandb_output_dir = Path(__file__).parent
 
 # id_dir can either be empty, or the path to the subdirectory

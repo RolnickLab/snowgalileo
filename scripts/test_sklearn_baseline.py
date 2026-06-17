@@ -12,7 +12,9 @@ from src.utils import config_dir, seed_everything
 
 seed_everything(DEFAULT_SEED)
 
-argparser = argparse.ArgumentParser()
+argparser = argparse.ArgumentParser(
+    description="Starter script for evaluating a trained sklearn model."
+)
 argparser.add_argument(
     "--exclude_prediction_high_res",
     action="store_true",
@@ -44,7 +46,7 @@ argparser.add_argument(
     type=str,
     default="rf",
     choices=["rf", "svr", "mlp"],
-    help="Type of model to train: rf, svr, or mlp.",
+    help="Type of model to train: rf (random forest), svr (support vector regressor), or mlp (multi-layer perceptron).",
 )
 argparser.add_argument(
     "--normalization",
@@ -53,9 +55,11 @@ argparser.add_argument(
     choices=["std", ""],
 )
 argparser.add_argument(
-    "--model_checkpoint_path", default="landsat_rf_model_rf_50est_19012026.joblib"
+    "--model_checkpoint_path",
+    default="",
+    help="Path to the model checkpoint that should be evaluated.",
 )
-argparser.add_argument("--run_id", type=str, default="default")
+argparser.add_argument("--run_id", type=str, default="default", help="Will be used as identifier.")
 argparser.add_argument(
     "--h5pys_only",
     action="store_true",
@@ -85,7 +89,6 @@ rf = LandsatEvalSklearn(
     exclude_prediction_high_res=args["exclude_prediction_high_res"],
     exclude_prediction_sensors=args["exclude_prediction_sensors"],
     exclude_prediction_era5=not args["include_prediction_era5"],
-    resample=False,
     h5pys_only=args["h5pys_only"],
     eval_config=config,
     model_type=args["model_type"],

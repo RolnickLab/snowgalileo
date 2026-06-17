@@ -2,6 +2,35 @@
 
 ### TO-DO: Installation info
 
+### TO-DO: README about the configs
+
+
+### How to Run Pre-training
+For pre-training SnowGalileo, [data] is required. Then run [config] config file.
+
+### How to Run Fine-Tuning
+
+
+### How to Run Evaluation Experiments
+
+
+### How to Run Inference on your own Points (preliminary)
+
+
+### A note about Datasets and adding datasets
+Very manual at this point. To start with adding datasets, the following points should be considered:
+
+- Order into a modality group (one of ...,...,...,...,... -- a description is provided in...)
+
+The no-data bounds are based on whether Earthengine has flagged this data as no data (e.g., see s2 script), or manually identified bounds. More information in "data/config.py"
+
+
+### Other Disclaimers
+Some functions in this codebase have been generated, or is inspired with the help of AI. Thorough manual verification and automatic tests have been used to review and verify the code.
+
+Parts of the code require a WandB account to function entirely. If you would like to make use of this, please set the variable [WANDB_ENTITY] in "src/data/config.py" to your Belieben.
+
+
 ### File Structure
 
 Information about input data export and data distributions can be found in `data/README.md`.

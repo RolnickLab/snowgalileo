@@ -1,7 +1,14 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
+### Modifications by marlens123:
+### - Included medium and low resolution data
+
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
-from torchvision.transforms.functional import resize
 
 from src.data.config import NO_DATA_VALUE
 from src.data.earthengine.eo import (
@@ -34,7 +41,9 @@ def mse_loss(
     t_m,
     st_m,
 ):
-    # TODO: See if this is possible like this with the d
+    """
+    Computes MSE loss between predicted and target values, only for pixels to be decoded (where mask value is 2).
+    """
     encoder_size = t_s_t_h.shape[-1]
     expanded_s_t_h_m = repeat(s_t_h_m, "b h w t c_g -> b h w t c_g d", d=encoder_size)
     expanded_s_t_m_m = repeat(s_t_m_m, "b h w t c_g -> b h w t c_g d", d=encoder_size)
@@ -89,6 +98,12 @@ def mae_loss(
     patch_size_med_res,
     patch_size_low_res,
 ):
+    """
+    Computes MAE loss between predicted and target values.
+    To this end, convert the predicted values (which are in token format) into the same pixel-wise shape as the target values,
+    and then compute MAE only for pixels to be decoded (where mask value is 2).
+    """
+
     assert not torch.isnan(p_s_t_h).any(), "p_s_t_h contains NaN!"
     assert not torch.isnan(s_t_h_x).any(), "s_t_h_x contains NaN!"
     assert not torch.isnan(p_s_t_m).any(), "p_s_t_m contains NaN!"
@@ -108,6 +123,7 @@ def mae_loss(
     assert not torch.isnan(t_m).any(), "t_m contains NaN!"
     assert not torch.isnan(st_m).any(), "st_m contains NaN!"
 
+    # Bring tokens from channel group format into channel-wise format
     SPACE_TIME_HIGH_RES_BAND_EXPANSION = torch.tensor(
         [len(x) for x in SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.values()], device=sp_m.device
     ).long()
@@ -140,6 +156,7 @@ def mae_loss(
     pixel_st_m = torch.repeat_interleave(st_m, repeats=STATIC_BAND_EXPANSION, dim=-1)
     pixel_t_m = torch.repeat_interleave(t_m, repeats=TIME_BAND_EXPANSION, dim=-1)
 
+    # bring tokens from patch-wise into pixel-wise and channel-wise format, channel-group-wise
     output_p_s_t_h = []
     for idx, (_, c_g) in enumerate(SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX.items()):
         channel_group_p_s_t_h = p_s_t_h[:, :, :, :, idx, : ((patch_size_high_res**2) * len(c_g))]
@@ -150,28 +167,14 @@ def mae_loss(
             p_w=patch_size_high_res,
             p_h=patch_size_high_res,
         )
-        if patch_size_high_res < patch_size_high_res:
-            assert s_t_h_x.shape[1] > 0 and s_t_h_x.shape[2] > 0, "s_t_h_x h and w are not > 0!"
-            channel_group_p_s_t_h = rearrange(
-                resize(
-                    rearrange(channel_group_p_s_t_h, "b h w t d -> b (t d) h w"),
-                    size=(s_t_h_x.shape[1], s_t_h_x.shape[2]),
-                ),
-                "b (t d) h w -> b h w t d",
-                t=s_t_h_x.shape[3],
-                d=len(c_g),
-            )
-
         output_p_s_t_h.append(channel_group_p_s_t_h)
 
-    # TODO: change here if patch size changes
     output_p_s_t_m = []
     for idx, (_, c_g) in enumerate(SPACE_TIME_MED_RES_BANDS_GROUPS_IDX.items()):
         assert patch_size_med_res == 1, "patch_size_med_res != 1 not implemented yet"
         channel_group_p_s_t_m = p_s_t_m[:, :, :, :, idx, : len(c_g)]
         output_p_s_t_m.append(channel_group_p_s_t_m)
 
-    # TODO: change here if patch size changes
     output_p_s_t_l = []
     for idx, (_, c_g) in enumerate(SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX.items()):
         assert patch_size_low_res == 1, "patch_size_low_res != 1 not implemented yet"
@@ -207,6 +210,7 @@ def mae_loss(
     assert output_p_sp, "output_p_sp is empty"
     assert output_p_st, "output_p_st is empty"
 
+    # concatenate the channels of each data group back together
     # these now have the same shape as s_t_x, etc.
     p_s_t_h = torch.cat(output_p_s_t_h, dim=-1)
     p_s_t_m = torch.cat(output_p_s_t_m, dim=-1)
@@ -214,25 +218,6 @@ def mae_loss(
     p_sp = torch.cat(output_p_sp, dim=-1)
     p_st = torch.cat(output_p_st, dim=-1)
     p_t = torch.cat(output_p_t, dim=-1)
-
-    print("p_s_t_h min/max:", p_s_t_h.min().item(), p_s_t_h.max().item())
-    print("p_s_t_m min/max:", p_s_t_m.min().item(), p_s_t_m.max().item())
-    print("p_s_t_l min/max:", p_s_t_l.min().item(), p_s_t_l.max().item())
-    print("s_t_h_x min/max:", s_t_h_x.min().item(), s_t_h_x.max().item())
-    print("s_t_m_x min/max:", s_t_m_x.min().item(), s_t_m_x.max().item())
-    print("s_t_l_x min/max:", s_t_l_x.min().item(), s_t_l_x.max().item())
-    print("p_sp min/max:", p_sp.min().item(), p_sp.max().item())
-    print("sp_x min/max:", sp_x.min().item(), sp_x.max().item())
-    print("p_t min/max:", p_t.min().item(), p_t.max().item())
-    print("t_x min/max:", t_x.min().item(), t_x.max().item())
-    print("p_st min/max:", p_st.min().item(), p_st.max().item())
-    print("st_x min/max:", st_x.min().item(), st_x.max().item())
-    print("s_t_h_m min/max:", s_t_h_m.min().item(), s_t_h_m.max().item())
-    print("s_t_m_m min/max:", s_t_m_m.min().item(), s_t_m_m.max().item())
-    print("s_t_l_m min/max:", s_t_l_m.min().item(), s_t_l_m.max().item())
-    print("sp_m min/max:", sp_m.min().item(), sp_m.max().item())
-    print("t_m min/max:", t_m.min().item(), t_m.max().item())
-    print("st_m min/max:", st_m.min().item(), st_m.max().item())
 
     assert not (p_s_t_h[pixel_s_t_h_m == 2] == NO_DATA_VALUE).any()
     assert not (p_s_t_m[pixel_s_t_m_m == 2] == NO_DATA_VALUE).any()

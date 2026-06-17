@@ -1,3 +1,11 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
+### Modifications by marlens123:
+### - Added functions for sampling time windows and creating placeholders
+
 import json
 import os
 import random
@@ -59,8 +67,6 @@ def sample_time_window(start_date: str, end_date: str, window_size: int, seed=No
 
     total_days = (end_date_tp - start_date_tp).days + 1
 
-    # ensure the window fits in the range
-    # ERROR: actually, it exceeds the range now by 1 day
     max_start_day = total_days - window_size
     if max_start_day < 0:
         raise ValueError("Window size is larger than the total date range.")

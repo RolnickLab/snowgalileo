@@ -1,3 +1,8 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
 # https://github.com/bair-climate-initiative/scale-mae/blob/main/mae/util/pos_embed.py
 import numpy as np
 import torch

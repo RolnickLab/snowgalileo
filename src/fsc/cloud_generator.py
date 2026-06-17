@@ -1,3 +1,5 @@
+### Using this great tool: https://github.com/strath-ai/SatelliteCloudGenerator
+
 import random
 from pathlib import Path
 from typing import Dict, Union, cast
@@ -43,6 +45,7 @@ seed_everything(DEFAULT_SEED)
 process = psutil.Process()
 
 # NOTE: Scaling factors according to Earthengine documentation for the specific bands
+# Channel magnitudes are derived using the code in notebooks/cloud_simulation/
 CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
     "s_t_h_x": {
         "S1": {
@@ -124,6 +127,7 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
     },
 }
 
+# costum config to get more clouds for the test set
 FULL_CONFIG = {
     "min_lvl": [0.5, 0.9],
     "max_lvl": 1.0,
@@ -136,7 +140,7 @@ FULL_CONFIG = {
     "blur_scaling": 2,
 }
 
-# thick local
+# thick local (from https://github.com/strath-ai/SatelliteCloudGenerator/blob/main/src/configs.py)
 LOCAL_CONFIG = {
     "min_lvl": 0.0,
     "max_lvl": 1.0,
@@ -580,6 +584,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         except AssertionError as e:
             raise e
 
+    # NOTE: Adjust the NDI calculation to set NDI to NO_DATA_VALUE for pixels where clouds were added.
     @staticmethod
     def calculate_ndi(
         input_array: np.ndarray, band_1: str, band_2: str, cloud_mask: np.ndarray | None = None

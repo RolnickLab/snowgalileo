@@ -34,6 +34,7 @@ from src.data.config import (
     NUM_MED_RES_PIXELS_PER_DIM,
     NUM_TIMESTEPS,
     RESULTS_FOLDER,
+    WANDB_ENTITY,
 )
 from src.data.dataset import Dataset as BaseDataset
 from src.data.dataset import DatasetOutput, Normalizer, to_cartesian
@@ -60,7 +61,6 @@ from src.fsc.eval import EvalTask, model_class_name
 from src.fsc.metrics import compute_classification_metrics, compute_regression_metrics
 from src.fsc.patch_predict import (
     EncoderWithHead,
-    evaluate_binary,
     evaluate_seg,
     get_finetune_results_on_val_set,
 )
@@ -167,7 +167,7 @@ class LandsatEvalDataset(BaseDataset):
         return checked_tifs
 
     # NOTE: overwritten from TifDataset since the eval tif files have different naming conventions
-    # TODO: make this dynamic
+    # TODO: make this less hard-coded
     def prediction_month_from_file(self, tif_path: Path) -> int:
         if (
             tif_path.name.startswith("LC")
@@ -229,7 +229,7 @@ class LandsatEvalDataset(BaseDataset):
         # *dates=<start_date>*, where the start_date is in a YYYY-MM-dd format
         prediction_month = self.prediction_month_from_file(tif_path)
         # - 1 because we want to index from 0
-        # TODO: account for the possibility that different timesteps can be in different months
+        # future TODO: account for the possibility that different timesteps can be in different months
         return np.full(num_timesteps, prediction_month - 1)
 
     def _tif_to_array(self, tif_path: Path) -> DatasetOutput:
@@ -828,7 +828,6 @@ class LandsatEval(EvalTask):
         patch_size_high_res: int = 10,
         h5pys_only: bool = False,
         seed=DEFAULT_SEED,
-        resample: bool = False,
         num_finetune_epochs: int = 50,
         decoder_mode: str = "attention_probe",
         eval_config: Dict = {},
@@ -840,7 +839,6 @@ class LandsatEval(EvalTask):
         self.exclude_prediction_sensors = exclude_prediction_sensors
         self.exclude_prediction_era5 = exclude_prediction_era5
         self.patch_size_high_res = patch_size_high_res
-        self.resample = resample
         self.num_finetune_epochs = num_finetune_epochs
         self.decoder_mode = decoder_mode
         self.h5pys_only = h5pys_only
@@ -1361,7 +1359,7 @@ class LandsatEval(EvalTask):
                     ax.imshow(preds_2D, cmap="gray", vmin=0, vmax=1)
                     ax.set_title("Predictions")
 
-                    wandb.init(entity="sea-ice", project="ai4snow_finetune_final")
+                    wandb.init(entity=WANDB_ENTITY, project="ai4snow_finetune_final")
                     wandb.log(
                         {
                             f"{self.name}_visualization_{filename}": wandb.Image(
@@ -1373,31 +1371,6 @@ class LandsatEval(EvalTask):
                     plt.close(fig)
 
                 print(f"Saved predictions for {filename}", flush=True)
-
-    @torch.no_grad()
-    def _evaluate_binary(self, model: EncoderWithHead):
-        test_ds = self._get_dataset(
-            exclude_prediction_date=self.exclude_prediction_date,
-            exclude_prediction_high_res=self.exclude_prediction_high_res,
-            exclude_prediction_sensors=self.exclude_prediction_sensors,
-            exclude_prediction_era5=self.exclude_prediction_era5,
-            split="test",
-            h5pys_only=self.h5pys_only,
-            data_config=self.data_config,
-            augmentation=DownstreamAugmentation(False),
-            normalization=self.normalization,
-        )
-
-        test_dl = DataLoader(
-            test_ds,
-            batch_size=1,
-            shuffle=False,
-            num_workers=0,
-        )
-
-        results = evaluate_binary(data_loader=test_dl, finetuned_model=model, device=device)
-
-        print(results)
 
     @torch.no_grad()
     def _evaluate_model(
@@ -1468,7 +1441,7 @@ class LandsatEval(EvalTask):
         if log_wandb:
             import wandb
 
-            wandb.init(entity="sea-ice", project="ai4snow_finetune_final", name=id)
+            wandb.init(entity=WANDB_ENTITY, project="ai4snow_finetune_final", name=id)
             wandb.log(results)
 
             def flatten_for_summary(d, prefix=""):
@@ -1616,6 +1589,8 @@ class LandsatEval(EvalTask):
                 np.save(results_path / f"{filename[0]}_preds.npy", preds_2D)
                 np.save(results_path / f"{filename[0]}_labels.npy", labels)
 
+        # NOTE: This was added for test purposes (making sure that the individual evaluation gives the
+        # same output as the entire dataset evaluation)
         overall_rmse = np.sqrt(total_se / total_n)
         # append overall rmse to the end of the csv
         with open(results_csv_path, "a") as f:
@@ -1759,6 +1734,7 @@ class LandsatEval(EvalTask):
                 r2 = r2_score(labels.flatten(), preds_2D.flatten())
                 rmse = root_mean_squared_error(labels.flatten(), preds_2D.flatten())
 
+                # taking the Sentinel-2 RGB bands for prediction
                 b2 = s_t_h_x[0, :, :, -1, 3]
                 b3 = s_t_h_x[0, :, :, -1, 4]
                 b4 = s_t_h_x[0, :, :, -1, 5]
@@ -1784,7 +1760,7 @@ class LandsatEval(EvalTask):
 
                     filename = filename[0].split(".tif")[0]
 
-                    wandb.init(entity="sea-ice", project="ai4snow_finetune_final")
+                    wandb.init(entity=WANDB_ENTITY, project="ai4snow_finetune_final")
                     wandb.log(
                         {
                             f"{self.name}_visualization_{filename}_r2_{r2}_rmse_{rmse}": wandb.Image(
@@ -1800,33 +1776,6 @@ class LandsatEval(EvalTask):
                     visualization_folder / f"{filename}_r2_{r2}_rmse_{rmse}.npy",
                     preds_2D,
                 )
-
-    @staticmethod
-    def make_weights_for_balanced_classes(train_ds, nclasses):
-        """
-        Computes a weight for each sample based on the frquency of its mean class per image, binned into nclasses classes.
-        """
-        n_images = len(train_ds)
-        print(f"Number of images: {n_images}")
-        count_per_class = [0] * nclasses
-        for _, target, _ in train_ds:
-            mean_per_image = np.mean(target)
-            # bin the mean value into one of nclasses classes
-            # 0.0 will be in class 0, 1.0 in class nclasses-1, 0.99 in class nclasses-2
-            multi_class_bins = np.linspace(0.1, 1, nclasses - 1)
-            binned_targets_np = np.digitize(mean_per_image, bins=multi_class_bins)
-            count_per_class[binned_targets_np] += 1
-        weight_per_class = [0.0] * nclasses
-        for i in range(nclasses):
-            weight_per_class[i] = float(n_images) / float(count_per_class[i])
-        weights = [0] * n_images
-        for idx, (_, target, _) in enumerate(train_ds):
-            mean_per_image = np.mean(target)
-            # bin the mean value into one of nclasses classes
-            multi_class_bins = np.linspace(0.1, 1, nclasses - 1)
-            binned_targets_np = np.digitize(mean_per_image, bins=multi_class_bins)
-            weights[idx] = weight_per_class[binned_targets_np]
-        return weights
 
     def train_and_evaluate_model_on_task(
         self,
@@ -1872,26 +1821,12 @@ class LandsatEval(EvalTask):
             normalization=self.normalization,
         )
 
-        if self.resample:
-            from torch.utils.data import WeightedRandomSampler
-
-            # oversample the dataset to have a uniform distribution of mean class values per image
-            weights = LandsatEval.make_weights_for_balanced_classes(train_ds, nclasses=10)
-            weights = torch.DoubleTensor(weights)
-            sampler = WeightedRandomSampler(weights, num_samples=len(weights), replacement=True)
-            train_dl = DataLoader(
-                train_ds,
-                batch_size=BATCH_SIZE,
-                sampler=sampler,
-                num_workers=NUM_WORKERS,
-            )
-        else:
-            train_dl = DataLoader(
-                train_ds,
-                batch_size=BATCH_SIZE,
-                shuffle=True,
-                num_workers=NUM_WORKERS,
-            )
+        train_dl = DataLoader(
+            train_ds,
+            batch_size=BATCH_SIZE,
+            shuffle=True,
+            num_workers=NUM_WORKERS,
+        )
 
         if self.decoder_mode == "sklearn":
             if model_modes is None:

@@ -1,3 +1,11 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
+### Modifications by marlens123:
+### - Included additional input sources and modality groups used by SnowGalileo
+
 # https://github.com/nasaharvest/openmapflow/blob/main/openmapflow/ee_exporter.py
 import os
 import shutil
@@ -186,7 +194,7 @@ for modality in MODALITIES:
             else:
                 print(f"Warning: Check modality '{modality}'.")
 
-# TODO: remove this hacky assert and add a better test
+# NOTE: This changes once the input sources are modified
 assert TIME_IMAGE_FUNCTIONS == [
     get_single_s1_image,
     get_single_s2_image,
@@ -427,7 +435,6 @@ def create_ee_image(
 
     # Note: we add a day to the end date to make sure we get the last day inclusive
     # (the ee.filterDate function is exclusive)
-    # TODO: check if this makes sense if days_per_timestep is greater than 1
     while cur_end_date <= interval_end_date + timedelta(days=days_per_timestep):
         image_list: List[ee.Image] = []
 
@@ -702,6 +709,4 @@ class EarthEngineExporter:
                         return None
 
         if self.mode == "url":
-            print("Export finished. Syncing to google cloud")
-            self.sync_local_and_gcloud()
-            print("Finished sync")
+            print("Export finished.")

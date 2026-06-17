@@ -180,7 +180,6 @@ class LandsatEvalDatasetSklearn(LandsatEvalDataset):
             ) = self.mask_prediction_era5(s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m)
 
         image_path, label_path = self.pairs[idx]
-        # TODO: optinally add conversion to h5pys for labels
         with cast(xr.Dataset, rioxarray.open_rasterio(label_path)) as data:
             label = cast(np.ndarray, data.values)
             # remove first dimension (for shape consistency)
@@ -225,7 +224,6 @@ class LandsatEvalSklearn(LandsatEval):
         exclude_prediction_era5: bool = True,
         num_tokens_per_dim: int = 10,
         h5pys_only: bool = False,
-        resample: bool = False,
         eval_config: Dict = {},
         model_type: str = "rf",
         normalizing_dict: Optional[Dict] = None,
@@ -236,7 +234,6 @@ class LandsatEvalSklearn(LandsatEval):
         self.exclude_prediction_sensors = exclude_prediction_sensors
         self.exclude_prediction_era5 = exclude_prediction_era5
         self.num_tokens_per_dim = num_tokens_per_dim
-        self.resample = resample
         self.name = "ls_rf"
         self.model_type = model_type
         self.normalizing_dict = normalizing_dict
@@ -250,14 +247,15 @@ class LandsatEvalSklearn(LandsatEval):
             exclude_prediction_high_res=exclude_prediction_high_res,
             exclude_prediction_sensors=exclude_prediction_sensors,
             exclude_prediction_era5=exclude_prediction_era5,
-            resample=resample,
             eval_config=eval_config,
             h5pys_only=self.h5pys_only,
         )
 
     def forward_filling_masked_data_per_channel_else_aggregate(self, x, m, t, array_type: str):
-        """Fills masked values in x by forward-filling along the time dimension per channel.
-        Remaining NaNs will fall back to aggregation replacement."""
+        """
+        Fills masked values in x by forward-filling along the time dimension per channel.
+        Remaining NaNs will fall back to aggregation replacement.
+        """
 
         assert x.dim() == 4, f"Expected 4D tensor, got shape {x.shape}"
 
@@ -292,7 +290,7 @@ class LandsatEvalSklearn(LandsatEval):
         # update time distance: last_idx already encodes last-valid timestep index
         timestep_grid = timestep_idx
         dist = timestep_grid - last_idx
-        # TODO: change value if we decide for another placeholder
+        # NOTE: change value if we decide for another placeholder
         dist[last_idx == -1] = -1
         t = dist
 
@@ -300,8 +298,9 @@ class LandsatEvalSklearn(LandsatEval):
 
     @staticmethod
     def median_replace(x, m, dims):
-        """Replaces masked values in x with the median over the specified dims.
-        Breaks early if no NaNs are left after a replacement step."""
+        """
+        Replaces masked values in x with the median over the specified dims.
+        """
         x = torch.masked_fill(x, m.bool(), float("nan"))
         for d in dims:
             x = torch.where(torch.isnan(x), torch.nanmedian(x, dim=d, keepdim=True).values, x)
@@ -311,10 +310,12 @@ class LandsatEvalSklearn(LandsatEval):
         return x
 
     def replace_masked_data_with_aggregate(self, x, m, array_type: str):
-        """Replaces masked values in x with an aggregate.
+        """
+        Replaces masked values in x with an aggregate.
         First, tries to replace over the time dimension for timeseries data,
         then over the space dimension. For space-only and static data, replaces over space dimension.
-        If no replacement is possible, fill with the per-channel mean of the pre-training data."""
+        If no replacement is possible, fill with the per-channel mean of the pre-training data.
+        """
         # timeseries data with shape (B, S, C, T)
         if x.dim() == 4:
             dims = [-1, -3]
@@ -739,6 +740,10 @@ class LandsatEvalSklearn(LandsatEval):
                     num_workers=0,
                 )
 
+            # --------
+            # Training
+            # --------
+
             all_samples = []
             all_labels = []
 
@@ -879,6 +884,11 @@ class LandsatEvalSklearn(LandsatEval):
             shuffle=False,
             num_workers=0,
         )
+
+        # --------
+        # Evaluation
+        # --------
+
         all_preds = []
         all_test_labels = []
 

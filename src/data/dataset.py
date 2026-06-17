@@ -1,3 +1,16 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
+### Modifications by marlens123:
+### - Included medium and low resolution data
+### - Function for one-hot encoding the ESA Worldcover band
+### - Downsampling function for space_time_med_res data and space_time_low_res data
+### - Function that creates a valid data mask for all bands based on no data value and other criteria
+### - Computing NDSI based on MODIS data
+### - Computing normalization values based on running statistics
+
 import json
 import logging
 import math
@@ -527,17 +540,19 @@ class Dataset(PyTorchDataset):
 
     @staticmethod
     def one_hot_encode_esa_worldcover(data: np.ndarray) -> np.ndarray:
-        """One-hot encode the ESA Worldcover band, setting all channels to NO_DATA_VALUE where class=0."""
+        """One-hot encode the ESA Worldcover band, setting all channels to NO_DATA_VALUE where class=0 (no data value)."""
 
         # create a warning if data contains unexpected class values
         if not np.all(np.isin(data, WC_CLASS_VALUES + [0] + [NO_DATA_VALUE])):
             warnings.warn("ESA Worldcover data contains unexpected class values.")
+
+        # 0 is the no-data value of the ESA Worldcover dataset
         nodata_mask = data == 0
 
         # extend the no data mask to values that are not within the WC_CLASS_VALUES
         nodata_mask |= ~np.isin(data, WC_CLASS_VALUES)
 
-        # Map class values to indices 0..NUM_WC_CLASSES-1
+        # map class values to indices 0..NUM_WC_CLASSES-1
         mapped = np.zeros_like(data)
         for idx, class_value in enumerate(WC_CLASS_VALUES):
             mapped[data == class_value] = idx
@@ -624,11 +639,11 @@ class Dataset(PyTorchDataset):
         if H % new_H != 0 or W % new_W != 0:
             raise ValueError("H and W must be divisible by target dimensions")
 
-        # Compute block sizes
+        # Compute how many pixels must go into one block
         h_block = H // new_H
         w_block = W // new_W
 
-        # reshape
+        # aggregate into the target shape
         # for data, take the mean over blocks, for the mask take the min (we want the block mask to be invalid where at least one value is invalid)
         return data.reshape(new_H, h_block, new_W, w_block, T, C).mean(
             axis=(1, 3), dtype=data.dtype
@@ -677,7 +692,7 @@ class Dataset(PyTorchDataset):
         valid_mask_t = t_x != NO_DATA_VALUE
         valid_mask_st = st_x != NO_DATA_VALUE
 
-        # apply the channel-specific no-data bounds
+        # add the channel-specific no-data bounds
         for ch, lower_bound in CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_h_x"].items():
             valid_mask_s_t_h[..., ch] &= s_t_h_x[..., ch] >= lower_bound
         for ch, lower_bound in CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_m_x"].items():
@@ -1377,6 +1392,8 @@ class Dataset(PyTorchDataset):
                 valid_data_mask_t,
                 valid_data_mask_st,
             ) = self[i]
+
+            # replace invalid data with nans to be ignored for the stats
             s_t_h_x = np.where(valid_data_mask_s_t_h, s_t_h_x, np.nan)
             s_t_m_x = np.where(valid_data_mask_s_t_m, s_t_m_x, np.nan)
             s_t_l_x = np.where(valid_data_mask_s_t_l, s_t_l_x, np.nan)

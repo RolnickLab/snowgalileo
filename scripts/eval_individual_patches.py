@@ -18,11 +18,14 @@ process = psutil.Process()
 
 torch.backends.cuda.matmul.allow_tf32 = True
 
-argparser = argparse.ArgumentParser()
+argparser = argparse.ArgumentParser(
+    description="Starter script for evaluating the performance of individual tiles (to be stored in a csv file)."
+)
 argparser.add_argument(
     "--checkpoint_name",
     type=str,
     default="attn_fsc_train_tiny_snowgalileo_pretrained_3ytssipa.pth",
+    help="Name of the checkpoint to be used for evaluation. Should be stored in the checkpoints_dir specified in src/utils.py. If '', a randomly initialized model will be used.",
 )
 argparser.add_argument(
     "--exclude_prediction_high_res",
@@ -71,7 +74,7 @@ args = argparser.parse_args().__dict__
 
 decoder_mode = args["decoding_strategy"]
 
-# TODO: fix the EncoderWithHead loading pipeline
+# TODO: doublecheck the EncoderWithHead loading pipeline
 # TODO: make sure the eval config matches the training config
 with (Path("configs") / Path("eval") / Path(args["eval_config_name"])).open("r") as f:
     eval_config = json.load(f)

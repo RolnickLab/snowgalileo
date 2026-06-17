@@ -1,3 +1,12 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
+### Modifications by marlens123:
+### - Included medium and low resolution data
+### - Add attention probe as decoding option
+
 import collections.abc
 import itertools
 import json
@@ -757,18 +766,12 @@ class SnowGalileoBase(nn.Module):
         # the number of pixels in a patch * the resolution of each pixel
         token_res_high = input_res_high_res * patch_size_high_res
         gsd_ratio_high_res = token_res_high / BASE_GSD_HIGH_RES
-        # TODO: remove later
-        assert gsd_ratio_high_res == 10, f"gsd_ratio_high_res is {gsd_ratio_high_res}, expected 10"
 
         token_res_med = input_res_med_res * patch_size_med_res
         gsd_ratio_med_res = token_res_med / BASE_GSD_MED_RES
-        # TODO: remove later
-        assert gsd_ratio_med_res == 1, f"gsd_ratio_med_res is {gsd_ratio_med_res}, expected 1"
 
         token_res_low = input_res_low_res * patch_size_low_res
         gsd_ratio_low_res = token_res_low / BASE_GSD_LOW_RES
-        # TODO: remove later
-        assert gsd_ratio_low_res == 1, f"gsd_ratio_low_res is {gsd_ratio_low_res}, expected 1"
 
         assert h_s_t_h == w_s_t_h, (
             "get_2d_sincos_pos_embed_with_resolution currently requires that h_s_t_h==w_s_t_h"

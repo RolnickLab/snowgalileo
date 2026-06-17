@@ -16,7 +16,9 @@ process = psutil.Process()
 
 torch.backends.cuda.matmul.allow_tf32 = True
 
-argparser = argparse.ArgumentParser()
+argparser = argparse.ArgumentParser(
+    description="Starter script to analyze the relation between performance and forest cover."
+)
 argparser.add_argument(
     "--eval_config_name",
     type=str,
@@ -27,6 +29,7 @@ argparser.add_argument(
     "--results_csv_name",
     type=str,
     default="fsc_test_rockies_tiny",
+    help="Identifier of existing csv with per-tile results to append the forest results to. This csv must be stored in RESULTS_FOLDER specified in src/data/config.py and start with the prefix 'evaluation_results_' before the results_csv_name.",
 )
 args = argparser.parse_args().__dict__
 
@@ -45,6 +48,8 @@ tif_data_path = DATA_FOLDER / data_config["input_tif_folder"] / "test"
 forest_dataset = ForestMetaDataset(data_folder=tif_data_path)
 
 df = pd.read_csv(input_results_csv_path)
+
+# TODO: residual from testing - in the future, remove this row completely
 df = df[df["filename"] != "overall_rmse"]
 all_files = df["filename"].tolist()
 
