@@ -77,7 +77,7 @@ generation that produced it. "Heavy" = Sentinel-2 present in the 8-day window.
 | 18 | 04-23 | 58 min | **S2** | 01:56 | 12 | |
 | 19 | 04-24 | 39 min | no | 03:41 | 12 | |
 | 20 | 04-25 | 88 min | **S2** | 06:19 | 12 | last heavy day; slowest inference (~70 min) |
-| 21 | 04-26 | 50 min | — | (pending) | 12 | final day |
+| 21 | 04-26 | 50 min | — | 08:14 | 12 | final day; `inference_sweep_complete` 08:14:49 |
 
 Patterns visible in the table:
 - **Day 1 (308 min) is the cold-cache outlier**; every later day reuses ~7/8 of its 8-day
