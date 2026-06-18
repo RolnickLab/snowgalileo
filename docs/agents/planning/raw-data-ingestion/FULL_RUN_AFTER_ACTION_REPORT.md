@@ -188,21 +188,29 @@ before mitigating it* — the SSD split was correct hygiene but bought ~0 throug
 2. **Set `GDAL_CACHEMAX` in code** (`_init_worker`), not just the launch env, so the cap
    travels with the pipeline regardless of how it's invoked.
 
+**Output-quality (diagonal swath seams — see §9 for the full analysis):**
+3. **Kill the diagonal acquisition seams.** Three co-primary drivers (§9.1): **Landsat WRS-2
+   path** + **Sentinel-2 R070/R113 orbit** value-steps (cross-path/orbit normalize + feather
+   adjacent strips) and **S1 swath coverage edges** (average + feather overlaps, not
+   first-valid-wins, in `_scene_ops.mosaic_tiles`); add a per-source recency channel so the
+   model stops reading a seam as snow signal. The structurally complete fix is overlapping
+   inference grids + averaging (kills both the diagonal seams and the 1 km grid outline).
+
 **Medium value (throughput / robustness):**
-3. **Skip-if-exists in the inference driver.** The driver re-loops `[window_start,
+4. **Skip-if-exists in the inference driver.** The driver re-loops `[window_start,
    window_end]` with no per-day skip, so a naive restart redoes completed days. The run
    worked around it with `CUBE_WINDOW_START` overrides, but a built-in "COG already exists →
    skip" would make resume a one-flag operation and prevent accidental rework.
-4. **Reduce S2 JP2-decode cost** (the 42 % CPU hot spot and the memory driver). Options:
+5. **Reduce S2 JP2-decode cost** (the 42 % CPU hot spot and the memory driver). Options:
    decode fewer JP2 opens per cube, cache decoded S2 bands more coarsely, or pre-decode S2
    to a cheaper intermediate. Would compress heavy-day duration *and* RAM.
-5. **`max_tasks_per_child` on the pool** as a belt-and-suspenders against any per-worker
+6. **`max_tasks_per_child` on the pool** as a belt-and-suspenders against any per-worker
    heap growth — recycles workers periodically.
 
 **Lower value (operational polish):**
-6. **Progress logging in the inference+mosaic stage** — its 50–70 min silences repeatedly
+7. **Progress logging in the inference+mosaic stage** — its 50–70 min silences repeatedly
    triggered "is it hung?" checks. A per-N-cells heartbeat would remove that ambiguity.
-7. **Auto-resume wrapper** — a thin script that, on pool death, re-launches from the last
+8. **Auto-resume wrapper** — a thin script that, on pool death, re-launches from the last
    COG with the same config, so an overnight crash self-heals instead of waiting for an
    operator.
 
@@ -226,3 +234,117 @@ before mitigating it* — the SSD split was correct hygiene but bought ~0 throug
 5. **Mode-B surfaced a whole bug class Mode A could not.** Edge cells, granule-dense
    windows, and full-grid memory pressure are all Mode-B-only — the smoke tests that passed
    for Mode A were structurally blind to them. Test the tail, not just the head.
+
+---
+
+## 9. Output artifact analysis — diagonal swath seams in the daily FSC
+
+**Observation (user).** Beyond the expected 1 km grid outline (Mode B tiles the AOI into
+independent 1 km cells with no overlap/averaging — a known artifact, deferred to overlapping
+grids), the COGs show **diagonal banding running upper-right → lower-left** that *recurs in
+roughly the same place but is not identical date to date* — a strong hint that one input
+source dominates the result, and that it is a **long-revisit, partial-coverage** source
+rather than a near-daily one.
+
+### 9.1 Diagnosis — Landsat, Sentinel-1, and Sentinel-2 footprint seams (all diagonal); Sentinel-3 weaker
+
+The diagonals are **acquisition-footprint seams**: within one 8-day cube window, a
+long-revisit / multi-track source contributes data from **different acquisition dates on
+either side of a swath or path boundary**, and at ~51 °N those boundaries run UR → LL — the
+observed orientation. Two mechanisms produce the seam:
+
+- **(M1) Coverage edge** — band present → nodata along a swath boundary (the model sees a
+  step in *which inputs exist*).
+- **(M2) Value step under full coverage** — two adjacent tracks/paths both cover their cells
+  but were imaged on **different days** (different snow, sun, cloud), leaving a *value* step
+  across the boundary with **no coverage hole**, since the mosaic is **first-valid-wins, not
+  averaged** (`_scene_ops.mosaic_tiles`).
+
+**Method note — three aggregate metrics each failed; the coverage *map* settled it.** Four
+spatial tests were run; the first three each have a projection flaw and gave unreliable
+per-source rankings:
+
+| Test | Flaw | Wrong verdict it produced |
+|------|------|---------------------------|
+| coverage/presence `corr(valid-frac, lon+lat)` | blind to M2 (full-coverage value seams) | cleared Landsat (scored 0.03) |
+| value `corr(mean-value, lon+lat)` | confounded by the real **W→E snow gradient** | inflated everything, incl. seam-free VIIRS (0.48–0.59) |
+| de-trended column-mean step | **column collapse smears diagonal seams** (only sees vertical ones) | inconclusive |
+| **per-source coverage MAP (rendered)** | none for this question | **decisive — see below** |
+
+What actually discriminated was **rendering each source's per-cell window coverage as a map**
+(`/tmp/source_seams_overview.png`) and reading the seam geometry directly — the same logic as
+the user's Landsat-scene overlay, applied to every source:
+
+| Source | Seam in coverage map | Orientation | Diagonal driver? |
+|--------|----------------------|-------------|------------------|
+| **Landsat** | strong path boundary (042 vs 043, imaged Apr 3 vs Apr 2) | **UR → LL** | **Yes — primary.** Footprint fixed, recurs every 16 days; matches the user overlay. |
+| **Sentinel-1** | clear diagonal swath strip; per-pass western edge differs (Apr 1: −115.33, Apr 6: −116.59) | **UR → LL** | **Yes — primary.** M1 coverage edge that shifts per pass. |
+| **Sentinel-2** | diagonal orbit boundary (**R070 vs R113**) **+** rectilinear MGRS edges (T11U NS/NT/PS/PT) | **UR → LL + N–S/E–W** | **Yes** — newly identified; the earlier "N–S only" was wrong. |
+| **Sentinel-3** | banding more **E–W / horizontal** than diagonal | mostly horizontal | **Weak** — least aligned with the UR→LL axis. |
+| VIIRS | none (wall-to-wall daily) | — | **No.** Confirms the corollary: near-daily full-coverage sources can't make crisp seams. |
+
+**Corroborating hard evidence (no correlation needed):**
+- **Landsat:** the 04-06 window `[03-30…04-06]` carries **path 042 (Apr 3, LC08) west** and
+  **path 043 (Apr 2, LC09) east**; the WRS-2 042 footprint west edge is lon **−115.75 in
+  April vs −115.73 in a March scene** — fixed, recurring geometry, so any 042 scene traces
+  the seam line. The FSC column-mean also shows a **0.66 → 0.74 step** near the path boundary
+  (suggestive, not conclusive on its own given the gradient).
+- **Sentinel-1:** the two in-window passes have **different western coverage edges** (above) —
+  a real diagonal nodata boundary that moves between dates.
+- **Sentinel-2:** the archive carries **two relative orbits (R070, R113)** plus a 2×2 MGRS
+  tile grid — both a diagonal orbit seam and rectilinear tile edges.
+
+**Verdict (corrected, twice).** **Three co-primary diagonal drivers — Landsat WRS-2 path
+seams, Sentinel-1 swath coverage edges, and Sentinel-2 orbit seams — all UR→LL; Sentinel-3
+is a weak/more-horizontal contributor.** This supersedes two earlier wrong calls in this
+analysis: (1) the coverage-only test wrongly **cleared Landsat**, and (2) S2 was wrongly
+filed as **"N–S tile edges only"** — it also has a diagonal orbit seam. The user's
+"long-revisit, partial-coverage source" instinct was correct and, specifically, correct
+about Landsat.
+
+**Why "same pattern, shifting per date":** every contributor's footprint is **fixed,
+recurring geometry** — Landsat WRS-2 paths repeat every 16 days, S1 relative orbits on its
+~12-day cycle (granules alternate ~T0120 / ~T0129 tracks + a ~T0137 pass), S2 orbits R070/R113.
+So the seam *set* recurs near the same place while *which* tracks/paths fall inside `[d−7, d]`
+rotates day to day. This also plausibly drives the **non-monotone mid-window FSC wobble**
+(AOI-mean dipping to ~0.33 on 04-16, rising to ~0.44 by 04-22): real snowmelt is near-monotone,
+so a bounce that tracks which acquisitions populated each window points at input availability,
+not snow.
+
+### 9.2 Mitigation options
+
+**Tier A — post-treatment on the existing COGs (no re-run; least result-twisting first):**
+1. **Seam-mask DC-offset removal.** The seams are a low-frequency *step* on top of real
+   high-frequency snow texture. Derive the seam mask per day from the **fixed footprints**
+   (Landsat WRS-2 path boundaries, S1 swath edges, S2 R070/R113 orbit + MGRS tile edges — all
+   on disk) and subtract the per-strip mean offset only at those locations. Surgical —
+   flattens the step, not the terrain. **Recommended at this tier.**
+2. **Edge-preserving smoothing** (bilateral / DEM-guided guided filter) — knocks down soft
+   seams while keeping real snowline edges. Moderate distortion (can blur genuine detail).
+3. **Document + display only** — annotate as a known acquisition-geometry artifact, overlay
+   the seam mask. Zero distortion; honest but cosmetic.
+
+**Tier B — pipeline fixes (re-export; addresses the cause):**
+4. **Fix the M2 value step (Landsat + S2) — cross-path/orbit normalization + feathered
+   blend.** The Landsat (042/043 path) and S2 (R070/R113 orbit) seams are *value* steps
+   between fully-covering strips imaged on different days; `_scene_ops.mosaic_tiles`'
+   first-valid-wins makes them hard cuts. Histogram-match / offset-correct adjacent strips to
+   a common reference and feather across the overlap. **Highest-leverage cause fix** — these
+   are confirmed co-primary drivers.
+5. **Fix the M1 coverage edge (S1) — average + feather in the overlap zone** instead of a
+   hard first-valid-wins cut. Reduces the within-coverage step; does not fill a true nodata
+   gap (only overlapping-grid inference, C7, does).
+6. **Coverage/recency input channel** — tell the model each pixel's per-source obs age so
+   both a coverage edge *and* a stale-vs-fresh value step stop being read as snow signal
+   (model-input change, larger scope; addresses M1 and M2 together).
+
+**Tier C — the structurally correct fix (already flagged "for another day"):**
+7. **Overlapping inference grids + averaging the FSC.** Offsetting grids moves each
+   acquisition seam to a different location per offset; averaging cancels both the seams
+   *and* the 1 km grid outline. Highest cost (N× inference), but the complete answer.
+
+**Recommendation:** ship **A1** now (surgical, no re-run, defensible), and fold **B4 + B6**
+into the next export (B4 first — Landsat is the clearest cause fix); treat **C7** as the
+eventual definitive fix that subsumes both this and the grid-outline artifact. Method,
+corrected evidence, and the measurement-method error are documented in §9.1; see §7
+follow-up 3.
