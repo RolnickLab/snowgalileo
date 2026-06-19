@@ -119,7 +119,7 @@ def sample_season_year(season, start_year, end_year, seed=None):
 
 
 def get_location_season_identifier(filename) -> str:
-    return filename.split("_dates=")[0] + ".tif"
+    return f"{filename.split('_dates=')[0]}.tif"
 
 
 def copy_files_with_partial_check(src_folder, dest_folder):
