@@ -102,7 +102,11 @@ def test_export_prompt_nonempty_non_tty_aborts(tmp_path, monkeypatch):
         module.app, ["export", "--config", str(config), "--cache-policy", "prompt"]
     )
 
-    assert result.exit_code != 0
-    assert "--cache-policy" in result.output
-    # Cache untouched (the run aborted, nothing cleared).
+    # Contract: a BadParameter abort (exit 2), not a crash (1) or hang. Don't assert the
+    # rich-rendered message text — Typer renders BadParameter through a rich panel whose
+    # width/version-dependent wrapping can split tokens (e.g. "--cache-policy") across lines
+    # or boxes, which made the old substring check flaky across CI vs local. The exit code is
+    # the stable signal: 2 is Click's usage/parameter error.
+    assert result.exit_code == 2, result.output
+    # Cache untouched (the run aborted before any clear/export work).
     assert len(list(cache_root.rglob("*.npz"))) == 1
