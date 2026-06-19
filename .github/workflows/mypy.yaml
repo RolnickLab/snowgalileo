@@ -5,7 +5,7 @@ on:
     branches: [main]
 
 jobs:
-  ci:
+  Mypy:
     runs-on: ubuntu-latest
 
     steps:
