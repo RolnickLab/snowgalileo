@@ -108,11 +108,6 @@ def test(session):
     session.run("pytest", external=True)
 
 
-@nox.session(name="test-ci")
-def test_ci(session):
-    session.run("pytest", "-m", "'not slow'", "-n", "4", external=True)
-
-
 @nox.session()
 def test_custom(session):
     for a in session.posargs:
