@@ -221,6 +221,10 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
     def _apply_cloud_augmentation(
         self, space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, time_x
     ):
+        """
+        Disclaimer: This function was created with the assistance of ChatGPT. 
+        While thoroughly reviewed and tested by the author, AI-generated code may contain errors.
+        """
         # Create copies of the arrays to later compute valid masks on, since invalid data values will be
         # changed by cloud generation
         space_time_high_res_x_no_clouds_added = space_time_high_res_x.copy()
