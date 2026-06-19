@@ -234,7 +234,7 @@ sentence and maps to at least one step in the Verification Plan (§7).
   config switch (Q3 — confirm for production).
 - `data/bow_valley_inference_aoi.geojson` is the single authoritative clip/inference boundary; 31% of
   the original 500 cells fall outside it and are intentionally dropped.
-- `sampled_cells_bow_river_with_dates.csv` is consumed for **cell geometry only**
+- `tests/fixtures/sampled_cells_bow_river_with_dates.csv` is consumed for **cell geometry only**
   (`center_x/y`, bounds). Its `date` column is train/eval label-sampling
   metadata and is **not read** by this inference pipeline.
 - DEM (9 elevation tiles) and WorldCover (4 `Map` tiles) mosaics must cover the
@@ -404,7 +404,7 @@ explicit.
 ## 5. Dependencies
 
 - **Inputs:** `data/bow_valley_selection_raw` (raw, read-only),
-  `data/bow_valley_inference_aoi.geojson`, `sampled_cells_bow_river_with_dates.csv` (cell geometry
+  `data/bow_valley_inference_aoi.geojson`, `tests/fixtures/sampled_cells_bow_river_with_dates.csv` (cell geometry
   only; `date` column unused — see §3 Q4).
 - **Internal modules (unchanged):** `LandsatEvalDataset`, `EncoderWithHead`,
   `Normalizer`, `eo.py` band-group dicts, `config.py` constants.

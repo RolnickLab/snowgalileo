@@ -92,7 +92,7 @@ uv run pytest tests/test_local_sources/test_grid.py tests/test_local_sources/tes
 **Gotchas:**
 - Grid math is EPSG:32611. AOI filter reprojects cell centres to 4326. 156 of
   500 cells (31%) fall outside the AOI and are dropped by design.
-- The legacy `date` column in `sampled_cells_bow_river_with_dates.csv` is never
+- The legacy `date` column in `tests/fixtures/sampled_cells_bow_river_with_dates.csv` is never
   read — only cell geometry is reused; dates come from the inference window.
 
 ---

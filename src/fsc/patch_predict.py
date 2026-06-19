@@ -1,3 +1,10 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
+### Modified by marlens123
+
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -8,12 +15,12 @@ import torch.nn as nn
 import wandb
 from einops import rearrange
 
+from src.data.config import WANDB_ENTITY
 from src.fsc.metrics import (
     compute_classification_metrics,
     compute_regression_metrics,
     compute_segmentation_metrics,
 )
-from src.fsc.utils import landsat_binary_mapping
 from src.snowgalileo import AttentionProbe, adjust_learning_rate
 from src.utils import checkpoints_dir, save_checkpoint
 
@@ -180,7 +187,7 @@ def finetune_and_eval_seg(
 ):
     if log_wandb:
         wandb.init(
-            entity="sea-ice",
+            entity=WANDB_ENTITY,
             project="ai4snow_finetune_final",
             name=f"{identifier}-lr{hyperparameter_config.get('learning_rate')}",
             id=wandb_id_parsed,
@@ -502,68 +509,6 @@ def finetune_seg(
                 print(f"Finished epoch {epoch + 1}/{epochs}")
 
     return finetuned_encoder
-
-
-def evaluate_binary(data_loader, finetuned_model, device, patch_size_high_res=10):
-    finetuned_model = finetuned_model.eval()
-
-    all_preds_1D = []
-    all_labels_1D = []
-
-    with torch.no_grad():
-        for masked_output, labels, _ in data_loader:
-            (
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                s_t_h_m,
-                s_t_m_m,
-                s_t_l_m,
-                sp_m,
-                t_m,
-                st_m,
-                months,
-            ) = [t.to(device) for t in masked_output]
-
-            # with torch.cuda.amp.autocast(dtype=torch.bfloat16):
-            logits = finetuned_model(
-                s_t_h_x,
-                s_t_m_x,
-                s_t_l_x,
-                sp_x,
-                t_x,
-                st_x,
-                s_t_h_m,
-                s_t_m_m,
-                s_t_l_m,
-                sp_m,
-                t_m,
-                st_m,
-                months,
-                patch_size_high_res=patch_size_high_res,
-                patch_size_med_res=1,
-                patch_size_low_res=1,
-            )
-
-            # check that all predictions are between 0 and 1
-            assert logits.min() >= 0 and logits.max() <= 1
-
-            all_preds_1D.append(
-                rearrange(torch.squeeze(logits, -1), "b s -> (b s)").float().cpu().numpy()
-            )
-            all_labels_1D.append(rearrange(labels, "b h w -> (b h w)").float().cpu().numpy())
-
-    predictions = landsat_binary_mapping(np.concatenate(all_preds_1D))
-    landsat_labels = landsat_binary_mapping(np.concatenate(all_labels_1D))
-
-    results = compute_classification_metrics(predictions, landsat_labels)
-
-    results_path = Path("./snowgalileo_binary_results.json")
-    with results_path.open("w") as f:
-        json.dump(results, f)
 
 
 def evaluate_seg(

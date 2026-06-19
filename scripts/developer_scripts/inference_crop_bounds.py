@@ -3,7 +3,6 @@
 import argparse
 import gc
 from pathlib import Path
-from typing import Union
 
 import rasterio
 from rasterio.transform import Affine
@@ -47,9 +46,7 @@ crop_size = args.crop_size
 output_folder.mkdir(parents=True, exist_ok=True)
 
 # Input and output files
-output_files: Union[list[Path], list[str]] = list(output_folder.glob("*.tif")) + list(
-    output_folder.glob("*.tiff")
-)
+output_files = list(output_folder.glob("*.tif")) + list(output_folder.glob("*.tiff"))
 tif_files = list(exported_tif_path.glob("*.tif")) + list(exported_tif_path.glob("*.tiff"))
 
 processed_files = {f.name for f in output_files}

@@ -75,7 +75,7 @@ DEFAULT_WINDOW_START: date = date(2025, 4, 6)
 DEFAULT_WINDOW_END: date = date(2025, 5, 28)
 
 #: Repo-root-relative default paths (resolved against the package's repo root).
-DEFAULT_LEGACY_CSV: Path = Path("sampled_cells_bow_river_with_dates.csv")
+DEFAULT_LEGACY_CSV: Path = Path("tests/fixtures/sampled_cells_bow_river_with_dates.csv")
 #: AOI default resolves from LocalPaths (env-overridable, LOCAL_ prefix) so the
 #: grid generator and the clip stage share one source of truth — see
 #: data/BOW_VALLEY_DATA_LAYOUT.md.
@@ -144,7 +144,7 @@ def load_cells(legacy_csv: Path) -> list[CellGeometry]:
     geometry so a cell sampled on multiple label dates is counted once.
 
     Args:
-        legacy_csv: Path to ``sampled_cells_bow_river_with_dates.csv``.
+        legacy_csv: Path to ``tests/fixtures/sampled_cells_bow_river_with_dates.csv``.
 
     Returns:
         One :class:`CellGeometry` per unique cell, ``cell_id`` assigned in

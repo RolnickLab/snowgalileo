@@ -1,3 +1,11 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
+### Modifications by marlens123:
+### - Included additional input sources and modality groups used by SnowGalileo
+
 # https://github.com/nasaharvest/openmapflow/blob/main/openmapflow/ee_exporter.py
 import os
 import shutil
@@ -186,7 +194,7 @@ for modality in MODALITIES:
             else:
                 print(f"Warning: Check modality '{modality}'.")
 
-# TODO: remove this hacky assert and add a better test
+# NOTE: This changes once the input sources are modified
 assert TIME_IMAGE_FUNCTIONS == [
     get_single_s1_image,
     get_single_s2_image,
@@ -345,7 +353,8 @@ def get_ee_task_list(key: str = "description") -> List[str]:
 
 
 def get_ee_task_amount(prefix: Optional[str] = None) -> int:
-    """Gets amount of active tasks in Earth Engine.
+    """
+    Gets amount of active tasks in Earth Engine.
 
     Args:
         prefix: Prefix to filter tasks.
@@ -414,13 +423,13 @@ def create_ee_image(
     interval_end_date: date,
     days_per_timestep: int = DAYS_PER_TIMESTEP,
 ) -> ee.Image:
-    """Returns an ee.Image which we can then export.
-
-    This image will contain all time-varying data between start_date and
-    end_date, in intervals of days_per_timestep. Each timestep will be a
-    different channel in the image (e.g. if I have 3 timesteps, then
-    I'll have VV, VV_1, VV_2 for the S1 VV bands). The static in time
-    bands will also be in the image.
+    """
+    Returns an ee.Image which we can then export.
+    This image will contain all time-varying data
+    between start_date and end_date, in intervals of
+    days_per_timestep. Each timestep will be a different channel in the
+    image (e.g. if I have 3 timesteps, then I'll have VV, VV_1, VV_2 for the
+    S1 VV bands). The static in time bands will also be in the image.
     """
     image_collection_list: List[ee.Image] = []
     cur_date = interval_start_date
@@ -428,7 +437,6 @@ def create_ee_image(
 
     # Note: we add a day to the end date to make sure we get the last day inclusive
     # (the ee.filterDate function is exclusive)
-    # TODO: check if this makes sense if days_per_timestep is greater than 1
     while cur_end_date <= interval_end_date + timedelta(days=days_per_timestep):
         image_list: List[ee.Image] = []
 
@@ -465,9 +473,8 @@ def create_ee_image(
 
 
 class EarthEngineExporter:
-    """Export satellite data from Earth engine.
-
-    It's called using the following
+    """
+    Export satellite data from Earth engine. It's called using the following
     script:
     ```
     from src.data import EarthEngineExporter
@@ -646,9 +653,10 @@ class EarthEngineExporter:
         latlons: pd.DataFrame,
         num_exports_to_start: int = 3000,
     ) -> None:
-        """Export boxes with length and width EXPORTED_HEIGHT_WIDTH_METRES for
-        the points in latlons (where latlons is a dataframe with the columns
-        "lat" and "lon").
+        """
+        Export boxes with length and width EXPORTED_HEIGHT_WIDTH_METRES
+        for the points in latlons (where latlons is a dataframe with
+        the columns "lat" and "lon").
         """
         for expected_column in [LAT, LON]:
             assert expected_column in latlons
@@ -703,6 +711,4 @@ class EarthEngineExporter:
                         return None
 
         if self.mode == "url":
-            print("Export finished. Syncing to google cloud")
-            self.sync_local_and_gcloud()
-            print("Finished sync")
+            print("Export finished.")

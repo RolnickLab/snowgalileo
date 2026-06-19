@@ -1,3 +1,12 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
+### Modifications by marlens123:
+### - Included medium and low resolution data
+### - Add attention probe as decoding option
+
 import collections.abc
 import itertools
 import json
@@ -84,7 +93,6 @@ class FlexiPatchEmbed(nn.Module):
             patch_size_seq: List of patch sizes to randomly sample from
             interpolation: Resize interpolation type
             antialias: Whether to apply antialiasing resizing
-
         """
         super().__init__()
 
@@ -135,9 +143,7 @@ class FlexiPatchEmbed(nn.Module):
         return torch.linalg.pinv(resize_matrix)
 
     def resize_patch_embed(self, patch_embed: Tensor, new_patch_size: Tuple[int, int]):
-        """Resize patch_embed to target resolution via pseudo-inverse
-        resizing.
-        """
+        """Resize patch_embed to target resolution via pseudo-inverse resizing."""
         # Return original kernel if no resize is necessary
         if self.patch_size == new_patch_size:
             return patch_embed
@@ -200,14 +206,14 @@ class AttentionProbe(nn.Module):
     # Credits to: https://github.com/EleutherAI/attention-probes
     # Modified to invert meaning of masks (1 = masked, 0 = unmasked)
     # Also changed default output_dim to 100 since this is the number of patches we want to predict.
-    """Torch module for attention probes.
-
+    """
+    Torch module for attention probes.
     Supports:
     * multiple heads
     * relative position bias
     * post-attention MLP
     * attention weight dropout
-    * attention weight recording via PyTorch forward hooks
+    * attention weight recording via PyTorch forward hooks.
     """
 
     def __init__(
@@ -220,16 +226,16 @@ class AttentionProbe(nn.Module):
         attn_dropout_p: float = 0.0,
         config: Any = None,
     ):
-        """Args:
-        d_in (int): input dimensionality.
-        n_heads (int): number of attention heads.
-        output_dim (int): output dimension (default: 100).
-        Returns logits, needs to be passed through an activation function.
-        hidden_dim (int): hidden dimension for post-attention MLP (default: 0, no MLP).
-        use_tanh (bool): use tanh activation for attention weights (default: False).
-        attn_dropout_p (float): dropout probability for attention weights (default: 0.0).
-        config (Any): additional configuration parameters to store in the model.
-
+        """
+        Args:
+            d_in (int): input dimensionality.
+            n_heads (int): number of attention heads.
+            output_dim (int): output dimension (default: 100).
+            Returns logits, needs to be passed through an activation function.
+            hidden_dim (int): hidden dimension for post-attention MLP (default: 0, no MLP).
+            use_tanh (bool): use tanh activation for attention weights (default: False).
+            attn_dropout_p (float): dropout probability for attention weights (default: 0.0).
+            config (Any): additional configuration parameters to store in the model.
         """
         super().__init__()
         # projection from inputs to attention logits
@@ -426,9 +432,7 @@ def drop_path(x, drop_prob: float = 0.0, training: bool = False):
 
 
 class DropPath(nn.Module):
-    """Drop paths (Stochastic Depth) per sample  (when applied in main path of
-    residual blocks).
-    """
+    """Drop paths (Stochastic Depth) per sample  (when applied in main path of residual blocks)."""
 
     def __init__(self, drop_prob=None):
         super(DropPath, self).__init__()
@@ -762,18 +766,12 @@ class SnowGalileoBase(nn.Module):
         # the number of pixels in a patch * the resolution of each pixel
         token_res_high = input_res_high_res * patch_size_high_res
         gsd_ratio_high_res = token_res_high / BASE_GSD_HIGH_RES
-        # TODO: remove later
-        assert gsd_ratio_high_res == 10, f"gsd_ratio_high_res is {gsd_ratio_high_res}, expected 10"
 
         token_res_med = input_res_med_res * patch_size_med_res
         gsd_ratio_med_res = token_res_med / BASE_GSD_MED_RES
-        # TODO: remove later
-        assert gsd_ratio_med_res == 1, f"gsd_ratio_med_res is {gsd_ratio_med_res}, expected 1"
 
         token_res_low = input_res_low_res * patch_size_low_res
         gsd_ratio_low_res = token_res_low / BASE_GSD_LOW_RES
-        # TODO: remove later
-        assert gsd_ratio_low_res == 1, f"gsd_ratio_low_res is {gsd_ratio_low_res}, expected 1"
 
         assert h_s_t_h == w_s_t_h, (
             "get_2d_sincos_pos_embed_with_resolution currently requires that h_s_t_h==w_s_t_h"
@@ -970,13 +968,15 @@ class Encoder(SnowGalileoBase):
         patch_size_med_res: int = 1,
         patch_size_low_res: int = 1,
     ):
-        """Given a [B, H, W, (T), C] inputs, returns a [B, H, W, (T), C_G, D]
-        output.
-
-        We assume that the spatial masks are consistent for the given
-        patch size, so that if patch_size == 2 then one possible mask
-        would be [0, 0, 1, 1] [0, 0, 1, 1] [1, 1, 0, 0] [1, 1, 0, 0] for
-        the H, W dimensions
+        """
+        Given a [B, H, W, (T), C] inputs, returns a [B, H, W, (T), C_G, D] output.
+        We assume that the spatial masks are consistent for the given patch size,
+        so that if patch_size == 2 then one possible mask would be
+        [0, 0, 1, 1]
+        [0, 0, 1, 1]
+        [1, 1, 0, 0]
+        [1, 1, 0, 0]
+        for the H, W dimensions.
         """
         b, h_s_t_h, w_s_t_h, t, _ = s_t_h_x.shape
         new_h_s_t_h, new_w_s_t_h = h_s_t_h // patch_size_high_res, w_s_t_h // patch_size_high_res
@@ -1274,8 +1274,8 @@ class Encoder(SnowGalileoBase):
         attend_over_spatial: bool = False,
         med_and_low_res_repeat: bool = True,
     ):
-        """Preprocess tokens for attention probe by collapsing spatial
-        dimensions. Also return position.
+        """
+        Preprocess tokens for attention probe by collapsing spatial dimensions. Also return position.
 
         Output shapes:
         - x: (batch size, num tokens, token_dim) or (batch size, high_res_spatial_positions, num tokens, token_dim) if attend_over_spatial is True

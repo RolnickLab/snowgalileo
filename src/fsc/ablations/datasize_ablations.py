@@ -83,7 +83,6 @@ class DatasetSizeAblationsEval(LandsatEval):
             rng = random.Random(self.seed)
             indices = rng.sample(range(len(dataset)), data_config["dataset_subset_size"])
             subset_dataset = Subset(dataset, indices)
+            return subset_dataset
         else:
-            subset_dataset = dataset
-
-        return subset_dataset
+            return dataset

@@ -1,3 +1,11 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
+### Modifications by marlens123:
+### - Included medium and low resolution data
+
 import logging
 from abc import ABC
 from typing import Dict, List, Optional, Sequence
@@ -124,13 +132,11 @@ class EvalTask(ABC):
         pretrained_model: Encoder,
         models: List[str] = ["Random Forest"],
     ) -> Sequence[BaseEstimator]:
-        """Fit sklearn models on the encodings of the pretrained model.
-
-        For spatial token prediction tasks, encodings and targets are
-        grouped token-wise. Either the mode class will be computed or
-        the normalized counts of each class per token. This is
-        controlled by the output_mode attribute which can be changed in
-        the subclass.
+        """
+        Fit sklearn models on the encodings of the pretrained model.
+        For spatial token prediction tasks, encodings and targets are grouped token-wise.
+        Either the mode class will be computed or the normalized counts of each class per token.
+        This is controlled by the output_mode attribute which can be changed in the subclass.
         """
         for model_mode in models:
             if self.regression:

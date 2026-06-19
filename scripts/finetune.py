@@ -26,14 +26,13 @@ process = psutil.Process()
 
 torch.backends.cuda.matmul.allow_tf32 = True
 
-argparser = argparse.ArgumentParser()
+argparser = argparse.ArgumentParser(description="The main fine-tuning starter script.")
 argparser.add_argument(
     "--pretraining_checkpoint_folder",
     type=str,
     default="outputs/checkpoints_tiny/epoch_100",
-    help="Path to folder containing pretrained checkpoint.",
+    help="Path to folder containing pretraining checkpoint. If '', random initialization weights are used.",
 )
-# TODO: make the choices of naming more descriptive
 argparser.add_argument(
     "--decoding_strategy",
     type=str,
@@ -41,7 +40,6 @@ argparser.add_argument(
     choices=["finetune", "linear_probe", "attention_probe", "sklearn"],
     help="Decoding strategy to use. 'Finetune' uses a linear decoder and finetunes the entire model. 'Linear_probe' uses a linear decoder and only trains the decoder. 'Attention_probe' uses an attention-based decoder and fine-tunes the entire model. 'sklearn' uses the frozen encoder features for a sklearn model.",
 )
-argparser.add_argument("--resample", action="store_true", help="Whether to use oversampling.")
 argparser.add_argument(
     "--num_finetune_epochs", type=int, default=25, help="Number of epochs to finetune for."
 )
@@ -63,12 +61,12 @@ argparser.add_argument(
 argparser.add_argument(
     "--exclude_prediction_date",
     action="store_true",
-    help="Whether to exclude prediction date.",
+    help="Whether to exclude all data from prediction date.",
 )
 argparser.add_argument(
     "--include_prediction_era5",
     action="store_true",
-    help="Whether to include ERA5 in prediction date.",
+    help="Whether to include ERA5 in prediction date. Default is to exclude ERA5 to avoid precipitation=0 bias.",
 )
 argparser.add_argument("--resume_from_wandb_id", type=str, default="")
 argparser.add_argument(
@@ -119,14 +117,12 @@ else:
     initialization_id = "snowgalileo_random"
 
 eval_tasks: List[EvalTask] = [
-    # geobench EuroSat only works without latlons
     *[
         LandsatEval(
             exclude_prediction_date=args["exclude_prediction_date"],
             exclude_prediction_high_res=args["exclude_prediction_high_res"],
             exclude_prediction_sensors=args["exclude_prediction_sensors"],
             exclude_prediction_era5=not args["include_prediction_era5"],
-            resample=args["resample"],
             decoder_mode=args["decoding_strategy"],
             num_finetune_epochs=args["num_finetune_epochs"],
             eval_config=eval_config,

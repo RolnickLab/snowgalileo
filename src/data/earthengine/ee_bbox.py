@@ -1,3 +1,11 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
+### Modifications by marlens123:
+### - Adjusted so that is it possible to retrieve a bounding box from given coordinate bounds.
+
 from dataclasses import dataclass
 from math import cos, radians
 from typing import List, Tuple, Union
@@ -9,10 +17,9 @@ from src.data.bbox import BBox
 
 @dataclass
 class EEGeometry:
-    r"""A base class for Earth Engine geometries.
-
-    This is used to provide a common interface for different geometry
-    types.
+    r"""
+    A base class for Earth Engine geometries.
+    This is used to provide a common interface for different geometry types.
     """
 
     @staticmethod
@@ -34,7 +41,10 @@ class EEGeometry:
 
 @dataclass
 class EEBoundingBox(BBox):
-    r"""A bounding box with additional earth-engine specific functionality."""
+    r"""
+    A bounding box with additional earth-engine specific
+    functionality.
+    """
 
     def to_ee_polygon(self) -> ee.Geometry:
         return ee.Geometry.Polygon(
@@ -60,8 +70,9 @@ class EEBoundingBox(BBox):
         return delta_lat * m_per_deg_lat, delta_lon * m_per_deg_lon
 
     def to_polygons(self, metres_per_patch: int = 3300) -> List[ee.Geometry]:
-        """This function is handy if you want to split the bounding box into
-        many polygons (of size metres_per_patch).
+        """
+        This function is handy if you want to split the bounding box into many polygons
+        (of size metres_per_patch).
         """
         lat_metres, lon_metres = self.to_metres()
 

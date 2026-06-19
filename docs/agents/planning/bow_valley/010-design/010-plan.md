@@ -152,7 +152,7 @@ There are **two** AOI definitions in this project and they are **not** the same
 extent. CRS is law; both are stated explicitly below.
 
 1. **Cell-sampling extent** — convex-bbox of the 500 cells in
-   `sampled_cells_bow_river_with_dates.csv` (EPSG:32611):
+   `tests/fixtures/sampled_cells_bow_river_with_dates.csv` (EPSG:32611):
 
    | Bound | Value (EPSG:32611, m) |
    | --- | --- |
@@ -196,7 +196,7 @@ Emit a manifest of kept/dropped cell ids for auditability.
 
 **Generated cube CSV (the pipeline's actual cell/date input — RESOLVED).** The
 grid generator does **not** consume the legacy
-`sampled_cells_bow_river_with_dates.csv` `date` column (that column is train/eval
+`tests/fixtures/sampled_cells_bow_river_with_dates.csv` `date` column (that column is train/eval
 label-sampling metadata — see §8 Q4). Instead it **emits its own CSV** with the
 canonical schema `date, crs, center_x, center_y, min_x, min_y, max_x, max_y`
 (EPSG:32611) so that `EarthEngineExporterEval.export_from_csv_utm`
@@ -870,7 +870,7 @@ before approval.
    §3). Mode (B) tiles `data/bow_valley_inference_aoi.geojson`, not the wider cell-sampling bbox.
    Remaining input: confirm A vs B for the production run (drives compute).
 4. **CSV `date` column semantics. [RESOLVED]** The `date` column in
-   `sampled_cells_bow_river_with_dates.csv` is **training/evaluation sampling
+   `tests/fixtures/sampled_cells_bow_river_with_dates.csv` is **training/evaluation sampling
    metadata** — the day each cell was drawn for label pairing in the existing
    train/eval pipeline (`LandsatEvalDataset` matches an input tif to a label tif
    by date+coords). **It is NOT a per-cell prediction day for this inference

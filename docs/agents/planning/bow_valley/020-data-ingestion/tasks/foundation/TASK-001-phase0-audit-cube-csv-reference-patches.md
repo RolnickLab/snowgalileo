@@ -15,7 +15,7 @@ test has ground-truth fixtures to diff against.
 - **Memory:** `bow-valley-inference-csv-decision` — the cell/date input is a
   generated CSV, NOT the legacy training CSV.
 - **Key files:**
-  - `sampled_cells_bow_river_with_dates.csv` (repo root) — **cell geometry only**;
+  - `tests/fixtures/sampled_cells_bow_river_with_dates.csv` (repo root) — **cell geometry only**;
     its `date` column is train/eval metadata and is NOT read here.
   - `data/bow_valley_inference_aoi.geojson` — authoritative clip/inference boundary (EPSG:4326):
     `lon [-116.561936, -114.527659]`, `lat [50.729807, 52.306672]`.

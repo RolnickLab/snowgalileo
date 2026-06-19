@@ -27,10 +27,10 @@ from src.fsc.metrics import compute_regression_metrics
 
 
 class LandsatEvalDatasetSklearn(LandsatEvalDataset):
-    """The Random Forest baseline uses the same dataset as the main
-    LandsatEvalDataset, but doesn't group channel masks into channel group
-    masks, so that we can directly remove masked channels for the Random Forest
-    input.
+    """
+    The Random Forest baseline uses the same dataset as the main LandsatEvalDataset,
+    but doesn't group channel masks into channel group masks, so that we can directly
+    remove masked channels for the Random Forest input.
     """
 
     def __init__(
@@ -180,7 +180,6 @@ class LandsatEvalDatasetSklearn(LandsatEvalDataset):
             ) = self.mask_prediction_era5(s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m)
 
         image_path, label_path = self.pairs[idx]
-        # TODO: optinally add conversion to h5pys for labels
         with cast(xr.Dataset, rioxarray.open_rasterio(label_path)) as data:
             label = cast(np.ndarray, data.values)
             # remove first dimension (for shape consistency)
@@ -225,7 +224,6 @@ class LandsatEvalSklearn(LandsatEval):
         exclude_prediction_era5: bool = True,
         num_tokens_per_dim: int = 10,
         h5pys_only: bool = False,
-        resample: bool = False,
         eval_config: Dict = {},
         model_type: str = "rf",
         normalizing_dict: Optional[Dict] = None,
@@ -236,7 +234,6 @@ class LandsatEvalSklearn(LandsatEval):
         self.exclude_prediction_sensors = exclude_prediction_sensors
         self.exclude_prediction_era5 = exclude_prediction_era5
         self.num_tokens_per_dim = num_tokens_per_dim
-        self.resample = resample
         self.name = "ls_rf"
         self.model_type = model_type
         self.normalizing_dict = normalizing_dict
@@ -250,16 +247,17 @@ class LandsatEvalSklearn(LandsatEval):
             exclude_prediction_high_res=exclude_prediction_high_res,
             exclude_prediction_sensors=exclude_prediction_sensors,
             exclude_prediction_era5=exclude_prediction_era5,
-            resample=resample,
             eval_config=eval_config,
             h5pys_only=self.h5pys_only,
         )
 
     def forward_filling_masked_data_per_channel_else_aggregate(self, x, m, t, array_type: str):
-        """Fills masked values in x by forward-filling along the time dimension
-        per channel.
-
+        """
+        Fills masked values in x by forward-filling along the time dimension per channel.
         Remaining NaNs will fall back to aggregation replacement.
+
+        Disclaimer: This function was created with the assistance of ChatGPT.
+        While thoroughly reviewed and tested by the author, AI-generated code may contain errors.
         """
         assert x.dim() == 4, f"Expected 4D tensor, got shape {x.shape}"
 
@@ -294,7 +292,7 @@ class LandsatEvalSklearn(LandsatEval):
         # update time distance: last_idx already encodes last-valid timestep index
         timestep_grid = timestep_idx
         dist = timestep_grid - last_idx
-        # TODO: change value if we decide for another placeholder
+        # NOTE: change value if we decide for another placeholder
         dist[last_idx == -1] = -1
         t = dist
 
@@ -302,10 +300,7 @@ class LandsatEvalSklearn(LandsatEval):
 
     @staticmethod
     def median_replace(x, m, dims):
-        """Replaces masked values in x with the median over the specified dims.
-
-        Breaks early if no NaNs are left after a replacement step.
-        """
+        """Replaces masked values in x with the median over the specified dims."""
         x = torch.masked_fill(x, m.bool(), float("nan"))
         for d in dims:
             x = torch.where(torch.isnan(x), torch.nanmedian(x, dim=d, keepdim=True).values, x)
@@ -315,13 +310,11 @@ class LandsatEvalSklearn(LandsatEval):
         return x
 
     def replace_masked_data_with_aggregate(self, x, m, array_type: str):
-        """Replaces masked values in x with an aggregate.
-
-        First, tries to replace over the time dimension for timeseries
-        data, then over the space dimension. For space-only and static
-        data, replaces over space dimension. If no replacement is
-        possible, fill with the per-channel mean of the pre-training
-        data.
+        """
+        Replaces masked values in x with an aggregate.
+        First, tries to replace over the time dimension for timeseries data,
+        then over the space dimension. For space-only and static data, replaces over space dimension.
+        If no replacement is possible, fill with the per-channel mean of the pre-training data.
         """
         # timeseries data with shape (B, S, C, T)
         if x.dim() == 4:
@@ -368,11 +361,10 @@ class LandsatEvalSklearn(LandsatEval):
         st_m,
         month,
     ):
-        """Aggregates input data per output pixel by bringing all data to the
-        output resolution.
-
-        This means upsampling medium and low resolution data, and
-        aggregating high resolution data to output pixel resolution.
+        """
+        Aggregates input data per output pixel by bringing all data to the output resolution.
+        This means upsampling medium and low resolution data,
+        and aggregating high resolution data to output pixel resolution.
         """
         # determine upsampling factors for medium and low resolution data
         p_m = self.num_tokens_per_dim // s_t_m_x.shape[1]
@@ -630,9 +622,7 @@ class LandsatEvalSklearn(LandsatEval):
         st_t,
         month,
     ):
-        """Concatenates all data of a single image into shapes of [B, S, N],
-        where for RF, S is n_samples and N is n_features.
-        """
+        """Concatenates all data of a single image into shapes of [B, S, N], where for RF, S is n_samples and N is n_features."""
         # for timeseries data, flatten time and channel dimension
         s_t_h_x = rearrange(s_t_h_x, "b s t c -> b s (t c)")
         s_t_h_m = rearrange(s_t_h_m, "b s t c -> b s (t c)")
@@ -747,6 +737,10 @@ class LandsatEvalSklearn(LandsatEval):
                     shuffle=True,
                     num_workers=0,
                 )
+
+            # --------
+            # Training
+            # --------
 
             all_samples = []
             all_labels = []
@@ -888,6 +882,11 @@ class LandsatEvalSklearn(LandsatEval):
             shuffle=False,
             num_workers=0,
         )
+
+        # --------
+        # Evaluation
+        # --------
+
         all_preds = []
         all_test_labels = []
 
@@ -1048,7 +1047,7 @@ class LandsatEvalSklearn(LandsatEval):
 
             # save predictions and labels for each sample
             if save_results:
-                run_folder = Path(f"./{id}")
+                run_folder = Path(f"./sklearn_individual/{id}")
                 run_folder.mkdir(exist_ok=True)
                 sample_id = filename[0].split(".tif")[0]
                 sample_preds_path = Path(f"./{run_folder}/{sample_id}_{self.model_type}_preds.npy")

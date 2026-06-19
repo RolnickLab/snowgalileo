@@ -1,3 +1,8 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
 from sklearn.neighbors import KNeighborsClassifier as DefaultKNeighborsClassifier
 from sklearn.neighbors import KNeighborsRegressor as DefaultKNeighborsRegressor
 

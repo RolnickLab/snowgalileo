@@ -13,10 +13,12 @@ argparser.add_argument(
 argparser.add_argument(
     "--mask_folder", type=str, default="landsat_eval_masks/all/patches_UTM_5_95_subset"
 )
+argparser.add_argument("--test_ratio", default=0.2)
 args = argparser.parse_args().__dict__
 
 input_path = Path(DATA_FOLDER / args["input_folder"])
 mask_path = Path(DATA_FOLDER / args["mask_folder"])
+test_ratio = args["test_ratio"]
 
 assert len(list(input_path.glob("*.tif"))) == len(list(mask_path.glob("*.tif")))
 
@@ -60,6 +62,4 @@ def create_train_test_split(input_path, mask_path, test_size=0.2, random_state=D
 
 
 if __name__ == "__main__":
-    train_pairs, test_pairs = create_train_test_split(input_path, mask_path)
-    print(f"Train input files: {len(train_pairs)}")
-    print(f"Test input files: {len(test_pairs)}")
+    train_pairs, test_pairs = create_train_test_split(input_path, mask_path, test_size=test_ratio)

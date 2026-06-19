@@ -9,6 +9,7 @@ try:  # Optional: load a repo-root .env so EE_PROJECT et al. can live outside VC
 except ImportError:  # python-dotenv not installed — env vars still work.
     pass
 
+# each timestep covers one day
 DAYS_PER_TIMESTEP = 1
 
 # we use the max repeat cycle of the modalities used, which is 8-day in the case of combined Landsat 8 + 9
@@ -36,6 +37,7 @@ SOUTH_HEM_SEASONS = {
 }
 
 NO_DATA_VALUE = -9999
+# from https://lpdaac.usgs.gov/documents/306/MOD09_User_Guide_V6.pdf
 MODIS_FILL_VALUE = -28672.0
 
 # TODO: the naming here is confusing
@@ -228,10 +230,11 @@ USE_INDECES = False
 # repo-root .env) so each user can bill API calls against their own registered
 # project without editing this file. Defaults to the original author's project.
 EE_PROJECT = os.environ.get("EE_PROJECT", "ee-marlena")
+# replace with your own project and bucket names
 EE_BUCKET_TIFS = None
-EE_DRIVE_FOLDER_NAME = "snow_ee_exports_20260111"
-EE_DRIVE_FOLDER_ID = "1cL7tEHhC92UHmuwdEgH0ero6aXQqhBcb"
-EE_FOLDER_TIFS = "tifs4"
+EE_DRIVE_FOLDER_NAME = ""
+EE_DRIVE_FOLDER_ID = ""
+EE_FOLDER_TIFS = "tifs"
 EE_FOLDER_H5PYS = "h5pys"
 
 # TODO: this should be defined somewhere else
@@ -240,9 +243,12 @@ RESULTS_FOLDER = Path(__file__).parents[2] / "results"
 # when in this repo, uncomment the following line
 DATA_FOLDER = Path(__file__).parents[2] / "data"
 TIFS_FOLDER = DATA_FOLDER / "tifs_all_bands"
-NORMALIZATION_DICT_FILENAME = "normalizing_dict_december.json"
+NORMALIZATION_DICT_FILENAME = "normalizing_dict.json"
 OUTPUT_FOLDER = DATA_FOLDER / "outputs"
 ENCODER_FILENAME = "encoder"
 OPTIMIZER_FILENAME = "optimizer"
 DECODER_FILENAME = "decoder"
 CONFIG_FILENAME = "config"
+
+# replace with your own entity name for logging to WandB
+WANDB_ENTITY = "sea-ice"

@@ -1,3 +1,8 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
 # https://github.com/bair-climate-initiative/scale-mae/blob/main/mae/util/pos_embed.py
 import numpy as np
 import torch
@@ -6,12 +11,12 @@ import torch
 def get_2d_sincos_pos_embed_with_resolution(
     embed_dim, grid_size, res, cls_token=False, device="cpu"
 ):
-    """grid_size: int of the grid height and width
+    """
+    grid_size: int of the grid height and width
     res: array of size n, representing the resolution of a pixel (say, in meters),.
 
     Return:
     pos_embed: [n,grid_size*grid_size, embed_dim] or [n,1+grid_size*grid_size, embed_dim] (w/ or w/o cls_token)
-
     """
     res = res.to(device)
     grid_h = torch.arange(grid_size, device=device)
@@ -49,7 +54,8 @@ def get_2d_sincos_pos_embed_from_grid_torch(embed_dim, grid):
 
 
 def get_1d_sincos_pos_embed_from_grid_torch(embed_dim, pos):
-    """embed_dim: output dimension for each position
+    """
+    embed_dim: output dimension for each position
     pos: a list of positions to be encoded: size (M,)
     out: (M, D).
     """

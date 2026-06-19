@@ -1,3 +1,11 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
+### Modifications by marlens123:
+### - Included medium and low resolution data
+
 import random
 from typing import Tuple
 
@@ -7,8 +15,9 @@ from einops import rearrange
 
 
 class DownstreamFlipAndRotateSpace(object):
-    """For now, lets have no parameters Choose 1 of 8 transformations and apply
-    it to space_time_x and space_x.
+    """
+    For now, lets have no parameters
+    Choose 1 of 8 transformations and apply it to space_time_x and space_x.
     """
 
     def __init__(self, enabled: bool):

@@ -1,3 +1,16 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
+### Modifications by marlens123:
+### - Included medium and low resolution data
+### - Function for one-hot encoding the ESA Worldcover band
+### - Downsampling function for space_time_med_res data and space_time_low_res data
+### - Function that creates a valid data mask for all bands based on no data value and other criteria
+### - Computing NDSI based on MODIS data
+### - Computing normalization values based on running statistics
+
 import json
 import logging
 import math
@@ -336,10 +349,9 @@ class Dataset(PyTorchDataset):
 
     @staticmethod
     def download_tifs_from_drive_folder():
-        """Downloads all filed from a folder in Google Drive.
-
-        Drive folder ID and destination folder are defined in the config file.
-        Modified from: https://developers.google.com/drive/api/guides/manage-downloads
+        """
+        Downloads all filed from a folder in Google Drive. Drive folder ID and destination folder are defined in the config file.
+        Modified from: https://developers.google.com/drive/api/guides/manage-downloads.
         """
         SERVICE_ACCOUNT_FILE = Path(__file__).parents[2] / "ee-marlena-credentials.json"
         SCOPES = ["https://www.googleapis.com/auth/drive"]
@@ -411,7 +423,8 @@ class Dataset(PyTorchDataset):
         size: int,
         num_timesteps: int,
     ) -> Tuple[int, int, int]:
-        """space_time_high_res_x: array of shape [H, W, T, D]
+        """
+        space_time_high_res_x: array of shape [H, W, T, D]
         space_time_med_res_x: array of shape [H, W, T, D]
         space_time_low_res_x: array of shape [H, W, T, D]
         space_x: array of shape [H, W, D]
@@ -463,11 +476,10 @@ class Dataset(PyTorchDataset):
         np.ndarray,
         np.ndarray,
     ]:
-        """Crops the exported image into a size that can be processed by the
-        model.
-
+        """
+        Crops the exported image into a size that can be processed by the model.
         Exported image size: can be larger that exported area / scale
-        Size that can be processed by the model: max(patch_size * number_of_patches_per_dim)
+        Size that can be processed by the model: max(patch_size * number_of_patches_per_dim).
 
         space_time_high_res_x: array of shape [H, W, T, D]
         space_time_med_res_x: array of shape [H, W, T, D]
@@ -527,18 +539,18 @@ class Dataset(PyTorchDataset):
 
     @staticmethod
     def one_hot_encode_esa_worldcover(data: np.ndarray) -> np.ndarray:
-        """One-hot encode the ESA Worldcover band, setting all channels to
-        NO_DATA_VALUE where class=0.
-        """
+        """One-hot encode the ESA Worldcover band, setting all channels to NO_DATA_VALUE where class=0 (no data value)."""
         # create a warning if data contains unexpected class values
         if not np.all(np.isin(data, WC_CLASS_VALUES + [0] + [NO_DATA_VALUE])):
             warnings.warn("ESA Worldcover data contains unexpected class values.")
+
+        # 0 is the no-data value of the ESA Worldcover dataset
         nodata_mask = data == 0
 
         # extend the no data mask to values that are not within the WC_CLASS_VALUES
         nodata_mask |= ~np.isin(data, WC_CLASS_VALUES)
 
-        # Map class values to indices 0..NUM_WC_CLASSES-1
+        # map class values to indices 0..NUM_WC_CLASSES-1
         mapped = np.zeros_like(data)
         for idx, class_value in enumerate(WC_CLASS_VALUES):
             mapped[data == class_value] = idx
@@ -625,11 +637,11 @@ class Dataset(PyTorchDataset):
         if H % new_H != 0 or W % new_W != 0:
             raise ValueError("H and W must be divisible by target dimensions")
 
-        # Compute block sizes
+        # Compute how many pixels must go into one block
         h_block = H // new_H
         w_block = W // new_W
 
-        # reshape
+        # aggregate into the target shape
         # for data, take the mean over blocks, for the mask take the min (we want the block mask to be invalid where at least one value is invalid)
         return data.reshape(new_H, h_block, new_W, w_block, T, C).mean(
             axis=(1, 3), dtype=data.dtype
@@ -642,9 +654,9 @@ class Dataset(PyTorchDataset):
         return start_month
 
     def month_array_from_file(self, tif_path: Path, num_timesteps: int) -> np.ndarray:
-        """Given a filepath and num_timesteps, extract start_month and return
-        an array of months where months[idx] is the month for
-        list(range(num_timesteps))[i].
+        """
+        Given a filepath and num_timesteps, extract start_month and return an array of
+        months where months[idx] is the month for list(range(num_timesteps))[i].
         """
         # assumes all files are exported with filenames including:
         # *dates=<start_date>*, where the start_date is in a YYYY-MM-dd format
@@ -657,8 +669,8 @@ class Dataset(PyTorchDataset):
     def create_valid_mask(
         s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """Create masks that identify valid data to be used during
-        normalization and modeling.
+        """
+        Create masks that identify valid data to be used during normalization and modeling.
 
         0: invalid data
         1: valid data
@@ -678,7 +690,7 @@ class Dataset(PyTorchDataset):
         valid_mask_t = t_x != NO_DATA_VALUE
         valid_mask_st = st_x != NO_DATA_VALUE
 
-        # apply the channel-specific no-data bounds
+        # add the channel-specific no-data bounds
         for ch, lower_bound in CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_h_x"].items():
             valid_mask_s_t_h[..., ch] &= s_t_h_x[..., ch] >= lower_bound
         for ch, lower_bound in CHANNEL_WISE_INVALID_DATA_THRESHOLDS["s_t_m_x"].items():
@@ -702,8 +714,8 @@ class Dataset(PyTorchDataset):
         )
 
     def _tif_to_array(self, tif_path: Path) -> DatasetOutput:
-        """Loads a spatiotemporal tif file, divides it into different array
-        groups, and creates valid data masks.
+        """
+        Loads a spatiotemporal tif file, divides it into different array groups, and creates valid data masks.
 
         The different array types are:
         space_time_high_res_x: (H, W, T, C_STH)
@@ -1086,11 +1098,11 @@ class Dataset(PyTorchDataset):
     def calculate_ndi(
         input_array: np.ndarray, band_1: str, band_2: str, cloud_mask: np.ndarray | None = None
     ) -> np.ndarray:
-        r"""Given an input array of shape [h, w, t, bands] where bands ==
-        len(EO_DYNAMIC_IN_TIME_BANDS_NP), returns an array of shape.
-
+        r"""
+        Given an input array of shape [h, w, t, bands]
+        where bands == len(EO_DYNAMIC_IN_TIME_BANDS_NP), returns an array of shape
         [h, w, t, 1] representing NDI,
-        (band_1 - band_2) / (band_1 + band_2)
+        (band_1 - band_2) / (band_1 + band_2).
         """
         for b in [band_1, band_2]:
             assert b in SPACE_TIME_LOW_RES_BANDS
@@ -1375,6 +1387,8 @@ class Dataset(PyTorchDataset):
                 valid_data_mask_t,
                 valid_data_mask_st,
             ) = self[i]
+
+            # replace invalid data with nans to be ignored for the stats
             s_t_h_x = np.where(valid_data_mask_s_t_h, s_t_h_x, np.nan)
             s_t_m_x = np.where(valid_data_mask_s_t_m, s_t_m_x, np.nan)
             s_t_l_x = np.where(valid_data_mask_s_t_l, s_t_l_x, np.nan)

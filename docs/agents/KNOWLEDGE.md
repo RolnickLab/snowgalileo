@@ -24,7 +24,7 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   standard for this pipeline. (Decided 2026-06-01.)
 - **Generated cube CSV schema is fixed by the GEE exporter** — exactly
   `date, crs, center_x, center_y, min_x, min_y, max_x, max_y`, read column-by-column
-  at `eo_eval.py:577-585`. The legacy `sampled_cells_bow_river_with_dates.csv`
+  at `eo_eval.py:577-585`. The legacy `tests/fixtures/sampled_cells_bow_river_with_dates.csv`
   already uses this same 8-column schema; the grid generator reuses cell geometry
   (`center_x/y`, bounds, `crs=EPSG:32611`) and rewrites only the `date` column to
   the inference-window cross-product. The legacy `date` (all `20250515` /

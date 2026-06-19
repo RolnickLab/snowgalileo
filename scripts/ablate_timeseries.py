@@ -27,14 +27,15 @@ process = psutil.Process()
 
 torch.backends.cuda.matmul.allow_tf32 = True
 
-argparser = argparse.ArgumentParser()
+argparser = argparse.ArgumentParser(
+    description="Starter script for running fine-tuning while removing time series information for the model."
+)
 argparser.add_argument(
     "--pretraining_checkpoint_folder",
     type=str,
     default="outputs/checkpoints_tiny/epoch_100",
-    help="Path to folder containing pretrained checkpoint.",
+    help="Path to folder containing pretrained checkpoint. If empty, uses randomly initialized weights.",
 )
-# TODO: make the choices of naming more descriptive
 argparser.add_argument(
     "--decoding_strategy",
     type=str,
@@ -42,7 +43,6 @@ argparser.add_argument(
     choices=["finetune", "linear_probe", "attention_probe", "sklearn"],
     help="Decoding strategy to use. 'Finetune' uses a linear decoder and finetunes the entire model. 'Linear_probe' uses a linear decoder and only trains the decoder. 'Attention_probe' uses an attention-based decoder and fine-tunes the entire model. 'sklearn' uses the frozen encoder features for a sklearn model.",
 )
-argparser.add_argument("--resample", action="store_true", help="Whether to use oversampling.")
 argparser.add_argument(
     "--num_finetune_epochs", type=int, default=25, help="Number of epochs to finetune for."
 )

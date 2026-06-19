@@ -8,7 +8,9 @@ from src.data.dataset import Dataset
 from src.fsc.landsat_baselines import LandsatEvalSklearn
 from src.utils import config_dir, seed_everything
 
-argparser = argparse.ArgumentParser()
+argparser = argparse.ArgumentParser(
+    description="Starter script for training a sklearn model (Random Forest, SVR, or MLP)."
+)
 argparser.add_argument(
     "--exclude_prediction_high_res",
     action="store_true",
@@ -51,7 +53,7 @@ argparser.add_argument(
     type=str,
     default="rf",
     choices=["rf", "svr", "mlp"],
-    help="Type of model to train: rf, svr, or mlp.",
+    help="Type of model to train: rf (random forest), svr (support vector regressor), or mlp (multi-layer perceptron).",
 )
 argparser.add_argument(
     "--normalization",
@@ -83,7 +85,6 @@ sklearn = LandsatEvalSklearn(
     exclude_prediction_high_res=args["exclude_prediction_high_res"],
     exclude_prediction_sensors=args["exclude_prediction_sensors"],
     exclude_prediction_era5=not args["include_prediction_era5"],
-    resample=False,
     eval_config=config,
     model_type=args["model_type"],
     h5pys_only=args["h5pys_only"],

@@ -11,13 +11,13 @@ class TestRetrieveSeasonFromFilename(unittest.TestCase):
     def test_map_int_to_cloud_states(self):
         # Test cases: (filename, expected_season)
         test_cases = [
-            ("LC_20201216_FSC_lat_lon.tif", "mid"),
-            ("LC_20201215_FSC_lat_lon.tif", "early"),
-            ("LC_20200630_FSC_lat_lon.tif", "late"),
-            ("LC_20200110_FSC_lat_lon.tif", "mid"),
-            ("LC_20221001_FSC_lat_lon.tif", "early"),
-            ("LC_20240731_FSC_lat_lon.tif", "out_of_range"),
-            ("LC_20210228_FSC_lat_lon.tif", "mid"),
+            ("LC_20201216_lat_lon.tif", "mid"),
+            ("LC_20201215_lat_lon.tif", "early"),
+            ("LC_20200630_lat_lon.tif", "late"),
+            ("LC_20200110_lat_lon.tif", "mid"),
+            ("LC_20221001_lat_lon.tif", "early"),
+            ("LC_20240731_lat_lon.tif", "summer"),
+            ("LC_20210228_lat_lon.tif", "mid"),
         ]
 
         for filename, expected_season in test_cases:

@@ -1,3 +1,14 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
+# Similar to eo.py, but for evaluation.
+# Adds functions to export input data from given label polygons and in crs other than EPSG:4326,
+# which is needed for evaluation on the test set (since the test set labels are in a different crs).
+# We can also export data in various ways from CSV files, which is useful for inference.
+# Still, a lot of this script is redundant with eo.py and needs to be cleaned --> refactor in the future.
+
 # https://github.com/nasaharvest/openmapflow/blob/main/openmapflow/ee_exporter.py
 import os
 import shutil
@@ -168,7 +179,7 @@ for modality in MODALITIES:
             else:
                 print(f"Warning: Check modality '{modality}'.")
 
-# TODO: remove this hacky assert and add a better test
+# NOTE: This changes once the input sources are modified
 assert TIME_IMAGE_FUNCTIONS == [
     get_single_s1_image,
     get_single_s2_image,
@@ -317,9 +328,8 @@ STATIC_BAND_GROUPS_IDX: OrderedDictType[str, List[int]] = OrderedDict(
 
 
 class EarthEngineExporterEval(EarthEngineExporter):
-    """Export satellite data from Earth engine.
-
-    It's called using the following
+    """
+    Export satellite data from Earth engine. It's called using the following
     script:
     ```
     from src.data import EarthEngineExporter
@@ -469,9 +479,9 @@ class EarthEngineExporterEval(EarthEngineExporter):
         folder,
         start_idx: int = 0,
     ) -> None:
-        """Export boxes with length and width EXPORTED_HEIGHT_WIDTH_METRES for
-        the latlons specified in the filename of each file in the given
-        folder.
+        """
+        Export boxes with the bounds of the files given in the current folder.
+        NOTE: The resulting exports will not be exactly in rectangular format, so we will have to crop them afterwards.
         """
         # check that each file in the folder has a filename with the format L0*_YYYYMMDD_LAT_LON_SC[a number between 0 and 100]
         # and that the lat and lon are in the format of a string
@@ -480,6 +490,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
         filenames = []
         folder = Path(DATA_FOLDER / folder)
 
+        # NOTE: specific to the filename format of our finetuning / evaluation data
         for filename in os.listdir(folder):
             if not filename.startswith("LC0") or not filename.endswith(".tif"):
                 print(f"Filename {filename} does not start with LC0_ or end with .tif")
@@ -533,11 +544,10 @@ class EarthEngineExporterEval(EarthEngineExporter):
                 exports_started += 1
 
         if self.mode == "url":
-            print("Export finished. Syncing to google cloud")
-            self.sync_local_and_gcloud()
-            print("Finished sync")
+            print("Export finished.")
 
     def export_from_csv_wgs84(self, csv_file) -> None:
+        """Export from center coordinates and dates passed by a csv file."""
         df = pd.read_csv(csv_file)
         dates = df["date"].tolist()
         lats = df["latitude"].tolist()
@@ -574,11 +584,12 @@ class EarthEngineExporterEval(EarthEngineExporter):
             print("Finished sync")
 
     def export_from_csv_utm(self, csv_file) -> None:
+        """Export from UTM bounds and dates passed by a csv file."""
         df = pd.read_csv(csv_file)
         dates = df["date"].tolist()
         coordinate_system = df["crs"].tolist()
-        center_x = df["center_x"].tolist()
-        center_y = df["center_y"].tolist()
+        center_x = df["center_lat"].tolist()
+        center_y = df["center_lon"].tolist()
         min_x = df["min_x"].tolist()
         max_x = df["max_x"].tolist()
         min_y = df["min_y"].tolist()
@@ -625,6 +636,4 @@ class EarthEngineExporterEval(EarthEngineExporter):
                 exports_started += 1
 
         if self.mode == "url":
-            print("Export finished. Syncing to google cloud")
-            self.sync_local_and_gcloud()
-            print("Finished sync")
+            print("Export finished.")

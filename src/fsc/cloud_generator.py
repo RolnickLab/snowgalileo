@@ -1,3 +1,5 @@
+### Using this great tool: https://github.com/strath-ai/SatelliteCloudGenerator
+
 import random
 from pathlib import Path
 from typing import Dict, Union, cast
@@ -43,6 +45,7 @@ seed_everything(DEFAULT_SEED)
 process = psutil.Process()
 
 # NOTE: Scaling factors according to Earthengine documentation for the specific bands
+# Channel magnitudes are derived using the code in notebooks/cloud_simulation/
 CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
     "s_t_h_x": {
         "S1": {
@@ -124,6 +127,7 @@ CHANNEL_WISE_CLOUD_PARAMETERS: Dict[str, Dict] = {
     },
 }
 
+# costum config to get more clouds for the test set
 FULL_CONFIG = {
     "min_lvl": [0.5, 0.9],
     "max_lvl": 1.0,
@@ -136,7 +140,7 @@ FULL_CONFIG = {
     "blur_scaling": 2,
 }
 
-# thick local
+# thick local (from https://github.com/strath-ai/SatelliteCloudGenerator/blob/main/src/configs.py)
 LOCAL_CONFIG = {
     "min_lvl": 0.0,
     "max_lvl": 1.0,
@@ -153,11 +157,7 @@ LOCAL_CONFIG = {
 def generate_clouds(
     band_stack, band_weights, scaling_factors, cloud_type="random", cloud_prob=0.0, shadow_prob=0.0
 ):
-    """Function to generate clouds.
-
-    Input image should be in shape [B,C,H,W]. Band weights should be in
-    shape [B,C,1,1].
-    """
+    """Function to generate clouds. Input image should be in shape [B,C,H,W]. Band weights should be in shape [B,C,1,1]."""
     # the generator function takes reflectance values, but some inputs are in DN format.
     # we handle this by temporarily scaling to reflectance values
     band_stack *= scaling_factors.view(1, -1, 1, 1)
@@ -221,6 +221,10 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
     def _apply_cloud_augmentation(
         self, space_time_high_res_x, space_time_med_res_x, space_time_low_res_x, time_x
     ):
+        """
+        Disclaimer: This function was created with the assistance of ChatGPT.
+        While thoroughly reviewed and tested by the author, AI-generated code may contain errors.
+        """
         # Create copies of the arrays to later compute valid masks on, since invalid data values will be
         # changed by cloud generation
         space_time_high_res_x_no_clouds_added = space_time_high_res_x.copy()
@@ -346,8 +350,8 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         )
 
     def _tif_to_array(self, tif_path: Path) -> DatasetOutput:
-        """Loads a spatiotemporal tif file, divides it into different array
-        groups, and creates valid data masks.
+        """
+        Loads a spatiotemporal tif file, divides it into different array groups, and creates valid data masks.
 
         The different array types are:
         space_time_high_res_x: (H, W, T, C_STH)
@@ -583,15 +587,16 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         except AssertionError as e:
             raise e
 
+    # NOTE: Adjust the NDI calculation to set NDI to NO_DATA_VALUE for pixels where clouds were added.
     @staticmethod
     def calculate_ndi(
         input_array: np.ndarray, band_1: str, band_2: str, cloud_mask: np.ndarray | None = None
     ) -> np.ndarray:
-        r"""Given an input array of shape [h, w, t, bands] where bands ==
-        len(EO_DYNAMIC_IN_TIME_BANDS_NP), returns an array of shape.
-
+        r"""
+        Given an input array of shape [h, w, t, bands]
+        where bands == len(EO_DYNAMIC_IN_TIME_BANDS_NP), returns an array of shape
         [h, w, t, 1] representing NDI,
-        (band_1 - band_2) / (band_1 + band_2)
+        (band_1 - band_2) / (band_1 + band_2).
         """
         for b in [band_1, band_2]:
             assert b in SPACE_TIME_LOW_RES_BANDS
