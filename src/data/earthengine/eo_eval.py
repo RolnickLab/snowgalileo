@@ -483,7 +483,6 @@ class EarthEngineExporterEval(EarthEngineExporter):
         Export boxes with the bounds of the files given in the current folder.
         NOTE: The resulting exports will not be exactly in rectangular format, so we will have to crop them afterwards.
         """
-
         # check that each file in the folder has a filename with the format L0*_YYYYMMDD_LAT_LON_SC[a number between 0 and 100]
         # and that the lat and lon are in the format of a string
         # e.g. LC09_20220101_FSC0_50.1234_8.1234.tif

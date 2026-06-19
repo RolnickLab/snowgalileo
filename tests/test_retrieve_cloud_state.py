@@ -2,8 +2,9 @@ import os
 import unittest
 from pathlib import Path
 
-from src.data.config import NUM_TIMESTEPS
 from src.fsc.add_eval.cloud_eval import CloudMetaDataset
+
+from src.data.config import NUM_TIMESTEPS
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/eval_tifs"
 

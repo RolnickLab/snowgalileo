@@ -103,7 +103,6 @@ def mae_loss(
     To this end, convert the predicted values (which are in token format) into the same pixel-wise shape as the target values,
     and then compute MAE only for pixels to be decoded (where mask value is 2).
     """
-
     assert not torch.isnan(p_s_t_h).any(), "p_s_t_h contains NaN!"
     assert not torch.isnan(s_t_h_x).any(), "s_t_h_x contains NaN!"
     assert not torch.isnan(p_s_t_m).any(), "p_s_t_m contains NaN!"

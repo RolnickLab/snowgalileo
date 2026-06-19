@@ -66,7 +66,6 @@ def mean_iou(
     Returns:
     float: Mean IoU across all classes
     """
-
     # Initialize tensors to store intersection and union for each class
     intersection = np.zeros(num_classes)
     union = np.zeros(num_classes)

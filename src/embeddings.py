@@ -14,7 +14,8 @@ def get_2d_sincos_pos_embed_with_resolution(
     """
     grid_size: int of the grid height and width
     res: array of size n, representing the resolution of a pixel (say, in meters),
-    return:
+
+    Return:
     pos_embed: [n,grid_size*grid_size, embed_dim] or [n,1+grid_size*grid_size, embed_dim] (w/ or w/o cls_token)
     """
     res = res.to(device)

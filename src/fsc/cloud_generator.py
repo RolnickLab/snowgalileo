@@ -158,7 +158,6 @@ def generate_clouds(
     band_stack, band_weights, scaling_factors, cloud_type="random", cloud_prob=0.0, shadow_prob=0.0
 ):
     """Function to generate clouds. Input image should be in shape [B,C,H,W]. Band weights should be in shape [B,C,1,1]."""
-
     # the generator function takes reflectance values, but some inputs are in DN format.
     # we handle this by temporarily scaling to reflectance values
     band_stack *= scaling_factors.view(1, -1, 1, 1)
@@ -595,7 +594,6 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         [h, w, t, 1] representing NDI,
         (band_1 - band_2) / (band_1 + band_2)
         """
-
         for b in [band_1, band_2]:
             assert b in SPACE_TIME_LOW_RES_BANDS
 

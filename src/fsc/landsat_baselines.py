@@ -256,7 +256,6 @@ class LandsatEvalSklearn(LandsatEval):
         Fills masked values in x by forward-filling along the time dimension per channel.
         Remaining NaNs will fall back to aggregation replacement.
         """
-
         assert x.dim() == 4, f"Expected 4D tensor, got shape {x.shape}"
 
         x = x.clone()

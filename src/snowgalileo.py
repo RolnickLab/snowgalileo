@@ -380,7 +380,7 @@ class Attention(nn.Module):
 
 
 class Mlp(nn.Module):
-    """MLP as used in Vision Transformer, MLP-Mixer and related networks"""
+    """MLP as used in Vision Transformer, MLP-Mixer and related networks."""
 
     def __init__(
         self,
@@ -976,7 +976,7 @@ class Encoder(SnowGalileoBase):
         [0, 0, 1, 1]
         [1, 1, 0, 0]
         [1, 1, 0, 0]
-        for the H, W dimensions
+        for the H, W dimensions.
         """
         b, h_s_t_h, w_s_t_h, t, _ = s_t_h_x.shape
         new_h_s_t_h, new_w_s_t_h = h_s_t_h // patch_size_high_res, w_s_t_h // patch_size_high_res

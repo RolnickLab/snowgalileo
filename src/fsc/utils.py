@@ -9,7 +9,6 @@ def extract_season_from_filename(filename: str) -> str:
     """
     Extract season from filename assuming format: <prefix>_<YYYYMMDD>_<lat>_<lon>.tif
     """
-
     parts = Path(filename).stem.split("_")
     try:
         date_str = parts[1]
@@ -37,7 +36,7 @@ def extract_season_from_filename(filename: str) -> str:
 
 
 class SigmoidSlopeScheduler:
-    "Exponential decay."
+    """Exponential decay."""
 
     def __init__(self, model, start, end, total_steps):
         self.model = model

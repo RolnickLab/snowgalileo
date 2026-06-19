@@ -353,7 +353,6 @@ class Dataset(PyTorchDataset):
         Downloads all filed from a folder in Google Drive. Drive folder ID and destination folder are defined in the config file.
         Modified from: https://developers.google.com/drive/api/guides/manage-downloads
         """
-
         SERVICE_ACCOUNT_FILE = Path(__file__).parents[2] / "ee-marlena-credentials.json"
         SCOPES = ["https://www.googleapis.com/auth/drive"]
 
@@ -541,7 +540,6 @@ class Dataset(PyTorchDataset):
     @staticmethod
     def one_hot_encode_esa_worldcover(data: np.ndarray) -> np.ndarray:
         """One-hot encode the ESA Worldcover band, setting all channels to NO_DATA_VALUE where class=0 (no data value)."""
-
         # create a warning if data contains unexpected class values
         if not np.all(np.isin(data, WC_CLASS_VALUES + [0] + [NO_DATA_VALUE])):
             warnings.warn("ESA Worldcover data contains unexpected class values.")
@@ -1106,7 +1104,6 @@ class Dataset(PyTorchDataset):
         [h, w, t, 1] representing NDI,
         (band_1 - band_2) / (band_1 + band_2)
         """
-
         for b in [band_1, band_2]:
             assert b in SPACE_TIME_LOW_RES_BANDS
 

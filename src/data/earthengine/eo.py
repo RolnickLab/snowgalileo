@@ -355,8 +355,10 @@ def get_ee_task_list(key: str = "description") -> List[str]:
 def get_ee_task_amount(prefix: Optional[str] = None) -> int:
     """
     Gets amount of active tasks in Earth Engine.
+
     Args:
         prefix: Prefix to filter tasks.
+
     Returns:
         Amount of active tasks.
     """

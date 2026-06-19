@@ -138,7 +138,6 @@ class EvalTask(ABC):
         Either the mode class will be computed or the normalized counts of each class per token.
         This is controlled by the output_mode attribute which can be changed in the subclass.
         """
-
         for model_mode in models:
             if self.regression:
                 assert model_mode in self.all_regression_sklearn_models
