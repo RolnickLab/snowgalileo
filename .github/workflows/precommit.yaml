@@ -1,10 +1,6 @@
-name: CI
+name: Pre-Commit
 
 on:
-  push:
-    branches: [main]
-    tags:
-      - '*'
   pull_request:
     branches: [main]
 
@@ -25,16 +21,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: uv sync --all-extras --dev
+        run: make install-all
 
-      - name: Ruff linter
-        run: uv run ruff check .
-
-      - name: Ruff formatter
-        run: uv run ruff format --check .
-
-      - name: Mypy
-        run: uv run mypy .
-
-      - name: Unit tests
-        run: uv run pytest -m 'not slow'
+      - name: Run Pre-commit
+        run: make precommit
