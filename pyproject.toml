@@ -73,7 +73,7 @@ lint.ignore = [
     "D100",
     "D101",
     "D102",
-    "D103", 
+    "D103",
     "D104",
     "D105",
     "D106",
@@ -113,3 +113,12 @@ markers = [
     "slow: heavy real-archive / parity test (>10s); deselect with -m 'not slow'",
     "xdist_group: pin a test to a single xdist worker (see tests/conftest.py); used to serialize slow real-archive tests under --dist loadgroup",
 ]
+
+[tool.mypy]
+exclude = ["venv", "notebooks", ".venv"]
+ignore_missing_imports = true
+sqlite_cache = true
+
+[[tool.mypy.overrides]]
+module = ["yaml.*", "dateutil.*"]
+ignore_missing_imports = true
