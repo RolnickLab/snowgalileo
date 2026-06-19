@@ -13,7 +13,8 @@ from pathlib import Path
 import pytest
 
 from src.data.local_sources.viewer.archives import find_member, vsitar_path, vsizip_path
-from src.data.local_sources.viewer.manifest import _parse_bbox, _resolve_path
+from src.data.local_sources.viewer.manifest import _parse_bbox, _resolve_path, load_products
+from src.data.local_sources.viewer.settings import ViewerSettings
 
 
 class TestVsiPaths:
@@ -145,3 +146,37 @@ class TestResolvePath:
             )
             is None
         )
+
+
+_MANIFEST_HEADER = (
+    "product_id,source,footprint_bbox,intersects,aoi_overlap_km2,"
+    "valid_pixel_count,action,output_path"
+)
+
+
+class TestLoadProducts:
+    """``load_products`` manifest-row handling."""
+
+    def test_skips_legacy_sentinel1_manifest_rows(self, tmp_path: Path) -> None:
+        """Legacy ``sentinel1`` manifest rows (raw ``*.zip``) are dropped — S1 is processed
+        (SNAP), not clipped, so its rows come from the SNAP cache, never the manifest. A
+        zip is not a raster; keeping the row produced a broken ``plain_image`` fallback.
+        """
+        # A real DEM file so its row resolves; an S1 row pointing at a (non-existent) zip.
+        (tmp_path / "dem").mkdir()
+        (tmp_path / "dem" / "tile_DEM.tif").touch()
+        manifest = tmp_path / "clip_manifest.csv"
+        manifest.write_text(
+            _MANIFEST_HEADER
+            + "\n"
+            + 'dem_tile,dem,"-116.5,50.7,-114.5,52.3",True,100.0,9999,CLIP,tile_DEM.tif\n'
+            + 'S1C_x,sentinel1,"-119.4,49.8,-115.3,51.7",True,7480.9,1385,CLIP,S1C_x.zip\n'
+        )
+        # No sentinel1_snap/ dir under tmp_path → _discover_s1_products returns [], so the
+        # only way an S1 row could appear is the (now-filtered) manifest row.
+        settings = ViewerSettings(clipped_root=tmp_path)
+
+        rows = load_products(settings)
+
+        assert [r.source for r in rows] == ["dem"], "legacy sentinel1 manifest row not skipped"
+        assert all(r.source != "sentinel1" for r in rows)

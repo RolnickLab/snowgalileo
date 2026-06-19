@@ -1,0 +1,43 @@
+# Stage-2 cube-assembly configuration — FULL MODE-B RUN (loaded by CubeSettings).
+#
+# Sibling of cube.yaml (the Mode-A config); this one tiles the WHOLE AOI (mode B)
+# with a 5 km negative buffer and writes into an isolated processing root so the
+# Mode-A deliverables under data/bow_valley_processing/ are never touched.
+#
+# Precedence: CUBE_-prefixed env vars > this file > field defaults.
+
+# Adapters' read-root: the AOI-clipped archive (NEVER the raw archive). Shared with
+# the Mode-A run — the clipped source archive is identical regardless of sweep mode.
+archive_root: data/clipped_bow_valley_selection_raw
+
+# Stage-2 write-root for the full run — isolated subtree (cube_cache/, cubes/,
+# daily_fsc/, manifests/, scratch/ all derive from here). data/bow_valley_processing
+# is a symlink to /archive/data/ai4snow/bow_valley_processing, so this resolves to
+# /archive/data/ai4snow/bow_valley_processing/full_run (7.8 TB free — the ~5.7 TB cube
+# footprint fits with headroom).
+processing_root: data/bow_valley_processing/full_run
+
+# Sweep mode: "B" = tile the full AOI into a 1 km lattice (~25,078 cells before inset).
+mode: B
+
+# Mode-B negative buffer: erode the AOI inward by 5 km (UTM negative polygon buffer)
+# before tiling, dropping the outer 5 km ring of output cells. 25,078 -> 21,985 cells
+# (-12%). This removes edge cells whose 8-day source windows may have degraded coverage
+# near the AOI boundary; it does NOT add a data margin around retained cells.
+mode_b_inset_m: 5000
+
+# Inference window (inclusive) — same 21-day window as the Mode-A run, derived from
+# archive coverage (S1-start-limited start, S2/L8-end-limited end).
+window_start: 2025-04-06
+window_end: 2025-04-26
+
+# Per-cell target CRS — UTM 11N, matching the GEE reference patches. NOT EPSG:4326.
+cell_crs: "EPSG:32611"
+
+# Entry cap on the per-(modality, cell, day) .npz cache. Eviction is day-frontier and
+# lazy: nothing evicted while at/under this cap, and past it only entries older than the
+# live 8-day window are pruned (between days, in the parent) — the live window is never
+# evicted. Mode B (~21,985 cells): live window (8d x ~9 modalities) ~= 1.58M, transient
+# day-boundary peak ~= 1.78M. 3,000,000 keeps the over-cap warning from firing with
+# ~1.7x headroom (~3-12 GB on disk at ~1-4 KB/entry).
+cache_max_entries: 3000000

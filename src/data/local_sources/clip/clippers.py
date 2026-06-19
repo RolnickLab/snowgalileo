@@ -28,8 +28,6 @@ import rasterio.mask
 import structlog
 import xarray as xr
 from pyproj import Transformer
-from rasterio.control import GroundControlPoint
-from rasterio.windows import Window
 from shapely.geometry import Polygon, mapping
 from shapely.ops import transform as shapely_transform
 
@@ -76,7 +74,18 @@ def _count_valid_pixels(array: np.ndarray, nodata: Optional[float]) -> int:
 
 
 def _clip_geotiff_to(src_path: Path, dst_path: Path, aoi_4326: Polygon) -> tuple[int, object]:
-    """Crop a georeferenced raster to the AOI, preserving CRS and profile.
+    """Crop a georeferenced raster to the AOI, preserving CRS, profile, and pixel values.
+
+    The clip is non-destructive: ``rasterio.mask.mask`` only crops (nearest, no
+    resampling), so the written pixels must equal the raw pixels inside the AOI.
+
+    **Lossless-JP2 guard.** Sentinel-2 bands are JPEG-2000. GDAL's ``JP2OpenJPEG``
+    writer defaults to *lossy* even when the source profile came from a lossless
+    JP2, which silently corrupts both reflectance (±~2 DN) and the categorical
+    ``MSK_CLASSI`` cloud mask (class flips). When the output is a ``.jp2`` we force
+    reversible (lossless) wavelet + full quality so the crop stays bit-exact. The
+    same setting the S2 test fixtures use (``REVERSIBLE``/``QUALITY=100``). Other
+    sources (GeoTIFF: DEFLATE/LZW/none) are already lossless and unaffected.
 
     Returns:
         ``(valid_pixel_count, crs)`` of the written output.
@@ -92,6 +101,10 @@ def _clip_geotiff_to(src_path: Path, dst_path: Path, aoi_4326: Polygon) -> tuple
         )
         crs = src.crs
         nodata = src.nodata
+
+    if str(dst_path).lower().endswith(".jp2"):
+        # Force lossless JPEG-2000; GDAL's JP2OpenJPEG default is lossy.
+        profile.update(driver="JP2OpenJPEG", REVERSIBLE="YES", QUALITY="100")
 
     dst_path.parent.mkdir(parents=True, exist_ok=True)
     with rasterio.open(dst_path, "w", **profile) as dst:
@@ -146,8 +159,22 @@ def clip_era5(
     aoi_4326: Polygon,
     settings: ClipSettings,
 ) -> ManifestRow:
-    """Clip an ERA5-Land NetCDF by slicing its lat/lon coordinate dimensions."""
+    """Clip an ERA5-Land NetCDF by slicing its lat/lon coordinate dimensions.
+
+    The slice is padded by ``settings.era5_pad_degrees`` on every side. ERA5 clips by
+    pixel **centre** (``xarray`` label slice), so an unpadded slice can drop the source
+    pixel that an AOI-edge cell needs: the kept pixel's nearest-resample catchment is
+    its centre ± half-resolution, and a cell just outside that band gets no source and
+    exports all-nodata. The pad (≥ one 0.1° native pixel) keeps that extra ring.
+    """
     lon_min, lat_min, lon_max, lat_max = aoi_4326.bounds
+    pad = settings.era5_pad_degrees
+    lon_min, lat_min, lon_max, lat_max = (
+        lon_min - pad,
+        lat_min - pad,
+        lon_max + pad,
+        lat_max + pad,
+    )
     product_id = src_path.stem
 
     with xr.open_dataset(src_path, engine="h5netcdf") as ds:
@@ -306,125 +333,11 @@ def clip_sentinel2(
 
 
 # --------------------------------------------------------------------------- #
-# Sentinel-1 — range-geometry GCP TIFFs in a SAFE zip (§2.5)
+# Sentinel-1 — NOT clipped here. S1 is processed from raw via ESA SNAP
+# (src/data/local_sources/s1_snap.py → process_raw_dataset.py process-s1), producing the
+# per-granule dB+angle cache that BOTH the cube adapter and the viewer read. There is no
+# raw-DN clipped-S1 product. See PLAN-S1-PERGRANULE-SNAP.md.
 # --------------------------------------------------------------------------- #
-def clip_sentinel1(
-    *,
-    src_path: Path,
-    dst_path: Path,
-    source: str,
-    aoi_4326: Polygon,
-    settings: ClipSettings,
-) -> ManifestRow:
-    """Clip a Sentinel-1 ``.zip``: GCP-window slice each range-geometry TIFF."""
-    product_id = src_path.stem
-    footprint = footprints.sentinel_safe_footprint(src_path, "manifest.safe")
-    gate = evaluate_gate(
-        footprint_4326=footprint if footprint else Polygon(),
-        aoi_4326=aoi_4326,
-        min_aoi_overlap_area_km2=settings.min_aoi_overlap_area_km2,
-    )
-    if gate.action is not ClipAction.CLIP:
-        logger.info("gated", product=product_id, action=gate.action.value)
-        return _skip_row(product_id=product_id, source=source, footprint=footprint, gate=gate)
-
-    lon_min, lat_min, lon_max, lat_max = aoi_4326.bounds
-    dst_path.parent.mkdir(parents=True, exist_ok=True)
-    total_valid = 0
-    with (
-        zipfile.ZipFile(src_path, "r") as src_zip,
-        zipfile.ZipFile(dst_path, "w", zipfile.ZIP_DEFLATED) as dst_zip,
-        tempfile.TemporaryDirectory() as tmp,
-    ):
-        tmp_dir = Path(tmp)
-        for name in src_zip.namelist():
-            if name.endswith("/"):
-                continue
-            src_zip.extract(name, path=tmp_dir)
-            extracted = tmp_dir / name
-            is_measurement = name.lower().endswith((".tiff", ".tif")) and "measurement/" in name
-            if is_measurement:
-                clipped = tmp_dir / f"clipped_{Path(name).name}"
-                valid = _clip_s1_measurement(
-                    extracted,
-                    clipped,
-                    lon_min,
-                    lat_min,
-                    lon_max,
-                    lat_max,
-                    settings.gcp_buffer_pixels,
-                )
-                total_valid += valid
-                dst_zip.write(clipped, arcname=name)
-            else:
-                dst_zip.write(extracted, arcname=name)
-
-    return _finalize_clip(
-        product_id=product_id,
-        source=source,
-        footprint=footprint,
-        gate=gate,
-        valid=total_valid,
-        outputs=[dst_path],
-        rel_output=dst_path.name,
-        settings=settings,
-    )
-
-
-def _clip_s1_measurement(
-    src_tiff: Path,
-    dst_tiff: Path,
-    lon_min: float,
-    lat_min: float,
-    lon_max: float,
-    lat_max: float,
-    buffer_px: int,
-) -> int:
-    """Slice one S1 measurement TIFF to the AOI via its GCP grid.
-
-    Defensive: if the TIFF resolves a real CRS + affine transform it is clipped
-    as a standard GeoTIFF; otherwise (the verified range-geometry case) the AOI
-    is intersected against the GCP lon/lat grid and the pixel array is sliced to
-    the bounding GCP window.
-
-    Returns:
-        Count of non-zero pixels in the written window.
-    """
-    with rasterio.open(src_tiff) as src:
-        if src.crs is not None and src.transform is not None and not src.gcps[0]:
-            data = src.read()
-            with rasterio.open(dst_tiff, "w", **src.profile) as dst:
-                dst.write(data)
-            return int(np.count_nonzero(data))
-
-        gcps, gcp_crs = src.gcps
-        in_aoi = [g for g in gcps if lon_min <= g.x <= lon_max and lat_min <= g.y <= lat_max]
-        if not in_aoi:  # gate passed on footprint but no GCP lands in AOI bbox
-            col_min, row_min, col_max, row_max = 0, 0, 0, 0
-        else:
-            col_min = max(0, int(min(g.col for g in in_aoi)) - buffer_px)
-            row_min = max(0, int(min(g.row for g in in_aoi)) - buffer_px)
-            col_max = min(src.width, int(max(g.col for g in in_aoi)) + buffer_px)
-            row_max = min(src.height, int(max(g.row for g in in_aoi)) + buffer_px)
-
-        window = Window(col_min, row_min, max(0, col_max - col_min), max(0, row_max - row_min))
-        data = src.read(window=window)
-
-        shifted = [
-            GroundControlPoint(
-                row=g.row - row_min, col=g.col - col_min, x=g.x, y=g.y, z=g.z, id=g.id
-            )
-            for g in gcps
-            if col_min <= g.col <= col_max and row_min <= g.row <= row_max
-        ]
-        profile = src.profile.copy()
-        profile.update(height=data.shape[1], width=data.shape[2])
-
-    with rasterio.open(dst_tiff, "w", **profile) as dst:
-        dst.write(data)
-        if shifted:
-            dst.gcps = (shifted, gcp_crs)
-    return int(np.count_nonzero(data))
 
 
 # --------------------------------------------------------------------------- #
@@ -636,12 +549,24 @@ def clip_sinusoidal(
 def _clip_sinusoidal_subdataset(src_tif: Path, dst_tif: Path, aoi_4326: Polygon) -> int:
     """Crop one sinusoidal-grid GeoTIFF to the AOI by the reprojected geometry.
 
-    Crops with ``rasterio.mask.mask(crop=True)`` against the AOI reprojected into
-    the subdataset's own sinusoidal CRS — the same geometry crop the GeoTIFF path
-    uses (:func:`_clip_geotiff_to`). A bounding-box window of the reprojected AOI
-    *corners* is wrong here: the Sinusoidal projection (``x = R·λ·cos φ``) shears
-    the AOI rectangle, so its axis-aligned pixel window is several times wider than
-    the AOI in X. Masking by the actual geometry crops to its true footprint.
+    Crops with ``rasterio.mask.mask(crop=True, all_touched=True)`` against the AOI
+    reprojected into the subdataset's own sinusoidal CRS. A bounding-box window of
+    the reprojected AOI *corners* is wrong here: the Sinusoidal projection
+    (``x = R·λ·cos φ``) shears the AOI rectangle, so its axis-aligned pixel window is
+    several times wider than the AOI in X. Masking by the actual geometry crops to
+    its true footprint.
+
+    ``all_touched=True`` (intersect, **not** centroid) is load-bearing for these
+    coarse grids. With the rasterio default (``all_touched=False``) a ~1 km MODIS /
+    VIIRS pixel is kept only when the AOI covers its *centre*, so edge pixels that
+    partially overlap the AOI are dropped. After the adapter resamples the coarse
+    grid onto the 10 m cell, each dropped source pixel becomes a visible hole — a
+    ragged nodata wedge along the (sheared) AOI boundary, leaving AOI-edge cubes with
+    partial MODIS/VIIRS bands. Intersect-semantics keep the boundary ring, restoring
+    GEE parity (GEE reprojects the unbounded global grid and never drops these). The
+    interior pixels are unchanged; only the boundary ring is added back. The fine
+    GeoTIFF clippers (:func:`_clip_geotiff_to`) keep the default — at 10–30 m a
+    one-pixel centre-drop is sub-cell and vanishes under reprojection.
 
     Returns:
         Count of non-nodata pixels written (0 if the AOI window is empty).
@@ -649,7 +574,9 @@ def _clip_sinusoidal_subdataset(src_tif: Path, dst_tif: Path, aoi_4326: Polygon)
     with rasterio.open(src_tif) as src:
         aoi_in_crs = _reproject_aoi(aoi_4326, src.crs)
         try:
-            out_image, out_transform = rasterio.mask.mask(src, [mapping(aoi_in_crs)], crop=True)
+            out_image, out_transform = rasterio.mask.mask(
+                src, [mapping(aoi_in_crs)], crop=True, all_touched=True
+            )
         except ValueError:
             # rasterio raises when the AOI does not overlap the raster at all.
             return 0

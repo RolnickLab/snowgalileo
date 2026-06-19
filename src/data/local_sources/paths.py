@@ -28,10 +28,9 @@ class LocalPaths(BaseSettings):
         raw_root: Untouched per-modality download archive (read-only input).
         clipped_root: AOI-clipped archive; the single root every downstream
             adapter reads.
-        processing_root: Stage-2 cube-assembly scratch (intermediate cache +
-            assembled cubes + daily FSC COGs).
-        cube_archive_root: Final 8-day cube archive (reserved; not yet wired —
-            see ``data/BOW_VALLEY_DATA_LAYOUT.md`` §1).
+        processing_root: Stage-2 cube-assembly tree (intermediate cache +
+            assembled cubes under ``cubes/`` + daily FSC COGs). The cubes are the
+            durable end-product; there is no separate cube-archive root.
         aoi_path: Authoritative AOI polygon (EPSG:4326, single-Polygon GeoJSON).
     """
 
@@ -42,5 +41,4 @@ class LocalPaths(BaseSettings):
     raw_root: Path = Path("data/bow_valley_selection_raw")
     clipped_root: Path = Path("data/clipped_bow_valley_selection_raw")
     processing_root: Path = Path("data/bow_valley_processing")
-    cube_archive_root: Path = Path("data/processed_bow_valley_cubes")
     aoi_path: Path = Path("data/bow_valley_inference_aoi.geojson")

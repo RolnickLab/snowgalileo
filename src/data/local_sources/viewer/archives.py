@@ -1,10 +1,10 @@
 """GDAL ``/vsizip/`` + ``/vsitar/`` path builders and archive member discovery.
 
-The clipped Landsat scenes are ``.tar`` (flat, ``..._B4.TIF``); Sentinel-2 / -1 are
-``.zip`` SAFE trees (``IMG_DATA/..._B04.jp2``; ``measurement/...-vv-....tiff``). The
-renderers open bands *inside* these archives via GDAL virtual file paths — no
-extraction to disk — so a band read can still be decimated (overview/``out_shape``)
-and never materialises the full ~146 MB S1 measurement TIFF.
+The clipped Landsat scenes are ``.tar`` (flat, ``..._B4.TIF``); Sentinel-2 is a
+``.zip`` SAFE tree (``IMG_DATA/..._B04.jp2``). The renderers open bands *inside* these
+archives via GDAL virtual file paths — no extraction to disk — so a band read can still
+be decimated (overview/``out_shape``). (Sentinel-1 is no longer an archive here — it is
+read from the plain processed SNAP GeoTIFF; see ``renderers._Sentinel1Renderer``.)
 """
 
 from __future__ import annotations

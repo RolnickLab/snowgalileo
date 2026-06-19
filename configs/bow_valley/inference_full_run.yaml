@@ -1,0 +1,38 @@
+# Stage-2 inference-run configuration — FULL MODE-B RUN (loaded by InferenceSettings).
+#
+# Sibling of inference.yaml. Carries only *how to run the model*; the sweep
+# definition (window, mode, roots) lives in cube_full_run.yaml. out_dir is left
+# unset so daily FSC COGs land in CubeSettings.daily_fsc_dir, which resolves to
+# data/bow_valley_processing/full_run/daily_fsc/ for this run.
+#
+# Precedence: INFER_-prefixed env vars > this file > field defaults.
+
+# Finetuned EncoderWithHead checkpoint (same weights as the Mode-A run).
+checkpoint: logging_checkpoints/snowgalileo_finetune/clouds_pretrained_42_lfdciemu.pth
+
+# Eval JSON under configs/eval/ — drives encoder-size token, sigmoid_slope, head config.
+eval_config_name: fsc_inference_bow_river_tiny.json
+
+# Head decoding strategy: finetune | linear_probe | attention_probe.
+decoder_mode: finetune
+
+# Cells per encoder forward pass (RTX 3060, 12 GB). The per-cell cube export, not the
+# forward pass, is the sweep's bottleneck — leave at 16.
+batch_size: 16
+
+# Torch device: cpu | cuda. cuda uses the local RTX 3060; no automatic fallback.
+device: cuda
+
+# Process-pool workers for the driver's per-day parallel cube pre-export. The export is
+# CPU-bound (profiled: S2 JP2 decode ~42%, ERA5 NetCDF opens ~20%, S3 scipy griddata ~19%
+# of per-cube wall — all single-threaded), NOT I/O-bound (both disks sit <15% util). So
+# this is a CPU lever, not an I/O one. On a 16-core host, 16 workers slightly oversubscribe
+# (the parent + GPU thread + per-worker rasterio/h5py helpers compete -> ~14% system time,
+# 20k ctx-switch/s); 14 leaves headroom for the coordinator and trims that tax for a small
+# net gain on CPU-bound work. Each worker holds ~600 MB-1.8 GB; 14 fits 62 GB easily.
+# Clamped to min(cpu_count, cells) at run time.
+export_workers: 14
+
+# Daily-FSC COG output dir: unset -> CubeSettings.daily_fsc_dir
+# (data/bow_valley_processing/full_run/daily_fsc/).
+# out_dir: data/bow_valley_processing/full_run/daily_fsc

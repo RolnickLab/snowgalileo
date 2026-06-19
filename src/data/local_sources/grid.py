@@ -11,7 +11,7 @@ transform are productionized later in TASK-003; they are intentionally **not**
 implemented here.
 
 Key contracts (verified against the codebase, see
-``docs/agents/planning/raw-data-ingestion/``):
+``docs/agents/planning/bow_valley/020-data-ingestion/``):
 
 - The generated CSV schema is fixed by ``EarthEngineExporterEval.export_from_csv_utm``
   (``src/data/earthengine/eo_eval.py:577-585``): exactly
@@ -37,10 +37,18 @@ import structlog
 import typer
 from pyproj import Transformer
 from shapely.geometry import Point, Polygon, box
+from shapely.ops import transform as shapely_transform
 
+from src.data.config import EXPORTED_HEIGHT_WIDTH_METRES
+from src.data.local_sources.base import GridCell
 from src.data.local_sources.paths import LocalPaths
 
 logger = structlog.get_logger(__name__)
+
+#: Side length of one grid cell, in :data:`GRID_MATH_CRS` metres (1000 m).
+CELL_SIZE_M: float = float(EXPORTED_HEIGHT_WIDTH_METRES)
+
+SweepMode = Literal["A", "B"]
 
 # --- Fixed contracts -------------------------------------------------------
 
@@ -265,6 +273,147 @@ def build_manifest(
         for cell in group
     ]
     return pd.DataFrame(rows).sort_values("cell_id").reset_index(drop=True)
+
+
+def _cell_to_gridcell(cell: CellGeometry) -> GridCell:
+    """Build the productionized :class:`GridCell` from a UTM :class:`CellGeometry`.
+
+    The target grid is ``EPSG:32611`` (UTM 11N) at ``scale=10`` m, ``100×100`` —
+    matching the GEE inference reference patches (see ``docs/agents/KNOWLEDGE.md``).
+    """
+    return GridCell.from_utm_bounds(
+        cell_id=cell.cell_id,
+        min_x=cell.min_x,
+        min_y=cell.min_y,
+        max_x=cell.max_x,
+        max_y=cell.max_y,
+        crs=GRID_MATH_CRS,
+    )
+
+
+def _tile_aoi_to_cells(aoi: Polygon, inset_m: float = 0.0) -> list[CellGeometry]:
+    """Tile the AOI into a regular 1 km grid in :data:`GRID_MATH_CRS` (mode B).
+
+    The AOI (lon/lat) is reprojected to UTM 11N, optionally **eroded inward** by
+    ``inset_m`` metres (a negative polygon buffer), snapped to a
+    :data:`CELL_SIZE_M` lattice over its (inset) bounding box, and every tile whose
+    geometry intersects the (inset) AOI is kept (so mode B is bounded by the AOI,
+    never the wider cell-sampling bbox). The legacy CSV is not consumed.
+
+    The inset follows the AOI's true shape, eroding ``inset_m`` from every edge: a
+    100 km square becomes an 80 km square about the same centroid for
+    ``inset_m=10_000``, while an irregular AOI shrinks uniformly inward (concave
+    notches and necks narrower than ``2·inset_m`` may disappear). The buffer is
+    applied in UTM metres — buffering in lon/lat degrees would be geometrically
+    wrong (CRS is law).
+
+    Args:
+        aoi: AOI polygon in :data:`GEOGRAPHIC_CRS` (lon/lat).
+        inset_m: Inward erosion in metres (``shapely`` ``buffer(-inset_m)`` in UTM).
+            ``0.0`` (default) reproduces the un-inset tiling.
+
+    Returns:
+        One :class:`CellGeometry` per kept tile, ``cell_id`` in row-major order
+        (south-to-north, west-to-east), in UTM metres.
+
+    Raises:
+        ValueError: If ``inset_m`` is negative, or if the inset erases the AOI
+            entirely (no area left to tile).
+    """
+    if inset_m < 0:
+        raise ValueError(f"inset_m must be >= 0, got {inset_m}.")
+
+    to_utm = Transformer.from_crs(GEOGRAPHIC_CRS, GRID_MATH_CRS, always_xy=True)
+    aoi_utm = shapely_transform(
+        lambda xs, ys: to_utm.transform(xs, ys), aoi
+    )
+    if inset_m > 0:
+        aoi_utm = aoi_utm.buffer(-inset_m)
+        if aoi_utm.is_empty or aoi_utm.area == 0.0:
+            raise ValueError(
+                f"inset_m={inset_m} erodes the entire AOI; nothing left to tile."
+            )
+
+    min_x, min_y, max_x, max_y = aoi_utm.bounds
+
+    # Snap the origin down to a whole-cell multiple so tiles align deterministically.
+    start_x = (min_x // CELL_SIZE_M) * CELL_SIZE_M
+    start_y = (min_y // CELL_SIZE_M) * CELL_SIZE_M
+
+    cells: list[CellGeometry] = []
+    cell_id = 0
+    y = start_y
+    while y < max_y:
+        x = start_x
+        while x < max_x:
+            tile = box(x, y, x + CELL_SIZE_M, y + CELL_SIZE_M)
+            if tile.intersects(aoi_utm):
+                cells.append(
+                    CellGeometry(
+                        cell_id=cell_id,
+                        center_x=x + CELL_SIZE_M / 2,
+                        center_y=y + CELL_SIZE_M / 2,
+                        min_x=x,
+                        min_y=y,
+                        max_x=x + CELL_SIZE_M,
+                        max_y=y + CELL_SIZE_M,
+                    )
+                )
+                cell_id += 1
+            x += CELL_SIZE_M
+        y += CELL_SIZE_M
+
+    logger.info("tiled_aoi", mode="B", cells=len(cells), inset_m=inset_m)
+    return cells
+
+
+def build_grid(
+    mode: SweepMode = "A",
+    legacy_csv: Path = DEFAULT_LEGACY_CSV,
+    aoi_path: Path = DEFAULT_AOI_PATH,
+    require_fully_inside: bool = False,
+    mode_b_inset_m: float = 0.0,
+) -> list[GridCell]:
+    """Build the inference sweep grid as productionized :class:`GridCell` objects.
+
+    Both modes are **bounded by the AOI** (`data/bow_valley_inference_aoi.geojson`),
+    never the wider cell-sampling bbox — the clipped archive holds no data outside
+    the AOI (PLAN §3).
+
+    Args:
+        mode: ``"A"`` (sample-only) keeps the in-AOI legacy-CSV cells, using the
+            legacy CSV for **cell geometry only**. ``"B"`` (full tile) tiles the
+            AOI directly into a 1 km lattice and ignores the legacy CSV.
+        legacy_csv: Legacy cell-sampling CSV (mode A only).
+        aoi_path: Authoritative AOI GeoJSON (both modes).
+        require_fully_inside: Mode A only — keep only fully-contained cells
+            (→ 338) instead of the centre-in rule (→ 344).
+        mode_b_inset_m: Mode B only — erode the AOI inward by this many metres
+            (negative polygon buffer in UTM) before tiling, dropping an
+            ``mode_b_inset_m``-wide border ring. ``0.0`` (default) tiles the full
+            AOI. Ignored in mode A.
+
+    Returns:
+        The grid cells, each carrying the UTM 11N / 10 m / 100×100 target triple.
+
+    Raises:
+        ValueError: If ``mode`` is not ``"A"`` or ``"B"``, or if a mode-B inset
+            erodes the entire AOI.
+    """
+    aoi = load_aoi_polygon(aoi_path)
+
+    if mode == "A":
+        keep_rule: KeepRule = "fully_inside" if require_fully_inside else "centre_in"
+        cells = load_cells(legacy_csv)
+        kept, _ = filter_cells(cells, aoi, keep_rule=keep_rule)
+    elif mode == "B":
+        kept = _tile_aoi_to_cells(aoi, inset_m=mode_b_inset_m)
+    else:
+        raise ValueError(f"Unknown sweep mode {mode!r}; expected 'A' or 'B'.")
+
+    grid = [_cell_to_gridcell(cell) for cell in kept]
+    logger.info("built_grid", mode=mode, cells=len(grid))
+    return grid
 
 
 def _window_days(window_start: date, window_end: date) -> list[date]:

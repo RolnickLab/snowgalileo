@@ -191,6 +191,8 @@ def test_parse_grid_band_hdf4_modis():
 # --------------------------------------------------------------------------- #
 # Real-archive clips
 # --------------------------------------------------------------------------- #
+@pytest.mark.slow
+@pytest.mark.xdist_group("slow_archive")
 @requires_archive
 def test_landsat_clip_keeps_zone_and_pixels(tmp_path, aoi, settings):
     """AC-3 + AC-7: a partial Landsat scene clips with >0 valid px, stays 32612."""
@@ -212,6 +214,8 @@ def test_landsat_clip_keeps_zone_and_pixels(tmp_path, aoi, settings):
         assert clipped.crs.to_epsg() == 32612
 
 
+@pytest.mark.slow
+@pytest.mark.xdist_group("slow_archive")
 @requires_archive
 def test_sentinel2_clip_stays_utm11(tmp_path, aoi, settings):
     """AC-7: clipped Sentinel-2 JP2 bands stay EPSG:32611."""
@@ -228,6 +232,57 @@ def test_sentinel2_clip_stays_utm11(tmp_path, aoi, settings):
         zf.extract(jp2, path=tmp_path)
     with rasterio.open(tmp_path / jp2) as clipped:
         assert clipped.crs.to_epsg() == 32611
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("slow_archive")
+@requires_archive
+def test_sentinel2_clip_is_lossless(tmp_path, aoi, settings):
+    """AC-8 (S2): the clipped JP2 bands are bit-exact to the raw SAFE — no lossy recompress.
+
+    Regression for the lossy-JP2 bug: ``_clip_geotiff_to`` copied the source profile but
+    GDAL's ``JP2OpenJPEG`` writer defaults to *lossy*, silently corrupting reflectance
+    (±~2 DN) and the categorical ``MSK_CLASSI`` cloud mask (class flips). The earlier
+    median-0 S2 parity check could not see this. We assert both the compression label
+    (LOSSLESS) and exact pixel equality over an interior window.
+    """
+    import zipfile
+
+    import numpy as np
+    from rasterio.windows import from_bounds
+
+    src = sorted((RAW_ROOT / "sentinel2").glob("*.zip"))[0]
+    dst = tmp_path / "s2.zip"
+    row = clippers.clip_sentinel2(
+        src_path=src, dst_path=dst, source="sentinel2", aoi_4326=aoi, settings=settings
+    )
+    assert row.action is ClipAction.CLIP
+
+    def _open_member(zip_path: Path, suffix: str) -> str:
+        with zipfile.ZipFile(zip_path) as zf:
+            return next(n for n in zf.namelist() if n.endswith(suffix))
+
+    b04 = "_B04.jp2"
+    raw_band = _open_member(src, b04)
+    clp_band = _open_member(dst, b04)
+
+    with rasterio.open(f"/vsizip/{dst}/{clp_band}") as clipped:
+        # GDAL reports reversibility in the tags; a lossy write would say LOSSY.
+        rev = clipped.tags(ns="IMAGE_STRUCTURE").get("COMPRESSION_REVERSIBILITY", "")
+        assert rev.upper() != "LOSSY", "clipped S2 JP2 is lossy — recompression corrupts pixels"
+        cb = clipped.bounds
+
+    # Pixel equality over the interior of the clipped footprint (avoid crop-edge alignment).
+    ix0, iy0 = cb.left + (cb.right - cb.left) * 0.25, cb.bottom + (cb.top - cb.bottom) * 0.25
+    ix1, iy1 = cb.left + (cb.right - cb.left) * 0.75, cb.bottom + (cb.top - cb.bottom) * 0.75
+    with rasterio.open(f"/vsizip/{src}/{raw_band}") as r, rasterio.open(f"/vsizip/{dst}/{clp_band}") as c:
+        rwin = from_bounds(ix0, iy0, ix1, iy1, r.transform)
+        cwin = from_bounds(ix0, iy0, ix1, iy1, c.transform)
+        rd = r.read(1, window=rwin)
+        cd = c.read(1, window=cwin)
+    h, w = min(rd.shape[0], cd.shape[0]), min(rd.shape[1], cd.shape[1])
+    assert h > 0 and w > 0
+    assert np.array_equal(rd[:h, :w], cd[:h, :w]), "clipped S2 B04 not bit-exact to raw"
 
 
 @requires_archive
@@ -275,6 +330,8 @@ def test_dem_clip_is_non_destructive(tmp_path, aoi, settings):
     assert clipped_val == src_val
 
 
+@pytest.mark.slow
+@pytest.mark.xdist_group("slow_archive")
 @requires_archive
 def test_manifest_one_row_per_product(tmp_path, aoi, settings):
     """AC-5: clipping WorldCover yields one manifest row per input tile."""
@@ -294,6 +351,8 @@ def test_manifest_one_row_per_product(tmp_path, aoi, settings):
     assert all(r.action in ClipAction for r in rows)
 
 
+@pytest.mark.slow
+@pytest.mark.xdist_group("slow_archive")
 @requires_archive
 def test_audit_passes_on_clipped_worldcover(tmp_path, aoi, settings):
     """AC-4: the post-run audit finds zero all-nodata outputs after a real clip."""
@@ -340,3 +399,112 @@ def test_viirs_clip_writes_per_grid_tifs(tmp_path, aoi, settings):
     assert h1 > 0 and w1 > 0 and h5 > 0 and w5 > 0
     assert abs(h5 - 2 * h1) <= 2
     assert abs(w5 - 2 * w1) <= 2
+
+
+# --------------------------------------------------------------------------- #
+# ERA5 buffered clip (no archive needed — synthetic NetCDF)
+# --------------------------------------------------------------------------- #
+def test_era5_clip_pad_keeps_edge_pixel(tmp_path, settings):
+    """The padded ERA5 clip keeps the source pixel an AOI-edge cell needs.
+
+    ERA5 clips by pixel *centre* (xarray label slice). On the real Bow Valley AOI the
+    south bound is 50.7298, but cells extend to centre ~50.73 — below the southernmost
+    *unpadded* kept centre (50.80) and outside its nearest-resample catchment
+    (50.80 - 0.05 = 50.750), so those cells exported all-nodata. ``era5_pad_degrees``
+    widens the slice by ≥1 native 0.1° pixel so the 50.70 centre survives and covers
+    down to 50.65. Build a synthetic 0.1° grid and assert the padded clip keeps the
+    sub-AOI-bound row the unpadded slice drops.
+    """
+    import numpy as np
+    import xarray as xr
+
+    # 0.1° grid, descending latitude (ERA5 convention), spanning the AOI south edge.
+    lats = np.round(np.arange(52.4, 50.5 - 1e-9, -0.1), 2)
+    lons = np.round(np.arange(-116.7, -114.4 + 1e-9, 0.1), 2)
+    data = np.broadcast_to(
+        lats[:, None], (lats.size, lons.size)
+    ).astype("float32")  # value == latitude, so we can read back which rows survived.
+    ds = xr.Dataset(
+        {"t2m": (("latitude", "longitude"), data)},
+        coords={"latitude": lats, "longitude": lons},
+    )
+    src = tmp_path / "synthetic_ERA5LAND.nc"
+    ds.to_netcdf(src, engine="h5netcdf")
+
+    # Tight AOI: south bound 50.7298 (matches the real Bow Valley AOI south edge).
+    aoi = box(-116.5619, 50.7298, -114.5277, 52.3067)
+
+    dst = tmp_path / "clipped.nc"
+    row = clippers.clip_era5(
+        src_path=src, dst_path=dst, source="era5", aoi_4326=aoi, settings=settings
+    )
+    assert row.action is ClipAction.CLIP
+
+    with xr.open_dataset(dst, engine="h5netcdf") as out:
+        kept = np.round(out["latitude"].values, 2)
+    south_edge = float(kept.min())
+
+    # Unpadded slice would keep 50.80 as the southernmost centre (catchment floor 50.75),
+    # leaving the 50.73 cell uncovered. With the ≥0.1° pad the 50.70 row survives, whose
+    # catchment reaches 50.65 — fully covering the 50.73 cell.
+    assert south_edge <= 50.70 + 1e-9, (
+        f"padded ERA5 clip dropped the edge pixel: south_edge={south_edge}"
+    )
+    assert south_edge - 0.05 <= 50.73, "kept pixel does not cover the 50.73 AOI-edge cell"
+
+
+# --------------------------------------------------------------------------- #
+# Sinusoidal clip uses intersect (all_touched), not centroid (no archive)
+# --------------------------------------------------------------------------- #
+def test_sinusoidal_clip_keeps_boundary_ring_via_all_touched(tmp_path):
+    """Coarse MODIS/VIIRS clip keeps AOI-edge pixels that *touch* the AOI.
+
+    Regression for the ragged-hole bug: with the rasterio default
+    (``all_touched=False``) a ~1 km sinusoidal pixel is kept only when the AOI
+    covers its *centre*, so boundary pixels that partially overlap are dropped and
+    become nodata wedges after the adapter resamples onto the 10 m cell. The fix
+    masks with ``all_touched=True`` (intersect). Build a sinusoidal raster whose
+    pixel column straddles the AOI's eastern edge and assert the touched path keeps
+    strictly more pixels than the centroid path would.
+    """
+    import numpy as np
+    import rasterio
+    from affine import Affine
+    from pyproj import Transformer
+    from rasterio.crs import CRS
+    from rasterio.mask import mask
+    from shapely.geometry import box, mapping
+
+    from src.data.local_sources.clip.clippers import (
+        _clip_sinusoidal_subdataset,
+        _reproject_aoi,
+    )
+
+    sinu = CRS.from_proj4("+proj=sinu +R=6371007.181 +units=m +no_defs")
+    res = 926.625  # ~1 km, matching the MODIS 1 km grid
+    fwd = Transformer.from_crs("EPSG:4326", sinu, always_xy=True)
+    # AOI box in lon/lat; its edges bisect raster columns/rows once reprojected.
+    aoi = box(-115.50, 50.90, -115.00, 51.10)
+    # Raster origin west & north of the AOI so the grid straddles every edge.
+    x0, y1 = fwd.transform(-115.60, 51.20)
+    transform = Affine(res, 0, x0, 0, -res, y1)
+    h = w = 80
+    src_tif = tmp_path / "sinu_src.tif"
+    with rasterio.open(
+        src_tif, "w", driver="GTiff", height=h, width=w, count=1,
+        dtype="int16", crs=sinu, transform=transform, nodata=-28672,
+    ) as dst:
+        dst.write(np.ones((1, h, w), dtype="int16"))
+
+    # Centroid baseline (rasterio default all_touched=False) vs the production path.
+    with rasterio.open(src_tif) as s:
+        geom = [mapping(_reproject_aoi(aoi, s.crs))]
+        centroid_img, _ = mask(s, geom, crop=True, all_touched=False)
+        centroid_valid = int((centroid_img != s.nodata).sum())
+
+    touched_valid = _clip_sinusoidal_subdataset(src_tif, tmp_path / "sinu_clip.tif", aoi)
+
+    assert touched_valid > centroid_valid, (
+        f"all_touched did not add the boundary ring: "
+        f"touched={touched_valid} centroid={centroid_valid}"
+    )

@@ -320,7 +320,7 @@ class _ViirsRenderer:
 
 
 # --------------------------------------------------------------------------- #
-# Phase 3 — archive renderers (Landsat tar, S2 zip, S1 zip via /vsi*/)
+# Phase 3 — archive renderers (Landsat tar, S2 zip via /vsi*/; S1 = processed SNAP tif)
 # --------------------------------------------------------------------------- #
 
 
@@ -353,46 +353,6 @@ def _read_rgb_paths_4326(
     assert bounds is not None
     rgb = np.dstack(chans)
     return _stretch_uint8(rgb), bounds, crs
-
-
-def _read_gcp_band_4326(
-    src_path: str, *, long_edge: int
-) -> tuple[npt.NDArray[np.floating], tuple[float, float, float, float], str]:
-    """Decimated read of a GCP-georeferenced band, warped to EPSG:4326.
-
-    Sentinel-1 measurement TIFFs report ``crs=None`` + an identity transform but
-    carry GCPs in EPSG:4326 (F3). We compute a GCP-based source transform, read the
-    band decimated, then ``reproject`` to 4326 — never a full-res load (~146 MB).
-
-    Returns ``(array_4326, bounds_4326, gcp_crs)``.
-
-    Raises:
-        ValueError: If the source carries no GCPs.
-    """
-    with rasterio.open(src_path) as src:
-        gcps, gcp_crs = src.gcps
-        if not gcps:
-            raise ValueError("source has no GCPs; cannot georeference")
-
-        out_h, out_w = _decimated_shape(width=src.width, height=src.height, long_edge=long_edge)
-        arr = src.read(1, out_shape=(out_h, out_w), resampling=Resampling.average).astype(
-            "float32"
-        )
-        # GCP transform for the *decimated* grid: derive the full-res GCP transform,
-        # then scale it by the read ratio (GCP pixel coords are in full-res space).
-        full_transform = rasterio.transform.from_gcps(gcps)
-        src_transform = full_transform * full_transform.scale(
-            src.width / out_w, src.height / out_h
-        )
-
-    dec = _Decimated(
-        array=arr,
-        transform=src_transform,
-        crs=CRS.from_user_input(gcp_crs),
-        bounds_4326=array_bounds(out_h, out_w, src_transform),
-    )
-    arr_4326, bounds = _to_4326(dec)
-    return arr_4326, bounds, str(gcp_crs)
 
 
 def _landsat_band(archive: Path, band_token: str) -> str:
@@ -446,30 +406,32 @@ class _Sentinel2Renderer:
         )
 
 
+#: Processed-S1 SNAP-cache band order (s1_snap.py / s1_grd_graph.xml; BigTIFF keeps no
+#: band names): 1 = Sigma0_VH (linear), 2 = Sigma0_VV (linear), 3 = angle (degrees).
+_S1_VV_BAND = 2
+
+
 class _Sentinel1Renderer:
     source = "sentinel1"
 
     def render(self, row: ProductRow, *, long_edge: int, date_idx: int = 0) -> QuicklookResult:
         assert row.path is not None
-        members = list_zip_members(row.path)
-        # VV measurement TIFF (fallback VH); GCP-warped (F3 corrected).
-        try:
-            member = find_member(members, suffix=".tiff", contains="-vv-")
-            pol = "VV"
-        except FileNotFoundError:
-            member = find_member(members, suffix=".tiff", contains="-vh-")
-            pol = "VH"
-        path = vsizip_path(row.path, member)
-        arr_4326, bounds, crs = _read_gcp_band_4326(path, long_edge=long_edge)
-        # dB-stretch the backscatter amplitude for display.
+        # The processed SNAP tif is a plain EPSG:32611 GeoTIFF (no zip, no GCPs): read VV
+        # (linear sigma0) decimated, convert to dB, reproject to 4326 — the standard
+        # georeferenced-raster path. (The old renderer GCP-warped raw-DN from the clipped
+        # SAFE; S1 is no longer clipped — both cube and viewer read this processed cache.)
+        dec = _read_band_decimated(row.path, band=_S1_VV_BAND, long_edge=long_edge)
         with np.errstate(divide="ignore", invalid="ignore"):
-            db = 10.0 * np.log10(np.where(arr_4326 > 0, arr_4326, np.nan))
+            db = 10.0 * np.log10(np.where(dec.array > 0, dec.array, np.nan))
+        arr_4326, bounds = _to_4326(
+            _Decimated(array=db, transform=dec.transform, crs=dec.crs, bounds_4326=dec.bounds_4326)
+        )
         return QuicklookResult(
             kind="georef_raster",
-            image=_stretch_uint8(db),
+            image=_stretch_uint8(arr_4326),
             bounds_4326=bounds,
-            src_crs=crs,
-            label=f"S1 GRD {pol} (dB, GCP-warped)",
+            src_crs=str(dec.crs),
+            label="S1 GRD VV (dB, SNAP terrain-corrected)",
         )
 
 
@@ -562,6 +524,138 @@ class _Sentinel3Renderer:
         )
 
 
+# --------------------------------------------------------------------------- #
+# PLAN-V2 — cube band + daily-FSC renderers (Stage-2 outputs, EPSG:32611)
+# --------------------------------------------------------------------------- #
+
+# Cube + FSC nodata sentinel (the exporter / mosaic writer fill).
+_OUTPUT_NODATA = -9999.0
+
+# Fixed FSC display range — FSC is an absolute fraction, so the colormap is pinned to
+# [0, 1] (NOT a per-image percentile stretch, which would misrepresent the fraction).
+_FSC_VMIN, _FSC_VMAX = 0.0, 1.0
+# ``turbo`` (blue→cyan→green→yellow→red) reads clearly over a dark satellite basemap and,
+# unlike ``cool``, gives strong, distinct colour steps across the mid range (0.3–0.7) so
+# partial snow cover is legible, not a muddy periwinkle band. turbo(0)=(48,18,59) is dark
+# but non-black, so valid FSC=0 keeps a non-zero colour band and is not dropped by
+# result_to_geotiff's all-zero-RGB transparency heuristic (only the forced-black NaN/nodata
+# pixels are). The on-map colour scale (see data_viewer ``_FSC_COLORBAR_*``) is sampled
+# from this same colormap so legend and pixels agree.
+_FSC_COLORMAP = "turbo"
+
+
+def _read_output_band_4326(
+    path: Path, *, band: int, long_edge: int
+) -> tuple[npt.NDArray[np.floating], tuple[float, float, float, float], str]:
+    """Decimated read of one band of a 32611 output raster, warped to EPSG:4326.
+
+    Masks the ``-9999`` output nodata to NaN before the warp so it neither stretches
+    nor reprojects in. Returns ``(array_4326, bounds_4326, src_crs)``.
+    """
+    dec = _read_band_decimated(path, band=band, long_edge=long_edge)
+    masked = np.where(dec.array == _OUTPUT_NODATA, np.nan, dec.array)
+    arr_4326, bounds = _to_4326(
+        _Decimated(
+            array=masked, transform=dec.transform, crs=dec.crs, bounds_4326=dec.bounds_4326
+        )
+    )
+    return arr_4326, bounds, str(dec.crs)
+
+
+def render_cube_band(
+    *, path: Path, var: str, timestep: int, is_static: bool, long_edge: int
+) -> QuicklookResult:
+    """Render one cube band ``(var, timestep)`` as a georeferenced quicklook.
+
+    Cube bands span wildly different domains (dB, reflectance, Kelvin, radians), so the
+    band is **percentile-stretched** to uint8 for display — this is a diagnostic look,
+    not a calibrated product. Band selection is by description (see
+    :func:`~src.data.local_sources.viewer.outputs.band_index`).
+
+    Args:
+        path: A cube ``PR_*.tif``.
+        var: Variable name (dynamic root or static name).
+        timestep: Timestep for a dynamic var; ignored for statics.
+        is_static: Whether ``var`` is a static band (timestep then carries no meaning).
+        long_edge: Decimation target (px).
+
+    Returns:
+        A ``georef_raster`` ``QuicklookResult``.
+    """
+    from src.data.local_sources.viewer.outputs import band_index
+
+    band = band_index(path, var=var, timestep=timestep)
+    arr_4326, bounds, crs = _read_output_band_4326(path, band=band, long_edge=long_edge)
+    label = f"{var} (static)" if is_static else f"{var} @ t{timestep}"
+    # Transparency must follow *real* nodata (the -9999 masked to NaN in
+    # _read_output_band_4326), NOT the stretched value: dark-but-valid pixels (S3
+    # radiance) and uniform fields (ERA5, which _stretch_uint8 collapses to all-zeros)
+    # legitimately stretch to 0 and would otherwise be falsely dropped as nodata holes.
+    return QuicklookResult(
+        kind="georef_raster",
+        image=_stretch_uint8(arr_4326),
+        bounds_4326=bounds,
+        src_crs=crs,
+        label=label,
+        alpha_mask=np.isfinite(arr_4326),
+    )
+
+
+def render_fsc(*, path: Path, long_edge: int) -> QuicklookResult:
+    """Render a daily-FSC COG with a fixed ``[0, 1]`` colormap as a georef quicklook.
+
+    Unlike the cube bands, FSC is an absolute fraction: the colormap is pinned to
+    ``[0, 1]`` (:data:`_FSC_VMIN`/``_FSC_VMAX``) so colour means the same across dates —
+    a per-image stretch would lie. NaN (the ``-9999`` nodata) is left as NaN → rendered
+    transparent by :func:`result_to_geotiff`.
+
+    Args:
+        path: A daily-FSC ``fsc_*.tif`` (single band).
+        long_edge: Decimation target (px).
+
+    Returns:
+        A ``georef_raster`` ``QuicklookResult`` carrying an RGB colormapped image.
+    """
+    import matplotlib
+
+    arr_4326, bounds, crs = _read_output_band_4326(path, band=1, long_edge=long_edge)
+
+    # Pin to [0, 1], colormap → RGB uint8; keep NaN pixels transparent.
+    cmap = matplotlib.colormaps[_FSC_COLORMAP]
+    normed = np.clip((arr_4326 - _FSC_VMIN) / (_FSC_VMAX - _FSC_VMIN), 0.0, 1.0)
+    rgba = cmap(np.nan_to_num(normed, nan=0.0))  # HxWx4 floats in [0, 1]
+    rgb = (rgba[..., :3] * 255).astype(np.uint8)
+    # Force NaN (nodata) pixels to pure black so result_to_geotiff drops them as
+    # transparent (its all-zero-RGB heuristic); valid FSC=0 keeps turbo's dark-indigo
+    # (48,18,59), which is opaque (a non-zero colour band) and distinct from this sentinel.
+    rgb[~np.isfinite(arr_4326)] = 0
+    return QuicklookResult(
+        kind="georef_raster",
+        image=rgb,
+        bounds_4326=bounds,
+        src_crs=crs,
+        label=f"Daily FSC (0–1, {_FSC_COLORMAP})",
+    )
+
+
+def fsc_colorbar() -> tuple[list[str], float, float]:
+    """The on-map FSC legend, sampled from the same colormap the pixels use.
+
+    Returns ``(hex_colours, vmin, vmax)`` where ``hex_colours`` are 11 stops sampled at
+    ``0.0, 0.1, …, 1.0`` of :data:`_FSC_COLORMAP`. Sourcing the legend from the same
+    colormap (and the same ``_FSC_VMIN``/``_FSC_VMAX`` range) guarantees the colour scale
+    and the rendered pixels cannot drift apart.
+
+    Returns:
+        ``(hex_colours, vmin, vmax)`` for a leafmap ``add_colorbar`` call.
+    """
+    import matplotlib
+
+    cmap = matplotlib.colormaps[_FSC_COLORMAP]
+    stops = [matplotlib.colors.to_hex(cmap(i / 10.0)) for i in range(11)]
+    return stops, _FSC_VMIN, _FSC_VMAX
+
+
 def result_to_geotiff(result: QuicklookResult, dst: Path) -> Path:
     """Write a ``georef_raster`` quicklook to a small EPSG:4326 GeoTIFF for display.
 
@@ -594,14 +688,22 @@ def result_to_geotiff(result: QuicklookResult, dst: Path) -> Path:
     if is_rgb or image.dtype == np.uint8:
         data = image.astype(np.uint8)
         bands = [data[..., i] for i in range(3)] if is_rgb else [data]
-        # Reprojecting a sheared (e.g. sinusoidal) AOI leaves large fill regions
-        # that ``_stretch_uint8`` zeroed. Add an alpha band so those areas render
-        # transparent (basemap shows through) instead of as a black rectangle.
-        # Heuristic: a pixel is masked iff every colour band is 0 (genuinely pure
-        # black valid pixels are vanishingly rare in stretched reflectance).
-        opaque = np.zeros((height, width), dtype=bool)
-        for b in bands:
-            opaque |= b > 0
+        # Build the alpha (transparency) band. Prefer an *explicit* validity mask when
+        # the renderer supplied one: stretched value == 0 is NOT a reliable nodata proxy
+        # — valid-but-dark pixels (S3 radiance) and uniform fields (ERA5, where
+        # ``_stretch_uint8`` returns all-zeros) legitimately stretch to 0 and would be
+        # falsely dropped as nodata by the all-zero heuristic. The cube tab passes
+        # ``alpha_mask`` (real NaN-nodata mask) for exactly this reason.
+        if result.alpha_mask is not None:
+            opaque = np.asarray(result.alpha_mask, dtype=bool)
+        else:
+            # Fallback (Clip tab): reprojecting a sheared (e.g. sinusoidal) AOI leaves
+            # large fill regions that ``_stretch_uint8`` zeroed. A pixel is masked iff
+            # every colour band is 0 (genuinely pure-black valid pixels are vanishingly
+            # rare in stretched reflectance).
+            opaque = np.zeros((height, width), dtype=bool)
+            for b in bands:
+                opaque |= b > 0
         alpha = np.where(opaque, 255, 0).astype(np.uint8)
         out_bands = [*bands, alpha]
         dtype: str = "uint8"

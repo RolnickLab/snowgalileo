@@ -28,6 +28,8 @@ local
 old_slurms/
 error*
 ee-marlena-*
+results/*
+logging_checkpoints/*
 .antigravitycli
 
 # Local environment overrides (EE_PROJECT, etc.) — never commit
