@@ -8,7 +8,7 @@ SnowGalileo is a pre-trained snow foundation model, fine-tuned for daily fractio
 
 ## Quickstart
 
-### README about the configs
+### Description of the configs
 
 Also refer to the data retrieval section in data/.
 
@@ -20,16 +20,6 @@ For pre-training SnowGalileo, [data] is required. Then run [config] config file.
 ### How to Run Evaluation Experiments
 
 ### How to Run Inference on your own Points (preliminary)
-
-### A note about Datasets and adding datasets
-Very manual at this point. To start with adding datasets, the following points should be considered:
-
-- Order into a modality group (one of ...,...,...,...,... -- a description is provided in...)
-
-The no-data bounds are based on whether Earthengine has flagged this data as no data (e.g., see s2 script), or manually identified bounds. More information in "data/config.py"
-
-### Other Disclaimers
-Some functions in this codebase have been generated, or is inspired with the help of AI. Thorough manual verification and automatic tests have been used to review and verify the code.
 
 Parts of the code require a WandB account to function entirely. If you would like to make use of this, please set the variable [WANDB_ENTITY] in "src/data/config.py" to your Belieben.
 
@@ -99,6 +89,12 @@ To be able to perform sensor fusion of remote sensing data of different spatial 
 Throughout the processing, the spatial (pixel) dimension gets reduced to a token dimension, and channels (referring to satellite bands, or distinct variables of auxiliary data, e.g. topography elevation and slope are distinct channels) are grouped into channel groups that include data with similar characteristics. For example, all Sentinel-2 RGB channels are grouped in one channel group.
 
 ESA AI4Snow contract number: ...
+
+### Ideal Future README's
+
+- How to add additional input sources
+- How to retrieve data for inference
+- How to conduct inference
 
 #### Credits
 
