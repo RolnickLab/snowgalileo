@@ -11,9 +11,8 @@ from src.data.config import DATA_FOLDER
 
 
 def crop_center(input_data, crop_height=100, crop_width=100):
-    """
-    Crop the center region of shape (crop_height, crop_width)
-    from input_data with shape (C, H, W).
+    """Crop the center region of shape (crop_height, crop_width) from
+    input_data with shape (C, H, W).
     """
     _, height, width = input_data.shape
 

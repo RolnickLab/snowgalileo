@@ -1,0 +1,37 @@
+# Stage-2 inference-run configuration (loaded by InferenceSettings).
+#
+# Precedence: INFER_-prefixed env vars > this file > field defaults.
+# This file carries only *how to run the model*. The sweep definition (inference
+# window, mode, archive/processing roots) lives in cube.yaml — the single source
+# of truth — and the inference script reads both, taking the window from cube.yaml.
+
+# Finetuned EncoderWithHead checkpoint (Q6 — real weights on disk). Encoder size is
+# read from the eval config's filename token (ai4snow_tiny → 192/12/3). The inference
+# script asserts this file exists and fails loudly; it never silently random-inits.
+checkpoint: logging_checkpoints/snowgalileo_finetune/clouds_pretrained_42_lfdciemu.pth
+
+# Eval JSON under configs/eval/ — drives the encoder-size token, sigmoid_slope, and the
+# per-mode head config for the EncoderWithHead build (mirrors scripts/eval_only.py).
+eval_config_name: fsc_inference_bow_river_tiny.json
+
+# Head decoding strategy: finetune | linear_probe | attention_probe.
+decoder_mode: finetune
+
+# Cells per encoder forward pass. Sized for an RTX 3060 (12 GB): the ai4snow_tiny
+# encoder (192/12/3) is small, so 16 cells/forward fits comfortably under VRAM while
+# keeping the GPU busy. Raise only if VRAM headroom allows (the per-cell cube export,
+# not the forward pass, is the sweep's real bottleneck).
+batch_size: 16
+
+# Torch device: cpu | cuda. cuda uses the local RTX 3060; falls back is NOT automatic —
+# set cpu explicitly on a host without a GPU.
+device: cuda
+
+# Process-pool workers for the driver's per-day parallel cube pre-export. Each worker holds
+# ~600 MB (windowed reads), so 8 fits comfortably on 62 GB; clamped to min(cores, cells) at
+# run time. Export — not the GPU forward — dominates the sweep, so this is the main speedup.
+export_workers: 8
+
+# Daily-FSC COG output dir (Q5 override). Leave unset → defaults to
+# CubeSettings.daily_fsc_dir (data/bow_valley_processing/daily_fsc/).
+# out_dir: data/bow_valley_processing/daily_fsc

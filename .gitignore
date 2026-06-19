@@ -5,6 +5,8 @@ data/*
 !data/eval_tifs/
 !data/tifs/
 !data/tifs_broken/
+!data/bow_valley_inference_aoi.geojson
+!data/BOW_VALLEY_DATA_LAYOUT.md
 .ipynb_checkpoints
 baseline_weights
 models
@@ -26,3 +28,15 @@ local
 old_slurms/
 error*
 ee-marlena-*
+results/*
+logging_checkpoints/*
+.antigravitycli
+
+# Local environment overrides (EE_PROJECT, etc.) — never commit
+.env
+.claude
+
+# Downloaded full archives for parity / archive-gated tests (hosted separately).
+# The committed slim excerpts under tests/fixtures/clipped/ ARE tracked.
+tests/fixtures/archive/
+

@@ -1,5 +1,13 @@
+import os
 from pathlib import Path
 from typing import Any, Dict
+
+try:  # Optional: load a repo-root .env so EE_PROJECT et al. can live outside VCS.
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+except ImportError:  # python-dotenv not installed — env vars still work.
+    pass
 
 # each timestep covers one day
 DAYS_PER_TIMESTEP = 1
@@ -218,8 +226,11 @@ CHANNEL_WISE_INVALID_DATA_THRESHOLDS: Dict[str, Dict] = {
 }
 USE_INDECES = False
 
+# Earth Engine Cloud project. Overridable via the EE_PROJECT env var (or a
+# repo-root .env) so each user can bill API calls against their own registered
+# project without editing this file. Defaults to the original author's project.
+EE_PROJECT = os.environ.get("EE_PROJECT", "ee-marlena")
 # replace with your own project and bucket names
-EE_PROJECT = ""
 EE_BUCKET_TIFS = None
 EE_DRIVE_FOLDER_NAME = ""
 EE_DRIVE_FOLDER_ID = ""

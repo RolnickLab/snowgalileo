@@ -1,0 +1,85 @@
+<graph id="s3_olci_ortho_chain">
+  <version>1.0</version>
+
+  <!--
+    Reproduces GEE COPERNICUS/S3/OLCI geolocation with ESA SNAP (the same engine
+    GEE uses), for the TASK-011 ortho parity spike.
+
+    The residual the swath-warp adapter leaves (corr ~0.67, median |Δ| ~35) is
+    OLCI's intrinsic un-orthorectified geolocation: GEE terrain-orthorectifies OLCI
+    in SNAP, a plain scipy.griddata swath-warp cannot. This graph closes that gap.
+
+    Chain:
+      Read -> Subset (AOI + Oa17/Oa21 bands only)
+        -> Reproject (orthorectify=true, DEM=SRTM 1Sec HGT, EPSG:32611, 300 m)
+        -> Write (GeoTIFF)
+
+    Reproject(orthorectify=true) is the OLCI ortho path: it uses the product's
+    tie-point geocoding plus the DEM to terrain-correct the optical swath. The SAR
+    Terrain-Correction / Ellipsoid-Correction ops are radar-geometry only and reject
+    an OLCI product, so they are NOT usable here.
+
+    The early Subset to the AOI keeps the reproject to the patch neighbourhood (the
+    full OLCI swath is ~1270 km).
+
+    Run with (absolute gpt path; /usr/bin/snap is snapd, NOT ESA SNAP):
+      <snap>/bin/gpt scripts/developer_scripts/bow_valley_inference_local/spikes/s3_olci_ortho_graph.xml \
+        -Pinput=<extracted .SEN3/xfdumanifest.xml> \
+        -Pregion='POLYGON((lon lat, ...))' \
+        -Poutput=/tmp/s3run/s3_olci_ortho.tif
+
+    Throwaway de-risk graph (TASK-011 follow-up), not the production S3 adapter.
+  -->
+
+  <node id="Read">
+    <operator>Read</operator>
+    <sources/>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <file>${input}</file>
+    </parameters>
+  </node>
+
+  <node id="Subset">
+    <operator>Subset</operator>
+    <sources>
+      <sourceProduct refid="Read"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <sourceBands>Oa17_radiance,Oa21_radiance</sourceBands>
+      <geoRegion>${region}</geoRegion>
+      <copyMetadata>true</copyMetadata>
+    </parameters>
+  </node>
+
+  <node id="Reproject">
+    <operator>Reproject</operator>
+    <sources>
+      <sourceProduct refid="Subset"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <crs>EPSG:32611</crs>
+      <!-- The OLCI ortho: terrain-correct the optical swath against the DEM via the
+           product's tie-point geocoding. Without this it is a plain reprojection
+           (no terrain), which is what the swath-warp adapter already does. -->
+      <orthorectify>true</orthorectify>
+      <elevationModelName>SRTM 1Sec HGT</elevationModelName>
+      <!-- Nearest: ~300 m OLCI px onto the cell grid, no cross-band smoothing
+           (matches the adapter's griddata method="nearest"). -->
+      <resampling>Nearest</resampling>
+      <pixelSizeX>300.0</pixelSizeX>
+      <pixelSizeY>300.0</pixelSizeY>
+      <noDataValue>NaN</noDataValue>
+    </parameters>
+  </node>
+
+  <node id="Write">
+    <operator>Write</operator>
+    <sources>
+      <sourceProduct refid="Reproject"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <file>${output}</file>
+      <formatName>GeoTIFF</formatName>
+    </parameters>
+  </node>
+</graph>

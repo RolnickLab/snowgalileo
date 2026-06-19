@@ -54,8 +54,8 @@ def class_wise_f1(y_pred, y_true, num_classes):
 def mean_iou(
     predictions: np.ndarray, labels: np.ndarray, num_classes: int, ignore_label: int = -1
 ):
-    """
-    Calculate mean IoU given prediction and label tensors, ignoring pixels with a specific label.
+    """Calculate mean IoU given prediction and label tensors, ignoring pixels
+    with a specific label.
 
     Args:
     predictions (torch.Tensor): Predicted segmentation masks of shape (N, H, W)
