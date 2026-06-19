@@ -19,7 +19,7 @@ import pytest
 from pyproj import Transformer
 from shapely.geometry import Point, box
 
-from src.data.local_sources.grid import (
+from snow_galileo.data.local_sources.grid import (
     GRID_MATH_CRS,
     build_grid,
     build_manifest,

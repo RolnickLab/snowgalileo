@@ -1,6 +1,6 @@
 """Build the Bow Valley Sentinel-1 per-granule SNAP dB+angle cache (offline prestep).
 
-The cube exporter's :class:`~src.data.local_sources.s1.S1Adapter` reads a **pre-built**
+The cube exporter's :class:`~snow_galileo.data.local_sources.s1.S1Adapter` reads a **pre-built**
 per-granule, AOI-wide cache of terrain-corrected σ⁰ + ellipsoid-incidence-angle tifs; it
 does **not** run SNAP itself (a thin, hermetic read port). This script is that build
 step — running ESA SNAP ``gpt`` **once per raw granule** over the AOI, with the
@@ -26,9 +26,9 @@ from pathlib import Path
 import structlog
 import typer
 
-from src.data.local_sources.clip.settings import load_aoi_polygon
-from src.data.local_sources.paths import LocalPaths
-from src.data.local_sources.s1_snap import (
+from snow_galileo.data.local_sources.clip.settings import load_aoi_polygon
+from snow_galileo.data.local_sources.paths import LocalPaths
+from snow_galileo.data.local_sources.s1_snap import (
     _DEFAULT_GPT,
     _DEFAULT_GRAPH,
     build_s1_cache,

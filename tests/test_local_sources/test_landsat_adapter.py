@@ -30,9 +30,9 @@ from affine import Affine
 from rasterio.transform import from_origin
 from shapely.geometry import box
 
-from src.data.config import NO_DATA_VALUE
-from src.data.local_sources.base import GridCell
-from src.data.local_sources.landsat import LandsatAdapter, LandsatCloudAdapter
+from snow_galileo.data.config import NO_DATA_VALUE
+from snow_galileo.data.local_sources.base import GridCell
+from snow_galileo.data.local_sources.landsat import LandsatAdapter, LandsatCloudAdapter
 
 # --------------------------------------------------------------------------- #
 # Real-archive parity wiring

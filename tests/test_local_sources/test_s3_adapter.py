@@ -34,8 +34,8 @@ import pytest
 import rasterio
 from shapely.geometry import box
 
-from src.data.config import NO_DATA_VALUE
-from src.data.local_sources.base import CELL_TARGET_CRS, GridCell
+from snow_galileo.data.config import NO_DATA_VALUE
+from snow_galileo.data.local_sources.base import CELL_TARGET_CRS, GridCell
 from tests._archive_fixtures import resolve_archive_root
 
 _REF_DIR = Path("tests/fixtures/gee_reference_patches")
@@ -71,7 +71,7 @@ def adapter():
     root = resolve_archive_root("sentinel3", pattern="*.zip")
     if root is None:
         pytest.skip("No S3 products under tests/fixtures/archive/sentinel3 (download to run)")
-    from src.data.local_sources.s3 import S3Adapter
+    from snow_galileo.data.local_sources.s3 import S3Adapter
 
     return S3Adapter(archive_root=root)
 

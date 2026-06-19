@@ -4,14 +4,14 @@ from pathlib import Path
 
 import torch
 
-from src.data.config import (
+from snow_galileo.data.config import (
     NORMALIZATION_DICT_FILENAME,
 )
-from src.fsc.landsat_baselines import (
+from snow_galileo.fsc.landsat_baselines import (
     LandsatEvalDatasetSklearn,
     LandsatEvalSklearn,
 )
-from src.utils import config_dir
+from snow_galileo.utils import config_dir
 
 
 class TestSklearn(unittest.TestCase):

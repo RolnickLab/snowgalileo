@@ -12,9 +12,9 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
-from src.data.local_sources import parallel_export
-from src.data.local_sources.base import GridCell
-from src.data.local_sources.parallel_export import (
+from snow_galileo.data.local_sources import parallel_export
+from snow_galileo.data.local_sources.base import GridCell
+from snow_galileo.data.local_sources.parallel_export import (
     _init_worker,
     _resolve_workers,
     export_cells_parallel,
@@ -97,7 +97,7 @@ def test_init_worker_threads_cache_into_exporter(tmp_path: Path) -> None:
     a cache dir → the exporter owns a ``CubeCache`` with the requested cap; ``None`` →
     no cache.
     """
-    from src.data.local_sources.cube_cache import CubeCache
+    from snow_galileo.data.local_sources.cube_cache import CubeCache
 
     # Real mode + cache dir → exporter owns a CubeCache with the given cap.
     _init_worker(
@@ -130,7 +130,7 @@ def test_init_worker_never_clears_an_existing_cache(tmp_path: Path) -> None:
     """
     import numpy as np
 
-    from src.data.local_sources.cube_cache import CubeCache
+    from snow_galileo.data.local_sources.cube_cache import CubeCache
 
     cache_root = tmp_path / "cube_cache"
     seed = CubeCache(root=cache_root, max_entries=100)

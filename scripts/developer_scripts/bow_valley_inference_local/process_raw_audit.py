@@ -25,11 +25,11 @@ import structlog
 import typer
 from shapely.geometry import Polygon
 
-from src.data.local_sources.clip.footprints import sentinel_safe_footprint
-from src.data.local_sources.clip.manifest import read_manifest
-from src.data.local_sources.clip.settings import load_aoi_polygon
-from src.data.local_sources.paths import LocalPaths
-from src.data.local_sources.s1_snap import _aoi_intersects_footprint, cache_tif_name
+from snow_galileo.data.local_sources.clip.footprints import sentinel_safe_footprint
+from snow_galileo.data.local_sources.clip.manifest import read_manifest
+from snow_galileo.data.local_sources.clip.settings import load_aoi_polygon
+from snow_galileo.data.local_sources.paths import LocalPaths
+from snow_galileo.data.local_sources.s1_snap import _aoi_intersects_footprint, cache_tif_name
 
 logger = structlog.get_logger()
 app = typer.Typer(help="Audit the processed Bow Valley archive (clip + S1 SNAP).")

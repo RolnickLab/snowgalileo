@@ -4,7 +4,7 @@ from pathlib import Path
 import rasterio
 from pyproj import Transformer
 
-from src.data.config import DATA_FOLDER
+from snow_galileo.data.config import DATA_FOLDER
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--folder", type=str, default="landsat_eval_masks/patches_UTM_5_95")

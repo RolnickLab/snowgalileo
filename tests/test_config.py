@@ -2,11 +2,11 @@ import json
 import unittest
 from pathlib import Path
 
-from src.config import get_random_config
-from src.data.config import NORMALIZATION_DICT_FILENAME
-from src.data.dataset import Normalizer
-from src.snowgalileo import Encoder
-from src.utils import check_config, config_dir, load_check_config
+from snow_galileo.config import get_random_config
+from snow_galileo.data.config import NORMALIZATION_DICT_FILENAME
+from snow_galileo.data.dataset import Normalizer
+from snow_galileo.snowgalileo import Encoder
+from snow_galileo.utils import check_config, config_dir, load_check_config
 
 
 class TestConfigs(unittest.TestCase):

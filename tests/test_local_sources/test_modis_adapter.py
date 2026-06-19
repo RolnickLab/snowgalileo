@@ -31,8 +31,8 @@ import pytest
 import rasterio
 from shapely.geometry import box
 
-from src.data.config import MODIS_FILL_VALUE, NO_DATA_VALUE
-from src.data.local_sources.base import CELL_TARGET_CRS, GridCell
+from snow_galileo.data.config import MODIS_FILL_VALUE, NO_DATA_VALUE
+from snow_galileo.data.local_sources.base import CELL_TARGET_CRS, GridCell
 from tests._archive_fixtures import resolve_archive_root
 
 #: Phase-0 GEE reference patches (308-band cubes).
@@ -67,7 +67,7 @@ def adapter():
         pytest.skip(
             "No MODIS fixture under tests/fixtures (rebuild with populate_test_archive.py)"
         )
-    from src.data.local_sources.modis import ModisAdapter
+    from snow_galileo.data.local_sources.modis import ModisAdapter
 
     return ModisAdapter(archive_root=root)
 
@@ -80,7 +80,7 @@ def cloud_adapter():
         pytest.skip(
             "No MODIS fixture under tests/fixtures (rebuild with populate_test_archive.py)"
         )
-    from src.data.local_sources.modis import ModisCloudAdapter
+    from snow_galileo.data.local_sources.modis import ModisCloudAdapter
 
     return ModisCloudAdapter(archive_root=root)
 
@@ -135,7 +135,7 @@ def test_fill_preserved_when_source_has_fill(adapter, patch: Path) -> None:
     # survives a nearest reproject onto a co-located cell.
     from rasterio.transform import from_origin
 
-    from src.data.local_sources.base import reproject_to_cell
+    from snow_galileo.data.local_sources.base import reproject_to_cell
 
     src = np.full((1, 20, 20), 5000.0)
     src[0, :, 10:] = MODIS_FILL_VALUE

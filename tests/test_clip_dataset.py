@@ -18,15 +18,15 @@ import pytest
 import rasterio
 from shapely.geometry import Polygon, box
 
-from src.data.local_sources.clip import clippers
-from src.data.local_sources.clip.footprints import _parse_gml_coordinates
-from src.data.local_sources.clip.gate import (
+from snow_galileo.data.local_sources.clip import clippers
+from snow_galileo.data.local_sources.clip.footprints import _parse_gml_coordinates
+from snow_galileo.data.local_sources.clip.gate import (
     ClipAction,
     evaluate_gate,
     geodesic_area_km2,
 )
-from src.data.local_sources.clip.gdal_io import _parse_grid_band
-from src.data.local_sources.clip.settings import ClipSettings, load_aoi_polygon
+from snow_galileo.data.local_sources.clip.gdal_io import _parse_grid_band
+from snow_galileo.data.local_sources.clip.settings import ClipSettings, load_aoi_polygon
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -336,7 +336,7 @@ def test_dem_clip_is_non_destructive(tmp_path, aoi, settings):
 @requires_archive
 def test_manifest_one_row_per_product(tmp_path, aoi, settings):
     """AC-5: clipping WorldCover yields one manifest row per input tile."""
-    from src.data.local_sources.clip.orchestrator import clip_one_source
+    from snow_galileo.data.local_sources.clip.orchestrator import clip_one_source
 
     rows = clip_one_source(
         source="worldcover",
@@ -357,8 +357,8 @@ def test_manifest_one_row_per_product(tmp_path, aoi, settings):
 @requires_archive
 def test_audit_passes_on_clipped_worldcover(tmp_path, aoi, settings):
     """AC-4: the post-run audit finds zero all-nodata outputs after a real clip."""
-    from src.data.local_sources.clip.manifest import write_manifest
-    from src.data.local_sources.clip.orchestrator import clip_one_source
+    from snow_galileo.data.local_sources.clip.manifest import write_manifest
+    from snow_galileo.data.local_sources.clip.orchestrator import clip_one_source
 
     rows = clip_one_source(
         source="worldcover",
@@ -476,7 +476,7 @@ def test_sinusoidal_clip_keeps_boundary_ring_via_all_touched(tmp_path):
     from rasterio.mask import mask
     from shapely.geometry import box, mapping
 
-    from src.data.local_sources.clip.clippers import (
+    from snow_galileo.data.local_sources.clip.clippers import (
         _clip_sinusoidal_subdataset,
         _reproject_aoi,
     )

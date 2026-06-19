@@ -3,7 +3,7 @@ import unittest
 import torch
 from einops import repeat
 
-from src.masking import (
+from snow_galileo.masking import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
     SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX,

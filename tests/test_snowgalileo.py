@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from einops import repeat
 
-from src.data import (
+from snow_galileo.data import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
     SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX,
@@ -16,14 +16,14 @@ from src.data import (
     TIME_BANDS_GROUPS_IDX,
     Dataset,
 )
-from src.data.config import (
+from snow_galileo.data.config import (
     CONFIG_FILENAME,
     ENCODER_FILENAME,
     NUM_LOW_RES_PIXELS_PER_DIM,
     NUM_MED_RES_PIXELS_PER_DIM,
 )
-from src.data.dataset import DatasetOutput
-from src.data.earthengine.eo import (
+from snow_galileo.data.dataset import DatasetOutput
+from snow_galileo.data.earthengine.eo import (
     SPACE_BANDS,
     SPACE_TIME_HIGH_RES_BANDS,
     SPACE_TIME_LOW_RES_BANDS,
@@ -31,11 +31,11 @@ from src.data.earthengine.eo import (
     STATIC_BANDS,
     TIME_BANDS,
 )
-from src.masking import (
+from snow_galileo.masking import (
     batch_subset_mask_galileo,
 )
-from src.snowgalileo import Encoder, GalileoPixelDecoder
-from src.utils import device, load_check_config
+from snow_galileo.snowgalileo import Encoder, GalileoPixelDecoder
+from snow_galileo.utils import device, load_check_config
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/tifs_test"
 

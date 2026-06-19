@@ -7,7 +7,7 @@ from pathlib import Path
 import rasterio
 from rasterio.transform import Affine
 
-from src.data.config import DATA_FOLDER
+from snow_galileo.data.config import DATA_FOLDER
 
 
 def crop_center(input_data, crop_height=100, crop_width=100):

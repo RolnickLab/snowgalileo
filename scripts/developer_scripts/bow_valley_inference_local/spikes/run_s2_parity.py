@@ -1,6 +1,6 @@
 """CLI wrapper: run the S2 L1C → S2_HARMONIZED parity spike for one cell.
 
-Thin entrypoint over :func:`src.data.local_sources.parity.s2.run_s2_spike`. Run
+Thin entrypoint over :func:`snow_galileo.data.local_sources.parity.s2.run_s2_spike`. Run
 from the repo root so the repo-relative defaults and ``src`` imports resolve::
 
     uv run python scripts/developer_scripts/bow_valley_inference_local/spikes/run_s2_parity.py \
@@ -14,7 +14,7 @@ from pathlib import Path
 
 import structlog
 
-from src.data.local_sources.parity.s2 import run_s2_spike
+from snow_galileo.data.local_sources.parity.s2 import run_s2_spike
 
 logger = structlog.get_logger(__name__)
 

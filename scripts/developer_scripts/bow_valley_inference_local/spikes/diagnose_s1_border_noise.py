@@ -29,9 +29,9 @@ from pathlib import Path
 import rasterio
 import structlog
 
-from src.data.local_sources.clip.settings import load_aoi_polygon
-from src.data.local_sources.paths import LocalPaths
-from src.data.local_sources.s1_snap import (
+from snow_galileo.data.local_sources.clip.settings import load_aoi_polygon
+from snow_galileo.data.local_sources.paths import LocalPaths
+from snow_galileo.data.local_sources.s1_snap import (
     _DEFAULT_GPT,
     _DEFAULT_GRAPH,
     _aoi_region_wkt,

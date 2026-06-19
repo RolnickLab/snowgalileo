@@ -31,9 +31,9 @@ from affine import Affine
 from rasterio.transform import from_origin
 from shapely.geometry import box
 
-from src.data.config import NO_DATA_VALUE
-from src.data.local_sources.base import GridCell
-from src.data.local_sources.s2 import (
+from snow_galileo.data.config import NO_DATA_VALUE
+from snow_galileo.data.local_sources.base import GridCell
+from snow_galileo.data.local_sources.s2 import (
     S2Adapter,
     S2CloudAdapter,
     _qa60_from_msk_classi,

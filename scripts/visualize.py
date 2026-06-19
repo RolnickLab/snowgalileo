@@ -5,11 +5,11 @@ from pathlib import Path
 import psutil
 import torch
 
-from src.config import DEFAULT_SEED
-from src.fsc import CloudGeneratorEval, LandsatEval
-from src.fsc.patch_predict import EncoderWithHead
-from src.snowgalileo import Encoder
-from src.utils import checkpoints_dir, device, load_check_config, seed_everything
+from snow_galileo.config import DEFAULT_SEED
+from snow_galileo.fsc import CloudGeneratorEval, LandsatEval
+from snow_galileo.fsc.patch_predict import EncoderWithHead
+from snow_galileo.snowgalileo import Encoder
+from snow_galileo.utils import checkpoints_dir, device, load_check_config, seed_everything
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -23,7 +23,7 @@ argparser.add_argument(
     "--checkpoint_name",
     type=str,
     default="",
-    help="Name of the checkpoint to be evaluated. Should be stored in the checkpoints_dir specified in src/utils.py. If '', a randomly initialized model will be used.",
+    help="Name of the checkpoint to be evaluated. Should be stored in the checkpoints_dir specified in src/snow_galileo/utils.py. If '', a randomly initialized model will be used.",
 )
 argparser.add_argument(
     "--exclude_prediction_high_res",

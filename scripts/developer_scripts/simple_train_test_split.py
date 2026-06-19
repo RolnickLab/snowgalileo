@@ -3,8 +3,8 @@ from pathlib import Path
 
 from sklearn.model_selection import train_test_split
 
-from src.config import DEFAULT_SEED
-from src.data.config import DATA_FOLDER
+from snow_galileo.config import DEFAULT_SEED
+from snow_galileo.data.config import DATA_FOLDER
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument(

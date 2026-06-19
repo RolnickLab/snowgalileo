@@ -1,7 +1,7 @@
 import unittest
 
-from src.data.config import CHANNEL_WISE_INVALID_DATA_THRESHOLDS, MODALITIES
-from src.data.earthengine.eo import (
+from snow_galileo.data.config import CHANNEL_WISE_INVALID_DATA_THRESHOLDS, MODALITIES
+from snow_galileo.data.earthengine.eo import (
     CLOUD_BANDS,
     SPACE_BAND_GROUPS_IDX,
     SPACE_BANDS,

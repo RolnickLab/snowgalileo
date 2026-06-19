@@ -13,7 +13,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from src.data.local_sources.grid import (
+from snow_galileo.data.local_sources.grid import (
     CUBE_CSV_COLUMNS,
     GRID_MATH_CRS,
     build_cube_csv,

@@ -16,10 +16,10 @@ import rasterio
 import structlog
 from shapely import wkt as shapely_wkt
 
-from src.data.local_sources.clip.footprints import sentinel_safe_footprint
-from src.data.local_sources.clip.settings import load_aoi_polygon
-from src.data.local_sources.paths import LocalPaths
-from src.data.local_sources.s1_snap import (
+from snow_galileo.data.local_sources.clip.footprints import sentinel_safe_footprint
+from snow_galileo.data.local_sources.clip.settings import load_aoi_polygon
+from snow_galileo.data.local_sources.paths import LocalPaths
+from snow_galileo.data.local_sources.s1_snap import (
     _MIN_EXTENT_RATIO,
     _aoi_region_wkt,
     _utm_area_m2,

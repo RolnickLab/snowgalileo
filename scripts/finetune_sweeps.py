@@ -5,12 +5,12 @@ from pathlib import Path
 
 import wandb
 
-from src.config import DEFAULT_SEED
-from src.data.config import DATA_FOLDER, WANDB_ENTITY
-from src.fsc import LandsatEval
-from src.fsc.eval import EvalTask
-from src.snowgalileo import Encoder
-from src.utils import device, load_check_config, seed_everything
+from snow_galileo.config import DEFAULT_SEED
+from snow_galileo.data.config import DATA_FOLDER, WANDB_ENTITY
+from snow_galileo.fsc import LandsatEval
+from snow_galileo.fsc.eval import EvalTask
+from snow_galileo.snowgalileo import Encoder
+from snow_galileo.utils import device, load_check_config, seed_everything
 
 seed_everything(DEFAULT_SEED)
 

@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from src.data.local_sources.settings import CubeSettings
+from snow_galileo.data.local_sources.settings import CubeSettings
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CUBE_YAML = REPO_ROOT / "configs" / "bow_valley" / "cube.yaml"
