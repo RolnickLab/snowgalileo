@@ -329,7 +329,7 @@ for e in tqdm(range(start_epoch, training_config["num_epochs"])):
                 patch_size_low_res,
             ) = b
 
-            print("t shape: " + str(t_x.shape))
+            print(f"t shape: {str(t_x.shape)}")
 
             if (
                 will_cause_nans(s_t_h_x)
