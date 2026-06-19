@@ -1,7 +1,7 @@
 """S2 L1C parity spike test (TASK-005, AC-15 spike form) — go/no-go de-risk.
 
 Quantifies value-domain drift between a minimal **throwaway** S2 spike
-(`scripts/spikes/s2_parity_spike.py`) and the Phase-0 GEE reference patch, for
+(`src/data/local_sources/parity/s2.py`) and the Phase-0 GEE reference patch, for
 one validated ``(patch, timestep, granule)`` triple where the raw L1C tile
 genuinely covers the patch footprint.
 
@@ -55,7 +55,7 @@ _S2_BAND_INDICES = [38 * _TIMESTEP + 4 + i for i in range(len(_S2_BANDS))]
 def spike_output() -> dict[str, np.ndarray]:
     """Run the S2 spike for the validated cell; return ``{band: array}`` on the patch grid."""
     pytest.importorskip("rasterio")
-    from scripts.spikes.s2_parity_spike import run_s2_spike
+    from src.data.local_sources.parity.s2 import run_s2_spike
 
     return run_s2_spike(
         granule_zip=Path(_GRANULE),

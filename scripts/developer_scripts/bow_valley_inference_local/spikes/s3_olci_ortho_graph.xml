@@ -23,7 +23,7 @@
     full OLCI swath is ~1270 km).
 
     Run with (absolute gpt path; /usr/bin/snap is snapd, NOT ESA SNAP):
-      <snap>/bin/gpt scripts/spikes/s3_olci_ortho_graph.xml \
+      <snap>/bin/gpt scripts/developer_scripts/bow_valley_inference_local/spikes/s3_olci_ortho_graph.xml \
         -Pinput=<extracted .SEN3/xfdumanifest.xml> \
         -Pregion='POLYGON((lon lat, ...))' \
         -Poutput=/tmp/s3run/s3_olci_ortho.tif

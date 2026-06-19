@@ -8,9 +8,12 @@
 > toolchain decision, the chosen tolerances, the measured per-band drift, and
 > the **go/no-go verdict** (SPEC AC-3 / AC-14 / AC-15, spike form).
 >
-> The spike scripts (`scripts/spikes/`) are **throwaway** — they exist to
-> measure drift, not to ship. The real adapters re-implement the recovered
-> recipe.
+> The parity logic now lives in `src/data/local_sources/parity/` with thin CLI
+> wrappers under `scripts/developer_scripts/bow_valley_inference_local/spikes/`
+> (the original one-shot `scripts/spikes/` scripts were promoted there once a test
+> took a dependency on `run_s2_spike`). They are **de-risk tools** — they exist to
+> measure drift, not to be the production path. The real adapters
+> (TASK-012/013/014) re-implement the recovered recipe.
 
 ## 0. Status
 
@@ -70,7 +73,8 @@ See `docs/.../memory` note `xarray-sentinel-s1c-regex-bug`.
 `COPERNICUS/S1_GRD` *is* the output of the SNAP Sentinel-1 Toolbox, so running
 SNAP via headless `gpt` reproduces the reference recipe with the **same engine**,
 and SNAP fully supports S1C. The graph
-(`scripts/spikes/s1_grd_snap_graph.xml`) chains **all six steps** — Apply-Orbit →
+(`scripts/developer_scripts/bow_valley_inference_local/spikes/s1_grd_snap_graph.xml`)
+chains **all six steps** — Apply-Orbit →
 **ThermalNoiseRemoval → Remove-GRD-Border-Noise** → Calibration(σ⁰) →
 Terrain-Correction(**SRTM 1Sec**, EPSG:32611, 10 m) → LinearToFromdB — so the
 border/thermal-noise gap that `sarsen` could not cover **is closed**. The verdict
@@ -103,7 +107,8 @@ toolchain.
 | **S1** angle | median abs diff | **≤ 1.0°** | incidence angle is geometry-only, should agree tightly. |
 | **S2** B2…B12 | median abs diff | **≤ 50 DN** (post −1000) | harmonized DN domain ~0–10000; 50 DN = 0.005 reflectance, well under model normalization sensitivity. |
 
-**Measured drift** (filled by the spike run — `scripts/spikes/*` emit `structlog`):
+**Measured drift** (filled by the spike run — the `run_*_parity.py` wrappers under
+`scripts/developer_scripts/bow_valley_inference_local/spikes/` emit `structlog`):
 
 _S1 (per band, vs reference, valid pixels, −30 dB masked). Cell
 ``PR_20250406…5653083.8`` t0, date 2025-03-30, granule ``S1C…88AD``; SNAP `gpt`
@@ -367,8 +372,9 @@ Re-opened the §10 "SNAP terrain-orthorectification of OLCI is the closer for th
 residual" follow-up after TASK-014 proved SNAP closes S1's parity wall. **It does not
 transfer to S3.** The spike ran SNAP's OLCI ortho path and it went the *wrong* direction.
 
-**Spike (`scripts/spikes/s3_olci_parity_spike.py` + `s3_olci_ortho_graph.xml`, kept as
-evidence):** `Read → Subset(Oa17,Oa21 + AOI) → Reproject(orthorectify=true,
+**Spike (`src/data/local_sources/parity/s3.py` +
+`scripts/developer_scripts/bow_valley_inference_local/spikes/s3_olci_ortho_graph.xml`,
+kept as evidence):** `Read → Subset(Oa17,Oa21 + AOI) → Reproject(orthorectify=true,
 elevationModelName="SRTM 1Sec HGT", EPSG:32611, 300 m, Nearest) → Write`. SNAP's
 `Reproject(orthorectify=true)` is the correct OLCI ortho operator — it uses the
 product's tie-point geocoding + the DEM to terrain-correct the optical swath. (The SAR

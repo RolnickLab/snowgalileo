@@ -7,7 +7,8 @@ triple.
 **Recipe (the engine GEE uses):** the ESA Sentinel-1 Toolbox via headless
 ``gpt`` — Apply-Orbit → ThermalNoiseRemoval → Remove-GRD-Border-Noise →
 Calibration(σ⁰) → Terrain-Correction(SRTM 1Sec, EPSG:32611) → LinearToFromdB
-(graph: ``scripts/spikes/s1_grd_snap_graph.xml``). This reproduces the *full*
+(graph: ``scripts/developer_scripts/bow_valley_inference_local/spikes/s1_grd_snap_graph.xml``).
+This reproduces the *full*
 chain, including the noise-removal steps the ``sarsen`` path could not (and which
 ``xarray-sentinel`` can't even read for S1C — see PARITY_SPIKE_NOTES.md §2).
 
@@ -26,7 +27,8 @@ compute-heavy (full IW GRD + SRTM download), so this test does **not** invoke
 (``S1_SNAP_OUTPUT``, default ``/tmp/s1run/s1_grd_db.tif``) when present, and
 ``skip``s cleanly otherwise (e.g. CI without SNAP). To (re)generate the artifact:
 
-    /home/dev/esa-snap/bin/gpt scripts/spikes/s1_grd_snap_graph.xml \\
+    /home/dev/esa-snap/bin/gpt \\
+      scripts/developer_scripts/bow_valley_inference_local/spikes/s1_grd_snap_graph.xml \\
       -Pinput=<extracted .SAFE>/manifest.safe \\
       -Pregion='POLYGON((...AOI...))' -Poutput=/tmp/s1run/s1_grd_db.tif
 """
@@ -69,7 +71,8 @@ def parity() -> dict[str, float]:
     if not S1_SNAP_OUTPUT.exists():
         pytest.skip(
             f"SNAP S1_GRD output not found at {S1_SNAP_OUTPUT}; "
-            "run scripts/spikes/s1_grd_snap_graph.xml via gpt first."
+            "run scripts/developer_scripts/bow_valley_inference_local/spikes/"
+            "s1_grd_snap_graph.xml via gpt first."
         )
     from shapely.geometry import box
 

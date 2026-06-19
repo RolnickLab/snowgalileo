@@ -1,12 +1,12 @@
-"""S1 GRD → COPERNICUS/S1_GRD parity spike (TASK-005, throwaway).
+"""S1 GRD → COPERNICUS/S1_GRD value-domain parity logic (TASK-005).
 
 Recreates the *value domain* GEE's ``COPERNICUS/S1_GRD`` produces (calibrated,
-terrain-corrected σ⁰ in dB) for one IW GRD scene + cell, and diffs VV/VH against
-the Phase-0 reference patch.
+terrain-corrected σ⁰ in dB) for one IW GRD scene + cell, so VV/VH can be diffed
+against the Phase-0 reference patch.
 
 **Toolchain: ESA SNAP `gpt` — the engine GEE itself uses.** GEE's
-``COPERNICUS/S1_GRD`` is the output of the SNAP Sentinel-1 Toolbox, so this spike
-runs the SNAP graph (``s1_grd_snap_graph.xml``) via headless ``gpt``: Apply-Orbit
+``COPERNICUS/S1_GRD`` is the output of the SNAP Sentinel-1 Toolbox, so this runs
+the SNAP graph (``s1_grd_snap_graph.xml``) via headless ``gpt``: Apply-Orbit
 → ThermalNoiseRemoval → Remove-GRD-Border-Noise → Calibration(σ⁰) →
 Terrain-Correction(SRTM 1Sec, EPSG:32611, 10 m) → LinearToFromdB. This is the
 **full** chain (no missing noise steps), so the parity verdict is unconditional.
@@ -18,19 +18,22 @@ the ``xarray-sentinel-s1c-regex-bug`` memory note. The real S1 adapter (TASK-014
 must likewise drive SNAP (or an equivalent S1C-capable chain), not `xarray-sentinel`.
 
 **Operational notes:**
-- ``gpt`` is at ``/home/dev/esa-snap/bin/gpt`` (NOT ``/usr/bin/snap`` = snapd).
+- ``gpt`` is at ``$HOME/esa-snap/bin/gpt`` (NOT ``/usr/bin/snap`` = snapd).
 - The graph subsets to the AOI in radar geometry before TC — terrain-correcting
   the full ~250 km swath at 10 m overflows SNAP's 4 GB classic-GeoTIFF writer and
   wastes compute.
 - SNAP emits the bands **VH-then-VV** (not the graph's ``VV,VH`` order); this
   module assigns them by matching against the reference medians, not by index.
 
-This is a **throwaway de-risk script**, not the production S1 adapter (TASK-014).
+This is a **parity de-risk module**, not the production S1 adapter (TASK-014). The
+command-line entrypoint is the thin wrapper at
+``scripts/developer_scripts/bow_valley_inference_local/spikes/run_s1_parity.py``,
+which supplies the SNAP graph path.
 """
 
 from __future__ import annotations
 
-import argparse
+import os
 import subprocess
 import zipfile
 from pathlib import Path
@@ -52,9 +55,8 @@ S1_EDGE_MASK_DB: float = -30.0
 #: Margin (degrees) added around the patch when building the SNAP subset region.
 _AOI_MARGIN_DEG: float = 0.06
 
-#: Default SNAP graph + gpt location (override via CLI / kwargs).
-_DEFAULT_GPT = Path("/home/dev/esa-snap/bin/gpt")
-_GRAPH = Path("scripts/spikes/s1_grd_snap_graph.xml")
+#: Default ESA SNAP ``gpt`` location (override via kwarg / CLI).
+DEFAULT_GPT = Path(f"{os.getenv('HOME')}/esa-snap/bin/gpt")
 
 
 def _grid_from_patch(reference_patch: Path) -> GridCell:
@@ -124,9 +126,9 @@ def run_s1_spike(
     *,
     granule_zip: Path,
     reference_patch: Path,
+    graph: Path,
     workdir: Path | None = None,
-    gpt: Path = _DEFAULT_GPT,
-    graph: Path = _GRAPH,
+    gpt: Path = DEFAULT_GPT,
 ) -> dict[str, npt.NDArray[np.floating]]:
     """Run the S1 spike for one granule; return ``{VV, VH}`` dB on the patch grid.
 
@@ -138,9 +140,9 @@ def run_s1_spike(
     Args:
         granule_zip: The IW GRD SAFE ``.zip``.
         reference_patch: GEE reference patch defining the target grid.
+        graph: Path to the SNAP S1_GRD graph XML.
         workdir: Scratch dir (a sibling of the zip is used if ``None``).
         gpt: Path to the ESA SNAP ``gpt`` executable.
-        graph: Path to the SNAP graph XML.
 
     Returns:
         ``{"VV": arr, "VH": arr}`` — σ⁰ dB, ``< -30`` masked to NaN, on the patch grid.
@@ -194,39 +196,3 @@ def run_s1_spike(
             median_abs_diff=round(_median_abs(reprojected[best], ref_arr), 2),
         )
     return out
-
-
-def _main() -> None:
-    parser = argparse.ArgumentParser(description="S1 GRD parity spike (TASK-005, SNAP).")
-    parser.add_argument(
-        "--granule",
-        type=Path,
-        default=Path(
-            "data/bow_valley_selection_raw/sentinel1/"
-            "S1C_IW_GRDH_1SDV_20250330T013724_20250330T013749_001664_002BB2_88AD.zip"
-        ),
-    )
-    parser.add_argument(
-        "--ref",
-        type=Path,
-        default=Path("tests/fixtures/gee_reference_patches"),
-    )
-    parser.add_argument("--gpt", type=Path, default=_DEFAULT_GPT)
-    parser.add_argument("--workdir", type=Path, default=None)
-    args = parser.parse_args()
-
-    ref = args.ref
-    if ref.is_dir():
-        ref = ref / "PR_20250406_562863.8459204244427383_5653083.7883343594148755.tif"
-
-    run_s1_spike(
-        granule_zip=args.granule,
-        reference_patch=ref,
-        workdir=args.workdir,
-        gpt=args.gpt,
-    )
-    logger.info("s1_spike_done", reference=str(ref))
-
-
-if __name__ == "__main__":
-    _main()

@@ -6,7 +6,7 @@ km, decimated valid-VV count, and the output/expected-overlap area ratio (the sa
 ``_output_extent_is_plausible`` gates on). Flags any tif below the ratio floor or with zero
 valid pixels, and lists raw granules that have NO cache tif at all.
 
-    uv run python scripts/spikes/verify_s1_cache.py
+    uv run python scripts/developer_scripts/bow_valley_inference_local/spikes/verify_s1_cache.py
 """
 
 from __future__ import annotations

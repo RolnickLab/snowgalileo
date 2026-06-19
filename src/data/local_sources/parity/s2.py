@@ -1,7 +1,7 @@
-"""S2 L1C → COPERNICUS/S2_HARMONIZED parity spike (TASK-005, throwaway).
+"""S2 L1C → COPERNICUS/S2_HARMONIZED value-domain parity logic (TASK-005).
 
 Recreates the *value domain* GEE's ``COPERNICUS/S2_HARMONIZED`` produces for an
-L1C granule, for one cell, and diffs it against the Phase-0 reference patch.
+L1C granule, for one cell, so it can be diffed against the Phase-0 reference patch.
 
 Recipe (baseline ≥ N0400, all archive granules N0511): read the L1C JP2 bands,
 subtract the **−1000 DN** harmonization offset, reproject onto the reference
@@ -10,12 +10,13 @@ patch's exact ``(crs, transform, shape)`` cell grid via the shared
 20 m B11/B12 to the 10 m grid). No atmospheric correction — L1C is TOA, and
 ``S2_HARMONIZED`` is too.
 
-This is a **throwaway de-risk script**, not the production S2 adapter (TASK-013).
+This is a **parity de-risk module**, not the production S2 adapter (TASK-013). The
+command-line entrypoint is the thin wrapper at
+``scripts/developer_scripts/bow_valley_inference_local/spikes/run_s2_parity.py``.
 """
 
 from __future__ import annotations
 
-import argparse
 import zipfile
 from pathlib import Path
 
@@ -122,33 +123,3 @@ def run_s2_spike(
             mean=round(float(finite.mean()), 1) if finite.size else None,
         )
     return out
-
-
-def _main() -> None:
-    parser = argparse.ArgumentParser(description="S2 L1C parity spike (TASK-005).")
-    parser.add_argument(
-        "--granule",
-        type=Path,
-        default=Path(
-            "data/bow_valley_selection_raw/sentinel2/"
-            "S2B_MSIL1C_20250403T184919_N0511_R113_T11UNS_20250403T222302.zip"
-        ),
-    )
-    parser.add_argument(
-        "--ref",
-        type=Path,
-        default=Path("tests/fixtures/gee_reference_patches"),
-        help="Reference-patch dir or a single patch tif.",
-    )
-    args = parser.parse_args()
-
-    ref = args.ref
-    if ref.is_dir():
-        ref = ref / ("PR_20250406_562863.8459204244427383_5653083.7883343594148755.tif")
-
-    run_s2_spike(granule_zip=args.granule, reference_patch=ref)
-    logger.info("s2_spike_done", reference=str(ref))
-
-
-if __name__ == "__main__":
-    _main()

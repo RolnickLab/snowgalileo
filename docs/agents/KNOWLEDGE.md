@@ -231,7 +231,7 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   (`rasterio.errors.RasterioIOError`). A rejected output stays a `.partial` (retried
   next build), never a false cache hit. **This was NOT a path/manifest/border-noise/
   coverage bug** — those were all ruled out by A/B diagnostic. **If S1 looks missing
-  again, run `scripts/spikes/verify_s1_cache.py` first** (per-granule extent-ratio +
+  again, run `scripts/developer_scripts/bow_valley_inference_local/spikes/verify_s1_cache.py` first** (per-granule extent-ratio +
   valid-pixel) — a sliver/truncated tif is the prime suspect; sparse-across-timesteps
   S1 is otherwise **EXPECTED** (S1 only on ~16 acquisition dates, and only on cells a
   granule footprint covers — a full-window scan of 7223 cubes shows valid S1 on
@@ -298,7 +298,8 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   refs — the same landmine the adapter avoids via `h5py`; `IllegalStateException: DataObject
   doesnt start with OHDR`), so ortho would force sourcing the raw product for zero gain.
   **Keep the swath-warp; the open S3 lever is the identity-normalization TODO, not
-  geolocation.** Evidence kept: `scripts/spikes/s3_olci_parity_spike.py` +
+  geolocation.** Evidence kept: `src/data/local_sources/parity/s3.py` (logic),
+  `scripts/developer_scripts/bow_valley_inference_local/spikes/run_s3_parity.py` +
   `s3_olci_ortho_graph.xml`. See PARITY_SPIKE_NOTES §10.1, [[s3-snap-ortho-rejected]].
 
 

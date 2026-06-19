@@ -11,10 +11,10 @@ Mirrors ``s1_snap.build_granule_cache`` exactly (zip extract -> manifest -> iden
 region WKT -> same gpt invocation) so the only variable is the graph.
 
 Run (defaults to the 0406 sliver granule):
-    uv run python scripts/spikes/diagnose_s1_border_noise.py
+    uv run python scripts/developer_scripts/bow_valley_inference_local/spikes/diagnose_s1_border_noise.py
 
     # or another of the three:
-    uv run python scripts/spikes/diagnose_s1_border_noise.py \
+    uv run python scripts/developer_scripts/bow_valley_inference_local/spikes/diagnose_s1_border_noise.py \
         --granule S1C_IW_GRDH_1SDV_20250423T013725_20250423T013750_002014_004184_F75D
 """
 

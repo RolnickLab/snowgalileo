@@ -62,11 +62,14 @@ uv run pytest tests/test_local_sources/test_s1_parity.py -v
 uv run pytest tests/test_local_sources/test_s2_parity.py -v
 
 # Run the spikes and emit drift report
-uv run python scripts/spikes/s1_parity_spike.py --ref tests/fixtures/gee_reference_patches
-uv run python scripts/spikes/s2_parity_spike.py --ref tests/fixtures/gee_reference_patches
+# (parity logic was later promoted to src/data/local_sources/parity/; these are the wrappers)
+uv run python scripts/developer_scripts/bow_valley_inference_local/spikes/run_s1_parity.py \
+    --ref tests/fixtures/gee_reference_patches
+uv run python scripts/developer_scripts/bow_valley_inference_local/spikes/run_s2_parity.py \
+    --ref tests/fixtures/gee_reference_patches
 
-uv run ruff check scripts/spikes/
-uv run mypy scripts/spikes/
+uv run ruff check src/data/local_sources/parity scripts/developer_scripts/bow_valley_inference_local/spikes
+uv run mypy src/data/local_sources/parity
 ```
 Expected: both parity tests green within stated tolerance (or an explicit, recorded
 escalation if not); drift report written; ruff/mypy exit 0.

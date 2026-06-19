@@ -55,8 +55,9 @@ grids, with identity normalization preserved.
 > **SNAP-ortho follow-up — REJECTED (2026-06-09).** The §50 "SNAP ortho is a documented
 > follow-up" line is now **closed, not open.** After TASK-014 proved SNAP closes the S1
 > parity wall, the OLCI-ortho hypothesis was re-tested with SNAP's actual optical ortho
-> path (`Reproject orthorectify=true` + SRTM 1Sec; `scripts/spikes/s3_olci_parity_spike.py`
-> + `s3_olci_ortho_graph.xml`, both kept as evidence). It went the **wrong direction** vs
+> path (`Reproject orthorectify=true` + SRTM 1Sec; `src/data/local_sources/parity/s3.py`
+> + `scripts/developer_scripts/bow_valley_inference_local/spikes/s3_olci_ortho_graph.xml`,
+> both kept as evidence). It went the **wrong direction** vs
 > the production `griddata` warp on the same patch/day/cell (10403 co-valid px): Oa17 corr
 > 0.666→0.658, Oa21 0.783→0.774. The residual is therefore **not** terrain distortion but
 > sampling geometry (patch ~3 OLCI px wide; ~300 m px on a ~1 km cell), and the `med` 5×5

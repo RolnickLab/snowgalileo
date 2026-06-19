@@ -136,7 +136,7 @@ uv run python scripts/developer_scripts/bow_valley_inference_local/process_raw_d
 # truncated sliver tif that the idempotent cache-hit check then refuses to overwrite,
 # silently dropping S1 from every cube over the missing area. The build now guards
 # against this (extent check before atomic publish), but verify regardless:
-uv run python scripts/spikes/verify_s1_cache.py   # per-granule extent-ratio + valid-pixel
+uv run python scripts/developer_scripts/bow_valley_inference_local/spikes/verify_s1_cache.py   # per-granule extent-ratio + valid-pixel
 
 # ...or do the whole raw → read-roots pipeline in one go (process-s1 FIRST, then clip-all
 # of every other modality — the process-then-clip order):

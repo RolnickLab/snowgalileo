@@ -17,7 +17,7 @@
     patch neighbourhood.
 
     Run with (absolute gpt path; /usr/bin/snap is snapd, NOT ESA SNAP):
-      <snap>/bin/gpt scripts/spikes/s1_grd_snap_graph.xml \
+      <snap>/bin/gpt scripts/developer_scripts/bow_valley_inference_local/spikes/s1_grd_snap_graph.xml \
         -Pinput=<extracted .SAFE or manifest.safe> \
         -Pregion='POLYGON((lon lat, ...))' \
         -Poutput=/tmp/s1run/s1_grd_db.tif
