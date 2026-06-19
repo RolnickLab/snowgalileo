@@ -40,30 +40,11 @@ def pylint(session):
 
 
 @nox.session()
-def docformatter(session):
-    paths = get_paths(session)
-    session.run(
-        "docformatter",
-        "--config",
-        f"{paths['all'][0].parent}/pyproject.toml",
-        *paths["all"],
-        external=True,
-    )
-
-
-@nox.session()
 def check(session):
     paths = get_paths(session)
     session.run("ruff", "check", *paths["all"], external=True)
     session.run("flynt", *paths["all"], external=True)
     session.run("mypy", *paths["root"], external=True)
-    session.run(
-        "docformatter",
-        "--config",
-        f"{paths['all'][0].parent}/pyproject.toml",
-        *paths["all"],
-        external=True,
-    )
     session.run("pylint", *paths["module"], external=True)
 
 
@@ -73,14 +54,6 @@ def fix(session):
     session.run("ruff", "check", "--fix", *paths["all"], external=True)
     session.run("ruff", "format", *paths["all"], external=True)
     session.run("flynt", *paths["all"], external=True)
-    session.run(
-        "docformatter",
-        "--in-place",
-        "--config",
-        f"{paths['all'][0].parent}/pyproject.toml",
-        *paths["all"],
-        external=True,
-    )
 
 
 @nox.session()
