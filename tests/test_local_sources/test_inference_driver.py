@@ -1,6 +1,6 @@
 """Tests for the Stage-2 inference orchestration (TASK-015).
 
-Covers ``src/inference/{windows,mosaic,driver}.py``:
+Covers ``src/snow_galileoinference/{windows,mosaic,driver}.py``:
 
 - **windows** — sliding 8-day window + inference-day enumeration (pure date math).
 - **DailyMosaicWriter** (AC-28, AC-29) — per-day FSC COG in EPSG:32611, disjoint

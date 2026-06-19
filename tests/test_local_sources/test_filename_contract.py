@@ -3,7 +3,7 @@ r"""Filename-contract tests for the local-source exporter (TASK-003, AC-9).
 The ``LocalSourceExporter`` (TASK-004) writes one multiband GeoTIFF per
 ``(cell, window-end-day)`` whose **filename** must be parsed correctly by the
 **unchanged** downstream loader ``LandsatEvalDataset.prediction_month_from_file``
-(``src/fsc/landsat_eval.py:171-181``). The filename is therefore a hard contract
+(``src/snow_galileofsc/landsat_eval.py:171-181``). The filename is therefore a hard contract
 between the new exporter and sacred downstream code.
 
 Contract (PLAN §3 "Filename convention", SPEC FR-18 / AC-9):

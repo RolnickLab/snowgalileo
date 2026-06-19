@@ -1,7 +1,7 @@
 """S2 L1C parity spike test (TASK-005, AC-15 spike form) — go/no-go de-risk.
 
 Quantifies value-domain drift between a minimal **throwaway** S2 spike
-(`src/data/local_sources/parity/s2.py`) and the Phase-0 GEE reference patch, for
+(`src/snow_galileodata/local_sources/parity/s2.py`) and the Phase-0 GEE reference patch, for
 one validated ``(patch, timestep, granule)`` triple where the raw L1C tile
 genuinely covers the patch footprint.
 
