@@ -34,6 +34,7 @@ BROKEN_TEST_FILE = list(BROKEN_TIFS_FOLDER.glob("*.tif"))
 
 class TestDataset(unittest.TestCase):
     def test_tif_to_array(self):
+        ds = Dataset(data_folder=UNBROKEN_TEST_FILES)
         for test_file in UNBROKEN_TEST_FILES:
             (
                 s_t_h_x,
@@ -49,7 +50,7 @@ class TestDataset(unittest.TestCase):
                 valid_data_mask_sp,
                 valid_data_mask_t,
                 valid_data_mask_st,
-            ) = Dataset._tif_to_array(test_file)
+            ) = ds._tif_to_array(tif_path=test_file)
             self.assertFalse(np.isnan(s_t_h_x).any())
             self.assertFalse(np.isnan(s_t_m_x).any())
             self.assertFalse(np.isnan(s_t_l_x).any())

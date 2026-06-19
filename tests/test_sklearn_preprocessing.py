@@ -28,7 +28,7 @@ class TestSklearn(unittest.TestCase):
             ]
         )
 
-        with (Path("configs/finetune/landsat_eval_5_95.json")).open("r") as f:
+        with (Path("configs/finetune/fsc_train_balanced_tiny.json")).open("r") as f:
             config = json.load(f)
         ds = LandsatEvalDatasetSklearn(data_config=config["data"])
         normalizing_dict = ds.load_normalization_values(
@@ -77,7 +77,7 @@ class TestSklearn(unittest.TestCase):
             ]
         )
 
-        with (Path("configs/finetune/landsat_eval_5_95.json")).open("r") as f:
+        with (Path("configs/finetune/fsc_train_balanced_tiny.json")).open("r") as f:
             config = json.load(f)
         ds = LandsatEvalDatasetSklearn(data_config=config["data"])
         normalizing_dict = ds.load_normalization_values(
@@ -131,7 +131,7 @@ class TestSklearn(unittest.TestCase):
             ]
         )
 
-        with (Path("configs/finetune/landsat_eval_5_95.json")).open("r") as f:
+        with (Path("configs/finetune/fsc_train_balanced_tiny.json")).open("r") as f:
             config = json.load(f)
         ds = LandsatEvalDatasetSklearn(data_config=config["data"])
         normalizing_dict = ds.load_normalization_values(
@@ -203,7 +203,7 @@ class TestSklearn(unittest.TestCase):
             ]
         )
 
-        with (Path("configs/finetune/landsat_eval_5_95.json")).open("r") as f:
+        with (Path("configs/finetune/fsc_train_balanced_tiny.json")).open("r") as f:
             config = json.load(f)
         ds = LandsatEvalDatasetSklearn(data_config=config["data"])
         normalizing_dict = ds.load_normalization_values(
@@ -276,7 +276,7 @@ class TestSklearn(unittest.TestCase):
             ]
         )
 
-        with (Path("configs/finetune/landsat_eval_5_95.json")).open("r") as f:
+        with (Path("configs/finetune/fsc_train_balanced_tiny.json")).open("r") as f:
             config = json.load(f)
         ds = LandsatEvalDatasetSklearn(data_config=config["data"])
         normalizing_dict = ds.load_normalization_values(
@@ -317,7 +317,9 @@ class TestSklearn(unittest.TestCase):
         month,
     ):
         with (
-            Path(__file__).parents[1] / Path("configs/finetune/") / Path("landsat_eval_5_95.json")
+            Path(__file__).parents[1]
+            / Path("configs/finetune/")
+            / Path("fsc_train_balanced_tiny.json")
         ).open("r") as f:
             config = json.load(f)
 
@@ -374,7 +376,9 @@ class TestSklearn(unittest.TestCase):
         month,
     ):
         with (
-            Path(__file__).parents[1] / Path("configs/finetune/") / Path("landsat_eval_5_95.json")
+            Path(__file__).parents[1]
+            / Path("configs/finetune/")
+            / Path("fsc_train_balanced_tiny.json")
         ).open("r") as f:
             config = json.load(f)
 
