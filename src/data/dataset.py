@@ -351,7 +351,7 @@ class Dataset(PyTorchDataset):
     def download_tifs_from_drive_folder():
         """
         Downloads all filed from a folder in Google Drive. Drive folder ID and destination folder are defined in the config file.
-        Modified from: https://developers.google.com/drive/api/guides/manage-downloads
+        Modified from: https://developers.google.com/drive/api/guides/manage-downloads.
         """
         SERVICE_ACCOUNT_FILE = Path(__file__).parents[2] / "ee-marlena-credentials.json"
         SCOPES = ["https://www.googleapis.com/auth/drive"]
@@ -429,7 +429,7 @@ class Dataset(PyTorchDataset):
         space_time_low_res_x: array of shape [H, W, T, D]
         space_x: array of shape [H, W, D]
         time_x: array of shape [T, D]
-        static_x: array of shape [D]
+        static_x: array of shape [D].
 
         size must be greater or equal to H & W
         """
@@ -479,7 +479,7 @@ class Dataset(PyTorchDataset):
         """
         Crops the exported image into a size that can be processed by the model.
         Exported image size: can be larger that exported area / scale
-        Size that can be processed by the model: max(patch_size * number_of_patches_per_dim)
+        Size that can be processed by the model: max(patch_size * number_of_patches_per_dim).
 
         space_time_high_res_x: array of shape [H, W, T, D]
         space_time_med_res_x: array of shape [H, W, T, D]
@@ -567,7 +567,7 @@ class Dataset(PyTorchDataset):
 
     @staticmethod
     def _check_and_fillna(data: np.ndarray, bands_np: np.ndarray) -> np.ndarray:
-        """Fill in the missing values in the data array"""
+        """Fill in the missing values in the data array."""
         if data.shape[-1] != len(bands_np):
             raise ValueError(f"Expected data to have {len(bands_np)} bands - got {data.shape[-1]}")
         is_nan_inf = np.isnan(data) | np.isinf(data)
@@ -656,7 +656,7 @@ class Dataset(PyTorchDataset):
     def month_array_from_file(self, tif_path: Path, num_timesteps: int) -> np.ndarray:
         """
         Given a filepath and num_timesteps, extract start_month and return an array of
-        months where months[idx] is the month for list(range(num_timesteps))[i]
+        months where months[idx] is the month for list(range(num_timesteps))[i].
         """
         # assumes all files are exported with filenames including:
         # *dates=<start_date>*, where the start_date is in a YYYY-MM-dd format
@@ -1102,7 +1102,7 @@ class Dataset(PyTorchDataset):
         Given an input array of shape [h, w, t, bands]
         where bands == len(EO_DYNAMIC_IN_TIME_BANDS_NP), returns an array of shape
         [h, w, t, 1] representing NDI,
-        (band_1 - band_2) / (band_1 + band_2)
+        (band_1 - band_2) / (band_1 + band_2).
         """
         for b in [band_1, band_2]:
             assert b in SPACE_TIME_LOW_RES_BANDS
@@ -1344,9 +1344,7 @@ class Dataset(PyTorchDataset):
     def compute_running_stats(
         self, sampled_n=50000, normalization_dict_filename: str = "normalizing_dict.json"
     ):
-        """
-        Compute running statistics for the entire dataset.
-        """
+        """Compute running statistics for the entire dataset."""
         (
             s_t_h_x,
             s_t_m_x,

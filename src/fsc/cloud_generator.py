@@ -592,7 +592,7 @@ class CloudGeneratorMetaDataset(LandsatEvalDataset):
         Given an input array of shape [h, w, t, bands]
         where bands == len(EO_DYNAMIC_IN_TIME_BANDS_NP), returns an array of shape
         [h, w, t, 1] representing NDI,
-        (band_1 - band_2) / (band_1 + band_2)
+        (band_1 - band_2) / (band_1 + band_2).
         """
         for b in [band_1, band_2]:
             assert b in SPACE_TIME_LOW_RES_BANDS

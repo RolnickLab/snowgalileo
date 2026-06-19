@@ -19,7 +19,7 @@ process = psutil.Process()
 
 
 class ForestMetaDataset(BaseDataset):
-    """Dataset class for retrieving forest metadata from ESA WorldCover data"""
+    """Dataset class for retrieving forest metadata from ESA WorldCover data."""
 
     def __init__(self, data_folder, download=False, h5pys_only=False, *args, **kwargs):
         super().__init__(
@@ -29,7 +29,7 @@ class ForestMetaDataset(BaseDataset):
     @staticmethod
     def retrieve_fractional_forest_cover(worldcover_map: np.ndarray) -> float:
         """Retrieve fractional forest cover from ESA WorldCover map
-        Forest classes are 10 (Tree cover)
+        Forest classes are 10 (Tree cover).
         """
         total_pixels = worldcover_map.size
         # TODO: remove check later

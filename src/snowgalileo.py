@@ -48,7 +48,7 @@ def adjust_learning_rate(
     max_lr,
     min_lr,
 ):
-    """Decay the learning rate with half-cycle cosine after warmup"""
+    """Decay the learning rate with half-cycle cosine after warmup."""
     if epoch < warmup_epochs:
         lr = max_lr * epoch / warmup_epochs
     else:
@@ -82,7 +82,7 @@ class FlexiPatchEmbed(nn.Module):
     ) -> None:
         """2D image to patch embedding w/ flexible patch sizes
         Extended from: https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/patch_embed.py#L24
-        by https://github.com/bwconrad/flexivit/
+        by https://github.com/bwconrad/flexivit/.
 
         Args:
             patch_size: Base patch size. i.e the size of the parameter buffer
@@ -117,7 +117,7 @@ class FlexiPatchEmbed(nn.Module):
         self.pinvs = self._cache_pinvs()
 
     def _cache_pinvs(self) -> dict:
-        """Pre-calculate all pinv matrices"""
+        """Pre-calculate all pinv matrices."""
         pinvs = {}
         for ps in self.patch_size_seq:
             tuple_ps = to_2tuple(ps)
@@ -143,7 +143,7 @@ class FlexiPatchEmbed(nn.Module):
         return torch.linalg.pinv(resize_matrix)
 
     def resize_patch_embed(self, patch_embed: Tensor, new_patch_size: Tuple[int, int]):
-        """Resize patch_embed to target resolution via pseudo-inverse resizing"""
+        """Resize patch_embed to target resolution via pseudo-inverse resizing."""
         # Return original kernel if no resize is necessary
         if self.patch_size == new_patch_size:
             return patch_embed
@@ -213,7 +213,7 @@ class AttentionProbe(nn.Module):
     * relative position bias
     * post-attention MLP
     * attention weight dropout
-    * attention weight recording via PyTorch forward hooks
+    * attention weight recording via PyTorch forward hooks.
     """
 
     def __init__(

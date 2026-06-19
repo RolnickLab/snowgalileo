@@ -547,9 +547,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
             print("Export finished.")
 
     def export_from_csv_wgs84(self, csv_file) -> None:
-        """
-        Export from center coordinates and dates passed by a csv file.
-        """
+        """Export from center coordinates and dates passed by a csv file."""
         df = pd.read_csv(csv_file)
         dates = df["date"].tolist()
         lats = df["latitude"].tolist()
@@ -586,9 +584,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
             print("Finished sync")
 
     def export_from_csv_utm(self, csv_file) -> None:
-        """
-        Export from UTM bounds and dates passed by a csv file.
-        """
+        """Export from UTM bounds and dates passed by a csv file."""
         df = pd.read_csv(csv_file)
         dates = df["date"].tolist()
         coordinate_system = df["crs"].tolist()

@@ -43,7 +43,7 @@ class EEGeometry:
 class EEBoundingBox(BBox):
     r"""
     A bounding box with additional earth-engine specific
-    functionality
+    functionality.
     """
 
     def to_ee_polygon(self) -> ee.Geometry:
@@ -59,9 +59,7 @@ class EEBoundingBox(BBox):
         )
 
     def to_metres(self) -> Tuple[float, float]:
-        r"""
-        :return: [lat metres, lon metres]
-        """
+        r""":return: [lat metres, lon metres]"""
         # https://gis.stackexchange.com/questions/75528/understanding-terms-in-length-of-degree-formula
         mid_lat = (self.min_lat + self.max_lat) / 2.0
         m_per_deg_lat, m_per_deg_lon = self.metre_per_degree(mid_lat)

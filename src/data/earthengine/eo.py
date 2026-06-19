@@ -413,7 +413,7 @@ def make_combine_bands_function(bands: List[str]):
 
 
 def ee_safe_str(s: str):
-    """Earth Engine descriptions only allow certain characters"""
+    """Earth Engine descriptions only allow certain characters."""
     return s.replace(".", "-").replace("=", "-").replace("/", "-")[:100]
 
 
@@ -656,7 +656,7 @@ class EarthEngineExporter:
         """
         Export boxes with length and width EXPORTED_HEIGHT_WIDTH_METRES
         for the points in latlons (where latlons is a dataframe with
-        the columns "lat" and "lon")
+        the columns "lat" and "lon").
         """
         for expected_column in [LAT, LON]:
             assert expected_column in latlons

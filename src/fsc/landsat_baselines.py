@@ -297,9 +297,7 @@ class LandsatEvalSklearn(LandsatEval):
 
     @staticmethod
     def median_replace(x, m, dims):
-        """
-        Replaces masked values in x with the median over the specified dims.
-        """
+        """Replaces masked values in x with the median over the specified dims."""
         x = torch.masked_fill(x, m.bool(), float("nan"))
         for d in dims:
             x = torch.where(torch.isnan(x), torch.nanmedian(x, dim=d, keepdim=True).values, x)
@@ -621,9 +619,7 @@ class LandsatEvalSklearn(LandsatEval):
         st_t,
         month,
     ):
-        """
-        Concatenates all data of a single image into shapes of [B, S, N], where for RF, S is n_samples and N is n_features.
-        """
+        """Concatenates all data of a single image into shapes of [B, S, N], where for RF, S is n_samples and N is n_features."""
         # for timeseries data, flatten time and channel dimension
         s_t_h_x = rearrange(s_t_h_x, "b s t c -> b s (t c)")
         s_t_h_m = rearrange(s_t_h_m, "b s t c -> b s (t c)")

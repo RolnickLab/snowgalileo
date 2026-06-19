@@ -29,9 +29,7 @@ def crop_center(input_data, crop_height=100, crop_width=100):
 
 
 def update_transform_for_crop(transform, row_start, col_start):
-    """
-    Update geotransform after cropping.
-    """
+    """Update geotransform after cropping."""
     return transform * Affine.translation(col_start, row_start)
 
 

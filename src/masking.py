@@ -29,7 +29,7 @@ class MaskedOutput(NamedTuple):
     A mask can take 3 values:
     0: seen by the encoder (i.e. makes the key and value tokens in the decoder)
     1: not seen by the encoder, and ignored by the decoder
-    2: not seen by the encoder, and processed by the decoder (the decoder's query values)
+    2: not seen by the encoder, and processed by the decoder (the decoder's query values).
     """
 
     space_time_high_x: torch.Tensor
@@ -330,7 +330,7 @@ def batch_mask_random(
     [0 0 1 1]
     [0 0 0 0]
     [0 0 0 0]
-    Operates over batches where each item in the batch is independently masked
+    Operates over batches where each item in the batch is independently masked.
     """
     b, h_h, w_h, t, _ = space_time_high_x.shape
     b, h_m, w_m, t, _ = space_time_med_x.shape

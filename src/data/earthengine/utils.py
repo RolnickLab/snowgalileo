@@ -38,9 +38,7 @@ def date_to_string(input_date: Union[date, str]) -> str:
 
 
 def create_placeholder(region: ee.Geometry, selected_bands, fill_value=NO_DATA_VALUE):
-    """
-    Creates a placeholder image for a region with constant values for each band in selected_bands.
-    """
+    """Creates a placeholder image for a region with constant values for each band in selected_bands."""
     constant_bands = [ee.Image(ee.Number(fill_value)).rename(band) for band in selected_bands]
 
     placeholder_image = ee.Image.cat(constant_bands).clip(region)
@@ -55,6 +53,7 @@ def sample_time_window(start_date: str, end_date: str, window_size: int, seed=No
         start_date: Start of the timeframe in 'YYYY-MM-DD' format.
         end_date: End of the timeframe in 'YYYY-MM-DD' format.
         window_size: Length of each time window in days.
+        seed: random seed.
 
     Returns:
         list of tuples: Each tuple contains the start and end dates of a sampled time window.
@@ -88,6 +87,7 @@ def sample_season_year(season, start_year, end_year, seed=None):
         season: Tuple with season name as first and date ranges as second item.
         start_year (int): Start year for random sampling.
         end_year (int): End year for random sampling.
+        seed: random seed.
 
     Returns:
         dict: A dictionary with seasons as keys and randomly sampled year-specific date ranges.

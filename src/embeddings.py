@@ -13,7 +13,7 @@ def get_2d_sincos_pos_embed_with_resolution(
 ):
     """
     grid_size: int of the grid height and width
-    res: array of size n, representing the resolution of a pixel (say, in meters),
+    res: array of size n, representing the resolution of a pixel (say, in meters),.
 
     Return:
     pos_embed: [n,grid_size*grid_size, embed_dim] or [n,1+grid_size*grid_size, embed_dim] (w/ or w/o cls_token)
@@ -57,7 +57,7 @@ def get_1d_sincos_pos_embed_from_grid_torch(embed_dim, pos):
     """
     embed_dim: output dimension for each position
     pos: a list of positions to be encoded: size (M,)
-    out: (M, D)
+    out: (M, D).
     """
     assert embed_dim % 2 == 0
     omega = torch.arange(embed_dim // 2, device=pos.device) / embed_dim / 2.0
@@ -74,7 +74,7 @@ def get_1d_sincos_pos_embed_from_grid_torch(embed_dim, pos):
 
 
 def get_month_encoding_table(embed_dim):
-    """Sinusoid month encoding table, for 12 months indexed from 0-11"""
+    """Sinusoid month encoding table, for 12 months indexed from 0-11."""
     assert embed_dim % 2 == 0
     angles = torch.arange(0, 13) / (12 / (2 * np.pi))
 

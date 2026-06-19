@@ -223,7 +223,7 @@ class LandsatEvalDataset(BaseDataset):
     def month_array_from_file(self, tif_path: Path, num_timesteps: int) -> np.ndarray:
         """
         Given a filepath and num_timesteps, extract start_month and return an array of
-        months where months[idx] is the month for list(range(num_timesteps))[i]
+        months where months[idx] is the month for list(range(num_timesteps))[i].
         """
         # assumes all files are exported with filenames including:
         # *dates=<start_date>*, where the start_date is in a YYYY-MM-dd format

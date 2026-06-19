@@ -6,9 +6,7 @@ from src.data.config import NORTH_HEM_SEASONS
 
 # for season analysis
 def extract_season_from_filename(filename: str) -> str:
-    """
-    Extract season from filename assuming format: <prefix>_<YYYYMMDD>_<lat>_<lon>.tif
-    """
+    """Extract season from filename assuming format: <prefix>_<YYYYMMDD>_<lat>_<lon>.tif."""
     parts = Path(filename).stem.split("_")
     try:
         date_str = parts[1]

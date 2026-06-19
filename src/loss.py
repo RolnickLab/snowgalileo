@@ -41,9 +41,7 @@ def mse_loss(
     t_m,
     st_m,
 ):
-    """
-    Computes MSE loss between predicted and target values, only for pixels to be decoded (where mask value is 2).
-    """
+    """Computes MSE loss between predicted and target values, only for pixels to be decoded (where mask value is 2)."""
     encoder_size = t_s_t_h.shape[-1]
     expanded_s_t_h_m = repeat(s_t_h_m, "b h w t c_g -> b h w t c_g d", d=encoder_size)
     expanded_s_t_m_m = repeat(s_t_m_m, "b h w t c_g -> b h w t c_g d", d=encoder_size)
