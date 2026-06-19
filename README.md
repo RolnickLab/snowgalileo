@@ -1,21 +1,25 @@
-## A Pretrained Remote Sensing model
+# SnowGalileo: a multi-sensor foundation model for snow cover mapping
 
-### TO-DO: Installation info
+SnowGalileo is a pre-trained snow foundation model, fine-tuned for daily fractional snow cover (FSC) mapping at 100 m resolution based on multi-sensor Earth observation data.
 
-### TO-DO: README about the configs
+## Python Version
 
+## Package & Environment Management
+
+## Quickstart
+
+### README about the configs
+
+Also refer to the data retrieval section in data/.
 
 ### How to Run Pre-training
 For pre-training SnowGalileo, [data] is required. Then run [config] config file.
 
 ### How to Run Fine-Tuning
 
-
 ### How to Run Evaluation Experiments
 
-
 ### How to Run Inference on your own Points (preliminary)
-
 
 ### A note about Datasets and adding datasets
 Very manual at this point. To start with adding datasets, the following points should be considered:
@@ -24,14 +28,14 @@ Very manual at this point. To start with adding datasets, the following points s
 
 The no-data bounds are based on whether Earthengine has flagged this data as no data (e.g., see s2 script), or manually identified bounds. More information in "data/config.py"
 
-
 ### Other Disclaimers
 Some functions in this codebase have been generated, or is inspired with the help of AI. Thorough manual verification and automatic tests have been used to review and verify the code.
 
 Parts of the code require a WandB account to function entirely. If you would like to make use of this, please set the variable [WANDB_ENTITY] in "src/data/config.py" to your Belieben.
 
+### Detailed Description
 
-### File Structure
+#### File Structure
 
 Information about input data export and data distributions can be found in `data/README.md`.
 
@@ -81,9 +85,7 @@ Finetuning/ Evaluation Setup:
 - ```src/eval/landsat_eval.py```
     - prepares the Landsat evaluation dataset, and wraps the Landsat-specific evaluation process
 
-#### TO-DO: Describe entire pipeline from input data export to output generation
-
-### Disclaimer about Definitions
+#### Disclaimer about Variable Names
 
 To be able to perform sensor fusion of remote sensing data of different spatial and temporal resolutions, this project lives from grouping data with similar resolutions into distinct data types, and processing these as individual variables throughout the different stages of the algorithm. To increase readability, we use shortcuts as identifier for these data types, and define them in this section:
 
@@ -98,9 +100,11 @@ Throughout the processing, the spatial (pixel) dimension gets reduced to a token
 
 ESA AI4Snow contract number: ...
 
-### Credits
+#### Credits
 
 This repo inherits from the Galileo model.
+
+README structure is inspired from Francis Pelletier's advanced lab template.
 
 More information: Tseng, G., Fuller, A., Reil, M., Herzog, H., Beukema, P., Bastani, F., ... & Rolnick, D. (2025). Galileo: Learning global and local features in pretrained remote sensing models. arXiv e-prints, arXiv-2502.
 
