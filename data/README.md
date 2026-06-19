@@ -41,6 +41,5 @@ Fine-tuning and evaluation data is based on labels (or "masks") provided with ou
 - (for train/test data) run `scripts.train_test_split.py` to split the data into train and test 
 - (if data is used for evaluation only) move all files into a new subfolder called `test`
 
-
 ## Inference Data
 (to-do)
