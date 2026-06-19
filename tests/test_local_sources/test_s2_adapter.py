@@ -38,8 +38,11 @@ from src.data.local_sources.s2 import (
     S2CloudAdapter,
     _qa60_from_msk_classi,
 )
+from tests._archive_fixtures import resolve_archive_root
 
-_S2_ROOT = Path("data/clipped_bow_valley_selection_raw/sentinel2")
+#: Real S2 clipped archive (parity only). Slim crops can't preserve JP2 reflectance
+#: bit-exactly, so this is archive-gated; download into tests/fixtures/archive/sentinel2.
+_S2_ROOT = resolve_archive_root("sentinel2", pattern="*.zip")
 _REF_DIR = Path("tests/fixtures/gee_reference_patches")
 
 _DYNAMIC_PER_TS = 38
@@ -80,6 +83,8 @@ def _cell_from_patch(patch: Path) -> GridCell:
 def _archive_acq_dates() -> set[datetime.date]:
     """Acquisition dates present in the clipped S2 archive (by granule name)."""
     dates: set[datetime.date] = set()
+    if _S2_ROOT is None:
+        return dates
     for z in _S2_ROOT.glob("*.zip"):
         m = re.match(r"S2[ABC]_MSIL1C_(\d{8})T", z.name)
         if m:
@@ -224,7 +229,7 @@ _S2_BANDS_SUFFIX = ["B02", "B03", "B04", "B08", "B11", "B12"]
 # --------------------------------------------------------------------------- #
 def test_bands_out_and_kind() -> None:
     """``bands_out`` is [B2,B3,B4,B8,B11,B12]; high tier; no native fill (AC-12)."""
-    adapter = S2Adapter(archive_root=_S2_ROOT)
+    adapter = S2Adapter(archive_root=Path("unused-metadata-only"))
     assert adapter.bands_out == ["B2", "B3", "B4", "B8", "B11", "B12"]
     assert adapter.spatial_kind == "high"
     assert adapter.native_fill is None
@@ -331,28 +336,33 @@ def test_coalesce_latest_proc_wins_on_overlap(synthetic_cell: GridCell, tmp_path
 # --------------------------------------------------------------------------- #
 # Coverage validation (TASK-012b lesson — user-requested)
 # --------------------------------------------------------------------------- #
-def test_every_patch_has_a_covered_s2_date() -> None:
-    """Each reference patch must have ≥1 S2 acquisition date in the clipped archive.
+# NOTE: the full-archive coverage audit ("every patch has ≥1 covered S2 date,
+# report the TASK-013b download backlog") lives in
+# ``scripts/developer_scripts/bow_valley_inference_local/audit_s2_coverage.py`` — it needs the complete
+# ``data/`` archive. The test below is the minimal, subset-aware counterpart that
+# runs against whatever the fixture tier carries.
+def test_archive_dates_map_to_needed_patches() -> None:
+    """Every S2 date present in the fixture archive belongs to a patch's needed set.
 
-    Reports missing dates explicitly (TASK-013b download list) rather than passing blind.
+    Subset-aware: validates that the archive ↔ ``_NEEDED_DATES`` wiring is consistent
+    (each present acquisition date is one some patch actually needs) and that the
+    parity-case patches are reachable — without requiring the full archive.
     """
-    if not any(_S2_ROOT.glob("*.zip")):
-        pytest.skip("No clipped S2 archive")
+    if _S2_ROOT is None:
+        pytest.skip("No S2 archive under tests/fixtures/archive/sentinel2")
     archive = _archive_acq_dates()
-    uncovered: dict[str, list[str]] = {}
-    no_coverage: list[str] = []
-    for patch, dates in _NEEDED_DATES.items():
-        missing = [d for d in dates if datetime.date.fromisoformat(d) not in archive]
-        covered = [d for d in dates if datetime.date.fromisoformat(d) in archive]
-        if missing:
-            uncovered[patch] = missing
-        if not covered:
-            no_coverage.append(patch)
-    # Hard requirement: every patch is validatable now (≥1 covered date).
-    assert not no_coverage, f"patches with NO covered S2 date: {no_coverage}"
-    # Soft signal: surface the TASK-013b download backlog without failing.
-    if uncovered:
-        pytest.xfail(f"TASK-013b backlog — missing S2 dates per patch: {uncovered}")
+    assert archive, "S2 fixture archive present but holds no parseable granule dates"
+
+    needed = {datetime.date.fromisoformat(d) for ds in _NEEDED_DATES.values() for d in ds}
+    stray = archive - needed
+    assert not stray, f"S2 archive carries dates no patch needs: {sorted(map(str, stray))}"
+
+    # The parity cases (test_parity_b4_against_gee) must have their dates available.
+    parity_dates = {acq for _, acq in _PARITY_CASES.values()}
+    missing_parity = parity_dates - archive
+    assert not missing_parity, (
+        f"S2 archive missing parity-case dates: {sorted(map(str, missing_parity))}"
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -379,7 +389,7 @@ def test_qa60_snow_excluded() -> None:
 
 def test_cloud_bands_out_and_kind() -> None:
     """``S2CloudAdapter`` emits a single ``QA60`` band on the ``time`` tier."""
-    adapter = S2CloudAdapter(archive_root=_S2_ROOT)
+    adapter = S2CloudAdapter(archive_root=Path("unused-metadata-only"))
     assert adapter.bands_out == ["QA60"]
     assert adapter.spatial_kind == "time"
 
@@ -429,8 +439,8 @@ def test_cloud_fetch_reconstructs_qa60(synthetic_cell: GridCell, tmp_path: Path)
 # --------------------------------------------------------------------------- #
 @pytest.fixture()
 def real_adapter() -> S2Adapter:
-    if not any(_S2_ROOT.glob("*.zip")):
-        pytest.skip("No clipped S2 archive")
+    if _S2_ROOT is None:
+        pytest.skip("No S2 archive under tests/fixtures/archive/sentinel2")
     return S2Adapter(archive_root=_S2_ROOT)
 
 
@@ -489,8 +499,8 @@ _QA60_MIN_EXACT_FRAC = 0.90
 @pytest.mark.parametrize("patch_key", list(_PARITY_CASES))
 def test_parity_qa60_against_gee(patch_key: str) -> None:
     """Reconstructed QA60 matches GEE's ``S2_HARMONIZED`` QA60 for ≥90 % of pixels (AC-2)."""
-    if not any(_S2_ROOT.glob("*.zip")):
-        pytest.skip("No clipped S2 archive")
+    if _S2_ROOT is None:
+        pytest.skip("No S2 archive under tests/fixtures/archive/sentinel2")
     ts, acq = _PARITY_CASES[patch_key]
     patches = sorted(_REF_DIR.glob(f"{patch_key}_*.tif"))
     if not patches:

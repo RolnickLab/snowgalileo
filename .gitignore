@@ -36,3 +36,7 @@ logging_checkpoints/*
 .env
 .claude
 
+# Downloaded full archives for parity / archive-gated tests (hosted separately).
+# The committed slim excerpts under tests/fixtures/clipped/ ARE tracked.
+tests/fixtures/archive/
+

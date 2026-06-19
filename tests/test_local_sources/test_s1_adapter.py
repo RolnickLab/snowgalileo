@@ -40,8 +40,11 @@ from src.data.local_sources.s1 import (
     _parse_granule,
 )
 from src.data.local_sources.s1_snap import cache_tif_name
+from tests._archive_fixtures import ARCHIVE_ROOT
 
-_S1_CACHE = Path("data/clipped_bow_valley_selection_raw/sentinel1_snap")
+#: SNAP cache + raw S1 archive live in the gitignored archive tier; the real-archive
+#: parity is ESA-SNAP-gated (skips without gpt) so this is download-only, never CI.
+_S1_CACHE = ARCHIVE_ROOT / "sentinel1_snap"
 _REF_DIR = Path("tests/fixtures/gee_reference_patches")
 
 _DYNAMIC_PER_TS = 38
@@ -338,7 +341,7 @@ def test_same_date_granules_with_different_footprints(
 # --------------------------------------------------------------------------- #
 # Real-archive parity — skips unless the SNAP cache is built
 # --------------------------------------------------------------------------- #
-_S1_ARCHIVE = Path("data/bow_valley_selection_raw/sentinel1")
+_S1_ARCHIVE = ARCHIVE_ROOT / "sentinel1"
 
 #: patch-key → (timestep with S1, acquisition date, a stable parity cell_id). Each
 #: patch carries S1 on its window-end timestep (ts7 = the patch/prediction date), all

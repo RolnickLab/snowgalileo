@@ -20,19 +20,16 @@ Uses the real clipped archive tile; skips cleanly if it is absent.
 from __future__ import annotations
 
 import datetime
-from pathlib import Path
 
 import numpy as np
 import pytest
 
 from src.data.config import NO_DATA_VALUE
 from src.data.local_sources.base import CELL_TARGET_CRS, GridCell
+from tests._archive_fixtures import resolve_structural_root
 
 #: Allowed WorldCover v200 class codes (plus 0 / -9999 for nodata).
 _ALLOWED_CODES = {10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100, 0, int(NO_DATA_VALUE)}
-
-#: Clipped WorldCover archive root (the adapter's input).
-_WC_ROOT = Path("data/clipped_bow_valley_selection_raw/worldcover")
 
 
 @pytest.fixture()
@@ -50,12 +47,13 @@ def cell() -> GridCell:
 
 @pytest.fixture()
 def adapter():
-    """The real WorldCover adapter; skip if the clipped archive is missing."""
-    if not any(_WC_ROOT.rglob("*.tif")):
-        pytest.skip(f"No clipped WorldCover tiles under {_WC_ROOT}")
+    """The WorldCover adapter over the slim fixture (or full archive); skip if neither exists."""
+    root = resolve_structural_root("worldcover", pattern="*_Map.tif")
+    if root is None:
+        pytest.skip("No WorldCover tiles under tests/fixtures/clipped or tests/fixtures/archive")
     from src.data.local_sources.worldcover import WorldCoverAdapter
 
-    return WorldCoverAdapter(archive_root=_WC_ROOT)
+    return WorldCoverAdapter(archive_root=root)
 
 
 def test_bands_out_is_single_map_band(adapter) -> None:

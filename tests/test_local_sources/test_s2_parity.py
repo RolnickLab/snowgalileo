@@ -33,6 +33,8 @@ import numpy as np
 import pytest
 import rasterio
 
+from tests._archive_fixtures import resolve_source_root
+
 #: Median-absolute-difference tolerance, in harmonized DN (post −1000 offset).
 S2_DRIFT_TOLERANCE_DN: float = 50.0
 
@@ -42,10 +44,9 @@ _REF_PATCH = (
     "PR_20250406_562863.8459204244427383_5653083.7883343594148755.tif"
 )
 _TIMESTEP = 4
-_GRANULE = (
-    "data/bow_valley_selection_raw/sentinel2/"
-    "S2B_MSIL1C_20250403T184919_N0511_R113_T11UNS_20250403T222302.zip"
-)
+#: The raw L1C granule the spike harmonizes — a slim, lossless, windowed SAFE zip
+#: committed under ``clipped/sentinel2_raw`` (built by ``build_slim_s2_safe.py``).
+_GRANULE_NAME = "S2B_MSIL1C_20250403T184919_N0511_R113_T11UNS_20250403T222302.zip"
 _S2_BANDS = ["B2", "B3", "B4", "B8", "B11", "B12"]
 #: 1-based band indices of the S2 block at the test timestep (38 dynamic/ts; S2 at offset 4..9).
 _S2_BAND_INDICES = [38 * _TIMESTEP + 4 + i for i in range(len(_S2_BANDS))]
@@ -53,12 +54,18 @@ _S2_BAND_INDICES = [38 * _TIMESTEP + 4 + i for i in range(len(_S2_BANDS))]
 
 @pytest.fixture(scope="module")
 def spike_output() -> dict[str, np.ndarray]:
-    """Run the S2 spike for the validated cell; return ``{band: array}`` on the patch grid."""
+    """Run the S2 spike for the validated cell; return ``{band: array}`` on the patch grid.
+
+    Reads the committed slim raw granule (``clipped/sentinel2_raw``); skips if absent.
+    """
     pytest.importorskip("rasterio")
+    root = resolve_source_root("sentinel2_raw", pattern=_GRANULE_NAME)
+    if root is None:
+        pytest.skip(f"No raw S2 granule {_GRANULE_NAME} under fixtures (build to run parity)")
     from src.data.local_sources.parity.s2 import run_s2_spike
 
     return run_s2_spike(
-        granule_zip=Path(_GRANULE),
+        granule_zip=root / _GRANULE_NAME,
         reference_patch=Path(_REF_PATCH),
     )
 

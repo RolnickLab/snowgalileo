@@ -33,9 +33,7 @@ from shapely.geometry import box
 
 from src.data.config import MODIS_FILL_VALUE, NO_DATA_VALUE
 from src.data.local_sources.base import CELL_TARGET_CRS, GridCell
-
-#: Clipped MODIS archive root (the adapter's input).
-_MODIS_ROOT = Path("data/clipped_bow_valley_selection_raw/modis")
+from tests._archive_fixtures import resolve_archive_root
 
 #: Phase-0 GEE reference patches (308-band cubes).
 _REF_DIR = Path("tests/fixtures/gee_reference_patches")
@@ -63,22 +61,28 @@ def _cell_from_patch(patch: Path) -> GridCell:
 
 @pytest.fixture()
 def adapter():
-    """The real MODIS science-band adapter; skip if the archive is missing."""
-    if not any(_MODIS_ROOT.rglob("*sur_refl_b01*.tif")):
-        pytest.skip(f"No clipped MODIS sur_refl tiles under {_MODIS_ROOT}")
+    """MODIS science-band adapter over the committed slim crop (bit-exact)."""
+    root = resolve_archive_root("modis", pattern="*sur_refl_b01*.tif")
+    if root is None:
+        pytest.skip(
+            "No MODIS fixture under tests/fixtures (rebuild with populate_test_archive.py)"
+        )
     from src.data.local_sources.modis import ModisAdapter
 
-    return ModisAdapter(archive_root=_MODIS_ROOT)
+    return ModisAdapter(archive_root=root)
 
 
 @pytest.fixture()
 def cloud_adapter():
-    """The real MODIS state_1km cloud adapter; skip if the archive is missing."""
-    if not any(_MODIS_ROOT.rglob("*state_1km*.tif")):
-        pytest.skip(f"No clipped MODIS state_1km tiles under {_MODIS_ROOT}")
+    """MODIS state_1km cloud adapter over the committed slim crop, like :func:`adapter`."""
+    root = resolve_archive_root("modis", pattern="*state_1km*.tif")
+    if root is None:
+        pytest.skip(
+            "No MODIS fixture under tests/fixtures (rebuild with populate_test_archive.py)"
+        )
     from src.data.local_sources.modis import ModisCloudAdapter
 
-    return ModisCloudAdapter(archive_root=_MODIS_ROOT)
+    return ModisCloudAdapter(archive_root=root)
 
 
 @pytest.fixture()

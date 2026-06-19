@@ -33,9 +33,7 @@ import rasterio
 from shapely.geometry import box
 
 from src.data.local_sources.base import CELL_TARGET_CRS, GridCell
-
-#: Clipped Copernicus DEM archive root (the adapter's input).
-_DEM_ROOT = Path("data/clipped_bow_valley_selection_raw/dem")
+from tests._archive_fixtures import resolve_source_root
 
 #: Phase-0 GEE reference patches (308-band cubes; DEM/slope/aspect = bands 305/306/307).
 _REF_DIR = Path("tests/fixtures/gee_reference_patches")
@@ -85,12 +83,24 @@ def _ref_static_bands(patch: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
 @pytest.fixture()
 def adapter():
-    """The real DEM adapter; skip if the clipped archive is missing."""
-    if not any(_DEM_ROOT.rglob("*.tif")):
-        pytest.skip(f"No clipped DEM tiles under {_DEM_ROOT}")
+    """DEM adapter for structural checks — committed slim crop, else downloaded archive."""
+    root = resolve_source_root("dem", pattern="*_DEM.tif")
+    if root is None:
+        pytest.skip("No DEM tiles under tests/fixtures/clipped or tests/fixtures/archive")
     from src.data.local_sources.dem import DemAdapter
 
-    return DemAdapter(archive_root=_DEM_ROOT)
+    return DemAdapter(archive_root=root)
+
+
+@pytest.fixture()
+def parity_adapter():
+    """DEM adapter for parity — the committed wide-halo crop (or downloaded archive)."""
+    root = resolve_source_root("dem", pattern="*_DEM.tif")
+    if root is None:
+        pytest.skip("No DEM fixture under tests/fixtures (rebuild with populate_test_archive.py)")
+    from src.data.local_sources.dem import DemAdapter
+
+    return DemAdapter(archive_root=root)
 
 
 @pytest.fixture()
@@ -135,10 +145,15 @@ def test_slopes_not_all_degenerate(adapter, patch: Path) -> None:
 
 
 @pytest.mark.parametrize("patch", _ref_patches(), ids=lambda p: p.name[:22])
-def test_parity_against_gee(adapter, patch: Path) -> None:
-    """DEM/slope/aspect match the GEE reference within measured tolerances (AC-2)."""
+def test_parity_against_gee(parity_adapter, patch: Path) -> None:
+    """DEM/slope/aspect match the GEE reference within measured tolerances (AC-2).
+
+    Runs on the committed wide-halo crop (``clipped/dem``): the halo is wide enough
+    that the bilinear reprojection stencil never runs off the crop, so parity is
+    bit-identical to the full tile. A tight crop would skew the diff by metres.
+    """
     cell = _cell_from_patch(patch)
-    out = adapter.fetch(cell, day=None)
+    out = parity_adapter.fetch(cell, day=None)
     dem_ref, slope_ref, aspect_ref = _ref_static_bands(patch)
 
     interior = np.zeros(cell.shape, dtype=bool)

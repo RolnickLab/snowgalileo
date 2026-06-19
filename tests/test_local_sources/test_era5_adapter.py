@@ -34,9 +34,7 @@ from shapely.geometry import box
 
 from src.data.config import NO_DATA_VALUE
 from src.data.local_sources.base import CELL_TARGET_CRS, GridCell
-
-#: Clipped ERA5 archive root (the adapter's input).
-_ERA5_ROOT = Path("data/clipped_bow_valley_selection_raw/era5")
+from tests._archive_fixtures import resolve_structural_root
 
 #: Phase-0 GEE reference patches (308-band cubes).
 _REF_DIR = Path("tests/fixtures/gee_reference_patches")
@@ -72,12 +70,13 @@ def _cell_from_patch(patch: Path) -> GridCell:
 
 @pytest.fixture()
 def adapter():
-    """The real ERA5 adapter; skip if the clipped archive is missing."""
-    if not any(_ERA5_ROOT.rglob("*.nc")):
-        pytest.skip(f"No ERA5 NetCDF under {_ERA5_ROOT}")
+    """ERA5 adapter over the committed clipped fixture (already AOI-native); skip if absent."""
+    root = resolve_structural_root("era5", pattern="*.nc")
+    if root is None:
+        pytest.skip("No ERA5 NetCDF under tests/fixtures/clipped or tests/fixtures/archive")
     from src.data.local_sources.era5 import Era5Adapter
 
-    return Era5Adapter(archive_root=_ERA5_ROOT)
+    return Era5Adapter(archive_root=root)
 
 
 @pytest.fixture()

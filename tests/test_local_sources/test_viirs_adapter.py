@@ -33,8 +33,8 @@ from shapely.geometry import box
 
 from src.data.config import MODIS_FILL_VALUE, NO_DATA_VALUE
 from src.data.local_sources.base import CELL_TARGET_CRS, GridCell
+from tests._archive_fixtures import resolve_archive_root
 
-_VIIRS_ROOT = Path("data/clipped_bow_valley_selection_raw/viirs")
 _REF_DIR = Path("tests/fixtures/gee_reference_patches")
 
 #: VIIRS offsets inside the 38-band dynamic block (I1,I3 at 24,25; M5..M11 at 26..29).
@@ -57,20 +57,28 @@ def _cell_from_patch(patch: Path) -> GridCell:
 
 @pytest.fixture()
 def fine():
-    if not any(_VIIRS_ROOT.rglob("*SurfReflect_I1*.tif")):
-        pytest.skip(f"No clipped VIIRS I-band tiles under {_VIIRS_ROOT}")
+    """VIIRS fine I-band adapter over the committed slim crop (bit-exact)."""
+    root = resolve_archive_root("viirs", pattern="*SurfReflect_I1*.tif")
+    if root is None:
+        pytest.skip(
+            "No VIIRS fixture under tests/fixtures (rebuild with populate_test_archive.py)"
+        )
     from src.data.local_sources.viirs import ViirsFineAdapter
 
-    return ViirsFineAdapter(archive_root=_VIIRS_ROOT)
+    return ViirsFineAdapter(archive_root=root)
 
 
 @pytest.fixture()
 def coarse():
-    if not any(_VIIRS_ROOT.rglob("*SurfReflect_M5*.tif")):
-        pytest.skip(f"No clipped VIIRS M-band tiles under {_VIIRS_ROOT}")
+    """VIIRS coarse M-band adapter over the committed slim crop, like :func:`fine`."""
+    root = resolve_archive_root("viirs", pattern="*SurfReflect_M5*.tif")
+    if root is None:
+        pytest.skip(
+            "No VIIRS fixture under tests/fixtures (rebuild with populate_test_archive.py)"
+        )
     from src.data.local_sources.viirs import ViirsCoarseAdapter
 
-    return ViirsCoarseAdapter(archive_root=_VIIRS_ROOT)
+    return ViirsCoarseAdapter(archive_root=root)
 
 
 @pytest.fixture()

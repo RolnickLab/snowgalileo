@@ -36,8 +36,8 @@ from shapely.geometry import box
 
 from src.data.config import NO_DATA_VALUE
 from src.data.local_sources.base import CELL_TARGET_CRS, GridCell
+from tests._archive_fixtures import resolve_archive_root
 
-_S3_ROOT = Path("data/clipped_bow_valley_selection_raw/sentinel3")
 _REF_DIR = Path("tests/fixtures/gee_reference_patches")
 
 #: S3 offsets inside the 38-band dynamic block (Oa17 at 15, Oa21 at 16).
@@ -67,11 +67,13 @@ def _cell_from_patch(patch: Path) -> GridCell:
 
 @pytest.fixture()
 def adapter():
-    if not any(_S3_ROOT.glob("*.zip")):
-        pytest.skip(f"No clipped S3 products under {_S3_ROOT}")
+    """S3 OLCI adapter — archive-gated (SEN3 products too large to commit)."""
+    root = resolve_archive_root("sentinel3", pattern="*.zip")
+    if root is None:
+        pytest.skip("No S3 products under tests/fixtures/archive/sentinel3 (download to run)")
     from src.data.local_sources.s3 import S3Adapter
 
-    return S3Adapter(archive_root=_S3_ROOT)
+    return S3Adapter(archive_root=root)
 
 
 @pytest.fixture()
