@@ -1,3 +1,8 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
 from dataclasses import dataclass
 from math import cos, radians, sin
 from typing import List, Optional, Tuple
@@ -43,7 +48,7 @@ class BBox:
         r"""
         If we are passing the central latitude and longitude to
         an ML model, we want it to know the extremes are close together.
-        Mapping them to 3d space allows us to do that
+        Mapping them to 3d space allows us to do that.
         """
         lat, lon = self.get_centre(in_radians=True)
         return [cos(lat) * cos(lon), cos(lat) * sin(lon), sin(lat)]
@@ -57,18 +62,15 @@ class BBox:
         else:
             return lat, lon
 
-    def get_identifier(
-        self, season, start_date, end_date, original_filename=None, for_eval=False
-    ) -> str:
+    def get_identifier(self, start_date, end_date, season=None, for_eval_from_csv=False) -> str:
         # Identifier is rounded to the nearest ~10m
         min_lon = round(self.min_lon, 4)
         min_lat = round(self.min_lat, 4)
         max_lon = round(self.max_lon, 4)
         max_lat = round(self.max_lat, 4)
-        if for_eval:
-            assert original_filename is not None
-            parts = original_filename.split("_")
-            return f"{parts[0]}_{start_date}_{end_date}_{min_lat}_{min_lon}_{max_lat}_{max_lon}"
+
+        if for_eval_from_csv:
+            return f"{start_date}_{end_date}_{min_lat}_{min_lon}_{max_lat}_{max_lon}"
 
         return (
             f"min_lat={min_lat}_min_lon={min_lon}_max_lat={max_lat}_max_lon={max_lon}_"

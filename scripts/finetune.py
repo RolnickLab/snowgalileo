@@ -1,5 +1,7 @@
 import argparse
 import json
+import os
+from datetime import datetime
 from pathlib import Path
 from typing import List
 
@@ -8,41 +10,43 @@ import torch
 
 from src.config import DEFAULT_SEED
 from src.data.config import DATA_FOLDER
-from src.eval import (
+from src.fsc import (
     LandsatEval,
 )
-from src.eval.eval import EvalTask
+from src.fsc.eval import EvalTask
 from src.snowgalileo import Encoder
 from src.utils import device, load_check_config, seed_everything
 
-seed_everything(DEFAULT_SEED)
+slurm_id = os.environ.get("SLURM_JOB_ID", "local")
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+job_id = f"{slurm_id}_{timestamp}"
+
 process = psutil.Process()
 
 torch.backends.cuda.matmul.allow_tf32 = True
 
-argparser = argparse.ArgumentParser()
+argparser = argparse.ArgumentParser(description="The main fine-tuning starter script.")
 argparser.add_argument(
     "--pretraining_checkpoint_folder",
     type=str,
     default="outputs/checkpoints_tiny/epoch_100",
-    help="Path to folder containing pretrained checkpoint.",
+    help="Path to folder containing pretraining checkpoint. If '', random initialization weights are used.",
 )
-# TODO: make the choices of naming more descriptive
 argparser.add_argument(
     "--decoding_strategy",
     type=str,
-    default="attention_probe",
+    default="finetune",
     choices=["finetune", "linear_probe", "attention_probe", "sklearn"],
     help="Decoding strategy to use. 'Finetune' uses a linear decoder and finetunes the entire model. 'Linear_probe' uses a linear decoder and only trains the decoder. 'Attention_probe' uses an attention-based decoder and fine-tunes the entire model. 'sklearn' uses the frozen encoder features for a sklearn model.",
 )
-argparser.add_argument("--resample", action="store_true", help="Whether to use oversampling.")
 argparser.add_argument(
     "--num_finetune_epochs", type=int, default=25, help="Number of epochs to finetune for."
 )
 argparser.add_argument(
-    "--save_final_checkpoint",
+    "--checkpointing",
     action="store_true",
-    help="Whether to save the final checkpoint after finetuning.",
+    help="Enables checkpointing after every 10 epochs and saves the final checkpoint.",
 )
 argparser.add_argument(
     "--exclude_prediction_high_res",
@@ -50,21 +54,47 @@ argparser.add_argument(
     help="Whether to exclude high-res in prediction date.",
 )
 argparser.add_argument(
+    "--exclude_prediction_sensors",
+    action="store_true",
+    help="Whether to exclude observational sensors in prediction date.",
+)
+argparser.add_argument(
+    "--exclude_prediction_date",
+    action="store_true",
+    help="Whether to exclude all data from prediction date.",
+)
+argparser.add_argument(
+    "--include_prediction_era5",
+    action="store_true",
+    help="Whether to include ERA5 in prediction date. Default is to exclude ERA5 to avoid precipitation=0 bias.",
+)
+argparser.add_argument("--resume_from_wandb_id", type=str, default="")
+argparser.add_argument(
     "--eval_config",
     type=str,
-    default="fsc_train_tiny.json",
-    help="Which eval config to use. Options are stored in src/eval/eval_configs/",
+    default="fsc_train_balanced_tiny.json",
+    help="Which finetune config to use. Options are stored in configs/finetune/",
 )
 argparser.add_argument(
     "--h5pys_only",
     action="store_true",
     help="Where to only use h5pys (faster, but need to be already stored in this format)",
 )
+argparser.add_argument(
+    "--seed",
+    type=int,
+    default=DEFAULT_SEED,
+)
 args = argparser.parse_args().__dict__
 
-with (Path(__file__).parents[0] / Path("src/eval/eval_configs") / Path(args["eval_config"])).open(
-    "r"
-) as f:
+seed_everything(args["seed"])
+
+if args["resume_from_wandb_id"] == "":
+    wandb_id_parsed = None
+else:
+    wandb_id_parsed = args["resume_from_wandb_id"]
+
+with (Path("configs/finetune/") / Path(args["eval_config"])).open("r") as f:
     eval_config = json.load(f)
 
 # retrieve model size from config filename
@@ -87,15 +117,18 @@ else:
     initialization_id = "snowgalileo_random"
 
 eval_tasks: List[EvalTask] = [
-    # geobench EuroSat only works without latlons
     *[
         LandsatEval(
+            exclude_prediction_date=args["exclude_prediction_date"],
             exclude_prediction_high_res=args["exclude_prediction_high_res"],
-            resample=args["resample"],
+            exclude_prediction_sensors=args["exclude_prediction_sensors"],
+            exclude_prediction_era5=not args["include_prediction_era5"],
             decoder_mode=args["decoding_strategy"],
             num_finetune_epochs=args["num_finetune_epochs"],
             eval_config=eval_config,
             h5pys_only=args["h5pys_only"],
+            job_id=job_id,
+            seed=args["seed"],
         )
     ],
 ]
@@ -107,6 +140,7 @@ for task in eval_tasks:
         model_modes=["Regression"],
         log_wandb=True,
         initialization_id=initialization_id,
-        save_final_checkpoint=args["save_final_checkpoint"],
+        wandb_id_parsed=wandb_id_parsed,
+        checkpointing=args["checkpointing"],
     )
     print(json.dumps(results, indent=2, default=str), flush=True)

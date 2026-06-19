@@ -1,3 +1,11 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
+### Modifications by marlens123:
+### - Included additional input sources and modality groups used by SnowGalileo
+
 # https://github.com/nasaharvest/openmapflow/blob/main/openmapflow/ee_exporter.py
 import os
 import shutil
@@ -186,7 +194,7 @@ for modality in MODALITIES:
             else:
                 print(f"Warning: Check modality '{modality}'.")
 
-# TODO: remove this hacky assert and add a better test
+# NOTE: This changes once the input sources are modified
 assert TIME_IMAGE_FUNCTIONS == [
     get_single_s1_image,
     get_single_s2_image,
@@ -347,8 +355,10 @@ def get_ee_task_list(key: str = "description") -> List[str]:
 def get_ee_task_amount(prefix: Optional[str] = None) -> int:
     """
     Gets amount of active tasks in Earth Engine.
+
     Args:
         prefix: Prefix to filter tasks.
+
     Returns:
         Amount of active tasks.
     """
@@ -403,7 +413,7 @@ def make_combine_bands_function(bands: List[str]):
 
 
 def ee_safe_str(s: str):
-    """Earth Engine descriptions only allow certain characters"""
+    """Earth Engine descriptions only allow certain characters."""
     return s.replace(".", "-").replace("=", "-").replace("/", "-")[:100]
 
 
@@ -413,14 +423,13 @@ def create_ee_image(
     interval_end_date: date,
     days_per_timestep: int = DAYS_PER_TIMESTEP,
 ) -> ee.Image:
-    # TODO: change function header
     """
     Returns an ee.Image which we can then export.
-    This image will contain S1, S2, ERA5 and Dynamic World data
+    This image will contain all time-varying data
     between start_date and end_date, in intervals of
     days_per_timestep. Each timestep will be a different channel in the
     image (e.g. if I have 3 timesteps, then I'll have VV, VV_1, VV_2 for the
-    S1 VV bands). The static in time SRTM bands will also be in the image.
+    S1 VV bands). The static in time bands will also be in the image.
     """
     image_collection_list: List[ee.Image] = []
     cur_date = interval_start_date
@@ -428,7 +437,6 @@ def create_ee_image(
 
     # Note: we add a day to the end date to make sure we get the last day inclusive
     # (the ee.filterDate function is exclusive)
-    # TODO: check if this makes sense if days_per_timestep is greater than 1
     while cur_end_date <= interval_end_date + timedelta(days=days_per_timestep):
         image_list: List[ee.Image] = []
 
@@ -575,8 +583,8 @@ class EarthEngineExporter:
 
         img = create_ee_image(polygon, interval_start_date, interval_end_date)
 
-        # important so we control the no data value
         # NOTE: in reality, GEE might still write values to zero with URL downloads
+        # this is why we explicitly mask known no data values in the dataset class later.
         img = img.unmask(self.no_data_val)  # type: ignore[attr-defined]
 
         if self.mode == "cloud":
@@ -648,7 +656,7 @@ class EarthEngineExporter:
         """
         Export boxes with length and width EXPORTED_HEIGHT_WIDTH_METRES
         for the points in latlons (where latlons is a dataframe with
-        the columns "lat" and "lon")
+        the columns "lat" and "lon").
         """
         for expected_column in [LAT, LON]:
             assert expected_column in latlons
@@ -688,7 +696,7 @@ class EarthEngineExporter:
                 export_started = self._export_for_polygon(
                     polygon=ee_bbox.to_ee_polygon(),
                     polygon_identifier=ee_bbox.get_identifier(
-                        season_key, WINDOW_START_DATE, WINDOW_END_DATE
+                        WINDOW_START_DATE, WINDOW_END_DATE, season=season_key
                     ),
                     interval_start_date=WINDOW_START_DATE,
                     interval_end_date=WINDOW_END_DATE,
@@ -703,6 +711,4 @@ class EarthEngineExporter:
                         return None
 
         if self.mode == "url":
-            print("Export finished. Syncing to google cloud")
-            self.sync_local_and_gcloud()
-            print("Finished sync")
+            print("Export finished.")

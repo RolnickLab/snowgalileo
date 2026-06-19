@@ -5,22 +5,37 @@ from pathlib import Path
 from src.config import DEFAULT_SEED
 from src.data.config import NORMALIZATION_DICT_FILENAME
 from src.data.dataset import Dataset
-from src.eval.landsat_baselines import LandsatEvalSklearn
+from src.fsc.landsat_baselines import LandsatEvalSklearn
 from src.utils import config_dir, seed_everything
 
-seed_everything(DEFAULT_SEED)
-
-argparser = argparse.ArgumentParser()
+argparser = argparse.ArgumentParser(
+    description="Starter script for training a sklearn model (Random Forest, SVR, or MLP)."
+)
 argparser.add_argument(
     "--exclude_prediction_high_res",
     action="store_true",
-    help="Whether to exclude high-res in prediction date. Should match checkpoint training setup.",
+    help="Whether to exclude high-res in prediction date.",
+)
+argparser.add_argument(
+    "--exclude_prediction_sensors",
+    action="store_true",
+    help="Whether to exclude observational sensors in prediction date.",
+)
+argparser.add_argument(
+    "--exclude_prediction_date",
+    action="store_true",
+    help="Whether to exclude prediction date.",
+)
+argparser.add_argument(
+    "--include_prediction_era5",
+    action="store_true",
+    help="Whether to include ERA5 in prediction date.",
 )
 argparser.add_argument(
     "--eval_config_name",
     type=str,
-    default="landsat_eval_1_99_test.json",
-    help="Config name for evaluation. Options are stored in src/eval/eval_configs/",
+    default="fsc_train_balanced_tiny.json",
+    help="Config name for evaluation. Options are stored in configs/finetune/",
 )
 argparser.add_argument(
     "--run_id",
@@ -29,37 +44,56 @@ argparser.add_argument(
     help="Identifier used to store results and model checkpoint.",
 )
 argparser.add_argument(
+    "--seed",
+    type=int,
+    default=DEFAULT_SEED,
+)
+argparser.add_argument(
     "--model_type",
     type=str,
     default="rf",
     choices=["rf", "svr", "mlp"],
-    help="Type of model to train: rf, svr, or mlp.",
+    help="Type of model to train: rf (random forest), svr (support vector regressor), or mlp (multi-layer perceptron).",
+)
+argparser.add_argument(
+    "--normalization",
+    type=str,
+    default="std",
+    choices=["std", ""],
 )
 argparser.add_argument(
     "--h5pys_only",
     action="store_true",
-    help="Where to only use h5pys (faster, but need to be already stored in this format)",
+    help="Whether to only use h5pys (faster, but need to be already stored in this format)",
 )
+argparser.add_argument("--dataset_subset_size", type=int, default=0)
+
 args = argparser.parse_args().__dict__
 
+seed_everything(args["seed"])
 
 id = args["run_id"]
-with (Path("src") / Path("eval") / Path("eval_configs") / Path(args["eval_config_name"])).open(
-    "r"
-) as f:
+with (Path("configs") / Path("finetune") / Path(args["eval_config_name"])).open("r") as f:
     config = json.load(f)
 
 # we use the normalization values for missing data imputation so we load it independently
 normalizing_dict = Dataset.load_normalization_values(path=config_dir / NORMALIZATION_DICT_FILENAME)
 
-rf = LandsatEvalSklearn(
-    normalization="std",
-    exclude_prediction_date=False,
+sklearn = LandsatEvalSklearn(
+    normalization=args["normalization"],
+    exclude_prediction_date=args["exclude_prediction_date"],
     exclude_prediction_high_res=args["exclude_prediction_high_res"],
-    resample=False,
+    exclude_prediction_sensors=args["exclude_prediction_sensors"],
+    exclude_prediction_era5=not args["include_prediction_era5"],
     eval_config=config,
     model_type=args["model_type"],
     h5pys_only=args["h5pys_only"],
     normalizing_dict=normalizing_dict,
 )
-rf.fit_sklearn(id=args["run_id"], save_results=True)
+sklearn.fit_sklearn(
+    id=args["run_id"],
+    save_results=True,
+    dataset_subset_size=args["dataset_subset_size"],
+    normalization=args["normalization"],
+    seed=args["seed"],
+)

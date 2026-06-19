@@ -1,3 +1,11 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
+### Modifications by marlens123:
+### - Adjusted so that is it possible to retrieve a bounding box from given coordinate bounds.
+
 from dataclasses import dataclass
 from math import cos, radians
 from typing import List, Tuple, Union
@@ -35,7 +43,7 @@ class EEGeometry:
 class EEBoundingBox(BBox):
     r"""
     A bounding box with additional earth-engine specific
-    functionality
+    functionality.
     """
 
     def to_ee_polygon(self) -> ee.Geometry:
@@ -51,9 +59,7 @@ class EEBoundingBox(BBox):
         )
 
     def to_metres(self) -> Tuple[float, float]:
-        r"""
-        :return: [lat metres, lon metres]
-        """
+        r""":return: [lat metres, lon metres]"""
         # https://gis.stackexchange.com/questions/75528/understanding-terms-in-length-of-degree-formula
         mid_lat = (self.min_lat + self.max_lat) / 2.0
         m_per_deg_lat, m_per_deg_lon = self.metre_per_degree(mid_lat)

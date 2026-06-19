@@ -1,3 +1,12 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
+### Modifications by marlens123:
+### - Included medium and low resolution data
+### - Add attention probe as decoding option
+
 import collections.abc
 import itertools
 import json
@@ -39,7 +48,7 @@ def adjust_learning_rate(
     max_lr,
     min_lr,
 ):
-    """Decay the learning rate with half-cycle cosine after warmup"""
+    """Decay the learning rate with half-cycle cosine after warmup."""
     if epoch < warmup_epochs:
         lr = max_lr * epoch / warmup_epochs
     else:
@@ -73,7 +82,7 @@ class FlexiPatchEmbed(nn.Module):
     ) -> None:
         """2D image to patch embedding w/ flexible patch sizes
         Extended from: https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/patch_embed.py#L24
-        by https://github.com/bwconrad/flexivit/
+        by https://github.com/bwconrad/flexivit/.
 
         Args:
             patch_size: Base patch size. i.e the size of the parameter buffer
@@ -108,7 +117,7 @@ class FlexiPatchEmbed(nn.Module):
         self.pinvs = self._cache_pinvs()
 
     def _cache_pinvs(self) -> dict:
-        """Pre-calculate all pinv matrices"""
+        """Pre-calculate all pinv matrices."""
         pinvs = {}
         for ps in self.patch_size_seq:
             tuple_ps = to_2tuple(ps)
@@ -134,7 +143,7 @@ class FlexiPatchEmbed(nn.Module):
         return torch.linalg.pinv(resize_matrix)
 
     def resize_patch_embed(self, patch_embed: Tensor, new_patch_size: Tuple[int, int]):
-        """Resize patch_embed to target resolution via pseudo-inverse resizing"""
+        """Resize patch_embed to target resolution via pseudo-inverse resizing."""
         # Return original kernel if no resize is necessary
         if self.patch_size == new_patch_size:
             return patch_embed
@@ -204,7 +213,7 @@ class AttentionProbe(nn.Module):
     * relative position bias
     * post-attention MLP
     * attention weight dropout
-    * attention weight recording via PyTorch forward hooks
+    * attention weight recording via PyTorch forward hooks.
     """
 
     def __init__(
@@ -345,7 +354,6 @@ class Attention(nn.Module):
         q, k = self.q_norm(q), self.k_norm(k)
 
         if self.fast_attn:
-            print("Using fast attention")
             if attn_mask is not None:
                 attn_mask = attn_mask[:, None, None].repeat((1, self.num_heads, N, 1))
             x = F.scaled_dot_product_attention(
@@ -357,7 +365,6 @@ class Attention(nn.Module):
                 dropout_p=self.attn_drop.p,
             )
         else:
-            print("Not using fast attention")
             if attn_mask is not None:
                 raise NotImplementedError
             q = q * self.scale
@@ -373,7 +380,7 @@ class Attention(nn.Module):
 
 
 class Mlp(nn.Module):
-    """MLP as used in Vision Transformer, MLP-Mixer and related networks"""
+    """MLP as used in Vision Transformer, MLP-Mixer and related networks."""
 
     def __init__(
         self,
@@ -759,18 +766,12 @@ class SnowGalileoBase(nn.Module):
         # the number of pixels in a patch * the resolution of each pixel
         token_res_high = input_res_high_res * patch_size_high_res
         gsd_ratio_high_res = token_res_high / BASE_GSD_HIGH_RES
-        # TODO: remove later
-        assert gsd_ratio_high_res == 10, f"gsd_ratio_high_res is {gsd_ratio_high_res}, expected 10"
 
         token_res_med = input_res_med_res * patch_size_med_res
         gsd_ratio_med_res = token_res_med / BASE_GSD_MED_RES
-        # TODO: remove later
-        assert gsd_ratio_med_res == 1, f"gsd_ratio_med_res is {gsd_ratio_med_res}, expected 1"
 
         token_res_low = input_res_low_res * patch_size_low_res
         gsd_ratio_low_res = token_res_low / BASE_GSD_LOW_RES
-        # TODO: remove later
-        assert gsd_ratio_low_res == 1, f"gsd_ratio_low_res is {gsd_ratio_low_res}, expected 1"
 
         assert h_s_t_h == w_s_t_h, (
             "get_2d_sincos_pos_embed_with_resolution currently requires that h_s_t_h==w_s_t_h"
@@ -975,7 +976,7 @@ class Encoder(SnowGalileoBase):
         [0, 0, 1, 1]
         [1, 1, 0, 0]
         [1, 1, 0, 0]
-        for the H, W dimensions
+        for the H, W dimensions.
         """
         b, h_s_t_h, w_s_t_h, t, _ = s_t_h_x.shape
         new_h_s_t_h, new_w_s_t_h = h_s_t_h // patch_size_high_res, w_s_t_h // patch_size_high_res
@@ -1282,7 +1283,6 @@ class Encoder(SnowGalileoBase):
         - position: (batch size, num tokens) with position indices
         """
         if attend_over_spatial:
-            print("Attending over spatial patches.", flush=True)
             x, m = cls.combine_tokens_per_highres_spatial_patch(
                 s_t_h_x,
                 s_t_m_x,
@@ -1307,7 +1307,6 @@ class Encoder(SnowGalileoBase):
             )
             return x, m, position
 
-        print("Attending over all tokens.", flush=True)
         x, m = cls.collapse_and_combine_hwtc(
             s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m
         )
@@ -1347,17 +1346,10 @@ class Encoder(SnowGalileoBase):
 
         # only keep high resolution tokens
         if not med_and_low_res_repeat:
-            print(
-                "Removing medium and low resolution tokens instead of repeating them.", flush=True
-            )
             x = torch.cat([s_t_h_x, sp_x], dim=2)  # B, S, N, D
             m = torch.cat([s_t_h_m, sp_m], dim=2)  # B, S, N
             return x, m
 
-        print(
-            "Repeating medium and low resolution tokens to match high resolution tokens.",
-            flush=True,
-        )
         # repeat medium and low resolution tokens over high resolution
         s_t_m_x = rearrange(
             repeat(

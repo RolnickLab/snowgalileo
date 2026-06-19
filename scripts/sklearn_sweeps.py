@@ -6,14 +6,16 @@ from pathlib import Path
 import wandb
 
 from src.config import DEFAULT_SEED
-from src.data.config import NORMALIZATION_DICT_FILENAME
+from src.data.config import NORMALIZATION_DICT_FILENAME, WANDB_ENTITY
 from src.data.dataset import Dataset
-from src.eval.landsat_baselines import LandsatEvalSklearn
+from src.fsc.landsat_baselines import LandsatEvalSklearn
 from src.utils import config_dir, seed_everything
 
 seed_everything(DEFAULT_SEED)
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(
+    description="Starter script for hyperparameter sweeps of the sklearn models."
+)
 
 parser.add_argument(
     "--model_type",
@@ -30,8 +32,8 @@ parser.add_argument(
 parser.add_argument(
     "--eval_config_name",
     type=str,
-    default="landsat_eval_1_99_test.json",
-    help="Config name for evaluation. Options are stored in src/eval/eval_configs/",
+    default="fsc_train_balanced_tiny.json",
+    help="Config name for evaluation. Options are stored in configs/finetune/",
 )
 parser.add_argument(
     "--h5pys_only",
@@ -52,6 +54,10 @@ rf_sweep_configuration = {
     "parameters": {
         "n_estimators": {"values": [50, 100, 200, 300, 400, 500]},
         "normalization": {"values": [None, "std"]},
+        "max_features": {"values": ["feature_dependent", "sqrt", "log2"]},
+        "min_samples_leaf": {"values": [1, 2, 5]},
+        "max_depth": {"values": [None, 10, 20, 30]},
+        "min_samples_split": {"values": [2, 5, 10]},
     },
 }
 
@@ -68,6 +74,9 @@ svr_sweep_configuration = {
         "degree": {"values": [2, 3]},
         "gamma_exponent": {"values": [-5, 0, 5]},
         "normalization": {"values": [None, "std"]},
+        "epsilon": {"values": [0.01, 0.1, 0.5, 1.0]},
+        "max_iter": {"values": [500, 1000, 5000, 10000]},
+        "bagging": {"values": [True, False]},
     },
 }
 
@@ -80,6 +89,9 @@ mlp_sweep_configuration = {
         "learning_rate_init": {"values": [0.0001, 0.001, 0.01, 0.1]},
         "activation": {"values": ["logistic", "tanh", "relu"]},
         "normalization": {"values": [None, "std"]},
+        "solver": {"values": ["adam"]},
+        "alpha": {"values": [1e-5, 1e-4, 1e-3]},
+        "batch_size": {"values": [64, 128, 256, "auto"]},
     },
 }
 
@@ -98,10 +110,8 @@ def reset_wandb_env():
 def train_and_validate():
     args = parser.parse_args()
 
-    with wandb.init(project="ai4snow_sweeps_sklearn") as sweep_run:
-        with (
-            Path("src") / Path("eval") / Path("eval_configs") / Path(args.eval_config_name)
-        ).open("r") as f:
+    with wandb.init(project=f"ai4snow_{args.model_type}_sweeps_small_set") as sweep_run:
+        with (Path("configs") / Path("finetune") / Path(args.eval_config_name)).open("r") as f:
             config = json.load(f)
 
         # we use the normalization values for missing data imputation so we load it independently
@@ -113,7 +123,7 @@ def train_and_validate():
             normalization="std",
             exclude_prediction_date=False,
             exclude_prediction_high_res=args.exclude_prediction_high_res,
-            resample=False,
+            exclude_prediction_era5=True,
             eval_config=config,
             model_type=args.model_type,
             h5pys_only=args.h5pys_only,
@@ -125,6 +135,7 @@ def train_and_validate():
         results = eval_task.fit_sklearn(
             hyperparameters=sweep_run.config,
             save_results=False,
+            sweep_run=sweep_run,
         )
 
         # log metric to sweep run
@@ -142,15 +153,19 @@ def main():
 
     if args.model_type == "rf":
         sweep_config = rf_sweep_configuration
-    else:
-        raise NotImplementedError(
-            f"Sweep configuration for model type {args.model_type} is not implemented."
-        )
+    elif args.model_type == "svr":
+        sweep_config = svr_sweep_configuration
+    elif args.model_type == "mlp":
+        sweep_config = mlp_sweep_configuration
 
     # number of runs in the sweep
     count = 100
 
-    sweep_id = wandb.sweep(sweep=sweep_config, project="ai4snow_sweeps", entity="sea-ice")
+    sweep_id = wandb.sweep(
+        sweep=sweep_config,
+        project=f"ai4snow_{args.model_type}_sweeps_small_set",
+        entity=WANDB_ENTITY,
+    )
     wandb.agent(sweep_id, function=train_and_validate, count=count)
 
     wandb.finish()

@@ -1,3 +1,11 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
+### Modifications by marlens123:
+### - Included medium and low resolution data
+
 import json
 import os
 import random
@@ -22,8 +30,9 @@ from src.masking import MaskedOutput
 
 data_dir = Path(__file__).parent.parent / "data"
 logging_dir = Path(__file__).parent.parent / "logs"
-config_dir = Path(__file__).parent.parent / "config"
-checkpoints_dir = Path(__file__).parent.parent / "checkpoint_backup"
+config_dir = Path(__file__).parent.parent / "configs"
+pretrain_config_dir = config_dir / "pretrain"
+checkpoints_dir = Path(__file__).parent.parent / "logging_checkpoints"
 
 if not torch.cuda.is_available():
     device = torch.device("cpu")
@@ -50,7 +59,7 @@ def seed_everything(seed: int = DEFAULT_SEED):
 def masked_output_np_to_tensor(
     s_t_h_x, s_t_m_x, s_t_l_x, sp_x, t_x, st_x, s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m, month
 ) -> MaskedOutput:
-    """converts eval task"""
+    """Converts eval task."""
     return MaskedOutput(
         torch.as_tensor(s_t_h_x, dtype=torch.float32),
         torch.as_tensor(s_t_m_x, dtype=torch.float32),
@@ -69,16 +78,16 @@ def masked_output_np_to_tensor(
 
 
 def save_checkpoint(model, filename="default.pth"):
-    save_dir = checkpoints_dir
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-    filename = os.path.join(save_dir, filename)
+    filename = Path(filename)
+    if not filename.is_absolute():
+        filename = Path(checkpoints_dir) / filename
+    filename.parent.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), filename)
     print(f"Saved checkpoint to {filename}")
 
 
 class AverageMeter:
-    """computes and stores the average and current value"""
+    """computes and stores the average and current value."""
 
     average: float
     sum: float
@@ -182,7 +191,7 @@ def check_config(config):
 
 
 def load_check_config(name: str) -> Dict:
-    with (config_dir / name).open("r") as f:
+    with (pretrain_config_dir / name).open("r") as f:
         config = json.load(f)
     config = check_config(config)
 

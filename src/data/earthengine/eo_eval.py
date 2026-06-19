@@ -1,3 +1,14 @@
+### Original Code:
+### Copyright (c) 2024 Presto Authors
+### Licensed under the MIT License.
+### A copy of the MIT License is available in the LICENSE file in the root directory of this project.
+
+# Similar to eo.py, but for evaluation.
+# Adds functions to export input data from given label polygons and in crs other than EPSG:4326,
+# which is needed for evaluation on the test set (since the test set labels are in a different crs).
+# We can also export data in various ways from CSV files, which is useful for inference.
+# Still, a lot of this script is redundant with eo.py and needs to be cleaned --> refactor in the future.
+
 # https://github.com/nasaharvest/openmapflow/blob/main/openmapflow/ee_exporter.py
 import os
 import shutil
@@ -10,6 +21,7 @@ from typing import OrderedDict as OrderedDictType
 import ee
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
 import rasterio
 import requests  # type: ignore
 
@@ -27,7 +39,7 @@ from src.data.earthengine.copernicus_dem import (
     DEM_SHIFT_VALUES,
     get_single_dem_image,
 )
-from src.data.earthengine.ee_bbox import EEGeometry
+from src.data.earthengine.ee_bbox import EEBoundingBox, EEGeometry
 from src.data.earthengine.eo import (
     EarthEngineExporter,
     create_ee_image,
@@ -167,7 +179,7 @@ for modality in MODALITIES:
             else:
                 print(f"Warning: Check modality '{modality}'.")
 
-# TODO: remove this hacky assert and add a better test
+# NOTE: This changes once the input sources are modified
 assert TIME_IMAGE_FUNCTIONS == [
     get_single_s1_image,
     get_single_s2_image,
@@ -424,7 +436,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
                 ee.batch.Export.image.toDrive(
                     folder=self.dest_drive_folder,
                     fileNamePrefix=cloud_filename,
-                    image=img.clip(polygon),
+                    image=img.toDouble().clip(polygon),
                     description=description,
                     crs=crs,
                     scale=10,
@@ -468,10 +480,9 @@ class EarthEngineExporterEval(EarthEngineExporter):
         start_idx: int = 0,
     ) -> None:
         """
-        Export boxes with length and width EXPORTED_HEIGHT_WIDTH_METRES
-        for the latlons specified in the filename of each file in the given folder.
+        Export boxes with the bounds of the files given in the current folder.
+        NOTE: The resulting exports will not be exactly in rectangular format, so we will have to crop them afterwards.
         """
-
         # check that each file in the folder has a filename with the format L0*_YYYYMMDD_LAT_LON_SC[a number between 0 and 100]
         # and that the lat and lon are in the format of a string
         # e.g. LC09_20220101_FSC0_50.1234_8.1234.tif
@@ -479,6 +490,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
         filenames = []
         folder = Path(DATA_FOLDER / folder)
 
+        # NOTE: specific to the filename format of our finetuning / evaluation data
         for filename in os.listdir(folder):
             if not filename.startswith("LC0") or not filename.endswith(".tif"):
                 print(f"Filename {filename} does not start with LC0_ or end with .tif")
@@ -532,6 +544,96 @@ class EarthEngineExporterEval(EarthEngineExporter):
                 exports_started += 1
 
         if self.mode == "url":
+            print("Export finished.")
+
+    def export_from_csv_wgs84(self, csv_file) -> None:
+        """Export from center coordinates and dates passed by a csv file."""
+        df = pd.read_csv(csv_file)
+        dates = df["date"].tolist()
+        lats = df["latitude"].tolist()
+        lons = df["longitude"].tolist()
+
+        exports_started = 0
+        print(f"Exporting {len(dates)} files: ")
+
+        for i, dat in enumerate(dates):
+            ee_bbox = EEBoundingBox.from_centre(
+                # worldstrat points are strings
+                mid_lat=float(lats[i]),
+                mid_lon=float(lons[i]),
+                surrounding_metres=int(self.surrounding_metres),
+            )
+
+            WINDOW_END_DATE = datetime.strptime(str(dat), "%Y%m%d").date()
+            WINDOW_START_DATE = WINDOW_END_DATE - timedelta(days=NUM_TIMESTEPS - 1)
+
+            export_started = self._export_for_polygon(
+                polygon=ee_bbox.to_ee_polygon(),
+                polygon_identifier=ee_bbox.get_identifier(
+                    WINDOW_START_DATE, WINDOW_END_DATE, for_eval_from_csv=True
+                ),
+                interval_start_date=WINDOW_START_DATE,
+                interval_end_date=WINDOW_END_DATE,
+            )
+            if export_started:
+                exports_started += 1
+
+        if self.mode == "url":
             print("Export finished. Syncing to google cloud")
             self.sync_local_and_gcloud()
             print("Finished sync")
+
+    def export_from_csv_utm(self, csv_file) -> None:
+        """Export from UTM bounds and dates passed by a csv file."""
+        df = pd.read_csv(csv_file)
+        dates = df["date"].tolist()
+        coordinate_system = df["crs"].tolist()
+        center_x = df["center_lat"].tolist()
+        center_y = df["center_lon"].tolist()
+        min_x = df["min_x"].tolist()
+        max_x = df["max_x"].tolist()
+        min_y = df["min_y"].tolist()
+        max_y = df["max_y"].tolist()
+
+        exports_started = 0
+        print(f"Exporting {len(dates)} files: ")
+
+        for i, dat in enumerate(dates):
+            min_yy, max_yy = min_y[i], max_y[i]
+            min_xx, max_xx = min_x[i], max_x[i]
+            crs = coordinate_system[i]
+
+            # reproject to EPSG:4326
+            print(f"Converting {crs} to EPSG:4326")
+            from pyproj import Transformer
+
+            filename = f"PR_{dat}_{center_x[i]:.16f}_{center_y[i]:.16f}.tif"
+
+            # NOTE: always_xy=True ensures that the first coordinate is always in northerly direction
+            transformer = Transformer.from_crs(crs, "EPSG:4326", always_xy=True)
+            min_lon, min_lat = transformer.transform(min_xx, min_yy)
+            max_lon, max_lat = transformer.transform(max_xx, max_yy)
+
+            ee_bbox = EEGeometry.from_coord_bounds(
+                min_lat=min_lat,
+                max_lat=max_lat,
+                min_lon=min_lon,
+                max_lon=max_lon,
+                proj="EPSG:4326",
+            )
+
+            WINDOW_END_DATE = datetime.strptime(str(dat), "%Y%m%d").date()
+            WINDOW_START_DATE = WINDOW_END_DATE - timedelta(days=NUM_TIMESTEPS - 1)
+
+            export_started = self._export_for_polygon(
+                polygon=ee_bbox,
+                polygon_identifier=filename,
+                interval_start_date=WINDOW_START_DATE,
+                interval_end_date=WINDOW_END_DATE,
+                crs=crs,
+            )
+            if export_started:
+                exports_started += 1
+
+        if self.mode == "url":
+            print("Export finished.")

@@ -6,10 +6,8 @@ import psutil
 import torch
 
 from src.config import DEFAULT_SEED
-from src.eval import (
-    LandsatEval,
-)
-from src.eval.patch_predict import EncoderWithHead
+from src.fsc import CloudGeneratorEval, LandsatEval
+from src.fsc.patch_predict import EncoderWithHead
 from src.snowgalileo import Encoder
 from src.utils import checkpoints_dir, device, load_check_config, seed_everything
 
@@ -18,27 +16,45 @@ process = psutil.Process()
 
 torch.backends.cuda.matmul.allow_tf32 = True
 
-argparser = argparse.ArgumentParser()
+argparser = argparse.ArgumentParser(
+    description="Starter script for visualizing model predictions (using WandB)."
+)
 argparser.add_argument(
     "--checkpoint_name",
     type=str,
-    default="finetuned_seg_ls_s42_ps10_attn__no_high_res_in_pred_date_final.pth",
+    default="",
+    help="Name of the checkpoint to be evaluated. Should be stored in the checkpoints_dir specified in src/utils.py. If '', a randomly initialized model will be used.",
 )
 argparser.add_argument(
     "--exclude_prediction_high_res",
     action="store_true",
-    help="Whether to exclude high-res in prediction date. Should match checkpoint training.",
+    help="Whether to exclude high-res in prediction date.",
+)
+argparser.add_argument(
+    "--exclude_prediction_sensors",
+    action="store_true",
+    help="Whether to exclude observational sensors in prediction date.",
+)
+argparser.add_argument(
+    "--exclude_prediction_date",
+    action="store_true",
+    help="Whether to exclude prediction date.",
+)
+argparser.add_argument(
+    "--include_prediction_era5",
+    action="store_true",
+    help="Whether to include ERA5 in prediction date.",
 )
 argparser.add_argument(
     "--eval_config_name",
     type=str,
-    default="fsc_train_tiny.json",
-    help="Config name for evaluation. Options are stored in src/eval/eval_configs/",
+    default="fsc_test_rockies_tiny.json",
+    help="Config name for evaluation. Options are stored in configs/eval/",
 )
 argparser.add_argument(
     "--decoding_strategy",
     type=str,
-    default="attention_probe",
+    default="finetune",
     choices=["finetune", "linear_probe", "attention_probe"],
     help="Decoding strategy to use. 'Finetune' uses a linear decoder and finetunes the entire model. 'Linear_probe' uses a linear decoder and only trains the decoder. 'Attention_probe' uses an attention-based decoder and fine-tunes the entire model. 'sklearn' uses the frozen encoder features for a sklearn model.",
 )
@@ -46,11 +62,9 @@ args = argparser.parse_args().__dict__
 
 decoder_mode = args["decoding_strategy"]
 
-# TODO: fix the EncoderWithHead loading pipeline
+# TODO: doublecheck EncoderWithHead loading pipeline
 # TODO: make sure the eval config matches the training config
-with (Path("src") / Path("eval") / Path("eval_configs") / Path(args["eval_config_name"])).open(
-    "r"
-) as f:
+with (Path("configs") / Path("eval") / Path(args["eval_config_name"])).open("r") as f:
     eval_config = json.load(f)
     sigmoid_slope = eval_config["hyperparameters_snowgalileo"]["sigmoid_slope"]
 
@@ -76,10 +90,26 @@ else:
         encoder_random_init, eval_config=eval_config[decoder_mode], sigmoid_slope=sigmoid_slope
     ).to(device)
 
-eval_task = LandsatEval(
-    exclude_prediction_high_res=args["exclude_prediction_high_res"],
-    eval_config=eval_config,
-    h5pys_only=False,
-)
+if eval_config["cloud_generation"]["cloud_prob_pred_day"] > 0.0:
+    print("Evaluating cloudy days")
+    eval_task: LandsatEval | CloudGeneratorEval = CloudGeneratorEval(
+        exclude_prediction_high_res=args["exclude_prediction_high_res"],
+        exclude_prediction_date=args["exclude_prediction_date"],
+        exclude_prediction_sensors=args["exclude_prediction_sensors"],
+        exclude_prediction_era5=not args["include_prediction_era5"],
+        eval_config=eval_config,
+        h5pys_only=False,
+        decoder_mode=decoder_mode,
+    )
+else:
+    eval_task = LandsatEval(
+        exclude_prediction_high_res=args["exclude_prediction_high_res"],
+        exclude_prediction_sensors=args["exclude_prediction_sensors"],
+        exclude_prediction_date=args["exclude_prediction_date"],
+        exclude_prediction_era5=not args["include_prediction_era5"],
+        eval_config=eval_config,
+        h5pys_only=False,
+        decoder_mode=decoder_mode,
+    )
 
 eval_task.visualize_sample_predictions(model=model, log_wandb=True)
