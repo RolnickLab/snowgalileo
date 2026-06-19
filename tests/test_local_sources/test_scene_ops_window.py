@@ -33,8 +33,14 @@ def _band_memfile(width: int, height: int, transform: Affine, fill: float = 1.0)
     data = np.full((height, width), fill, dtype=np.float64)
     mem = MemoryFile()
     ds = mem.open(
-        driver="GTiff", height=height, width=width, count=1, dtype="float64",
-        crs=_CRS, transform=transform, nodata=float(NO_DATA_VALUE),
+        driver="GTiff",
+        height=height,
+        width=width,
+        count=1,
+        dtype="float64",
+        crs=_CRS,
+        transform=transform,
+        nodata=float(NO_DATA_VALUE),
     )
     ds.write(data, 1)
     return ds
@@ -70,13 +76,17 @@ def test_windowed_read_reproject_is_bit_identical_to_full_read() -> None:
     tile_tf = from_origin(450_000.0, 5_660_000.0, 10.0, 10.0)
     # A gradient band so any pixel mis-placement would change the output.
     width = height = 2000
-    grad = np.add.outer(
-        np.arange(height, dtype=np.float64), np.arange(width, dtype=np.float64)
-    )
+    grad = np.add.outer(np.arange(height, dtype=np.float64), np.arange(width, dtype=np.float64))
     mem = MemoryFile()
     ds = mem.open(
-        driver="GTiff", height=height, width=width, count=1, dtype="float64",
-        crs=_CRS, transform=tile_tf, nodata=float(NO_DATA_VALUE),
+        driver="GTiff",
+        height=height,
+        width=width,
+        count=1,
+        dtype="float64",
+        crs=_CRS,
+        transform=tile_tf,
+        nodata=float(NO_DATA_VALUE),
     )
     ds.write(grad, 1)
     cell = _cell(455_000.0, 5_650_000.0)
@@ -84,8 +94,12 @@ def test_windowed_read_reproject_is_bit_identical_to_full_read() -> None:
     # Full-band path.
     full = ds.read(1)
     full_out = reproject_to_cell(
-        source=full[np.newaxis], src_transform=ds.transform, src_crs=str(ds.crs),
-        cell=cell, categorical=True, src_nodata=float(NO_DATA_VALUE),
+        source=full[np.newaxis],
+        src_transform=ds.transform,
+        src_crs=str(ds.crs),
+        cell=cell,
+        categorical=True,
+        src_nodata=float(NO_DATA_VALUE),
     )[0]
 
     # Windowed path.
@@ -93,8 +107,12 @@ def test_windowed_read_reproject_is_bit_identical_to_full_read() -> None:
     assert win is not None
     windowed = ds.read(1, window=win)
     win_out = reproject_to_cell(
-        source=windowed[np.newaxis], src_transform=ds.window_transform(win),
-        src_crs=str(ds.crs), cell=cell, categorical=True, src_nodata=float(NO_DATA_VALUE),
+        source=windowed[np.newaxis],
+        src_transform=ds.window_transform(win),
+        src_crs=str(ds.crs),
+        cell=cell,
+        categorical=True,
+        src_nodata=float(NO_DATA_VALUE),
     )[0]
 
     np.testing.assert_array_equal(win_out, full_out)
@@ -137,8 +155,12 @@ def test_reproject_to_cell_zero_dim_source_returns_fill() -> None:
     for shape in ((1, 0, 25), (1, 25, 0)):
         source = np.empty(shape, dtype=np.float64)
         out = reproject_to_cell(
-            source=source, src_transform=from_origin(455_000.0, 5_651_000.0, 10.0, 10.0),
-            src_crs=_CRS, cell=cell, categorical=True, src_nodata=float(NO_DATA_VALUE),
+            source=source,
+            src_transform=from_origin(455_000.0, 5_651_000.0, 10.0, 10.0),
+            src_crs=_CRS,
+            cell=cell,
+            categorical=True,
+            src_nodata=float(NO_DATA_VALUE),
         )
         assert out.shape == (1, *cell.shape)
         assert np.all(out == float(NO_DATA_VALUE))
@@ -150,8 +172,13 @@ def test_window_handles_cross_zone_bounds() -> None:
     ds = _band_memfile(4000, 4000, tile_tf)  # EPSG:32611 tile
     # Cell expressed in 32612; its 32611 footprint still lands inside the tile region.
     cell = GridCell.from_utm_bounds(
-        cell_id=0, min_x=200_000.0, min_y=5_645_000.0, max_x=201_000.0, max_y=5_646_000.0,
-        crs="EPSG:32612", px=100,
+        cell_id=0,
+        min_x=200_000.0,
+        min_y=5_645_000.0,
+        max_x=201_000.0,
+        max_y=5_646_000.0,
+        crs="EPSG:32612",
+        px=100,
     )
     # Should not raise; returns either a window or None depending on overlap.
     result = cell_window(ds, cell)

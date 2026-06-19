@@ -174,9 +174,7 @@ def _run_snap_chain(
         subprocess.CalledProcessError: If the SNAP chain fails.
     """
     if not gpt.exists():
-        raise FileNotFoundError(
-            f"ESA SNAP gpt not found at {gpt}; install SNAP or pass gpt=."
-        )
+        raise FileNotFoundError(f"ESA SNAP gpt not found at {gpt}; install SNAP or pass gpt=.")
     out_tif.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
         str(gpt),
@@ -401,7 +399,8 @@ def build_s1_cache(
     granules = sorted(archive_root.glob("S1*_IW_GRDH_*.zip"))
     logger.info(
         "s1_snap_build_start",
-        n_granules=len(granules), cache_dir=str(cache_dir),
+        n_granules=len(granules),
+        cache_dir=str(cache_dir),
     )
     cached: list[Path] = []
     for granule_zip in granules:
@@ -519,9 +518,7 @@ def cli() -> None:
             "--cache-dir",
             help="Output directory for the s1_grd_*.tif cache.",
         ),
-        aoi: Path = typer.Option(
-            paths.aoi_path, "--aoi", help="AOI polygon (EPSG:4326 GeoJSON)."
-        ),
+        aoi: Path = typer.Option(paths.aoi_path, "--aoi", help="AOI polygon (EPSG:4326 GeoJSON)."),
         gpt: Path = typer.Option(_DEFAULT_GPT, "--gpt"),
         graph: Path = typer.Option(_DEFAULT_GRAPH, "--graph"),
         overwrite: bool = typer.Option(False, "--overwrite"),

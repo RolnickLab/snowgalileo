@@ -58,9 +58,11 @@ def _prompt_reuse_or_overwrite(entries: int) -> bool:
     Loops until a recognised answer is given. Only called when stdin is a TTY.
     """
     while True:
-        answer = input(
-            f"Existing cube cache has {entries} entries. [r]euse / [o]verwrite? "
-        ).strip().lower()
+        answer = (
+            input(f"Existing cube cache has {entries} entries. [r]euse / [o]verwrite? ")
+            .strip()
+            .lower()
+        )
         if answer in ("r", "reuse"):
             return False
         if answer in ("o", "overwrite"):

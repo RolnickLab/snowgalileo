@@ -72,9 +72,7 @@ def _present_gpt(tmp_path: Path) -> Path:
 # --------------------------------------------------------------------------- #
 # ensure_s1_cache — verify-only (no building); raises on a missing needed tif
 # --------------------------------------------------------------------------- #
-def test_passes_when_all_needed_tifs_present(
-    tmp_path: Path, covering_footprint: Polygon
-) -> None:
+def test_passes_when_all_needed_tifs_present(tmp_path: Path, covering_footprint: Polygon) -> None:
     archive = tmp_path / "sentinel1"
     cache = tmp_path / "sentinel1_snap"
     cache.mkdir(parents=True)
@@ -90,9 +88,7 @@ def test_passes_when_all_needed_tifs_present(
     )
 
 
-def test_raises_when_a_needed_tif_is_missing(
-    tmp_path: Path, covering_footprint: Polygon
-) -> None:
+def test_raises_when_a_needed_tif_is_missing(tmp_path: Path, covering_footprint: Polygon) -> None:
     archive = tmp_path / "sentinel1"
     cache = tmp_path / "sentinel1_snap"
     cache.mkdir(parents=True)
@@ -122,9 +118,7 @@ def test_genuinely_absent_s1_is_ok_not_an_error(
     )
 
 
-def test_out_of_window_granule_ignored(
-    tmp_path: Path, covering_footprint: Polygon
-) -> None:
+def test_out_of_window_granule_ignored(tmp_path: Path, covering_footprint: Polygon) -> None:
     """A covering granule acquired outside the window is not needed (no raise)."""
     archive = tmp_path / "sentinel1"
     cache = tmp_path / "sentinel1_snap"
@@ -152,7 +146,8 @@ def test_build_skips_existing_tif_idempotent(
 
     calls: list[Path] = []
     monkeypatch.setattr(
-        snap, "_run_snap_chain",
+        snap,
+        "_run_snap_chain",
         lambda **k: calls.append(k["out_tif"]) or k["out_tif"],  # type: ignore[func-returns-value]
     )
 
@@ -209,9 +204,7 @@ def test_build_writes_atomically_via_partial(
     assert seen_targets and seen_targets[0].parent == cache / ".partial"
 
 
-def test_build_skips_empty_region_granule(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_build_skips_empty_region_granule(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """An 'Empty region!' SNAP failure removes the partial and returns [] (no abort).
 
     A granule whose AOI crop has no pixels makes SNAP exit non-zero; the build skips it
@@ -253,7 +246,8 @@ def test_build_does_not_mutate_raw_granule(
     before = granule.read_bytes()
 
     monkeypatch.setattr(
-        snap, "_run_snap_chain",
+        snap,
+        "_run_snap_chain",
         lambda **k: k["out_tif"].write_bytes(b"x") or k["out_tif"],  # type: ignore[func-returns-value]
     )
     build_granule_cache(

@@ -134,8 +134,12 @@ def export_cells_parallel(
 
     if n_workers == 1:
         _init_worker(
-            out_dir, archive_root, placeholder, verify_s1_cache,
-            cube_cache_dir, cache_max_entries,
+            out_dir,
+            archive_root,
+            placeholder,
+            verify_s1_cache,
+            cube_cache_dir,
+            cache_max_entries,
         )
         paths = [Path(_export_one(item)[1]) for item in items]
         logger.info("exported_cells_serial", cells=len(paths), out_dir=str(out_dir))
@@ -153,8 +157,12 @@ def export_cells_parallel(
         max_workers=n_workers,
         initializer=_init_worker,
         initargs=(
-            out_dir, archive_root, placeholder, verify_s1_cache,
-            cube_cache_dir, cache_max_entries,
+            out_dir,
+            archive_root,
+            placeholder,
+            verify_s1_cache,
+            cube_cache_dir,
+            cache_max_entries,
         ),
     ) as pool:
         futures = [pool.submit(_export_one, item) for item in items]

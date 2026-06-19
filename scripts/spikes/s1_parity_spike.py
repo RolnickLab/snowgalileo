@@ -76,9 +76,7 @@ def _aoi_wkt(reference_patch: Path) -> str:
         lon0, lat0, lon1, lat1 = transform_bounds(src.crs, "EPSG:4326", *src.bounds)
     m = _AOI_MARGIN_DEG
     lo0, la0, lo1, la1 = lon0 - m, lat0 - m, lon1 + m, lat1 + m
-    return (
-        f"POLYGON(({lo0} {la0},{lo1} {la0},{lo1} {la1},{lo0} {la1},{lo0} {la0}))"
-    )
+    return f"POLYGON(({lo0} {la0},{lo1} {la0},{lo1} {la1},{lo0} {la1},{lo0} {la0}))"
 
 
 def _run_snap_chain(
@@ -105,9 +103,7 @@ def _run_snap_chain(
         subprocess.CalledProcessError: If the SNAP chain fails.
     """
     if not gpt.exists():
-        raise FileNotFoundError(
-            f"ESA SNAP gpt not found at {gpt}; install SNAP and pass --gpt."
-        )
+        raise FileNotFoundError(f"ESA SNAP gpt not found at {gpt}; install SNAP and pass --gpt.")
     cmd = [
         str(gpt),
         str(graph),

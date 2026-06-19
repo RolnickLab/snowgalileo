@@ -102,9 +102,7 @@ def _parse_gml_coordinates(text: str) -> Optional[Polygon]:
     if len(tokens) < 6 or len(tokens) % 2 != 0:
         return None
     # SAFE GML lists coordinates as "lat lon lat lon ..."; shapely wants (lon, lat).
-    coords = [
-        (float(tokens[i + 1]), float(tokens[i])) for i in range(0, len(tokens), 2)
-    ]
+    coords = [(float(tokens[i + 1]), float(tokens[i])) for i in range(0, len(tokens), 2)]
     return Polygon(coords)
 
 
@@ -211,9 +209,7 @@ def _sinusoidal_bounds_via_gdalinfo(
     return None
 
 
-def netcdf_footprint(
-    lon_min: float, lat_min: float, lon_max: float, lat_max: float
-) -> Polygon:
+def netcdf_footprint(lon_min: float, lat_min: float, lon_max: float, lat_max: float) -> Polygon:
     """Footprint of a regular lat/lon NetCDF grid (e.g. ERA5-Land) as a bbox.
 
     Args:

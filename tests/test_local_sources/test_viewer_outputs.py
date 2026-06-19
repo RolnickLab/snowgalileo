@@ -41,8 +41,16 @@ def _write_cube(path: Path, descriptions: list[str]) -> None:
     count = len(descriptions)
     data = np.zeros((count, 4, 4), dtype="float32")
     with rasterio.open(
-        path, "w", driver="GTiff", height=4, width=4, count=count,
-        dtype="float32", crs="EPSG:32611", transform=_TRANSFORM, nodata=-9999.0,
+        path,
+        "w",
+        driver="GTiff",
+        height=4,
+        width=4,
+        count=count,
+        dtype="float32",
+        crs="EPSG:32611",
+        transform=_TRANSFORM,
+        nodata=-9999.0,
     ) as dst:
         dst.write(data)
         for i, desc in enumerate(descriptions, start=1):
@@ -58,8 +66,16 @@ def _write_fsc(path: Path, value: float = 0.5) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     data = np.full((1, 4, 4), value, dtype="float32")
     with rasterio.open(
-        path, "w", driver="GTiff", height=4, width=4, count=1,
-        dtype="float32", crs="EPSG:32611", transform=_TRANSFORM, nodata=-9999.0,
+        path,
+        "w",
+        driver="GTiff",
+        height=4,
+        width=4,
+        count=1,
+        dtype="float32",
+        crs="EPSG:32611",
+        transform=_TRANSFORM,
+        nodata=-9999.0,
     ) as dst:
         dst.write(data)
 
@@ -80,7 +96,9 @@ def test_list_cubes_parses_and_sorts(tmp_path: Path) -> None:
     rows = list_cubes(_settings(tmp_path))
 
     assert [r.pred_date for r in rows] == [
-        date(2025, 4, 6), date(2025, 5, 19), date(2025, 5, 19),
+        date(2025, 4, 6),
+        date(2025, 5, 19),
+        date(2025, 5, 19),
     ]
     # Within the 2025-05-19 group, sorted by (lat, lon).
     assert rows[1].lat == 50.1 and rows[2].lat == 50.7306
@@ -140,8 +158,15 @@ def test_cube_variables_raises_without_descriptions(tmp_path: Path) -> None:
     path = tmp_path / "cubes" / "PR_20250519_50.0_-116.0_SC00.tif"
     path.parent.mkdir(parents=True, exist_ok=True)
     with rasterio.open(
-        path, "w", driver="GTiff", height=4, width=4, count=2,
-        dtype="float32", crs="EPSG:32611", transform=_TRANSFORM,
+        path,
+        "w",
+        driver="GTiff",
+        height=4,
+        width=4,
+        count=2,
+        dtype="float32",
+        crs="EPSG:32611",
+        transform=_TRANSFORM,
     ) as dst:
         dst.write(np.zeros((2, 4, 4), dtype="float32"))
 
@@ -207,8 +232,16 @@ def _write_cube_with_fill(
         arrays.append(np.full((4, 4), 1.0, dtype="float32"))
     data = np.stack(arrays, axis=0)
     with rasterio.open(
-        path, "w", driver="GTiff", height=4, width=4, count=len(descriptions),
-        dtype="float32", crs="EPSG:32611", transform=_TRANSFORM, nodata=nodata,
+        path,
+        "w",
+        driver="GTiff",
+        height=4,
+        width=4,
+        count=len(descriptions),
+        dtype="float32",
+        crs="EPSG:32611",
+        transform=_TRANSFORM,
+        nodata=nodata,
     ) as dst:
         dst.write(data)
         for i, desc in enumerate(descriptions, start=1):
@@ -221,7 +254,10 @@ def test_cube_availability_marks_real_timesteps(tmp_path: Path) -> None:
     path = tmp_path / "cubes" / "PR_20250519_50.0_-116.0_SC00.tif"
     # VV all-nodata everywhere; B2 (S2) real at t4,t6; Landsat real at t3 only.
     _write_cube_with_fill(
-        path, dynamic=dynamic, statics=statics, n_ts=8,
+        path,
+        dynamic=dynamic,
+        statics=statics,
+        n_ts=8,
         real={"B2": {4, 6}, "B2_landsat": {3}},
     )
 
@@ -240,7 +276,10 @@ def test_vars_at_timestep_filters_dynamic_keeps_statics(tmp_path: Path) -> None:
     statics = ["DEM", "Map"]
     path = tmp_path / "cubes" / "PR_20250519_50.0_-116.0_SC00.tif"
     _write_cube_with_fill(
-        path, dynamic=dynamic, statics=statics, n_ts=8,
+        path,
+        dynamic=dynamic,
+        statics=statics,
+        n_ts=8,
         real={"B2": {4, 6}, "B2_landsat": {3}},
     )
     avail = cube_availability(path)
@@ -258,7 +297,10 @@ def test_timesteps_for_var_real_only_and_statics_empty(tmp_path: Path) -> None:
     statics = ["DEM", "Map"]
     path = tmp_path / "cubes" / "PR_20250519_50.0_-116.0_SC00.tif"
     _write_cube_with_fill(
-        path, dynamic=dynamic, statics=statics, n_ts=8,
+        path,
+        dynamic=dynamic,
+        statics=statics,
+        n_ts=8,
         real={"B2": {4, 6}, "B2_landsat": {3}},
     )
     avail = cube_availability(path)

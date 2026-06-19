@@ -180,5 +180,7 @@ class Era5Adapter(LocalSourceAdapter):
             bands.append(reprojected[0])
             n_present += 1
 
-        logger.info("era5_fetch", cell_id=cell.cell_id, day=day.isoformat(), bands_present=n_present)
+        logger.info(
+            "era5_fetch", cell_id=cell.cell_id, day=day.isoformat(), bands_present=n_present
+        )
         return np.stack(bands, axis=0).astype(np.float32)

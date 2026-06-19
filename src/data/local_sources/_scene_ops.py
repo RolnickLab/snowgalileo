@@ -59,9 +59,7 @@ def cell_window(ds: rasterio.io.DatasetReader, cell: GridCell) -> Window | None:
         does not intersect the band at all (caller treats as "band absent here").
     """
     min_x, min_y, max_x, max_y = cell.polygon.bounds
-    left, bottom, right, top = transform_bounds(
-        cell.crs, ds.crs, min_x, min_y, max_x, max_y
-    )
+    left, bottom, right, top = transform_bounds(cell.crs, ds.crs, min_x, min_y, max_x, max_y)
     win = from_bounds(left, bottom, right, top, transform=ds.transform)
     # Pad by the margin, then clamp to the dataset extent. ``Window.intersection`` raises
     # ``WindowError`` when the two windows are disjoint (cell outside the tile) — treat that

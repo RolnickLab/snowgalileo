@@ -152,9 +152,7 @@ class S1Adapter(LocalSourceAdapter):
         granules = [_parse_granule(p) for p in sorted(self.cache_root.glob("s1_grd_*.tif"))]
         return [g for g in granules if g is not None and g.acq == day]
 
-    def _read_band(
-        self, granule: _GranuleInfo, band_name: str, cell: GridCell
-    ) -> BandRead | None:
+    def _read_band(self, granule: _GranuleInfo, band_name: str, cell: GridCell) -> BandRead | None:
         """Read one band from a cache tif: linear→dB for VV/VH, edge-mask, nodata-clean.
 
         Reads **only the cell's windowed footprint** (via :func:`cell_window`), never the

@@ -133,8 +133,7 @@ class GridCell:
         height_m = max_y - min_y
         if width_m <= 0 or height_m <= 0:
             raise ValueError(
-                f"Degenerate cell bbox for cell {cell_id}: "
-                f"({min_x}, {min_y}, {max_x}, {max_y})."
+                f"Degenerate cell bbox for cell {cell_id}: ({min_x}, {min_y}, {max_x}, {max_y})."
             )
         x_res = width_m / px
         y_res = height_m / px

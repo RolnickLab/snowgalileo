@@ -121,12 +121,18 @@ def main() -> None:
         manifest = next(tmp_dir.glob("*.SAFE")) / "manifest.safe"
 
         _run_graph(
-            manifest=manifest, region_wkt=region_wkt, out_tif=prod_tif,
-            gpt=args.gpt, graph=args.prod_graph,
+            manifest=manifest,
+            region_wkt=region_wkt,
+            out_tif=prod_tif,
+            gpt=args.gpt,
+            graph=args.prod_graph,
         )
         _run_graph(
-            manifest=manifest, region_wkt=region_wkt, out_tif=no_bn_tif,
-            gpt=args.gpt, graph=args.no_bn_graph,
+            manifest=manifest,
+            region_wkt=region_wkt,
+            out_tif=no_bn_tif,
+            gpt=args.gpt,
+            graph=args.no_bn_graph,
         )
 
     print(f"\n=== S1 border-noise diagnostic: {args.granule} ===")

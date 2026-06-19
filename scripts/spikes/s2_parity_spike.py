@@ -144,9 +144,7 @@ def _main() -> None:
 
     ref = args.ref
     if ref.is_dir():
-        ref = ref / (
-            "PR_20250406_562863.8459204244427383_5653083.7883343594148755.tif"
-        )
+        ref = ref / ("PR_20250406_562863.8459204244427383_5653083.7883343594148755.tif")
 
     run_s2_spike(granule_zip=args.granule, reference_patch=ref)
     logger.info("s2_spike_done", reference=str(ref))

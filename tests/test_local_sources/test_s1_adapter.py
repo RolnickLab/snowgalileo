@@ -74,6 +74,7 @@ def _write_cache_tif(
     masked dB input is written as ``0`` (SNAP's no-data / σ⁰≤0, which the adapter
     treats as invalid). The adapter re-derives dB via ``10·log10``.
     """
+
     def _lin(db: np.ndarray) -> np.ndarray:
         out = np.where(np.isfinite(db), 10.0 ** (db / 10.0), 0.0)
         # A masked/below-floor sentinel (we use -inf) → 0 linear (invalid for the adapter).
@@ -82,8 +83,15 @@ def _write_cache_tif(
     # Band order VH, VV, angle (SNAP's order); linear σ⁰ for the backscatter bands.
     bands = np.stack([_lin(vh_db), _lin(vv_db), angle.astype(np.float32)], axis=0)
     with rasterio.open(
-        path, "w", driver="GTiff", height=bands.shape[1], width=bands.shape[2],
-        count=3, dtype="float32", crs=crs, transform=transform,
+        path,
+        "w",
+        driver="GTiff",
+        height=bands.shape[1],
+        width=bands.shape[2],
+        count=3,
+        dtype="float32",
+        crs=crs,
+        transform=transform,
     ) as ds:
         ds.write(bands)
 
@@ -94,7 +102,11 @@ _CELL_PX = 20
 @pytest.fixture()
 def synthetic_cell() -> GridCell:
     return GridCell.from_utm_bounds(
-        cell_id=1, min_x=563000.0, min_y=5653000.0, max_x=563200.0, max_y=5653200.0,
+        cell_id=1,
+        min_x=563000.0,
+        min_y=5653000.0,
+        max_x=563200.0,
+        max_y=5653200.0,
         px=_CELL_PX,
     )
 
@@ -137,8 +149,12 @@ def _build_cache_granule(
     stem = _granule_stem(acq, end=end, uid=uid)
     path = cache_root / cache_tif_name(stem)
     _write_cache_tif(
-        path, vv_db=arrays[0], vh_db=arrays[1], angle=arrays[2],
-        transform=_src_transform(cell), crs=cell.crs,
+        path,
+        vv_db=arrays[0],
+        vh_db=arrays[1],
+        angle=arrays[2],
+        transform=_src_transform(cell),
+        crs=cell.crs,
     )
     return path
 
@@ -185,8 +201,7 @@ def test_none_day_is_all_nodata(synthetic_cell: GridCell, tmp_path: Path) -> Non
 def test_band_order_and_domain(synthetic_cell: GridCell, tmp_path: Path) -> None:
     """Output is [VV,VH,angle] in order, on the cell grid; dB VV/VH + degree angle."""
     cache = tmp_path / "s1"
-    _build_cache_granule(cache, acq="20250406", cell=synthetic_cell,
-                         vv=-8.0, vh=-14.0, angle=43.6)
+    _build_cache_granule(cache, acq="20250406", cell=synthetic_cell, vv=-8.0, vh=-14.0, angle=43.6)
     adapter = S1Adapter(cache_root=cache)
     out = adapter.fetch(synthetic_cell, day=datetime.date(2025, 4, 6))
     assert out.shape == (3, *synthetic_cell.shape)
@@ -207,8 +222,7 @@ def test_edge_mask_below_minus30(synthetic_cell: GridCell, tmp_path: Path) -> No
     vv[:, : w // 2] = -45.0  # below the edge floor → must be masked
     vh = np.full((h, w), -14.0, np.float32)
     angle = np.full((h, w), 43.6, np.float32)
-    _build_cache_granule(cache, acq="20250406", cell=synthetic_cell,
-                         arrays=(vv, vh, angle))
+    _build_cache_granule(cache, acq="20250406", cell=synthetic_cell, arrays=(vv, vh, angle))
     out = S1Adapter(cache_root=cache).fetch(synthetic_cell, day=datetime.date(2025, 4, 6))
 
     half = synthetic_cell.shape[1] // 2
@@ -226,9 +240,12 @@ def test_edge_mask_keeps_just_above_floor(synthetic_cell: GridCell, tmp_path: Pa
     cache = tmp_path / "s1"
     h = w = 24
     vv = np.full((h, w), -29.5, np.float32)  # above the floor → must survive
-    _build_cache_granule(cache, acq="20250406", cell=synthetic_cell,
-                         arrays=(vv, np.full((h, w), -14.0, np.float32),
-                                 np.full((h, w), 43.6, np.float32)))
+    _build_cache_granule(
+        cache,
+        acq="20250406",
+        cell=synthetic_cell,
+        arrays=(vv, np.full((h, w), -14.0, np.float32), np.full((h, w), 43.6, np.float32)),
+    )
     out = S1Adapter(cache_root=cache).fetch(synthetic_cell, day=datetime.date(2025, 4, 6))
     assert not (out[_OFF_VV] == NO_DATA_VALUE).any(), "-29.5 dB should survive the < -30 mask"
     np.testing.assert_allclose(np.median(out[_OFF_VV]), -29.5, atol=1e-2)
@@ -243,23 +260,30 @@ def test_coalesce_complementary_masks(synthetic_cell: GridCell, tmp_path: Path) 
     h = w = 24
     # granule A (later uid): left valid, right below-floor
     a_vv = np.full((h, w), -6.0, np.float32)
-    a_vv[:, w // 2:] = -45.0
+    a_vv[:, w // 2 :] = -45.0
     # granule B (earlier uid): right valid, left below-floor
     b_vv = np.full((h, w), -10.0, np.float32)
     b_vv[:, : w // 2] = -45.0
     angle = np.full((h, w), 43.6, np.float32)
     vh = np.full((h, w), -14.0, np.float32)
     # uid sorts: "FFFF" (later) vs "0000" (earlier) — coalesce orders latest-first.
-    _build_cache_granule(cache, acq="20250406", cell=synthetic_cell, uid="FFFF",
-                         arrays=(a_vv, vh, angle))
-    _build_cache_granule(cache, acq="20250406", cell=synthetic_cell, uid="0000",
-                         end="013814", arrays=(b_vv, vh, angle))
+    _build_cache_granule(
+        cache, acq="20250406", cell=synthetic_cell, uid="FFFF", arrays=(a_vv, vh, angle)
+    )
+    _build_cache_granule(
+        cache,
+        acq="20250406",
+        cell=synthetic_cell,
+        uid="0000",
+        end="013814",
+        arrays=(b_vv, vh, angle),
+    )
     out = S1Adapter(cache_root=cache).fetch(synthetic_cell, day=datetime.date(2025, 4, 6))
 
     vv = out[_OFF_VV]
     assert not (vv == NO_DATA_VALUE).any(), "coalesce left holes where one granule was valid"
     half = synthetic_cell.shape[1] // 2
-    np.testing.assert_allclose(np.median(vv[:, :half]), -6.0, atol=1e-3)   # A wins left
+    np.testing.assert_allclose(np.median(vv[:, :half]), -6.0, atol=1e-3)  # A wins left
     np.testing.assert_allclose(np.median(vv[:, half:]), -10.0, atol=1e-3)  # B fills right
 
 
@@ -287,8 +311,11 @@ def test_same_date_granules_with_different_footprints(
     # Granule A (latest uid) covers the cell, on the 24×24 grid centred on it.
     _write_cache_tif(
         cache / cache_tif_name(_granule_stem("20250406", uid="FFFF")),
-        vv_db=np.full((h, w), -7.0, np.float32), vh_db=vh, angle=angle,
-        transform=_src_transform(synthetic_cell), crs=synthetic_cell.crs,
+        vv_db=np.full((h, w), -7.0, np.float32),
+        vh_db=vh,
+        angle=angle,
+        transform=_src_transform(synthetic_cell),
+        crs=synthetic_cell.crs,
     )
     # Granule B (earlier uid) is a far-away swath segment with a *different* size and
     # origin (a few hundred km north) — disjoint from the cell. This is what crashed.
@@ -297,7 +324,8 @@ def test_same_date_granules_with_different_footprints(
         vv_db=np.full((550, 393), -3.0, np.float32),
         vh_db=np.full((550, 393), -14.0, np.float32),
         angle=np.full((550, 393), 43.6, np.float32),
-        transform=from_origin(528488.0, 5800300.0, 10.0, 10.0), crs=synthetic_cell.crs,
+        transform=from_origin(528488.0, 5800300.0, 10.0, 10.0),
+        crs=synthetic_cell.crs,
     )
 
     out = S1Adapter(cache_root=cache).fetch(synthetic_cell, day=datetime.date(2025, 4, 6))
@@ -350,8 +378,11 @@ def _cell_from_patch(patch: Path, cell_id: int) -> GridCell:
     with rasterio.open(patch) as ds:
         b = ds.bounds
         return GridCell(
-            cell_id=cell_id, crs=str(ds.crs), transform=ds.transform,
-            shape=(ds.height, ds.width), polygon=box(b.left, b.bottom, b.right, b.top),
+            cell_id=cell_id,
+            crs=str(ds.crs),
+            transform=ds.transform,
+            shape=(ds.height, ds.width),
+            polygon=box(b.left, b.bottom, b.right, b.top),
         )
 
 
@@ -376,7 +407,8 @@ def _ensure_patch_cache(cell: GridCell, acq: datetime.date) -> S1Adapter:
         pytest.skip("No raw S1 archive.")
 
     granules = [
-        z for z in sorted(_S1_ARCHIVE.glob("S1*_IW_GRDH_*.zip"))
+        z
+        for z in sorted(_S1_ARCHIVE.glob("S1*_IW_GRDH_*.zip"))
         if _dt.datetime.strptime(z.stem.split("_")[4][:8], "%Y%m%d").date() == acq
     ]
     if not granules:
@@ -391,9 +423,7 @@ def _ensure_patch_cache(cell: GridCell, acq: datetime.date) -> S1Adapter:
 
     _S1_CACHE.mkdir(parents=True, exist_ok=True)
     for granule_zip in granules:
-        build_granule_cache(
-            granule_zip=granule_zip, aoi_4326=cell_bbox_4326, cache_dir=_S1_CACHE
-        )
+        build_granule_cache(granule_zip=granule_zip, aoi_4326=cell_bbox_4326, cache_dir=_S1_CACHE)
     return S1Adapter(cache_root=_S1_CACHE)
 
 

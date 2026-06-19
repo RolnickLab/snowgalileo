@@ -73,9 +73,7 @@ _LANDSAT_BANDS: dict[str, int] = {f"B{n}_landsat": n for n in range(2, 8)}
 _VALID_MIN: float = 1e-7
 
 #: Clipped scene tar stem: ``LC0{8,9}_L1TP_{path}{row}_{acq}_{proc}_02_T1``.
-_SCENE_RE = re.compile(
-    r"^LC0[89]_L1TP_(?P<pathrow>\d{6})_(?P<acq>\d{8})_(?P<proc>\d{8})_02_T1$"
-)
+_SCENE_RE = re.compile(r"^LC0[89]_L1TP_(?P<pathrow>\d{6})_(?P<acq>\d{8})_(?P<proc>\d{8})_02_T1$")
 
 
 @dataclass(frozen=True)
@@ -128,9 +126,7 @@ class _LandsatBase(LocalSourceAdapter):
         scenes = [_parse_scene(p) for p in sorted(root.glob("*.tar"))]
         return [s for s in scenes if s is not None and s.acq == day]
 
-    def _read_band_toa(
-        self, scene: _SceneInfo, band_num: int, cell: GridCell
-    ) -> BandRead | None:
+    def _read_band_toa(self, scene: _SceneInfo, band_num: int, cell: GridCell) -> BandRead | None:
         """Read one band's DN over the cell footprint and convert to TOA reflectance.
 
         Windowed to the cell neighbourhood (see :func:`cell_window`) so a full Landsat
@@ -235,9 +231,7 @@ class LandsatAdapter(_LandsatBase):
             # 10 m cell as constant blocks, so nearest is bit-exact (median 0 across the
             # three reference patches; bilinear smears ~0.003-0.012 over snow/cloud edges).
             # Same coarse-source rule as MODIS. Nearest also cannot blend valid + -9999.
-            arr = self._band_on_cell(
-                scenes, _LANDSAT_BANDS[band_name], cell, categorical=True
-            )
+            arr = self._band_on_cell(scenes, _LANDSAT_BANDS[band_name], cell, categorical=True)
             if arr is None:
                 return create_placeholder(n_bands=len(self.bands_out), shape=cell.shape)
             bands.append(arr)
@@ -267,9 +261,7 @@ class LandsatCloudAdapter(_LandsatBase):
     def _qa_member(self, scene: _SceneInfo) -> str | None:
         """The ``_QA_PIXEL.TIF`` member name in the scene tar, or ``None``."""
         with tarfile.open(scene.path, "r") as tar:
-            return next(
-                (n for n in tar.getnames() if n.upper().endswith("_QA_PIXEL.TIF")), None
-            )
+            return next((n for n in tar.getnames() if n.upper().endswith("_QA_PIXEL.TIF")), None)
 
     def _read_qa(self, scene: _SceneInfo, cell: GridCell) -> BandRead | None:
         """Read the scene's ``QA_PIXEL`` bit-flag band over the cell footprint (no TOA).

@@ -130,9 +130,7 @@ def load_aoi_polygon(aoi_path: Path) -> Polygon:
         )
     geometry = features[0]["geometry"]
     if geometry["type"] != "Polygon":
-        raise ValueError(
-            f"AOI geometry must be a Polygon, found {geometry['type']!r}."
-        )
+        raise ValueError(f"AOI geometry must be a Polygon, found {geometry['type']!r}.")
     return Polygon(geometry["coordinates"][0])
 
 
@@ -159,9 +157,7 @@ def load_cells(legacy_csv: Path) -> list[CellGeometry]:
 
     bad_crs = set(cells_df["crs"].unique()) - {GRID_MATH_CRS}
     if bad_crs:
-        raise ValueError(
-            f"Legacy CSV cells must be {GRID_MATH_CRS}; found unexpected {bad_crs}."
-        )
+        raise ValueError(f"Legacy CSV cells must be {GRID_MATH_CRS}; found unexpected {bad_crs}.")
 
     cells = [
         CellGeometry(
@@ -324,15 +320,11 @@ def _tile_aoi_to_cells(aoi: Polygon, inset_m: float = 0.0) -> list[CellGeometry]
         raise ValueError(f"inset_m must be >= 0, got {inset_m}.")
 
     to_utm = Transformer.from_crs(GEOGRAPHIC_CRS, GRID_MATH_CRS, always_xy=True)
-    aoi_utm = shapely_transform(
-        lambda xs, ys: to_utm.transform(xs, ys), aoi
-    )
+    aoi_utm = shapely_transform(lambda xs, ys: to_utm.transform(xs, ys), aoi)
     if inset_m > 0:
         aoi_utm = aoi_utm.buffer(-inset_m)
         if aoi_utm.is_empty or aoi_utm.area == 0.0:
-            raise ValueError(
-                f"inset_m={inset_m} erodes the entire AOI; nothing left to tile."
-            )
+            raise ValueError(f"inset_m={inset_m} erodes the entire AOI; nothing left to tile.")
 
     min_x, min_y, max_x, max_y = aoi_utm.bounds
 
@@ -419,9 +411,7 @@ def build_grid(
 def _window_days(window_start: date, window_end: date) -> list[date]:
     """Return every day in ``[window_start, window_end]`` inclusive."""
     if window_end < window_start:
-        raise ValueError(
-            f"window_end {window_end} precedes window_start {window_start}."
-        )
+        raise ValueError(f"window_end {window_end} precedes window_start {window_start}.")
     span = (window_end - window_start).days
     return [window_start + timedelta(days=offset) for offset in range(span + 1)]
 
@@ -518,14 +508,19 @@ def generate(
 
 
 def emit_csv(
-    legacy_csv: Annotated[Path, typer.Option(help="Legacy cell-sampling CSV.")] = DEFAULT_LEGACY_CSV,
+    legacy_csv: Annotated[
+        Path, typer.Option(help="Legacy cell-sampling CSV.")
+    ] = DEFAULT_LEGACY_CSV,
     aoi_path: Annotated[Path, typer.Option("--aoi", help="AOI GeoJSON.")] = DEFAULT_AOI_PATH,
-    output_csv: Annotated[Path, typer.Option(help="Generated cube CSV output.")] = DEFAULT_OUTPUT_CSV,
+    output_csv: Annotated[
+        Path, typer.Option(help="Generated cube CSV output.")
+    ] = DEFAULT_OUTPUT_CSV,
     manifest_path: Annotated[
         Path, typer.Option(help="Kept/dropped manifest output.")
     ] = DEFAULT_MANIFEST_PATH,
     require_fully_inside: Annotated[
-        bool, typer.Option("--require-fully-inside", help="Keep only fully-contained cells (→ 338).")
+        bool,
+        typer.Option("--require-fully-inside", help="Keep only fully-contained cells (→ 338)."),
     ] = False,
     window_start: Annotated[
         str, typer.Option(help="First inference day, YYYY-MM-DD.")

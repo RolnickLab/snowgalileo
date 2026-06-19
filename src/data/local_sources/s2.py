@@ -172,7 +172,11 @@ class S2Adapter(LocalSourceAdapter):
         """
         with zipfile.ZipFile(granule.path) as zf:
             jp2 = next(
-                (n for n in zf.namelist() if n.endswith(f"_{band_suffix}.jp2") and "/IMG_DATA/" in n),
+                (
+                    n
+                    for n in zf.namelist()
+                    if n.endswith(f"_{band_suffix}.jp2") and "/IMG_DATA/" in n
+                ),
                 None,
             )
             if jp2 is None:
@@ -331,7 +335,11 @@ class S2CloudAdapter(LocalSourceAdapter):
         """
         with zipfile.ZipFile(granule.path) as zf:
             msk = next(
-                (n for n in zf.namelist() if n.endswith("MSK_CLASSI_B00.jp2") and "/QI_DATA/" in n),
+                (
+                    n
+                    for n in zf.namelist()
+                    if n.endswith("MSK_CLASSI_B00.jp2") and "/QI_DATA/" in n
+                ),
                 None,
             )
             if msk is None:

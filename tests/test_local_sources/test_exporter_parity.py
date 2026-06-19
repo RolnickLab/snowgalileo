@@ -128,9 +128,7 @@ def test_full_stack_optical_parity(patch_key: str, _have_archive: bool) -> None:
     # This is an *optical* (S2/Landsat) parity test — S1 is not asserted. Disable the S1
     # SNAP cache pre-flight (verify-only) so the test stays hermetic and does not require a
     # pre-built per-granule S1 cache for the optical patches.
-    exporter = LocalSourceExporter(
-        placeholder=False, archive_root=_ARCHIVE, verify_s1_cache=False
-    )
+    exporter = LocalSourceExporter(placeholder=False, archive_root=_ARCHIVE, verify_s1_cache=False)
     cube_path = exporter.export(cell=cell, window_end=window_end)
 
     by_source = {

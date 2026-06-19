@@ -33,8 +33,16 @@ def _write_cube(path: Path, band_arrays: dict[str, np.ndarray]) -> None:
     descs = list(band_arrays)
     h, w = next(iter(band_arrays.values())).shape
     with rasterio.open(
-        path, "w", driver="GTiff", height=h, width=w, count=len(descs),
-        dtype="float32", crs="EPSG:32611", transform=_TRANSFORM, nodata=_NODATA,
+        path,
+        "w",
+        driver="GTiff",
+        height=h,
+        width=w,
+        count=len(descs),
+        dtype="float32",
+        crs="EPSG:32611",
+        transform=_TRANSFORM,
+        nodata=_NODATA,
     ) as dst:
         for i, desc in enumerate(descs, start=1):
             dst.write(band_arrays[desc].astype("float32"), i)
@@ -45,8 +53,16 @@ def _write_fsc(path: Path, arr: np.ndarray) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     h, w = arr.shape
     with rasterio.open(
-        path, "w", driver="GTiff", height=h, width=w, count=1,
-        dtype="float32", crs="EPSG:32611", transform=_TRANSFORM, nodata=_NODATA,
+        path,
+        "w",
+        driver="GTiff",
+        height=h,
+        width=w,
+        count=1,
+        dtype="float32",
+        crs="EPSG:32611",
+        transform=_TRANSFORM,
+        nodata=_NODATA,
     ) as dst:
         dst.write(arr.astype("float32"), 1)
 
@@ -61,9 +77,7 @@ def test_render_cube_band_dynamic_returns_georef(tmp_path: Path) -> None:
     path = tmp_path / "PR_20250519_50.0_-116.0_SC00.tif"
     _write_cube(path, {"VV_t0": grad, "VV_t1": grad * 0.5, "DEM": grad + 100})
 
-    result = render_cube_band(
-        path=path, var="VV", timestep=1, is_static=False, long_edge=64
-    )
+    result = render_cube_band(path=path, var="VV", timestep=1, is_static=False, long_edge=64)
 
     assert result.kind == "georef_raster"
     assert result.bounds_4326 is not None
@@ -77,9 +91,7 @@ def test_render_cube_band_static_label(tmp_path: Path) -> None:
     path = tmp_path / "PR_20250519_50.0_-116.0_SC00.tif"
     _write_cube(path, {"VV_t0": arr, "DEM": arr})
 
-    result = render_cube_band(
-        path=path, var="DEM", timestep=0, is_static=True, long_edge=64
-    )
+    result = render_cube_band(path=path, var="DEM", timestep=0, is_static=True, long_edge=64)
     assert result.label == "DEM (static)"
     assert result.kind == "georef_raster"
 
@@ -90,9 +102,7 @@ def test_render_cube_band_masks_nodata(tmp_path: Path) -> None:
     path = tmp_path / "PR_20250519_50.0_-116.0_SC00.tif"
     _write_cube(path, {"B2_t0": arr, "DEM": arr})
 
-    result = render_cube_band(
-        path=path, var="B2", timestep=0, is_static=False, long_edge=64
-    )
+    result = render_cube_band(path=path, var="B2", timestep=0, is_static=False, long_edge=64)
     # The nodata half stretches to 0 (NaN→0 in _stretch_uint8); valid half is uniform.
     assert result.image.shape[0] > 0
 
@@ -111,9 +121,7 @@ def test_render_cube_band_uniform_valid_stays_opaque(tmp_path: Path) -> None:
     path = tmp_path / "PR_20250519_50.0_-116.0_SC00.tif"
     _write_cube(path, {"B2_t0": arr, "DEM": arr})
 
-    result = render_cube_band(
-        path=path, var="B2", timestep=0, is_static=False, long_edge=64
-    )
+    result = render_cube_band(path=path, var="B2", timestep=0, is_static=False, long_edge=64)
 
     # The renderer must hand the writer a real validity mask, not rely on pixel value.
     assert result.alpha_mask is not None
@@ -196,8 +204,15 @@ def _write_s1_snap(path: Path) -> None:
     vv = np.full((h, w), 10.0 ** (-0.8), dtype="float32")  # ~-8 dB linear
     angle = np.full((h, w), 43.6, dtype="float32")
     with rasterio.open(
-        path, "w", driver="GTiff", height=h, width=w, count=3,
-        dtype="float32", crs="EPSG:32611", transform=_TRANSFORM,
+        path,
+        "w",
+        driver="GTiff",
+        height=h,
+        width=w,
+        count=3,
+        dtype="float32",
+        crs="EPSG:32611",
+        transform=_TRANSFORM,
     ) as dst:
         dst.write(vh, 1)
         dst.write(vv, 2)
@@ -236,9 +251,14 @@ def test_sentinel1_renderer_reads_processed_tif(tmp_path: Path) -> None:
     from src.data.local_sources.viewer.manifest import ProductRow
 
     row = ProductRow(
-        product_id="S1 test", source="sentinel1",
-        footprint_bbox=(-116.5, 50.7, -114.5, 52.3), intersects=True,
-        aoi_overlap_km2=0.0, valid_pixel_count=0, action="CLIP", path=path,
+        product_id="S1 test",
+        source="sentinel1",
+        footprint_bbox=(-116.5, 50.7, -114.5, 52.3),
+        intersects=True,
+        aoi_overlap_km2=0.0,
+        valid_pixel_count=0,
+        action="CLIP",
+        path=path,
     )
     result = RENDERERS["sentinel1"].render(row, long_edge=64)
 

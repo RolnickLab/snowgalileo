@@ -28,8 +28,11 @@ _BASE_Y = 5_621_000.0
 def _cell(cell_id: int, col: int) -> GridCell:
     min_x = _BASE_X + col * _CELL_M
     return GridCell.from_utm_bounds(
-        cell_id=cell_id, min_x=min_x, min_y=_BASE_Y - _CELL_M,
-        max_x=min_x + _CELL_M, max_y=_BASE_Y,
+        cell_id=cell_id,
+        min_x=min_x,
+        min_y=_BASE_Y - _CELL_M,
+        max_x=min_x + _CELL_M,
+        max_y=_BASE_Y,
     )
 
 
@@ -44,8 +47,11 @@ def test_resolve_workers_clamps_to_cores_and_items() -> None:
 def test_empty_grid_is_noop(tmp_path: Path) -> None:
     """No cells → no work, empty result, no pool spawned."""
     out = export_cells_parallel(
-        cells=[], window_end=date(2025, 5, 19),
-        out_dir=tmp_path / "cubes", archive_root=tmp_path / "arch", workers=4,
+        cells=[],
+        window_end=date(2025, 5, 19),
+        out_dir=tmp_path / "cubes",
+        archive_root=tmp_path / "arch",
+        workers=4,
     )
     assert out == []
 
@@ -55,8 +61,12 @@ def test_serial_path_writes_all_cubes(tmp_path: Path) -> None:
     cubes = tmp_path / "cubes"
     grid = [_cell(0, 0), _cell(1, 1), _cell(2, 2)]
     out = export_cells_parallel(
-        cells=grid, window_end=date(2025, 5, 19),
-        out_dir=cubes, archive_root=tmp_path / "arch", workers=1, placeholder=True,
+        cells=grid,
+        window_end=date(2025, 5, 19),
+        out_dir=cubes,
+        archive_root=tmp_path / "arch",
+        workers=1,
+        placeholder=True,
     )
     assert len(out) == len(grid)
     assert all(p.exists() and p.name.startswith("PR_") for p in out)
@@ -67,8 +77,12 @@ def test_parallel_path_writes_all_cubes(tmp_path: Path) -> None:
     cubes = tmp_path / "cubes"
     grid = [_cell(i, i) for i in range(4)]
     out = export_cells_parallel(
-        cells=grid, window_end=date(2025, 5, 19),
-        out_dir=cubes, archive_root=tmp_path / "arch", workers=4, placeholder=True,
+        cells=grid,
+        window_end=date(2025, 5, 19),
+        out_dir=cubes,
+        archive_root=tmp_path / "arch",
+        workers=4,
+        placeholder=True,
     )
     assert len(out) == len(grid)
     assert len({p.name for p in out}) == len(grid)  # distinct files
@@ -87,8 +101,12 @@ def test_init_worker_threads_cache_into_exporter(tmp_path: Path) -> None:
 
     # Real mode + cache dir → exporter owns a CubeCache with the given cap.
     _init_worker(
-        tmp_path / "cubes", tmp_path / "arch", False, False,
-        tmp_path / "cube_cache", 1234,
+        tmp_path / "cubes",
+        tmp_path / "arch",
+        False,
+        False,
+        tmp_path / "cube_cache",
+        1234,
     )
     exp = parallel_export._WORKER_EXPORTER
     assert exp is not None
@@ -117,7 +135,9 @@ def test_init_worker_never_clears_an_existing_cache(tmp_path: Path) -> None:
     cache_root = tmp_path / "cube_cache"
     seed = CubeCache(root=cache_root, max_entries=100)
     seed.put(
-        modality="s2", cell_id=0, day=date(2025, 4, 6),
+        modality="s2",
+        cell_id=0,
+        day=date(2025, 4, 6),
         array=np.ones((1, 2, 2), dtype=np.float32),
     )
     assert len(list(cache_root.rglob("*.npz"))) == 1

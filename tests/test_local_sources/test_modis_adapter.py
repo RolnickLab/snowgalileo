@@ -135,9 +135,7 @@ def test_fill_preserved_when_source_has_fill(adapter, patch: Path) -> None:
 
     src = np.full((1, 20, 20), 5000.0)
     src[0, :, 10:] = MODIS_FILL_VALUE
-    sinu = (
-        "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs"
-    )
+    sinu = "+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs"
     src_t = from_origin(-8_204_341.0, 5_816_427.0, 463.31, 463.31)
     cell = _cell_from_patch(patch)
     out = reproject_to_cell(

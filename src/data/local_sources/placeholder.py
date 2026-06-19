@@ -125,7 +125,5 @@ def static_adapters() -> list[PlaceholderAdapter]:
         PlaceholderAdapter(bands_out=[name], spatial_kind="static") for name in STATIC_BANDS
     ]
     flattened = [band for adapter in adapters for band in adapter.bands_out]
-    assert flattened == STATIC_BANDS, (
-        "Placeholder static band group does not match STATIC_BANDS."
-    )
+    assert flattened == STATIC_BANDS, "Placeholder static band group does not match STATIC_BANDS."
     return adapters

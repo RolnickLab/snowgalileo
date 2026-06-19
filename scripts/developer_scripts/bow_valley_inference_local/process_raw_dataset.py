@@ -154,8 +154,11 @@ def clip_all(
 ) -> None:
     """Clip every modality (or an ``--only`` subset) and write a combined manifest."""
     _run_clip_all(
-        input_dir=input_dir, output_dir=output_dir, aoi_path=aoi_path,
-        dry_run=dry_run, only=only,
+        input_dir=input_dir,
+        output_dir=output_dir,
+        aoi_path=aoi_path,
+        dry_run=dry_run,
+        only=only,
     )
 
 
@@ -185,7 +188,9 @@ def _run_process_s1(
 
     logger.info(
         "process-s1 begin",
-        raw_s1_dir=str(raw_s1_dir), cache_dir=str(cache_dir), overwrite=overwrite,
+        raw_s1_dir=str(raw_s1_dir),
+        cache_dir=str(cache_dir),
+        overwrite=overwrite,
     )
     cached = build_s1_cache(
         archive_root=raw_s1_dir,
@@ -217,8 +222,12 @@ def process_s1(
     raw granules are read-only. The ``S1Adapter`` windows each AOI-wide tif per cell.
     """
     n = _run_process_s1(
-        raw_s1_dir=raw_s1_dir, cache_dir=cache_dir, aoi_path=aoi_path,
-        gpt=gpt, graph=graph, overwrite=overwrite,
+        raw_s1_dir=raw_s1_dir,
+        cache_dir=cache_dir,
+        aoi_path=aoi_path,
+        gpt=gpt,
+        graph=graph,
+        overwrite=overwrite,
     )
     typer.echo(f"Built/verified {n} S1 cache tif(s) in {cache_dir}")
 
@@ -248,11 +257,19 @@ def process_all(
     left off.
     """
     _run_process_s1(
-        raw_s1_dir=raw_s1_dir, cache_dir=cache_dir, aoi_path=aoi_path,
-        gpt=gpt, graph=graph, overwrite=overwrite_s1,
+        raw_s1_dir=raw_s1_dir,
+        cache_dir=cache_dir,
+        aoi_path=aoi_path,
+        gpt=gpt,
+        graph=graph,
+        overwrite=overwrite_s1,
     )
     _run_clip_all(
-        input_dir=input_dir, output_dir=output_dir, aoi_path=aoi_path, dry_run=False, only=only,
+        input_dir=input_dir,
+        output_dir=output_dir,
+        aoi_path=aoi_path,
+        dry_run=False,
+        only=only,
     )
     logger.info("process-all done")
 

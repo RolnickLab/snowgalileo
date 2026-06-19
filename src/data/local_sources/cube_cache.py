@@ -141,7 +141,7 @@ class CubeCache:
 
     def _write_stamp(self) -> None:
         """Write ``CACHE_VERSION`` to the stamp file (atomic replace)."""
-        tmp = self._stamp_path.with_name(_VERSION_STAMP + ".tmp")
+        tmp = self._stamp_path.with_name(f"{_VERSION_STAMP}.tmp")
         tmp.write_text(f"{CACHE_VERSION}\n")
         tmp.replace(self._stamp_path)
 
@@ -251,7 +251,7 @@ class CubeCache:
         # never leaves a truncated .npz that a later get() would fail to load.
         # NOTE: np.savez appends ".npz" to a *path* argument; pass an open file
         # handle so the temp keeps its exact name and the rename target matches.
-        tmp = path.with_name(path.name + ".tmp")
+        tmp = path.with_name(f"{path.name}.tmp")
         with tmp.open("wb") as handle:
             np.savez(handle, **{_ARRAY_KEY: array})
         tmp.replace(path)

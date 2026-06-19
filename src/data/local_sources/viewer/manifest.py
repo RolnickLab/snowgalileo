@@ -67,9 +67,7 @@ def _parse_bbox(raw: str) -> tuple[float, float, float, float]:
     return parts  # type: ignore[return-value]
 
 
-def _resolve_path(
-    *, source: str, output_path: str, action: str, root: Path
-) -> Path | None:
+def _resolve_path(*, source: str, output_path: str, action: str, root: Path) -> Path | None:
     """Resolve a manifest ``output_path`` to a real file/dir under the clipped root.
 
     Returns ``None`` for SKIP rows (no output written) or when nothing is found.
@@ -86,9 +84,7 @@ def _resolve_path(
     hits = list(source_dir.rglob(Path(output_path).name))
     if hits:
         if len(hits) > 1:
-            logger.warning(
-                "multiple_path_matches", source=source, name=output_path, n=len(hits)
-            )
+            logger.warning("multiple_path_matches", source=source, name=output_path, n=len(hits))
         return hits[0]
 
     logger.warning("unresolved_product", source=source, output_path=output_path)
@@ -106,7 +102,9 @@ def _tif_bbox_4326(path: Path) -> tuple[float, float, float, float]:
         if src.crs is None or src.crs.to_epsg() == 4326:
             return (b.left, b.bottom, b.right, b.top)
         tr = Transformer.from_crs(src.crs, "EPSG:4326", always_xy=True)
-        xs, ys = tr.transform([b.left, b.right, b.left, b.right], [b.bottom, b.bottom, b.top, b.top])
+        xs, ys = tr.transform(
+            [b.left, b.right, b.left, b.right], [b.bottom, b.bottom, b.top, b.top]
+        )
     return (min(xs), min(ys), max(xs), max(ys))
 
 
@@ -125,9 +123,7 @@ def _discover_s1_products(settings: ViewerSettings) -> list[ProductRow]:
     for tif in sorted(snap_dir.glob("s1_grd_*.tif")):
         m = _S1_SNAP_ACQ.search(tif.stem)
         acq = (
-            datetime.datetime.strptime(m.group(1), "%Y%m%d").date().isoformat()
-            if m
-            else tif.stem
+            datetime.datetime.strptime(m.group(1), "%Y%m%d").date().isoformat() if m else tif.stem
         )
         try:
             bbox = _tif_bbox_4326(tif)

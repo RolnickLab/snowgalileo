@@ -450,9 +450,7 @@ def cli() -> None:
 
     @app.command()
     def export(
-        window_end: str = typer.Option(
-            ..., "--window-end", help="Window-end day (YYYY-MM-DD)."
-        ),
+        window_end: str = typer.Option(..., "--window-end", help="Window-end day (YYYY-MM-DD)."),
         cell: int = typer.Option(0, "--cell", help="Grid cell index."),
         placeholder: bool = typer.Option(
             True, "--placeholder/--no-placeholder", help="Use placeholder adapters (required)."

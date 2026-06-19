@@ -6,7 +6,6 @@ Run: uv run python docs/agents/planning/clip-viewer/spike_reads.py
 
 from __future__ import annotations
 
-import glob
 from pathlib import Path
 
 import numpy as np
@@ -82,12 +81,13 @@ def spike_era5() -> None:
     ds = xr.open_dataset(f)
     var = "tp"
     da = ds[var].isel(valid_time=0)
-    print(f"[era5] {f.name} {var}[t=0] -> {tuple(da.sizes.values())} "
-          f"lat={float(ds.latitude.min()):.2f}..{float(ds.latitude.max()):.2f}")
+    print(
+        f"[era5] {f.name} {var}[t=0] -> {tuple(da.sizes.values())} "
+        f"lat={float(ds.latitude.min()):.2f}..{float(ds.latitude.max()):.2f}"
+    )
 
 
 def spike_s3() -> None:
-    import xarray as xr
 
     zp = next(ROOT.glob("sentinel3/*.zip"))
     import zipfile
@@ -95,8 +95,10 @@ def spike_s3() -> None:
     with zipfile.ZipFile(zp) as zf:
         rad = next(n for n in zf.namelist() if n.endswith("Oa08_radiance.nc"))
         geo = [n for n in zf.namelist() if n.endswith("geo_coordinates.nc")]
-    print(f"[s3] {Path(rad).name} present; geo_coordinates present={bool(geo)} "
-          f"(=> non-georeferenced quicklook path confirmed)")
+    print(
+        f"[s3] {Path(rad).name} present; geo_coordinates present={bool(geo)} "
+        f"(=> non-georeferenced quicklook path confirmed)"
+    )
 
 
 if __name__ == "__main__":

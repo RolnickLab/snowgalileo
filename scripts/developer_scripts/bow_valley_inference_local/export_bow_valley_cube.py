@@ -43,9 +43,9 @@ app = typer.Typer(add_completion=False, help="Assemble Bow Valley direct-source 
 
 @app.command()
 def export(
-    config: Annotated[
-        Path, typer.Option(help="Path to cube.yaml.")
-    ] = Path("configs/bow_valley/cube.yaml"),
+    config: Annotated[Path, typer.Option(help="Path to cube.yaml.")] = Path(
+        "configs/bow_valley/cube.yaml"
+    ),
     limit: Annotated[
         Optional[int],
         typer.Option(help="Cap the number of cells (smoke run); None = all in-AOI cells."),
@@ -92,9 +92,7 @@ def export(
         raise typer.BadParameter(str(exc)) from exc
 
     end = (
-        datetime.date.fromisoformat(window_end)
-        if window_end is not None
-        else settings.window_end
+        datetime.date.fromisoformat(window_end) if window_end is not None else settings.window_end
     )
 
     grid = build_grid(mode=settings.mode, mode_b_inset_m=settings.mode_b_inset_m)
@@ -124,9 +122,9 @@ def export(
 
 @app.command("clean-cache")
 def clean_cache(
-    config: Annotated[
-        Path, typer.Option(help="Path to cube.yaml.")
-    ] = Path("configs/bow_valley/cube.yaml"),
+    config: Annotated[Path, typer.Option(help="Path to cube.yaml.")] = Path(
+        "configs/bow_valley/cube.yaml"
+    ),
 ) -> None:
     """Wipe the cube cache (``CubeSettings.cube_cache_dir``), reporting entries removed.
 

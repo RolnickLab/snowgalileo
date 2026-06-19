@@ -172,9 +172,7 @@ def _render_on_map(
     zoom = 8
 
     has_raster = (
-        result is not None
-        and result.kind == "georef_raster"
-        and result.bounds_4326 is not None
+        result is not None and result.kind == "georef_raster" and result.bounds_4326 is not None
     )
     tif: Path | None = None
     if has_raster:
@@ -309,9 +307,7 @@ def ClipTab() -> None:
                     f"`{source}` has no renderer yet (later phase). "
                     "Metadata only; the map shows the AOI."
                 )
-            solara.Select(
-                label="Product", value=product_id, values=ids, on_value=set_product_id
-            )
+            solara.Select(label="Product", value=product_id, values=ids, on_value=set_product_id)
             if era5_steps:
                 solara.SliderInt(
                     label=f"Date: {era5_steps[safe_date_idx]}",
@@ -322,9 +318,7 @@ def ClipTab() -> None:
                 )
             if row is not None:
                 result = (
-                    render_product(
-                        row, long_edge=_SETTINGS.long_edge, date_idx=safe_date_idx
-                    )
+                    render_product(row, long_edge=_SETTINGS.long_edge, date_idx=safe_date_idx)
                     if source in _RENDERABLE_SOURCES
                     else None
                 )
@@ -363,8 +357,7 @@ def CubeTab() -> None:
     """
     if not _CUBES:
         solara.Info(
-            "No cubes found under "
-            f"`{_SETTINGS.cubes_dir}`. Run `export_bow_valley_cube.py` first."
+            f"No cubes found under `{_SETTINGS.cubes_dir}`. Run `export_bow_valley_cube.py` first."
         )
         return
 
@@ -434,9 +427,7 @@ def CubeTab() -> None:
         )
 
     def _variable_select() -> None:
-        solara.Select(
-            label="Variable", value=sel_var, values=var_choices, on_value=set_var
-        )
+        solara.Select(label="Variable", value=sel_var, values=var_choices, on_value=set_var)
 
     with solara.Columns([4, 8]):
         with solara.Column():
@@ -468,9 +459,7 @@ def CubeTab() -> None:
                     f"**CRS:** `{result.src_crs}`"
                 )
         with solara.Column():
-            solara.display(
-                _render_on_map(result, key=f"cube_{cell.path.stem}_{sel_var}_{sel_ts}")
-            )
+            solara.display(_render_on_map(result, key=f"cube_{cell.path.stem}_{sel_var}_{sel_ts}"))
 
 
 # --------------------------------------------------------------------------- #

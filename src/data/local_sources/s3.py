@@ -118,8 +118,7 @@ class S3Adapter(LocalSourceAdapter):
             lat = self._read_member(zf, "geo_coordinates.nc", "latitude")
             lon = self._read_member(zf, "geo_coordinates.nc", "longitude")
             radiances = {
-                band: self._read_member(zf, fname, band)
-                for band, fname in _RADIANCE_FILES.items()
+                band: self._read_member(zf, fname, band) for band, fname in _RADIANCE_FILES.items()
             }
 
         # Only points with valid geolocation AND valid radiance feed the interpolation.

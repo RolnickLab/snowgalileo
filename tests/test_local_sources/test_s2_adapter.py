@@ -94,9 +94,17 @@ def _write_jp2(path: Path, dn: np.ndarray, transform: Affine, crs: str) -> None:
     # REVERSIBLE=YES → lossless (5/3 wavelet), matching real S2 L1C JP2s. Default OpenJPEG
     # is lossy and would corrupt the exact DN the harmonization/coalesce asserts on.
     with rasterio.open(
-        path, "w", driver="JP2OpenJPEG", height=dn.shape[0], width=dn.shape[1],
-        count=1, dtype="uint16", crs=crs, transform=transform,
-        QUALITY=100, REVERSIBLE=True,
+        path,
+        "w",
+        driver="JP2OpenJPEG",
+        height=dn.shape[0],
+        width=dn.shape[1],
+        count=1,
+        dtype="uint16",
+        crs=crs,
+        transform=transform,
+        QUALITY=100,
+        REVERSIBLE=True,
     ) as ds:
         ds.write(dn.astype(np.uint16), 1)
 
@@ -111,8 +119,17 @@ _MTD = (
 def _write_msk_classi(path: Path, mask: np.ndarray, transform: Affine, crs: str) -> None:
     """Write a 3-band uint8 MSK_CLASSI JP2 (opaque, cirrus, snow), lossless."""
     with rasterio.open(
-        path, "w", driver="JP2OpenJPEG", height=mask.shape[1], width=mask.shape[2],
-        count=3, dtype="uint8", crs=crs, transform=transform, QUALITY=100, REVERSIBLE=True,
+        path,
+        "w",
+        driver="JP2OpenJPEG",
+        height=mask.shape[1],
+        width=mask.shape[2],
+        count=3,
+        dtype="uint8",
+        crs=crs,
+        transform=transform,
+        QUALITY=100,
+        REVERSIBLE=True,
     ) as ds:
         ds.write(mask.astype(np.uint8))
 
@@ -159,7 +176,11 @@ _CELL_PX = 20
 @pytest.fixture()
 def synthetic_cell() -> GridCell:
     return GridCell.from_utm_bounds(
-        cell_id=1, min_x=563000.0, min_y=5653000.0, max_x=563200.0, max_y=5653200.0,
+        cell_id=1,
+        min_x=563000.0,
+        min_y=5653000.0,
+        max_x=563200.0,
+        max_y=5653200.0,
         px=_CELL_PX,
     )
 
@@ -170,16 +191,28 @@ def _src_transform(cell: GridCell) -> Affine:
 
 
 def _build_granule(
-    root: Path, sat: str, tile: str, acq: str, proc: str, dn: int, cell: GridCell, tmp: Path,
+    root: Path,
+    sat: str,
+    tile: str,
+    acq: str,
+    proc: str,
+    dn: int,
+    cell: GridCell,
+    tmp: Path,
     baseline: str = "05.11",
 ) -> None:
     root.mkdir(parents=True, exist_ok=True)
     h = w = 24
     stem = f"{sat}_MSIL1C_{acq}T185831_N0511_R113_{tile}_{proc}T235929"
     _make_granule_zip(
-        zip_path=root / f"{stem}.zip", stem=stem, tile=tile,
+        zip_path=root / f"{stem}.zip",
+        stem=stem,
+        tile=tile,
         dn_by_suffix={s: np.full((h, w), dn, dtype=np.uint16) for s in _S2_BANDS_SUFFIX},
-        transform=_src_transform(cell), crs=cell.crs, baseline=baseline, tmp=tmp,
+        transform=_src_transform(cell),
+        crs=cell.crs,
+        baseline=baseline,
+        tmp=tmp,
     )
 
 
@@ -221,7 +254,9 @@ def test_harmonization_offset_applied(synthetic_cell: GridCell, tmp_path: Path) 
     s2 = tmp_path / "s2"
     tmp = tmp_path / "scratch"
     tmp.mkdir()
-    _build_granule(s2, "S2A", "T11UNS", "20250403", "20250403", dn=5000, cell=synthetic_cell, tmp=tmp)
+    _build_granule(
+        s2, "S2A", "T11UNS", "20250403", "20250403", dn=5000, cell=synthetic_cell, tmp=tmp
+    )
     adapter = S2Adapter(archive_root=s2)
     out = adapter.fetch(synthetic_cell, day=datetime.date(2025, 4, 3))
     valid = out[2][out[2] != NO_DATA_VALUE]  # B4
@@ -243,22 +278,26 @@ def test_coalesce_complementary_masks(synthetic_cell: GridCell, tmp_path: Path) 
     h = w = 24
     transform = _src_transform(synthetic_cell)
     a = np.full((h, w), 5000, dtype=np.uint16)
-    a[:, w // 2:] = 0  # later proc: left valid
+    a[:, w // 2 :] = 0  # later proc: left valid
     b = np.full((h, w), 3000, dtype=np.uint16)
     b[:, : w // 2] = 0  # earlier proc: right valid
     for arr, proc in ((a, "20250404"), (b, "20250403")):
         stem = f"S2A_MSIL1C_20250403T185831_N0511_R113_T11UNS_{proc}T235929"
         _make_granule_zip(
-            zip_path=s2 / f"{stem}.zip", stem=stem, tile="T11UNS",
+            zip_path=s2 / f"{stem}.zip",
+            stem=stem,
+            tile="T11UNS",
             dn_by_suffix={s: arr for s in _S2_BANDS_SUFFIX},
-            transform=transform, crs=synthetic_cell.crs, tmp=tmp,
+            transform=transform,
+            crs=synthetic_cell.crs,
+            tmp=tmp,
         )
     adapter = S2Adapter(archive_root=s2)
     out = adapter.fetch(synthetic_cell, day=datetime.date(2025, 4, 3))
     b4 = out[2]
     assert not (b4 == NO_DATA_VALUE).any(), "coalesce left holes where one product was valid"
     left = b4[:, : synthetic_cell.shape[1] // 2]
-    right = b4[:, synthetic_cell.shape[1] // 2:]
+    right = b4[:, synthetic_cell.shape[1] // 2 :]
     np.testing.assert_allclose(np.median(left), _harm(5000), atol=1e-4)
     np.testing.assert_allclose(np.median(right), _harm(3000), atol=1e-4)
 
@@ -275,9 +314,13 @@ def test_coalesce_latest_proc_wins_on_overlap(synthetic_cell: GridCell, tmp_path
         arr = np.full((h, w), dn, dtype=np.uint16)
         stem = f"S2A_MSIL1C_20250403T185831_N0511_R113_T11UNS_{proc}T235929"
         _make_granule_zip(
-            zip_path=s2 / f"{stem}.zip", stem=stem, tile="T11UNS",
+            zip_path=s2 / f"{stem}.zip",
+            stem=stem,
+            tile="T11UNS",
             dn_by_suffix={s: arr for s in _S2_BANDS_SUFFIX},
-            transform=transform, crs=synthetic_cell.crs, tmp=tmp,
+            transform=transform,
+            crs=synthetic_cell.crs,
+            tmp=tmp,
         )
     adapter = S2Adapter(archive_root=s2)
     out = adapter.fetch(synthetic_cell, day=datetime.date(2025, 4, 3))
@@ -363,9 +406,13 @@ def test_cloud_fetch_reconstructs_qa60(synthetic_cell: GridCell, tmp_path: Path)
     mask[0, :, : w // 2] = 1  # opaque band
     stem = "S2C_MSIL1C_20250408T185831_N0511_R113_T11UNS_20250408T235929"
     _make_granule_zip(
-        zip_path=s2 / f"{stem}.zip", stem=stem, tile="T11UNS",
+        zip_path=s2 / f"{stem}.zip",
+        stem=stem,
+        tile="T11UNS",
         dn_by_suffix={s: np.full((h, w), 3000, dtype=np.uint16) for s in _S2_BANDS_SUFFIX},
-        transform=transform, crs=synthetic_cell.crs, tmp=tmp,
+        transform=transform,
+        crs=synthetic_cell.crs,
+        tmp=tmp,
         msk_classi=mask,
     )
     adapter = S2CloudAdapter(archive_root=s2)

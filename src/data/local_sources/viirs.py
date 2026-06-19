@@ -70,9 +70,7 @@ class _ViirsBase(LocalSourceAdapter):
         fn = self._band_filename(band)
         return [p / fn for p in self._granule_dirs(day) if (p / fn).exists()]
 
-    def _mosaic(
-        self, tifs: list[Path]
-    ) -> tuple[npt.NDArray[np.float64], Affine, str, float]:
+    def _mosaic(self, tifs: list[Path]) -> tuple[npt.NDArray[np.float64], Affine, str, float]:
         srcs = [rasterio.open(t) for t in tifs]
         try:
             src_nodata = srcs[0].nodata if srcs[0].nodata is not None else MODIS_FILL_VALUE

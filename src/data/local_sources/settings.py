@@ -60,9 +60,7 @@ class CubeSettings(BaseSettings):
         cache_max_entries: FIFO cap on the per-(modality, cell, day) ``.npz`` cache.
     """
 
-    model_config = SettingsConfigDict(
-        env_prefix="CUBE_", extra="ignore", frozen=True
-    )
+    model_config = SettingsConfigDict(env_prefix="CUBE_", extra="ignore", frozen=True)
 
     archive_root: Path = _PATHS.clipped_root
     processing_root: Path = _PATHS.processing_root
@@ -183,9 +181,7 @@ class InferenceSettings(BaseSettings):
             to ``min(cpu_count, cells)`` at run time.
     """
 
-    model_config = SettingsConfigDict(
-        env_prefix="INFER_", extra="ignore", frozen=True
-    )
+    model_config = SettingsConfigDict(env_prefix="INFER_", extra="ignore", frozen=True)
 
     checkpoint: Path = DEFAULT_CHECKPOINT
     eval_config_name: str = DEFAULT_EVAL_CONFIG_NAME

@@ -126,6 +126,4 @@ def build_cube_filename(
         A filename of the form ``PR_{YYYYMMDD}_{LAT}_{LON}_SC{cc}.tif`` that
         matches :data:`CUBE_FILENAME_REGEX`.
     """
-    return (
-        f"PR_{window_end.strftime('%Y%m%d')}_{lat}_{lon}_SC{cloud_score:02d}.tif"
-    )
+    return f"PR_{window_end.strftime('%Y%m%d')}_{lat}_{lon}_SC{cloud_score:02d}.tif"

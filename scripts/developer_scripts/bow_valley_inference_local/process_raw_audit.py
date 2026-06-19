@@ -90,11 +90,7 @@ def _check_static_coverage(root: Path, aoi_lat_max: float) -> list[str]:
         if not src_dir.exists():
             continue
         north = max(
-            (
-                _raster_north_4326(p)
-                for p in src_dir.rglob("*.tif")
-                if p.is_file()
-            ),
+            (_raster_north_4326(p) for p in src_dir.rglob("*.tif") if p.is_file()),
             default=None,
         )
         if north is None:
@@ -168,8 +164,10 @@ def audit(
             logger.error(f"AUDIT FAIL: {label}", count=len(failures), examples=failures[:5])
 
     total = (
-        len(nodata_failures) + len(count_failures)
-        + len(coverage_failures) + len(s1_cache_failures)
+        len(nodata_failures)
+        + len(count_failures)
+        + len(coverage_failures)
+        + len(s1_cache_failures)
     )
     if total:
         raise typer.Exit(code=1)

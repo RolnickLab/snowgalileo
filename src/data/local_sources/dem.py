@@ -89,9 +89,7 @@ class DemAdapter(LocalSourceAdapter):
             raise FileNotFoundError(f"No DEM tiles under {self.archive_root}")
         return tiles
 
-    def _mosaic_for_cell(
-        self, cell: GridCell
-    ) -> tuple[npt.NDArray[np.float64], Affine]:
+    def _mosaic_for_cell(self, cell: GridCell) -> tuple[npt.NDArray[np.float64], Affine]:
         """Mosaic the source tiles overlapping the cell (in the 4326 source CRS).
 
         Args:
@@ -113,9 +111,7 @@ class DemAdapter(LocalSourceAdapter):
             else:
                 src.close()
         if not srcs:
-            raise FileNotFoundError(
-                f"No DEM tile intersects cell {cell.cell_id} ({want.bounds})."
-            )
+            raise FileNotFoundError(f"No DEM tile intersects cell {cell.cell_id} ({want.bounds}).")
         try:
             mosaic, transform = merge(srcs, bounds=want.bounds)
         finally:

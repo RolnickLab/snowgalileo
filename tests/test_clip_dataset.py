@@ -275,7 +275,10 @@ def test_sentinel2_clip_is_lossless(tmp_path, aoi, settings):
     # Pixel equality over the interior of the clipped footprint (avoid crop-edge alignment).
     ix0, iy0 = cb.left + (cb.right - cb.left) * 0.25, cb.bottom + (cb.top - cb.bottom) * 0.25
     ix1, iy1 = cb.left + (cb.right - cb.left) * 0.75, cb.bottom + (cb.top - cb.bottom) * 0.75
-    with rasterio.open(f"/vsizip/{src}/{raw_band}") as r, rasterio.open(f"/vsizip/{dst}/{clp_band}") as c:
+    with (
+        rasterio.open(f"/vsizip/{src}/{raw_band}") as r,
+        rasterio.open(f"/vsizip/{dst}/{clp_band}") as c,
+    ):
         rwin = from_bounds(ix0, iy0, ix1, iy1, r.transform)
         cwin = from_bounds(ix0, iy0, ix1, iy1, c.transform)
         rd = r.read(1, window=rwin)
@@ -311,9 +314,7 @@ def test_modis_per_grid_index_ratio(tmp_path, aoi, settings):
 @requires_archive
 def test_dem_clip_is_non_destructive(tmp_path, aoi, settings):
     """AC-8: clipped DEM pixels inside the AOI equal the raw pixels (no resample)."""
-    tile = next(
-        p for p in (RAW_ROOT / "dem").rglob("*N51*_DEM.tif") if p.is_file()
-    )
+    tile = next(p for p in (RAW_ROOT / "dem").rglob("*N51*_DEM.tif") if p.is_file())
     dst = tmp_path / "dem.tif"
     row = clippers.clip_geotiff(
         src_path=tile, dst_path=dst, source="dem", aoi_4326=aoi, settings=settings
@@ -421,9 +422,9 @@ def test_era5_clip_pad_keeps_edge_pixel(tmp_path, settings):
     # 0.1° grid, descending latitude (ERA5 convention), spanning the AOI south edge.
     lats = np.round(np.arange(52.4, 50.5 - 1e-9, -0.1), 2)
     lons = np.round(np.arange(-116.7, -114.4 + 1e-9, 0.1), 2)
-    data = np.broadcast_to(
-        lats[:, None], (lats.size, lons.size)
-    ).astype("float32")  # value == latitude, so we can read back which rows survived.
+    data = np.broadcast_to(lats[:, None], (lats.size, lons.size)).astype(
+        "float32"
+    )  # value == latitude, so we can read back which rows survived.
     ds = xr.Dataset(
         {"t2m": (("latitude", "longitude"), data)},
         coords={"latitude": lats, "longitude": lons},
@@ -491,8 +492,16 @@ def test_sinusoidal_clip_keeps_boundary_ring_via_all_touched(tmp_path):
     h = w = 80
     src_tif = tmp_path / "sinu_src.tif"
     with rasterio.open(
-        src_tif, "w", driver="GTiff", height=h, width=w, count=1,
-        dtype="int16", crs=sinu, transform=transform, nodata=-28672,
+        src_tif,
+        "w",
+        driver="GTiff",
+        height=h,
+        width=w,
+        count=1,
+        dtype="int16",
+        crs=sinu,
+        transform=transform,
+        nodata=-28672,
     ) as dst:
         dst.write(np.ones((1, h, w), dtype="int16"))
 

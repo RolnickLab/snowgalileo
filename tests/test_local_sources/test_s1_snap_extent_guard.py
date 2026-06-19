@@ -39,8 +39,15 @@ def _write_utm_tif(path, *, minx, miny, maxx, maxy, px=1000.0):
     height = max(1, int((maxy - miny) / px))
     transform = from_origin(minx, maxy, px, px)
     with rasterio.open(
-        path, "w", driver="GTiff", width=width, height=height, count=1,
-        dtype="float32", crs="EPSG:32611", transform=transform,
+        path,
+        "w",
+        driver="GTiff",
+        width=width,
+        height=height,
+        count=1,
+        dtype="float32",
+        crs="EPSG:32611",
+        transform=transform,
     ) as ds:
         ds.write(np.ones((height, width), dtype="float32"), 1)
 

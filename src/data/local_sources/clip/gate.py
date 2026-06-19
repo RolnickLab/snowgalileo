@@ -82,9 +82,7 @@ def evaluate_gate(
         overlap area is below the threshold; otherwise ``CLIP``.
     """
     if not footprint_4326.intersects(aoi_4326):
-        return GateResult(
-            action=ClipAction.SKIP_NO_OVERLAP, intersects=False, aoi_overlap_km2=0.0
-        )
+        return GateResult(action=ClipAction.SKIP_NO_OVERLAP, intersects=False, aoi_overlap_km2=0.0)
 
     overlap = footprint_4326.intersection(aoi_4326)
     overlap_km2 = geodesic_area_km2(overlap)
@@ -96,6 +94,4 @@ def evaluate_gate(
             aoi_overlap_km2=overlap_km2,
         )
 
-    return GateResult(
-        action=ClipAction.CLIP, intersects=True, aoi_overlap_km2=overlap_km2
-    )
+    return GateResult(action=ClipAction.CLIP, intersects=True, aoi_overlap_km2=overlap_km2)

@@ -67,15 +67,23 @@ def _s3_footprint(p: Path) -> Optional[Polygon]:
 
 
 MODALITIES: dict[str, _Modality] = {
-    "dem": _Modality("**/*_DEM.tif", False, clippers.clip_geotiff, footprints.raster_footprint_4326),
-    "worldcover": _Modality("**/*_Map.tif", False, clippers.clip_geotiff, footprints.raster_footprint_4326),
+    "dem": _Modality(
+        "**/*_DEM.tif", False, clippers.clip_geotiff, footprints.raster_footprint_4326
+    ),
+    "worldcover": _Modality(
+        "**/*_Map.tif", False, clippers.clip_geotiff, footprints.raster_footprint_4326
+    ),
     "era5": _Modality("**/*.nc", False, clippers.clip_era5, None),
     "landsat8": _Modality("*.tar", False, clippers.clip_landsat, footprints.landsat_footprint),
     "landsat9": _Modality("*.tar", False, clippers.clip_landsat, footprints.landsat_footprint),
     "sentinel2": _Modality("*.zip", False, clippers.clip_sentinel2, _s2_footprint),
     "sentinel3": _Modality("*.zip", False, clippers.clip_sentinel3, _s3_footprint),
-    "modis": _Modality("*.hdf", True, clippers.clip_sinusoidal, footprints.sinusoidal_tile_footprint),
-    "viirs": _Modality("*.h5", True, clippers.clip_sinusoidal, footprints.sinusoidal_tile_footprint),
+    "modis": _Modality(
+        "*.hdf", True, clippers.clip_sinusoidal, footprints.sinusoidal_tile_footprint
+    ),
+    "viirs": _Modality(
+        "*.h5", True, clippers.clip_sinusoidal, footprints.sinusoidal_tile_footprint
+    ),
 }
 
 

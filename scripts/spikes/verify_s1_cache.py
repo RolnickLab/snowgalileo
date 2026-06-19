@@ -38,7 +38,9 @@ def main() -> None:
 
     raw = sorted(raw_dir.glob("S1*_IW_GRDH_*.zip"))
     print(f"=== S1 cache verification ({len(raw)} raw granules) ===")
-    print(f"{'granule':50s} {'size':>13s} {'extent_km':>14s} {'validVV':>9s} {'ratio':>7s}  status")
+    print(
+        f"{'granule':50s} {'size':>13s} {'extent_km':>14s} {'validVV':>9s} {'ratio':>7s}  status"
+    )
 
     problems: list[str] = []
     missing: list[str] = []
@@ -74,8 +76,10 @@ def main() -> None:
         )
 
     print()
-    print(f"verified: {len(raw) - len(missing)} present, {len(missing)} missing, "
-          f"{len(problems)} truncated")
+    print(
+        f"verified: {len(raw) - len(missing)} present, {len(missing)} missing, "
+        f"{len(problems)} truncated"
+    )
     if missing:
         print("MISSING:", *(f"\n  {m}" for m in missing))
     if problems:

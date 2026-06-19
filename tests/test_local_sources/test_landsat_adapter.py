@@ -69,8 +69,15 @@ def _cell_from_patch(patch: Path) -> GridCell:
 # --------------------------------------------------------------------------- #
 def _write_band_tif(path: Path, dn: np.ndarray, transform: Affine, crs: str) -> None:
     with rasterio.open(
-        path, "w", driver="GTiff", height=dn.shape[0], width=dn.shape[1],
-        count=1, dtype="uint16", crs=crs, transform=transform,
+        path,
+        "w",
+        driver="GTiff",
+        height=dn.shape[0],
+        width=dn.shape[1],
+        count=1,
+        dtype="uint16",
+        crs=crs,
+        transform=transform,
     ) as ds:
         ds.write(dn.astype(np.uint16), 1)
 
@@ -124,7 +131,11 @@ _CELL_PX = 20  # 20 px × 10 m = 200 m cell
 def synthetic_cell() -> GridCell:
     """A 20×20 px cell (200 m, 10 m px) at a Bow Valley UTM-11N origin."""
     return GridCell.from_utm_bounds(
-        cell_id=1, min_x=563000.0, min_y=5653000.0, max_x=563200.0, max_y=5653200.0,
+        cell_id=1,
+        min_x=563000.0,
+        min_y=5653000.0,
+        max_x=563200.0,
+        max_y=5653200.0,
         px=_CELL_PX,
     )
 
@@ -173,8 +184,15 @@ def test_none_day_is_all_nodata(synthetic_cell: GridCell, tmp_path: Path) -> Non
 # AC-16: L9→L8 fallback
 # --------------------------------------------------------------------------- #
 def _build_single_scene(
-    root: Path, sat: str, pathrow: str, acq: str, proc: str, dn: int, cell: GridCell,
-    tmp: Path, crs: str | None = None,
+    root: Path,
+    sat: str,
+    pathrow: str,
+    acq: str,
+    proc: str,
+    dn: int,
+    cell: GridCell,
+    tmp: Path,
+    crs: str | None = None,
 ) -> None:
     root.mkdir(parents=True, exist_ok=True)
     crs = crs or cell.crs
@@ -182,9 +200,12 @@ def _build_single_scene(
     h = w = 24
     stem = f"{sat}_L1TP_{pathrow}_{acq}_{proc}_02_T1"
     _make_scene_tar(
-        tar_path=root / f"{stem}.tar", stem=stem,
+        tar_path=root / f"{stem}.tar",
+        stem=stem,
         dn_by_band={n: np.full((h, w), dn, dtype=np.uint16) for n in range(2, 8)},
-        transform=transform, crs=scrs, tmp=tmp,
+        transform=transform,
+        crs=scrs,
+        tmp=tmp,
     )
 
 
@@ -193,8 +214,12 @@ def test_l9_preferred_over_l8(synthetic_cell: GridCell, tmp_path: Path) -> None:
     l9, l8 = tmp_path / "l9", tmp_path / "l8"
     tmp = tmp_path / "scratch"
     tmp.mkdir()
-    _build_single_scene(l9, "LC09", "043024", "20250402", "20250402", dn=20000, cell=synthetic_cell, tmp=tmp)
-    _build_single_scene(l8, "LC08", "043024", "20250402", "20250410", dn=8000, cell=synthetic_cell, tmp=tmp)
+    _build_single_scene(
+        l9, "LC09", "043024", "20250402", "20250402", dn=20000, cell=synthetic_cell, tmp=tmp
+    )
+    _build_single_scene(
+        l8, "LC08", "043024", "20250402", "20250410", dn=8000, cell=synthetic_cell, tmp=tmp
+    )
     adapter = LandsatAdapter(landsat9_root=l9, landsat8_root=l8)
     out = adapter.fetch(synthetic_cell, day=datetime.date(2025, 4, 2))
     # B4_landsat (index 2) should equal the L9 DN's TOA, not L8's.
@@ -209,7 +234,9 @@ def test_l8_fallback_when_l9_absent(synthetic_cell: GridCell, tmp_path: Path) ->
     l9.mkdir()
     tmp = tmp_path / "scratch"
     tmp.mkdir()
-    _build_single_scene(l8, "LC08", "043024", "20250402", "20250410", dn=8000, cell=synthetic_cell, tmp=tmp)
+    _build_single_scene(
+        l8, "LC08", "043024", "20250402", "20250410", dn=8000, cell=synthetic_cell, tmp=tmp
+    )
     adapter = LandsatAdapter(landsat9_root=l9, landsat8_root=l8)
     out = adapter.fetch(synthetic_cell, day=datetime.date(2025, 4, 2))
     valid = out[2][out[2] != NO_DATA_VALUE]
@@ -235,7 +262,7 @@ def test_coalesce_complementary_masks(synthetic_cell: GridCell, tmp_path: Path) 
 
     # Product A (later proc): left half valid (DN 20000), right half DN 0 (fill).
     a = np.full((h, w), 20000, dtype=np.uint16)
-    a[:, w // 2:] = 0
+    a[:, w // 2 :] = 0
     # Product B (earlier proc): right half valid (DN 8000), left half DN 0 (fill).
     b = np.full((h, w), 8000, dtype=np.uint16)
     b[:, : w // 2] = 0
@@ -245,8 +272,12 @@ def test_coalesce_complementary_masks(synthetic_cell: GridCell, tmp_path: Path) 
     ):
         s = f"LC09_L1TP_043024_20250402_{proc}_02_T1"
         _make_scene_tar(
-            tar_path=l9 / f"{s}.tar", stem=s,
-            dn_by_band={n: arr for n in range(2, 8)}, transform=transform, crs=scrs, tmp=tmp,
+            tar_path=l9 / f"{s}.tar",
+            stem=s,
+            dn_by_band={n: arr for n in range(2, 8)},
+            transform=transform,
+            crs=scrs,
+            tmp=tmp,
         )
 
     adapter = LandsatAdapter(landsat9_root=l9, landsat8_root=l8)
@@ -256,7 +287,7 @@ def test_coalesce_complementary_masks(synthetic_cell: GridCell, tmp_path: Path) 
     assert not (b4 == NO_DATA_VALUE).any(), "coalesce left holes where one product was valid"
     # Left half = product A's TOA (it is valid there); right half = product B's TOA.
     left = b4[:, : synthetic_cell.shape[1] // 2]
-    right = b4[:, synthetic_cell.shape[1] // 2:]
+    right = b4[:, synthetic_cell.shape[1] // 2 :]
     np.testing.assert_allclose(np.median(left), _toa(20000), atol=1e-4)
     np.testing.assert_allclose(np.median(right), _toa(8000), atol=1e-4)
 
@@ -276,8 +307,12 @@ def test_coalesce_latest_proc_wins_on_overlap(synthetic_cell: GridCell, tmp_path
     for arr, proc in ((later, "20250410"), (earlier, "20250404")):
         s = f"LC09_L1TP_043024_20250402_{proc}_02_T1"
         _make_scene_tar(
-            tar_path=l9 / f"{s}.tar", stem=s,
-            dn_by_band={n: arr for n in range(2, 8)}, transform=transform, crs=scrs, tmp=tmp,
+            tar_path=l9 / f"{s}.tar",
+            stem=s,
+            dn_by_band={n: arr for n in range(2, 8)},
+            transform=transform,
+            crs=scrs,
+            tmp=tmp,
         )
     adapter = LandsatAdapter(landsat9_root=l9, landsat8_root=l8)
     out = adapter.fetch(synthetic_cell, day=datetime.date(2025, 4, 2))
@@ -299,7 +334,15 @@ def test_reproject_zone_agnostic(synthetic_cell: GridCell, tmp_path: Path, crs: 
     tmp = tmp_path / "scratch"
     tmp.mkdir()
     _build_single_scene(
-        l9, "LC09", "043024", "20250402", "20250402", dn=20000, cell=synthetic_cell, tmp=tmp, crs=crs
+        l9,
+        "LC09",
+        "043024",
+        "20250402",
+        "20250402",
+        dn=20000,
+        cell=synthetic_cell,
+        tmp=tmp,
+        crs=crs,
     )
     adapter = LandsatAdapter(landsat9_root=l9, landsat8_root=l8)
     out = adapter.fetch(synthetic_cell, day=datetime.date(2025, 4, 2))
@@ -328,13 +371,27 @@ def test_mixed_zone_scenes_same_day(synthetic_cell: GridCell, tmp_path: Path) ->
     tmp.mkdir()
     # Same-zone scene (043024 → cell's own 32611).
     _build_single_scene(
-        l9, "LC09", "043024", "20250402", "20250402", dn=20000, cell=synthetic_cell,
-        tmp=tmp, crs="EPSG:32611",
+        l9,
+        "LC09",
+        "043024",
+        "20250402",
+        "20250402",
+        dn=20000,
+        cell=synthetic_cell,
+        tmp=tmp,
+        crs="EPSG:32611",
     )
     # Cross-zone scene (042024 → 32612) over the same ground area, same day.
     _build_single_scene(
-        l9, "LC09", "042024", "20250402", "20250402", dn=20000, cell=synthetic_cell,
-        tmp=tmp, crs="EPSG:32612",
+        l9,
+        "LC09",
+        "042024",
+        "20250402",
+        "20250402",
+        dn=20000,
+        cell=synthetic_cell,
+        tmp=tmp,
+        crs="EPSG:32612",
     )
     adapter = LandsatAdapter(landsat9_root=l9, landsat8_root=l8)
     out = adapter.fetch(synthetic_cell, day=datetime.date(2025, 4, 2))

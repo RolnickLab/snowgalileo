@@ -75,9 +75,7 @@ class _ModisBase(LocalSourceAdapter):
         """The per-tile GeoTIFFs for ``filename`` acquired on ``day`` (may be empty)."""
         return [p / filename for p in self._granule_dirs(day) if (p / filename).exists()]
 
-    def _mosaic(
-        self, tifs: list[Path]
-    ) -> tuple[npt.NDArray[np.float64], Affine, str, float]:
+    def _mosaic(self, tifs: list[Path]) -> tuple[npt.NDArray[np.float64], Affine, str, float]:
         """Mosaic per-tile GeoTIFFs in their native sinusoidal CRS.
 
         Returns:
@@ -89,7 +87,12 @@ class _ModisBase(LocalSourceAdapter):
             src_nodata = srcs[0].nodata if srcs[0].nodata is not None else MODIS_FILL_VALUE
             crs_wkt = srcs[0].crs.to_wkt()
             if len(srcs) == 1:
-                return srcs[0].read(1).astype(np.float64), srcs[0].transform, crs_wkt, float(src_nodata)
+                return (
+                    srcs[0].read(1).astype(np.float64),
+                    srcs[0].transform,
+                    crs_wkt,
+                    float(src_nodata),
+                )
             mosaic, transform = merge(srcs, nodata=src_nodata)
             return mosaic[0].astype(np.float64), transform, crs_wkt, float(src_nodata)
         finally:

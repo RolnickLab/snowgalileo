@@ -50,9 +50,7 @@ class _CountingAdapter(LocalSourceAdapter):
         self.spatial_kind = spatial_kind
         self.calls: list[date] = []
 
-    def fetch(
-        self, cell: GridCell, day: date | None
-    ) -> npt.NDArray[np.floating]:
+    def fetch(self, cell: GridCell, day: date | None) -> npt.NDArray[np.floating]:
         self.calls.append(day)  # type: ignore[arg-type]
         h, w = cell.shape
         # Value encodes the day ordinal so a wrong-day cache hit would be detectable.
@@ -162,7 +160,8 @@ def test_stale_shape_hit_is_refetched(tmp_path: Path) -> None:
 def test_modality_tags_unique_across_dynamic_slots() -> None:
     """Every real-mode dynamic slot maps to a distinct cache tag (no key collisions)."""
     exporter = LocalSourceExporter(
-        out_dir=Path("/tmp/_tag_check"), placeholder=False,
+        out_dir=Path("/tmp/_tag_check"),
+        placeholder=False,
         archive_root=_ARCHIVE if _ARCHIVE.exists() else Path("/tmp/_noarch"),
         verify_s1_cache=False,
     )
@@ -192,9 +191,11 @@ def test_assembled_cube_identical_with_and_without_cache(tmp_path: Path) -> None
     h = int(round((r.max_y - r.min_y) / res))
     w = int(round((r.max_x - r.min_x) / res))
     cell = GridCell(
-        cell_id=0, crs=r.crs,
+        cell_id=0,
+        crs=r.crs,
         transform=Affine(res, 0, r.min_x, 0, -res, r.max_y),
-        shape=(h, w), polygon=box(r.min_x, r.min_y, r.max_x, r.max_y),
+        shape=(h, w),
+        polygon=box(r.min_x, r.min_y, r.max_x, r.max_y),
     )
     day = date(2025, 4, 6)
 
@@ -203,7 +204,9 @@ def test_assembled_cube_identical_with_and_without_cache(tmp_path: Path) -> None
     )._assemble(cell, day)
 
     cached = LocalSourceExporter(
-        placeholder=False, archive_root=_ARCHIVE, verify_s1_cache=False,
+        placeholder=False,
+        archive_root=_ARCHIVE,
+        verify_s1_cache=False,
         cube_cache_dir=tmp_path / "cube_cache",
     )
     cold = cached._assemble(cell, day)

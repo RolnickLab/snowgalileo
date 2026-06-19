@@ -47,6 +47,7 @@ def _cell(cell_id: int, col: int, row: int) -> GridCell:
         max_y=max_y,
     )
 
+
 # --------------------------------------------------------------------------- #
 # windows.py
 # --------------------------------------------------------------------------- #
@@ -238,6 +239,7 @@ def patched_loader(monkeypatch: pytest.MonkeyPatch):
     cell). The driver imports the symbol into its own namespace, so we patch it
     there.
     """
+
     def _fake(_tif: Path):
         x = [torch.zeros(1) for _ in range(6)]  # inputs (unused by the stub model)
         masks = [torch.ones(1) for _ in range(6)]  # all-valid

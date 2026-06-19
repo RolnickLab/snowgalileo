@@ -132,9 +132,7 @@ class InferenceGridDriver:
         )
         return outputs
 
-    def _predict_day(
-        self, day: datetime.date
-    ) -> dict[int, npt.NDArray[np.float32] | None]:
+    def _predict_day(self, day: datetime.date) -> dict[int, npt.NDArray[np.float32] | None]:
         """Export, batch, and run the encoder for every cell on one day.
 
         Args:

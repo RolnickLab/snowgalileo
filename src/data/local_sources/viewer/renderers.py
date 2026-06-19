@@ -555,9 +555,7 @@ def _read_output_band_4326(
     dec = _read_band_decimated(path, band=band, long_edge=long_edge)
     masked = np.where(dec.array == _OUTPUT_NODATA, np.nan, dec.array)
     arr_4326, bounds = _to_4326(
-        _Decimated(
-            array=masked, transform=dec.transform, crs=dec.crs, bounds_4326=dec.bounds_4326
-        )
+        _Decimated(array=masked, transform=dec.transform, crs=dec.crs, bounds_4326=dec.bounds_4326)
     )
     return arr_4326, bounds, str(dec.crs)
 

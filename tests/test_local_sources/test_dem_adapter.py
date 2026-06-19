@@ -149,9 +149,7 @@ def test_parity_against_gee(adapter, patch: Path) -> None:
     dem_med = np.median(np.abs(out[0][valid] - dem_ref[valid]))
     slope_med = np.median(np.abs(out[1][valid] - slope_ref[valid]))
     # Aspect is circular (0/360 wrap) — diff on the unit circle.
-    aspect_diff = np.angle(
-        np.exp(1j * np.deg2rad(out[2][valid] - aspect_ref[valid])), deg=True
-    )
+    aspect_diff = np.angle(np.exp(1j * np.deg2rad(out[2][valid] - aspect_ref[valid])), deg=True)
     aspect_med = np.median(np.abs(aspect_diff))
 
     assert dem_med <= _DEM_MED_TOL_M, f"DEM median {dem_med:.3f} m > {_DEM_MED_TOL_M}"

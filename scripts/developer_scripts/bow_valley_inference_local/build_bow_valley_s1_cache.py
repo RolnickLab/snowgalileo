@@ -49,9 +49,7 @@ DEFAULT_CACHE_DIR = _PATHS.clipped_root / "sentinel1_snap"
 DEFAULT_AOI = _PATHS.aoi_path
 
 
-def _preflight(
-    *, archive_root: Path, cache_dir: Path, aoi: Path, gpt: Path, graph: Path
-) -> None:
+def _preflight(*, archive_root: Path, cache_dir: Path, aoi: Path, gpt: Path, graph: Path) -> None:
     """Fail loudly (``typer.Exit(1)``) before any SNAP run if a prerequisite is missing.
 
     Args:
@@ -74,9 +72,7 @@ def _preflight(
     if not archive_root.exists():
         problems.append(f"Raw S1 archive not found at {archive_root}.")
     elif not list(archive_root.glob("S1*_IW_GRDH_*.zip")):
-        problems.append(
-            f"No S1*_IW_GRDH_*.zip granules under {archive_root} — nothing to build."
-        )
+        problems.append(f"No S1*_IW_GRDH_*.zip granules under {archive_root} — nothing to build.")
     if problems:
         for problem in problems:
             logger.error("s1_cache_preflight_failed", problem=problem)

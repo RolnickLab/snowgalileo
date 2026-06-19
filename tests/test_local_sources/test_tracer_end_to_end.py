@@ -238,7 +238,9 @@ def test_encoder_returns_fsc_map_in_unit_range(
     batched = [torch.as_tensor(t).unsqueeze(0) for t in masked_output]
 
     with torch.no_grad():
-        logits = model(*batched, patch_size_high_res=10, patch_size_med_res=1, patch_size_low_res=1)
+        logits = model(
+            *batched, patch_size_high_res=10, patch_size_med_res=1, patch_size_low_res=1
+        )
 
     fsc = logits.reshape(10, 10)
     assert fsc.shape == (10, 10)

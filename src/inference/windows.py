@@ -38,9 +38,7 @@ def inference_days(
         ValueError: If ``window_end`` precedes ``window_start``.
     """
     if window_end < window_start:
-        raise ValueError(
-            f"window_end {window_end} precedes window_start {window_start}."
-        )
+        raise ValueError(f"window_end {window_end} precedes window_start {window_start}.")
     span = (window_end - window_start).days
     return [window_start + datetime.timedelta(days=offset) for offset in range(span + 1)]
 
