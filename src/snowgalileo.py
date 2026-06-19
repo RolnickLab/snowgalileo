@@ -1920,7 +1920,7 @@ class GalileoPixelDecoder(SnowGalileoBase):
                 )
 
         print(
-            "Length of the outputs: " + str(len(output_s_t_h)),
+            f"Length of the outputs: {str(len(output_s_t_h))}",
             str(len(output_s_t_m)),
             str(len(output_s_t_l)),
             str(len(output_sp)),
