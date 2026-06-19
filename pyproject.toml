@@ -63,6 +63,7 @@ build-backend = "hatchling.build"
 packages = ["src"]
 
 [tool.ruff]
+exclude = ["notebooks"]
 line-length = 99
 lint.select = ["E4", "E7", "E9", "F", "I", "D"]
 lint.ignore = [
