@@ -1,4 +1,4 @@
-exclude: ^docs/agents/instructions/|/migrations/|Makefile|notebooks/*
+exclude: ^docs/agents/instructions/|/migrations/|Makefile|notebooks/
 default_stages: [pre-commit]
 
 repos:
