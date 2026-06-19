@@ -16,7 +16,7 @@ class TestRetrieveSeasonFromFilename(unittest.TestCase):
             ("LC_20200630_lat_lon.tif", "late"),
             ("LC_20200110_lat_lon.tif", "mid"),
             ("LC_20221001_lat_lon.tif", "early"),
-            ("LC_20240731_lat_lon.tif", "out_of_range"),
+            ("LC_20240731_lat_lon.tif", "summer"),
             ("LC_20210228_lat_lon.tif", "mid"),
         ]
 

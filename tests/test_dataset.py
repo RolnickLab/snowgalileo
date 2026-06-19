@@ -34,7 +34,7 @@ BROKEN_TEST_FILE = list(BROKEN_TIFS_FOLDER.glob("*.tif"))
 
 class TestDataset(unittest.TestCase):
     def test_tif_to_array(self):
-        ds = Dataset(data_folder=UNBROKEN_TEST_FILES)
+        ds = Dataset(data_folder=TIFS_FOLDER)
         for test_file in UNBROKEN_TEST_FILES:
             (
                 s_t_h_x,
