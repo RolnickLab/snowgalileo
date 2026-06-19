@@ -1,5 +1,7 @@
 # PLAN — Cube cache invalidation: version stamp + interactive overwrite
 
+*Formerly `PLAN-CUBE-CACHE-INVALIDATION.md`.*
+
 ## Goal
 
 Make cube-cache staleness an explicit decision, never a silent default. After an adapter

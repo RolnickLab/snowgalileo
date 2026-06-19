@@ -1,5 +1,7 @@
 # CONTRACT: clip-viewer rendering interface
 
+*Formerly `clip-viewer/CONTRACT.md`.*
+
 Contract-first per CLAUDE.md. Every modality renderer implements ONE function
 shape; the Solara app and the map layer depend only on this contract, never on a
 renderer's internals.

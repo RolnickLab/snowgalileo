@@ -62,7 +62,7 @@ Stage-2 working tree for cube assembly. Holds the per-(cell, day) `.npz`
 intermediate cache (`cube_cache/{cell_id}/{day}_{modality}.npz`), the assembled
 8-day cubes (`cubes/`), daily FSC COGs (`daily_fsc/`), and per-process
 subdirectories. See
-[`../docs/agents/planning/raw-data-ingestion/SPEC_BOW_VALLEY_DATA.md`](../docs/agents/planning/raw-data-ingestion/SPEC_BOW_VALLEY_DATA.md)
+[`../docs/agents/planning/bow_valley/010-design/012-spec.md`](../docs/agents/planning/bow_valley/010-design/012-spec.md)
 §"Storage".
 
 The assembled cubes under `cubes/` are the durable end-product — there is **no

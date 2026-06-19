@@ -1,5 +1,7 @@
 # Ingestion Phase: Non-Destructive Spatial Clipping Plan
 
+*Formerly `CLIPPING_PLAN.md`.*
+
 This plan outlines the design and implementation of a spatial clipping utility to crop all raw geospatial datasets in `data/bow_valley_selection_raw` to the Area of Interest (AOI) represented in `data/bow_valley_inference_aoi.geojson`.
 
 The transformation is strictly **non-destructive** (preserves native pixel values, projections, data formats, and coordinate reference systems) and writes clipped outputs to `data/clipped_bow_valley_selection_raw`.

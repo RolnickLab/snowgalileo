@@ -37,7 +37,7 @@ cube `S1Adapter` and the viewer. There is no raw-DN clipped-S1 product.
 - **Data is downloaded manually (for now).** No automated fetch yet. You must
   place the raw archive at `data/bow_valley_selection_raw/` yourself, one
   subdirectory per source, before any step runs. Sources, formats, and counts
-  are cataloged in `docs/agents/planning/bow_valley/ARCHIVE_AUDIT.md`. The
+  are cataloged in `docs/agents/planning/bow_valley/000-analysis/002-archive-audit.md`. The
   pipeline is read-only on this directory — it never writes back into it.
 - **Environment.** `uv` manages deps. Run everything with `uv run …`. System
   GDAL 3.8+ (`gdalinfo`, `gdal_translate`) must be on `PATH` — rasterio's bundled
@@ -86,7 +86,7 @@ uv run pytest tests/test_local_sources/test_grid.py tests/test_local_sources/tes
 - `configs/bow_valley/cube_cells.csv` — 18 232 rows (344 in-AOI cells × 53 days),
   schema `date,crs,center_x,center_y,min_x,min_y,max_x,max_y`, all `EPSG:32611`.
 - `configs/bow_valley/cell_filter_manifest.csv` — 500 cells, 344 KEEP / 156 DROP.
-- `docs/agents/planning/bow_valley/ARCHIVE_AUDIT.md` — full archive catalog.
+- `docs/agents/planning/bow_valley/000-analysis/002-archive-audit.md` — full archive catalog.
 - `tests/fixtures/gee_reference_patches/` — 6 GeoTIFFs (308 bands) for parity.
 
 **Gotchas:**
@@ -493,7 +493,7 @@ Three tabs, one per pipeline output:
 - **Daily FSC** — step a date slider through the daily FSC COGs (stage 3); the
   selected day renders colormapped (0–1) on the map.
 
-See `docs/agents/planning/clip-viewer/PLAN.md`, `CONTRACT.md`, and
+See `docs/agents/planning/bow_valley/060-viewer/060-viewer-plan.md`, `CONTRACT.md`, and
 `PLAN-V2-CUBE-FSC-TABS.md`.
 
 ---
@@ -501,6 +501,6 @@ See `docs/agents/planning/clip-viewer/PLAN.md`, `CONTRACT.md`, and
 ## Testing baseline
 
 The suite is **already red on a clean checkout** (6 pre-existing failures, see
-`docs/agents/planning/raw-data-ingestion/tasks/TEST_BASELINE.md`). Judge work by
+`docs/agents/planning/bow_valley/020-data-ingestion/tasks/test-baseline.md`). Judge work by
 **delta** — never `pytest -x` at the suite level. New work must add zero new
 failures.

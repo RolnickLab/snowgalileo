@@ -1,5 +1,7 @@
 # Bow Valley Archive Audit (Phase 0 — TASK-001)
 
+*Formerly `ARCHIVE_AUDIT.md`.*
+
 Catalog of `data/bow_valley_selection_raw`, the generated cube CSV, ingest-window
 coverage, the S1 sparsity profile, and the static-layer (DEM/WorldCover) AOI
 coverage assertion. Produced by TASK-001; consumed by every later task.

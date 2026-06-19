@@ -1,5 +1,7 @@
 # PLAN: Clipped-archive visual validation viewer
 
+*Formerly `clip-viewer/PLAN.md`.*
+
 ## 1. Goal
 A quick, reusable way to **visually sanity-check** the products in
 `data/clipped_bow_valley_selection_raw/` after the TASK-002 clip stage — confirm

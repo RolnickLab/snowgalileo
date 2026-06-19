@@ -1,5 +1,7 @@
 # S1 / S2 Parity Spike Notes (TASK-005)
 
+*Formerly `PARITY_SPIKE_NOTES.md`.*
+
 > **Purpose** — de-risk the two highest value-domain-drift sources (S1 GRD, S2
 > L1C) against the Phase-0 GEE reference patches *before* building the full
 > adapter stack (TASK-012/013/014). This file records the spike design, the

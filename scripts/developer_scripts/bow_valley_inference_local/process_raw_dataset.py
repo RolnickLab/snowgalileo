@@ -13,7 +13,7 @@ correction. So S1 is *processed* from the **raw** granules into a per-granule,
 AOI-wide dB+angle cache (``process-s1``) that is the **single** S1 product everything
 downstream reads — both the ``S1Adapter`` (cube) and the viewer's S1 quicklook. There
 is no raw-DN clipped-S1 product; ``sentinel1`` is **not** a clip source. See
-``docs/agents/planning/raw-data-ingestion/PLAN-S1-PERGRANULE-SNAP.md``.
+``docs/agents/planning/bow_valley/020-data-ingestion/022-s1-pergranule-snap.md``.
 
 Commands:
     clip-source   Clip one modality (e.g. ``worldcover``). S1 is not a valid source.

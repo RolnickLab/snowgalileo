@@ -1,5 +1,7 @@
 # Full Mode-B run — RAM peak investigation (root cause: GDAL_CACHEMAX default)
 
+*Formerly `FULL_RUN_RAM_INVESTIGATION.md`.*
+
 **Date:** 2026-06-17 (during the full Mode-B sweep, day 8 of 21).
 **Trigger:** heavy-export-day RAM peaks trended up across the run — 49.5 GB (day 5) →
 54 GB (day 8 start) → **57 GB used / 7.2 GB available** (day 8 peak) on a 62 GB host,

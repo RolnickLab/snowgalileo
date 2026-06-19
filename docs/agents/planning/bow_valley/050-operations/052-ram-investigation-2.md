@@ -1,5 +1,7 @@
 # Full Mode-B run — RAM investigation #2: heavy-day worker bloat (malloc arena retention)
 
+*Formerly `FULL_RUN_RAM_INVESTIGATION_2.md`.*
+
 **Date:** 2026-06-17 (full Mode-B sweep, day 13 of 21).
 **Supersedes the mechanism in:** `FULL_RUN_RAM_INVESTIGATION.md` (which correctly found the
 GDAL_CACHEMAX default issue, but that fix alone did **not** fully bound heavy-day peaks).

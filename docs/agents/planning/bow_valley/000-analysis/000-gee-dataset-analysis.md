@@ -1,5 +1,7 @@
 # Comprehensive GEE Dataset Analysis & Scaling Guide
 
+*Formerly `NEW_GEE_DATASET_ANALYSIS.md`.*
+
 This document explains in detail how the remote sensing dataset in this repository is constructed from Google Earth Engine (GEE) exports and how to scale this ingestion pipeline to cover a larger geographical region (such as a 2x2 grid of Sentinel-2 products).
 
 ---

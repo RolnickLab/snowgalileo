@@ -1,5 +1,7 @@
 # PLAN — Cube cache day-frontier eviction (Mode B scale)
 
+*Formerly `PLAN-CUBE-CACHE-DAY-EVICTION.md`.*
+
 ## Problem
 
 The cube cache's "race avoided" guarantee rests on `working_set < cap`. Measured:

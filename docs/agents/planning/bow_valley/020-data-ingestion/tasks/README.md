@@ -9,7 +9,7 @@ implementation → test) and follows Red → Green → Refactor. Do not start a 
 its predecessors are approved (per CLAUDE.md: stop and get sign-off at each gate).
 
 > **The test suite is already red on a clean checkout (6 pre-existing failures).** See
-> [`TEST_BASELINE.md`](TEST_BASELINE.md). Every task validates against the **delta** —
+> [`test-baseline.md`](test-baseline.md). Every task validates against the **delta** —
 > a task passes when it introduces **no new** failures vs that baseline and its own new
 > tests are green. Never use `pytest -x` at the suite level (it halts on a pre-existing
 > failure before reaching new tests); never try to fix the baseline failures as part of

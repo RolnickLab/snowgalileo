@@ -1,5 +1,7 @@
 # Data Ingestion Analysis
 
+*Formerly `DATA_ANALYSIS.md`.*
+
 This repository ingests Earth observation inputs from Google Earth Engine in
 `src/data/earthengine`. The Earth Engine layer exports one multiband GeoTIFF per
 area and time window; `src/data/dataset.py` then reshapes that GeoTIFF into the

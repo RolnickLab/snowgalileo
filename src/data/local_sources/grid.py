@@ -11,7 +11,7 @@ transform are productionized later in TASK-003; they are intentionally **not**
 implemented here.
 
 Key contracts (verified against the codebase, see
-``docs/agents/planning/raw-data-ingestion/``):
+``docs/agents/planning/bow_valley/020-data-ingestion/``):
 
 - The generated CSV schema is fixed by ``EarthEngineExporterEval.export_from_csv_utm``
   (``src/data/earthengine/eo_eval.py:577-585``): exactly

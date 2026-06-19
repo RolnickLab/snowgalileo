@@ -1,5 +1,7 @@
 # Plan — Bow Valley Direct-Source Data Cube & Daily Snow Cover Inference
 
+*Formerly `PLAN_BOW_VALLEY_DATA.md`.*
+
 ## 1. Goal
 
 Adding a direct-source pipeline for the Bow Valley (Alberta, west of Calgary) to 

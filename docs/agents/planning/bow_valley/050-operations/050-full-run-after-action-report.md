@@ -1,5 +1,7 @@
 # After-Action Report — Full Mode-B Bow Valley FSC Sweep
 
+*Formerly `FULL_RUN_AFTER_ACTION_REPORT.md`.*
+
 **Run:** Daily fractional-snow-cover (FSC) inference over the **entire** Bow Valley AOI,
 tiled into a 1 km lattice (Mode B) with a 5 km negative buffer.
 **Window:** 2025-04-06 → 2025-04-26 (21 inference days).

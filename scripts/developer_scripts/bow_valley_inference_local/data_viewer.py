@@ -17,7 +17,7 @@ A developer/QA tool with three tabs, each a leafmap map with the
 Reads the clipped archive and ``processing_root`` outputs read-only; writes only transient
 decimated GeoTIFFs to a temp dir.
 
-See ``docs/agents/planning/clip-viewer/PLAN.md``, ``CONTRACT.md`` and
+See ``docs/agents/planning/bow_valley/060-viewer/060-viewer-plan.md``, ``CONTRACT.md`` and
 ``PLAN-V2-CUBE-FSC-TABS.md``.
 """
 

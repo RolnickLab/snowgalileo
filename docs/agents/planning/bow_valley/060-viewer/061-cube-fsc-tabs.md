@@ -1,5 +1,7 @@
 # PLAN v2 — Add cube + daily-FSC tabs to the data viewer
 
+*Formerly `clip-viewer/PLAN-V2-CUBE-FSC-TABS.md`.*
+
 Extends the clip-viewer (`PLAN.md`) with **two new tabs** that visualise Stage-2
 **outputs** (not the clipped archive): assembled per-cell cubes and daily fractional
 snow-cover (FSC) COGs. Same UX as the existing clip tab: a leafmap map with the AOI

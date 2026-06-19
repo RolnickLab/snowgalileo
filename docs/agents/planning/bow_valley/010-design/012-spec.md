@@ -1,5 +1,7 @@
 # SPEC: Bow Valley Direct-Source Data Cube & Daily Snow Cover Inference
 
+*Formerly `SPEC_BOW_VALLEY_DATA.md`.*
+
 > **Status note (planning-skill ordering).** The planning skill sequences
 > FDD → SPEC → Tasks. The design of record is `FDD_BOW_VALLEY_DATA.md`; this
 > SPEC's acceptance criteria derive from that FDD's §3 (Verification & FMEA) and

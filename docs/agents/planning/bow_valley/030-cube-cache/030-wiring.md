@@ -1,5 +1,7 @@
 # PLAN — Wire the per-(modality, cell, day) CubeCache into the exporter
 
+*Formerly `PLAN-CUBE-CACHE-WIRING.md`.*
+
 ## Problem
 
 The 21-day Mode A inference run is **export-bound, not GPU-bound**. Observed during the

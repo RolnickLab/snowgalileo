@@ -1,5 +1,7 @@
 # PLAN — Sentinel-1 per-granule SNAP processing (process-then-clip)
 
+*Formerly `PLAN-S1-PERGRANULE-SNAP.md`.*
+
 ## Problem
 
 The current S1 chain processes SNAP **per `(granule, cell)`** against the **clipped**

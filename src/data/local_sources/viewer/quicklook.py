@@ -1,7 +1,7 @@
 """Rendering contract: ``QuicklookResult``, the ``Renderer`` protocol, and the
 dispatcher. Renderers themselves live in ``renderers.py`` (Phase 2+).
 
-See ``docs/agents/planning/clip-viewer/CONTRACT.md``.
+See ``docs/agents/planning/bow_valley/060-viewer/062-contract.md``.
 """
 
 from __future__ import annotations
