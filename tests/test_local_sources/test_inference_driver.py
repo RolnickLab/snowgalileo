@@ -19,6 +19,7 @@ from datetime import date
 from pathlib import Path
 
 import numpy as np
+import numpy.typing as npt
 import pytest
 import rasterio
 import torch
@@ -117,7 +118,9 @@ def test_mosaic_2x2_disjoint_seams_no_double_write(
     # 20×20 mosaic (2 cells × 10 px each side).
     assert (writer.height, writer.width) == (20, 20)
 
-    fsc_by_cell = {cid: np.full((10, 10), 0.1 * (cid + 1), dtype=np.float32) for cid in range(4)}
+    fsc_by_cell: dict[int, npt.NDArray[np.floating] | None] = {
+        cid: np.full((10, 10), 0.1 * (cid + 1), dtype=np.float32) for cid in range(4)
+    }
     out = writer.write_day(date(2025, 4, 6), fsc_by_cell)
 
     with rasterio.open(out) as src:
@@ -226,7 +229,7 @@ class _StubModel:
 
     def __call__(self, *batched: object, **_kw: object):
         batch = batched[0]
-        b = batch.shape[0]  # type: ignore[union-attr]
+        b = batch.shape[0]  # type: ignore[attr-defined]
         self.seen_batch_sizes.append(b)
         return torch.full((b, 100, 1), 0.5)
 

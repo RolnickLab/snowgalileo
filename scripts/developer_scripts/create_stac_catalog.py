@@ -33,9 +33,9 @@ utm12 = pyproj.Proj("epsg:32612")
 utm12_to_wgs84 = pyproj.Transformer.from_proj(utm12, wgs84, always_xy=True)
 
 # Caches to avoid redundant file IO
-landsat_bounds_cache = {}
-sentinel2_bounds_cache = {}
-modis_bounds_cache = {}
+landsat_bounds_cache: dict[str, list[float]] = {}
+sentinel2_bounds_cache: dict[str, list[float]] = {}
+modis_bounds_cache: dict[str, list[float]] = {}
 
 
 def get_modis_bounds():
