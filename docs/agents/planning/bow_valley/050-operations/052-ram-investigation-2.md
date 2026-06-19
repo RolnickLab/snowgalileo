@@ -17,11 +17,11 @@ snapshot was taken (`scratch/ram_snapshot_183132/`) before restarting at 12 work
 
 Per-worker `/proc/PID/status` on the heavy day (14-worker pool, mid-export):
 
-| Worker | RssAnon | VmSwap | RssAnon+Swap |
-|--------|---------|--------|--------------|
-| 2754693 | 9.71 GB | 5.75 GB | **~15.4 GB** |
-| 2754694 | 9.70 GB | 5.75 GB | ~15.4 GB |
-| 2754695…699 | 9.70 GB | 5.75 GB | ~15.4 GB |
+| Worker      | RssAnon | VmSwap  | RssAnon+Swap |
+| ----------- | ------- | ------- | ------------ |
+| 2754693     | 9.71 GB | 5.75 GB | **~15.4 GB** |
+| 2754694     | 9.70 GB | 5.75 GB | ~15.4 GB     |
+| 2754695…699 | 9.70 GB | 5.75 GB | ~15.4 GB     |
 
 - **Every worker is ~15 GB anonymous (RssAnon + swapped), near-identical across workers.**
 - `smaps_rollup` of the biggest: `Anonymous: 9.7 GB`, `Private_Dirty: 3.65 GB`,

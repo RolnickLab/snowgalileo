@@ -5,7 +5,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-from src.data.config import (
+from snow_galileo.data.config import (
     NO_DATA_VALUE,
     NORMALIZATION_DICT_FILENAME,
     NUM_HIGH_RES_PIXELS_PER_DIM,
@@ -13,7 +13,7 @@ from src.data.config import (
     NUM_MED_RES_PIXELS_PER_DIM,
     NUM_TIMESTEPS,
 )
-from src.data.dataset import (
+from snow_galileo.data.dataset import (
     SPACE_BANDS,
     SPACE_TIME_HIGH_RES_BANDS,
     SPACE_TIME_LOW_RES_BANDS,
@@ -24,7 +24,7 @@ from src.data.dataset import (
     Normalizer,
     to_cartesian,
 )
-from src.utils import config_dir
+from snow_galileo.utils import config_dir
 
 TIFS_FOLDER = Path(__file__).parents[1] / "data/tifs_test"
 BROKEN_TIFS_FOLDER = Path(__file__).parents[1] / "data/tifs_broken_test"

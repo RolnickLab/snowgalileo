@@ -1,0 +1,130 @@
+import re
+from pathlib import Path
+
+import nox
+
+ARG_RE = re.compile(
+    r"^[a-zA-Z0-9_.\-:=/\s\"'()\[\]]+$"
+)  # e.g. "-k", "--maxfail=1", "tests/foo.py"
+
+nox.options.reuse_existing_virtualenvs = True  # Reuse virtual environments
+nox.options.sessions = ["precommit"]
+
+
+def get_paths(session):
+    package_path = Path(session.bin).parent.parent.parent
+    main_package = package_path / "src"
+    tests = package_path / "tests"
+    scripts = package_path / "scripts"
+    return {
+        "all": [
+            main_package,
+            tests,
+            scripts,
+        ],
+        "module": [
+            main_package,
+            scripts,
+        ],
+        "root": [package_path],
+    }
+
+
+#
+# Sessions
+#
+@nox.session()
+def pylint(session):
+    paths = get_paths(session)
+    session.run("pylint", *paths["module"], external=True)
+
+
+@nox.session()
+def check(session):
+    paths = get_paths(session)
+    session.run("ruff", "check", *paths["all"], external=True)
+    session.run("flynt", *paths["all"], external=True)
+    session.run("mypy", *paths["root"], external=True)
+    session.run("pylint", *paths["module"], external=True)
+
+
+@nox.session()
+def fix(session):
+    paths = get_paths(session)
+    session.run("ruff", "check", "--fix", *paths["all"], external=True)
+    session.run("ruff", "format", *paths["all"], external=True)
+    session.run("flynt", *paths["all"], external=True)
+
+
+@nox.session()
+def precommit(session):
+    session.run("pre-commit", "run", "--all-files", external=True)
+
+
+@nox.session()
+def flynt(session):
+    paths = get_paths(session)
+    session.run("flynt", *paths["all"], external=True)
+
+
+@nox.session()
+def mypy(session):
+    paths = get_paths(session)
+    (session.run("mypy", *paths["root"], external=True))
+
+
+@nox.session()
+def autotyping(session):
+    paths = get_paths(session)
+    session.run("autotyping", "--aggressive", *paths["all"], external=True)
+
+
+@nox.session()
+def mdformat(session):
+    paths = get_paths(session)
+    session.run("mdformat", *paths["root"], external=True)
+
+
+@nox.session(name="ruff-lint")
+def ruff_lint(session):
+    paths = get_paths(session)
+    session.run("ruff", "check", *paths["all"], external=True)
+
+
+@nox.session(name="ruff-fix")
+def ruff_fix(session):
+    paths = get_paths(session)
+    session.run("ruff", "check", "--fix", *paths["all"], external=True)
+
+
+@nox.session(name="ruff-format")
+def ruff_format(session):
+    paths = get_paths(session)
+    session.run("ruff", "format", *paths["all"], external=True)
+
+
+@nox.session()
+def test(session):
+    session.run("pytest", external=True)
+
+
+@nox.session()
+def test_custom(session):
+    for a in session.posargs:
+        if not ARG_RE.match(a):
+            session.error(f"unsafe pytest argument detected: {a!r}")
+
+    session.run(
+        "pytest", *session.posargs, external=True
+    )  # Pass additional arguments directly to pytest
+
+
+@nox.session()
+def test_nb(session):
+    session.run(
+        "pytest",
+        "--nbval",
+        "tests/test_notebooks/",
+        "--nbval-sanitize-with=tests/test_notebooks/sanitize_file.cfg",
+        external=True,
+    )

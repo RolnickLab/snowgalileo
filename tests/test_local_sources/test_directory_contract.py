@@ -28,9 +28,9 @@ from pathlib import Path
 import rasterio
 import torch
 
-from src.data.config import NO_DATA_VALUE
-from src.data.local_sources.base import GridCell
-from src.data.local_sources.paths import LocalPaths
+from snow_galileo.data.config import NO_DATA_VALUE
+from snow_galileo.data.local_sources.base import GridCell
+from snow_galileo.data.local_sources.paths import LocalPaths
 
 # A 1 km UTM cell (matches the inference-driver test helpers).
 _CELL_M = 1_000.0
@@ -64,9 +64,9 @@ def _snapshot(root: Path) -> dict[str, tuple[int, float]]:
 
 def _tiny_model() -> object:
     """Build a tiny untrained ``EncoderWithHead`` (no checkpoint) for the FSC head."""
-    from src.fsc.patch_predict import EncoderWithHead
-    from src.snowgalileo import Encoder
-    from src.utils import config_dir
+    from snow_galileo.fsc.patch_predict import EncoderWithHead
+    from snow_galileo.snowgalileo import Encoder
+    from snow_galileo.utils import config_dir
 
     with (config_dir / "eval" / "fsc_inference_bow_river_tiny.json").open() as fh:
         eval_config = json.load(fh)["finetune"]
@@ -84,8 +84,8 @@ def _tiny_model() -> object:
 
 def test_stage2_run_respects_directory_contract(tmp_path: Path) -> None:
     """AC-32: cube+inference writes only under ``processing_root``, never the archives."""
-    from src.data.local_sources.exporter import LocalSourceExporter
-    from src.inference.driver import InferenceGridDriver
+    from snow_galileo.data.local_sources.exporter import LocalSourceExporter
+    from snow_galileo.inference.driver import InferenceGridDriver
 
     paths = LocalPaths()
     before_raw = _snapshot(paths.raw_root)
@@ -151,7 +151,7 @@ def test_stage2_run_respects_directory_contract(tmp_path: Path) -> None:
 
 def test_processing_subdirs_derive_from_root(tmp_path: Path) -> None:
     """``CubeSettings`` derives every Stage-2 subdir from ``processing_root`` (FR-20b)."""
-    from src.data.local_sources.settings import CubeSettings
+    from snow_galileo.data.local_sources.settings import CubeSettings
 
     settings = CubeSettings(processing_root=tmp_path / "proc")  # type: ignore[call-arg]
     root = tmp_path / "proc"

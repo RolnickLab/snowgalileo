@@ -62,7 +62,7 @@ def spike_output() -> dict[str, np.ndarray]:
     root = resolve_source_root("sentinel2_raw", pattern=_GRANULE_NAME)
     if root is None:
         pytest.skip(f"No raw S2 granule {_GRANULE_NAME} under fixtures (build to run parity)")
-    from src.data.local_sources.parity.s2 import run_s2_spike
+    from snow_galileo.data.local_sources.parity.s2 import run_s2_spike
 
     return run_s2_spike(
         granule_zip=root / _GRANULE_NAME,

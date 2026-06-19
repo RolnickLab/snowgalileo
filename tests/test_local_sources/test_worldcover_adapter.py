@@ -24,8 +24,8 @@ import datetime
 import numpy as np
 import pytest
 
-from src.data.config import NO_DATA_VALUE
-from src.data.local_sources.base import CELL_TARGET_CRS, GridCell
+from snow_galileo.data.config import NO_DATA_VALUE
+from snow_galileo.data.local_sources.base import CELL_TARGET_CRS, GridCell
 from tests._archive_fixtures import resolve_structural_root
 
 #: Allowed WorldCover v200 class codes (plus 0 / -9999 for nodata).
@@ -51,7 +51,7 @@ def adapter():
     root = resolve_structural_root("worldcover", pattern="*_Map.tif")
     if root is None:
         pytest.skip("No WorldCover tiles under tests/fixtures/clipped or tests/fixtures/archive")
-    from src.data.local_sources.worldcover import WorldCoverAdapter
+    from snow_galileo.data.local_sources.worldcover import WorldCoverAdapter
 
     return WorldCoverAdapter(archive_root=root)
 

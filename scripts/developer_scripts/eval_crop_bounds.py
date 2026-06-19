@@ -9,7 +9,7 @@ from typing import Union
 
 import rasterio
 
-from src.data.config import DATA_FOLDER
+from snow_galileo.data.config import DATA_FOLDER
 
 
 def crop_input_to_mask_bounds(input_data, bounds, transform):

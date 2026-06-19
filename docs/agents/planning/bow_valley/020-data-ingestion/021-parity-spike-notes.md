@@ -30,10 +30,10 @@
 loader's `subset_image` crops the ≥100 surplus to 100×100). Per-timestep band
 layout (from `layout.full_band_order()`):
 
-| Source | bands | 1-based index at timestep *t* |
-|--------|-------|-------------------------------|
-| **S1** | `VV, VH, angle`             | `38·t + 1 … 38·t + 3`  |
-| **S2** | `B2, B3, B4, B8, B11, B12`  | `38·t + 4 … 38·t + 9`  |
+| Source | bands                      | 1-based index at timestep *t* |
+| ------ | -------------------------- | ----------------------------- |
+| **S1** | `VV, VH, angle`            | `38·t + 1 … 38·t + 3`         |
+| **S2** | `B2, B3, B4, B8, B11, B12` | `38·t + 4 … 38·t + 9`         |
 
 The spike reads the reference patch's S1/S2 band slice for the matching
 timestep and diffs the spike output against it on the **same UTM cell grid**
@@ -101,24 +101,24 @@ toolchain.
 
 **Chosen tolerances** (explicit constants, also in the spike scripts + tests):
 
-| Source | Metric | Tolerance | Rationale |
-|--------|--------|-----------|-----------|
-| **S1** VV/VH | median abs diff | **≤ 1.0 dB** | SNAP-chain dB values; sub-dB agreement is the bar for a missing-noise-step spike with the −30 dB mask. |
-| **S1** angle | median abs diff | **≤ 1.0°** | incidence angle is geometry-only, should agree tightly. |
-| **S2** B2…B12 | median abs diff | **≤ 50 DN** (post −1000) | harmonized DN domain ~0–10000; 50 DN = 0.005 reflectance, well under model normalization sensitivity. |
+| Source        | Metric          | Tolerance                | Rationale                                                                                              |
+| ------------- | --------------- | ------------------------ | ------------------------------------------------------------------------------------------------------ |
+| **S1** VV/VH  | median abs diff | **≤ 1.0 dB**             | SNAP-chain dB values; sub-dB agreement is the bar for a missing-noise-step spike with the −30 dB mask. |
+| **S1** angle  | median abs diff | **≤ 1.0°**               | incidence angle is geometry-only, should agree tightly.                                                |
+| **S2** B2…B12 | median abs diff | **≤ 50 DN** (post −1000) | harmonized DN domain ~0–10000; 50 DN = 0.005 reflectance, well under model normalization sensitivity.  |
 
 **Measured drift** (filled by the spike run — the `run_*_parity.py` wrappers under
 `scripts/developer_scripts/bow_valley_inference_local/spikes/` emit `structlog`):
 
 _S1 (per band, vs reference, valid pixels, −30 dB masked). Cell
-``PR_20250406…5653083.8`` t0, date 2025-03-30, granule ``S1C…88AD``; SNAP `gpt`
+`PR_20250406…5653083.8` t0, date 2025-03-30, granule `S1C…88AD`; SNAP `gpt`
 full S1_GRD chain → EPSG:32611 → reprojected to patch grid:_
 
-| band | median \|Δ\| | p95 \|Δ\| | within tol (≤1.0 dB median)? |
-|------|--------------|-----------|------------------------------|
-| VV   | **0.54 dB**  | 2.32 dB   | ✅ |
-| VH   | **0.48 dB**  | 2.11 dB   | ✅ |
-| angle| not emitted  | —         | n/a (see note) |
+| band  | median \|Δ\| | p95 \|Δ\| | within tol (≤1.0 dB median)? |
+| ----- | ------------ | --------- | ---------------------------- |
+| VV    | **0.54 dB**  | 2.32 dB   | ✅                           |
+| VH    | **0.48 dB**  | 2.11 dB   | ✅                           |
+| angle | not emitted  | —         | n/a (see note)               |
 
 **Interpretation.** VV/VH agree with GEE's `COPERNICUS/S1_GRD` to **sub-dB**
 (median ~0.5 dB) using the full SNAP chain — including thermal/border-noise
@@ -130,17 +130,17 @@ value-domain drift risk; this graph did not request the TC
 angle is ~43.6° (near-constant over the 1 km patch); the real adapter (TASK-014)
 recovers it by enabling that TC output. **S1 = GO.**
 
-_S2 (per band, post −1000 DN). Cell ``PR_20250406…5653083.8`` t4, date 2025-04-03,
-tile ``T11UNS``; valid (non-0, non-−9999) reference pixels:_
+_S2 (per band, post −1000 DN). Cell `PR_20250406…5653083.8` t4, date 2025-04-03,
+tile `T11UNS`; valid (non-0, non-−9999) reference pixels:_
 
 | band | median \|Δ\| (DN) | p95 \|Δ\| (DN) | within tol (≤50 median)? |
-|------|-------------------|----------------|--------------------------|
-| B2   | **0.00**          | 0.00           | ✅ exact |
-| B3   | **0.00**          | 0.00           | ✅ exact |
-| B4   | **0.00**          | 0.00           | ✅ exact |
-| B8   | **0.00**          | 0.00           | ✅ exact |
-| B11  | 19.38             | 86.19          | ✅ |
-| B12  | 19.44             | 88.38          | ✅ |
+| ---- | ----------------- | -------------- | ------------------------ |
+| B2   | **0.00**          | 0.00           | ✅ exact                 |
+| B3   | **0.00**          | 0.00           | ✅ exact                 |
+| B4   | **0.00**          | 0.00           | ✅ exact                 |
+| B8   | **0.00**          | 0.00           | ✅ exact                 |
+| B11  | 19.38             | 86.19          | ✅                       |
+| B12  | 19.44             | 88.38          | ✅                       |
 
 **Interpretation.** The four 10 m bands (B2/B3/B4/B8) are **bit-exact** vs GEE: the
 −1000 DN offset perfectly reproduces the harmonized domain and no resampling is
@@ -163,6 +163,7 @@ the stated tolerances against the GEE reference patches:
 **Proceed to TASK-006.** No escalation needed.
 
 **Recipe hand-off to the production adapters:**
+
 - **TASK-013 (S2):** read L1C JP2, subtract 1000 DN (N0400+), reproject to the
   cell grid. Trivial; bit-exact for native-res bands.
 - **TASK-014 (S1):** the adapter must run the SNAP `gpt` chain (or an equivalent
@@ -172,7 +173,7 @@ the stated tolerances against the GEE reference patches:
   the TC incidence-angle output for the `angle` band. SNAP emits bands VH-then-VV;
   assign by name, not index.
 
----
+______________________________________________________________________
 
 ## 6. DEM terrain parity (TASK-007, 2026-06-04)
 
@@ -180,6 +181,7 @@ Validated the Copernicus DEM adapter recipe against the **DEM/slope/aspect bands
 (305/306/307)** of all six Phase-0 GEE reference patches.
 
 **Recipe (matches `ee.Terrain` + `create_ee_image` export):**
+
 1. Mosaic the clipped GLO-30 tiles in their **native EPSG:4326** frame (+0.05°
    margin so the Horn kernel has edge neighbours).
 2. Compute slope/aspect with a 3×3 **Horn** kernel using **latitude-correct metric
@@ -195,13 +197,13 @@ grid; nearest replicates that pixel reuse. Measured per-patch medians (interior,
 5 px border dropped):
 
 | patch | tiles | DEM med (m) | slope med (°) | slope p95 (°) | aspect med (°) |
-|---|---|---|---|---|---|
-| 0406 | 2 | 0.000 | 0.941 | 6.09 | 2.20 |
-| 0414 | 1 | 0.217 | 0.569 | 6.06 | 5.98 |
-| 0423 | 1 | 0.000 | 0.828 | 4.78 | 1.97 |
-| 0502 | 1 | 0.000 | 0.435 | 2.85 | 7.43 |
-| 0510 | 2 | 0.491 | 1.205 | 6.12 | 10.01 |
-| 0519 | 2 | 0.176 | 0.928 | 5.08 | 10.44 |
+| ----- | ----- | ----------- | ------------- | ------------- | -------------- |
+| 0406  | 2     | 0.000       | 0.941         | 6.09          | 2.20           |
+| 0414  | 1     | 0.217       | 0.569         | 6.06          | 5.98           |
+| 0423  | 1     | 0.000       | 0.828         | 4.78          | 1.97           |
+| 0502  | 1     | 0.000       | 0.435         | 2.85          | 7.43           |
+| 0510  | 2     | 0.491       | 1.205         | 6.12          | 10.01          |
+| 0519  | 2     | 0.176       | 0.928         | 5.08          | 10.44          |
 
 Bilinear roughly **doubles** the slope error (median ~1.7°, p95 ~6.5° on patch 0406)
 and adds DEM smoothing bias — confirming nearest is the parity-correct final step.
@@ -212,7 +214,7 @@ near-flat pixels; the test diffs it on the unit circle.
 ≤1.0 m, slope median ≤1.5°, aspect median (circular) ≤12°, plus a degenerate
 guard (slopes not near-uniformly ≈90°). **DEM = GO; adapter shipped (TASK-007).**
 
----
+______________________________________________________________________
 
 ## 7. ERA5-Land parity (TASK-008, 2026-06-04)
 
@@ -220,6 +222,7 @@ Validated the ERA5 adapter against the t2m/precip bands of the Phase-0 GEE
 reference patch `PR_20250406` across the 8-day window.
 
 **Recipe (matches GEE `ECMWF/ERA5_LAND/DAILY_AGGR`):**
+
 1. Read the **already-daily** archive — one slice/day, no hourly re-aggregation.
    Instantaneous vars from the monthly `YYYYMM_ERA5LAND/` folder (`skt`, `t2m`,
    `u10`, `v10`); precip from `YYYYMM_ERA5LAND_totalprecip.nc` (`tp`, `accum`).
@@ -235,10 +238,10 @@ reference patch `PR_20250406` across the 8-day window.
 grid is far coarser than the 1 km cell — GEE upsamples it as a constant block per
 ERA5 cell. Measured medians across 8 timesteps vs the reference patch:
 
-| resample | t2m med (K) | precip med (m) |
-|---|---|---|
-| **nearest** | **0.0001** | **0.0001** |
-| bilinear | 0.2565 | 0.0001 |
+| resample    | t2m med (K) | precip med (m) |
+| ----------- | ----------- | -------------- |
+| **nearest** | **0.0001**  | **0.0001**     |
+| bilinear    | 0.2565      | 0.0001         |
 
 Nearest is essentially exact (the patch's valid t2m is a single constant 268.32017 K,
 reproduced bit-for-bit). Bilinear smears across ERA5-cell boundaries for no benefit.
@@ -248,7 +251,7 @@ Routed through `base.reproject_to_cell(categorical=True)` (its nearest path).
 ≤0.01 K, precip median ≤0.001 m, plus a deterministic synthetic-NetCDF day-shift
 test (incl. the cross-month boundary) and a raw-Kelvin guard. **ERA5 shipped (TASK-008).**
 
----
+______________________________________________________________________
 
 ## 8. MODIS MOD09GA parity (TASK-009, 2026-06-04)
 
@@ -256,6 +259,7 @@ Validated the MODIS adapter against the `sur_refl_b01` band of the Phase-0 GEE
 reference patch `PR_20250406` across all 8 timesteps (DOY 089–096).
 
 **Recipe (matches GEE `MODIS/061/MOD09GA`):**
+
 1. Read the clip stage's per-band sinusoidal GeoTIFFs directly (no HDF4 driver):
    `MODIS_Grid_500m_2D__sur_refl_bNN_1.tif` (science) + `MODIS_Grid_1km_2D__state_1km_1.tif`
    (cloud). Each grid keeps its own resolution/transform — never hardcode 1200/2400.
@@ -269,12 +273,12 @@ reference patch `PR_20250406` across all 8 timesteps (DOY 089–096).
 is far coarser than the 10 m cell — GEE upsamples it as a constant block per MODIS
 pixel. Per-timestep median |Δ| vs the reference patch (sur_refl_b01):
 
-| resample | per-ts median \|Δ\| (DN) | mean |
-|---|---|---|
-| **nearest** | 0,0,0,0,0,0,0,0 | **0** |
-| bilinear | 350,34,225,172,201,941,441,215 | 322 |
-| cubic | 347,28,189,124,134,791,373,224 | 276 |
-| average | 0×8 | 0 |
+| resample    | per-ts median \|Δ\| (DN)       | mean  |
+| ----------- | ------------------------------ | ----- |
+| **nearest** | 0,0,0,0,0,0,0,0                | **0** |
+| bilinear    | 350,34,225,172,201,941,441,215 | 322   |
+| cubic       | 347,28,189,124,134,791,373,224 | 276   |
+| average     | 0×8                            | 0     |
 
 **Nearest is bit-exact.** It also makes the `-28672` edge-bleed risk (the reason the
 spec mandated nodata-aware bilinear) *impossible* — nearest never interpolates across
@@ -290,7 +294,7 @@ This is the **third** coarse source (after DEM §6 and ERA5 §7) where GEE's
 default for any source coarser than the 10 m cell; reserve bilinear/aware-bilinear for
 sources at or finer than 10 m (S2/Landsat/S1).
 
----
+______________________________________________________________________
 
 ## 9. VIIRS VNP09GA parity (TASK-010, 2026-06-04)
 
@@ -298,6 +302,7 @@ Validated the two VIIRS adapters against the I1 (fine) and M5 (coarse) bands of 
 Phase-0 reference patch `PR_20250406` across all 8 timesteps.
 
 **Recipe (matches GEE `NASA/VIIRS/002/VNP09GA`):**
+
 1. Read the clip stage's per-band sinusoidal GeoTIFFs (no HDF5 driver):
    `VIIRS_Grid_500m_2D__SurfReflect_I{1,3}_1.tif` (fine),
    `VIIRS_Grid_1km_2D__SurfReflect_M{5,7,10,11}_1.tif` (coarse).
@@ -322,7 +327,7 @@ timesteps (fine + coarse), reflectance-domain guard, per-pixel-raster guard (coa
 `(4,H,W)` not pre-averaged), `-28672` preservation, missing-day → `-9999`.
 **VIIRS shipped (TASK-010).** Fourth coarse source confirming the GEE-nearest rule.
 
----
+______________________________________________________________________
 
 ## 10. Sentinel-3 OLCI parity (TASK-011, 2026-06-04)
 
@@ -331,6 +336,7 @@ Investigated the S3 adapter against Oa17_radiance of the reference patch (t2 =
 bit-exactness** — the reasons are understood and the residual is out of scope.
 
 **Recipe (`src/data/local_sources/s3.py`):**
+
 1. Read SEN3 NetCDF via **h5py** directly (h5netcdf/xarray cannot resolve these files'
    HDF5 dimension-scale references — confirmed by traceback).
 2. **Decode CF scaling.** Radiance: uint16 × `scale_factor` (Oa17 0.00493004, Oa21
@@ -340,6 +346,7 @@ bit-exactness** — the reasons are understood and the residual is out of scope.
    curvilinear swath → cell UTM grid with `scipy.griddata(method="nearest")`.
 
 **Investigation of the ~18% offset (per user request — checked the GEE catalog):**
+
 - **Scale is correct.** The GEE `COPERNICUS/S3/OLCI` catalog lists Oa17 scale
   **0.00493004** — identical to the file `scale_factor`. The offset is NOT calibration.
 - **Geolocation input is the best available.** `geo_coordinates.nc` is the **full
@@ -374,18 +381,17 @@ transfer to S3.** The spike ran SNAP's OLCI ortho path and it went the *wrong* d
 
 **Spike (`src/data/local_sources/parity/s3.py` +
 `scripts/developer_scripts/bow_valley_inference_local/spikes/s3_olci_ortho_graph.xml`,
-kept as evidence):** `Read → Subset(Oa17,Oa21 + AOI) → Reproject(orthorectify=true,
-elevationModelName="SRTM 1Sec HGT", EPSG:32611, 300 m, Nearest) → Write`. SNAP's
+kept as evidence):** `Read → Subset(Oa17,Oa21 + AOI) → Reproject(orthorectify=true, elevationModelName="SRTM 1Sec HGT", EPSG:32611, 300 m, Nearest) → Write`. SNAP's
 `Reproject(orthorectify=true)` is the correct OLCI ortho operator — it uses the
 product's tie-point geocoding + the DEM to terrain-correct the optical swath. (The SAR
 `Terrain-Correction` / `Ellipsoid-Correction-GG` ops are radar-geometry only and reject
 an OLCI product — verified.) Diffed against the same reference patch / day / cell as §10,
 side-by-side with the production `griddata` swath-warp (identical 10403 co-valid pixels):
 
-| band | swath-warp corr | SNAP-ortho corr | Δcorr | warp median \|Δ\| | ortho median \|Δ\| |
-|------|-----------------|-----------------|-------|-------------------|--------------------|
-| Oa17_radiance | 0.666 | 0.658 | **−0.008** | 35.39 | 36.08 |
-| Oa21_radiance | 0.783 | 0.774 | **−0.009** | 22.77 | 24.01 |
+| band          | swath-warp corr | SNAP-ortho corr | Δcorr      | warp median \|Δ\| | ortho median \|Δ\| |
+| ------------- | --------------- | --------------- | ---------- | ----------------- | ------------------ |
+| Oa17_radiance | 0.666           | 0.658           | **−0.008** | 35.39             | 36.08              |
+| Oa21_radiance | 0.783           | 0.774           | **−0.009** | 22.77             | 24.01              |
 
 **Conclusion — the §10 "un-orthorectified geolocation" hypothesis is wrong (or not the
 dominant term).** If terrain distortion were the residual, SNAP's DEM ortho would have

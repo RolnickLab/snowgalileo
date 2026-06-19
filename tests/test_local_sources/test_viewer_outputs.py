@@ -13,7 +13,7 @@ import numpy as np
 import rasterio
 from affine import Affine
 
-from src.data.local_sources.viewer.outputs import (
+from snow_galileo.data.local_sources.viewer.outputs import (
     CubeRow,
     band_index,
     cube_availability,
@@ -25,7 +25,7 @@ from src.data.local_sources.viewer.outputs import (
     timesteps_for_var,
     vars_at_timestep,
 )
-from src.data.local_sources.viewer.settings import ViewerSettings
+from snow_galileo.data.local_sources.viewer.settings import ViewerSettings
 
 # A small EPSG:32611 grid (UTM 11N), matching the production cube CRS.
 _TRANSFORM = Affine(10.0, 0.0, 547_000.0, 0.0, -10.0, 5_620_000.0)

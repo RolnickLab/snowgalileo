@@ -5,11 +5,11 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 
-from src.collate_fns import mae_collate_fn
-from src.data import Dataset
-from src.loss import mse_loss
-from src.snowgalileo import Encoder, GalileoPixelDecoder
-from src.utils import device
+from snow_galileo.collate_fns import mae_collate_fn
+from snow_galileo.data import Dataset
+from snow_galileo.loss import mse_loss
+from snow_galileo.snowgalileo import Encoder, GalileoPixelDecoder
+from snow_galileo.utils import device
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/tifs_test"
 

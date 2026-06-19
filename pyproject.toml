@@ -34,12 +34,20 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "autotyping>=24.9.0",
+    "bump-my-version>=1.4.1",
+    "flynt>=1.0.6",
     "leafmap>=0.62.0",
     "localtileserver>=0.10.6",
     "matplotlib>=3.10.9",
+    "mdformat>=1.0.0",
+    "mdformat-gfm>=1.0.0",
+    "mdformat-gfm-alerts>=2.0.0",
     "mypy>=2.1.0",
+    "nox>=2026.4.10",
     "pandas>=1.5.3",
     "pre-commit>=4.6.0",
+    "pylint>=4.0.6",
     "pytest>=9.0.3",
     "pytest-xdist>=3.6",
     "ruff>=0.15.15",
@@ -60,7 +68,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["src/snow_galileo"]
 
 [tool.ruff]
 exclude = ["notebooks"]
@@ -86,6 +94,9 @@ lint.ignore = [
 ]
 
 lint.extend-safe-fixes = ["F841", "E711", "E712"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -116,10 +127,24 @@ markers = [
 ]
 
 [tool.mypy]
-exclude = ["venv", "notebooks", ".venv"]
+python_version = "3.11"
+exclude = ["venv", "notebooks", ".venv", "noxfile.py"]
 ignore_missing_imports = true
 sqlite_cache = true
 
 [[tool.mypy.overrides]]
 module = ["yaml.*", "dateutil.*"]
 ignore_missing_imports = true
+
+[tool.pylint]
+disable = "C0114,C0115,C0116,R0903,R1710,W1203"
+max-line-length = 99
+max-locals = 20
+max-args = 16
+max-positional-arguments = 16
+max-attributes = 20
+ignore = [
+    ".git",
+    "migrations",
+    "__pycache__"
+]

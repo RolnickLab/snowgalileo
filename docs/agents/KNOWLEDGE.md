@@ -1,4 +1,5 @@
-Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablations) 
+Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablations)
+
 - A single GeoTIFF consists of input products for a 1 km x 1 km ground area collected over a time series of 8 days.
 - During export, all products are resampled to 10 m spatial resolution, so that each product will have H = 100 and W = 100 (https://github.com/marlens123/presto-v3/blob/9591fec0a91a9f0e061aedd17beea78e673b8fef/src/data/earthengine/eo_eval.py#L442). In reality, they won’t strictly have a shape of (100, 100) after export (but larger, with more distortion the further to the poles). We need to crop this to the right shape for model processing. For pre-training and inference, the model takes care of this automatically in the dataset class (https://github.com/marlens123/presto-v3/blob/9591fec0a91a9f0e061aedd17beea78e673b8fef/src/data/dataset.py#L448). For fine-tuning and evaluation, the inputs additionally need to be aligned with the labels (which are already in the right shape), we currently crop to the label bounds in a separate pre-processing step that needs to be executed separately (https://github.com/marlens123/presto-v3/blob/9591fec0a91a9f0e061aedd17beea78e673b8fef/scripts/developer_scripts/eval_crop_bounds.py#L15, more description https://github.com/marlens123/presto-v3/tree/main/data#evaluation-data)
 - We divide the products into a) time-varying products, and b) static-in-time products. b) are ESA Worldcover and Copernicus DEM, a) is everything else. So every time-varying contributes [H * W * 8 timesteps * channels per product] and each static-in-time product contributes [H * W * channels per product] to the exported GeoTIFF (https://github.com/marlens123/presto-v3/blob/e456bfc877c351d02b7cf4f1f9424c373573f52b/src/data/earthengine/eo.py#L410).
@@ -96,10 +97,10 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   argument parsing + `from src.data.local_sources ...` imports (run via `uv run`, which
   uses the editable install). They were named `clip_dataset.py` / `clip_audit.py` until
   S1 gained a SNAP step (`process-s1`), making "clip" too narrow. The old flat `scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py`
-  + `scripts/.../test_clip_dataset.py` prototype was **removed** — it had no intersect
-  gate, crashed (degenerate-size `assert`) instead of skipping non-overlapping tiles,
-  and hardcoded a `min(1200,…)` MODIS clamp that truncated the 500 m science grid.
-  Pytest tests live at `tests/test_clip_dataset.py`.
+  - `scripts/.../test_clip_dataset.py` prototype was **removed** — it had no intersect
+    gate, crashed (degenerate-size `assert`) instead of skipping non-overlapping tiles,
+    and hardcoded a `min(1200,…)` MODIS clamp that truncated the 500 m science grid.
+    Pytest tests live at `tests/test_clip_dataset.py`.
 - **The §2.0 intersect gate is the one place footprint filtering happens.** Two
   stages: (1) metadata-only footprint∩AOI polygon test → `SKIP_NO_OVERLAP`;
   (2) overlap area < `CLIP_MIN_AOI_OVERLAP_AREA_KM2` (pydantic-settings,
@@ -183,7 +184,7 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   this change (`clip-source sentinel2`) and rebuild the combined manifest additively.
   Guard: `test_clip_dataset.py::test_sentinel2_clip_is_lossless`. **TASK-013's "bit-exact B4
   parity" had been a false-green** — its assertion was *signed-median == 0*, which lossy
-  ±2 DN noise preserves. See [[s2-clip-lossy-jp2-bug]].
+  ±2 DN noise preserves. See \[[s2-clip-lossy-jp2-bug]\].
 - **Sentinel-2 `QA60` IS reconstructable — a deterministic MSK_CLASSI repack (TASK-013c,
   S2CloudAdapter).** GEE's `COPERNICUS/S2_HARMONIZED` rebuilds QA60 (post-2024-02-28) as
   `MSK_CLASSI_OPAQUE<<10 | MSK_CLASSI_CIRRUS<<11`, **opaque precedence, snow excluded** →
@@ -195,7 +196,7 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   the repack reproduces GEE. (NOT a separate cloud algorithm; the SNAP-route idea does not
   apply — QA60 is an ESA L1C band, not a SNAP product.) `S2CloudAdapter` (`s2.py`) packs it
   with nearest 60 m→10 m reproject + the same coalesce/mosaic path as `S2Adapter`. See
-  [[s2-qa60-reconstructed-from-msk-classi]].
+  \[[s2-qa60-reconstructed-from-msk-classi]\].
 - **Landsat clips stay native EPSG:32612, S2 stays EPSG:32611.** The clip queries
   each band's CRS dynamically (no hardcoded zone) and reprojects the AOI to it. The
   cross-zone 32612→4326 reprojection is the Landsat adapter's job (TASK-012), not the
@@ -218,7 +219,7 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   proven on PR_20250519 (VV 0.38 / VH 0.40 dB, angle 0.24°); PR_20250406 is a
   GEE-pull-confirmed single-scene anomaly (GEE VV −2.63 vs our −12.7 dB, *same*
   acquisition — not a pipeline bug), PR_20250423 a SNAP "Empty region!" quirk. See
-  [[s1-adapter-snap-cache-and-angle]], [[xarray-sentinel-s1c-regex-bug]]. Build:
+  \[[s1-adapter-snap-cache-and-angle]\], \[[xarray-sentinel-s1c-regex-bug]\]. Build:
   `python -m src.data.local_sources.s1_snap`.
 - **A truncated SNAP cache tif silently dropped S1 from cubes — guarded since
   commit `b90a8955`.** An *interrupted* offline build can exit 0 yet publish a tiny
@@ -237,7 +238,7 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   granule footprint covers — a full-window scan of 7223 cubes shows valid S1 on
   exactly the 7 in-window acq dates, 0 everywhere else). Guard tests:
   `tests/test_local_sources/test_s1_snap_extent_guard.py`. See
-  [[s1-truncated-snap-cache-silent-dropout]].
+  \[[s1-truncated-snap-cache-silent-dropout]\].
 - **Inference driver/mosaic (TASK-015) mosaics FSC by DIRECT UTM placement — NO reproject.**
   The per-cell cube grid is already EPSG:32611 (not 4326), so each cell's 10×10 FSC
   prediction is already UTM 11N at 100 m/px. `DailyMosaicWriter` (`src/inference/mosaic.py`)
@@ -265,8 +266,7 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   standalone / under `-n 4` / on a 3m49s full run. **xdist's `loadgroup` ignores a group
   added dynamically in a collection hook** — the marker must be static on each test
   (`tests/conftest.py` only documents the `SLOW_XDIST_GROUP` constant). **Triage rule:** a
-  real-archive parity failure is only real if it reproduces **isolated** (`pytest <nodeid>
-  -p no:xdist`); otherwise it is scheduling noise. See TEST_BASELINE.md.
+  real-archive parity failure is only real if it reproduces **isolated** (`pytest <nodeid> -p no:xdist`); otherwise it is scheduling noise. See TEST_BASELINE.md.
 - **S3 OLCI lat/lon are CF-scaled int32 — apply `scale_factor` before the AOI mask
   (or every radiance band clips to (0,0)).** `geo_coordinates.nc` stores `latitude`
   / `longitude` as `int32` with `scale_factor ≈ 1e-6` (raw `49896598` means
@@ -295,13 +295,11 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   pixels wide (~300 m px on a ~1 km cell), so corr ~0.67 is a few edge pixels, and
   `spatial_kind="med"` 5×5-downsamples away any sub-pixel difference before the model sees
   it. Bonus blocker: SNAP's netCDF reader can't open the **clipped** `.nc` (HDF5 dim-scale
-  refs — the same landmine the adapter avoids via `h5py`; `IllegalStateException: DataObject
-  doesnt start with OHDR`), so ortho would force sourcing the raw product for zero gain.
+  refs — the same landmine the adapter avoids via `h5py`; `IllegalStateException: DataObject doesnt start with OHDR`), so ortho would force sourcing the raw product for zero gain.
   **Keep the swath-warp; the open S3 lever is the identity-normalization TODO, not
   geolocation.** Evidence kept: `src/data/local_sources/parity/s3.py` (logic),
   `scripts/developer_scripts/bow_valley_inference_local/spikes/run_s3_parity.py` +
-  `s3_olci_ortho_graph.xml`. See PARITY_SPIKE_NOTES §10.1, [[s3-snap-ortho-rejected]].
-
+  `s3_olci_ortho_graph.xml`. See PARITY_SPIKE_NOTES §10.1, \[[s3-snap-ortho-rejected]\].
 
 ### Cube cache (`cube_cache.py`) — invalidation & eviction
 
@@ -312,7 +310,7 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   reused). A fresh dir (no stamp) is reconciled, never spuriously cleared. Putting
   it in `cube.yaml` would let one cluster's stale value silently reuse another's
   incompatible cache — exactly the disaster the stamp prevents. See
-  [[cube-cache-version-stamp-invalidation]].
+  \[[cube-cache-version-stamp-invalidation]\].
 - **The `--cache-policy {prompt|reuse|overwrite}` flag backstops the forgot-to-bump
   case.** `prompt` (default) asks if the cache is non-empty and **errors on a
   non-TTY** (never silently reuses a possibly-stale cache in a batch job); `reuse`
@@ -333,8 +331,7 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   logs `cube_cache_over_cap_after_prune` and returns. `cache_max_entries` is configurable
   (`cube.yaml`; `DEFAULT_MAX_ENTRIES = 200_000`, set to `3_000_000` for Mode B's full
   18 232-row sweep). The old `_evict_to_cap` FIFO path was **removed**. See
-  [[cube-cache-day-frontier-eviction]].
-
+  \[[cube-cache-day-frontier-eviction]\].
 
 ## TASK-016 — downstream value-domain & inference invariants (AC-4)
 
@@ -345,26 +342,30 @@ These five are *preserved-as-is* contracts the direct-source pipeline must not "
   treats `-28672` as a "data present" sentinel (`landsat_eval.py:317,331` NDSI/NDVI);
   the MODIS adapter must preserve it in addition to `-9999`, and the nodata-aware
   resampler masks it to NaN before any bilinear so it never bleeds into a valid pixel.
-  See [[modis-fill-28672-load-bearing]].
+  See \[[modis-fill-28672-load-bearing]\].
+
 - **ERA5 temperature-shift sign is preserved, not corrected.** The known temp-sign quirk
   is a model-numeric-domain concern; the adapter emits raw Kelvin/native units and does
   **not** "fix" the sign (SPEC §6 out of scope). Separately, `total_precipitation` carries
   the ERA5-Land day-shift (day `i` ← `i+1` 00:00 accum slice); temps/winds are unshifted.
-  See [[era5-precip-accumulation-day-shift]].
+  See \[[era5-precip-accumulation-day-shift]\].
+
 - **S3 identity-normalization is intentional.** The S3 OLCI radiances are passed through
   with identity normalization on purpose (downstream concern, out of scope to change); the
-  open S3 lever is this norm TODO, **not** geolocation/ortho ([[s3-snap-ortho-rejected]]).
+  open S3 lever is this norm TODO, **not** geolocation/ortho (\[[s3-snap-ortho-rejected]\]).
+
 - **`PR` filename prefix is supported and currently unused on disk.** The loader's filename
   parser accepts the `PR_` prefix (`PR_{YYYYMMDD}_{LAT}_{LON}_SC00.tif`); the exporter emits
   exactly that. If the prefix meaning ever reopens, the **only** permitted downstream change
   is an additive allowlist patch at `landsat_eval.py:172` in the same PR (RESOLVED — no patch
   needed today).
+
 - **Per-cell inference has NO cross-cell context.** Each cell is an independent
   `EncoderWithHead` forward on its own 308-band cube; the driver batches cells only for GPU
   throughput, never to share spatial context across cells. The daily mosaic stitches the
-  independent 10×10 predictions by exact UTM pixel offset ([[inference-driver-direct-utm-mosaic]]).
+  independent 10×10 predictions by exact UTM pixel offset (\[[inference-driver-direct-utm-mosaic]\]).
 
 - **Scene adapters (S2/Landsat) windowed-read the cell footprint, never the full UTM tile.**
   The clip keeps the full tile; reading a whole band is ~900 MB float64 → multi-GB OOM on a
   sweep. `_scene_ops.cell_window` reads only the cell neighbourhood (+4 px margin); output is
-  bit-identical to the full read. See [[s2-landsat-windowed-read-oom]].
+  bit-identical to the full read. See \[[s2-landsat-windowed-read-oom]\].

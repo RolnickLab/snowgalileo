@@ -7,7 +7,7 @@ with the project edge mask (pixels ``< -30.0`` dB → ``-9999``).
 
 Unlike S2/Landsat, the clip stage does **not** preprocess S1 — the heavy ESA SNAP
 chain runs once per granule into a cached 3-band dB+angle GeoTIFF
-(:mod:`src.data.local_sources.s1_snap`). The adapter ``fetch`` is then a pure
+(:mod:`snow_galileo.data.local_sources.s1_snap`). The adapter ``fetch`` is then a pure
 raster read of that cache, so these unit tests build synthetic **post-SNAP**
 GeoTIFFs (no SNAP, no archive — they never skip).
 
@@ -33,13 +33,13 @@ from affine import Affine
 from rasterio.transform import from_origin
 from shapely.geometry import box
 
-from src.data.config import NO_DATA_VALUE
-from src.data.local_sources.base import GridCell
-from src.data.local_sources.s1 import (
+from snow_galileo.data.config import NO_DATA_VALUE
+from snow_galileo.data.local_sources.base import GridCell
+from snow_galileo.data.local_sources.s1 import (
     S1Adapter,
     _parse_granule,
 )
-from src.data.local_sources.s1_snap import cache_tif_name
+from snow_galileo.data.local_sources.s1_snap import cache_tif_name
 from tests._archive_fixtures import ARCHIVE_ROOT
 
 #: SNAP cache + raw S1 archive live in the gitignored archive tier; the real-archive
@@ -402,7 +402,7 @@ def _ensure_patch_cache(cell: GridCell, acq: datetime.date) -> S1Adapter:
     from pyproj import Transformer
     from shapely.geometry import box as _box
 
-    from src.data.local_sources.s1_snap import _DEFAULT_GPT, build_granule_cache
+    from snow_galileo.data.local_sources.s1_snap import _DEFAULT_GPT, build_granule_cache
 
     if not _DEFAULT_GPT.exists():
         pytest.skip(f"ESA SNAP gpt not found at {_DEFAULT_GPT}; cannot build S1 cache.")

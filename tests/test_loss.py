@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from src.data.earthengine.eo import (
+from snow_galileo.data.earthengine.eo import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_TIME_HIGH_RES_BANDS_GROUPS_IDX,
     SPACE_TIME_LOW_RES_BANDS_GROUPS_IDX,
@@ -10,7 +10,7 @@ from src.data.earthengine.eo import (
     STATIC_BAND_GROUPS_IDX,
     TIME_BANDS_GROUPS_IDX,
 )
-from src.loss import mae_loss
+from snow_galileo.loss import mae_loss
 
 
 class TestLoss(unittest.TestCase):

@@ -3,6 +3,7 @@
 *Formerly `clip-viewer/PLAN.md`.*
 
 ## 1. Goal
+
 A quick, reusable way to **visually sanity-check** the products in
 `data/clipped_bow_valley_selection_raw/` after the TASK-002 clip stage — confirm
 each product (a) is non-empty, (b) sits inside `data/bow_valley_inference_aoi.geojson`, and (c) looks
@@ -16,6 +17,7 @@ ingestion adapters. It reads the clipped archive read-only; it writes nothing
 into any `data/` tree.
 
 ## 2. Why build vs. reuse (decision record)
+
 - `xarray.plot()` / QGIS / leafmap each solve *part* of this, but none gives a
   single "pick a clipped product → see it on a basemap with the AOI overlaid,
   archives cracked transparently, ERA5 stepped by date" view. See chat analysis.
@@ -24,7 +26,9 @@ into any `data/` tree.
   — just glue + per-sensor quicklook routines.
 
 ## 3. Scope & non-goals
+
 **In scope**
+
 - Read `clip_manifest.csv`, list every product with its `action`/overlap/valid-px.
 - Render selected product on a leafmap map with `data/bow_valley_inference_aoi.geojson` outlined.
 - Per-sensor quicklook routines (see Contract §5).
@@ -33,6 +37,7 @@ into any `data/` tree.
   `SKIP_*` products are visible as *why-skipped*, not just absent.
 
 **Non-goals**
+
 - No re-clipping, no reprojection-to-cell-grid, no band assembly (that's the
   adapter layer, TASK-006…014). The viewer renders what is on disk.
 - No write-back, no caching layer, no auth, no deployment. Localhost dev tool.
@@ -42,6 +47,7 @@ into any `data/` tree.
 ## 4. Known constraints / gotchas (verified on disk — Phase-0 spike confirmed)
 
 **Phase-0 spike findings (revise §5):**
+
 - **F1 — products are deeply nested.** DEM lives at
   `dem/DEM1_SAR_.../Copernicus_..._DEM.tif`, not flat. → `manifest.py` resolves
   every product through the manifest `output_path` column (single source of
@@ -96,6 +102,7 @@ into any `data/` tree.
    (geospatial skill: no eager multi-GB loads).
 
 ## 5. Contract — `quicklook(product) -> QuicklookResult` (define BEFORE impl)
+
 Single interface every modality implements. Drafted in `CONTRACT.md`, stubbed in
 `viewer/quicklook.py` as an ABC/protocol before any renderer is written.
 
@@ -112,24 +119,27 @@ QuicklookResult:
 ```
 
 Per-modality renderers (each ≤ ~40 lines, dispatched by `source`):
-| source | quicklook | bands / var |
-|---|---|---|
-| dem | single-band, terrain cmap | elevation |
-| worldcover | single-band, class palette | Map |
-| modis / viirs | RGB or single SR band | sur_refl b1/b4/b3 (MODIS), I1 (VIIRS) |
-| landsat8/9 | georef RGB true-color (decimated, per-scene CRS) | B4/B3/B2 from tar via /vsitar/ |
-| sentinel2 | georef RGB true-color (decimated) | B04/B03/B02 jp2 via /vsizip/ |
-| sentinel1 | **georef** dB-stretched (SNAP terrain-corrected, plain GeoTIFF; F3 superseded) | VV (band 2, linear σ⁰→dB) from `sentinel1_snap/s1_grd_*.tif` |
-| sentinel3 | plain_image, single radiance (NO geo) | Oa08_radiance |
-| era5 | georef single-band + date slider | tp / t2m / winds, valid_time idx |
+
+| source        | quicklook                                                                      | bands / var                                                  |
+| ------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| dem           | single-band, terrain cmap                                                      | elevation                                                    |
+| worldcover    | single-band, class palette                                                     | Map                                                          |
+| modis / viirs | RGB or single SR band                                                          | sur_refl b1/b4/b3 (MODIS), I1 (VIIRS)                        |
+| landsat8/9    | georef RGB true-color (decimated, per-scene CRS)                               | B4/B3/B2 from tar via /vsitar/                               |
+| sentinel2     | georef RGB true-color (decimated)                                              | B04/B03/B02 jp2 via /vsizip/                                 |
+| sentinel1     | **georef** dB-stretched (SNAP terrain-corrected, plain GeoTIFF; F3 superseded) | VV (band 2, linear σ⁰→dB) from `sentinel1_snap/s1_grd_*.tif` |
+| sentinel3     | plain_image, single radiance (NO geo)                                          | Oa08_radiance                                                |
+| era5          | georef single-band + date slider                                               | tp / t2m / winds, valid_time idx                             |
 
 Failure contract: any unreadable/corrupt product → `plain_image` placeholder +
 `note` with the exception class; never crash the app, never a silent blank.
 
 ## 6. Architecture
+
 **Decisions (locked):** module home = `src/data/local_sources/viewer/` (moved
 from `src/viewer/` post-Phase-5 — viewer scopes to local clipped sources); deps =
 `solara`+`leafmap` (dev group); manifest I/O = `pandas`.
+
 ```
 scripts/developer_scripts/bow_valley_inference_local/data_viewer.py   # Solara entrypoint (`solara run`)
 src/data/local_sources/viewer/
@@ -139,23 +149,26 @@ src/data/local_sources/viewer/
   archives.py     # /vsizip/ /vsitar/ path builders + member discovery
   aoi.py          # load data/bow_valley_inference_aoi.geojson -> geojson layer + bounds
 ```
+
 - Solara reactive state: selected `source`, selected `product_id`, ERA5
   `(variable, date_idx)`. Map rebuilds layer on change.
 - Pydantic-settings `ViewerSettings`: clipped root, aoi path, decimation target
   (default 1024 px long edge), default basemap. No magic numbers.
 
 ## 7. Dependencies to add (dev group) — APPROVED
+
 `solara`, `leafmap`, and pin `pandas` explicitly. Already present: rasterio (via
 rioxarray), xarray, rioxarray, numpy, matplotlib, geopandas, h5netcdf. Add under a
 `dev`/`viz` group in `pyproject.toml`, NOT core runtime deps (keeps the ingestion
 pipeline lean). User approved the add.
 
 ## 8. Phased delivery (incremental review per CLAUDE.md — STOP after each)
+
 - **Phase 0 — spike (no app):** verify GDAL can read one JP2 via /vsizip/, one
   Landsat band via /vsitar/, one ERA5 var, decimated. Confirm leafmap+solara
   import. ~30 lines throwaway. → STOP, report what reads / what doesn't.
 - **Phase 1 — contract:** write `CONTRACT.md` + `quicklook.py` stubs + `manifest.py`
-  + `aoi.py`. No rendering. → STOP for approval.
+  - `aoi.py`. No rendering. → STOP for approval.
 - **Phase 2 — GeoTIFF renderers + map shell:** dem/worldcover/modis/viirs +
   Solara map with AOI overlay + product picker. The "GeoTIFFs already easy, but
   one-stop with AOI" win lands here. → STOP.
@@ -166,6 +179,7 @@ pipeline lean). User approved the add.
   of unit tests on `manifest.py`/`archives.py` path building (pure funcs, no I/O).
 
 ## 9. Acceptance
+
 - `solara run scripts/developer_scripts/bow_valley_inference_local/data_viewer.py` opens; every manifest row
   selectable; CLIP rows render, SKIP rows show their skip reason.
 - AOI outline visible on every georef_raster product.
@@ -176,6 +190,7 @@ pipeline lean). User approved the add.
 - Suite introduces zero new failures vs TEST_BASELINE.md.
 
 ## 10. Decisions (resolved)
+
 1. ✅ Add `solara`+`leafmap` to a dev dep group.
 2. ✅ Module home: `src/data/local_sources/viewer/` (importable/testable; moved
    from `src/viewer/` — the viewer validates only local clipped sources, so it

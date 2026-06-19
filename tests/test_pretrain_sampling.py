@@ -1,8 +1,8 @@
 import unittest
 from datetime import datetime, timedelta
 
-from src.data.config import END_YEAR, NORTH_HEM_SEASONS, NUM_TIMESTEPS, START_YEAR
-from src.data.earthengine.utils import (
+from snow_galileo.data.config import END_YEAR, NORTH_HEM_SEASONS, NUM_TIMESTEPS, START_YEAR
+from snow_galileo.data.earthengine.utils import (
     sample_season_year,
     sample_time_window,
 )

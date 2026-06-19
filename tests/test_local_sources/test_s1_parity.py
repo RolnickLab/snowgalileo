@@ -76,7 +76,7 @@ def parity() -> dict[str, float]:
         )
     from shapely.geometry import box
 
-    from src.data.local_sources.base import GridCell, reproject_to_cell
+    from snow_galileo.data.local_sources.base import GridCell, reproject_to_cell
 
     with rasterio.open(_REF_PATCH) as ref:
         ref_vv = ref.read(_REF_VV_BAND).astype(np.float64)

@@ -1,11 +1,13 @@
 # TASK-013c: Reconstruct the Sentinel-2 `QA60` cloud flag for the cloud slot
 
 ## 1. Goal
+
 Emit a `QA60` band that reproduces GEE's `COPERNICUS/S2_HARMONIZED` `QA60` value domain on
 the cell grid, filling the S2 cloud slot that TASK-013 deliberately left as a `-9999`
 placeholder.
 
 ## 2. Context & Why (deferred from TASK-013)
+
 - **N0511 SAFEs ship no `QA60.jp2`.** Baseline ≥ N0400 replaced the legacy
   `IMG_DATA/.../QA60.jp2` with the new `QI_DATA/MSK_CLASSI_B00.jp2` cloud mask (a 60 m,
   3-band {opaque, cirrus, snow} uint8 mask). GEE *backfills* a synthesized `QA60` for these
@@ -20,6 +22,7 @@ placeholder.
   bit-exact (TASK-013). This task is correctness-completeness, not a model blocker.
 
 ## 3. Investigation directions
+
 1. Compare GEE `QA60` vs `MSK_CLASSI` bands pixel-by-pixel over several covered patches to
    learn the true mapping (bit alignment, 60 m grid origin, opaque-vs-cirrus precedence).
 2. Check whether GEE derives `QA60` from `MSK_CLASSI` at all, or from a separate cloud
@@ -28,17 +31,19 @@ placeholder.
 3. Resample 60 m → 10 m cell with **nearest** (coarse-source rule); `QA60` is categorical.
 
 ## 4. Acceptance Criteria
+
 - [x] `S2CloudAdapter` emits `QA60` on the cell grid (categorical, NN, same coalesce/mosaic
-      path as `S2Adapter`). → **BUILT** (`s2.py::S2CloudAdapter`, `_qa60_from_msk_classi`).
+  path as `S2Adapter`). → **BUILT** (`s2.py::S2CloudAdapter`, `_qa60_from_msk_classi`).
 - [x] If reconstructed: `QA60` matches the GEE reference patch within a stated tolerance on
-      the covered timesteps. → **Bit-layout verified against a direct GEE pull**
-      (`opaque<<10 | cirrus<<11`, opaque precedence, snow excluded; domain `{0,1024,2048}`);
-      real-archive parity asserted after the lossless re-clip (see §6).
+  the covered timesteps. → **Bit-layout verified against a direct GEE pull**
+  (`opaque<<10 | cirrus<<11`, opaque precedence, snow excluded; domain `{0,1024,2048}`);
+  real-archive parity asserted after the lossless re-clip (see §6).
 - [x] Wired into the exporter cloud slot; ruff + mypy clean; no new suite failures. →
-      `S2CloudAdapter` added to `exporter.py` `reals`; `_split_group` auto-fills the QA60
-      slot. ruff/mypy clean; suite-delta empty.
+  `S2CloudAdapter` added to `exporter.py` `reals`; `_split_group` auto-fills the QA60
+  slot. ruff/mypy clean; suite-delta empty.
 
 ## 5. Out of scope
+
 Reflectance bands (TASK-013, done). Missing-date coverage (TASK-013b).
 
 ## 6. Outcome — QA60 reconstructed (corrected 2026-06-08)

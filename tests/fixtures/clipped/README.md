@@ -4,10 +4,10 @@ Adapter tests never read `data/`. Source data is resolved under `tests/fixtures/
 by `tests/_archive_fixtures.py` (`resolve_source_root`), which prefers the
 committed tier and falls back to the gitignored one:
 
-| Tier | Path | Git | Purpose |
-|---|---|---|---|
-| **clipped** | `tests/fixtures/clipped/<source>/` | **committed** | Slim, windowed, **bit-exact** crops of the real archive. Satisfy structural *and* parity tests for these sources, with no download step. |
-| **archive** | `tests/fixtures/archive/<source>/` | **gitignored** | Only sources too large to commit (S3). Downloaded locally / hosted separately. Skip if absent. |
+| Tier        | Path                               | Git            | Purpose                                                                                                                                  |
+| ----------- | ---------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **clipped** | `tests/fixtures/clipped/<source>/` | **committed**  | Slim, windowed, **bit-exact** crops of the real archive. Satisfy structural *and* parity tests for these sources, with no download step. |
+| **archive** | `tests/fixtures/archive/<source>/` | **gitignored** | Only sources too large to commit (S3). Downloaded locally / hosted separately. Skip if absent.                                           |
 
 > CI runs `pytest -m 'not slow'`, so it executes the **structural** tests of the
 > committed sources (the parity tests are marked `slow`); the parity tests still run

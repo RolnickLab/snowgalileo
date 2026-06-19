@@ -20,8 +20,8 @@ import numpy as np
 import numpy.typing as npt
 import pytest
 
-from src.data.local_sources.base import GridCell, LocalSourceAdapter, SpatialKind
-from src.data.local_sources.exporter import LocalSourceExporter
+from snow_galileo.data.local_sources.base import GridCell, LocalSourceAdapter, SpatialKind
+from snow_galileo.data.local_sources.exporter import LocalSourceExporter
 
 _ARCHIVE = Path("data/clipped_bow_valley_selection_raw")
 
@@ -73,7 +73,7 @@ def _exporter_with_stub(
     exporter._dynamic = [adapter]
     exporter._cache = None
     if cache:
-        from src.data.local_sources.cube_cache import CubeCache
+        from snow_galileo.data.local_sources.cube_cache import CubeCache
 
         exporter._cache = CubeCache(tmp_path / "cube_cache", max_entries=10_000)
     return exporter

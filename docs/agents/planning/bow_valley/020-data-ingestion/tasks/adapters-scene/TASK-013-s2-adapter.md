@@ -1,11 +1,13 @@
 # TASK-013: Implement the Sentinel-2 adapter (−1000 DN harmonization, coalesce)
 
 ## 1. Goal
+
 Promote the S2 parity spike to a production adapter that emits `[B2,B3,B4,B8,B11,B12]`
 on the cell grid, subtracting 1000 DN for baseline ≥ 04.00 (N0511) granules to match
 `S2_HARMONIZED`, with same-(tile,date) coalesce before cross-tile mosaic-before-crop.
 
 ## 2. Context & References
+
 - **FDD step:** §4.6 (adapter order #8 — parity spike done in TASK-005, now production).
 - **SPEC:** FR-9, FR-9b, FR-11, AC-12, AC-13, AC-15, AC-15b; Verification Plan step 6.
 - **PLAN:** §4 adapter rules (S2 harmonization; coalesce before mosaic), §6 FMEA,
@@ -45,18 +47,20 @@ on the cell grid, subtracting 1000 DN for baseline ≥ 04.00 (N0511) granules to
 - **Relevant skills:** `geospatial` (JP2 read, SWIR resample, coalesce/mosaic), `tdd`.
 
 ## 3. Subtasks
+
 - [x] 1. Write `test_s2_adapter.py` (Red): `bands_out=[B2,B3,B4,B8,B11,B12]`; N0511 granule
-      → −1000 DN; coalesce complementary-mask + latest-proc winner; **coverage-validation
-      test** (every patch ≥1 covered date, xfails with TASK-013b backlog); **bit-exact B4
-      parity** on covered patches (signed median 0).
+  → −1000 DN; coalesce complementary-mask + latest-proc winner; **coverage-validation
+  test** (every patch ≥1 covered date, xfails with TASK-013b backlog); **bit-exact B4
+  parity** on covered patches (signed median 0).
 - [x] 2. Implement `s2.py`: read JP2 bands, baseline-check + −1000 DN, same-(tile,date)
-      coalesce, cross-tile mosaic-before-crop, **NEAREST** reproject, stack `(6, H, W)`.
-      Coalesce/mosaic lifted to shared `_scene_ops.py` (also used by Landsat).
+  coalesce, cross-tile mosaic-before-crop, **NEAREST** reproject, stack `(6, H, W)`.
+  Coalesce/mosaic lifted to shared `_scene_ops.py` (also used by Landsat).
 - [~] 3. `QA60` cloud-flag path — **deferred to TASK-013c** (N0511 ships no `QA60.jp2`; a
-      naive `MSK_CLASSI` repack does not match GEE's backfilled QA60). Stays placeholder.
+  naive `MSK_CLASSI` repack does not match GEE's backfilled QA60). Stays placeholder.
 - [x] 4. Wire into exporter (S2Adapter in `reals`). 5. Green + Refactor (`_scene_ops` lift).
 
 ## 4. Requirements & Constraints
+
 - **Technical:** **NEAREST for reflectance** (20 m SWIR > 10 m cell → bit-exact; corrected
   from "bilinear"); baseline parsed from `MTD_MSIL1C.xml` `<PROCESSING_BASELINE>`
   (fallback: `N0511`-from-name); deterministic product order by processing time.
@@ -65,39 +69,43 @@ on the cell grid, subtracting 1000 DN for baseline ≥ 04.00 (N0511) granules to
 - **Out of scope:** L2A surface reflectance (not interchangeable), S1 (TASK-014).
 
 ## 5. Acceptance Criteria
+
 - [x] AC-1 (SPEC AC-15): `bands_out` correct; N0511 → −1000 DN; B4 parity on the covered
-      patches (`S2_HARMONIZED` domain reproduced). **CAVEAT (2026-06-08):** the original
-      assertion was *signed-median == 0*, which a later finding showed was a **false-green** —
-      the clip stage was lossy-recompressing S2 JP2 (±~2 DN), and median-0 survives symmetric
-      noise. Fixed by the lossless-JP2 clip guard + S2 re-clip; parity is now genuinely
-      bit-exact (see [[s2-clip-lossy-jp2-bug]] / TASK-013c §6).
+  patches (`S2_HARMONIZED` domain reproduced). **CAVEAT (2026-06-08):** the original
+  assertion was *signed-median == 0*, which a later finding showed was a **false-green** —
+  the clip stage was lossy-recompressing S2 JP2 (±~2 DN), and median-0 survives symmetric
+  noise. Fixed by the lossless-JP2 clip guard + S2 re-clip; parity is now genuinely
+  bit-exact (see \[[s2-clip-lossy-jp2-bug]\] / TASK-013c §6).
 - [x] AC-2 (SPEC AC-15b): complementary-mask coalesce → zero false `-9999`; surviving value
-      = latest-proc winner. (Real R113-vs-R070 case lives in the archive; the unit test uses
-      synthetic complementary masks for determinism.)
+  = latest-proc winner. (Real R113-vs-R070 case lives in the archive; the unit test uses
+  synthetic complementary masks for determinism.)
 - [x] AC-3 (SPEC AC-12): band order correct; output on the cell grid.
 - [x] AC-4 (SPEC AC-13): missing `(S2, day)` → all-`-9999`.
 - [x] AC-5: ruff + mypy clean; 10 new tests green (1 xfail = TASK-013b backlog); full-suite
-      delta = 0 new failures.
+  delta = 0 new failures.
 - [+] **Coverage AC (added per user):** every reference patch has ≥1 covered S2 date
-      (hard-asserted); the 9 missing dates are captured in **TASK-013b**.
+  (hard-asserted); the 9 missing dates are captured in **TASK-013b**.
 
 ## 6. Testing & Validation
+
 ```bash
 cd /home/dev/projects/presto-v3
 uv run pytest tests/test_local_sources/test_s2_adapter.py -v
 uv run ruff check src/data/local_sources/s2.py
 uv run mypy src/data/local_sources/s2.py
 ```
+
 Expected: adapter test green (−1000 DN + coalesce); parity within tolerance; ruff/mypy
 exit 0.
 
 **Regression check (suite is already red):** run the delta check in `TEST_BASELINE.md` — the "NEW failures" list must be empty. Do NOT use `pytest -x` at the suite level.
 
 ## 7. Completion Protocol
+
 1. Verify ACs. 2. Run Section 6 commands.
-3. Commit:
+2. Commit:
    ```bash
    git add src/data/local_sources/s2.py tests/test_local_sources/test_s2_adapter.py
    git commit -m "feat(bow-valley): Sentinel-2 adapter (−1000 DN harmonization, coalesce) — closes TASK-013"
    ```
-4. Check off subtasks/ACs. 5. Notify the user; request approval before TASK-014.
+3. Check off subtasks/ACs. 5. Notify the user; request approval before TASK-014.

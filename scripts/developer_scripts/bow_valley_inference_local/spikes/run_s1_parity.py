@@ -1,6 +1,6 @@
 """CLI wrapper: run the S1 GRD → S1_GRD parity spike (SNAP) for one cell.
 
-Thin entrypoint over :func:`src.data.local_sources.parity.s1.run_s1_spike`. It
+Thin entrypoint over :func:`snow_galileo.data.local_sources.parity.s1.run_s1_spike`. It
 supplies the SNAP graph that ships alongside this script. Run from the repo root
 so the repo-relative defaults and ``src`` imports resolve::
 
@@ -15,7 +15,7 @@ from pathlib import Path
 
 import structlog
 
-from src.data.local_sources.parity.s1 import DEFAULT_GPT, run_s1_spike
+from snow_galileo.data.local_sources.parity.s1 import DEFAULT_GPT, run_s1_spike
 
 logger = structlog.get_logger(__name__)
 

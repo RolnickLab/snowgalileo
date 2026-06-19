@@ -31,8 +31,8 @@ import pytest
 import rasterio
 from shapely.geometry import box
 
-from src.data.config import MODIS_FILL_VALUE, NO_DATA_VALUE
-from src.data.local_sources.base import CELL_TARGET_CRS, GridCell
+from snow_galileo.data.config import MODIS_FILL_VALUE, NO_DATA_VALUE
+from snow_galileo.data.local_sources.base import CELL_TARGET_CRS, GridCell
 from tests._archive_fixtures import resolve_archive_root
 
 _REF_DIR = Path("tests/fixtures/gee_reference_patches")
@@ -63,7 +63,7 @@ def fine():
         pytest.skip(
             "No VIIRS fixture under tests/fixtures (rebuild with populate_test_archive.py)"
         )
-    from src.data.local_sources.viirs import ViirsFineAdapter
+    from snow_galileo.data.local_sources.viirs import ViirsFineAdapter
 
     return ViirsFineAdapter(archive_root=root)
 
@@ -76,7 +76,7 @@ def coarse():
         pytest.skip(
             "No VIIRS fixture under tests/fixtures (rebuild with populate_test_archive.py)"
         )
-    from src.data.local_sources.viirs import ViirsCoarseAdapter
+    from snow_galileo.data.local_sources.viirs import ViirsCoarseAdapter
 
     return ViirsCoarseAdapter(archive_root=root)
 

@@ -17,7 +17,7 @@ from datetime import date, timedelta
 import numpy as np
 import pytest
 
-from src.data.local_sources.cube_cache import (
+from snow_galileo.data.local_sources.cube_cache import (
     _VERSION_STAMP,
     CACHE_VERSION,
     CubeCache,

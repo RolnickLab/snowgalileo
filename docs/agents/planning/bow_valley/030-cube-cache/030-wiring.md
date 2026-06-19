@@ -84,7 +84,7 @@ if block is None:
 
 1. **Cache dir must reach the worker.** `_init_worker` / `export_cells_parallel` only
    pass `(out_dir, archive_root, placeholder, verify_s1_cache)`. Add `cube_cache_dir`
-   + `cache_max_entries` to that signature and to `LocalSourceExporter.__init__`.
+   - `cache_max_entries` to that signature and to `LocalSourceExporter.__init__`.
 2. **Atomic writes already make concurrent `put` safe** (temp-sibling + `replace`).
    Concurrent `get` of a half-written file can't see it (replace is atomic). Good.
 3. **FIFO eviction is per-process and racy across workers** — each worker's `_order`

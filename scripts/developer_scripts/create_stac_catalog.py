@@ -11,7 +11,7 @@ import pystac
 import rasterio
 from pystac import Asset, Catalog, Collection, Extent, Item, SpatialExtent, TemporalExtent
 
-from src.data.local_sources.paths import LocalPaths
+from snow_galileo.data.local_sources.paths import LocalPaths
 
 # Catalog the AOI-clipped archive (the single downstream root). Repointable to
 # another region via the LOCAL_CLIPPED_ROOT env var — see data/BOW_VALLEY_DATA_LAYOUT.md.

@@ -1,6 +1,6 @@
 """CLI wrapper: run the S3 OLCI ortho parity spike and compare to the swath-warp adapter.
 
-Thin entrypoint over :func:`src.data.local_sources.parity.s3.run_s3_ortho_spike`. It
+Thin entrypoint over :func:`snow_galileo.data.local_sources.parity.s3.run_s3_ortho_spike`. It
 supplies the SNAP ortho graph shipped alongside this script, then reports median |Δ|
 and correlation for the ortho output vs the production :class:`S3Adapter` swath-warp,
 both against the GEE reference patch. Run from the repo root::
@@ -17,14 +17,14 @@ from pathlib import Path
 import rasterio
 import structlog
 
-from src.data.local_sources.parity.s3 import (
+from snow_galileo.data.local_sources.parity.s3 import (
     DEFAULT_GPT,
     S3_BANDS,
     _grid_from_patch,
     run_s3_ortho_spike,
     stats,
 )
-from src.data.local_sources.s3 import S3Adapter
+from snow_galileo.data.local_sources.s3 import S3Adapter
 
 logger = structlog.get_logger(__name__)
 

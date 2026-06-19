@@ -23,11 +23,11 @@ installed wheel. `scripts/` is for runnable scripts, not packages.
 
 ## Contract: the importable surface (what tests/wrappers depend on)
 
-| New module | Public symbol | Imported by |
-|---|---|---|
+| New module                            | Public symbol                                        | Imported by                  |
+| ------------------------------------- | ---------------------------------------------------- | ---------------------------- |
 | `src/data/local_sources/parity/s2.py` | `run_s2_spike`, `S2_BANDS`, `S2_HARMONIZE_OFFSET_DN` | `test_s2_parity.py`, wrapper |
-| `src/data/local_sources/parity/s1.py` | `run_s1_spike` | wrapper |
-| `src/data/local_sources/parity/s3.py` | `run_s3_ortho_spike` | wrapper |
+| `src/data/local_sources/parity/s1.py` | `run_s1_spike`                                       | wrapper                      |
+| `src/data/local_sources/parity/s3.py` | `run_s3_ortho_spike`                                 | wrapper                      |
 
 `s1`/`s3` parity logic is not currently imported by any test, but is genuine
 importable logic (helpers + `run_*` returning arrays) — it belongs in `src` for
@@ -87,12 +87,14 @@ repo-relative — these are run from repo root (`uv run python scripts/...`).
 ## Reference updates (honesty — no stale paths)
 
 Tests (functional — **must** update or they break):
+
 - `tests/test_local_sources/test_s2_parity.py:58` import →
   `from src.data.local_sources.parity.s2 import run_s2_spike`. Docstring `:4` path.
 - `tests/test_local_sources/test_s1_parity.py` lines 10, 29, 72 — `.xml` path →
   `scripts/developer_scripts/bow_valley_inference_local/spikes/s1_grd_snap_graph.xml`.
 
 Docs (text only):
+
 - `docs/local_data_processing.md:139`
 - `docs/agents/KNOWLEDGE.md:234,301`
 - `docs/agents/planning/bow_valley/020-data-ingestion/021-parity-spike-notes.md:11,73,106,370`

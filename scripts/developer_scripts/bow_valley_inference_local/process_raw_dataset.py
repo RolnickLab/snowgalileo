@@ -24,8 +24,8 @@ Commands:
 
 Run ``--dry-run`` (clip commands) to evaluate only the metadata gate (no writes).
 
-The clip routines/gate live in ``src.data.local_sources.clip``; the S1 SNAP chain in
-``src.data.local_sources.s1_snap``. This module is the CLI boundary. Run via
+The clip routines/gate live in ``snow_galileo.data.local_sources.clip``; the S1 SNAP chain in
+``snow_galileo.data.local_sources.s1_snap``. This module is the CLI boundary. Run via
 ``uv run python scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py``.
 """
 
@@ -38,11 +38,11 @@ from typing import Optional
 import structlog
 import typer
 
-from src.data.local_sources.clip.manifest import ManifestRow, write_manifest
-from src.data.local_sources.clip.orchestrator import SOURCES, clip_one_source
-from src.data.local_sources.clip.settings import ClipSettings, load_aoi_polygon
-from src.data.local_sources.paths import LocalPaths
-from src.data.local_sources.s1_snap import (
+from snow_galileo.data.local_sources.clip.manifest import ManifestRow, write_manifest
+from snow_galileo.data.local_sources.clip.orchestrator import SOURCES, clip_one_source
+from snow_galileo.data.local_sources.clip.settings import ClipSettings, load_aoi_polygon
+from snow_galileo.data.local_sources.paths import LocalPaths
+from snow_galileo.data.local_sources.s1_snap import (
     _DEFAULT_GPT,
     _DEFAULT_GRAPH,
     build_s1_cache,

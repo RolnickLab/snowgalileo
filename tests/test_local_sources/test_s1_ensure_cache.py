@@ -20,8 +20,8 @@ from pathlib import Path
 import pytest
 from shapely.geometry import Polygon, box
 
-import src.data.local_sources.s1_snap as snap
-from src.data.local_sources.s1_snap import (
+import snow_galileo.data.local_sources.s1_snap as snap
+from snow_galileo.data.local_sources.s1_snap import (
     S1CacheUnavailableError,
     build_granule_cache,
     cache_tif_name,

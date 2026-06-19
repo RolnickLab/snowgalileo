@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 from typer.testing import CliRunner
 
-from src.data.local_sources.cube_cache import CubeCache
+from snow_galileo.data.local_sources.cube_cache import CubeCache
 
 _SCRIPT = (
     Path(__file__).resolve().parents[2]

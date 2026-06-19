@@ -1,8 +1,8 @@
 """Unit tests for the clip-viewer pure path-building helpers.
 
 Covers GDAL ``/vsitar/`` + ``/vsizip/`` path construction and archive member
-lookup (``src.data.local_sources.viewer.archives``) and manifest bbox parsing + output-path
-resolution (``src.data.local_sources.viewer.manifest``). No GDAL/rasterio I/O — these are the
+lookup (``snow_galileo.data.local_sources.viewer.archives``) and manifest bbox parsing + output-path
+resolution (``snow_galileo.data.local_sources.viewer.manifest``). No GDAL/rasterio I/O — these are the
 deterministic string/path functions the renderers depend on.
 """
 
@@ -12,9 +12,13 @@ from pathlib import Path
 
 import pytest
 
-from src.data.local_sources.viewer.archives import find_member, vsitar_path, vsizip_path
-from src.data.local_sources.viewer.manifest import _parse_bbox, _resolve_path, load_products
-from src.data.local_sources.viewer.settings import ViewerSettings
+from snow_galileo.data.local_sources.viewer.archives import find_member, vsitar_path, vsizip_path
+from snow_galileo.data.local_sources.viewer.manifest import (
+    _parse_bbox,
+    _resolve_path,
+    load_products,
+)
+from snow_galileo.data.local_sources.viewer.settings import ViewerSettings
 
 
 class TestVsiPaths:

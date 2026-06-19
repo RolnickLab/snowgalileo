@@ -16,7 +16,7 @@ from rasterio.transform import from_origin
 from shapely.geometry import box
 from shapely.ops import transform as shapely_transform
 
-from src.data.local_sources.s1_snap import (
+from snow_galileo.data.local_sources.s1_snap import (
     _MIN_EXTENT_RATIO,
     _aoi_region_wkt,
     _output_extent_is_plausible,

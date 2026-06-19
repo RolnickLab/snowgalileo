@@ -13,6 +13,7 @@ SnowGalileo is a pre-trained snow foundation model, fine-tuned for daily fractio
 Also refer to the data retrieval section in data/.
 
 ### How to Run Pre-training
+
 For pre-training SnowGalileo, [data] is required. Then run [config] config file.
 
 ### How to Run Fine-Tuning
@@ -30,50 +31,55 @@ Parts of the code require a WandB account to function entirely. If you would lik
 Information about input data export and data distributions can be found in `data/README.md`.
 
 Pre-training Execution:
-- ```scripts/export_for_pretrain.py```: Export pre-training data from Google Earth Engine based on specified sampling points (stored in ```data/pretraining_points```).
-- ```scripts/pretrain.py```: Snowgalileo pre-training
-    - Setup (wandb, hyperparameters, etc.)
-    - Dataloader collate function: creates masks for pre-training
-    - Pre-train model for e epochs
-    - Evaluate model pre-training on validation task (encoder, with KNN)
+
+- `scripts/export_for_pretrain.py`: Export pre-training data from Google Earth Engine based on specified sampling points (stored in `data/pretraining_points`).
+- `scripts/pretrain.py`: Snowgalileo pre-training
+  - Setup (wandb, hyperparameters, etc.)
+  - Dataloader collate function: creates masks for pre-training
+  - Pre-train model for e epochs
+  - Evaluate model pre-training on validation task (encoder, with KNN)
 
 Evaluation Execution:
-- ```scripts/export_for_eval.py```: Export data from Google Earth Engine for evaluation purposes. More post-processing is necessary (TODO: document what exactly)
-- ```scripts/predict_and_generate_output```: Generates output GeoTIFFs including model input and predictions. Currently only works with already exported data (data paths are specified in the eval config to be passed as argument)
-- ```scripts/finetune.py```: Main entrypoint for finetuning
-- ```scripts/finetune_sweeps.py```: Hyperparameter sweeps for finetuning
-- ```scripts/eval_only.py```: Evaluates finetuned model from checkpoint. Will be main entrypoint for analyzes experiments
-- ```scripts/visualize.py```: Used to plot qualitative predictions
+
+- `scripts/export_for_eval.py`: Export data from Google Earth Engine for evaluation purposes. More post-processing is necessary (TODO: document what exactly)
+- `scripts/predict_and_generate_output`: Generates output GeoTIFFs including model input and predictions. Currently only works with already exported data (data paths are specified in the eval config to be passed as argument)
+- `scripts/finetune.py`: Main entrypoint for finetuning
+- `scripts/finetune_sweeps.py`: Hyperparameter sweeps for finetuning
+- `scripts/eval_only.py`: Evaluates finetuned model from checkpoint. Will be main entrypoint for analyzes experiments
+- `scripts/visualize.py`: Used to plot qualitative predictions
 
 Data Export:
-- ```src/data/earthengine/```
-    - contains all code specific to Google Earthengine: sensor-specific export scripts, as well as export files
-- ```src/data/dataset.py```
-    - contains the pre-training dataset class
+
+- `src/data/earthengine/`
+  - contains all code specific to Google Earthengine: sensor-specific export scripts, as well as export files
+- `src/data/dataset.py`
+  - contains the pre-training dataset class
 
 Snowgalileo Model:
-- ```src/snowgalileo.py```
-    - Encoder: 
-        - divides images into patches
-        - projects patches to per-channel-group tokens
-        - adds embeddings (e.g., where is space is the token, or where in time)
-        - removes masked tokens
-        - Applies attention
-        - adds masked tokens
-    - Pixel Decoder (used for pre-training):
-        - gets embedded images
-        - Applies attention
-        - bring back into pixel space
-- ```src/masking.py```
-    - creates token masks for pre-training
-- ```src/embedding.py```
-    - the embeddings that add contextual information to tokens
+
+- `src/snowgalileo.py`
+  - Encoder:
+    - divides images into patches
+    - projects patches to per-channel-group tokens
+    - adds embeddings (e.g., where is space is the token, or where in time)
+    - removes masked tokens
+    - Applies attention
+    - adds masked tokens
+  - Pixel Decoder (used for pre-training):
+    - gets embedded images
+    - Applies attention
+    - bring back into pixel space
+- `src/masking.py`
+  - creates token masks for pre-training
+- `src/embedding.py`
+  - the embeddings that add contextual information to tokens
 
 Finetuning/ Evaluation Setup:
-- ```src/eval/patch_predict.py```
-    - contains the Finetuning head and functions for finetuning and evaluating the model
-- ```src/eval/landsat_eval.py```
-    - prepares the Landsat evaluation dataset, and wraps the Landsat-specific evaluation process
+
+- `src/eval/patch_predict.py`
+  - contains the Finetuning head and functions for finetuning and evaluating the model
+- `src/eval/landsat_eval.py`
+  - prepares the Landsat evaluation dataset, and wraps the Landsat-specific evaluation process
 
 #### Disclaimer about Variable Names
 

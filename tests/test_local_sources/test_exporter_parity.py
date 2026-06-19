@@ -1,7 +1,7 @@
 """Full-stack exporter parity gate (TASK-016, SPEC AC-27).
 
 Where the per-adapter tests fetch one source in isolation, this test runs the **whole**
-:class:`~src.data.local_sources.exporter.LocalSourceExporter` — assembling the canonical
+:class:`~snow_galileo.data.local_sources.exporter.LocalSourceExporter` — assembling the canonical
 308-band cube for a parity cell × window-end — and then diffs **each source's band slice**
 against the Phase-0 GEE reference patch. It is the gate that proves the *assembled* output
 (band order + per-source value domains together, in the real exporter, not a stub) matches
@@ -34,10 +34,10 @@ import pytest
 import rasterio
 from shapely.geometry import box
 
-from src.data.config import NO_DATA_VALUE
-from src.data.local_sources.base import GridCell
-from src.data.local_sources.exporter import LocalSourceExporter
-from src.data.local_sources.layout import full_band_order
+from snow_galileo.data.config import NO_DATA_VALUE
+from snow_galileo.data.local_sources.base import GridCell
+from snow_galileo.data.local_sources.exporter import LocalSourceExporter
+from snow_galileo.data.local_sources.layout import full_band_order
 
 _REF_DIR = Path("tests/fixtures/gee_reference_patches")
 _ARCHIVE = Path("data/clipped_bow_valley_selection_raw")

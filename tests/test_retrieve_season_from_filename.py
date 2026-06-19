@@ -2,7 +2,7 @@ import os
 import unittest
 from pathlib import Path
 
-from src.fsc.utils import extract_season_from_filename
+from snow_galileo.fsc.utils import extract_season_from_filename
 
 DATA_FOLDER = Path(__file__).parents[1] / "data/eval_tifs"
 

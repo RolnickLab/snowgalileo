@@ -12,8 +12,8 @@ import datetime
 import numpy as np
 import pytest
 
-from src.data.local_sources.cube_cache import _VERSION_STAMP, CubeCache
-from src.data.local_sources.cube_cache_cli import (
+from snow_galileo.data.local_sources.cube_cache import _VERSION_STAMP, CubeCache
+from snow_galileo.data.local_sources.cube_cache_cli import (
     CachePolicy,
     CachePolicyError,
     resolve_cache_policy,
@@ -82,7 +82,7 @@ def test_prompt_tty_reuse_answer_keeps(tmp_path, monkeypatch):
 
 def test_exporter_forwards_overwrite_cache(tmp_path):
     """LocalSourceExporter(overwrite_cache=True) clears the dir on construction."""
-    from src.data.local_sources.exporter import LocalSourceExporter
+    from snow_galileo.data.local_sources.exporter import LocalSourceExporter
 
     root = tmp_path / "cube_cache"
     _seed(root, n=2)

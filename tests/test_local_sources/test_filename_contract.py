@@ -14,7 +14,7 @@ Contract (PLAN §3 "Filename convention", SPEC FR-18 / AC-9):
 - ``prediction_month_from_file`` returns ``window_end.month`` (it reads the month
   from ``name.split("_")[1][4:6]`` on the ``PR`` branch).
 
-The builder under test lives in :mod:`src.data.local_sources.layout` so the
+The builder under test lives in :mod:`snow_galileo.data.local_sources.layout` so the
 exporter and these tests share one definition (single source of truth — the
 filename format is a layout concern, not exporter-internal).
 """
@@ -26,8 +26,8 @@ from datetime import date
 
 import pytest
 
-from src.data.local_sources.layout import CUBE_FILENAME_REGEX, build_cube_filename
-from src.fsc.landsat_eval import LandsatEvalDataset
+from snow_galileo.data.local_sources.layout import CUBE_FILENAME_REGEX, build_cube_filename
+from snow_galileo.fsc.landsat_eval import LandsatEvalDataset
 
 #: Synthetic (window_end, lat, lon) triples spanning the contract's edge cases:
 #: every month digit pair, both hemispheres of longitude (signed), and the

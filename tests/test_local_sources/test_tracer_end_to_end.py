@@ -21,7 +21,7 @@ re-implementations:
   ``__init__`` is bypassed); ``_tif_to_array`` touches no instance state beyond
   the methods it calls, so this drives the genuine downstream array-assembly
   path against our exported tif.
-- The ``Encoder`` is a real (untrained) ``src.snowgalileo.Encoder`` wrapped in a
+- The ``Encoder`` is a real (untrained) ``snow_galileo.snowgalileo.Encoder`` wrapped in a
   real ``EncoderWithHead``; we assert only shape and the sigmoid range, not
   values (weights are random — values are meaningless, the *plumbing* is the point).
 
@@ -48,20 +48,20 @@ import pytest
 import rasterio
 import torch
 
-from src.data.config import DATASET_OUTPUT_HW_HIGH_RES, NO_DATA_VALUE, NUM_TIMESTEPS
-from src.data.earthengine import eo as _eo
-from src.data.local_sources.base import CELL_TARGET_CRS, GridCell
-from src.data.local_sources.layout import (
+from snow_galileo.data.config import DATASET_OUTPUT_HW_HIGH_RES, NO_DATA_VALUE, NUM_TIMESTEPS
+from snow_galileo.data.earthengine import eo as _eo
+from snow_galileo.data.local_sources.base import CELL_TARGET_CRS, GridCell
+from snow_galileo.data.local_sources.layout import (
     DYNAMIC_BANDS,
     STATIC_BANDS,
     TOTAL_BANDS,
     full_band_order,
 )
-from src.fsc.downstream_augmentation import DownstreamAugmentation
-from src.fsc.landsat_eval import LandsatEvalDataset
-from src.fsc.patch_predict import EncoderWithHead
-from src.snowgalileo import Encoder
-from src.utils import config_dir
+from snow_galileo.fsc.downstream_augmentation import DownstreamAugmentation
+from snow_galileo.fsc.landsat_eval import LandsatEvalDataset
+from snow_galileo.fsc.patch_predict import EncoderWithHead
+from snow_galileo.snowgalileo import Encoder
+from snow_galileo.utils import config_dir
 
 # A Bow Valley UTM 11N cell (EPSG:32611) — 1 km, 100x100 px @ 10 m. The UTM
 # easting/northing here sit under the AOI's ~50.7 N / -116.5 E centre.
@@ -90,7 +90,7 @@ def exported_cube(tmp_path: Path, cell: GridCell) -> Path:
     Imported lazily so collection of the *other* tracer assertions does not hard
     depend on the exporter module existing at import time.
     """
-    from src.data.local_sources.exporter import LocalSourceExporter
+    from snow_galileo.data.local_sources.exporter import LocalSourceExporter
 
     exporter = LocalSourceExporter(out_dir=tmp_path, placeholder=True)
     return exporter.export(cell=cell, window_end=_WINDOW_END)

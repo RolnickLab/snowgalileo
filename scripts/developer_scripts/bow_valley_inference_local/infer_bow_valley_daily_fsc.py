@@ -3,7 +3,7 @@ r"""Operator entry point — daily Bow Valley FSC inference (TASK-016).
 Reads ``cube.yaml`` (the sweep definition: window, mode, roots) and ``inference.yaml``
 (how to run the model: checkpoint, eval config, batch, device), builds the in-AOI grid,
 constructs the pretrained ``EncoderWithHead`` from the checkpoint via the **existing**
-load path, and runs :class:`~src.inference.driver.InferenceGridDriver` to write one daily
+load path, and runs :class:`~snow_galileo.inference.driver.InferenceGridDriver` to write one daily
 FSC COG per inference day into ``processing_root/daily_fsc/``.
 
 **Downstream is sacred.** The model is built exactly as ``scripts/eval_only.py`` /
@@ -29,18 +29,18 @@ import structlog
 import torch
 import typer
 
-from src.data.local_sources.cube_cache_cli import (
+from snow_galileo.data.local_sources.cube_cache_cli import (
     CachePolicy,
     CachePolicyError,
     resolve_cache_policy,
 )
-from src.data.local_sources.exporter import LocalSourceExporter
-from src.data.local_sources.grid import build_grid
-from src.data.local_sources.settings import CubeSettings, InferenceSettings
-from src.fsc.patch_predict import EncoderWithHead
-from src.inference.driver import InferenceGridDriver
-from src.snowgalileo import Encoder
-from src.utils import config_dir, load_check_config
+from snow_galileo.data.local_sources.exporter import LocalSourceExporter
+from snow_galileo.data.local_sources.grid import build_grid
+from snow_galileo.data.local_sources.settings import CubeSettings, InferenceSettings
+from snow_galileo.fsc.patch_predict import EncoderWithHead
+from snow_galileo.inference.driver import InferenceGridDriver
+from snow_galileo.snowgalileo import Encoder
+from snow_galileo.utils import config_dir, load_check_config
 
 logger = structlog.get_logger(__name__)
 

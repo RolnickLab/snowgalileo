@@ -29,10 +29,10 @@ from pathlib import Path
 import solara
 import solara.lab
 
-import src.data.local_sources.viewer.renderers  # noqa: F401  -- registers all renderers on import
-from src.data.local_sources.viewer.aoi import aoi_bounds_4326, load_aoi_geojson
-from src.data.local_sources.viewer.manifest import ProductRow, load_products
-from src.data.local_sources.viewer.outputs import (
+import snow_galileo.data.local_sources.viewer.renderers  # noqa: F401  -- registers all renderers on import
+from snow_galileo.data.local_sources.viewer.aoi import aoi_bounds_4326, load_aoi_geojson
+from snow_galileo.data.local_sources.viewer.manifest import ProductRow, load_products
+from snow_galileo.data.local_sources.viewer.outputs import (
     CubeAvailability,
     CubeRow,
     cube_availability,
@@ -43,15 +43,15 @@ from src.data.local_sources.viewer.outputs import (
     timesteps_for_var,
     vars_at_timestep,
 )
-from src.data.local_sources.viewer.quicklook import QuicklookResult, render_product
-from src.data.local_sources.viewer.renderers import (
+from snow_galileo.data.local_sources.viewer.quicklook import QuicklookResult, render_product
+from snow_galileo.data.local_sources.viewer.renderers import (
     era5_time_steps,
     fsc_colorbar,
     render_cube_band,
     render_fsc,
     result_to_geotiff,
 )
-from src.data.local_sources.viewer.settings import ViewerSettings
+from snow_galileo.data.local_sources.viewer.settings import ViewerSettings
 
 import leafmap  # isort: skip  (heavy import, kept after local modules)
 

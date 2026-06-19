@@ -11,11 +11,13 @@
 > design; this task doc is retained for the adapter's parity/edge-mask rationale.
 
 ## 1. Goal
+
 Promote the S1 parity spike to a production adapter that emits `[VV, VH, angle]` on the
 cell grid from GRD SAFE archives, applying the project edge mask (pixels `< -30.0`) and
 using windowed reads of the cell footprint — never full-scene loads.
 
 ## 2. Context & References
+
 - **FDD step:** §4.6 (adapter order #9 — parity spike done in TASK-005, now production).
 - **SPEC:** FR-9, AC-12, AC-13, AC-14; Verification Plan step 6.
 - **PLAN:** §4 module note, §6 FMEA (memory/IO blowup → windowed reads), §9, §3 temporal
@@ -43,17 +45,19 @@ using windowed reads of the cell footprint — never full-scene loads.
   reads), `tdd`.
 
 ## 3. Subtasks
+
 - [x] 1. Write `test_s1_adapter.py` (Red): `bands_out = [VV, VH, angle]`; pixels `< -30.0`
-      masked (VV/VH only — angle never masked); same-date coalesce; missing day →
-      all-`-9999`; S1C name parse. **8 synthetic tests** (post-SNAP GeoTIFFs, no SNAP/CI) +
-      real-archive parity.
+  masked (VV/VH only — angle never masked); same-date coalesce; missing day →
+  all-`-9999`; S1C name parse. **8 synthetic tests** (post-SNAP GeoTIFFs, no SNAP/CI) +
+  real-archive parity.
 - [x] 2. Implement `s1.py`: read the **SNAP dB+angle cache**, linear σ⁰ → dB (VV/VH),
-      ellipsoid-angle passthrough, edge mask, coalesce/mosaic/reproject (bilinear), stack
-      `(3, H, W)`. **Heavy SNAP preprocessing extracted to `s1_snap.py` (offline, per-cell
-      cache)** — the adapter `fetch` is pure-raster.
+  ellipsoid-angle passthrough, edge mask, coalesce/mosaic/reproject (bilinear), stack
+  `(3, H, W)`. **Heavy SNAP preprocessing extracted to `s1_snap.py` (offline, per-cell
+  cache)** — the adapter `fetch` is pure-raster.
 - [x] 3. Wire into exporter (S1Adapter = head of HIGH group). 4. Green + Refactor.
 
 ## 4. Requirements & Constraints
+
 - **Technical:** Windowed reads (`rasterio` windows over SAFE measurement TIFFs); SAR
   calibration/terrain correction documented (SNAP/`pyroSAR`/`sarsen` — state which);
   tolerance from TASK-005.
@@ -62,38 +66,42 @@ using windowed reads of the cell footprint — never full-scene loads.
 - **Out of scope:** Other sources; the inference driver/mosaic (TASK-015).
 
 ## 5. Acceptance Criteria
+
 - [x] AC-1 (SPEC AC-14): `bands_out = [VV, VH, angle]`; `< -30.0` masked (VV/VH); dB domain;
-      **parity proven on PR_20250519 — VV 0.38 dB, VH 0.40 dB, angle 0.24°** (well within the
-      TASK-005 1.0 dB tolerance), the decisive full-chain reproduction of GEE `S1_GRD`.
-      PR_20250406 + PR_20250423 are **xfail with GEE-pull-confirmed non-adapter root causes**
-      (see §6).
+  **parity proven on PR_20250519 — VV 0.38 dB, VH 0.40 dB, angle 0.24°** (well within the
+  TASK-005 1.0 dB tolerance), the decisive full-chain reproduction of GEE `S1_GRD`.
+  PR_20250406 + PR_20250423 are **xfail with GEE-pull-confirmed non-adapter root causes**
+  (see §6).
 - [x] AC-2 (SPEC AC-12): band order [VV, VH, angle]; output on the cell grid.
 - [x] AC-3 (SPEC AC-13): missing `(S1, day)` → all-`-9999` (the common case — ~16 dates).
 - [~] AC-4: windowed read — **reinterpreted**: the "no full-scene load" guarantee is met by
-      the offline SNAP `Subset` (`s1_snap.py`), not a `rasterio` window. The adapter reads a
-      small cached tif and windows it per cell.
-      > **CORRECTED 2026-06-11:** this AC originally concluded *per-cell* SNAP bounding was
-      > "mandatory" because full-AOI runs NPE-corrupted. That was an artifact of subsetting in
-      > **radar geometry before** Terrain-Correction. Moving the `Subset` to **after** TC (map
-      > geometry) makes a single **per-granule, full-AOI** run clean — so the cache is now one
-      > AOI-wide tif per granule, NOT per cell. See `../PLAN-S1-PERGRANULE-SNAP.md`.
+  the offline SNAP `Subset` (`s1_snap.py`), not a `rasterio` window. The adapter reads a
+  small cached tif and windows it per cell.
+  \> **CORRECTED 2026-06-11:** this AC originally concluded *per-cell* SNAP bounding was
+  \> "mandatory" because full-AOI runs NPE-corrupted. That was an artifact of subsetting in
+  \> **radar geometry before** Terrain-Correction. Moving the `Subset` to **after** TC (map
+  \> geometry) makes a single **per-granule, full-AOI** run clean — so the cache is now one
+  \> AOI-wide tif per granule, NOT per cell. See `../PLAN-S1-PERGRANULE-SNAP.md`.
 - [x] AC-5: ruff + mypy clean; 8 synthetic + 1 parity green, 2 documented xfail; full-suite
-      delta = 0 new failures.
+  delta = 0 new failures.
 
 ## 6. Testing & Validation
+
 ```bash
 cd /home/dev/projects/presto-v3
 uv run pytest tests/test_local_sources/test_s1_adapter.py -v
 uv run ruff check src/data/local_sources/s1.py
 uv run mypy src/data/local_sources/s1.py
 ```
+
 Expected: adapter test green (edge mask + windowed read + parity); ruff/mypy exit 0.
 
 **Regression check (suite is already red):** run the delta check in `TEST_BASELINE.md` — the "NEW failures" list must be empty. Do NOT use `pytest -x` at the suite level.
 
 ## 7. Completion Protocol
+
 1. Verify ACs. 2. Run Section 6 commands.
-3. Commit:
+2. Commit:
    ```bash
    git add src/data/local_sources/s1.py src/data/local_sources/s1_snap.py \
            src/data/local_sources/s1_grd_graph.xml src/data/local_sources/exporter.py \
@@ -101,7 +109,7 @@ Expected: adapter test green (edge mask + windowed read + parity); ruff/mypy exi
            docs/agents/planning/raw-data-ingestion/tasks/TASK-014-s1-adapter.md
    git commit -m "feat(bow-valley): Sentinel-1 GRD adapter (SNAP per-cell cache, dB+ellipsoid angle, edge mask) — closes TASK-014"
    ```
-4. Check off subtasks/ACs. 5. Notify the user (all 9 adapters now production); request
+3. Check off subtasks/ACs. 5. Notify the user (all 9 adapters now production); request
    approval before TASK-015.
 
 ## 8. Outcome — S1 adapter (SNAP per-cell cache; corrected 2026-06-08)
@@ -115,6 +123,7 @@ reads that cache, converts linear σ⁰ → dB (VV/VH), passes the angle through
 `< -30` dB, coalesces/mosaics/reprojects — **pure raster, no SNAP at fetch time**.
 
 **Key corrections to the plan:**
+
 - **dB is done in the adapter, not SNAP.** Scoping `LinearToFromdB` to the σ⁰ bands *drops*
   the angle band; converting all bands log-scales the angle. The cache stores LINEAR σ⁰ +
   angle; `10·log10` is applied in `s1.py`. Identical math.
@@ -130,6 +139,7 @@ reads that cache, converts linear σ⁰ → dB (VV/VH), passes the angle through
 **Parity (proven):** `PR_20250519` reproduces GEE `COPERNICUS/S1_GRD` to **VV 0.38 dB,
 VH 0.40 dB, angle 0.24°** (n=10177). Two patches are xfail with **GEE-pull-confirmed**
 non-adapter root causes:
+
 - `PR_20250406`: a direct GEE pull (project `bow-valley-inference`) shows GEE's S1_GRD VV =
   **−2.63 dB** over the patch for the *same* acquisition (S1C 2025-04-06 01:29:13 ASC
   relOrbit 20, angle 34.84° — identical to our archive granule), while our SNAP σ⁰ = −12.7 dB

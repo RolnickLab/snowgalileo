@@ -1,6 +1,6 @@
 r"""Operator entry point — assemble Bow Valley direct-source cubes (TASK-016).
 
-Reads ``cube.yaml`` (:class:`~src.data.local_sources.settings.CubeSettings`), builds
+Reads ``cube.yaml`` (:class:`~snow_galileo.data.local_sources.settings.CubeSettings`), builds
 the in-AOI grid, and writes one canonical 308-band cube tif per ``(cell, window_end)``
 into ``processing_root/cubes/`` using the **real-adapter** exporter (not placeholder).
 
@@ -26,15 +26,15 @@ from typing import Annotated, Optional
 import structlog
 import typer
 
-from src.data.local_sources.cube_cache import CubeCache
-from src.data.local_sources.cube_cache_cli import (
+from snow_galileo.data.local_sources.cube_cache import CubeCache
+from snow_galileo.data.local_sources.cube_cache_cli import (
     CachePolicy,
     CachePolicyError,
     resolve_cache_policy,
 )
-from src.data.local_sources.grid import build_grid
-from src.data.local_sources.parallel_export import export_cells_parallel
-from src.data.local_sources.settings import CubeSettings
+from snow_galileo.data.local_sources.grid import build_grid
+from snow_galileo.data.local_sources.parallel_export import export_cells_parallel
+from snow_galileo.data.local_sources.settings import CubeSettings
 
 logger = structlog.get_logger(__name__)
 

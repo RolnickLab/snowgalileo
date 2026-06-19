@@ -15,9 +15,9 @@ from affine import Affine
 from rasterio.io import MemoryFile
 from rasterio.transform import from_origin
 
-from src.data.config import NO_DATA_VALUE
-from src.data.local_sources._scene_ops import cell_window
-from src.data.local_sources.base import GridCell, reproject_to_cell
+from snow_galileo.data.config import NO_DATA_VALUE
+from snow_galileo.data.local_sources._scene_ops import cell_window
+from snow_galileo.data.local_sources.base import GridCell, reproject_to_cell
 
 _CRS = "EPSG:32611"
 

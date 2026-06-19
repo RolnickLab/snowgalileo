@@ -4,7 +4,7 @@
 
 ## 1. Goal
 
-Adding a direct-source pipeline for the Bow Valley (Alberta, west of Calgary) to 
+Adding a direct-source pipeline for the Bow Valley (Alberta, west of Calgary) to
 supplement Google Earth Engine ingestion to :
 
 1. Build a spatiotemporal data cube matching the exact tensor contract defined
@@ -19,11 +19,12 @@ The repository's downstream code (`Dataset`, `LandsatEvalDataset`,
 new modules behind the existing contracts: a direct-source ingestion adapter
 and an inference-grid driver.
 
----
+______________________________________________________________________
 
 ## 2. Scope & Non-Goals
 
 **In scope**
+
 - A **non-destructive AOI clip stage** (`CLIPPING_PLAN.md`) that crops every raw
   dataset in `data/bow_valley_selection_raw` to `data/bow_valley_inference_aoi.geojson` and writes
   `data/clipped_bow_valley_selection_raw`. This is a **mandatory upstream stage**,
@@ -44,6 +45,7 @@ and an inference-grid driver.
   over a small held-out sample (5–10 cells × 3 days).
 
 **Out of scope**
+
 - Retraining or fine-tuning the model.
 - Changing band order, normalization constants, mask semantics, or tensor
   shapes.
@@ -53,7 +55,7 @@ and an inference-grid driver.
   TODO — these are model-numeric-domain concerns, addressed in a separate
   migration.
 
----
+______________________________________________________________________
 
 ## 3. AOI, Grid, and Temporal Window
 
@@ -113,11 +115,11 @@ Three disk roots, with **strictly separated** read/write semantics. CRS is law;
 so is provenance — nothing downstream of the clip stage ever writes back into the
 archives.
 
-| Root | R/W | Lifetime | Contents |
-| --- | --- | --- | --- |
-| `data/bow_valley_selection_raw/` | **read-only** | permanent (source) | Raw archive (Stage 0 input). Never mutated. |
-| `data/clipped_bow_valley_selection_raw/` | clip stage writes; everything else **read-only** | permanent (until re-clip) | Clipped archive (Stage 1). Same layout as raw. The **only** thing the clip stage writes; **no other process writes here.** |
-| `data/bow_valley_processing/` | all Stage 2 processes write | **ephemeral — safe to delete and regenerate**, except `cubes/` and `daily_fsc/` which are the deliverables | All intermediate and final cube/inference artifacts. **Each process gets its own subdirectory** (below). |
+| Root                                     | R/W                                              | Lifetime                                                                                                   | Contents                                                                                                                   |
+| ---------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `data/bow_valley_selection_raw/`         | **read-only**                                    | permanent (source)                                                                                         | Raw archive (Stage 0 input). Never mutated.                                                                                |
+| `data/clipped_bow_valley_selection_raw/` | clip stage writes; everything else **read-only** | permanent (until re-clip)                                                                                  | Clipped archive (Stage 1). Same layout as raw. The **only** thing the clip stage writes; **no other process writes here.** |
+| `data/bow_valley_processing/`            | all Stage 2 processes write                      | **ephemeral — safe to delete and regenerate**, except `cubes/` and `daily_fsc/` which are the deliverables | All intermediate and final cube/inference artifacts. **Each process gets its own subdirectory** (below).                   |
 
 **`data/bow_valley_processing/` subdirectory contract — every process writes only
 to its own subdir:**
@@ -154,25 +156,25 @@ extent. CRS is law; both are stated explicitly below.
 1. **Cell-sampling extent** — convex-bbox of the 500 cells in
    `tests/fixtures/sampled_cells_bow_river_with_dates.csv` (EPSG:32611):
 
-   | Bound | Value (EPSG:32611, m) |
-   | --- | --- |
-   | `min_x` | `518363.85` |
-   | `max_x` | `705363.85` |
-   | `min_y` | `5599583.79` |
-   | `max_y` | `5761583.79` |
-   | width  | `187_000` (187 km) |
-   | height | `162_000` (162 km) |
+   | Bound         | Value (EPSG:32611, m)                          |
+   | ------------- | ---------------------------------------------- |
+   | `min_x`       | `518363.85`                                    |
+   | `max_x`       | `705363.85`                                    |
+   | `min_y`       | `5599583.79`                                   |
+   | `max_y`       | `5761583.79`                                   |
+   | width         | `187_000` (187 km)                             |
+   | height        | `162_000` (162 km)                             |
    | max-tile grid | `187 × 162 = 30_294` 1 km cells if fully tiled |
 
 2. **Clip / inference AOI** — `data/bow_valley_inference_aoi.geojson` (EPSG:4326), the boundary that
    `CLIPPING_PLAN.md` clips every raw dataset to:
 
-   | Bound | Value (EPSG:4326, deg) |
-   | --- | --- |
+   | Bound     | Value (EPSG:4326, deg) |
+   | --------- | ---------------------- |
    | `lon_min` | `-116.561936219710887` |
    | `lon_max` | `-114.527659450240762` |
-   | `lat_min` | `50.729806886838752` |
-   | `lat_max` | `52.306672311654424` |
+   | `lat_min` | `50.729806886838752`   |
+   | `lat_max` | `52.306672311654424`   |
 
 **The clip AOI does NOT contain all 500 cells.** Reprojecting cell extents to
 EPSG:4326 shows the cell envelope spans `lon=[-116.7408, -114.0104]`,
@@ -204,6 +206,7 @@ canonical schema `date, crs, center_x, center_y, min_x, min_y, max_x, max_y`
 **full cross-product**: every in-AOI cell × every day in the inference window
 (default `2025-04-06 → 2025-05-28`), one row per `(cell, day)`. This generated
 CSV **is** the inference sweep enumeration:
+
 - **Mode A:** cells are the 344 in-AOI legacy-CSV cells (geometry only) × window
   days ≈ 344 × 53 ≈ **18 k rows**.
 - **Mode B:** cells are tiled directly from `data/bow_valley_inference_aoi.geojson` (legacy CSV not
@@ -221,6 +224,7 @@ Coordinates are load-bearing: `center_x/y` build the per-cell filename (→
 (`eo_eval.py:599, 606`).
 
 **Decision required before FDD (see §8 Q3):** sweep mode.
+
 - **(A) Sample-only:** infer over the in-AOI CSV cells only (~344 cells after
   the AOI filter above). Cheap.
 - **(B) Full tile:** tile the **clip AOI** (`data/bow_valley_inference_aoi.geojson`), not the wider
@@ -233,13 +237,13 @@ cell-sampling bbox** — the clipped archive contains no data outside the AOI.
 
 ### Grid + CRS
 
-| Parameter | Value | Source / Rationale |
-| --- | --- | --- |
-| Grid math CRS | `EPSG:32611` (UTM 11N) | Matches CSV cell extents; preserves 1 km cell metric. |
-| Per-cell export CRS | **`EPSG:32611` (UTM 11N), `scale=10` m** | **CORRECTED 2026-06-04 (was "EPSG:4326 scale=10"), confirmed against real on-disk cubes.** `data/eval_tifs/LC09_*` (the inference/filename-style path we mimic) are UTM, 100×100, 10 m; made by `export_from_csv_utm` (CSV `crs=EPSG:32611` + `scale=10` m). The "4326 ~159×100" wording describes the **training/label** export path (`export_for_labels`; `data/tifs_test/min_lat=…` is genuinely 4326) — a different path, not wrong, just not ours. The loader's tensor path reads neither tif CRS nor transform (lat/lon from **filename**, crops to 100×100); the prediction-write path copies them through. Filename lat/lon stays signed **degrees** (`to_cartesian` asserts 4326), independent of the UTM grid. See `docs/agents/KNOWLEDGE.md`. |
-| Daily mosaic CRS | `EPSG:32611` | Mosaic stays in metric CRS for analysis. **Per-cell rasters in 4326, mosaic in UTM is intentional** — per-cell tifs feed the loader unchanged; mosaic is a separate output product. Reprojection happens once, at mosaic-write time, on 10×10 FSC outputs (low IO). |
-| Grid cell size | 1000 m × 1000 m → **100 × 100 px** in EPSG:32611 @ 10 m | `EXPORTED_HEIGHT_WIDTH_METRES` / 10 m = 100. Exactly satisfies the loader's `H >= 100` & `W >= 100` crop floor (`subset_image`). **CORRECTED 2026-06-04**: the prior "≈159×100 in EPSG:4326" assumed a 4326 target grid, which is wrong (see CRS row above). |
-| Cell layout | Non-overlapping; centred on CSV `center_x, center_y` (mode A, after AOI filter) or tiled across `data/bow_valley_inference_aoi.geojson` (mode B) | Matches existing CSV semantics; both modes bounded by the clip AOI |
+| Parameter           | Value                                                                                                                                            | Source / Rationale                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Grid math CRS       | `EPSG:32611` (UTM 11N)                                                                                                                           | Matches CSV cell extents; preserves 1 km cell metric.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Per-cell export CRS | **`EPSG:32611` (UTM 11N), `scale=10` m**                                                                                                         | **CORRECTED 2026-06-04 (was "EPSG:4326 scale=10"), confirmed against real on-disk cubes.** `data/eval_tifs/LC09_*` (the inference/filename-style path we mimic) are UTM, 100×100, 10 m; made by `export_from_csv_utm` (CSV `crs=EPSG:32611` + `scale=10` m). The "4326 ~159×100" wording describes the **training/label** export path (`export_for_labels`; `data/tifs_test/min_lat=…` is genuinely 4326) — a different path, not wrong, just not ours. The loader's tensor path reads neither tif CRS nor transform (lat/lon from **filename**, crops to 100×100); the prediction-write path copies them through. Filename lat/lon stays signed **degrees** (`to_cartesian` asserts 4326), independent of the UTM grid. See `docs/agents/KNOWLEDGE.md`. |
+| Daily mosaic CRS    | `EPSG:32611`                                                                                                                                     | Mosaic stays in metric CRS for analysis. **Per-cell rasters in 4326, mosaic in UTM is intentional** — per-cell tifs feed the loader unchanged; mosaic is a separate output product. Reprojection happens once, at mosaic-write time, on 10×10 FSC outputs (low IO).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Grid cell size      | 1000 m × 1000 m → **100 × 100 px** in EPSG:32611 @ 10 m                                                                                          | `EXPORTED_HEIGHT_WIDTH_METRES` / 10 m = 100. Exactly satisfies the loader's `H >= 100` & `W >= 100` crop floor (`subset_image`). **CORRECTED 2026-06-04**: the prior "≈159×100 in EPSG:4326" assumed a 4326 target grid, which is wrong (see CRS row above).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Cell layout         | Non-overlapping; centred on CSV `center_x, center_y` (mode A, after AOI filter) or tiled across `data/bow_valley_inference_aoi.geojson` (mode B) | Matches existing CSV semantics; both modes bounded by the clip AOI                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 **CRS is law** — every cell carries an explicit `transform`, `crs`, and `shape`
 triple that all adapters must conform to.
@@ -247,6 +251,7 @@ triple that all adapters must conform to.
 ### Fixed Extent Mosaic & Scene Coverage Complexity
 
 A fixed spatial extent is provided for the full Bow Valley AOI desired daily mosaic. This introduces significant operational complexity:
+
 - **Multi-Scene Composition**: The clip AOI (`data/bow_valley_inference_aoi.geojson`) is approximately 140 km × 175 km. This exceeds a single Sentinel-2 tile and requires the 2×2 tile grid (`T11UNS/NT/PS/PT`, ~4 scenes of Landsat or Sentinel-2) to approach complete spatial coverage. (Note: the wider 187 km × 162 km figure refers to the cell-sampling bbox, not the clip AOI — see §3 AOI.)
 - **Incomplete Daily Coverage**: Because of sensor orbit path timings, swath widths, and scene collection grids, we will **never** have 100% spatial coverage of the full AOI on a single acquisition day/timestamp. Some parts of the AOI will have scenes on day `d`, while other parts will have nodata. **This is quantified per-source from the archive in "Per-Timestep, Per-Source Partial AOI Coverage" below.**
 - **Orbit/Swath Boundary Nodata**: Scenes near orbit boundaries or swath edges often contain significant regions of native nodata. Cells that overlap scene edges will have partial observations.
@@ -269,14 +274,14 @@ source's per-day footprint is a superset of the AOI.
 
 **This is verified from the archive, not assumed:**
 
-| Source | Per-timestep AOI coverage (observed in `data/bow_valley_selection_raw`) |
-| --- | --- |
-| **Sentinel-2** | 4-tile AOI grid (`T11UNS/NT/PS/PT`). Of all acquisition dates: **13** cover all 4 tiles, **10** cover 3, **12** cover 2, **2** cover only 1. Most days are **partial**. |
-| **Sentinel-1** | Only **16 acquisition dates** over the full 2025-03→05 span (6–12 day revisit), 2 scenes each. **The majority of inference days have NO S1 at all** (→ full `-9999` for the S1 group); on covered days, only a swath-width strip of the AOI is observed. |
-| **Landsat 8/9** | 16-day revisit each (≈8-day combined). On a given day, at most one path crosses the AOI → a single ~185 km swath, frequently only partial AOI overlap; many days have neither L8 nor L9. |
-| **Sentinel-3 OLCI** | Daily but swath-geometry (~1270 km swath, so usually full AOI when present) — still subject to orbit gaps and edge nodata. |
-| **MODIS / VIIRS** | Daily, single sinusoidal tile `h10v03`. Tile footprint does **not** span the full AOI; AOI cells outside the tile are nodata even on a "covered" day. Cross-tile cells need a tile mosaic. |
-| **ERA5-Land** | Continuous 0.1° grid → full AOI every day (the only source with guaranteed complete spatial coverage). |
+| Source              | Per-timestep AOI coverage (observed in `data/bow_valley_selection_raw`)                                                                                                                                                                                  |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Sentinel-2**      | 4-tile AOI grid (`T11UNS/NT/PS/PT`). Of all acquisition dates: **13** cover all 4 tiles, **10** cover 3, **12** cover 2, **2** cover only 1. Most days are **partial**.                                                                                  |
+| **Sentinel-1**      | Only **16 acquisition dates** over the full 2025-03→05 span (6–12 day revisit), 2 scenes each. **The majority of inference days have NO S1 at all** (→ full `-9999` for the S1 group); on covered days, only a swath-width strip of the AOI is observed. |
+| **Landsat 8/9**     | 16-day revisit each (≈8-day combined). On a given day, at most one path crosses the AOI → a single ~185 km swath, frequently only partial AOI overlap; many days have neither L8 nor L9.                                                                 |
+| **Sentinel-3 OLCI** | Daily but swath-geometry (~1270 km swath, so usually full AOI when present) — still subject to orbit gaps and edge nodata.                                                                                                                               |
+| **MODIS / VIIRS**   | Daily, single sinusoidal tile `h10v03`. Tile footprint does **not** span the full AOI; AOI cells outside the tile are nodata even on a "covered" day. Cross-tile cells need a tile mosaic.                                                               |
+| **ERA5-Land**       | Continuous 0.1° grid → full AOI every day (the only source with guaranteed complete spatial coverage).                                                                                                                                                   |
 
 **Implications the pipeline MUST encode (not optional):**
 
@@ -351,18 +356,19 @@ all-`-9999` cube.
 
 **Per-modality archive coverage (verified from `data/bow_valley_selection_raw`):**
 
-| Modality | First acquisition | Last acquisition |
-| --- | --- | --- |
-| ERA5-Land | 2025-03 | 2025-05 |
-| MODIS (`A2025060`–`A2025151`) | 2025-03-01 | 2025-05-31 |
-| VIIRS (`A2025060`–`A2025151`) | 2025-03-01 | 2025-05-31 |
-| Sentinel-3 OLCI | 2025-03-01 | 2025-06-09 |
-| Landsat 8 | 2025-03-02 | 2025-05-28 |
-| Landsat 9 | 2025-03-01 | 2025-05-29 |
-| **Sentinel-1 GRD** | **2025-03-30** | 2025-05-31 |
-| Sentinel-2 L1C | 2025-03-01 | 2025-05-30 |
+| Modality                      | First acquisition | Last acquisition |
+| ----------------------------- | ----------------- | ---------------- |
+| ERA5-Land                     | 2025-03           | 2025-05          |
+| MODIS (`A2025060`–`A2025151`) | 2025-03-01        | 2025-05-31       |
+| VIIRS (`A2025060`–`A2025151`) | 2025-03-01        | 2025-05-31       |
+| Sentinel-3 OLCI               | 2025-03-01        | 2025-06-09       |
+| Landsat 8                     | 2025-03-02        | 2025-05-28       |
+| Landsat 9                     | 2025-03-01        | 2025-05-29       |
+| **Sentinel-1 GRD**            | **2025-03-30**    | 2025-05-31       |
+| Sentinel-2 L1C                | 2025-03-01        | 2025-05-30       |
 
 **Binding constraints:**
+
 - **S1 start (2025-03-30) is the latest-starting modality.** It dictates the
   earliest *fully-populated* 8-day window. With the non-negotiable 7-day
   prefill, the first inference day with S1 present across the whole window is
@@ -370,13 +376,13 @@ all-`-9999` cube.
 - **S2 / Landsat 8 end (2025-05-28–30) is the earliest-ending optical modality.**
   It caps the inference range.
 
-| Parameter | Value | Source |
-| --- | --- | --- |
-| Cube inference period | Configurable; **default `2025-04-06 → 2025-05-28`** | Archive coverage; S1-start-limited start, S2/L8-end-limited end |
-| **Archive ingest period** | `start - 7 days → end` (default `2025-03-30 → 2025-05-28`) | Needed to fill the 8-day window for `d = start` |
-| Timestep stride | 1 day (`DAYS_PER_TIMESTEP`) | `config.py` |
-| Window per inference | 8 days (`NUM_TIMESTEPS`) | `config.py` |
-| Prediction cadence | 1 prediction per cell per day, `d ∈ [start, end]` | sliding window |
+| Parameter                 | Value                                                      | Source                                                          |
+| ------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------- |
+| Cube inference period     | Configurable; **default `2025-04-06 → 2025-05-28`**        | Archive coverage; S1-start-limited start, S2/L8-end-limited end |
+| **Archive ingest period** | `start - 7 days → end` (default `2025-03-30 → 2025-05-28`) | Needed to fill the 8-day window for `d = start`                 |
+| Timestep stride           | 1 day (`DAYS_PER_TIMESTEP`)                                | `config.py`                                                     |
+| Window per inference      | 8 days (`NUM_TIMESTEPS`)                                   | `config.py`                                                     |
+| Prediction cadence        | 1 prediction per cell per day, `d ∈ [start, end]`          | sliding window                                                  |
 
 The 7-day prefill is non-negotiable: the model needs 8 timesteps. Phase 0
 archive audit MUST verify ingest coverage of `start − 7` through `end`, not
@@ -426,7 +432,7 @@ phase (see §8 Q9) — if `PR` denotes PlanetScope rather than predictions, pick
 a different recognized prefix or add a new one and patch the parser allowlist
 in the same PR (touches `landsat_eval.py:172` — minimal additive change).
 
----
+______________________________________________________________________
 
 ## 4. Architecture
 
@@ -544,6 +550,7 @@ class LocalSourceAdapter(Protocol):
 ```
 
 Rules enforced by `base.py`:
+
 - Output reprojected to the cell's target grid (`EPSG:32611` UTM 11N, scale=10 m — CORRECTED 2026-06-04, see §3 Grid+CRS table) using:
   - **bilinear** for continuous bands,
   - **nearest** for QA / categorical (WorldCover, cloud flags).
@@ -560,8 +567,7 @@ Rules enforced by `base.py`:
 - Missing acquisition → return `-9999` array of declared shape
   (`create_placeholder` equivalent).
 - **Same-tile/date coalesce before mosaic-before-crop.** For scene/granule
-  sources (S2, Landsat, and any swath source), an adapter resolving a `(cell,
-  day)` MUST gather **all** products sharing the same (reference tile, date) — not
+  sources (S2, Landsat, and any swath source), an adapter resolving a `(cell, day)` MUST gather **all** products sharing the same (reference tile, date) — not
   `.first()` — and coalesce them per pixel: first valid (non-nodata, in-threshold)
   value wins, fall through to the next product where nodata, `-9999` only where
   all are nodata. Deterministic order = latest processing time first. This
@@ -618,10 +624,11 @@ Rules enforced by `base.py`:
 ### LocalSourceExporter
 
 Mirrors `create_ee_image` exactly:
+
 - Iterates `NUM_TIMESTEPS=8` days.
 - Calls each time-varying adapter per day in the **fixed order**:
-  `S1 + S2 + Landsat + S3 + MODIS + VIIRS fine + VIIRS coarse + ERA5
-   + MODIS cloud flag + S2 cloud flag + Landsat cloud flag`.
+  \`S1 + S2 + Landsat + S3 + MODIS + VIIRS fine + VIIRS coarse + ERA5
+  - MODIS cloud flag + S2 cloud flag + Landsat cloud flag\`.
 - Appends static stack once: `DEM, slope, aspect, WorldCover Map`.
 - Writes a multiband GeoTIFF per (cell, window-end-day) under the Landsat-style
   filename defined in §3.
@@ -670,7 +677,7 @@ Cache (`data/bow_valley_processing/cube_cache/`) is FIFO-evicted with a size cap
 mid-run. `processing_root` is configured in `cube.yaml` (see §3 Directory
 layout).
 
----
+______________________________________________________________________
 
 ## 5. Inference Grid Driver
 
@@ -690,6 +697,7 @@ for day in daterange(start, end):                              # inference range
 ```
 
 Key design choices:
+
 - **Cube reuse:** see §4 cache layout — per-modality per-day, not per-window.
 - **Parallelism:** per-cell export is embarrassingly parallel
   (`multiprocessing.Pool`). Inference is GPU-batched across cells.
@@ -709,25 +717,25 @@ Key design choices:
   output pixels at cell boundaries are a known *modelling* limitation, not a
   mosaic-stitching bug. Documented in §6.
 
----
+______________________________________________________________________
 
 ## 6. Verification & FMEA (sketch — formalized in FDD)
 
-| Risk | Mitigation |
-| --- | --- |
-| Filename contract mismatch with `LandsatEvalDataset` parser | `test_filename_contract.py` asserts every exporter-emitted filename parses correctly via `prediction_month_from_file` and yields expected `(month, lat, lon)`. Tested before any adapter is implemented. |
-| Adapter value-domain drift vs GEE | Per-adapter parity test against GEE reference patch (numeric diff thresholds per source). S1 and S2 parity spikes run **first** (Phase 3 step 0) — highest interchange risk per `DATA_ANALYSIS.md`. |
-| CRS / pixel-alignment mismatch | All adapters share one resampler in `base.py` driven by `GridCell.transform`. Golden-grid test asserts exact `transform`, `shape`, `crs`. |
-| Band order regression | `layout.py` re-exports the canonical lists from `eo.py`; integration test asserts byte-for-byte band-name equality against `create_ee_image` output. |
-| MODIS native fill stripped | MODIS adapter test asserts `-28672` is preserved in output where source had it. NDSI/NDVI assertions at `landsat_eval.py:317, 331` would crash otherwise. |
-| Landsat L9→L8 fallback regression | Landsat adapter test exercises 3 scenarios: L9 present, L9 missing + L8 present, both missing → `-9999`. |
-| VIIRS coarse pre-averaging breaks `time_x` | VIIRS coarse adapter returns shape `(4, 100, 100)`, not `(4,)`. Test asserts shape and that the loader's spatial mean reproduces GEE values. |
-| Mosaic seams between adjacent cells | Cells are non-overlapping by design; verify via overlap=0 assertion in `grid.py` and a 2×2 mosaic visual test. Cross-cell context limitation documented separately. |
+| Risk                                                                                                                                                        | Mitigation                                                                                                                                                                                                                                                                                                                                |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Filename contract mismatch with `LandsatEvalDataset` parser                                                                                                 | `test_filename_contract.py` asserts every exporter-emitted filename parses correctly via `prediction_month_from_file` and yields expected `(month, lat, lon)`. Tested before any adapter is implemented.                                                                                                                                  |
+| Adapter value-domain drift vs GEE                                                                                                                           | Per-adapter parity test against GEE reference patch (numeric diff thresholds per source). S1 and S2 parity spikes run **first** (Phase 3 step 0) — highest interchange risk per `DATA_ANALYSIS.md`.                                                                                                                                       |
+| CRS / pixel-alignment mismatch                                                                                                                              | All adapters share one resampler in `base.py` driven by `GridCell.transform`. Golden-grid test asserts exact `transform`, `shape`, `crs`.                                                                                                                                                                                                 |
+| Band order regression                                                                                                                                       | `layout.py` re-exports the canonical lists from `eo.py`; integration test asserts byte-for-byte band-name equality against `create_ee_image` output.                                                                                                                                                                                      |
+| MODIS native fill stripped                                                                                                                                  | MODIS adapter test asserts `-28672` is preserved in output where source had it. NDSI/NDVI assertions at `landsat_eval.py:317, 331` would crash otherwise.                                                                                                                                                                                 |
+| Landsat L9→L8 fallback regression                                                                                                                           | Landsat adapter test exercises 3 scenarios: L9 present, L9 missing + L8 present, both missing → `-9999`.                                                                                                                                                                                                                                  |
+| VIIRS coarse pre-averaging breaks `time_x`                                                                                                                  | VIIRS coarse adapter returns shape `(4, 100, 100)`, not `(4,)`. Test asserts shape and that the loader's spatial mean reproduces GEE values.                                                                                                                                                                                              |
+| Mosaic seams between adjacent cells                                                                                                                         | Cells are non-overlapping by design; verify via overlap=0 assertion in `grid.py` and a 2×2 mosaic visual test. Cross-cell context limitation documented separately.                                                                                                                                                                       |
 | **False `-9999` from picking one of several same-tile/date products** (S2 R070-vs-R113, S2A/S2B, reprocessing dupes; Landsat 9 dupes — verified in archive) | Adapter coalesces **all** same-(tile,date) products per pixel (first valid wins, fall through nodata), never `.first()`. Test: two synthetic same-tile/date products with complementary nodata masks → coalesced output has **zero** nodata where either input was valid, and the surviving value matches the deterministic-order winner. |
-| Memory/IO blowup on full AOI sweep | Per-modality per-(cell, day) `.npz` cache, FIFO-evicted, size cap. S1 SAFE archives processed via windowed reads (read-only the cell footprint), not full-scene loads. Concrete sizing: §4. |
-| Cloud flag bands dropped silently downstream | Emit them in the GeoTIFF anyway; loader will drop them. Documented. Keeps GEE byte-layout parity. |
-| ERA5 normalization bug accidentally "fixed" | Adapter emits Kelvin; bug lives in `Normalizer` and stays as-is (out of scope per §2). |
-| Per-cell modelling edge effects at 100 m output boundaries | Documented limitation: every cell is an independent forward pass. No mitigation planned in this work. Flag in `KNOWLEDGE.md`. |
+| Memory/IO blowup on full AOI sweep                                                                                                                          | Per-modality per-(cell, day) `.npz` cache, FIFO-evicted, size cap. S1 SAFE archives processed via windowed reads (read-only the cell footprint), not full-scene loads. Concrete sizing: §4.                                                                                                                                               |
+| Cloud flag bands dropped silently downstream                                                                                                                | Emit them in the GeoTIFF anyway; loader will drop them. Documented. Keeps GEE byte-layout parity.                                                                                                                                                                                                                                         |
+| ERA5 normalization bug accidentally "fixed"                                                                                                                 | Adapter emits Kelvin; bug lives in `Normalizer` and stays as-is (out of scope per §2).                                                                                                                                                                                                                                                    |
+| Per-cell modelling edge effects at 100 m output boundaries                                                                                                  | Documented limitation: every cell is an independent forward pass. No mitigation planned in this work. Flag in `KNOWLEDGE.md`.                                                                                                                                                                                                             |
 
 ### Tracer-bullet integration test (concrete assertions)
 
@@ -753,6 +761,7 @@ These nine assertions are the SPEC's primary ACs.
 ### Tribal knowledge
 
 `KNOWLEDGE.md` (create if missing) gets entries for:
+
 - MODIS native fill `-28672` is sentinel for "data present" — don't strip.
 - ERA5 normalization sign error is known and deliberately preserved.
 - S3 normalization TODO is known; identity is intentional.
@@ -761,7 +770,7 @@ These nine assertions are the SPEC's primary ACs.
 - Per-cell forward pass has no cross-cell spatial context — 100 m FSC pixels
   near cell boundaries may have edge effects.
 
----
+______________________________________________________________________
 
 ## 7. Phased Delivery
 
@@ -837,6 +846,7 @@ Each phase ends with an explicit approval gate per CLAUDE.md workflow rules.
 ### Tooling per task
 
 Detected from repo state (confirm in FDD):
+
 - Linting: `ruff` (default per CLAUDE.md if `.pre-commit-config.yaml` does not
   specify otherwise).
 - Type checking: `mypy` (default per CLAUDE.md).
@@ -845,63 +855,63 @@ Detected from repo state (confirm in FDD):
 Every Phase 3 step must pass `ruff check`, `mypy`, and the relevant test set
 before approval.
 
----
+______________________________________________________________________
 
 ## 8. Open Questions (need user input before FDD)
 
-1. **Archive locations & data-flow contract. [RESOLVED]** Raw archive under the
-   symlink `data/bow_valley_selection_raw` → `/archive/data/ai4snow/bow_valley_selection_raw/`,
-   with subfolders `dem`, `era5`, `landsat8`, `landsat9`, `modis`, `sentinel1`,
-   `sentinel2`, `sentinel3`, `viirs`, `worldcover`. The AOI clip stage
-   (`CLIPPING_PLAN.md`, §7 Phase 0.5) writes a same-layout **clipped** mirror at
-   the symlink `data/clipped_bow_valley_selection_raw`. **Contract resolved: the
-   `LocalSource*` adapters read the clipped archive, not the raw one** (see §3
-   "Pipeline Stages & Data Flow"). The clip stage is therefore a mandatory
-   on-path prerequisite, and `data/bow_valley_inference_aoi.geojson` is the single binding extent
-   end-to-end.
-2. **Date window. [RESOLVED]** Default set to **`2025-04-06 → 2025-05-28`**,
-   derived from verified archive coverage (see §3 Temporal window). The earlier
-   `2024-02-01 → 2024-04-30` draft had **no archive data** and is discarded.
-   **Note:** the CSV-recorded dates (2024-01-05 → 2025-12-22, cited in a prior
-   draft) are *cell-sampling* metadata, **not** archive acquisition dates — do
-   not use them to scope ingestion. See Q4 for what the CSV date column means.
-3. **Sweep mode. [PARTIALLY RESOLVED]** Default **(A)** sample-only, over the
-   **in-AOI** CSV cells (~344 after the `data/bow_valley_inference_aoi.geojson` centre-in filter, see
-   §3). Mode (B) tiles `data/bow_valley_inference_aoi.geojson`, not the wider cell-sampling bbox.
-   Remaining input: confirm A vs B for the production run (drives compute).
-4. **CSV `date` column semantics. [RESOLVED]** The `date` column in
-   `tests/fixtures/sampled_cells_bow_river_with_dates.csv` is **training/evaluation sampling
-   metadata** — the day each cell was drawn for label pairing in the existing
-   train/eval pipeline (`LandsatEvalDataset` matches an input tif to a label tif
-   by date+coords). **It is NOT a per-cell prediction day for this inference
-   run.** This plan is an *inference* job: the driver iterates the configured
-   window from §3 (`2025-04-06 → 2025-05-28`, every day, every in-AOI cell) and
-   **does not read the CSV `date` at all**. The CSV is consumed here for **cell
-   geometry only** (`center_x/y` and bounds) when building the mode-A grid; the
-   `date` column is ignored. Consequences: the driver loop is "all in-AOI cells ×
-   every day in the configured window" (no per-cell date intersection), and the
-   2024–2025 span of the CSV dates is irrelevant to ingestion scoping. The
-   earlier worry that "cells whose date falls outside the archive cannot be
-   served" was a category error — it imported train/eval label-pairing semantics
-   into an inference run.
-5. **Output destination.** Daily COGs default to local disk at
-   `data/bow_valley_processing/daily_fsc/` (see §3 Directory layout). Remaining
-   input: confirm local disk vs object storage for the production run
-   (`inference.yaml` output path is the switch).
-6. **Checkpoint.** Which finetuned `EncoderWithHead` checkpoint feeds
-   inference? Path?
-7. **Compute budget.** GPU count and wall-clock target. Mode (A): ~45 k
-   forwards, hours on one GPU. Mode (B): ~2.7 M forwards, needs multi-GPU.
-8. **Sentinel-2 product level. [RESOLVED]** Verified: all 116 archive granules
-   are **L1C** (`MSIL1C`, zero `MSIL2A`), processing baseline **`N0511`**
-   (= 04.00+) across the board. Matches `S2_HARMONIZED` value domain. The
-   −1000 DN harmonization (§3, DATA_ANALYSIS §S2) is **required for every
-   granule**. Tiles present: `T11UNS, T11UNT, T11UPS, T11UPT` (the 2×2 grid).
-9. **`PR` filename prefix meaning. [RESOLVED]** Inspected the codebase and existing files. `data/eval_tifs` only contains `LC09` files. The prefix `PR` is unused on disk but supported in `src/fsc/landsat_eval.py` parser, making it fully safe to use as the prefix for our synthetic/predicted direct-source input files to ensure correct downstream coordinate parsing.
+01. **Archive locations & data-flow contract. [RESOLVED]** Raw archive under the
+    symlink `data/bow_valley_selection_raw` → `/archive/data/ai4snow/bow_valley_selection_raw/`,
+    with subfolders `dem`, `era5`, `landsat8`, `landsat9`, `modis`, `sentinel1`,
+    `sentinel2`, `sentinel3`, `viirs`, `worldcover`. The AOI clip stage
+    (`CLIPPING_PLAN.md`, §7 Phase 0.5) writes a same-layout **clipped** mirror at
+    the symlink `data/clipped_bow_valley_selection_raw`. **Contract resolved: the
+    `LocalSource*` adapters read the clipped archive, not the raw one** (see §3
+    "Pipeline Stages & Data Flow"). The clip stage is therefore a mandatory
+    on-path prerequisite, and `data/bow_valley_inference_aoi.geojson` is the single binding extent
+    end-to-end.
+02. **Date window. [RESOLVED]** Default set to **`2025-04-06 → 2025-05-28`**,
+    derived from verified archive coverage (see §3 Temporal window). The earlier
+    `2024-02-01 → 2024-04-30` draft had **no archive data** and is discarded.
+    **Note:** the CSV-recorded dates (2024-01-05 → 2025-12-22, cited in a prior
+    draft) are *cell-sampling* metadata, **not** archive acquisition dates — do
+    not use them to scope ingestion. See Q4 for what the CSV date column means.
+03. **Sweep mode. [PARTIALLY RESOLVED]** Default **(A)** sample-only, over the
+    **in-AOI** CSV cells (~344 after the `data/bow_valley_inference_aoi.geojson` centre-in filter, see
+    §3). Mode (B) tiles `data/bow_valley_inference_aoi.geojson`, not the wider cell-sampling bbox.
+    Remaining input: confirm A vs B for the production run (drives compute).
+04. **CSV `date` column semantics. [RESOLVED]** The `date` column in
+    `tests/fixtures/sampled_cells_bow_river_with_dates.csv` is **training/evaluation sampling
+    metadata** — the day each cell was drawn for label pairing in the existing
+    train/eval pipeline (`LandsatEvalDataset` matches an input tif to a label tif
+    by date+coords). **It is NOT a per-cell prediction day for this inference
+    run.** This plan is an *inference* job: the driver iterates the configured
+    window from §3 (`2025-04-06 → 2025-05-28`, every day, every in-AOI cell) and
+    **does not read the CSV `date` at all**. The CSV is consumed here for **cell
+    geometry only** (`center_x/y` and bounds) when building the mode-A grid; the
+    `date` column is ignored. Consequences: the driver loop is "all in-AOI cells ×
+    every day in the configured window" (no per-cell date intersection), and the
+    2024–2025 span of the CSV dates is irrelevant to ingestion scoping. The
+    earlier worry that "cells whose date falls outside the archive cannot be
+    served" was a category error — it imported train/eval label-pairing semantics
+    into an inference run.
+05. **Output destination.** Daily COGs default to local disk at
+    `data/bow_valley_processing/daily_fsc/` (see §3 Directory layout). Remaining
+    input: confirm local disk vs object storage for the production run
+    (`inference.yaml` output path is the switch).
+06. **Checkpoint.** Which finetuned `EncoderWithHead` checkpoint feeds
+    inference? Path?
+07. **Compute budget.** GPU count and wall-clock target. Mode (A): ~45 k
+    forwards, hours on one GPU. Mode (B): ~2.7 M forwards, needs multi-GPU.
+08. **Sentinel-2 product level. [RESOLVED]** Verified: all 116 archive granules
+    are **L1C** (`MSIL1C`, zero `MSIL2A`), processing baseline **`N0511`**
+    (= 04.00+) across the board. Matches `S2_HARMONIZED` value domain. The
+    −1000 DN harmonization (§3, DATA_ANALYSIS §S2) is **required for every
+    granule**. Tiles present: `T11UNS, T11UNT, T11UPS, T11UPT` (the 2×2 grid).
+09. **`PR` filename prefix meaning. [RESOLVED]** Inspected the codebase and existing files. `data/eval_tifs` only contains `LC09` files. The prefix `PR` is unused on disk but supported in `src/fsc/landsat_eval.py` parser, making it fully safe to use as the prefix for our synthetic/predicted direct-source input files to ensure correct downstream coordinate parsing.
 10. **Cloud-flag emission.** Keep emitting (default; preserves GEE byte
     layout, dropped downstream) or skip to save IO? Recommend keep.
 
----
+______________________________________________________________________
 
 ## 9. Non-Negotiables (from `DATA_ANALYSIS.md`)
 
@@ -918,4 +928,3 @@ before approval.
 - Landsat L9→L8 fallback is encapsulated inside the Landsat adapter.
 - **Mosaicing overlapping daily scenes is mandatory**: Any scene overlaps or swath edge boundaries must be composite-mosaiced prior to cropping to avoid artificial nodata boundaries within a single 1 km grid cell.
 - **Same-tile/date multi-product valid-pixel coalescing is mandatory** (distinct from the cross-tile mosaic above): when more than one product covers the *same* reference tile on the *same* date (different orbit/satellite/reprocessing — verified for S2 and Landsat 9 in this archive), the adapter must coalesce them per pixel — take the first product with a valid (non-nodata, in-threshold) value, fall through to the next where nodata, and emit `-9999` only where **all** same-tile-date products are nodata. Deterministic product order (latest processing time first) settles ties. **No value blending** (coalesce, not average) to preserve the GEE value domain. Replacing GEE's `.first()` with this coalesce is what prevents false `-9999` from a swath-edge/cloud gap in one product when another product has the pixel. See `DATA_ANALYSIS.md` → "Same-tile/date multi-product overlap".
-

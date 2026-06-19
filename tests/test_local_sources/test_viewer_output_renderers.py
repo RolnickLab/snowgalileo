@@ -13,14 +13,14 @@ import numpy as np
 import rasterio
 from affine import Affine
 
-from src.data.local_sources.viewer.manifest import _discover_s1_products
-from src.data.local_sources.viewer.quicklook import RENDERERS
-from src.data.local_sources.viewer.renderers import (
+from snow_galileo.data.local_sources.viewer.manifest import _discover_s1_products
+from snow_galileo.data.local_sources.viewer.quicklook import RENDERERS
+from snow_galileo.data.local_sources.viewer.renderers import (
     render_cube_band,
     render_fsc,
     result_to_geotiff,
 )
-from src.data.local_sources.viewer.settings import ViewerSettings
+from snow_galileo.data.local_sources.viewer.settings import ViewerSettings
 
 # EPSG:32611 (UTM 11N) grid — production cube/FSC CRS.
 _TRANSFORM = Affine(10.0, 0.0, 547_000.0, 0.0, -10.0, 5_620_000.0)
@@ -248,7 +248,7 @@ def test_sentinel1_renderer_reads_processed_tif(tmp_path: Path) -> None:
     """The S1 renderer reads VV (band 2) from the processed tif → dB georef raster."""
     path = tmp_path / f"{_S1_STEM}.tif"
     _write_s1_snap(path)
-    from src.data.local_sources.viewer.manifest import ProductRow
+    from snow_galileo.data.local_sources.viewer.manifest import ProductRow
 
     row = ProductRow(
         product_id="S1 test",

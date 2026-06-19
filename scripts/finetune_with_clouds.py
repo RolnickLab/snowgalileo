@@ -8,14 +8,14 @@ from typing import List
 import psutil
 import torch
 
-from src.config import DEFAULT_SEED
-from src.data.config import DATA_FOLDER
-from src.fsc.cloud_generator import (
+from snow_galileo.config import DEFAULT_SEED
+from snow_galileo.data.config import DATA_FOLDER
+from snow_galileo.fsc.cloud_generator import (
     CloudGeneratorEval,
 )
-from src.fsc.eval import EvalTask
-from src.snowgalileo import Encoder
-from src.utils import device, load_check_config, seed_everything
+from snow_galileo.fsc.eval import EvalTask
+from snow_galileo.snowgalileo import Encoder
+from snow_galileo.utils import device, load_check_config, seed_everything
 
 slurm_id = os.environ.get("SLURM_JOB_ID", "local")
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

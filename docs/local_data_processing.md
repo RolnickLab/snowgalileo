@@ -11,18 +11,17 @@ Engine. Run the stages in order. Each task appends its own section here.
 
 Every operator script lives in
 `scripts/developer_scripts/bow_valley_inference_local/`; each is a thin Typer CLI
-over package code, run with `uv run python …` (the viewer with `uv run solara
-run …`). Run the stages top to bottom:
+over package code, run with `uv run python …` (the viewer with `uv run solara run …`). Run the stages top to bottom:
 
-| # | Stage | Script | Output |
-|---|-------|--------|--------|
-| 0 | Grid + reference patches (§2) | `python -m src.data.local_sources.grid --emit-csv` | `configs/bow_valley/cube_cells.csv`, parity fixtures |
-| 1 | Process raw → read roots (§3) | `process_raw_dataset.py process-all` | clipped archive + `sentinel1_snap/` cache |
-| 1a | (S1 only, standalone) | `process_raw_dataset.py process-s1` **or** `build_bow_valley_s1_cache.py` | `sentinel1_snap/s1_grd_<granule>.tif` |
-| 1b | Audit stage 1 | `process_raw_audit.py` | exit 0 = clean |
-| 2 | Assemble 308-band cubes (§5) | `export_bow_valley_cube.py` | `processing_root/cubes/PR_*.tif` |
-| 3 | Daily FSC inference (§6) | `infer_bow_valley_daily_fsc.py` | `processing_root/daily_fsc/*.tif` |
-| 4 | Inspect / QA (§7) | `solara run data_viewer.py` | Clip / Cube / Daily-FSC tabs |
+| #   | Stage                         | Script                                                                    | Output                                               |
+| --- | ----------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 0   | Grid + reference patches (§2) | `python -m src.data.local_sources.grid --emit-csv`                        | `configs/bow_valley/cube_cells.csv`, parity fixtures |
+| 1   | Process raw → read roots (§3) | `process_raw_dataset.py process-all`                                      | clipped archive + `sentinel1_snap/` cache            |
+| 1a  | (S1 only, standalone)         | `process_raw_dataset.py process-s1` **or** `build_bow_valley_s1_cache.py` | `sentinel1_snap/s1_grd_<granule>.tif`                |
+| 1b  | Audit stage 1                 | `process_raw_audit.py`                                                    | exit 0 = clean                                       |
+| 2   | Assemble 308-band cubes (§5)  | `export_bow_valley_cube.py`                                               | `processing_root/cubes/PR_*.tif`                     |
+| 3   | Daily FSC inference (§6)      | `infer_bow_valley_daily_fsc.py`                                           | `processing_root/daily_fsc/*.tif`                    |
+| 4   | Inspect / QA (§7)             | `solara run data_viewer.py`                                               | Clip / Cube / Daily-FSC tabs                         |
 
 **Key ordering rule (stage 1):** Sentinel-1 is **processed, never clipped** — it
 must go through ESA SNAP *before* anything reads it. `process-all` enforces this:
@@ -30,7 +29,7 @@ it runs `process-s1` **first** (raw S1 → SNAP cache), then `clip-all` for ever
 other modality. The single S1 product (`sentinel1_snap/`) is read by both the
 cube `S1Adapter` and the viewer. There is no raw-DN clipped-S1 product.
 
----
+______________________________________________________________________
 
 ## 0. Prerequisites
 
@@ -45,7 +44,7 @@ cube `S1Adapter` and the viewer. There is no raw-DN clipped-S1 product.
 - **Earth Engine (optional, TASK-001 reference patches only).** Set `EE_PROJECT`
   in a repo-root `.env` (see `.env.example`); it overrides the default project.
 
----
+______________________________________________________________________
 
 ## 1. Raw archive layout
 
@@ -68,7 +67,7 @@ data/
 The clipped archive is the **single root every downstream adapter reads**. AOI
 authority lives in `bow_valley_inference_aoi.geojson` — do not hardcode bounds elsewhere.
 
----
+______________________________________________________________________
 
 ## 2. TASK-001 — Phase 0: audit, cube CSV, GEE reference patches
 
@@ -83,6 +82,7 @@ uv run pytest tests/test_local_sources/test_grid.py tests/test_local_sources/tes
 ```
 
 **Outputs:**
+
 - `configs/bow_valley/cube_cells.csv` — 18 232 rows (344 in-AOI cells × 53 days),
   schema `date,crs,center_x,center_y,min_x,min_y,max_x,max_y`, all `EPSG:32611`.
 - `configs/bow_valley/cell_filter_manifest.csv` — 500 cells, 344 KEEP / 156 DROP.
@@ -90,12 +90,13 @@ uv run pytest tests/test_local_sources/test_grid.py tests/test_local_sources/tes
 - `tests/fixtures/gee_reference_patches/` — 6 GeoTIFFs (308 bands) for parity.
 
 **Gotchas:**
+
 - Grid math is EPSG:32611. AOI filter reprojects cell centres to 4326. 156 of
   500 cells (31%) fall outside the AOI and are dropped by design.
 - The legacy `date` column in `tests/fixtures/sampled_cells_bow_river_with_dates.csv` is never
   read — only cell geometry is reused; dates come from the inference window.
 
----
+______________________________________________________________________
 
 ## 3. TASK-002 — Phase 0.5: AOI clip stage
 
@@ -151,8 +152,7 @@ uv run python scripts/developer_scripts/bow_valley_inference_local/process_raw_a
 **CLI flags** (both `clip-all` and `clip-source`): `--input-dir`
 (default `data/bow_valley_selection_raw`), `--output-dir`
 (default `data/clipped_bow_valley_selection_raw`), `--aoi`
-(default `data/bow_valley_inference_aoi.geojson`), `--dry-run`. `clip-all` also takes `--only
-a,b,c` to run a comma-separated subset **serially** (and it *does* write the
+(default `data/bow_valley_inference_aoi.geojson`), `--dry-run`. `clip-all` also takes `--only a,b,c` to run a comma-separated subset **serially** (and it *does* write the
 combined manifest for that subset — unlike separate `clip-source` jobs).
 
 **Runtime.** Budget roughly 60–90 min for a full serial `clip-all` on this
@@ -166,14 +166,14 @@ roughly halves wall-clock.
 `orchestrator`). The two CLIs are thin entrypoints.
 
 **Outputs:**
+
 - `data/clipped_bow_valley_selection_raw/<source>/…` — clipped products, native
   CRS/format/pixels preserved.
 - `data/clipped_bow_valley_selection_raw/<source>/clip_manifest.csv` +
   combined `clip_manifest.csv` at the root.
 
 **Manifest schema** — one row per input product, columns:
-`product_id, source, footprint_bbox, intersects, aoi_overlap_km2,
-valid_pixel_count, action, output_path`. The `action` is one of `CLIP`,
+`product_id, source, footprint_bbox, intersects, aoi_overlap_km2, valid_pixel_count, action, output_path`. The `action` is one of `CLIP`,
 `SKIP_NO_OVERLAP` (footprint disjoint from AOI), or `SKIP_DEGENERATE_OVERLAP`
 (overlap below `CLIP_MIN_AOI_OVERLAP_AREA_KM2`, or post-clip zero valid pixels).
 Skips have an empty `output_path` and no file on disk.
@@ -191,6 +191,7 @@ files. There is no combined-manifest step when you run sources separately —
 regenerate the root `clip_manifest.csv` by concatenating the per-source ones.
 
 **Gotchas:**
+
 - Intersect gate is the **one** place footprint-vs-AOI filtering happens.
   Adapters must not re-implement it. `CLIP_MIN_AOI_OVERLAP_AREA_KM2` (default
   1 km²) is env-overridable.
@@ -216,26 +217,30 @@ regenerate the root `clip_manifest.csv` by concatenating the per-source ones.
   cell grid is the adapter's job (TASK-012), not the clip stage.
 
 **Footprint/subdataset parsing — modality quirks (fixed, regression-tested):**
+
 - **Sentinel-1** manifest `<gml:coordinates>` is `"lat,lon lat,lon"` (comma
   within each pair); the parser normalises commas to whitespace.
 - **Sentinel-3** footprint lives in `<gml:posList>`, not `<gml:coordinates>`.
 - **VIIRS** HDF5 subdataset descriptor is `HDF5:"path"://…/GRID/…/BAND` (group
   path after `://`); grid/band are parsed by splitting on `/`, unlike the MODIS
   HDF4 `…:"path":GRID:BAND` (`:`-delimited) form. Both go through system GDAL.
----
+
+______________________________________________________________________
 
 ## 4. Spatiotemporal alignment & 8-day cube assembly
 
 Ensures spatial location and date matching are preserved from raw clipped sources when building 308-band assembled cubes.
 
 ### Location & Date Safeguards
+
 - **Spatial Grid (`cube_cells.csv`):** Authoritative cell geometry defined in UTM 11N (`EPSG:32611`). Bounding boxes (`min_x`, `min_y`, `max_x`, `max_y`) map to target cell coordinates.
 - **Date Target:** Row `date` defines sliding window end day $d$; sliding window spans 8 days $[d-7, d]$.
 - **Filename Contract:** Assembled cubes written to `data/bow_valley_processing/cubes/` with standard format `PR_{YYYYMMDD}_{LAT}_{LON}_SC00.tif` (signed decimal degrees of cell center and window-end date). Validated via `test_filename_contract.py` to match `LandsatEvalDataset` parser.
 
 ### Pipeline & Data-Flow Integration
+
 1. **Clip Stage Footprint manifest (root `clip_manifest.csv`):** Keeps record of geographic bounds, overlaps, and pixel validity of clipped source archives on disk (schema in §3).
-2. **Adapter Date Parsing:** `LocalSource*` adapters scan clipped directory for files matching specific target days $i \in [d-7, d]$. Empty days filled with `-9999` placeholder. Sentinel-2 baseline version DN offset (-1000) applied for baseline 04.00+.
+2. **Adapter Date Parsing:** `LocalSource*` adapters scan clipped directory for files matching specific target days $i \\in [d-7, d]$. Empty days filled with `-9999` placeholder. Sentinel-2 baseline version DN offset (-1000) applied for baseline 04.00+.
 3. **Reprojection & 10 m Resampling:**
    - Adapter reprojects target UTM 11N bounding box to native source CRS:
      - Landsat: `EPSG:32612` (UTM 12N)
@@ -244,14 +249,14 @@ Ensures spatial location and date matching are preserved from raw clipped source
        (EPSG:32611, terrain-corrected dB+angle), windowed per cell — **not** a
        raw GCP slice (that path was removed; see §3)
      - MODIS/VIIRS: Sinusoidal projection (`+proj=sinu +R=6371007.181`)
-   - Resampled to $100 \times 100$ pixel grid via robust resampler in `base.py`.
+   - Resampled to $100 \\times 100$ pixel grid via robust resampler in `base.py`.
    - Coalesces overlapping orbit/scene pixels (first valid wins) to prevent false `-9999` nodata.
 4. **Intermediate Cache Sharding:** Per-day per-cell arrays cached under `data/bow_valley_processing/cube_cache/{cell_id}/{day}_{modality}.npz`. Avoids 8x storage duplicate of sliding windows and filesystem indexing limits.
    - **Invalidation:** a `.cache_version` stamp at the root holds `cube_cache.CACHE_VERSION`. On construction, a dir whose stamp differs is **force-cleared** (a code change to any adapter `fetch`/clip logic must bump `CACHE_VERSION` in the same diff). The `--cache-policy` flag (§5) is the manual backstop for the forgot-to-bump case. **All clearing happens only in the parent process**, never in a worker (concurrent clears would race).
    - **Eviction (Mode B scale):** `prune_before_day` runs once per day in the parent before the pool spawns. It is **lazy** (a no-op while entries ≤ `cache_max_entries`, so Mode A behaves as if uncapped) and **day-frontier** — past the cap it drops only entries provably dead under the sliding window (`day < current_day − 7`), never the live window. `cache_max_entries` is set in `cube.yaml` (default 200 000; 3 000 000 for the full Mode B sweep).
 5. **Cube Assembly (`LocalSourceExporter`):** Composites 8 daily cached arrays in exact canonical band order (308 bands).
 
----
+______________________________________________________________________
 
 ## 5. Stage 2 — assemble the cubes (`export_bow_valley_cube.py`)
 
@@ -306,7 +311,7 @@ deliberately produce S1-free cubes.
 contract in §4); intermediate per-day/per-cell arrays cached under
 `processing_root/cube_cache/` (§4 item 4).
 
----
+______________________________________________________________________
 
 ## 6. Stage 3 — daily FSC inference (`infer_bow_valley_daily_fsc.py`)
 
@@ -335,7 +340,7 @@ emit a plausible-looking but meaningless COG). No downstream/GEE code is touched
 **Outputs:** one daily FSC COG per inference day in
 `processing_root/daily_fsc/` (the value domain is 0–1).
 
----
+______________________________________________________________________
 
 ## 6.5. Full Mode-B AOI sweep (`cube_full_run.yaml` / `inference_full_run.yaml`)
 
@@ -346,10 +351,10 @@ Mode-A deliverables are never touched.
 
 **Config pair (sibling to the Mode-A configs):**
 
-| File | Differences from Mode-A config |
-|------|--------------------------------|
-| `configs/bow_valley/cube_full_run.yaml` | `mode: B`, `mode_b_inset_m: 5000`, `processing_root: data/bow_valley_processing/full_run` |
-| `configs/bow_valley/inference_full_run.yaml` | `export_workers: 16` (vs 8); everything else identical |
+| File                                         | Differences from Mode-A config                                                            |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `configs/bow_valley/cube_full_run.yaml`      | `mode: B`, `mode_b_inset_m: 5000`, `processing_root: data/bow_valley_processing/full_run` |
+| `configs/bow_valley/inference_full_run.yaml` | `export_workers: 16` (vs 8); everything else identical                                    |
 
 **Grid: 5 km negative buffer.** `mode_b_inset_m: 5000` erodes the AOI inward by
 5 km (a `buffer(-5000)` in UTM 11N, `grid.py:_tile_aoi_to_cells`) **before** tiling,
@@ -384,27 +389,27 @@ uv run python scripts/developer_scripts/bow_valley_inference_local/infer_bow_val
 
 **Scale & runtime (21-day window, 5 km inset = 21,985 cells, 16 workers):**
 
-| Resource | Mode A (measured) | Full Mode B (projected) |
-|----------|-------------------|--------------------------|
-| Cells | 344 | 21,985 |
-| Cube exports | 7,224 | 461,685 |
-| Wall-clock | 31 min (8 workers) | **~33 h measured** (14–16 workers; see breakdown below) |
-| `cubes/` on disk (~12.3 MB each) | ~88 GB | **~5.7 TB** (stays on `/archive`) |
-| `cube_cache/` (~130 KB/entry) | ~few GB | **~250–390 GB** (on SSD — see below) |
-| `daily_fsc/` COGs | 21 × ~0.35 MB | 21 × a few MB (on SSD) |
+| Resource                         | Mode A (measured)  | Full Mode B (projected)                                 |
+| -------------------------------- | ------------------ | ------------------------------------------------------- |
+| Cells                            | 344                | 21,985                                                  |
+| Cube exports                     | 7,224              | 461,685                                                 |
+| Wall-clock                       | 31 min (8 workers) | **~33 h measured** (14–16 workers; see breakdown below) |
+| `cubes/` on disk (~12.3 MB each) | ~88 GB             | **~5.7 TB** (stays on `/archive`)                       |
+| `cube_cache/` (~130 KB/entry)    | ~few GB            | **~250–390 GB** (on SSD — see below)                    |
+| `daily_fsc/` COGs                | 21 × ~0.35 MB      | 21 × a few MB (on SSD)                                  |
 
 The wall-clock is **export-bound and CPU-bound** (not I/O- or GPU-bound). Day 1 measured
 **~1.2 cubes/s**; profiling one cold cube export (`cProfile`, cache off) shows the per-cube
 CPU split:
 
-| Source | Share | Cost |
-|--------|-------|------|
-| **Sentinel-2** | **~42%** | JP2 decode (`rasterio.open`, ~60 opens/cube) — single-threaded, heavy |
-| **ERA5** | ~20% | NetCDF `open_dataset` (h5netcdf, ~40 opens/cube) |
-| **Sentinel-3** | ~19% | `scipy.griddata` swath warp (irreducible per the S3 design) |
-| Landsat / MODIS / VIIRS | ~19% | cheap (MODIS/VIIRS sinusoidal warp is NOT a hot spot) |
+| Source                  | Share    | Cost                                                                  |
+| ----------------------- | -------- | --------------------------------------------------------------------- |
+| **Sentinel-2**          | **~42%** | JP2 decode (`rasterio.open`, ~60 opens/cube) — single-threaded, heavy |
+| **ERA5**                | ~20%     | NetCDF `open_dataset` (h5netcdf, ~40 opens/cube)                      |
+| **Sentinel-3**          | ~19%     | `scipy.griddata` swath warp (irreducible per the S3 design)           |
+| Landsat / MODIS / VIIRS | ~19%     | cheap (MODIS/VIIRS sinusoidal warp is NOT a hot spot)                 |
 
-Both disks sit **<15% util** during the sweep (all 16 cores pegged, load avg ~32, zero
+Both disks sit **\<15% util** during the sweep (all 16 cores pegged, load avg ~32, zero
 workers in I/O-wait) — the export bottleneck is **CPU**, specifically JP2 decode + repeated
 file opens, not disk.
 
@@ -450,6 +455,7 @@ The source reads + cube writes stay HDD-bound, so this is a partial (not 3×) sp
 it removes the cache-thrash contention, the part the SSD actually fixes.
 
 **Gotchas:**
+
 - **Run in the background / detached.** A multi-day sweep must survive disconnects —
   run under `nohup`/`tmux`, tee stdout into `full_run/scratch/`, and pass an explicit
   `--cache-policy` (never the `prompt` default — it errors on a non-TTY by design, §5).
@@ -458,8 +464,7 @@ it removes the cache-thrash contention, the part the SSD actually fixes.
   but every modality fetch is a cache hit, so the resume is cache-fast).
 - **Edge-cell guard (Mode B only).** AOI-edge tiles can produce a sub-pixel scene read
   window that rounds to a 0-px axis; before the `cell_window`/`reproject_to_cell` guards
-  (`_scene_ops.py`, `base.py`) this raised `CPLE_AppDefinedError: Invalid dataset
-  dimensions : 0 x N` inside a worker and killed the whole pool. Interior cells (Mode A,
+  (`_scene_ops.py`, `base.py`) this raised `CPLE_AppDefinedError: Invalid dataset dimensions : 0 x N` inside a worker and killed the whole pool. Interior cells (Mode A,
   small smoke slices) never hit it — smoke-test the **tail** cells (`grid[-300:]`) when
   validating a Mode-B change, not just `--limit N` (which takes the head).
 - **`cache_max_entries: 3000000`** is sized for the Mode-B live window (~1.58 M) plus
@@ -469,7 +474,7 @@ it removes the cache-thrash contention, the part the SSD actually fixes.
 - The 5 km inset follows the AOI's true shape; concave notches narrower than 10 km may
   close. Verify the kept-cell extent in the viewer (§7) before trusting the output AOI.
 
----
+______________________________________________________________________
 
 ## 7. Inspect / QA — the data viewer (`data_viewer.py`)
 
@@ -496,7 +501,7 @@ Three tabs, one per pipeline output:
 See `docs/agents/planning/bow_valley/060-viewer/060-viewer-plan.md`, `CONTRACT.md`, and
 `PLAN-V2-CUBE-FSC-TABS.md`.
 
----
+______________________________________________________________________
 
 ## Testing baseline
 

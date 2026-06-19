@@ -32,8 +32,8 @@ import rasterio
 import xarray as xr
 from shapely.geometry import box
 
-from src.data.config import NO_DATA_VALUE
-from src.data.local_sources.base import CELL_TARGET_CRS, GridCell
+from snow_galileo.data.config import NO_DATA_VALUE
+from snow_galileo.data.local_sources.base import CELL_TARGET_CRS, GridCell
 from tests._archive_fixtures import resolve_structural_root
 
 #: Phase-0 GEE reference patches (308-band cubes).
@@ -74,7 +74,7 @@ def adapter():
     root = resolve_structural_root("era5", pattern="*.nc")
     if root is None:
         pytest.skip("No ERA5 NetCDF under tests/fixtures/clipped or tests/fixtures/archive")
-    from src.data.local_sources.era5 import Era5Adapter
+    from snow_galileo.data.local_sources.era5 import Era5Adapter
 
     return Era5Adapter(archive_root=root)
 
@@ -167,7 +167,7 @@ def _write_synthetic_era5(root: Path, year: int, month: int, n_days: int) -> Non
 
 def test_precip_day_shift_and_temp_no_shift(tmp_path: Path) -> None:
     """Precip(d) = the d+1 00:00 slice; temp(d) = the day-d slice (AC-20b)."""
-    from src.data.local_sources.era5 import Era5Adapter
+    from snow_galileo.data.local_sources.era5 import Era5Adapter
 
     _write_synthetic_era5(tmp_path, 2025, 4, n_days=10)
     adapter = Era5Adapter(archive_root=tmp_path)
@@ -193,7 +193,7 @@ def test_precip_day_shift_and_temp_no_shift(tmp_path: Path) -> None:
 
 def test_precip_shift_crosses_month_boundary(tmp_path: Path) -> None:
     """Precip for the last day of a month reads the next month's first slice (AC-20b)."""
-    from src.data.local_sources.era5 import Era5Adapter
+    from snow_galileo.data.local_sources.era5 import Era5Adapter
 
     _write_synthetic_era5(tmp_path, 2025, 4, n_days=30)
     _write_synthetic_era5(tmp_path, 2025, 5, n_days=31)

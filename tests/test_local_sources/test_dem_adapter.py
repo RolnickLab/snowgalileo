@@ -32,7 +32,7 @@ import pytest
 import rasterio
 from shapely.geometry import box
 
-from src.data.local_sources.base import CELL_TARGET_CRS, GridCell
+from snow_galileo.data.local_sources.base import CELL_TARGET_CRS, GridCell
 from tests._archive_fixtures import resolve_source_root
 
 #: Phase-0 GEE reference patches (308-band cubes; DEM/slope/aspect = bands 305/306/307).
@@ -87,7 +87,7 @@ def adapter():
     root = resolve_source_root("dem", pattern="*_DEM.tif")
     if root is None:
         pytest.skip("No DEM tiles under tests/fixtures/clipped or tests/fixtures/archive")
-    from src.data.local_sources.dem import DemAdapter
+    from snow_galileo.data.local_sources.dem import DemAdapter
 
     return DemAdapter(archive_root=root)
 
@@ -98,7 +98,7 @@ def parity_adapter():
     root = resolve_source_root("dem", pattern="*_DEM.tif")
     if root is None:
         pytest.skip("No DEM fixture under tests/fixtures (rebuild with populate_test_archive.py)")
-    from src.data.local_sources.dem import DemAdapter
+    from snow_galileo.data.local_sources.dem import DemAdapter
 
     return DemAdapter(archive_root=root)
 

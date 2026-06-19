@@ -24,10 +24,10 @@ import pytest
 import rasterio
 import torch
 
-from src.data.config import NO_DATA_VALUE, NUM_TIMESTEPS
-from src.data.local_sources.base import GridCell
-from src.inference.mosaic import DailyMosaicWriter
-from src.inference.windows import eight_day_window, inference_days
+from snow_galileo.data.config import NO_DATA_VALUE, NUM_TIMESTEPS
+from snow_galileo.data.local_sources.base import GridCell
+from snow_galileo.inference.mosaic import DailyMosaicWriter
+from snow_galileo.inference.windows import eight_day_window, inference_days
 
 # A 1 km cell at 100 m FSC px → 10×10 block per cell.
 _CELL_M = 1_000.0
@@ -249,7 +249,7 @@ def patched_loader(monkeypatch: pytest.MonkeyPatch):
         month = torch.zeros(1, dtype=torch.long)
         return (*x, *masks, month)
 
-    monkeypatch.setattr("src.inference.driver.masked_output_for_tif", _fake)
+    monkeypatch.setattr("snow_galileo.inference.driver.masked_output_for_tif", _fake)
 
 
 def test_driver_iterates_window_x_cells_ignoring_csv_date(
@@ -262,7 +262,7 @@ def test_driver_iterates_window_x_cells_ignoring_csv_date(
     configured day. We assert the export call set is exactly the cross-product of
     the configured window × cells.
     """
-    from src.inference.driver import InferenceGridDriver
+    from snow_galileo.inference.driver import InferenceGridDriver
 
     exporter = _StubExporter()
     model = _StubModel()
@@ -315,7 +315,7 @@ def test_driver_prunes_cache_once_per_ascending_day(
     parent prunes between days, with the exporter's backlook window, and the prune for
     day D precedes that day's export (recorded interleaving).
     """
-    from src.inference.driver import CACHE_WINDOW_DAYS, InferenceGridDriver
+    from snow_galileo.inference.driver import CACHE_WINDOW_DAYS, InferenceGridDriver
 
     spy_cache = _SpyCache()
 
@@ -350,7 +350,7 @@ def test_driver_without_cache_does_not_prune(
     grid_2x2: list[GridCell], patched_loader: None, tmp_path: Path
 ) -> None:
     """A stub exporter with no ``_cache`` is fine — the driver simply skips pruning."""
-    from src.inference.driver import InferenceGridDriver
+    from snow_galileo.inference.driver import InferenceGridDriver
 
     # _StubExporter has no _cache attribute; getattr(..., None) → no prune, no error.
     driver = InferenceGridDriver(
@@ -370,7 +370,7 @@ def test_driver_drops_fully_masked_cell_to_nodata(
     grid_2x2: list[GridCell], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A cell whose every valid-mask is all-zero yields no prediction → nodata (AC-28)."""
-    from src.inference.driver import InferenceGridDriver
+    from snow_galileo.inference.driver import InferenceGridDriver
 
     def _fake(tif: Path):
         # cell_0 fully masked (masks all-zero), the rest valid (masks all-one).
@@ -380,7 +380,7 @@ def test_driver_drops_fully_masked_cell_to_nodata(
         masks = [torch.full((1,), mask_val) for _ in range(6)]
         return (*x, *masks, torch.zeros(1, dtype=torch.long))
 
-    monkeypatch.setattr("src.inference.driver.masked_output_for_tif", _fake)
+    monkeypatch.setattr("snow_galileo.inference.driver.masked_output_for_tif", _fake)
 
     driver = InferenceGridDriver(
         exporter=_StubExporter(),  # type: ignore[arg-type]
@@ -410,11 +410,11 @@ def test_driver_end_to_end_with_real_loader_and_encoder(tmp_path: Path) -> None:
     """
     import json
 
-    from src.data.local_sources.exporter import LocalSourceExporter
-    from src.fsc.patch_predict import EncoderWithHead
-    from src.inference.driver import InferenceGridDriver
-    from src.snowgalileo import Encoder
-    from src.utils import config_dir
+    from snow_galileo.data.local_sources.exporter import LocalSourceExporter
+    from snow_galileo.fsc.patch_predict import EncoderWithHead
+    from snow_galileo.inference.driver import InferenceGridDriver
+    from snow_galileo.snowgalileo import Encoder
+    from snow_galileo.utils import config_dir
 
     cube_dir = tmp_path / "cubes"
     fsc_dir = tmp_path / "daily_fsc"
@@ -463,8 +463,8 @@ def test_driver_forwards_cube_cache_to_parallel_export(
     nothing. Monkeypatch ``export_cells_parallel`` to capture its kwargs (no pool, no
     archive).
     """
-    from src.data.local_sources.exporter import LocalSourceExporter
-    from src.inference.driver import InferenceGridDriver
+    from snow_galileo.data.local_sources.exporter import LocalSourceExporter
+    from snow_galileo.inference.driver import InferenceGridDriver
 
     captured: dict[str, object] = {}
 
@@ -472,9 +472,9 @@ def test_driver_forwards_cube_cache_to_parallel_export(
         captured.update(kwargs)
         return []  # empty map → _run_batch falls back to serial .export (also cached)
 
-    monkeypatch.setattr("src.inference.driver.export_cells_parallel", _fake_parallel)
+    monkeypatch.setattr("snow_galileo.inference.driver.export_cells_parallel", _fake_parallel)
     monkeypatch.setattr(
-        "src.inference.driver.masked_output_for_tif",
+        "snow_galileo.inference.driver.masked_output_for_tif",
         lambda _t: (*[torch.zeros(1)] * 6, *[torch.ones(1)] * 6, torch.zeros(1, dtype=torch.long)),
     )
 

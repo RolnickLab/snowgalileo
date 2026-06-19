@@ -34,7 +34,7 @@ from rasterio.warp import transform_bounds
 from rasterio.windows import Window, from_bounds
 from shapely.geometry import box
 
-from src.data.local_sources.base import GridCell
+from snow_galileo.data.local_sources.base import GridCell
 
 logger = structlog.get_logger(__name__)
 
