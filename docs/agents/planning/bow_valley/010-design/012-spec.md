@@ -17,7 +17,7 @@ This is the **central specification** for the direct-source pipeline. It is the
 single source of acceptance criteria. Every AC is written as a falsifiable test
 sentence and maps to at least one step in the Verification Plan (§7).
 
----
+______________________________________________________________________
 
 ## 1. Overview
 
@@ -35,13 +35,14 @@ sentence and maps to at least one step in the Verification Plan (§7).
   for an archive that spans 2025-03 → 2025-06 and only partially covers the AOI
   on any given day.
 
----
+______________________________________________________________________
 
 ## 2. Requirements
 
 ### Functional Requirements
 
 **Stage 0→1 — AOI Clip (per `CLIPPING_PLAN.md`)**
+
 - [ ] FR-1: A `process_raw_dataset.py` Typer CLI (formerly `clip_dataset.py`) clips every
   raw dataset in `data/bow_valley_selection_raw` to `data/bow_valley_inference_aoi.geojson`
   and writes `data/clipped_bow_valley_selection_raw`, preserving native pixel values, CRS,
@@ -53,9 +54,7 @@ sentence and maps to at least one step in the Verification Plan (§7).
   (2) minimum-useful-overlap (`MIN_AOI_OVERLAP_AREA_KM2`, default 1 km²) plus a
   post-clip valid-pixel check. Failing products produce **no output file**.
 - [ ] FR-3: The clip stage emits a per-source clip manifest with one row per
-  input product: `{product_id, footprint_bbox, intersects, aoi_overlap_km2,
-  valid_pixel_count, action}` where `action ∈ {CLIP, SKIP_NO_OVERLAP,
-  SKIP_DEGENERATE_OVERLAP}`.
+  input product: `{product_id, footprint_bbox, intersects, aoi_overlap_km2, valid_pixel_count, action}` where `action ∈ {CLIP, SKIP_NO_OVERLAP, SKIP_DEGENERATE_OVERLAP}`.
 - [ ] FR-4: MODIS/VIIRS clipping computes pixel indices **per native grid** (1 km
   = 1200², 500 m = 2400²) from each grid's own resolution/origin — never a single
   hardcoded `1200` clamp.
@@ -65,11 +64,11 @@ sentence and maps to at least one step in the Verification Plan (§7).
   PLAN §3 / KNOWLEDGE.md).
 
 **Stage 1→2 — Adapters, Exporter, Grid (per `PLAN §4`)**
+
 - [ ] FR-6: All `LocalSource*` adapters read **`data/clipped_bow_valley_selection_raw`**
   (the clipped archive), configured via `cube.yaml` `archive_root`. The raw path
   appears only in the clip stage's config.
-- [ ] FR-7: Each adapter implements the `LocalSourceAdapter` contract (`fetch(cell,
-  day) -> np.ndarray` of shape `(C, H, W)`, `-9999` nodata) and reprojects to the
+- [ ] FR-7: Each adapter implements the `LocalSourceAdapter` contract (`fetch(cell, day) -> np.ndarray` of shape `(C, H, W)`, `-9999` nodata) and reprojects to the
   cell target grid (`EPSG:32611` UTM 11N, scale=10 m — CORRECTED 2026-06-04 from
   "EPSG:4326 scale=10", matches the `export_from_csv_utm` GEE reference patches; see
   `PLAN §3` Grid+CRS table and `docs/agents/KNOWLEDGE.md`) using **bilinear** for continuous
@@ -134,8 +133,7 @@ sentence and maps to at least one step in the Verification Plan (§7).
 - [ ] FR-16: The WorldCover adapter ignores `day`, returns the v200 2021 `Map`
   band (single categorical band, not one-hot).
 - [ ] FR-17: `LocalSourceExporter` writes a per-(cell, window-end-day) multiband
-  GeoTIFF in the **exact** dynamic order `S1 + S2 + Landsat + S3 + MODIS + VIIRS
-  fine + VIIRS coarse + ERA5 + MODIS cloud + S2 cloud + Landsat cloud`, then the
+  GeoTIFF in the **exact** dynamic order `S1 + S2 + Landsat + S3 + MODIS + VIIRS fine + VIIRS coarse + ERA5 + MODIS cloud + S2 cloud + Landsat cloud`, then the
   static stack `DEM, slope, aspect, WorldCover Map`.
 - [ ] FR-18: The exporter emits filenames matching
   `^PR_\d{8}_-?\d+\.\d+_-?\d+\.\d+_SC\d+\.tif$` (`PR_{window_end_YYYYMMDD}_{LAT}_{LON}_SC00.tif`).
@@ -170,8 +168,8 @@ sentence and maps to at least one step in the Verification Plan (§7).
   `processing_root` is a `cube.yaml` setting; subdirs derive from it.
 
 **Stage 2 — Inference & Mosaic (per `PLAN §5`)**
-- [ ] FR-21: `InferenceGridDriver` builds, for each inference day `d ∈ [start,
-  end]`, the 8-day window `[d-7, d]` per cell, exports the cube, batches cells,
+
+- [ ] FR-21: `InferenceGridDriver` builds, for each inference day `d ∈ [start, end]`, the 8-day window `[d-7, d]` per cell, exports the cube, batches cells,
   runs `EncoderWithHead`, and produces per-cell 10×10 FSC.
 - [ ] FR-22: `DailyMosaicWriter` writes one COG per day in EPSG:32611 to
   `data/bow_valley_processing/daily_fsc/` (overridable per Q5),
@@ -198,11 +196,12 @@ sentence and maps to at least one step in the Verification Plan (§7).
   the per-day coverage metric are the audit artifacts.
 - **Security:** No hardcoded secrets; archive paths via config, not literals.
 
----
+______________________________________________________________________
 
 ## 3. Technical Constraints & Assumptions
 
 **Existing systems/libraries to use**
+
 - Downstream (unchanged): `Dataset`, `LandsatEvalDataset`,
   `prediction_month_from_file` (`src/fsc/landsat_eval.py`), `EncoderWithHead`
   (`src/fsc/patch_predict.py`), `Normalizer`, band-group dicts in
@@ -214,6 +213,7 @@ sentence and maps to at least one step in the Verification Plan (§7).
   HDF4 driver — verified).
 
 **Directory roots (per `PLAN §3` Directory layout)**
+
 - `data/bow_valley_selection_raw/` — raw archive, read-only.
 - `data/clipped_bow_valley_selection_raw/` — clipped archive; **written only by
   the clip stage**, read-only to everything else.
@@ -222,11 +222,13 @@ sentence and maps to at least one step in the Verification Plan (§7).
   subdirs cleanable mid-run, `cubes/` + `daily_fsc/` are the kept deliverables.
 
 **Key fixed constants (from `config.py` / `DATA_ANALYSIS.md`)**
+
 - `NUM_TIMESTEPS=8`, `DAYS_PER_TIMESTEP=1`, `EXPORTED_HEIGHT_WIDTH_METRES=1000`,
   `DATASET_OUTPUT_HW_HIGH_RES=100`, `NO_DATA_VALUE=-9999`,
   `MODIS_FILL_VALUE=-28672`, med-res → 5×5, low-res → 2×2.
 
 **Assumptions**
+
 - Default inference window **2025-04-06 → 2025-05-28** (S1-start-limited start;
   S2/L8-end-limited end); archive ingest period `start-7 → end`. The 7-day
   prefill is non-negotiable.
@@ -245,6 +247,7 @@ sentence and maps to at least one step in the Verification Plan (§7).
   **preserved as-is** (model-numeric-domain concerns, out of scope).
 
 **Open questions that gate specific ACs (do not invent answers):**
+
 - **Q3 (sweep mode A vs B):** affects compute sizing only; default A holds.
 - **Q4 (CSV `date` column semantics): RESOLVED.** The CSV `date` is train/eval
   label-sampling metadata, not a per-cell prediction day. This is an inference
@@ -254,7 +257,7 @@ sentence and maps to at least one step in the Verification Plan (§7).
 - **Q5 (output destination), Q6 (checkpoint path), Q7 (GPU budget):**
   configuration, not behaviour; do not block ACs.
 
----
+______________________________________________________________________
 
 ## 4. Acceptance Criteria
 
@@ -262,6 +265,7 @@ Each AC is a test sentence (Red test waiting to be written). Pass/fail is
 explicit.
 
 **Clip stage (§2.0–§2.7 of `CLIPPING_PLAN.md`)**
+
 - [ ] AC-1: Given a synthetic product footprint **fully outside** the AOI, the
   clip gate returns `SKIP_NO_OVERLAP` and **no output file** exists at the
   destination path.
@@ -290,6 +294,7 @@ explicit.
   resampling/rescaling introduced by the clip).
 
 **Filename & grid contract (tested before any adapter — `PLAN §6`)**
+
 - [ ] AC-9: Every exporter-emitted filename matches
   `^PR_\d{8}_-?\d+\.\d+_-?\d+\.\d+_SC\d+\.tif$` **and**
   `prediction_month_from_file` returns the month equal to `window_end.month`.
@@ -304,6 +309,7 @@ explicit.
   contract with `eo_eval.py:577-585`).
 
 **Adapter value-domain & CRS (one test per adapter — `PLAN §6`, `DATA_ANALYSIS §source-by-source`)**
+
 - [ ] AC-12: Every adapter's `fetch` output has the declared shape, `EPSG:4326`
   target transform/CRS, and exactly the declared `bands_out` in order; a golden-
   grid test asserts the exact `(transform, shape, crs)` triple.
@@ -352,11 +358,11 @@ explicit.
   `{10,20,…,95,100}` (not one-hot), independent of `day`.
 
 **Full-stack parity & tracer (the PLAN's nine primary ACs — `PLAN §6`)**
+
 - [ ] AC-23: For one cell × one window-end-day exported from the **clipped**
   archive and read through `LandsatEvalDataset`, the assembled tensors have:
   `space_time_high_res_x == (100,100,8,15)`, `space_time_med_res_x == (5,5,8,2)`,
-  `space_time_low_res_x == (2,2,8,11)`, `time_x == (8,9)`, `space_x ==
-  (100,100,14)`, `static_x == (3,)`.
+  `space_time_low_res_x == (2,2,8,11)`, `time_x == (8,9)`, `space_x == (100,100,14)`, `static_x == (3,)`.
 - [ ] AC-24: For that sample, `EncoderWithHead` produces an FSC prediction of
   shape `(10,10)` with all values in `[0.0, 1.0]`.
 - [ ] AC-25: For that sample, `valid_data_mask_*` is set wherever inputs are
@@ -373,6 +379,7 @@ explicit.
   representation difference does not affect matching.
 
 **Inference & mosaic**
+
 - [ ] AC-28: `DailyMosaicWriter` output is a valid COG in EPSG:32611; cells with
   all input groups masked are `nodata`; the per-day AOI-coverage fraction is
   recorded in output metadata.
@@ -380,6 +387,7 @@ explicit.
   double-written pixels) and FSC reprojected with nearest-neighbour only.
 
 **Coverage profiling (first-class per `PLAN §3`)**
+
 - [ ] AC-30: Phase 0 produces, per in-AOI cell, the fraction of each 8-day window
   populated per source; the S1-fully-masked-window rate across the inference
   range is reported (S1 present on only ~16 archive dates).
@@ -391,6 +399,7 @@ explicit.
   (`center_x/y`, bounds) only.
 
 **Directory contract**
+
 - [ ] AC-32: After a cube+inference run, all new files live under
   `data/bow_valley_processing/` in the correct subdirs (assembled cubes in
   `cubes/`, daily COGs in `daily_fsc/`, `.npz` in `cube_cache/`); a test asserts
@@ -399,7 +408,7 @@ explicit.
   deleting `cube_cache/` + `scratch/` does not remove any file in `cubes/` or
   `daily_fsc/` (intermediate/deliverable separation).
 
----
+______________________________________________________________________
 
 ## 5. Dependencies
 
@@ -423,7 +432,7 @@ explicit.
 - **Stage ordering:** Clip stage (FR-1…FR-5) is a hard prerequisite for all
   adapter/exporter/inference ACs — the cube is built from the clipped archive.
 
----
+______________________________________________________________________
 
 ## 6. Out of Scope
 
@@ -435,7 +444,7 @@ explicit.
 - Widening the AOI to recover the 31% out-of-AOI cells.
 - Padding clipped outputs to the full AOI (partial coverage is kept as-is).
 
----
+______________________________________________________________________
 
 ## 7. Verification Plan
 
@@ -478,7 +487,7 @@ Every Phase 3 step must pass `ruff check`, `mypy`, and its test set before its
 approval gate (per CLAUDE.md). Parity ACs (AC-14/15/21/27) are **blocked** until
 Phase 0 reference patches exist.
 
----
+______________________________________________________________________
 
 ## Pre-Approval Checklist
 
@@ -490,6 +499,7 @@ Phase 0 reference patches exist.
 - [ ] **User has explicitly approved this SPEC before implementation begins.**
 
 ### Outstanding blockers to flag before sign-off
+
 - **Q3 (sweep mode A vs B)** drives compute budget (Q7); default A assumed.
 - **Q6 (checkpoint path)** needed before any inference AC can actually run.
 - **FDD exists** (`FDD_BOW_VALLEY_DATA.md`) and is the design of record; its own

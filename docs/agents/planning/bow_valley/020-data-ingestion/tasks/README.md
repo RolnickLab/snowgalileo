@@ -15,29 +15,30 @@ its predecessors are approved (per CLAUDE.md: stop and get sign-off at each gate
 > failure before reaching new tests); never try to fix the baseline failures as part of
 > Bow Valley work.
 
-| Task | Title | FDD step | Key SPEC ACs |
-| --- | --- | --- | --- |
-| TASK-001 | Phase 0 audit + generated cube CSV + GEE reference patches | §4.1 | AC-10, AC-11, AC-11b, AC-30 |
-| TASK-002 | AOI clip stage (Phase 0.5) — **approval gate** | §4.2 | AC-1…AC-8 |
-| TASK-003 | Contract: base.py, grid.py, layout.py, cube_cache.py | §4.3 | AC-9, AC-10, AC-11, AC-11b |
-| TASK-004 | Placeholder exporter + tracer-bullet test | §4.4 | AC-13, AC-23, AC-24, AC-25, AC-26 |
-| TASK-005 | S1/S2 parity spikes — **go/no-go gate** | §4.5 | AC-14, AC-15 (spike form) |
-| TASK-006 | ESA WorldCover adapter | §4.6 #1 | AC-12, AC-22 |
-| TASK-007 | Copernicus DEM adapter | §4.6 #2 | AC-12, AC-21 |
-| TASK-008 | ERA5-Land adapter | §4.6 #3 | AC-12, AC-13, AC-20 |
-| TASK-009 | MODIS MOD09GA adapter (preserve -28672) | §4.6 #4 | AC-12, AC-13, AC-18 |
-| TASK-010 | VIIRS VNP09GA adapter (fine + coarse per-pixel) | §4.6 #5 | AC-12, AC-13, AC-19 |
-| TASK-011 | Sentinel-3 OLCI adapter (tie-point geolocation) | §4.6 #6 | AC-12, AC-13, AC-17 |
-| TASK-012 | Landsat 8/9 adapter (L9→L8, cross-zone, coalesce) | §4.6 #7 | AC-12, AC-13, AC-15b, AC-16 |
-| TASK-013 | Sentinel-2 adapter (−1000 DN, coalesce) | §4.6 #8 | AC-12, AC-13, AC-15, AC-15b |
-| TASK-014 | Sentinel-1 GRD adapter (edge mask, windowed reads) | §4.6 #9 | AC-12, AC-13, AC-14 |
-| TASK-015 | InferenceGridDriver + DailyMosaicWriter | §4.7 | AC-28, AC-29, AC-31 |
-| TASK-016 | Entry-point scripts + directory contract + parity gate | §4.8 | AC-27, AC-32 |
+| Task     | Title                                                      | FDD step | Key SPEC ACs                      |
+| -------- | ---------------------------------------------------------- | -------- | --------------------------------- |
+| TASK-001 | Phase 0 audit + generated cube CSV + GEE reference patches | §4.1     | AC-10, AC-11, AC-11b, AC-30       |
+| TASK-002 | AOI clip stage (Phase 0.5) — **approval gate**             | §4.2     | AC-1…AC-8                         |
+| TASK-003 | Contract: base.py, grid.py, layout.py, cube_cache.py       | §4.3     | AC-9, AC-10, AC-11, AC-11b        |
+| TASK-004 | Placeholder exporter + tracer-bullet test                  | §4.4     | AC-13, AC-23, AC-24, AC-25, AC-26 |
+| TASK-005 | S1/S2 parity spikes — **go/no-go gate**                    | §4.5     | AC-14, AC-15 (spike form)         |
+| TASK-006 | ESA WorldCover adapter                                     | §4.6 #1  | AC-12, AC-22                      |
+| TASK-007 | Copernicus DEM adapter                                     | §4.6 #2  | AC-12, AC-21                      |
+| TASK-008 | ERA5-Land adapter                                          | §4.6 #3  | AC-12, AC-13, AC-20               |
+| TASK-009 | MODIS MOD09GA adapter (preserve -28672)                    | §4.6 #4  | AC-12, AC-13, AC-18               |
+| TASK-010 | VIIRS VNP09GA adapter (fine + coarse per-pixel)            | §4.6 #5  | AC-12, AC-13, AC-19               |
+| TASK-011 | Sentinel-3 OLCI adapter (tie-point geolocation)            | §4.6 #6  | AC-12, AC-13, AC-17               |
+| TASK-012 | Landsat 8/9 adapter (L9→L8, cross-zone, coalesce)          | §4.6 #7  | AC-12, AC-13, AC-15b, AC-16       |
+| TASK-013 | Sentinel-2 adapter (−1000 DN, coalesce)                    | §4.6 #8  | AC-12, AC-13, AC-15, AC-15b       |
+| TASK-014 | Sentinel-1 GRD adapter (edge mask, windowed reads)         | §4.6 #9  | AC-12, AC-13, AC-14               |
+| TASK-015 | InferenceGridDriver + DailyMosaicWriter                    | §4.7     | AC-28, AC-29, AC-31               |
+| TASK-016 | Entry-point scripts + directory contract + parity gate     | §4.8     | AC-27, AC-32                      |
 
 **SPEC AC coverage:** AC-1…AC-32 are all mapped above (AC-12 recurs across every
 adapter task as the golden-grid contract; AC-13 recurs for every time-varying adapter).
 
 ## Cross-cutting notes carried into the tasks
+
 - **CSV semantics (Q4 RESOLVED):** the cell/date input is the **generated cross-product
   CSV** (`configs/bow_valley/cube_cells.csv`), not the legacy training CSV. The driver
   ignores the CSV `date`; it sweeps the configured window × all in-AOI cells. (TASK-001,
@@ -53,4 +54,5 @@ adapter task as the golden-grid contract; AC-13 recurs for every time-varying ad
   Stage 2 writes go under `bow_valley_processing/` subdirs. Enforced by AC-32 (TASK-016).
 
 ## Open questions still gating a production run (not blocking task implementation)
+
 - Q3 sweep mode A vs B · Q5 output destination · Q6 checkpoint path · Q7 GPU budget.

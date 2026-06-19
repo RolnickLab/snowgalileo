@@ -38,15 +38,15 @@ unbounded growth.
 escalating).** Per-day export durations oscillate, they do **not** trend up:
 
 | window_end | s2_fetch events | export duration |
-|------------|-----------------|-----------------|
-| 04-07 | 0 | 40 min (light) |
-| 04-08 | 21,985 | 62 min (heavy) |
-| 04-09 | 0 | 32 min (light) |
-| 04-10 | 21,985 | 92 min (heavy) |
-| 04-11 | 0 | 45 min (light) |
-| 04-12 | 0 | 30 min (light) |
-| 04-13 | 21,985 | 81 min (heavy) |
-| 04-14 | 0 | 33 min (light) |
+| ---------- | --------------- | --------------- |
+| 04-07      | 0               | 40 min (light)  |
+| 04-08      | 21,985          | 62 min (heavy)  |
+| 04-09      | 0               | 32 min (light)  |
+| 04-10      | 21,985          | 92 min (heavy)  |
+| 04-11      | 0               | 45 min (light)  |
+| 04-12      | 0               | 30 min (light)  |
+| 04-13      | 21,985          | 81 min (heavy)  |
+| 04-14      | 0               | 33 min (light)  |
 
 The correlation is exact: **every heavy day has S2 in its 8-day lookback, every light day
 has zero S2.** Sentinel-2 has a ~5-day revisit over the AOI; when an inference day's
@@ -76,6 +76,7 @@ cache (vs 54 GB), leaving the host overwhelmingly free. JP2/NetCDF decode does n
 3 GB block cache per process — the windowed reads are small (one cell's neighbourhood).
 
 Options, lowest-effort first:
+
 1. **Env var at launch** (zero code): `GDAL_CACHEMAX=512` (MiB) in the run environment, or
    exported in the driver script before the pool spawns. Each worker inherits it.
 2. **Set in `_init_worker`** (`parallel_export.py`): `rasterio.Env(GDAL_CACHEMAX=512)` or

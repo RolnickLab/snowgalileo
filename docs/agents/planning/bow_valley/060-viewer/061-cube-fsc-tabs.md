@@ -8,6 +8,7 @@ snow-cover (FSC) COGs. Same UX as the existing clip tab: a leafmap map with the 
 outline and the selected item placed on it.
 
 ## 1. Goal
+
 - **Tab "Clip"** — the existing source/product viewer, unchanged (moved into a tab).
 - **Tab "Cube"** — inspect one assembled cube **layer by layer, date by date**:
   pick prediction date → cell, then a **selection mode** ("Select by timestep" /
@@ -20,6 +21,7 @@ outline and the selected item placed on it.
   footprint.
 
 ### Cube selection modes (data-availability filtering — revises §3/§7)
+
 Every dynamic `(var, timestep)` band **exists** in the cube, but most are **entirely
 nodata (`-9999`)** at most timesteps — e.g. Landsat reflectance is real at only one or two
 of the eight timesteps, S1 may be all-nodata in a cube. So "exists at timestep" is a
@@ -38,7 +40,9 @@ Timestep is a **dropdown** (`Select`), not a slider. Stale selections clamp to t
 set when date/cell/mode changes, so an all-nodata band is never rendered.
 
 ## 2. Scope & non-goals
+
 **In scope**
+
 - List cubes from `processing_root/cubes/` and FSC COGs from `processing_root/daily_fsc/`
   by filesystem scan (these are pipeline outputs, **not** clip-manifest rows — no
   `load_products` reuse).
@@ -47,12 +51,14 @@ set when date/cell/mode changes, so an all-nodata band is never rendered.
 - Single-band display for both tabs; cube bands are diagnostic, FSC is a continuous field.
 
 **Non-goals**
+
 - No re-export, no inference, no writes into any `data/` tree (read-only, like the clip tab).
 - No RGB compositing of cube bands (single-band inspection is the point; revisit later).
 - No click-to-select-cell map interaction (date→cell dropdowns; user-chosen).
 - No new heavy deps — solara + leafmap + rasterio already present.
 
 ## 3. Data contracts (verified on disk)
+
 - **Cube** `PR_<YYYYMMDD>_<lat>_<lon>_SC00.tif`: 308 bands, **EPSG:32611**, 100×100 @ 10 m,
   `float32`, nodata **-9999**, **band descriptions present** (`VV_t0`…`QA_PIXEL_t7`,
   then `DEM`, `slope`, `aspect`, `Map`). Layout: 38 dynamic bands × 8 timesteps, then
@@ -63,6 +69,7 @@ set when date/cell/mode changes, so an all-nodata band is never rendered.
 - Filename → prediction date parsed from the `PR_<YYYYMMDD>` / `fsc_<YYYYMMDD>` token.
 
 ## 4. Module layout (additive — touches only the viewer package + entrypoint)
+
 ```
 src/data/local_sources/viewer/
   outputs.py     # NEW: scan cubes/ + daily_fsc/, parse filenames → CubeRow / FscRow,
@@ -74,6 +81,7 @@ src/data/local_sources/viewer/
 scripts/developer_scripts/bow_valley_inference_local/data_viewer.py  # WRAP existing Page body in solara.lab.Tabs;
                                           # add CubeTab + FscTab components
 ```
+
 No edits to `quicklook.py` contract, `manifest.py`, `aoi.py`, `archives.py`, or any
 `src/fsc/*` / loader / downstream code. The two new renderers are **not** registered in
 the `RENDERERS` source-dispatch dict (that dict is keyed by clip *source*); they are
@@ -81,6 +89,7 @@ called directly by the new tabs, returning the same `QuicklookResult` the map pa
 already consumes.
 
 ## 5. `outputs.py` (new)
+
 - `@dataclass(frozen=True) CubeRow(path, pred_date: date, lat: float, lon: float, cell_label: str)`.
 - `@dataclass(frozen=True) FscRow(path, pred_date: date)`.
 - `list_cubes(settings) -> list[CubeRow]` — glob `cubes/PR_*.tif`, parse via the existing
@@ -95,14 +104,14 @@ already consumes.
   resolves the 1-based rasterio band for `(var, timestep)` by matching the description
   `f"{var}_t{timestep}"` (dynamic) or `var` (static) — **match by description, never by
   arithmetic offset**, so a future band-order change can't silently mis-map.
-- **Data-availability catalogue** (drives the cube selection modes): `cube_availability(path)
-  -> CubeAvailability(dynamic_real: dict[str, set[int]], dynamic_order, statics, n_timesteps)`
+- **Data-availability catalogue** (drives the cube selection modes): `cube_availability(path) -> CubeAvailability(dynamic_real: dict[str, set[int]], dynamic_order, statics, n_timesteps)`
   reads **every band once** and marks a `<var>_t<i>` band *available* iff it is **not
   entirely `-9999`/non-finite**. Helpers `vars_at_timestep(avail, t)` (real dynamic vars at
   `t`, then all statics) and `timesteps_for_var(avail, var)` (real timesteps for a dynamic
   var; `[]` for a static) feed the cross-filtered dropdowns.
 
 ## 6. Renderers (added to `renderers.py`)
+
 - `render_cube_band(*, path, var, timestep, statics, long_edge) -> QuicklookResult`:
   resolve band via `band_index`, decimated `_read_band_decimated` (EPSG:32611 → reproject
   4326 via existing `_to_4326`), mask nodata -9999 → NaN, **percentile-stretch to uint8**
@@ -128,6 +137,7 @@ already consumes.
     renders at `opacity=1.0`.
 
 ## 7. Tab wiring (`data_viewer.py`)
+
 - Wrap the current `Page` map+sidebar logic into a `ClipTab` component (verbatim move).
 - `CubeTab`: date `Select` → cell `Select` (CubeRow labels) → **mode `ToggleButtonsSingle`**
   ("Select by timestep" / "Select by variable") → two cross-filtered `Select` dropdowns
@@ -136,14 +146,14 @@ already consumes.
   is a **dropdown**, not a slider; statics ignore it. Builds the `QuicklookResult`, writes
   it via `result_to_geotiff`, places it with `add_raster` + AOI overlay
   (`_render_on_map(result, key)` shared helper).
-- `FscTab`: date `SliderInt` over `list_fsc` dates → `render_fsc` → `_render_on_map(...,
-  zoom_to_data=True, colorbar=fsc_colorbar()+caption)` (turbo gradient + 0–1 scale,
+- `FscTab`: date `SliderInt` over `list_fsc` dates → `render_fsc` → `_render_on_map(..., zoom_to_data=True, colorbar=fsc_colorbar()+caption)` (turbo gradient + 0–1 scale,
   bottom-right). With a single date on disk the slider is replaced by an info line.
 - `Page` becomes `solara.lab.Tabs([Tab("Clip", ClipTab), Tab("Cube", CubeTab), Tab("Daily FSC", FscTab)])`.
 - Empty-state: if `cubes/` or `daily_fsc/` is empty, the tab shows a `solara.Info`
   ("no cubes exported yet — run export_bow_valley_cube.py") instead of crashing.
 
 ## 8. Tests (`tests/test_local_sources/test_viewer_outputs.py`, new — pure, no Solara/leafmap)
+
 - `list_cubes` / `list_fsc` parse filenames → correct date/lat/lon, sorted, empty-dir → `[]`.
 - `cube_variables` returns 38 dynamic + 4 statics + n_ts==8 from a tiny synthetic
   multi-band GeoTIFF with descriptions.
@@ -158,6 +168,7 @@ already consumes.
 - (Solara components are not unit-tested — manual smoke via `solara run`, per PLAN §8 style.)
 
 ## 9. Verification
+
 ```bash
 cd /home/dev/projects/presto-v3
 uv run pytest tests/test_local_sources/test_viewer_outputs.py -v
@@ -169,11 +180,12 @@ uv run mypy  src/data/local_sources/viewer/outputs.py src/data/local_sources/vie
 ```
 
 ## 10. Delivery order (incremental, approval-gated per CLAUDE.md — STOP after each)
+
 1. `settings.py` paths + `outputs.py` + its tests (Red→Green). STOP.
 2. `render_cube_band` + `render_fsc` + their tests (Red→Green). STOP.
 3. `data_viewer.py` tabs (ClipTab move + CubeTab + FscTab), manual smoke. STOP.
 4. **Cube selection modes + FSC display polish** (this revision): `cube_availability` +
    `vars_at_timestep` + `timesteps_for_var` + their tests (Red→Green); CubeTab mode toggle
-   + dropdown timestep + cross-filtering; FSC `turbo` colormap + `fsc_colorbar` on-map scale
-   + zoom-to-data. Manual smoke. STOP.
+   - dropdown timestep + cross-filtering; FSC `turbo` colormap + `fsc_colorbar` on-map scale
+   - zoom-to-data. Manual smoke. STOP.
 5. Docs/checkoff. Commit only on approval.

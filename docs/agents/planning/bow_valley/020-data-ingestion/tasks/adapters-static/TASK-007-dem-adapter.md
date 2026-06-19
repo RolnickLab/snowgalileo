@@ -1,12 +1,14 @@
 # TASK-007: Implement the Copernicus DEM adapter (elevation + slope + aspect)
 
 ## 1. Goal
+
 Replace the DEM placeholder with a real adapter that mosaics Copernicus DEM GLO-30
 tiles and emits `[DEM, slope, aspect]`, computing slope/aspect with
 **latitude-correct metric pixel spacing** (matching GEE `ee.Terrain`), then
 resampling to the 10 m cell grid.
 
 ## 2. Context & References
+
 - **FDD step:** §4.6 (adapter order #2 — static).
 - **SPEC:** FR-15, AC-12, AC-21; Verification Plan step 6.
 - **PLAN:** §4 adapter rule ("compute slope/aspect with latitude-correct metric pixel
@@ -47,19 +49,20 @@ resampling to the 10 m cell grid.
 - **Relevant skills:** `geospatial` (terrain derivatives, reprojection order), `tdd`.
 
 ## 3. Subtasks
-- [x] 1. Write `test_dem_adapter.py` (Red): golden-grid triple; `bands_out ==
-      [DEM, slope, aspect]`; slope/aspect match GEE reference within tolerance;
-      degenerate guard (slopes NOT all ≈90°); `day` ignored.
+
+- [x] 1. Write `test_dem_adapter.py` (Red): golden-grid triple; `bands_out ==     [DEM, slope, aspect]`; slope/aspect match GEE reference within tolerance;
+  degenerate guard (slopes NOT all ≈90°); `day` ignored.
 - [x] 2. Implement `dem.py`: mosaic tiles → Horn slope/aspect in degrees **in the
-      DEM's native frame** with latitude-correct metric pixel spacing (matching
-      `ee.Terrain`) → resample DEM+slope+aspect (bilinear) to the cell's
-      **EPSG:32611 100×100** grid via `base.reproject_to_cell` → stack `(3, H, W)`;
-      `spatial_kind="space"`, `native_fill=None`. Do NOT compute terrain in any
-      projected grid (native frame only); the UTM target applies to the resample
-      step only.
+  DEM's native frame** with latitude-correct metric pixel spacing (matching
+  `ee.Terrain`) → resample DEM+slope+aspect (bilinear) to the cell's
+  **EPSG:32611 100×100** grid via `base.reproject_to_cell` → stack `(3, H, W)`;
+  `spatial_kind="space"`, `native_fill=None`. Do NOT compute terrain in any
+  projected grid (native frame only); the UTM target applies to the resample
+  step only.
 - [x] 3. Wire into exporter, replace placeholder. 4. Green + Refactor.
 
 ## 4. Requirements & Constraints
+
 - **Technical:** Bilinear for elevation; slope/aspect via Horn (or `richdem`/`gdaldem`
   equivalent) computed on the **native DEM grid** (NOT the reprojected grid),
   then resampled to the UTM cell grid; tolerance constant logged.
@@ -69,28 +72,32 @@ resampling to the 10 m cell grid.
 - **Out of scope:** WorldCover (TASK-006), ERA5 (TASK-008).
 
 ## 5. Acceptance Criteria
+
 - [x] AC-1 (SPEC AC-12): golden-grid `(transform, shape, crs)`; `bands_out` in order.
 - [x] AC-2 (SPEC AC-21): slope/aspect (latitude-correct metric spacing, matching
-      `ee.Terrain`) within tolerance of GEE-derived values — NOT a 32611-computed
-      reference; degenerate guard (slopes not all ≈90°); emits `[DEM, slope, aspect]`.
+  `ee.Terrain`) within tolerance of GEE-derived values — NOT a 32611-computed
+  reference; degenerate guard (slopes not all ≈90°); emits `[DEM, slope, aspect]`.
 - [x] AC-3: ruff + mypy clean; targeted new tests green; full suite introduces NO new failures vs `TEST_BASELINE.md` (delta check, NOT `pytest -x`).
 
 ## 6. Testing & Validation
+
 ```bash
 cd /home/dev/projects/presto-v3
 uv run pytest tests/test_local_sources/test_dem_adapter.py -v
 uv run ruff check src/data/local_sources/dem.py
 uv run mypy src/data/local_sources/dem.py
 ```
+
 Expected: adapter test green (slope/aspect within tolerance); ruff/mypy exit 0.
 
 **Regression check (suite is already red):** run the delta check in `TEST_BASELINE.md` — the "NEW failures" list must be empty. Do NOT use `pytest -x` at the suite level.
 
 ## 7. Completion Protocol
+
 1. Verify ACs. 2. Run Section 6 commands.
-3. Commit:
+2. Commit:
    ```bash
    git add src/data/local_sources/dem.py tests/test_local_sources/test_dem_adapter.py
    git commit -m "feat(bow-valley): Copernicus DEM adapter (elevation+slope+aspect) — closes TASK-007"
    ```
-4. Check off subtasks/ACs. 5. Notify the user; request approval before TASK-008.
+3. Check off subtasks/ACs. 5. Notify the user; request approval before TASK-008.

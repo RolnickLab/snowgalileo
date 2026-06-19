@@ -20,15 +20,19 @@ normalization.
    random year in `[START_YEAR, END_YEAR]` via `sample_season_year`, then samples
    a contiguous `NUM_TIMESTEPS = 8` day window inside that season via
    `sample_time_window`. One GeoTIFF is exported per (point, season).
+
 2. `create_ee_image` iterates over the sampled window using
    `DAYS_PER_TIMESTEP = 1`. For each day it calls every active time-varying
    image function in `TIME_IMAGE_FUNCTIONS` (in the fixed order asserted in
    `eo.py`), clips the result to the polygon, concatenates the bands, then
    reduces all timesteps into one multiband image with `imcoll.iterate`.
+
 3. Static spatial layers from `SPACE_IMAGE_FUNCTIONS` (DEM + ESA WorldCover) are
    appended once after the time-varying stack.
+
 4. Export uses `crs="EPSG:4326"`, `scale=10`,
    `formatOptions={"noData": NO_DATA_VALUE}` with `NO_DATA_VALUE = -9999`, and
+
    <!-- NOTE 2026-06-04: this `crs="EPSG:4326"` is `create_ee_image`/label-path's
    DEFAULT. The Bow Valley **inference** path (`export_from_csv_utm`) overrides it
    with the CSV's `crs=EPSG:32611`, so the reference patches and our per-cell grid
@@ -37,6 +41,7 @@ normalization.
    `img.unmask(-9999)` before export. All sources are resampled by Earth Engine
    onto the 10 m export grid, even when their native resolution is coarser, so
    the GeoTIFF is approximately `100 x 100` pixels per band per timestep.
+
 5. The dataset loader reads the GeoTIFF, reshapes the dynamic bands from
    `(timestep * channel, height, width)` to `(height, width, timestep, channel)`,
    crops to `DATASET_OUTPUT_HW_HIGH_RES = 100` pixels via `subset_image`, splits
@@ -49,18 +54,18 @@ normalization.
 
 ### Key constants (`src/data/config.py`)
 
-| Constant | Value | Purpose |
-| --- | --- | --- |
-| `DAYS_PER_TIMESTEP` | `1` | Day stride between consecutive timesteps. |
-| `NUM_TIMESTEPS` | `8` | Number of days in each exported window. |
-| `EXPORTED_HEIGHT_WIDTH_METRES` | `1000` | Side length of the export polygon. |
-| `DATASET_OUTPUT_HW_HIGH_RES` | `100` | High-res H/W after cropping. |
-| `DATASET_OUTPUT_HW_MED_RES` | `200` | Effective metres per pixel for med-res; yields `5 x 5` after downsampling. |
-| `DATASET_OUTPUT_HW_LOW_RES` | `500` | Effective metres per pixel for low-res; yields `2 x 2` after downsampling. |
-| `NO_DATA_VALUE` | `-9999` | Sentinel value for missing pixels and acquisitions. |
-| `MODIS_FILL_VALUE` | `-28672` | Native MODIS fill value, additionally checked by derived-index code. |
-| `NDI_VALID_DATA_BOUNDS` | `(-1, 1)` | Valid range used to clamp NDSI/NDVI. |
-| `START_YEAR`, `END_YEAR` | `2022`, `2023` | Inclusive sampling range; constrained by Landsat 9 availability. |
+| Constant                       | Value          | Purpose                                                                    |
+| ------------------------------ | -------------- | -------------------------------------------------------------------------- |
+| `DAYS_PER_TIMESTEP`            | `1`            | Day stride between consecutive timesteps.                                  |
+| `NUM_TIMESTEPS`                | `8`            | Number of days in each exported window.                                    |
+| `EXPORTED_HEIGHT_WIDTH_METRES` | `1000`         | Side length of the export polygon.                                         |
+| `DATASET_OUTPUT_HW_HIGH_RES`   | `100`          | High-res H/W after cropping.                                               |
+| `DATASET_OUTPUT_HW_MED_RES`    | `200`          | Effective metres per pixel for med-res; yields `5 x 5` after downsampling. |
+| `DATASET_OUTPUT_HW_LOW_RES`    | `500`          | Effective metres per pixel for low-res; yields `2 x 2` after downsampling. |
+| `NO_DATA_VALUE`                | `-9999`        | Sentinel value for missing pixels and acquisitions.                        |
+| `MODIS_FILL_VALUE`             | `-28672`       | Native MODIS fill value, additionally checked by derived-index code.       |
+| `NDI_VALID_DATA_BOUNDS`        | `(-1, 1)`      | Valid range used to clamp NDSI/NDVI.                                       |
+| `START_YEAR`, `END_YEAR`       | `2022`, `2023` | Inclusive sampling range; constrained by Landsat 9 availability.           |
 
 Current exported dynamic order per timestep is:
 
@@ -78,14 +83,14 @@ ESA WorldCover: Map
 
 ## Model tensor groups
 
-| Group | Sources (band count) | Loader shape |
-| --- | --- | --- |
-| `space_time_high_res_x` | S1 `[VV, VH, angle]` (3) + S2 `[B2, B3, B4, B8, B11, B12]` (6) + Landsat `[B2..B7]_landsat` (6) | `100 x 100 x 8 x 15` |
-| `space_time_med_res_x` | S3 `[Oa17_radiance, Oa21_radiance]` (2) | Downsampled to `5 x 5 x 8 x 2` |
-| `space_time_low_res_x` | MODIS `sur_refl_b01..b07` (7) + VIIRS fine `[I1, I3]` (2) + derived `NDSI` (1) + derived `NDVI` (1) | Downsampled to `2 x 2 x 8 x 11` |
-| `time_x` | VIIRS coarse `[M5, M7, M10, M11]` (4) + ERA5 `[skin_temperature, temperature_2m, total_precipitation_sum, u_component_of_wind_10m, v_component_of_wind_10m]` (5) | Spatial mean, `8 x 9` |
-| `space_x` | DEM `[DEM, slope, aspect]` (3) + one-hot WorldCover (11) | `100 x 100 x 14` |
-| `static_x` | Location only, not exported from Earth Engine | Cartesian `[x, y, z]` from filename lat/lon |
+| Group                   | Sources (band count)                                                                                                                                             | Loader shape                                |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `space_time_high_res_x` | S1 `[VV, VH, angle]` (3) + S2 `[B2, B3, B4, B8, B11, B12]` (6) + Landsat `[B2..B7]_landsat` (6)                                                                  | `100 x 100 x 8 x 15`                        |
+| `space_time_med_res_x`  | S3 `[Oa17_radiance, Oa21_radiance]` (2)                                                                                                                          | Downsampled to `5 x 5 x 8 x 2`              |
+| `space_time_low_res_x`  | MODIS `sur_refl_b01..b07` (7) + VIIRS fine `[I1, I3]` (2) + derived `NDSI` (1) + derived `NDVI` (1)                                                              | Downsampled to `2 x 2 x 8 x 11`             |
+| `time_x`                | VIIRS coarse `[M5, M7, M10, M11]` (4) + ERA5 `[skin_temperature, temperature_2m, total_precipitation_sum, u_component_of_wind_10m, v_component_of_wind_10m]` (5) | Spatial mean, `8 x 9`                       |
+| `space_x`               | DEM `[DEM, slope, aspect]` (3) + one-hot WorldCover (11)                                                                                                         | `100 x 100 x 14`                            |
+| `static_x`              | Location only, not exported from Earth Engine                                                                                                                    | Cartesian `[x, y, z]` from filename lat/lon |
 
 Cloud flag bands are exported and included in the dynamic channel count, but the
 main dataset loader drops them when returning model tensors. They are not parsed
@@ -102,16 +107,16 @@ pretraining and downstream fractional snow cover pipelines consume the processed
 After `Dataset._tif_to_array` or `LandsatEvalDataset._tif_to_array`, every
 sample is represented as:
 
-| Field | Contents | Used as |
-| --- | --- | --- |
-| `space_time_high_res_x` | Sentinel-1, Sentinel-2, Landsat | High-resolution spatiotemporal tokens |
-| `space_time_med_res_x` | Sentinel-3 | Medium-resolution spatiotemporal tokens |
-| `space_time_low_res_x` | MODIS, VIIRS fine, NDSI, NDVI | Low-resolution spatiotemporal tokens |
-| `space_x` | DEM, slope, aspect, one-hot WorldCover | Static spatial tokens |
-| `time_x` | VIIRS coarse, ERA5 | Time-only tokens |
-| `static_x` | Cartesian location `x, y, z` | Static non-spatial tokens |
-| `months` | Month index from filename | Temporal positional/context input |
-| `valid_data_mask_*` | Per-channel valid-data masks | Converted into model masks |
+| Field                   | Contents                               | Used as                                 |
+| ----------------------- | -------------------------------------- | --------------------------------------- |
+| `space_time_high_res_x` | Sentinel-1, Sentinel-2, Landsat        | High-resolution spatiotemporal tokens   |
+| `space_time_med_res_x`  | Sentinel-3                             | Medium-resolution spatiotemporal tokens |
+| `space_time_low_res_x`  | MODIS, VIIRS fine, NDSI, NDVI          | Low-resolution spatiotemporal tokens    |
+| `space_x`               | DEM, slope, aspect, one-hot WorldCover | Static spatial tokens                   |
+| `time_x`                | VIIRS coarse, ERA5                     | Time-only tokens                        |
+| `static_x`              | Cartesian location `x, y, z`           | Static non-spatial tokens               |
+| `months`                | Month index from filename              | Temporal positional/context input       |
+| `valid_data_mask_*`     | Per-channel valid-data masks           | Converted into model masks              |
 
 The encoder does not operate on individual raw bands directly. The pipeline
 aggregates bands into channel groups defined by the `*_GROUPS_IDX` ordered
@@ -198,36 +203,36 @@ Entry points:
 
 Finetuning assembly flow:
 
-1. `scripts/finetune.py` loads a pretrained encoder checkpoint or creates a
-   randomly initialized encoder.
-2. It loads a config from `configs/finetune`. The `data` block defines the input
-   Earth Engine TIFF folder, optional HDF5 folder, label folder, label
-   resolution, timestep count, and split layout.
-3. `LandsatEval._get_dataset` constructs `LandsatEvalDataset` for the `train`
-   and `test` splits.
-4. `LandsatEvalDataset` reads the same Earth Engine band stack structure as
-   pretraining, but it parses dates and coordinates from evaluation-specific
-   filename conventions.
-5. It pairs each input image with a label TIFF of the same name. The label is a
-   fractional snow cover mask loaded with `rioxarray`, squeezed to 2D, and
-   returned with the input tensors.
-6. The dataset builds channel-group masks deterministically instead of using the
-   random masked-autoencoder collate function:
-   - all valid source groups start with mask `0`;
-   - invalid source groups from `valid_data_mask_*` become mask `1`;
-   - optional prediction-day ablations can additionally mask selected groups.
-7. Optional ablations change the last timestep input:
-   - `exclude_prediction_date` masks all dynamic inputs for the prediction day;
-   - `exclude_prediction_sensors` masks all observational sensor groups for the
-     prediction day while keeping weather handling separate;
-   - `exclude_prediction_high_res` masks high-resolution optical groups on the
-     prediction day but keeps Sentinel-1;
-   - `exclude_prediction_era5` masks the ERA5 group on the prediction day.
-8. The dataset returns a `MaskedOutput`, the label raster, and the filename.
-   The finetuning `DataLoader` uses PyTorch's default collation.
-9. `EncoderWithHead` sends the grouped tensors and masks through the encoder.
-   It then maps encoder tokens to fractional snow cover predictions with either
-   a spatial-mean linear head or an attention probe.
+01. `scripts/finetune.py` loads a pretrained encoder checkpoint or creates a
+    randomly initialized encoder.
+02. It loads a config from `configs/finetune`. The `data` block defines the input
+    Earth Engine TIFF folder, optional HDF5 folder, label folder, label
+    resolution, timestep count, and split layout.
+03. `LandsatEval._get_dataset` constructs `LandsatEvalDataset` for the `train`
+    and `test` splits.
+04. `LandsatEvalDataset` reads the same Earth Engine band stack structure as
+    pretraining, but it parses dates and coordinates from evaluation-specific
+    filename conventions.
+05. It pairs each input image with a label TIFF of the same name. The label is a
+    fractional snow cover mask loaded with `rioxarray`, squeezed to 2D, and
+    returned with the input tensors.
+06. The dataset builds channel-group masks deterministically instead of using the
+    random masked-autoencoder collate function:
+    - all valid source groups start with mask `0`;
+    - invalid source groups from `valid_data_mask_*` become mask `1`;
+    - optional prediction-day ablations can additionally mask selected groups.
+07. Optional ablations change the last timestep input:
+    - `exclude_prediction_date` masks all dynamic inputs for the prediction day;
+    - `exclude_prediction_sensors` masks all observational sensor groups for the
+      prediction day while keeping weather handling separate;
+    - `exclude_prediction_high_res` masks high-resolution optical groups on the
+      prediction day but keeps Sentinel-1;
+    - `exclude_prediction_era5` masks the ERA5 group on the prediction day.
+08. The dataset returns a `MaskedOutput`, the label raster, and the filename.
+    The finetuning `DataLoader` uses PyTorch's default collation.
+09. `EncoderWithHead` sends the grouped tensors and masks through the encoder.
+    It then maps encoder tokens to fractional snow cover predictions with either
+    a spatial-mean linear head or an attention probe.
 10. With the default `patch_size_high_res=10` and a `100 x 100` high-resolution
     input, the model predicts a `10 x 10` fractional snow cover map. The sigmoid
     head constrains predictions to `[0, 1]`.
@@ -380,10 +385,8 @@ dataset and grouped masks, but does not train a neural prediction head. Instead:
   - Baseline normalization uses `shift=-7950` and `div=8050` per band, so the
     implemented formula is `(x + 7950) / 8050`.
   - Valid threshold is `>= -100`, which masks the MODIS fill value.
-  - `NDSI` is derived as `(sur_refl_b04 - sur_refl_b06) /
-    (sur_refl_b04 + sur_refl_b06)`.
-  - `NDVI` is derived as `(sur_refl_b02 - sur_refl_b01) /
-    (sur_refl_b02 + sur_refl_b01)`.
+  - `NDSI` is derived as `(sur_refl_b04 - sur_refl_b06) / (sur_refl_b04 + sur_refl_b06)`.
+  - `NDVI` is derived as `(sur_refl_b02 - sur_refl_b01) / (sur_refl_b02 + sur_refl_b01)`.
   - Derived indices become `-9999` when either source band is `-9999`, equals the
     configured MODIS fill value, has a non-positive denominator, or produces a
     result outside `[-1, 1]`.
@@ -544,18 +547,18 @@ Detailed inventory and parsed metadata of raw assets under `data/bow_valley_sele
 
 ### Summary Matrix
 
-| Dataset | Subdirectory | File Count | Total Size | Primary Format | Coordinate System (CRS) | Spatial Resolution | Temporal Frequency |
-| :--- | :--- | :---: | :---: | :--- | :--- | :---: | :--- |
-| **DEM** | `dem/` | 196 files / **9 `*_DEM.tif` tiles** | 632 MB | GeoTIFF / KML (nested SAFE) | `EPSG:4326` (WGS 84) | ~30m (1 arc-sec) | Static |
-| **WorldCover** | `worldcover/` | 8 files / **4 `*_Map.tif` tiles** | 377 MB | GeoTIFF | `EPSG:4326` (WGS 84) | 10m (~8.33e-5°) | Static (2021) |
-| **ERA5** | `era5/` | 15 | 4.4 MB | NetCDF-4 (`.nc`) | `EPSG:4326` (WGS 84) | 0.1° (~10km) | Daily Aggregated |
-| **Landsat 8** | `landsat8/` | 19 | 24 GB | `.tar` (GeoTIFFs) | `EPSG:32612` (UTM 12N) | 30m | 16-day Revisit |
-| **Landsat 9** | `landsat9/` | 30 | 36 GB | `.tar` (GeoTIFFs) | `EPSG:32612` (UTM 12N) | 30m | 16-day Revisit |
-| **MODIS** | `modis/` | 93 | 12 GB | HDF4 (`.hdf`) | Custom Sinusoidal | 500m / 1km | Daily |
-| **Sentinel-1** | `sentinel1/` | 32 | 53 GB | `.zip` (SAFE/TIFF) | *Swath / Sensor* | 10m | 6 to 12 days |
-| **Sentinel-2** | `sentinel2/` | 116 | 75 GB | `.zip` (SAFE/JP2) | `EPSG:32611` (UTM 11N) | 10m / 20m / 60m | 5-day Revisit |
-| **Sentinel-3** | `sentinel3/` | 125 | 112 GB | `.zip` (SEN3/NetCDF)| *Swath / Sensor* | ~300m | Daily |
-| **VIIRS** | `viirs/` | 93 | 13 GB | HDF5 (`.h5`) | Custom Sinusoidal | 500m / 1km | Daily |
+| Dataset        | Subdirectory  |             File Count              | Total Size | Primary Format              | Coordinate System (CRS) | Spatial Resolution | Temporal Frequency |
+| :------------- | :------------ | :---------------------------------: | :--------: | :-------------------------- | :---------------------- | :----------------: | :----------------- |
+| **DEM**        | `dem/`        | 196 files / **9 `*_DEM.tif` tiles** |   632 MB   | GeoTIFF / KML (nested SAFE) | `EPSG:4326` (WGS 84)    |  ~30m (1 arc-sec)  | Static             |
+| **WorldCover** | `worldcover/` |  8 files / **4 `*_Map.tif` tiles**  |   377 MB   | GeoTIFF                     | `EPSG:4326` (WGS 84)    |  10m (~8.33e-5°)   | Static (2021)      |
+| **ERA5**       | `era5/`       |                 15                  |   4.4 MB   | NetCDF-4 (`.nc`)            | `EPSG:4326` (WGS 84)    |    0.1° (~10km)    | Daily Aggregated   |
+| **Landsat 8**  | `landsat8/`   |                 19                  |   24 GB    | `.tar` (GeoTIFFs)           | `EPSG:32612` (UTM 12N)  |        30m         | 16-day Revisit     |
+| **Landsat 9**  | `landsat9/`   |                 30                  |   36 GB    | `.tar` (GeoTIFFs)           | `EPSG:32612` (UTM 12N)  |        30m         | 16-day Revisit     |
+| **MODIS**      | `modis/`      |                 93                  |   12 GB    | HDF4 (`.hdf`)               | Custom Sinusoidal       |     500m / 1km     | Daily              |
+| **Sentinel-1** | `sentinel1/`  |                 32                  |   53 GB    | `.zip` (SAFE/TIFF)          | *Swath / Sensor*        |        10m         | 6 to 12 days       |
+| **Sentinel-2** | `sentinel2/`  |                 116                 |   75 GB    | `.zip` (SAFE/JP2)           | `EPSG:32611` (UTM 11N)  |  10m / 20m / 60m   | 5-day Revisit      |
+| **Sentinel-3** | `sentinel3/`  |                 125                 |   112 GB   | `.zip` (SEN3/NetCDF)        | *Swath / Sensor*        |       ~300m        | Daily              |
+| **VIIRS**      | `viirs/`      |                 93                  |   13 GB    | HDF5 (`.h5`)                | Custom Sinusoidal       |     500m / 1km     | Daily              |
 
 ### Spatial-Temporal Characteristics
 
@@ -759,20 +762,19 @@ Direct-source requirements:
 - Download ERA5-Land variables from the ECMWF Climate Data Store or another
   authoritative ECMWF endpoint.
 - **The archive on disk is already daily-aggregated** (`YYYYMM_ERA5LAND_totalprecip.nc`
-  + per-variable `*_daily-mean.nc`), so this archive's adapter does **not** re-aggregate
-  hourly data — it reads one slice per day. (The CDS hourly→daily aggregation below
-  describes how such daily files are *produced*, for reference / re-download only.)
-  If producing daily files from hourly CDS data: daily **mean** over the UTC day
-  (00:00–23:00) for `skin_temperature`, `temperature_2m`, `u_component_of_wind_10m`,
-  `v_component_of_wind_10m`; for `total_precipitation` (a forecast accumulation) the
-  daily total is the accumulation valid at the **end** of the day — i.e. take the
-  `00:00` accumulation of the **following** day (or difference consecutive hourly
-  accumulations and sum the hourly rates). Do **not** naively sum the 24 accumulation
-  values (double-counts) and do **not** stop at 23:00 (drops the closing step).
+  - per-variable `*_daily-mean.nc`), so this archive's adapter does **not** re-aggregate
+    hourly data — it reads one slice per day. (The CDS hourly→daily aggregation below
+    describes how such daily files are *produced*, for reference / re-download only.)
+    If producing daily files from hourly CDS data: daily **mean** over the UTC day
+    (00:00–23:00) for `skin_temperature`, `temperature_2m`, `u_component_of_wind_10m`,
+    `v_component_of_wind_10m`; for `total_precipitation` (a forecast accumulation) the
+    daily total is the accumulation valid at the **end** of the day — i.e. take the
+    `00:00` accumulation of the **following** day (or difference consecutive hourly
+    accumulations and sum the hourly rates). Do **not** naively sum the 24 accumulation
+    values (double-counts) and do **not** stop at 23:00 (drops the closing step).
 - **Day-shift on read (`total_precipitation_sum` only) — load-bearing.** Because the
   accumulation closing day `i` is stamped at `00:00` of day `i+1`, the adapter must read
-  precip for day `i` from the **`i+1` `00:00` slice**, equivalently `tp[index] → precip
-  for day (index − 1)`. The instantaneous temp/wind variables carry **no** shift. Getting
+  precip for day `i` from the **`i+1` `00:00` slice**, equivalently `tp[index] → precip for day (index − 1)`. The instantaneous temp/wind variables carry **no** shift. Getting
   this wrong is a silent off-by-one that passes shape/type checks. Verified file facts:
   `tp` dims `(valid_time=days, latitude, longitude)`, `GRIB_stepType=accum`, `units=m`,
   `valid_time` stamped `YYYY-MM-DDT00:00`.
@@ -800,6 +802,7 @@ Direct-source requirements:
 - Mosaic and crop tiles before writing the final stack.
 - Preserve elevation values in meters with the same vertical datum convention as
   the GEE product.
+
 <!-- ⚠️ CORRECTED 2026-06-04. The two bullets below originally prescribed
 "reproject DEM to the cell grid FIRST, then compute terrain on the reprojected
 grid" — that is the WRONG order and the root of the DEM distortion bug. GEE
@@ -807,6 +810,7 @@ grid" — that is the WRONG order and the root of the DEM distortion bug. GEE
 NATIVE grid (latitude-aware metric spacing), THEN the export resamples to the
 cell grid. Replicate that order; the cell grid is EPSG:32611 (UTM 11N), not 4326.
 See REVIEW_AUDIT #1, TASK-007 §2, and docs/agents/KNOWLEDGE.md. -->
+
 - Compute `slope` and `aspect` in degrees **on the DEM's native grid** using Horn's
   algorithm (or an equivalent gradient method matching GEE's `ee.Terrain.slope`/
   `aspect`) with **latitude-correct metric pixel spacing** — NOT raw degree spacing
@@ -864,7 +868,6 @@ bands from model tensors. If a future pipeline starts using them, it should add
 explicit bit decoding in one place rather than silently changing the interchange
 format.
 
-
 ## Compatibility caveats
 
 - Temporal compositing is minimal: each loader takes `.first()` after filtering
@@ -884,8 +887,7 @@ format.
   flags are not wired into `MODALITIES` or `eo.py`.
 - The docstring of `Dataset._tif_to_array` (and `LandsatEvalDataset._tif_to_array`)
   reports the medium-resolution output shape as `(3, 3, T, C_STM)`, but the
-  actual target is `(NUM_MED_RES_PIXELS_PER_DIM, NUM_MED_RES_PIXELS_PER_DIM, T, C_STM)
-  = (5, 5, T, 2)`. The docstring is stale; the code is correct.
+  actual target is `(NUM_MED_RES_PIXELS_PER_DIM, NUM_MED_RES_PIXELS_PER_DIM, T, C_STM) = (5, 5, T, 2)`. The docstring is stale; the code is correct.
 - The downstream `LandsatEval` and its ablation subclasses default
   `exclude_prediction_era5=True`, so the ERA5 group is masked on the prediction
   day even when no other ablation flag is set. Override explicitly to keep ERA5.
@@ -895,7 +897,6 @@ format.
 - The Earth Engine exporter's window is sampled per (point, season) triple, so
   each input point produces three GeoTIFFs (`early`, `mid`, `late`) per
   exporter run, not one.
-- **AOI Coverage and Scene Heterogeneity**: Large fixed-extent AOI mosaics (e.g. composed of a 2x2 grid of ~4 Sentinel-2 or Landsat scenes) suffer from incomplete daily coverage. On any specific date, full AOI coverage is impossible due to varying orbit paths, swathes, and scene boundaries. 
+- **AOI Coverage and Scene Heterogeneity**: Large fixed-extent AOI mosaics (e.g. composed of a 2x2 grid of ~4 Sentinel-2 or Landsat scenes) suffer from incomplete daily coverage. On any specific date, full AOI coverage is impossible due to varying orbit paths, swathes, and scene boundaries.
 - **Swath Boundary Nodata and Mosaicing**: Scenes/products near orbit edges or swath boundaries often contain significant nodata regions. In Earth Engine, naive `.first()` scene selection on the collection filtered by date and region is sufficient for a single small footprint but fails on cells intersecting scene boundaries or swath edges. A direct-source pipeline must mosaic all valid overlapping scenes/granules acquired on the target day prior to cell cropping to maximize pixel coverage and avoid artificial nodata boundaries within the 1 km grid cells.
 - **Same-tile/date multi-product overlap (DISTINCT from cross-tile mosaicing)**: For a *single* reference grid tile on a *single* date, the archive can contain **more than one product** — different relative orbits (e.g. S2 `R070` vs `R113` over the same tile), different satellites (`S2A`/`S2B`), or reprocessing duplicates (same orbit, different PDGS processing time). Each product spans the same tile extent but has **different nodata footprints** (swath-edge geometry, per-product cloud masking). GEE's `.first()` picks exactly one, so a pixel that is nodata in the chosen product but **valid in another same-tile-date product is silently emitted as `-9999`** — a false nodata indistinguishable from a real gap. Verified in `data/bow_valley_selection_raw`: **S2** has ≥7 same-(date,tile) groups with 2–3 products (e.g. `20250331 T11UNT` = R113×2 reprocessing + R070; `20250420 T11UNT`, `20250510 T11UNS` = R113 vs R070); **Landsat 9** has `20250425` path/row `044024` twice. A direct-source pipeline must **coalesce all products sharing the same (tile, date)** per pixel: take the first product with a valid (non-nodata, in-threshold) value at that pixel, falling through to the next where it is nodata; emit `-9999` only where **every** same-tile-date product is nodata. Deterministic product order (e.g. latest processing time first) settles ties. This is per-pixel valid coalescing, NOT averaging (no value blending → preserves the GEE value domain). It is orthogonal to and runs *before* cross-tile mosaicing.
-

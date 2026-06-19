@@ -1,11 +1,13 @@
 # TASK-012: Implement the Landsat 8/9 adapter (L9→L8 fallback, cross-zone reproject, coalesce)
 
 ## 1. Goal
+
 Replace the Landsat placeholder with a real adapter that emits renamed bands
 `B2_landsat..B7_landsat` on the cell grid, encapsulating the L9→L8 fallback,
 reprojecting cross-zone EPSG:32612→4326, and coalescing same-(tile,date) products.
 
 ## 2. Context & References
+
 - **FDD step:** §4.6 (adapter order #7).
 - **SPEC:** FR-9, FR-9b, FR-12, AC-12, AC-13, AC-15b, AC-16; Verification Plan step 6.
 - **PLAN:** §4 adapter rules (L9→L8 fallback encapsulated; same-tile/date coalesce
@@ -39,20 +41,21 @@ reprojecting cross-zone EPSG:32612→4326, and coalescing same-(tile,date) produ
 - **Relevant skills:** `geospatial` (cross-zone reproject, mosaic, coalesce), `tdd`.
 
 ## 3. Subtasks
+
 - [x] 1. Write `test_landsat_adapter.py` (Red): three fallback cases (L9 present;
-      L9 missing+L8 present; both missing → all-`-9999`); `bands_out =
-      B2_landsat..B7_landsat`; per-band native-CRS reprojection asserted against the
-      EPSG:32611 cell grid (synthetic source in BOTH 32611 same-zone and 32612
-      cross-zone); coalesce (AC-15b) complementary-mask + latest-proc winner; **real-patch
-      bit-exact parity** vs the 3 TASK-012b reference patches (B4_landsat).
+  L9 missing+L8 present; both missing → all-`-9999`); `bands_out =     B2_landsat..B7_landsat`; per-band native-CRS reprojection asserted against the
+  EPSG:32611 cell grid (synthetic source in BOTH 32611 same-zone and 32612
+  cross-zone); coalesce (AC-15b) complementary-mask + latest-proc winner; **real-patch
+  bit-exact parity** vs the 3 TASK-012b reference patches (B4_landsat).
 - [x] 2. Implement `landsat.py`: DN→TOA via MTL, L9→L8 fallback, same-(tile,date)
-      coalesce, cross-tile mosaic-before-crop, per-band native-CRS reproject, stack
-      `(6, H, W)`. **Resample = NEAREST** (30 m > 10 m cell; GEE upsamples as constant
-      blocks → bit-exact; bilinear smears — see §4 correction).
+  coalesce, cross-tile mosaic-before-crop, per-band native-CRS reproject, stack
+  `(6, H, W)`. **Resample = NEAREST** (30 m > 10 m cell; GEE upsamples as constant
+  blocks → bit-exact; bilinear smears — see §4 correction).
 - [x] 3. Implement the `QA_PIXEL` cloud-flag path (NN, L9→L8 fallback) for the cloud slot.
 - [x] 4. Wire into exporter. 5. Green + Refactor (extracted `_mosaic_tiles`).
 
 ## 4. Requirements & Constraints
+
 - **Technical:** MTL coefficient parsing (`_MTL.json`); **NEAREST for reflectance AND
   `QA_PIXEL`** (CORRECTED 2026-06-05 from "bilinear for reflectance" — the archive
   disproved it: GEE upsamples the 30 m source to the 10 m cell as constant blocks, so
@@ -65,34 +68,38 @@ reprojecting cross-zone EPSG:32612→4326, and coalescing same-(tile,date) produ
   `base.py`; this task is its first production use + the Landsat-specific test.
 
 ## 5. Acceptance Criteria
+
 - [x] AC-1 (SPEC AC-16): three fallback cases pass; `bands_out` renamed; per-band
-      native-CRS reproject to the EPSG:32611 cell grid asserted for BOTH a same-zone
-      (32611) and a cross-zone (32612) source (no hardcoded zone).
+  native-CRS reproject to the EPSG:32611 cell grid asserted for BOTH a same-zone
+  (32611) and a cross-zone (32612) source (no hardcoded zone).
 - [x] AC-2 (SPEC AC-15b): complementary-mask coalesce → zero `-9999` where either input
-      valid; surviving value = deterministic-order winner (latest proc time).
+  valid; surviving value = deterministic-order winner (latest proc time).
 - [x] AC-3 (SPEC AC-12): **bit-exact parity** (median 0) on all 3 TASK-012b reference
-      patches (PR_20250406 t3 / PR_20250414 t2 / PR_20250510 t1, B4_landsat); band order
-      correct. Required switching reflectance to NEAREST (§4).
+  patches (PR_20250406 t3 / PR_20250414 t2 / PR_20250510 t1, B4_landsat); band order
+  correct. Required switching reflectance to NEAREST (§4).
 - [x] AC-4 (SPEC AC-13): both-missing → all-`-9999` (optical + cloud adapters).
 - [x] AC-5: ruff + mypy clean; 14 new tests green; full suite delta = 0 NEW failures
-      (6 total = known-red baseline).
+  (6 total = known-red baseline).
 
 ## 6. Testing & Validation
+
 ```bash
 cd /home/dev/projects/presto-v3
 uv run pytest tests/test_local_sources/test_landsat_adapter.py -v
 uv run ruff check src/data/local_sources/landsat.py
 uv run mypy src/data/local_sources/landsat.py
 ```
+
 Expected: adapter test green (3 fallback cases + coalesce); ruff/mypy exit 0.
 
 **Regression check (suite is already red):** run the delta check in `TEST_BASELINE.md` — the "NEW failures" list must be empty. Do NOT use `pytest -x` at the suite level.
 
 ## 7. Completion Protocol
+
 1. Verify ACs. 2. Run Section 6 commands.
-3. Commit:
+2. Commit:
    ```bash
    git add src/data/local_sources/landsat.py tests/test_local_sources/test_landsat_adapter.py
    git commit -m "feat(bow-valley): Landsat 8/9 adapter (L9→L8 fallback, cross-zone, coalesce) — closes TASK-012"
    ```
-4. Check off subtasks/ACs. 5. Notify the user; request approval before TASK-013.
+3. Check off subtasks/ACs. 5. Notify the user; request approval before TASK-013.

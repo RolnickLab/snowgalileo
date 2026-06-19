@@ -31,39 +31,39 @@ GeoTIFFs to a temp dir (`clip_viewer_*`), cleaned on exit.
 
 All via `VIEWER_*` env vars (pydantic-settings, see `settings.py`):
 
-| Setting | Env var | Default |
-|---|---|---|
-| Clipped root | `VIEWER_CLIPPED_ROOT` | `data/clipped_bow_valley_selection_raw` |
-| AOI GeoJSON | `VIEWER_AOI_PATH` | `data/bow_valley_inference_aoi.geojson` |
-| Manifest name | `VIEWER_MANIFEST_NAME` | `clip_manifest.csv` |
-| Decimation long edge (px) | `VIEWER_LONG_EDGE` | `1024` |
-| Basemap | `VIEWER_DEFAULT_BASEMAP` | `Esri.WorldImagery` |
+| Setting                   | Env var                  | Default                                 |
+| ------------------------- | ------------------------ | --------------------------------------- |
+| Clipped root              | `VIEWER_CLIPPED_ROOT`    | `data/clipped_bow_valley_selection_raw` |
+| AOI GeoJSON               | `VIEWER_AOI_PATH`        | `data/bow_valley_inference_aoi.geojson` |
+| Manifest name             | `VIEWER_MANIFEST_NAME`   | `clip_manifest.csv`                     |
+| Decimation long edge (px) | `VIEWER_LONG_EDGE`       | `1024`                                  |
+| Basemap                   | `VIEWER_DEFAULT_BASEMAP` | `Esri.WorldImagery`                     |
 
 ## How it works
 
-* **`manifest.py`** — loads `clip_manifest.csv` into `ProductRow`s and resolves
+- **`manifest.py`** — loads `clip_manifest.csv` into `ProductRow`s and resolves
   each `output_path` to a real file/dir (flat file, nested DEM basename via
   `rglob`, or a MODIS/VIIRS per-grid directory).
-* **`archives.py`** — GDAL `/vsizip/` + `/vsitar/` path builders so Landsat tar
+- **`archives.py`** — GDAL `/vsizip/` + `/vsitar/` path builders so Landsat tar
   and S2/S1 zip bands are read *inside* the archive, decimated, without
   extraction (never materialises the ~146 MB S1 measurement TIFF).
-* **`renderers.py`** — one renderer per modality. All reads are **decimated**
+- **`renderers.py`** — one renderer per modality. All reads are **decimated**
   (`out_shape`/overview). Native CRS is honoured per source (MODIS Sinusoidal,
   Landsat EPSG:32612, S2 EPSG:32611, S1 GCPs in 4326) and reprojected to a true
   4326 grid for display. `result_to_geotiff` writes a **finite** nodata
   (`-9999.0`, never `NaN`) plus an alpha band — `localtileserver`'s
   `/api/metadata` 500s on non-finite nodata.
-* **`quicklook.py`** — `render_product` dispatches to the registered renderer
+- **`quicklook.py`** — `render_product` dispatches to the registered renderer
   and returns a `QuicklookResult` (with a failure contract, never a raw
   traceback to the UI).
 
 ## Caveats
 
-* **Do not trust the manifest `valid_pixel_count` as a science-pixel metric.** It
+- **Do not trust the manifest `valid_pixel_count` as a science-pixel metric.** It
   counts every grid-matching 2D dataset plus full-copied non-science datasets, so
   it is inflated (≈100× for S3). Judge clip correctness by the rendered science
   array, not the count.
-* Display GeoTIFFs need a finite nodata. If `/api/metadata` 500s, suspect a
+- Display GeoTIFFs need a finite nodata. If `/api/metadata` 500s, suspect a
   `NaN` nodata leaking back in (memory: `clip-viewer-tileserver-nan-nodata`).
-* This is a QA tool, not a pipeline stage — it writes nothing under
+- This is a QA tool, not a pipeline stage — it writes nothing under
   `data/clipped_bow_valley_selection_raw`.

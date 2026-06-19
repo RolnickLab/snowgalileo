@@ -30,8 +30,10 @@ exactly as `scripts/eval_only.py` / `predict_and_generate_output.py` do). No edi
 ## Files
 
 ### 1. `src/data/local_sources/settings.py` — add `InferenceSettings` (MODIFY, additive)
+
 A second `BaseSettings` sibling to `CubeSettings`, same `from_yaml` / env-precedence
 pattern (`env_prefix="INFER_"`), loaded from `inference.yaml`. Fields:
+
 - `checkpoint: Path` — finetuned `EncoderWithHead` `.pth` (Q6). **Required at run time**
   (validated to exist in the script, not at import — keeps tests/import cheap).
 - `eval_config_name: str = "fsc_inference_bow_river_tiny.json"` — the eval JSON (drives
@@ -46,20 +48,18 @@ Rationale: keep `cube.yaml` the authority for *what* the sweep is (window, mode,
 `inference.yaml` only carries *how to run the model* (checkpoint, batch, device, output).
 
 ### 2. `scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py` (NEW, Typer)
+
 `--config configs/bow_valley/cube.yaml`, `--limit N` (cap cells for a smoke run),
 `--window-end YYYY-MM-DD` (optional; default = `cube.yaml` `window_end`). Builds the grid
-(`build_grid(mode=settings.mode)`), a real-adapter `LocalSourceExporter(placeholder=False,
-archive_root=settings.archive_root, out_dir=settings.cubes_dir)`, and exports one cube per
+(`build_grid(mode=settings.mode)`), a real-adapter `LocalSourceExporter(placeholder=False, archive_root=settings.archive_root, out_dir=settings.cubes_dir)`, and exports one cube per
 `(cell, window_end)` for the (optionally limited) grid. `structlog` JSON. This is the cube
 half (AC-3, first script).
 
 ### 3. `scripts/developer_scripts/bow_valley_inference_local/infer_bow_valley_daily_fsc.py` (NEW, Typer)
+
 `--cube-config cube.yaml`, `--config inference.yaml`, `--limit N`. Loads both settings,
 builds the model from the checkpoint via the **existing** path, builds the grid, constructs
-`InferenceGridDriver(exporter=real_exporter, model=model, grid=grid[:limit],
-window_start=cube.window_start, window_end=cube.window_end,
-out_dir=infer.out_dir or cube.daily_fsc_dir, device=infer.device,
-batch_size=infer.batch_size)`, calls `.run()`. Fails loudly if `checkpoint` missing
+`InferenceGridDriver(exporter=real_exporter, model=model, grid=grid[:limit], window_start=cube.window_start, window_end=cube.window_end, out_dir=infer.out_dir or cube.daily_fsc_dir, device=infer.device, batch_size=infer.batch_size)`, calls `.run()`. Fails loudly if `checkpoint` missing
 (AC: flag unset Q6). This is the inference half (AC-3, second script).
 
 Helper `_build_model(infer: InferenceSettings) -> EncoderWithHead` lifted verbatim from
@@ -67,22 +67,26 @@ Helper `_build_model(infer: InferenceSettings) -> EncoderWithHead` lifted verbat
 model logic.
 
 ### 4. `configs/bow_valley/inference.yaml` (NEW)
+
 `checkpoint`, `eval_config_name`, `decoder_mode`, `batch_size`, `device`, `out_dir` (commented
 default). Documents Q6/Q5.
 
 ### 5. `tests/test_local_sources/test_directory_contract.py` (NEW, Red → AC-32)
+
 Run a **tiny** cube+inference (1–2 cells, 1 day, `placeholder=True` exporter + tiny untrained
 `EncoderWithHead`, all under `tmp_path` `processing_root`):
+
 - snapshot `{path: mtime+size}` of both archive roots before/after → assert **identical**
   (zero writes/mods under `clipped_*` and `*_selection_raw`).
 - assert cube tif landed in `cubes/`, COG in `daily_fsc/`, `.npz` (if any) in `cube_cache/`.
 - create dummy files in `cube_cache/` + `scratch/`, delete those two dirs, assert
   `cubes/` + `daily_fsc/` files still present (intermediate/deliverable separation).
-The exporter/driver are pointed at a `tmp_path` processing root via injected `out_dir`s, so
-the test never touches the real archives. **No SNAP/real-archive** — placeholder cube only
-(AC-32 is about *write boundaries*, not parity).
+  The exporter/driver are pointed at a `tmp_path` processing root via injected `out_dir`s, so
+  the test never touches the real archives. **No SNAP/real-archive** — placeholder cube only
+  (AC-32 is about *write boundaries*, not parity).
 
 ### 6. `tests/test_local_sources/test_exporter_parity.py` (NEW, Red → AC-27)
+
 Full-stack per-source numeric parity: real-adapter `LocalSourceExporter` over the cells
 backing the 6 `tests/fixtures/gee_reference_patches/PR_*.tif`, diff each source's bands vs the
 reference within that source's **already-documented** tolerance (S2 ≤50 DN, S1 ≤1 dB,
@@ -96,16 +100,19 @@ cache; document the skip like `test_s1_parity`). This is the gate, not a per-sou
 it reuses each adapter's documented tolerance constant, never invents new ones.
 
 ### 7. `docs/agents/KNOWLEDGE.md` — add the **five** flagged entries (AC-4)
+
 MODIS `-28672` sentinel load-bearing; ERA5 temp-sign preserved (out of scope to fix); S3
 identity-norm intentional; `PR` filename prefix supported/unused; per-cell inference has **no**
 cross-cell context (each cell is an independent forward). Several already exist as memories —
 mirror them as KNOWLEDGE bullets so AC-4 is literally satisfied in that file.
 
 ### 8. `pyproject.toml` — pin `typer` into the `dev` group (MODIFY)
+
 `typer` is currently only transitive (0.26.3 resolves). The two scripts import it directly →
 declare it explicitly (`typer>=0.15`) so the dep is not accidental. Register nothing else.
 
 ## Test / validation strategy
+
 - TDD: write `test_directory_contract.py` + `test_exporter_parity.py` first (Red), then the
   scripts/config/settings (Green).
 - `uv run pytest tests/test_local_sources/test_directory_contract.py -v` (fast, always runs).
@@ -117,7 +124,9 @@ declare it explicitly (`typer>=0.15`) so the dep is not accidental. Register not
   `pytest -x`). Slow parity tests serialized on the `slow_archive` xdist group.
 
 ## Approval gates (CLAUDE.md — incremental)
+
 Suggested order, **stop + summarize after each, commit only on explicit approval**:
+
 1. `InferenceSettings` + `inference.yaml` + `typer` pin.
 2. `test_directory_contract.py` (Red) → `export_bow_valley_cube.py` +
    `infer_bow_valley_daily_fsc.py` (Green for the contract test).
@@ -126,6 +135,7 @@ Suggested order, **stop + summarize after each, commit only on explicit approval
 5. Final delta run + commit (closes Phase 3).
 
 ## Risks / flags
+
 - **Parity gate is archive-dependent.** On a box missing a clipped source (esp. S1's SNAP
   cache), those sub-checks **skip**, not fail — AC-27 is "within tolerance *where exercised*".
   I will report exactly which sources ran vs skipped, not claim blanket parity.
@@ -134,4 +144,6 @@ Suggested order, **stop + summarize after each, commit only on explicit approval
 - **Checkpoint absence** must fail loudly in the inference script (no silent random init,
   unlike the GEE script's `else` branch) — an all-random sweep would produce a plausible-but-
   meaningless COG.
+
+```
 ```

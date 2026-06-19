@@ -20,6 +20,7 @@ model). Two mechanisms:
 ## Contracts
 
 ### `CubeCache` (cube_cache.py)
+
 - Module constant `CACHE_VERSION: int = 1`.
 - Stamp file `cube_cache/.cache_version` containing the integer.
 - `__init__(root, max_entries, *, overwrite=False)`:
@@ -35,10 +36,12 @@ model). Two mechanisms:
 - `is_empty` / `entry_count` already covered by `__len__`.
 
 ### Exporter (`LocalSourceExporter.__init__`)
+
 - New `overwrite_cache: bool = False`, forwarded into `CubeCache(..., overwrite=...)`.
   Default `False` → behaviour-identical to today.
 
 ### Parallel export (`export_cells_parallel`, `_init_worker`)
+
 - **NO `overwrite_cache` arg added here** (DECIDED — "CLI only" clear site). The parallel
   fn and `_init_worker` stay as wired today; workers always *reuse* an already-clean dir.
 - **Concurrency rule (critical):** only the FIRST cache construction may clear. If 8
@@ -50,6 +53,7 @@ model). Two mechanisms:
   impossible by construction.
 
 ### CLI (`infer_bow_valley_daily_fsc.py`, `export_bow_valley_cube.py`)
+
 - New option `--cache-policy {prompt|reuse|overwrite}`, default `prompt`.
 - A shared `resolve_cache_policy(root, policy)` helper (in a small CLI-side module, e.g.
   `cube_cache_cli.py`) does the resolution + the parent-process clear, returning nothing
@@ -71,17 +75,18 @@ model). Two mechanisms:
 - A standalone **`clean-cache`** command lives in **`export_bow_valley_cube.py`** (DECIDED —
   Q1). This converts that script from a single-command Typer app to multi-command: the
   existing run command is named `export`, with `clean-cache` alongside. **Invocation
-  changes**: `export_bow_valley_cube.py --config …` → `export_bow_valley_cube.py export
-  --config …`. `clean-cache` wipes `CubeSettings.cube_cache_dir` on demand, reporting
+  changes**: `export_bow_valley_cube.py --config …` → `export_bow_valley_cube.py export --config …`. `clean-cache` wipes `CubeSettings.cube_cache_dir` on demand, reporting
   entries removed.
 
 ### Exporter `overwrite_cache` arg
+
 - Still added (plan §Exporter above) and forwarded into `CubeCache(..., overwrite=...)`,
   but with "CLI only" clearing the CLIs always pass `False`. The arg exists so a *direct*
   single-construction caller (a test, or a future serial tool) can request a clear without
   going through the CLI helper. It is never set `True` on any multi-construction path.
 
 ## Why this shape
+
 - Stamp catches *known* incompatibilities deterministically (developer bumps it in the same
   diff that changes an adapter — the diff makes it obvious, but forgetting it is backstopped
   by the prompt).
@@ -92,6 +97,7 @@ model). Two mechanisms:
 - Clearing once in the parent avoids the multi-worker clear race entirely.
 
 ## Tests
+
 1. Version mismatch force-clears: seed a dir with entries + an old stamp; constructing
    `CubeCache` clears it and writes the current stamp.
 2. Matching stamp reuses: same version → entries survive, count unchanged.
@@ -105,6 +111,7 @@ model). Two mechanisms:
 7. `clean-cache` command empties a populated cache dir.
 
 ## Out of scope
+
 - Auto-hashing adapter/clip source (rejected: brittle to cosmetic edits).
 - Cross-process locked LRU (unchanged; cap still sized above working set).
 
@@ -115,6 +122,7 @@ source = interactive prompt + manual constant backstop; no-TTY = error requiring
 `--cache-policy`). The following two are still open and must be answered before coding:
 
 1. **Where does the `clean-cache` command live?**
+
    - Proposed (author's recommendation): `process_raw_dataset.py`, alongside the
      clip/process phases — the natural "data prep" home.
    - Alternative: `export_bow_valley_cube.py`.
@@ -122,6 +130,7 @@ source = interactive prompt + manual constant backstop; no-TTY = error requiring
    - -> Decision : `export_bow_valley_cube.py`, because that's when they are needed. before that (in `process_raw_dataset.py`), we only want to do the minimum amount of processing to make the data compatible with our cube process.
 
 2. **Commit shape — one unit or incremental?**
+
    - The change spans ~4 components (`CubeCache`, exporter, `parallel_export`, the two
      CLIs). Smaller than the 4-step cache wiring but still multi-component.
    - Proposed (author's recommendation): **two commits** —
@@ -132,6 +141,7 @@ source = interactive prompt + manual constant backstop; no-TTY = error requiring
    - -> Decision : two-commit split
 
 ### ⚠️ CRITICAL IMPLEMENTATION NOTE (do not lose)
+
 Clearing must happen **once in the parent process, before the worker pool spawns** — never
 inside the workers. If all 8 workers construct `CubeCache(overwrite=True)`, worker 2 would
 wipe worker 1's freshly-written entries mid-run. The CLI clears up front (parent), then

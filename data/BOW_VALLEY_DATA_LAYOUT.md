@@ -17,23 +17,25 @@ default they resolve to the repo's own `data/` folder, and each can be redirecte
 to any drive without editing code. None of their *contents* are tracked in git
 (`data/*` is gitignored); only this document and `README.md` ship in the repo.
 
----
+______________________________________________________________________
 
 ## 1. The roots
 
-| Path (under `data/`)               | Role                          | Stage owner            | Access  |
-|------------------------------------|-------------------------------|------------------------|---------|
-| `bow_valley_inference_aoi.geojson` | Authoritative AOI boundary    | all (clip + inference) | read    |
-| `bow_valley_selection_raw/`        | Raw per-modality archive      | input (placed by hand) | read    |
-| `clipped_bow_valley_selection_raw/`| AOI-clipped archive           | clip stage (TASK-002)  | r/w     |
-| `bow_valley_processing/`           | Cube-assembly tree (cache, cubes, daily FSC) | assembly (Stage 2) | r/w |
+| Path (under `data/`)                | Role                                         | Stage owner            | Access |
+| ----------------------------------- | -------------------------------------------- | ---------------------- | ------ |
+| `bow_valley_inference_aoi.geojson`  | Authoritative AOI boundary                   | all (clip + inference) | read   |
+| `bow_valley_selection_raw/`         | Raw per-modality archive                     | input (placed by hand) | read   |
+| `clipped_bow_valley_selection_raw/` | AOI-clipped archive                          | clip stage (TASK-002)  | r/w    |
+| `bow_valley_processing/`            | Cube-assembly tree (cache, cubes, daily FSC) | assembly (Stage 2)     | r/w    |
 
 ### `bow_valley_inference_aoi.geojson`
+
 Single-Polygon GeoJSON, **EPSG:4326**. The one source of AOI truth — the clip
 gate, the grid generator, and the viewer all read it; nothing hardcodes bounds.
 Loaded by `src.data.local_sources.clip.settings.load_aoi_polygon`.
 
 ### `bow_valley_selection_raw/` — raw input
+
 The untouched per-modality download archive, **placed here manually**, never
 written by pipeline code. Per-modality subdirs (`dem/`, `worldcover/`, `era5/`,
 `landsat8/`, `landsat9/`, `modis/`, `viirs/`, `sentinel1/`, `sentinel2/`,
@@ -44,6 +46,7 @@ granules here are also read by `process_raw_dataset.py process-s1` (ESA SNAP) �
 read-only — into the S1 SNAP cache.
 
 ### `clipped_bow_valley_selection_raw/` — processing output (clip + S1 SNAP)
+
 Output of the raw-processing stage. Most modalities: every raw product cropped to
 the AOI, same per-modality subdir layout, plus a per-source `clip_manifest.csv`
 (and a combined manifest at the root). **Sentinel-1 is the exception — it is
@@ -58,6 +61,7 @@ back into the raw archive. Written by `process_raw_dataset.py` (`clip-all` +
 (`src/data/local_sources/viewer/`).
 
 ### `bow_valley_processing/` — assembly tree
+
 Stage-2 working tree for cube assembly. Holds the per-(cell, day) `.npz`
 intermediate cache (`cube_cache/{cell_id}/{day}_{modality}.npz`), the assembled
 8-day cubes (`cubes/`), daily FSC COGs (`daily_fsc/`), and per-process
@@ -72,7 +76,7 @@ the outputs to keep. (To place `cubes/` on different storage from the rest of th
 tree, symlink `bow_valley_processing/cubes` at the target — the code resolves it
 as `processing_root/"cubes"`.)
 
----
+______________________________________________________________________
 
 ## 2. Stage flow
 
@@ -88,7 +92,7 @@ clipped_bow_valley_selection_raw/  + clip_manifest.csv + sentinel1_snap/
 bow_valley_processing/           (cube_cache/, cubes/ ← 8-day cubes, daily_fsc/)
 ```
 
----
+______________________________________________________________________
 
 ## 3. Where the roots physically live (portability)
 
@@ -98,12 +102,14 @@ is portable: nothing machine-specific is baked into the repo or the code. Pick
 whichever of the three tiers fits the machine — they can be mixed per root.
 
 ### Tier 0 — zero config (default)
+
 Set nothing. Every root resolves under the repo's own `data/` folder, and the
 pipeline creates the directories on first write. Best for a fresh clone, a demo,
 or a small run that fits on the repo's disk. Fully portable: any clone works
 identically with no setup.
 
 ### Tier 1 — `.env` redirect (recommended for real deployments)
+
 When the data lives on dedicated storage, point each `LOCAL_*` variable at an
 **absolute path** in a repo-root `.env` (gitignored — copy `.env.example`):
 
@@ -123,6 +129,7 @@ nested subdirectories (`cube_cache/{cell_id}/…`, `cubes/`, `daily_fsc/`) are
 created directly on the designated drive.
 
 ### Tier 2 — symlinks (single-machine convenience)
+
 Leave the defaults and make `data/<name>` a **symlink** to the real storage:
 
 ```bash
@@ -140,16 +147,16 @@ sibling directories elsewhere — use a per-root `.env` path for that.)
 > region's AOI polygon (EPSG:4326). For a different region, supply a different
 > AOI file and a fresh set of roots.
 
----
+______________________________________________________________________
 
 ## 4. Configuration surface
 
-| Setting              | Default                                | Override                                          |
-|----------------------|----------------------------------------|---------------------------------------------------|
-| raw root             | `data/bow_valley_selection_raw`        | `LOCAL_RAW_ROOT` env, or `--input-dir` (clip CLI) |
-| clipped root         | `data/clipped_bow_valley_selection_raw`| `LOCAL_CLIPPED_ROOT` env, or `--output-dir`; viewer: `VIEWER_CLIPPED_ROOT` |
-| processing root      | `data/bow_valley_processing`           | `LOCAL_PROCESSING_ROOT` env                       |
-| AOI path             | `data/bow_valley_inference_aoi.geojson`| `LOCAL_AOI_PATH` env, or `--aoi` (clip CLI); viewer: `VIEWER_AOI_PATH` |
+| Setting         | Default                                 | Override                                                                   |
+| --------------- | --------------------------------------- | -------------------------------------------------------------------------- |
+| raw root        | `data/bow_valley_selection_raw`         | `LOCAL_RAW_ROOT` env, or `--input-dir` (clip CLI)                          |
+| clipped root    | `data/clipped_bow_valley_selection_raw` | `LOCAL_CLIPPED_ROOT` env, or `--output-dir`; viewer: `VIEWER_CLIPPED_ROOT` |
+| processing root | `data/bow_valley_processing`            | `LOCAL_PROCESSING_ROOT` env                                                |
+| AOI path        | `data/bow_valley_inference_aoi.geojson` | `LOCAL_AOI_PATH` env, or `--aoi` (clip CLI); viewer: `VIEWER_AOI_PATH`     |
 
 Defaults are centralized in `src.data.local_sources.paths.LocalPaths`
 (pydantic-settings, env prefix `LOCAL_`) and are **repo-relative** — see §3 for

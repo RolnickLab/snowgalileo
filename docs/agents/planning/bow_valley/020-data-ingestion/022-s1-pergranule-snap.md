@@ -55,15 +55,15 @@ granule (32 tifs), not thousands of per-cell tifs.
 
 ## Changes
 
-| # | Component | Change | Contract impact |
-|---|-----------|--------|-----------------|
-| 1 | `s1_grd_graph.xml` | Move `Subset` to **after** `Terrain-Correction`; source `Apply-Orbit-File` → `ThermalNoiseRemoval` directly. `${region}` becomes the **AOI bbox** (map geom), not per-cell. | Graph only; output bands/order unchanged. |
-| 2 | `s1_snap.py` `cache_tif_name` | Drop the `_cell{id}` suffix → `s1_grd_<stem>.tif`. | Filename contract. |
-| 3 | `s1_snap.py` build fns | `build_granule_cache` runs SNAP **once** per granule over the AOI bbox (no per-cell loop). `cells` param → single `aoi_4326` region. Reads from the **raw** archive. | API of build fns. |
-| 4 | `s1_snap.py` `ensure_s1_cache` | Key needed/missing by **granule** (footprint gate vs AOI stays). Per-cell `failed_ids` logic removed (no per-cell runs). | Internal. |
-| 5 | `s1.py` `S1Adapter` | `_GRANULE_RE`: drop `_cell(?P<cell>\d+)`. `_cached_for`: drop the `g.cell_id == cell.cell_id` filter (any AOI-wide granule on `day` is read; `reproject_to_cell` already windows to the cell). `cache_root` now the per-granule cache. | Adapter cache contract. |
-| 6 | `build_bow_valley_s1_cache.py` | Read raw archive (`raw_root/sentinel1`), pass AOI not grid cells. Output dir = the per-granule cache the adapter reads. | CLI. |
-| 7 | Tests | `test_s1_adapter`, `test_s1_parity`, `test_s1_ensure_cache`, `test_exporter_parity`: per-granule fixtures (filenames without `_cell`, no cell filter). | Test fixtures. |
+| #   | Component                      | Change                                                                                                                                                                                                                                 | Contract impact                           |
+| --- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| 1   | `s1_grd_graph.xml`             | Move `Subset` to **after** `Terrain-Correction`; source `Apply-Orbit-File` → `ThermalNoiseRemoval` directly. `${region}` becomes the **AOI bbox** (map geom), not per-cell.                                                            | Graph only; output bands/order unchanged. |
+| 2   | `s1_snap.py` `cache_tif_name`  | Drop the `_cell{id}` suffix → `s1_grd_<stem>.tif`.                                                                                                                                                                                     | Filename contract.                        |
+| 3   | `s1_snap.py` build fns         | `build_granule_cache` runs SNAP **once** per granule over the AOI bbox (no per-cell loop). `cells` param → single `aoi_4326` region. Reads from the **raw** archive.                                                                   | API of build fns.                         |
+| 4   | `s1_snap.py` `ensure_s1_cache` | Key needed/missing by **granule** (footprint gate vs AOI stays). Per-cell `failed_ids` logic removed (no per-cell runs).                                                                                                               | Internal.                                 |
+| 5   | `s1.py` `S1Adapter`            | `_GRANULE_RE`: drop `_cell(?P<cell>\d+)`. `_cached_for`: drop the `g.cell_id == cell.cell_id` filter (any AOI-wide granule on `day` is read; `reproject_to_cell` already windows to the cell). `cache_root` now the per-granule cache. | Adapter cache contract.                   |
+| 6   | `build_bow_valley_s1_cache.py` | Read raw archive (`raw_root/sentinel1`), pass AOI not grid cells. Output dir = the per-granule cache the adapter reads.                                                                                                                | CLI.                                      |
+| 7   | Tests                          | `test_s1_adapter`, `test_s1_parity`, `test_s1_ensure_cache`, `test_exporter_parity`: per-granule fixtures (filenames without `_cell`, no cell filter).                                                                                 | Test fixtures.                            |
 
 ## Cache location
 
@@ -108,10 +108,10 @@ TIFFs + GCPs):
 **The cube `S1Adapter` reads the SNAP cache, NOT the clipped SAFE** — so the two paths
 serve different consumers with different data domains:
 
-| Path | Data domain | Consumer |
-|------|-------------|----------|
-| `clip_sentinel1` → clipped SAFE | **raw DN**, radar geometry, GCPs | viewer quicklook (visual QA) — *correct to show raw backscatter* |
-| `s1_snap` (NEW) → AOI dB tif | **calibrated σ⁰**, EPSG:32611, terrain-corrected | cube adapter — *correct to match GEE S1_GRD* |
+| Path                            | Data domain                                      | Consumer                                                         |
+| ------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------- |
+| `clip_sentinel1` → clipped SAFE | **raw DN**, radar geometry, GCPs                 | viewer quicklook (visual QA) — *correct to show raw backscatter* |
+| `s1_snap` (NEW) → AOI dB tif    | **calibrated σ⁰**, EPSG:32611, terrain-corrected | cube adapter — *correct to match GEE S1_GRD*                     |
 
 Therefore:
 
@@ -155,10 +155,11 @@ archive is read-only (read-mode `ZipFile`, extract to system tmp, only the cache
 written); a changed graph rebuilds in place via `--overwrite`.
 
 **Parity — all three reference patches now pass** (median |Δ|, tol 1.0 dB / 1.0°):
-| Patch | VV | VH | angle | note |
-|-------|----|----|-------|------|
-| PR_20250519 | 0.401 | 0.421 | 0.240° | long-proven |
-| PR_20250423 | 0.427 | 0.468 | 0.343° | was "Empty region!" (pre-TC) — **fixed** |
+
+| Patch       | VV    | VH    | angle  | note                                                                                                                |
+| ----------- | ----- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------- |
+| PR_20250519 | 0.401 | 0.421 | 0.240° | long-proven                                                                                                         |
+| PR_20250423 | 0.427 | 0.468 | 0.343° | was "Empty region!" (pre-TC) — **fixed**                                                                            |
 | PR_20250406 | 0.579 | 0.509 | 0.784° | was a ~10 dB "anomaly" — it was OUR old clipped+pre-TC processing, **not GEE's data**; raw + post-TC reproduces GEE |
 
 Both prior xfails promoted to real passing assertions. Full local_sources suite: 218

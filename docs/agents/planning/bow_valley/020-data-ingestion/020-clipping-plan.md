@@ -11,8 +11,7 @@ The transformation is strictly **non-destructive** (preserves native pixel value
 > hand-off is now fixed: **the `LocalSource*` adapters read
 > `data/clipped_bow_valley_selection_raw` (this stage's output), not the raw
 > `data/bow_valley_selection_raw`.** This clip stage is therefore a **mandatory
-> on-path prerequisite** (formalized as `PLAN_BOW_VALLEY_DATA.md §3 "Pipeline
-> Stages & Data Flow"` and §7 Phase 0.5), not optional storage-shrink work, and
+> on-path prerequisite** (formalized as `PLAN_BOW_VALLEY_DATA.md §3 "Pipeline Stages & Data Flow"` and §7 Phase 0.5), not optional storage-shrink work, and
 > `data/bow_valley_inference_aoi.geojson` is the **single binding extent** for the whole pipeline. The
 > §2.0 intersect gate below is consequently the *one* place footprint-vs-AOI
 > filtering happens — adapters do not re-implement it. As of this writing
@@ -25,6 +24,7 @@ The transformation is strictly **non-destructive** (preserves native pixel value
 > Sentinel-1 has just **16 acquisition dates** total over 2025-03→05, each a
 > swath strip; MODIS/VIIRS are a single sinusoidal tile that does not span the
 > full AOI. Consequences for this clip stage:
+>
 > 1. A clipped scene/granule will frequently cover only **part** of the AOI, or
 >    none of it. The §2.0 intersect gate handles this: zero/degenerate overlap is
 >    skipped (write nothing), but a *partial* overlap with real pixels must be
@@ -45,14 +45,15 @@ The transformation is strictly **non-destructive** (preserves native pixel value
 > integration point for `PLAN_BOW_VALLEY_DATA.md §4`; verify it in the Landsat
 > adapter parity test.
 
----
+______________________________________________________________________
 
 ## 1. Bounding Box & Coordinate Specifications
 
-The target AOI boundary parsed from [bow_valley_inference_aoi.geojson](file:///home/dev/projects/presto-v3/data/bow_valley_inference_aoi.geojson) is:
-* **CRS:** `EPSG:4326` (WGS 84 geographic)
-* **Longitude Range ($\lambda$):** `[-116.561936219710887, -114.527659450240762]`
-* **Latitude Range ($\phi$):** `[50.729806886838752, 52.306672311654424]`
+The target AOI boundary parsed from \[bow_valley_inference_aoi.geojson\](file:///home/dev/projects/presto-v3/data/bow_valley_inference_aoi.geojson) is:
+
+- **CRS:** `EPSG:4326` (WGS 84 geographic)
+- **Longitude Range ($\\lambda$):** `[-116.561936219710887, -114.527659450240762]`
+- **Latitude Range ($\\phi$):** `[50.729806886838752, 52.306672311654424]`
 
 > **AOI authority & scope (CRS is law).** `data/bow_valley_inference_aoi.geojson` is the
 > **authoritative clip and inference boundary** for the whole pipeline. It is
@@ -76,7 +77,7 @@ The target AOI boundary parsed from [bow_valley_inference_aoi.geojson](file:///h
 > (Verified in Phase 0: DEM mosaic `lat[50,53] lon[-117,-114]`, WorldCover
 > `lat[48,54] lon[-120,-114]` — both contain the AOI to lat 52.31.)
 
----
+______________________________________________________________________
 
 ## 2. Modality-Specific Clipping Strategies
 
@@ -114,6 +115,7 @@ only if it yields real pixels).
 2. **Minimum-useful-overlap test (after intersection geometry is known).**
    Compute the intersection of the product footprint and the AOI polygon. Skip
    the product if **either**:
+
    - the intersection area is below `MIN_AOI_OVERLAP_AREA_KM2` (config, default
      e.g. `1 km²` — i.e. smaller than one grid cell, so it can populate no full
      cell), **or**
@@ -124,6 +126,7 @@ only if it yields real pixels).
    nothing.
 
 **Contract / config:**
+
 - Thresholds are Pydantic settings (`MIN_AOI_OVERLAP_AREA_KM2`,
   `require_valid_pixels: bool = True`), not magic numbers.
 - The gate is **fail-safe toward skipping**: a product that passes is clipped
@@ -131,8 +134,7 @@ only if it yields real pixels).
   empty one). This keeps `data/clipped_bow_valley_selection_raw` free of
   zero-signal artifacts.
 - Emit a per-source **clip manifest** row for every input product:
-  `{product_id, footprint_bbox, intersects: bool, aoi_overlap_km2,
-  valid_pixel_count, action: CLIP|SKIP_NO_OVERLAP|SKIP_DEGENERATE_OVERLAP}`.
+  `{product_id, footprint_bbox, intersects: bool, aoi_overlap_km2, valid_pixel_count, action: CLIP|SKIP_NO_OVERLAP|SKIP_DEGENERATE_OVERLAP}`.
   This manifest is the audit artifact Phase 0 consumes and the proof the clip
   stage created no noise.
 - A clipped output that *passes* the gate but is still **partial** (the common
@@ -141,10 +143,11 @@ only if it yields real pixels).
   Do not confuse "partial coverage" (keep) with "no useful overlap" (skip).
 
 ### 2.1 Standard GeoTIFFs (DEM & WorldCover)
-* **Sources:** `dem`, `worldcover`
-* **Format:** Local `.tif` files.
-* **Note:** These are **multi-tile** archives (DEM: 9 `*_DEM.tif` elevation tiles, in a nested SAFE layout with ~196 files total incl. KML/XML/PDF + auxiliary FLM/EDM/HEM/WBM rasters; WorldCover: 4 `*_Map.tif` tiles, plus 4 `*_InputQuality.tif` companions = 8 tifs). Clip only the `*_DEM.tif` / `*_Map.tif` rasters. Individual tiles can lie fully outside the AOI — the §2.0 gate must run per tile so non-intersecting tiles are skipped, not clipped to empty.
-* **Strategy:**
+
+- **Sources:** `dem`, `worldcover`
+- **Format:** Local `.tif` files.
+- **Note:** These are **multi-tile** archives (DEM: 9 `*_DEM.tif` elevation tiles, in a nested SAFE layout with ~196 files total incl. KML/XML/PDF + auxiliary FLM/EDM/HEM/WBM rasters; WorldCover: 4 `*_Map.tif` tiles, plus 4 `*_InputQuality.tif` companions = 8 tifs). Clip only the `*_DEM.tif` / `*_Map.tif` rasters. Individual tiles can lie fully outside the AOI — the §2.0 gate must run per tile so non-intersecting tiles are skipped, not clipped to empty.
+- **Strategy:**
   1. Open the file with `rasterio`; read its bounds.
   2. **Apply the §2.0 intersect gate** per tile. On `SKIP_*`, write nothing.
   3. Project the WGS84 AOI polygon to the TIFF's CRS (`EPSG:4326` for both).
@@ -152,9 +155,10 @@ only if it yields real pixels).
   5. Write the clipped array to the destination path using the source's original `profile` (updating `width`, `height`, and `transform`).
 
 ### 2.2 Climate NetCDF (ERA5-Land)
-* **Source:** `era5`
-* **Format:** NetCDF-4 (`.nc`) files.
-* **Strategy:**
+
+- **Source:** `era5`
+- **Format:** NetCDF-4 (`.nc`) files.
+- **Strategy:**
   1. Open the NetCDF file using `xarray` with `h5netcdf` engine.
   2. Slice along spatial dimensions:
      - `latitude` slice: `slice(lat_max, lat_min)` (since latitude is in descending order).
@@ -162,9 +166,10 @@ only if it yields real pixels).
   3. Save the clipped Dataset to the destination directory using `to_netcdf(..., engine="h5netcdf")`.
 
 ### 2.3 Landsat Tarballs (Landsat 8 & 9)
-* **Sources:** `landsat8`, `landsat9`
-* **Format:** `.tar` archives containing band GeoTIFFs (`_B*.TIF`) and text metadata.
-* **Strategy:**
+
+- **Sources:** `landsat8`, `landsat9`
+- **Format:** `.tar` archives containing band GeoTIFFs (`_B*.TIF`) and text metadata.
+- **Strategy:**
   1. Open the input `.tar` file; read the `MTL.json` corner lon/lat for the footprint.
   2. **Apply the §2.0 intersect gate** (polygon intersection + min-overlap). On `SKIP_*`, log and write nothing — do **not** create an output tarball. Note: this archive's Landsat scenes span 8 WRS path/rows with 8–42% AOI overlap, so most pass but are partial; partial passes are clipped to the intersection.
   3. Create a new `.tar` archive in the output folder **only after the gate passes**.
@@ -188,9 +193,10 @@ only if it yields real pixels).
        - Extract and add it to the output tarball unchanged.
 
 ### 2.4 Sentinel-2 Granules (Sentinel-2)
-* **Source:** `sentinel2`
-* **Format:** `.zip` archives containing the SAFE product folder with JPEG 2000 (`.jp2`) band images.
-* **Strategy:**
+
+- **Source:** `sentinel2`
+- **Format:** `.zip` archives containing the SAFE product folder with JPEG 2000 (`.jp2`) band images.
+- **Strategy:**
   1. Open the `.zip` archive.
   2. Parse the spatial footprint from the embedded `manifest.safe` or `MTD_MSIL1C.xml` file.
   3. **Apply the §2.0 intersect gate** (polygon intersection + min-overlap). On `SKIP_*`, log and write nothing — do **not** create an output zip.
@@ -217,24 +223,22 @@ only if it yields real pixels).
 > [`PLAN-S1-PERGRANULE-SNAP.md`](PLAN-S1-PERGRANULE-SNAP.md); the stage runs via
 > `process_raw_dataset.py process-s1`.
 
-* **Source:** `sentinel1`
-* **Format:** `.zip` archives containing the SAFE product with `.tiff` measurements in range geometry (`CRS: None` with GCPs).
-* **Strategy (HISTORICAL — superseded by SNAP processing, see banner above):**
+- **Source:** `sentinel1`
+- **Format:** `.zip` archives containing the SAFE product with `.tiff` measurements in range geometry (`CRS: None` with GCPs).
+- **Strategy (HISTORICAL — superseded by SNAP processing, see banner above):**
   1. Open the Sentinel-1 `.zip` file. Parse the geographic coordinates from `manifest.safe` or `preview/map-overlay.kml`.
   2. **Apply the §2.0 intersect gate** (polygon intersection + min-overlap) against the GML footprint. On `SKIP_*`, log and write nothing — do **not** create an output zip. (S1 swaths are the most likely to miss the AOI; the gate matters most here.)
   3. Create a new output `.zip` archive **only after the gate passes**.
   > **Range-geometry verified — GCP slicing is required, not over-engineering.**
   > A prior external review claimed S1 GRD-on-land ships orthorectified UTM
   > GeoTIFFs and that this GCP path is unnecessary. **Refuted empirically:**
-  > `gdalinfo` on three archive measurement TIFFs shows only a `GCP Projection =
-  > GEOGCRS["WGS 84"]` with 210 GCPs and **no `PROJCRS`**, and a raw pixel grid
+  > `gdalinfo` on three archive measurement TIFFs shows only a `GCP Projection = GEOGCRS["WGS 84"]` with 210 GCPs and **no `PROJCRS`**, and a raw pixel grid
   > (`Upper Left (0.0, 0.0) → Lower Right (26079, 16708)`). These `S1C` GRD
   > products are in **range geometry**, georeferenced by GCPs only — there is no
   > affine transform for `rasterio.mask.mask` to use, so the GCP-based slice below
   > is necessary. **Defensive fallback:** open the TIFF and check for a resolvable
   > CRS+transform first; only if absent (the case here) fall back to the GCP
   > slicing. This future-proofs a mixed archive without breaking the current one.
-  >
   4. For each file member inside the zip:
      - If it is a `.tiff` file in the `measurement/` directory:
        - Extract the file.
@@ -250,9 +254,10 @@ only if it yields real pixels).
        - Copy to the output zip file unchanged.
 
 ### 2.6 Sentinel-3 OLCI Swaths (Sentinel-3)
-* **Source:** `sentinel3`
-* **Format:** `.zip` archives containing SAFE product with NetCDF (`.nc`) band radiance files georeferenced by separate tie-point grids.
-* **Strategy:**
+
+- **Source:** `sentinel3`
+- **Format:** `.zip` archives containing SAFE product with NetCDF (`.nc`) band radiance files georeferenced by separate tie-point grids.
+- **Strategy:**
   1. Open the Sentinel-3 `.zip` file. Parse geographic coordinates from `xfdumanifest.xml`.
   2. **Apply the §2.0 intersect gate** (polygon intersection + min-overlap) against the manifest footprint. On `SKIP_*`, log and write nothing — do **not** create an output zip.
   3. Create a new output `.zip` archive **only after the gate passes**.
@@ -273,14 +278,18 @@ only if it yields real pixels).
      - Ensure the attributes and structure are copied identically.
 
 ### 2.7 MODIS & VIIRS Sinusoidal Tiles (MODIS & VIIRS)
-* **Sources:** `modis`, `viirs`
-* **Format:** HDF4 (`.hdf`) and HDF5 (`.h5`) files on standard Sinusoidal Tile `h10v03`.
-* **CRITICAL — multiple grid resolutions per file.** MOD09GA / VNP09GA each
+
+- **Sources:** `modis`, `viirs`
+
+- **Format:** HDF4 (`.hdf`) and HDF5 (`.h5`) files on standard Sinusoidal Tile `h10v03`.
+
+- **CRITICAL — multiple grid resolutions per file.** MOD09GA / VNP09GA each
   contain **two co-registered sinusoidal grids**, not one (verified via
   `gdalinfo` on `MOD09GA.A2025060.h10v03`):
-  * **1 km grid** (`MODIS_Grid_1km_2D`): **1200 × 1200** px, ~926.625 m/px.
+
+  - **1 km grid** (`MODIS_Grid_1km_2D`): **1200 × 1200** px, ~926.625 m/px.
     Holds `state_1km` (cloud flag), geometry/angle bands.
-  * **500 m grid** (`MODIS_Grid_500m_2D`): **2400 × 2400** px, ~463.31 m/px.
+  - **500 m grid** (`MODIS_Grid_500m_2D`): **2400 × 2400** px, ~463.31 m/px.
     Holds the science bands we actually need: `sur_refl_b01` … `sur_refl_b07`.
 
   A single resolution constant (`926.625 m`) and a single `[0, 1200]` clamp —
@@ -289,7 +298,7 @@ only if it yields real pixels).
   `1200` discards the eastern/southern half of every reflectance band. This was
   a correctness bug; the strategy below computes indices **per grid**.
 
-* **⚠️ Sinusoidal-shear trap — crop by AOI _geometry_, not a corner index window.**
+- **⚠️ Sinusoidal-shear trap — crop by AOI _geometry_, not a corner index window.**
   An earlier draft of this section (and the first implementation) reprojected the
   AOI's four lon/lat **corners** to Sinusoidal and built an axis-aligned pixel
   window from `min/max` of those corner coordinates, then clamped to each grid's
@@ -301,7 +310,8 @@ only if it yields real pixels).
   *Found by the clip-viewer (visual QA), 2026-06-03.* The per-grid 2× ratio test did
   **not** catch it — masking by geometry preserves that ratio too.
 
-* **Strategy:**
+- **Strategy:**
+
   1. Open the HDF4/HDF5 file and enumerate subdatasets; **group them by their
      native grid** (1 km vs 500 m). Extract each subdataset to a GeoTIFF (system
      `gdal_translate` per-subdataset), preserving its native sinusoidal CRS +
@@ -331,22 +341,24 @@ only if it yields real pixels).
   > matches the AOI width in km (≈ AOI lon-extent × 111 km × cos φ); do **not** judge
   > correctness by the output bounding box, which is wide for any diagonal band.
 
----
+______________________________________________________________________
 
 ## 3. Implementation Workflow
 
 1. **Typer CLI Script (`scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py`, formerly `clip_dataset.py`):**
-   * Uses `typer` to provide a robust CLI with commands `clip-all`, `clip-source`,
+
+   - Uses `typer` to provide a robust CLI with commands `clip-all`, `clip-source`,
      `process-s1`, and `process-all` (S1 is processed via SNAP, not clipped — see §2.5).
-   * Accepts `--aoi-path`, `--input-dir`, and `--output-dir` arguments.
-   * Leverages verbose logging (`structlog` or `logging`) to output detailed step-by-step progress.
-   * Includes strict validations and assertions (checking file existence, geometry types, and projection alignment).
+   - Accepts `--aoi-path`, `--input-dir`, and `--output-dir` arguments.
+   - Leverages verbose logging (`structlog` or `logging`) to output detailed step-by-step progress.
+   - Includes strict validations and assertions (checking file existence, geometry types, and projection alignment).
 
 2. **Validation Script (`scripts/developer_scripts/test_clip_dataset.py`):**
-   * Tests the clipping pipeline on a single small sample (e.g. one ERA5 file, one DEM file) to verify output bounds and dimensions.
-   * **Intersect-gate tests (§2.0) — mandatory:**
+
+   - Tests the clipping pipeline on a single small sample (e.g. one ERA5 file, one DEM file) to verify output bounds and dimensions.
+   - **Intersect-gate tests (§2.0) — mandatory:**
      - A synthetic product footprint **fully outside** the AOI yields `SKIP_NO_OVERLAP` and **no output file** is written.
      - A footprint with a **sub-`MIN_AOI_OVERLAP_AREA_KM2`** intersection yields `SKIP_DEGENERATE_OVERLAP` and no output file.
      - A **partially-overlapping** real product (e.g. a Landsat scene with ~8% AOI overlap) is **kept**, clipped to the intersection, and its output contains > 0 valid pixels.
      - The clip manifest records one row per input with the correct `action` and measured `aoi_overlap_km2` / `valid_pixel_count`.
-   * **Post-run audit:** after any bulk clip, assert `data/clipped_bow_valley_selection_raw` contains **zero** all-nodata / zero-valid-pixel outputs — the gate's purpose is to guarantee this.
+   - **Post-run audit:** after any bulk clip, assert `data/clipped_bow_valley_selection_raw` contains **zero** all-nodata / zero-valid-pixel outputs — the gate's purpose is to guarantee this.

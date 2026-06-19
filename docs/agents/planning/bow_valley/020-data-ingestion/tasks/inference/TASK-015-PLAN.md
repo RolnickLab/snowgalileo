@@ -1,14 +1,17 @@
 # TASK-015 implementation plan — InferenceGridDriver + DailyMosaicWriter
 
 ## Goal (SPEC FR-21, FR-22; AC-28, AC-29, AC-31)
+
 Add `src/inference/{windows,driver,mosaic}.py` + `tests/test_local_sources/test_inference_driver.py`.
 For each day in the configured window, build the 8-day window per cell, export each cell's
 cube, run `EncoderWithHead` per cell → 10×10 FSC, and mosaic the per-cell patches into one
 daily COG in EPSG:32611, recording per-day AOI coverage.
 
 ## Binding constraint — DOWNSTREAM IS SACRED (additive only)
+
 This pipeline is an **extension** of the GEE path, not a modification. Every existing module,
 import path, signature, and behaviour must still work unchanged after TASK-015:
+
 - **Zero edits** to `src/fsc/*` (`LandsatEvalDataset`, `EncoderWithHead`, `DatasetOutput`,
   `Normalizer`), `src/data/earthengine/*`, or any existing loader/model code. Verified
   net-new: nothing imports `src.inference` today; `_tif_to_array`/`__getitem__`/`DatasetOutput`
@@ -23,6 +26,7 @@ import path, signature, and behaviour must still work unchanged after TASK-015:
   of downstream classes anywhere.
 
 ## Resolved design decisions
+
 1. **Mosaic CRS — direct UTM placement (user-confirmed 2026-06-09).** The per-cell grid is
    already EPSG:32611 (PLAN §5 corrected 2026-06-04; cube.yaml `cell_crs`; memory
    `bow-valley-cell-grid-utm-not-4326`). The 10×10 FSC patch is therefore already UTM 11N.
@@ -36,8 +40,7 @@ import path, signature, and behaviour must still work unchanged after TASK-015:
 3. **Per-cell FSC patch = 10×10 at 100 m** inside a 1 km cell (`100 m × 10 = 1 km`). The
    daily mosaic pixel size is 100 m. Cell bounds come from `GridCell.polygon.bounds` (UTM).
 4. **Reuse the existing loader inference path READ-ONLY via a shim.** `LandsatEvalDataset`
-   `split="inference"` + `__getitem__` produces the `MaskedOutput`; `EncoderWithHead.forward(...
-   patch_size_high_res=10, patch_size_med_res=1, patch_size_low_res=1)` returns `(B,100,1)`;
+   `split="inference"` + `__getitem__` produces the `MaskedOutput`; `EncoderWithHead.forward(... patch_size_high_res=10, patch_size_med_res=1, patch_size_low_res=1)` returns `(B,100,1)`;
    squeeze→reshape `(10,10)`. This is exactly `test_tracer_end_to_end.py` and
    `_predict_and_store_output`. We call these unchanged through `_loader_bridge.py` — we add
    no methods to and edit no lines of `src/fsc/`.
@@ -45,18 +48,21 @@ import path, signature, and behaviour must still work unchanged after TASK-015:
 ## Files (ALL net-new; no existing file edited)
 
 ### `src/inference/_loader_bridge.py` (NEW — isolates the sole downstream coupling)
+
 - `masked_output_for_tif(tif: Path) -> MaskedOutput`: builds the `__new__`-bypassed
   `LandsatEvalDataset` inference instance (tracer pattern), sets only the attrs `__getitem__`
   reads, returns `ds[0][0]`. The **one** place that knows the loader's private surface.
   Calls the loader strictly as-is. If the loader changes, only this file changes.
 
 ### `src/inference/windows.py`
+
 - `inference_days(window_start, window_end) -> list[date]` — every day inclusive (mirror
   `grid._window_days`, but public for the driver).
 - `eight_day_window(window_end) -> list[date]` — `[window_end-7 … window_end]` ascending
   (mirror `exporter._window_days`; reuse `NUM_TIMESTEPS`, `DAYS_PER_TIMESTEP`).
 
 ### `src/inference/mosaic.py` — `DailyMosaicWriter`
+
 - `__init__(*, grid: list[GridCell], out_dir: Path, fsc_px_per_cell=10)`.
 - Computes the AOI mosaic grid once: union of all cell UTM bounds → mosaic transform at
   100 m px (`cell_size_m / fsc_px_per_cell`), shape covering every cell. EPSG:32611.
@@ -72,8 +78,8 @@ import path, signature, and behaviour must still work unchanged after TASK-015:
 - All-masked cell → its FSC is `None` → stays nodata (AC-28).
 
 ### `src/inference/driver.py` — `InferenceGridDriver`
-- `__init__(*, exporter: LocalSourceExporter, model: EncoderWithHead, grid: list[GridCell],
-  window_start, window_end, device="cpu", batch_size=8)`.
+
+- `__init__(*, exporter: LocalSourceExporter, model: EncoderWithHead, grid: list[GridCell], window_start, window_end, device="cpu", batch_size=8)`.
 - `run() -> list[Path]`: for each `day in inference_days(...)`:
   - For each cell: `tif = exporter.export(cell, window_end=day)`; build a one-tif
     `LandsatEvalDataset` inference instance (the tracer `inference_dataset` fixture pattern)
@@ -90,6 +96,7 @@ import path, signature, and behaviour must still work unchanged after TASK-015:
   parallel/GPU batching detail is fine to keep minimal — TASK-016 wires the real run.)
 
 ## Tests (`test_inference_driver.py`) — TDD, synthetic, no GPU/checkpoint
+
 1. **windows**: `eight_day_window(d)` == 8 ascending days ending d; `inference_days` count.
 2. **AC-31 (driver loop)**: build a 2-cell grid where the two cells carry *different* legacy
    CSV `date`s (irrelevant — driver takes `GridCell`s + explicit window); assert both are
@@ -105,13 +112,16 @@ import path, signature, and behaviour must still work unchanged after TASK-015:
    are exactly the input patch values.
 
 ## Verification
+
 ```
 uv run pytest tests/test_local_sources/test_inference_driver.py -v
 uv run ruff check src/inference/
 uv run mypy src/inference/driver.py src/inference/mosaic.py src/inference/windows.py
 ```
+
 Full-suite delta vs TEST_BASELINE.md — NEW-failures list empty. NOT pytest -x.
 
 ## Out of scope (TASK-016)
+
 Entry-point scripts (`scripts/developer_scripts/bow_valley_inference_local/infer_bow_valley_daily_fsc.py`), checkpoint/model build,
 full-stack parity gate, real GPU batched run, multiprocessing tuning.

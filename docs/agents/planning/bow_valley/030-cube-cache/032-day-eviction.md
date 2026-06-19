@@ -6,9 +6,9 @@
 
 The cube cache's "race avoided" guarantee rests on `working_set < cap`. Measured:
 
-| Mode | Cells | Working set (cells × 28 days × 9 modalities) | vs 200k cap |
-|------|-------|----------------------------------------------|-------------|
-| A    | 344   | ~86.7k                                        | under ✓     |
+| Mode | Cells  | Working set (cells × 28 days × 9 modalities) | vs 200k cap |
+| ---- | ------ | -------------------------------------------- | ----------- |
+| A    | 344    | ~86.7k                                       | under ✓     |
 | B    | 25,078 | ~6.3M                                        | ~31× over ✗ |
 
 Mode B (full-AOI tiling) is **73× more cells**. The cap is blown by ~31×, so the current
@@ -57,6 +57,7 @@ of vulnerability to widen or shrink.
 ## Contracts
 
 ### `CubeCache` (cube_cache.py)
+
 - **Disable per-`put` eviction.** `put` no longer calls `_evict_to_cap`. (Workers only
   get/put; the cap is enforced by the parent's day-frontier prune.) Keep `_evict_to_cap`
   *unused-by-put* but available, OR remove it — see "Open" below.
@@ -73,6 +74,7 @@ of vulnerability to widen or shrink.
     doesn't parse is left untouched (defensive — never delete an unrecognised file).
 
 ### Driver (`InferenceGridDriver`)
+
 - In `run()`, **before** `_predict_day(day)`, call the parent-side prune **iff** the
   exporter owns a cache:
   ```python
@@ -86,6 +88,7 @@ of vulnerability to widen or shrink.
 - The serial fallback path (`export_workers <= 1`) also benefits: same parent, same call.
 
 ### Settings — unchanged
+
 `cache_max_entries` already configurable (default 200_000). For a Mode B run the operator
 may still raise it, but the day-frontier prune means they no longer *have to* size it above
 the full sweep working set — they size it to the disk they want the live+recent window to
@@ -118,12 +121,14 @@ future reader wants. Worker count never enters the argument. ∎
    is invoked with each ascending day prior to `_pre_export_day`, only when a cache exists.
 
 ## Out of scope
+
 - Cross-process locked LRU / eviction-owner process (the day-frontier prune makes it
   unnecessary at Mode B scale; documented as the deliberate non-choice).
 - Pruning *within* a day (mid-export). Unnecessary: a single day adds at most
   `cells × 9` entries; the between-day cadence bounds growth to one day's worth over cap.
 
 ## Open (decide before coding)
+
 - **Keep or remove `_evict_to_cap`?** It becomes dead once `put` stops calling it.
   Recommendation: **remove it** (and its FIFO `_order`-popping) to avoid two eviction
   mechanisms; `_order` is then only used for `__len__` / scan-recovery. Confirm — this

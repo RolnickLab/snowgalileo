@@ -32,6 +32,14 @@ repos:
     # Run the formatter.
     - id: ruff-format
 
+- repo: https://github.com/hukkin/mdformat
+  rev: 1.0.0
+  hooks:
+    - id: mdformat
+      additional_dependencies:
+        - mdformat-gfm
+        - mdformat-gfm-alerts
+
 # sets up .pre-commit-ci.yaml to ensure pre-commit dependencies stay up to date
 ci:
   autoupdate_schedule: weekly

@@ -1,11 +1,13 @@
 # TASK-009: Implement the MODIS MOD09GA adapter (preserve -28672 fill)
 
 ## 1. Goal
+
 Replace the MODIS placeholder with a real adapter that emits `sur_refl_b01..b07` on
 the cell grid from the 500 m sinusoidal grid, **preserving the native `-28672` fill
 value** in addition to `-9999`.
 
 ## 2. Context & References
+
 - **FDD step:** §4.6 (adapter order #4 — "mind the `-28672` fill").
 - **SPEC:** FR-10, AC-12, AC-13, AC-18; Verification Plan step 6.
 - **PLAN:** §4 adapter rule (preserve `-28672`), §6 FMEA ("MODIS native fill stripped").
@@ -37,17 +39,18 @@ value** in addition to `-9999`.
 - **Relevant skills:** `geospatial` (sinusoidal reproject, mosaic, NN for QA), `tdd`.
 
 ## 3. Subtasks
-- [x] 1. Write `test_modis_adapter.py` (Red): golden-grid triple; `bands_out =
-      sur_refl_b01..b07`; **`-28672` present** in output where the source had it; missing
-      day → all-`-9999`; reads the 500 m grid (not the 1 km clamp); **nodata-aware
-      bilinear: no interpolated value bleeds toward `-28672` at a fill edge (assert
-      no out-of-domain negative appears adjacent to a fill pixel)**.
+
+- [x] 1. Write `test_modis_adapter.py` (Red): golden-grid triple; `bands_out =     sur_refl_b01..b07`; **`-28672` present** in output where the source had it; missing
+  day → all-`-9999`; reads the 500 m grid (not the 1 km clamp); **nodata-aware
+  bilinear: no interpolated value bleeds toward `-28672` at a fill edge (assert
+  no out-of-domain negative appears adjacent to a fill pixel)**.
 - [x] 2. Implement `modis.py`: read 500 m subdatasets via `gdal_translate`, mosaic tiles,
-      reproject sinusoidal→cell grid, stack `(7, H, W)`; `native_fill=-28672`.
+  reproject sinusoidal→cell grid, stack `(7, H, W)`; `native_fill=-28672`.
 - [x] 3. Implement the `state_1km` cloud-flag path (NN), emitted in the cloud slot.
 - [x] 4. Wire into exporter. 5. Green + Refactor.
 
 ## 4. Requirements & Constraints
+
 - **Technical:** Per-grid indexing (no hardcoded `1200`); **NEAREST** for science
   bands and `state_1km` (corrected 2026-06-04 — see below); the clip stage already
   extracted per-band sinusoidal GeoTIFFs, so **no HDF4 driver is needed** (rasterio
@@ -58,8 +61,7 @@ value** in addition to `-9999`.
   across all 8 timesteps); bilinear smears (~322 DN, up to 941) — PARITY_SPIKE_NOTES §8.
   Crucially, nearest also makes the `-28672` **edge-bleed risk moot**: it never
   interpolates across the fill boundary, so no garbage negative can ever appear. We
-  preserve `-28672` via `base.reproject_to_cell(categorical=True, src_nodata=-28672,
-  restore_fill=-28672)`. (The nodata-aware-bilinear guard below was the right design
+  preserve `-28672` via `base.reproject_to_cell(categorical=True, src_nodata=-28672, restore_fill=-28672)`. (The nodata-aware-bilinear guard below was the right design
   *if* bilinear were used; it is superseded for MODIS but remains correct in `base.py`
   for the genuinely fine sources S2/Landsat/S1.)
 - **(Superseded for MODIS) Nodata-aware bilinear (edge-bleed guard).** Before a bilinear
@@ -74,28 +76,32 @@ value** in addition to `-9999`.
 - **Out of scope:** NDSI/NDVI derivation (loader), VIIRS (TASK-010).
 
 ## 5. Acceptance Criteria
+
 - [x] AC-1 (SPEC AC-12): golden-grid triple; `bands_out` = `sur_refl_b01..b07` in order.
 - [x] AC-2 (SPEC AC-18): `-28672` present in output where source had it; loader NDSI/NDVI
-      assertions (`landsat_eval.py:317,331`) do not crash on this adapter's output.
+  assertions (`landsat_eval.py:317,331`) do not crash on this adapter's output.
 - [x] AC-3 (SPEC AC-13): missing `(MODIS, day)` → all-`-9999`.
 - [x] AC-4: ruff + mypy clean; targeted new tests green; full suite introduces NO new failures vs `TEST_BASELINE.md` (delta check, NOT `pytest -x`).
 
 ## 6. Testing & Validation
+
 ```bash
 cd /home/dev/projects/presto-v3
 uv run pytest tests/test_local_sources/test_modis_adapter.py -v
 uv run ruff check src/data/local_sources/modis.py
 uv run mypy src/data/local_sources/modis.py
 ```
+
 Expected: adapter test green (fill preserved); ruff/mypy exit 0.
 
 **Regression check (suite is already red):** run the delta check in `TEST_BASELINE.md` — the "NEW failures" list must be empty. Do NOT use `pytest -x` at the suite level.
 
 ## 7. Completion Protocol
+
 1. Verify ACs. 2. Run Section 6 commands.
-3. Commit:
+2. Commit:
    ```bash
    git add src/data/local_sources/modis.py tests/test_local_sources/test_modis_adapter.py
    git commit -m "feat(bow-valley): MODIS MOD09GA adapter (preserve -28672 fill) — closes TASK-009"
    ```
-4. Check off subtasks/ACs. 5. Notify the user; request approval before TASK-010.
+3. Check off subtasks/ACs. 5. Notify the user; request approval before TASK-010.
