@@ -22,7 +22,7 @@ For pre-training SnowGalileo, [data] is required. Then run [config] config file.
 
 ### How to Run Inference on your own Points (preliminary)
 
-Parts of the code require a WandB account to function entirely. If you would like to make use of this, please set the variable [WANDB_ENTITY] in "src/data/config.py" to your Belieben.
+Parts of the code require a WandB account to function entirely. If you would like to make use of this, please set the variable [WANDB_ENTITY] in "src/snow_galileo/data/config.py" to your Belieben.
 
 ### Detailed Description
 
@@ -50,14 +50,14 @@ Evaluation Execution:
 
 Data Export:
 
-- `src/data/earthengine/`
+- `src/snow_galileo/data/earthengine/`
   - contains all code specific to Google Earthengine: sensor-specific export scripts, as well as export files
-- `src/data/dataset.py`
+- `src/snow_galileo/data/dataset.py`
   - contains the pre-training dataset class
 
 Snowgalileo Model:
 
-- `src/snowgalileo.py`
+- `src/snow_galileo/snowgalileo.py`
   - Encoder:
     - divides images into patches
     - projects patches to per-channel-group tokens
@@ -69,16 +69,16 @@ Snowgalileo Model:
     - gets embedded images
     - Applies attention
     - bring back into pixel space
-- `src/masking.py`
+- `src/snow_galileo/masking.py`
   - creates token masks for pre-training
-- `src/embedding.py`
+- `src/snow_galileo/embedding.py`
   - the embeddings that add contextual information to tokens
 
 Finetuning/ Evaluation Setup:
 
-- `src/eval/patch_predict.py`
+- `src/snow_galileo/eval/patch_predict.py`
   - contains the Finetuning head and functions for finetuning and evaluating the model
-- `src/eval/landsat_eval.py`
+- `src/snow_galileo/eval/landsat_eval.py`
   - prepares the Landsat evaluation dataset, and wraps the Landsat-specific evaluation process
 
 #### Disclaimer about Variable Names

@@ -369,3 +369,7 @@ These five are *preserved-as-is* contracts the direct-source pipeline must not "
   The clip keeps the full tile; reading a whole band is ~900 MB float64 → multi-GB OOM on a
   sweep. `_scene_ops.cell_window` reads only the cell neighbourhood (+4 px margin); output is
   bit-identical to the full read. See \[[s2-landsat-windowed-read-oom]\].
+
+## Repository changes
+
+- **Package renaming:** Renamed package root from `src/` to `scr/snow_galileo`
