@@ -83,6 +83,9 @@ lint.ignore = [
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+[tool.mypy]
+exclude = "^notebooks/"
+
 [tool.flynt]
 line-length = 99
 transform-concats = true
