@@ -36,5 +36,5 @@ TARGET_GROUPS := lint,test
 #
 # Conda related variables
 #
-CONDA_ENVIRONMENT := core
+CONDA_ENVIRONMENT := snow-galileo
 CONDA_TOOL := mamba
