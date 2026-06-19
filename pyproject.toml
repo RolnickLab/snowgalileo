@@ -64,20 +64,27 @@ packages = ["src"]
 
 [tool.ruff]
 line-length = 99
-lint.select = ["E4", "E7", "E9", "F", "I", "D"]
+lint.select = ["E", "W", "F", "I", "D"]
 lint.ignore = [
-  "E203", # Whitespace before ':' (Handled cleanly by modern formatters)
-  "E266", # Too many leading '#'
-  "E501", # Line too long (Deferred to formatter/docformatter limits)
-  
-  # --- Docstring Presence Ignores (Kept per your layout strategy) ---
-  "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107",
-
-  # --- Docformatter Harmonization Flags ---
-  "D203", # Enforce D211 (No blank line before class docstring) to match docformatter `blank = false`
-  "D205", # Does not check for summary line blank line
-  "D212", # IGNORE: "Summary on first line". Prevents conflicts with docformatter `pre-summary-newline = true`
+    "E203", # Whitespace before ':' (Handled cleanly by modern formatters)
+    "E266", # Too many leading '#'
+    "E501", # Line too long (Deferred to formatter/docformatter limits)
+    # --- Docstring Presence Ignores (Kept per your layout strategy) ---
+    "D100",
+    "D101",
+    "D102",
+    "D103", 
+    "D104",
+    "D105",
+    "D106",
+    "D107",
+    # --- Docformatter Harmonization Flags ---
+    "D203", # Enforce D211 (No blank line before class docstring) to match docformatter `blank = false`
+    "D205", # Does not check for summary line blank line
+    "D212", # IGNORE: "Summary on first line". Prevents conflicts with docformatter `pre-summary-newline = true`
 ]
+
+lint.extend-safe-fixes = ["F841", "E711", "E712"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
