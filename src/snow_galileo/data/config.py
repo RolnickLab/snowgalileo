@@ -251,4 +251,4 @@ DECODER_FILENAME = "decoder"
 CONFIG_FILENAME = "config"
 
 # replace with your own entity name for logging to WandB
-WANDB_ENTITY = "sea-ice"
+WANDB_ENTITY = os.environ.get("WANDB_ENTITY", "sea-ice")
