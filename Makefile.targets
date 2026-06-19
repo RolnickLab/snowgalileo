@@ -1,0 +1,8 @@
+# This file is for custom makefile targets at the project level.
+# They are meant to be share by the whole project team.
+
+## -- Project targets ----------------------------------------------------------------------------------------------- ##
+
+.PHONY: test-ci
+test-ci: ## Example custom target
+	@$(ENV_COMMAND_TOOL) nox -s test
