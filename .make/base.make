@@ -96,17 +96,6 @@ $(call check_configs,UV_CONFLICT,'poetry' environment is enabled while using 'uv
 $(call check_configs,POETRY_CONFLICT,'uv' environment is enabled while using 'poetry')
 $(call check_files,IS_MAKEFILE_VARIABLES_MISSING,The configuration file 'Makefile.variables' is missing - Using default values)
 
-
-## -- Initialization targets ---------------------------------------------------------------------------------------- ##
-.PHONY: project-init
-project-init: ## Initialize the project from the template - Only run once!
-	@python3 $(PROJECT_PATH).make/scripts/auto_init_script.py
-
-.PHONY: project-init-dry-run
-project-init-dry: ## Test run: no changes will be made - Initialize the project from the template
-	@python3 $(PROJECT_PATH).make/scripts/auto_init_script.py --dry
-
-
 ## -- Informative targets ------------------------------------------------------------------------------------------- ##
 
 .PHONY: info
