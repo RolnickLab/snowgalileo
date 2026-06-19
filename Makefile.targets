@@ -5,4 +5,4 @@
 
 .PHONY: test-ci
 test-ci: ## Example custom target
-	@$(ENV_COMMAND_TOOL) pytest -n 4 -m 'not slow'
+	@$(ENV_COMMAND_TOOL) pytest -n 2 -m 'not slow'
