@@ -10,7 +10,6 @@ data/*
 .ipynb_checkpoints
 baseline_weights
 models
-notebooks
 slurm
 sb.sh
 venv
