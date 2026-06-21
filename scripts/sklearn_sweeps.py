@@ -54,7 +54,7 @@ rf_sweep_configuration = {
     "parameters": {
         "n_estimators": {"values": [50, 100, 200, 300, 400, 500]},
         "normalization": {"values": [None, "std"]},
-        "max_features": {"values": ["feature_dependent", "sqrt", "log2"]},
+        "max_features": {"values": ["feature_dependent", "sqrt"]},
         "min_samples_leaf": {"values": [1, 2, 5]},
         "max_depth": {"values": [None, 10, 20, 30]},
         "min_samples_split": {"values": [2, 5, 10]},
