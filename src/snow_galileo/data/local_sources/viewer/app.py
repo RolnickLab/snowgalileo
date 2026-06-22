@@ -604,6 +604,19 @@ def FscTab() -> None:
                     max=len(fsc) - 1,
                     on_value=set_idx,
                 )
+                # Prev/next step the slider one date; disabled at the ends so the index can
+                # never leave [0, len-1] (set_idx always lands on an in-range value).
+                with solara.Row():
+                    solara.Button(
+                        "◀ Prev",
+                        on_click=lambda: set_idx(safe_idx - 1),
+                        disabled=safe_idx == 0,
+                    )
+                    solara.Button(
+                        "Next ▶",
+                        on_click=lambda: set_idx(safe_idx + 1),
+                        disabled=safe_idx == len(fsc) - 1,
+                    )
             else:
                 solara.Info(f"Only one date on disk: {fsc_row.pred_date.isoformat()}.")
             with solara.Card("Daily FSC"):
