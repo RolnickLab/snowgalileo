@@ -24,6 +24,7 @@ See ``docs/agents/planning/bow_valley/060-viewer/060-viewer-plan.md``, ``CONTRAC
 from __future__ import annotations
 
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 import solara
@@ -34,7 +35,6 @@ from snow_galileo.data.local_sources.viewer.aoi import aoi_bounds_4326, load_aoi
 from snow_galileo.data.local_sources.viewer.manifest import ProductRow, load_products
 from snow_galileo.data.local_sources.viewer.outputs import (
     CubeAvailability,
-    CubeRow,
     cube_availability,
     cubes_for_date,
     dates_for_cubes,
@@ -62,10 +62,8 @@ _TMPDIR = Path(tempfile.mkdtemp(prefix="data_viewer_"))
 # it scales with the browser window; ~140px reserves the tab bar and surrounding chrome.
 _MAP_HEIGHT = "calc(100vh - 140px)"
 
-# Loaded once at import (cheap: a few hundred manifest rows + a directory scan).
-_PRODUCTS: list[ProductRow] = load_products(_SETTINGS)
-_CUBES: list[CubeRow] = list_cubes(_SETTINGS)
-_FSC = list_fsc(_SETTINGS)
+# AOI is a fixed geojson — global. The per-tab data scans (products / cubes / FSC) are now
+# reactive on each tab's folder picker, so they live inside the tab components, not here.
 _AOI_GEOJSON = load_aoi_geojson(_SETTINGS)
 _AOI_BOUNDS = aoi_bounds_4326(_AOI_GEOJSON)
 
@@ -83,8 +81,6 @@ _RENDERABLE_SOURCES = {
     "era5",
     "sentinel3",
 }
-
-_SOURCES: list[str] = sorted({p.source for p in _PRODUCTS})
 
 # Cube availability is a per-cube full-band read (~0.5s on the ~100×100 cubes). Memoise it
 # by path so re-renders (a slider/dropdown nudge) don't re-scan the same cube each time.
@@ -105,8 +101,56 @@ _CUBE_MODE_VARIABLE = "Select by variable"
 _CUBE_MODES = [_CUBE_MODE_TIMESTEP, _CUBE_MODE_VARIABLE]
 
 
-def _products_for(source: str) -> list[ProductRow]:
-    return [p for p in _PRODUCTS if p.source == source]
+@solara.component
+def _FolderPicker(*, label: str, folder: Path, on_pick: Callable[[Path], None]) -> None:
+    """A collapsible directory picker for a tab's top-level data folder.
+
+    Shows the active folder and a missing-folder warning; expanding it reveals a
+    ``FileBrowser`` to choose a new directory. Folded by default so it doesn't crowd the
+    tab. Selecting a directory calls ``on_pick`` with the chosen path.
+
+    Args:
+        label: Human label for what this folder holds (e.g. ``"Clipped archive"``).
+        folder: The currently active folder.
+        on_pick: Called with the directory the user selects.
+    """
+    open_state, set_open = solara.use_state(False)
+
+    # Track the directory the browser is currently *in*; "Use this folder" commits it. We
+    # drive the browse off ``on_directory_change`` (which always yields an absolute Path)
+    # rather than ``on_path_select`` — the latter can hand back a bare name string for some
+    # click paths (Solara FileBrowser quirk), which is not a resolvable directory.
+    start = (
+        folder if folder.exists() else next((p for p in folder.parents if p.exists()), Path.home())
+    )
+    browse_dir, set_browse_dir = solara.use_state(start)
+
+    def _commit() -> None:
+        if browse_dir.is_dir():
+            on_pick(browse_dir)
+            set_open(False)
+
+    with solara.Card(f"{label} folder"):
+        solara.Markdown(f"**folder:** `{folder}`")
+        if not folder.exists():
+            solara.Warning(f"folder does not exist: `{folder}`")
+        solara.Button(
+            "Change folder…" if not open_state else "Close",
+            text=True,
+            on_click=lambda: set_open(not open_state),
+        )
+        if open_state:
+            solara.Markdown(f"Navigate into a folder, then commit. Current: `{browse_dir}`")
+            solara.Button("Use this folder", on_click=_commit)
+            solara.FileBrowser(
+                directory=browse_dir,
+                on_directory_change=set_browse_dir,
+                directory_first=True,
+            )
+
+
+def _products_for(products: list[ProductRow], source: str) -> list[ProductRow]:
+    return [p for p in products if p.source == source]
 
 
 def _add_aoi_overlay(m: leafmap.Map) -> None:
@@ -283,11 +327,38 @@ def _PlainImagePanel(result: QuicklookResult) -> None:
 @solara.component
 def ClipTab() -> None:
     """The original clip-manifest viewer (source → product → quicklook on the map)."""
-    source, set_source = solara.use_state(_SOURCES[0] if _SOURCES else "")
-    products = _products_for(source)
-    ids = [p.product_id for p in products]
-    product_id, set_product_id = solara.use_state(ids[0] if ids else "")
+    folder, set_folder = solara.use_state(_SETTINGS.clipped_root)
+    settings = _SETTINGS.model_copy(update={"clipped_root": folder})
+
+    # Scan the picked clipped archive. A folder without a clip manifest (or an empty/bad
+    # pick) yields no products rather than crashing the tab; the picker stays usable.
+    try:
+        all_products = load_products(settings)
+    except FileNotFoundError:
+        all_products = []
+
+    sources = sorted({p.source for p in all_products})
+
+    # All hooks first (rules-of-hooks: unconditional, stable order — no use_state after the
+    # early return below).
+    source, set_source = solara.use_state("")
+    product_id, set_product_id = solara.use_state("")
     date_idx, set_date_idx = solara.use_state(0)
+
+    if not all_products:
+        with solara.Columns([4, 8]):
+            with solara.Column():
+                _FolderPicker(label="Clipped archive", folder=folder, on_pick=set_folder)
+                solara.Warning(
+                    f"No clip manifest (`{settings.manifest_name}`) found under `{folder}`. "
+                    "Pick a clipped-archive folder in the sidebar."
+                )
+        return
+
+    if source not in sources:
+        source = sources[0] if sources else ""
+    products = _products_for(all_products, source)
+    ids = [p.product_id for p in products]
 
     if product_id not in ids:
         product_id = ids[0] if ids else ""
@@ -309,7 +380,8 @@ def ClipTab() -> None:
     result: QuicklookResult | None = None
     with solara.Columns([4, 8]):
         with solara.Column():
-            solara.Select(label="Source", value=source, values=_SOURCES, on_value=set_source)
+            _FolderPicker(label="Clipped archive", folder=folder, on_pick=set_folder)
+            solara.Select(label="Source", value=source, values=sources, on_value=set_source)
             if source not in _RENDERABLE_SOURCES:
                 solara.Warning(
                     f"`{source}` has no renderer yet (later phase). "
@@ -363,22 +435,37 @@ def CubeTab() -> None:
     * **Select by variable** — pick a variable first; the timestep dropdown then lists only
       the timesteps at which that variable is real. Statics have no timestep.
     """
-    if not _CUBES:
-        solara.Info(
-            f"No cubes found under `{_SETTINGS.cubes_dir}`. Run `export_bow_valley_cube.py` first."
-        )
+    # All hooks first with stable defaults (rules-of-hooks): the folder picker can change
+    # the scanned cube set, so no use_state may sit after the early return below or take a
+    # default derived from the scan. Each selection is clamped to the live choices later.
+    folder, set_folder = solara.use_state(_SETTINGS.cubes_dir)
+    date_label, set_date_label = solara.use_state("")
+    cell_label, set_cell_label = solara.use_state("")
+    mode, set_mode = solara.use_state(_CUBE_MODE_TIMESTEP)
+    var, set_var = solara.use_state("")
+    timestep, set_timestep = solara.use_state(0)
+
+    settings = _SETTINGS.model_copy(update={"cubes_dir_override": folder})
+    cubes = list_cubes(settings)
+
+    if not cubes:
+        with solara.Columns([4, 8]):
+            with solara.Column():
+                _FolderPicker(label="Cubes", folder=folder, on_pick=set_folder)
+                solara.Info(
+                    f"No cubes (`PR_*.tif`) found under `{folder}`. Pick a cubes folder in "
+                    "the sidebar, or run `export_bow_valley_cube.py` first."
+                )
         return
 
-    dates = dates_for_cubes(_CUBES)
+    dates = dates_for_cubes(cubes)
     date_labels = [d.isoformat() for d in dates]
-    date_label, set_date_label = solara.use_state(date_labels[0])
     if date_label not in date_labels:
         date_label = date_labels[0]
     sel_date = dates[date_labels.index(date_label)]
 
-    cells = cubes_for_date(_CUBES, sel_date)
+    cells = cubes_for_date(cubes, sel_date)
     cell_labels = [c.cell_label for c in cells]
-    cell_label, set_cell_label = solara.use_state(cell_labels[0])
     if cell_label not in cell_labels:
         cell_label = cell_labels[0]
     cell = cells[cell_labels.index(cell_label)]
@@ -387,12 +474,11 @@ def CubeTab() -> None:
     all_vars = [*avail.dynamic_order, *avail.statics]
     all_ts = list(range(avail.n_timesteps))
 
-    mode, set_mode = solara.use_state(_CUBE_MODE_TIMESTEP)
     # Raw selections persist across re-renders; each axis is clamped below to whatever the
     # *other* axis (and the active cube) makes valid, so a stale pick falls back cleanly
     # when the date/cell/mode changes rather than rendering an all-nodata band.
-    var, set_var = solara.use_state(all_vars[0])
-    timestep, set_timestep = solara.use_state(0)
+    if var not in all_vars:
+        var = all_vars[0]
 
     if mode == _CUBE_MODE_TIMESTEP:
         # Timestep is the free axis; the variable list is filtered to it.
@@ -439,6 +525,7 @@ def CubeTab() -> None:
 
     with solara.Columns([4, 8]):
         with solara.Column():
+            _FolderPicker(label="Cubes", folder=folder, on_pick=set_folder)
             solara.Select(
                 label="Prediction date",
                 value=date_label,
@@ -478,27 +565,38 @@ def CubeTab() -> None:
 @solara.component
 def FscTab() -> None:
     """Step a date slider through the daily-FSC COGs; render colormapped (0–1)."""
-    if not _FSC:
-        solara.Info(
-            "No daily-FSC COGs found under "
-            f"`{_SETTINGS.daily_fsc_dir}`. Run `infer_bow_valley_daily_fsc.py` first."
-        )
+    # Hooks first with stable defaults (rules-of-hooks): the folder picker can change the
+    # scanned FSC set, so no use_state may sit after the early return below.
+    folder, set_folder = solara.use_state(_SETTINGS.daily_fsc_dir)
+    idx, set_idx = solara.use_state(0)
+
+    settings = _SETTINGS.model_copy(update={"daily_fsc_dir_override": folder})
+    fsc = list_fsc(settings)
+
+    if not fsc:
+        with solara.Columns([4, 8]):
+            with solara.Column():
+                _FolderPicker(label="Daily FSC", folder=folder, on_pick=set_folder)
+                solara.Info(
+                    f"No daily-FSC COGs (`fsc_*.tif`) found under `{folder}`. Pick a daily-FSC "
+                    "folder in the sidebar, or run `infer_bow_valley_daily_fsc.py` first."
+                )
         return
 
-    idx, set_idx = solara.use_state(0)
-    safe_idx = min(idx, len(_FSC) - 1)
-    fsc_row = _FSC[safe_idx]
+    safe_idx = min(idx, len(fsc) - 1)
+    fsc_row = fsc[safe_idx]
 
     result = render_fsc(path=fsc_row.path, long_edge=_SETTINGS.long_edge)
 
     with solara.Columns([4, 8]):
         with solara.Column():
-            if len(_FSC) > 1:
+            _FolderPicker(label="Daily FSC", folder=folder, on_pick=set_folder)
+            if len(fsc) > 1:
                 solara.SliderInt(
-                    label=f"Date: {fsc_row.pred_date.isoformat()} ({safe_idx + 1}/{len(_FSC)})",
+                    label=f"Date: {fsc_row.pred_date.isoformat()} ({safe_idx + 1}/{len(fsc)})",
                     value=safe_idx,
                     min=0,
-                    max=len(_FSC) - 1,
+                    max=len(fsc) - 1,
                     on_value=set_idx,
                 )
             else:
