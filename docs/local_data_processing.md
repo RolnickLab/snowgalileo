@@ -21,7 +21,7 @@ over package code, run with `uv run python …` (the viewer with `uv run solara 
 | 1b  | Audit stage 1                 | `process_raw_audit.py`                                                    | exit 0 = clean                                       |
 | 2   | Assemble 308-band cubes (§5)  | `export_bow_valley_cube.py`                                               | `processing_root/cubes/PR_*.tif`                     |
 | 3   | Daily FSC inference (§6)      | `infer_bow_valley_daily_fsc.py`                                           | `processing_root/daily_fsc/*.tif`                    |
-| 4   | Inspect / QA (§7)             | `solara run data_viewer.py`                                               | Clip / Cube / Daily-FSC tabs                         |
+| 4   | Inspect / QA (§7)             | `python data_viewer.py [--clipped-root/--cubes-dir/--fsc-dir]`            | Clip / Cube / Daily-FSC tabs                         |
 
 **Key ordering rule (stage 1):** Sentinel-1 is **processed, never clipped** — it
 must go through ESA SNAP *before* anything reads it. `process-all` enforces this:
@@ -483,8 +483,16 @@ overlaid. Read-only on the archive and `processing_root`; writes only transient
 decimated GeoTIFFs to a temp dir.
 
 ```bash
-uv run solara run scripts/developer_scripts/bow_valley_inference_local/data_viewer.py
+uv run python scripts/developer_scripts/bow_valley_inference_local/data_viewer.py \
+    --clipped-root data/clipped_bow_valley_selection_raw \
+    --cubes-dir    data/bow_valley_processing/cubes \
+    --fsc-dir      data/bow_valley_processing/daily_fsc
 ```
+
+The launcher is a Typer CLI that sets each tab's default folder from the flags (all
+optional — every tab also has an in-app folder picker), then execs `solara run` on the
+app module `snow_galileo.data.local_sources.viewer.app`. Trailing args after `--` go to
+`solara run` (e.g. `-- --port 8900`).
 
 Three tabs, one per pipeline output:
 
