@@ -58,6 +58,10 @@ import leafmap  # isort: skip  (heavy import, kept after local modules)
 _SETTINGS = ViewerSettings()
 _TMPDIR = Path(tempfile.mkdtemp(prefix="data_viewer_"))
 
+# Map height: fill the viewport minus the tab strip + page padding. Viewport-relative so
+# it scales with the browser window; ~140px reserves the tab bar and surrounding chrome.
+_MAP_HEIGHT = "calc(100vh - 140px)"
+
 # Loaded once at import (cheap: a few hundred manifest rows + a directory scan).
 _PRODUCTS: list[ProductRow] = load_products(_SETTINGS)
 _CUBES: list[CubeRow] = list_cubes(_SETTINGS)
@@ -190,6 +194,10 @@ def _render_on_map(
                 zoom = 8 if span_deg > 0.7 else 9 if span_deg > 0.3 else 11
 
     m = leafmap.Map(center=center, zoom=zoom)
+    # Fill the viewport height below the tab bar. ipyleaflet's default map height
+    # collapses to ~half the page; pin it to a viewport-relative height so the map
+    # is as tall as possible while leaving room for the tab strip + page chrome.
+    m.layout.height = _MAP_HEIGHT
     m.add_basemap(_SETTINGS.default_basemap)
     if has_raster and tif is not None:
         assert result is not None  # narrows for mypy (guarded by has_raster)
