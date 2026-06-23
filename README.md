@@ -1,8 +1,10 @@
 # SnowGalileo: a multi-sensor foundation model for snow cover mapping
 
-SnowGalileo is a pre-trained snow foundation model, fine-tuned for daily fractional snow cover (FSC) mapping at 100 m resolution based on multi-sensor Earth observation data.
+SnowGalileo is a pre-trained transformer model for daily fractional snow cover (FSC) mapping at 100 m resolution based on multi-sensor Earth observation data.
 
 ## Python Version
+
+This project uses Python 3.11 and relies on a `Makefile` for standardized, reproducible commands.
 
 ## Package & Environment Management
 
@@ -28,7 +30,7 @@ Parts of the code require a WandB account to function entirely. If you would lik
 
 #### File Structure
 
-Information about input data export and data distributions can be found in `data/README.md`.
+Information about input data export using Google Earth Engine can be found in `data/README.md`.
 
 Pre-training Execution:
 
@@ -103,6 +105,7 @@ ESA AI4Snow contract number: ...
 - How to conduct inference
 
 #### Credits
+This README file is inspired by the advanced lab template of Francis Pelletier.
 
 This repo inherits from the Galileo model.
 
