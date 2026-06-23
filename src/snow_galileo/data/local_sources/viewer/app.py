@@ -67,6 +67,10 @@ _TMPDIR = Path(tempfile.mkdtemp(prefix="data_viewer_"))
 # it scales with the browser window; ~140px reserves the tab bar and surrounding chrome.
 _MAP_HEIGHT = "calc(100vh - 140px)"
 
+# Default zoom framing the AOI (~2.0° × 1.6°) snugly. The FSC tab uses this fixed frame
+# (no per-timestep reframe) so stepping the date slider does not jump the view.
+_AOI_DEFAULT_ZOOM = 9
+
 # AOI is a fixed geojson — global. The per-tab data scans (products / cubes / FSC) are now
 # reactive on each tab's folder picker, so they live inside the tab components, not here.
 _AOI_GEOJSON = load_aoi_geojson(_SETTINGS)
@@ -201,6 +205,7 @@ def _render_on_map(
     *,
     key: str,
     zoom_to_data: bool = False,
+    fixed_zoom: int | None = None,
     colorbar: tuple[list[str], float, float, str] | None = None,
 ) -> leafmap.Map:
     """Build a leafmap map centred on the AOI with ``result`` placed on it (if georef).
@@ -214,7 +219,10 @@ def _render_on_map(
         key: Unique transient-filename seed for this selection.
         zoom_to_data: If ``True``, frame the map on the non-transparent data footprint
             rather than the full layer extent — for sparse fields (FSC) that would
-            otherwise be a speck inside the AOI bbox.
+            otherwise be a speck inside the AOI bbox. Ignored when ``fixed_zoom`` is set.
+        fixed_zoom: If set, frame on the AOI centre at this zoom and never reframe to the
+            data — so a tab that re-renders per timestep (FSC) keeps a stable view instead
+            of jumping each step. Takes precedence over ``zoom_to_data``.
         colorbar: Optional ``(hex_colours, vmin, vmax, caption)`` for a continuous on-map
             colour scale (e.g. the FSC 0–1 legend). Drawn bottom-right.
     """
@@ -222,7 +230,7 @@ def _render_on_map(
         (_AOI_BOUNDS[1] + _AOI_BOUNDS[3]) / 2,
         (_AOI_BOUNDS[0] + _AOI_BOUNDS[2]) / 2,
     ]
-    zoom = 8
+    zoom = fixed_zoom if fixed_zoom is not None else 8
 
     has_raster = (
         result is not None and result.kind == "georef_raster" and result.bounds_4326 is not None
@@ -232,7 +240,7 @@ def _render_on_map(
         assert result is not None and result.bounds_4326 is not None  # narrows for mypy
         safe = "".join(c if c.isalnum() else "_" for c in key)
         tif = result_to_geotiff(result, _TMPDIR / f"{safe}.tif")
-        if zoom_to_data:
+        if zoom_to_data and fixed_zoom is None:
             data_box = _opaque_data_bounds_4326(result.image, result.bounds_4326)
             if data_box is not None:
                 center = [(data_box[1] + data_box[3]) / 2, (data_box[0] + data_box[2]) / 2]
@@ -261,9 +269,10 @@ def _render_on_map(
             indexes=indexes,
             layer_name=result.label,
             opacity=1.0,
-            # When zooming to the data footprint we have already framed the view; letting
-            # zoom_to_layer re-frame would snap back to the full (mostly-empty) extent.
-            zoom_to_layer=not zoom_to_data,
+            # When we have already framed the view (data footprint, or a fixed AOI zoom),
+            # letting zoom_to_layer re-frame would snap back to the full (mostly-empty)
+            # extent — and for FSC, jump the view on every timestep.
+            zoom_to_layer=not (zoom_to_data or fixed_zoom is not None),
         )
         if colorbar is not None:
             colors, vmin, vmax, caption = colorbar
@@ -281,6 +290,14 @@ def _render_on_map(
     # validator raises ``TraitError: 'east' ... expected a float, not NoneType`` on
     # re-render. The constructor ``center``/``zoom`` already frames the AOI, and
     # ``zoom_to_layer`` frames the active layer, so fit_bounds was redundant anyway.
+    #
+    # NOTE: deliberately no ``m.observe(names=["center", "zoom"])`` to persist the user's
+    # pan/zoom either. Subscribing to the viewport traits makes ipyleaflet sync the map
+    # *bounds*; on this version the client sends a transient ``east=None`` mid-interaction
+    # and the non-nullable ``east`` Float trait raises an uncaught
+    # ``TraitError: 'east' ... expected a float, not NoneType``. Same root cause as the
+    # removed fit_bounds. So the FSC frame is stable (``fixed_zoom``) but a manual pan/zoom
+    # resets on the next timestep — a deliberate trade for not crashing.
     return m
 
 
@@ -628,11 +645,13 @@ def FscTab() -> None:
                 )
         with solara.Column():
             fsc_colors, fsc_vmin, fsc_vmax = fsc_colorbar()
+            # fixed_zoom frames the AOI at a stable, closer view every render, so stepping
+            # the date slider does not jump the map (vs. the old per-footprint reframe).
             solara.display(
                 _render_on_map(
                     result,
                     key=f"fsc_{fsc_row.pred_date.isoformat()}",
-                    zoom_to_data=True,
+                    fixed_zoom=_AOI_DEFAULT_ZOOM,
                     colorbar=(fsc_colors, fsc_vmin, fsc_vmax, "FSC (0–1)"),
                 )
             )
