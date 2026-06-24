@@ -1,4 +1,4 @@
-# SnowGalileo: a pre-trained foundation model for fractional snow cover mapping
+# SnowGalileo: A Pre-trained Transformer for Snow Cover Mapping
 
 SnowGalileo is a pre-trained transformer model for daily fractional snow cover (FSC) mapping at 100 m resolution based on multi-sensor Earth observation data.
 
