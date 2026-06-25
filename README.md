@@ -2,6 +2,8 @@
 
 SnowGalileo is a pre-trained transformer model for daily fractional snow cover (FSC) mapping at 100 m resolution based on multi-sensor Earth observation data.
 
+The code for creating the figures of the manuscript can be found here: https://colab.research.google.com/drive/1dzpXLkT55wkT3tE_RbIwv-gbTaODYVUn?usp=sharing
+
 ## Python Version
 
 This project uses Python 3.11 and relies on a `Makefile` for standardized, reproducible commands.
