@@ -1,8 +1,8 @@
 # SnowGalileo: A Pre-trained Transformer for Snow Cover Mapping
 
-SnowGalileo is a pre-trained transformer model for daily fractional snow cover (FSC) mapping at 100 m resolution based on multi-sensor Earth observation data.
+This repository contains the code for pre-training, fine-tuning, and evaluating the ESA AI4Snow model "SnowGalileo". SnowGalileo is a transformer model for daily fractional snow cover (FSC) mapping at 100 m resolution, based on multi-sensor Earth observation data.
 
-The code for creating the figures of the manuscript can be found here: https://colab.research.google.com/drive/1dzpXLkT55wkT3tE_RbIwv-gbTaODYVUn?usp=sharing
+To reproduce the figures in the accompanying paper, please visit: https://colab.research.google.com/drive/1dzpXLkT55wkT3tE_RbIwv-gbTaODYVUn?usp=sharing
 
 ## Python Version
 
@@ -98,21 +98,14 @@ To be able to perform sensor fusion of remote sensing data of different spatial 
 
 Throughout the processing, the spatial (pixel) dimension gets reduced to a token dimension, and channels (referring to satellite bands, or distinct variables of auxiliary data, e.g. topography elevation and slope are distinct channels) are grouped into channel groups that include data with similar characteristics. For example, all Sentinel-2 RGB channels are grouped in one channel group.
 
-ESA AI4Snow contract number: ...
+### Funding
+We are greatful to the ESA AI4Science 4000143295/23/I-DT grant that made this project possible.
 
-### Ideal Future README's
-
-- How to add additional input sources
-- How to retrieve data for inference
-- How to conduct inference
-
-#### Credits
-This README file is inspired by the advanced lab template of Francis Pelletier.
-
-This repo inherits from the Galileo model.
-
-README structure is inspired from Francis Pelletier's advanced lab template.
+### Credits
+SatelliteCloudGenerator
 
 More information: Tseng, G., Fuller, A., Reil, M., Herzog, H., Beukema, P., Bastani, F., ... & Rolnick, D. (2025). Galileo: Learning global and local features in pretrained remote sensing models. arXiv e-prints, arXiv-2502.
 
 Original repo: https://github.com/nasaharvest/galileo
+
+This README file is inspired by the advanced lab template of Francis Pelletier.
