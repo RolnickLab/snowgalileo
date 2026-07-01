@@ -2,13 +2,18 @@
 
 This repository contains the code for pre-training, fine-tuning, and evaluating the ESA AI4Snow model "SnowGalileo". SnowGalileo is a transformer model for daily fractional snow cover (FSC) mapping at 100 m resolution, based on multi-sensor Earth observation data.
 
-To reproduce the figures in the accompanying paper, please visit: https://colab.research.google.com/drive/1dzpXLkT55wkT3tE_RbIwv-gbTaODYVUn?usp=sharing
+To reproduce the figures in the accompanying paper, please visit [this Colab notebook](https://colab.research.google.com/drive/1dzpXLkT55wkT3tE_RbIwv-gbTaODYVUn?usp=sharing)
 
 ## Python Version
 
 This project uses Python 3.11 and relies on a `Makefile` for standardized, reproducible commands.
 
 ## Package & Environment Management
+
+- **Environment & Dependency Management**: [uv](https://docs.astral.sh/uv/) is the recommended default tool for fast, reliable dependency installation and virtual environment creation. It can be configured to use [Poetry](https://python-poetry.org/docs/) or `conda` via `Makefile.variables`.
+  - When we mention `conda` in this project, we generally mean `mamba` or `micromamba` See Mamba documentation
+
+Configuration: Review the project-level configurations in Makefile.variables or set individual preferences in Makefile.private.
 
 ## Quickstart
 
