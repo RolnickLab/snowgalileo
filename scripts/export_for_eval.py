@@ -1,6 +1,6 @@
 import argparse
 
-from src.data import EarthEngineExporterEval
+from snow_galileo.data import EarthEngineExporterEval
 
 argparser = argparse.ArgumentParser(
     description="Starter script for exporting input data to be used for fine-tuning and evaluation from Google Earth Engine."

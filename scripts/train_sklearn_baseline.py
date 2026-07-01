@@ -2,11 +2,11 @@ import argparse
 import json
 from pathlib import Path
 
-from src.config import DEFAULT_SEED
-from src.data.config import NORMALIZATION_DICT_FILENAME
-from src.data.dataset import Dataset
-from src.fsc.landsat_baselines import LandsatEvalSklearn
-from src.utils import config_dir, seed_everything
+from snow_galileo.config import DEFAULT_SEED
+from snow_galileo.data.config import NORMALIZATION_DICT_FILENAME
+from snow_galileo.data.dataset import Dataset
+from snow_galileo.fsc.landsat_baselines import LandsatEvalSklearn
+from snow_galileo.utils import config_dir, seed_everything
 
 argparser = argparse.ArgumentParser(
     description="Starter script for training a sklearn model (Random Forest, SVR, or MLP)."

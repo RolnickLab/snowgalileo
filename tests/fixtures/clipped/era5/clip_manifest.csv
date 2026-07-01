@@ -1,0 +1,16 @@
+product_id,source,footprint_bbox,intersects,aoi_overlap_km2,valid_pixel_count,action,output_path
+10m_u_component_of_wind_0_daily-mean,era5,"-120.000000,48.000000,-114.000000,54.000000",True,24769.869891,456,CLIP,202503_ERA5LAND/10m_u_component_of_wind_0_daily-mean.nc
+10m_v_component_of_wind_0_daily-mean,era5,"-120.000000,48.000000,-114.000000,54.000000",True,24769.869891,456,CLIP,202503_ERA5LAND/10m_v_component_of_wind_0_daily-mean.nc
+2m_temperature_0_daily-mean,era5,"-120.000000,48.000000,-114.000000,54.000000",True,24769.869891,456,CLIP,202503_ERA5LAND/2m_temperature_0_daily-mean.nc
+skin_temperature_0_daily-mean,era5,"-120.000000,48.000000,-114.000000,54.000000",True,24769.869891,456,CLIP,202503_ERA5LAND/skin_temperature_0_daily-mean.nc
+202503_ERA5LAND_totalprecip,era5,"-120.000000,48.000000,-114.000000,54.000000",True,24769.869891,456,CLIP,202503_ERA5LAND_totalprecip.nc
+10m_u_component_of_wind_0_daily-mean,era5,"-120.000000,48.000000,-114.000000,54.000000",True,24769.869891,456,CLIP,202504_ERA5LAND/10m_u_component_of_wind_0_daily-mean.nc
+10m_v_component_of_wind_0_daily-mean,era5,"-120.000000,48.000000,-114.000000,54.000000",True,24769.869891,456,CLIP,202504_ERA5LAND/10m_v_component_of_wind_0_daily-mean.nc
+2m_temperature_0_daily-mean,era5,"-120.000000,48.000000,-114.000000,54.000000",True,24769.869891,456,CLIP,202504_ERA5LAND/2m_temperature_0_daily-mean.nc
+skin_temperature_0_daily-mean,era5,"-120.000000,48.000000,-114.000000,54.000000",True,24769.869891,456,CLIP,202504_ERA5LAND/skin_temperature_0_daily-mean.nc
+202504_ERA5LAND_totalprecip,era5,"-120.000000,48.000000,-114.000000,54.000000",True,24769.869891,456,CLIP,202504_ERA5LAND_totalprecip.nc
+10m_u_component_of_wind_0_daily-mean,era5,"-120.000000,48.000000,-114.000000,54.000000",True,24769.869891,456,CLIP,202505_ERA5LAND/10m_u_component_of_wind_0_daily-mean.nc
+10m_v_component_of_wind_0_daily-mean,era5,"-120.000000,48.000000,-114.000000,54.000000",True,24769.869891,456,CLIP,202505_ERA5LAND/10m_v_component_of_wind_0_daily-mean.nc
+2m_temperature_0_daily-mean,era5,"-120.000000,48.000000,-114.000000,54.000000",True,24769.869891,456,CLIP,202505_ERA5LAND/2m_temperature_0_daily-mean.nc
+skin_temperature_0_daily-mean,era5,"-120.000000,48.000000,-114.000000,54.000000",True,24769.869891,456,CLIP,202505_ERA5LAND/skin_temperature_0_daily-mean.nc
+202505_ERA5LAND_totalprecip,era5,"-120.000000,48.000000,-114.000000,54.000000",True,24769.869891,456,CLIP,202505_ERA5LAND_totalprecip.nc

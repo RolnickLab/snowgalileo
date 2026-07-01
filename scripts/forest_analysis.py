@@ -6,10 +6,10 @@ import pandas as pd
 import psutil
 import torch
 
-from src.config import DEFAULT_SEED
-from src.data.config import DATA_FOLDER, RESULTS_FOLDER
-from src.fsc.add_eval.forest_eval import ForestMetaDataset
-from src.utils import seed_everything
+from snow_galileo.config import DEFAULT_SEED
+from snow_galileo.data.config import DATA_FOLDER, RESULTS_FOLDER
+from snow_galileo.fsc.add_eval.forest_eval import ForestMetaDataset
+from snow_galileo.utils import seed_everything
 
 seed_everything(DEFAULT_SEED)
 process = psutil.Process()
@@ -29,7 +29,7 @@ argparser.add_argument(
     "--results_csv_name",
     type=str,
     default="fsc_test_rockies_tiny",
-    help="Identifier of existing csv with per-tile results to append the forest results to. This csv must be stored in RESULTS_FOLDER specified in src/data/config.py and start with the prefix 'evaluation_results_' before the results_csv_name.",
+    help="Identifier of existing csv with per-tile results to append the forest results to. This csv must be stored in RESULTS_FOLDER specified in src/snow_galileo/data/config.py and start with the prefix 'evaluation_results_' before the results_csv_name.",
 )
 args = argparser.parse_args().__dict__
 

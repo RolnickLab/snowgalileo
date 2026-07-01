@@ -2,10 +2,10 @@ import argparse
 import os
 from pathlib import Path
 
-from src.config import DEFAULT_SEED
-from src.data import Dataset
-from src.data.config import DATA_FOLDER, EE_PROJECT, TIFS_FOLDER
-from src.utils import (
+from snow_galileo.config import DEFAULT_SEED
+from snow_galileo.data import Dataset
+from snow_galileo.data.config import DATA_FOLDER, EE_PROJECT, TIFS_FOLDER
+from snow_galileo.utils import (
     seed_everything,
 )
 

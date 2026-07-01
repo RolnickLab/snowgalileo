@@ -3,7 +3,7 @@ import unittest
 import torch
 from einops import repeat
 
-from src.data_augmentation import FlipAndRotateSpace
+from snow_galileo.data_augmentation import FlipAndRotateSpace
 
 
 class TestAugmentation(unittest.TestCase):

@@ -2,9 +2,9 @@ import argparse
 
 import geopandas
 
-from src.data import EarthEngineExporter
-from src.data.config import DATA_FOLDER
-from src.data.earthengine.eo import LAT, LON
+from snow_galileo.data import EarthEngineExporter
+from snow_galileo.data.config import DATA_FOLDER
+from snow_galileo.data.earthengine.eo import LAT, LON
 
 argparser = argparse.ArgumentParser(
     description="Starter script for exporting pre-training data from Google Earth Engine."

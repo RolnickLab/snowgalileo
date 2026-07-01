@@ -1,0 +1,133 @@
+<graph id="s1_grd_cop_chain">
+  <version>1.0</version>
+
+  <!--
+    Reproduces GEE COPERNICUS/S1_GRD preprocessing with the ESA Sentinel-1
+    Toolbox (the same engine GEE uses), for the TASK-005 parity spike.
+
+    Chain (matching the GEE S1_GRD recipe):
+      Read -> Apply-Orbit-File -> Subset (AOI, radar geometry)
+        -> ThermalNoiseRemoval -> Remove-GRD-Border-Noise
+        -> Calibration (sigma0) -> Terrain-Correction (SRTM 1Sec, EPSG:32611)
+        -> LinearToFromdB -> Write (GeoTIFF, VV+VH in dB)
+
+    The early Subset to the AOI (in radar geometry, after orbit so GCPs survive)
+    is essential: terrain-correcting the full ~250 km IW swath at 10 m overflows
+    SNAP's classic-GeoTIFF 4 GB writer limit AND wastes compute. We only need the
+    patch neighbourhood.
+
+    Run with (absolute gpt path; /usr/bin/snap is snapd, NOT ESA SNAP):
+      <snap>/bin/gpt scripts/developer_scripts/bow_valley_inference_local/spikes/s1_grd_snap_graph.xml \
+        -Pinput=<extracted .SAFE or manifest.safe> \
+        -Pregion='POLYGON((lon lat, ...))' \
+        -Poutput=/tmp/s1run/s1_grd_db.tif
+
+    Throwaway de-risk graph (TASK-005), not the production S1 adapter (TASK-014).
+  -->
+
+  <node id="Read">
+    <operator>Read</operator>
+    <sources/>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <file>${input}</file>
+    </parameters>
+  </node>
+
+  <node id="Apply-Orbit-File">
+    <operator>Apply-Orbit-File</operator>
+    <sources>
+      <sourceProduct refid="Read"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <orbitType>Sentinel Precise (Auto Download)</orbitType>
+      <polyDegree>3</polyDegree>
+      <!-- Don't fail the whole chain if the precise orbit isn't published yet;
+           SNAP falls back to restituted. -->
+      <continueOnFail>true</continueOnFail>
+    </parameters>
+  </node>
+
+  <node id="Subset">
+    <operator>Subset</operator>
+    <sources>
+      <sourceProduct refid="Apply-Orbit-File"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <geoRegion>${region}</geoRegion>
+      <copyMetadata>true</copyMetadata>
+    </parameters>
+  </node>
+
+  <node id="ThermalNoiseRemoval">
+    <operator>ThermalNoiseRemoval</operator>
+    <sources>
+      <sourceProduct refid="Subset"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <selectedPolarisations>VV,VH</selectedPolarisations>
+      <removeThermalNoise>true</removeThermalNoise>
+    </parameters>
+  </node>
+
+  <node id="Remove-GRD-Border-Noise">
+    <operator>Remove-GRD-Border-Noise</operator>
+    <sources>
+      <sourceProduct refid="ThermalNoiseRemoval"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <selectedPolarisations>VV,VH</selectedPolarisations>
+      <borderLimit>500</borderLimit>
+      <trimThreshold>0.5</trimThreshold>
+    </parameters>
+  </node>
+
+  <node id="Calibration">
+    <operator>Calibration</operator>
+    <sources>
+      <sourceProduct refid="Remove-GRD-Border-Noise"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <selectedPolarisations>VV,VH</selectedPolarisations>
+      <outputSigmaBand>true</outputSigmaBand>
+      <outputImageScaleInDb>false</outputImageScaleInDb>
+    </parameters>
+  </node>
+
+  <node id="Terrain-Correction">
+    <operator>Terrain-Correction</operator>
+    <sources>
+      <sourceProduct refid="Calibration"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <demName>SRTM 1Sec HGT</demName>
+      <demResamplingMethod>BILINEAR_INTERPOLATION</demResamplingMethod>
+      <imgResamplingMethod>BILINEAR_INTERPOLATION</imgResamplingMethod>
+      <pixelSpacingInMeter>10.0</pixelSpacingInMeter>
+      <!-- EPSG:32611 (UTM 11N) to match the cube cell grid. -->
+      <mapProjection>EPSG:32611</mapProjection>
+      <nodataValueAtSea>false</nodataValueAtSea>
+      <saveSelectedSourceBand>true</saveSelectedSourceBand>
+    </parameters>
+  </node>
+
+  <node id="LinearToFromdB">
+    <operator>LinearToFromdB</operator>
+    <sources>
+      <sourceProduct refid="Terrain-Correction"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <sourceBands/>
+    </parameters>
+  </node>
+
+  <node id="Write">
+    <operator>Write</operator>
+    <sources>
+      <sourceProduct refid="LinearToFromdB"/>
+    </sources>
+    <parameters class="com.bc.ceres.binding.dom.XppDomElement">
+      <file>${output}</file>
+      <formatName>GeoTIFF</formatName>
+    </parameters>
+  </node>
+</graph>

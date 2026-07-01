@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from src.data.earthengine.eo import (
+from snow_galileo.data.earthengine.eo import (
     SPACE_BAND_GROUPS_IDX,
     SPACE_BANDS,
     SPACE_TIME_HIGH_RES_BANDS,
@@ -16,7 +16,7 @@ from src.data.earthengine.eo import (
     TIME_BANDS,
     TIME_BANDS_GROUPS_IDX,
 )
-from src.masking import _aggregate_mask_per_channel_group
+from snow_galileo.masking import _aggregate_mask_per_channel_group
 
 
 class TestEval(unittest.TestCase):

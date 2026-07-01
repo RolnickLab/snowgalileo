@@ -7,7 +7,7 @@ import shutil
 from pathlib import Path
 from typing import Union
 
-from src.data.config import DATA_FOLDER
+from snow_galileo.data.config import DATA_FOLDER
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--exported_tif_path", type=str, default="fsc_train_100m_tifs/all_tifs")

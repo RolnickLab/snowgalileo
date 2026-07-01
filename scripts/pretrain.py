@@ -23,10 +23,10 @@ from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
-from src.collate_fns import mae_collate_fn
-from src.config import DEFAULT_SEED, get_random_config
-from src.data import Dataset, Normalizer
-from src.data.config import (
+from snow_galileo.collate_fns import mae_collate_fn
+from snow_galileo.config import DEFAULT_SEED, get_random_config
+from snow_galileo.data import Dataset, Normalizer
+from snow_galileo.data.config import (
     CONFIG_FILENAME,
     DATA_FOLDER,
     DECODER_FILENAME,
@@ -37,9 +37,9 @@ from src.data.config import (
     OUTPUT_FOLDER,
     WANDB_ENTITY,
 )
-from src.loss import do_loss
-from src.snowgalileo import Encoder, GalileoPixelDecoder, adjust_learning_rate
-from src.utils import (
+from snow_galileo.loss import do_loss
+from snow_galileo.snowgalileo import Encoder, GalileoPixelDecoder, adjust_learning_rate
+from snow_galileo.utils import (
     AverageMeter,
     check_config,
     config_dir,
