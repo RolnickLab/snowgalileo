@@ -1,0 +1,3 @@
+This repository contains the code for pre-training, fine-tuning, and evaluating the ESA AI4Snow model "SnowGalileo". SnowGalileo is a transformer model for daily fractional snow cover (FSC) mapping at 100 m resolution, based on multi-sensor Earth observation data.
+
+To reproduce the figures in the accompanying paper, please visit [this Colab notebook](https://colab.research.google.com/drive/1kdggrEBsr7J-ByTAQ-Ga73Z5uCqzSuGe?usp=sharing). The data needed for plotting is stored [here](https://drive.google.com/drive/folders/1orX0tT48QbZQ7pTEf0CJpVHCcXy3uI1V).
