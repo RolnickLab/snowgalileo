@@ -54,7 +54,7 @@ argparser.add_argument(
 argparser.add_argument(
     "--eval_config_name",
     type=str,
-    default="fsc_test_rockies_clouds_tiny.json",
+    default="fsc_test_rockies_full_clouds_tiny.json",
     help="Config name for evaluation. Options are stored in configs/eval/",
 )
 argparser.add_argument(

@@ -41,7 +41,7 @@ argparser.add_argument(
     help="Decoding strategy to use. 'Finetune' uses a linear decoder and finetunes the entire model. 'Linear_probe' uses a linear decoder and only trains the decoder. 'Attention_probe' uses an attention-based decoder and fine-tunes the entire model. 'sklearn' uses the frozen encoder features for a sklearn model.",
 )
 argparser.add_argument(
-    "--num_finetune_epochs", type=int, default=25, help="Number of epochs to finetune for."
+    "--num_finetune_epochs", type=int, default=100, help="Number of epochs to finetune for."
 )
 argparser.add_argument(
     "--checkpointing",

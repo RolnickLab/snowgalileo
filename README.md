@@ -105,23 +105,45 @@ Note: You can also view environment details (path, python version, etc.) by runn
 
 ## Project Usage
 
-Information about input data export using Google Earth Engine can be found in `data/README.md`.
-
-### Description of the configs
-
-Also refer to the data retrieval section in data/.
-
 ### How to Run Pre-training
 
-For pre-training SnowGalileo, [data] is required. Then run [config] config file.
+For pre-training SnowGalileo,
+1) Download `pretrain_inputs_h5pys.tar.xz` from [here](https://zenodo.org/records/20735656). Extract the files and place them into `data/h5pys_pretrain/`.
+2) Run `python -m scripts.pretrain --h5pys_only`. Set `--output_folder` to where the pre-training checkpoint should be stored.
 
 ### How to Run Fine-Tuning
 
+For fine-tuning SnowGalileo on clear-sky data,
+1) Download `finetune_inputs_h5pys.tar.xz` from [here](https://zenodo.org/records/20735656). Extract the files and place them into `data/fsc_train_balanced_h5pys/`. From the same Zenodo repository, download the FSC labels used as ground truth (`finetune_labels_tifs.tar.xz`) and place them into `data/fsc_train_100m_masks_balanced/`.
+2) Run `python -m scripts.finetune --checkpointing --h5pys_only`. Set `--pretraining_checkpoint_folder` to where the pre-training checkpoint is stored (can be downloaded from the folder `checkpoints_snowgalileo_pretrain/` from [here](https://zenodo.org/records/20735656)). Set `--exclude_prediction_high_res` if you want to fine-tune the model without high-resolution satellite data (Landsat and Sentinel-2) on the prediction day. After fine-tuning, the final checkpoint will stored in `logging_checkpoints/`.
+
+For fine-tuning SnowGalileo on cloudy data,
+1) Download `finetune_inputs_with_clouds_h5pys.tar.xz` from [here](https://zenodo.org/records/20735656). Extract the files and place them into `data/fsc_more_clouds_timeseries_h5pys/`. If not done already, from the same Zenodo repository, download the FSC labels used as ground truth (`finetune_labels_tifs.tar.xz`) and place them into `data/fsc_train_100m_masks_balanced/`.
+2) Run `python -m scripts.finetune_with_clouds --checkpointing --h5pys_only`. Set `--pretraining_checkpoint_folder` to where the pre-training checkpoint is stored (can be downloaded from the folder `checkpoints_snowgalileo_pretrain/` from [here](https://zenodo.org/records/20735656)). Set `--exclude_prediction_high_res` if you want to fine-tune the model without high-resolution satellite data (Landsat and Sentinel-2) on the prediction day. After fine-tuning, the final checkpoint will stored in `logging_checkpoints/`.
+
 ### How to Run Evaluation Experiments
 
-### How to Run Inference on your own Points (preliminary)
+SnowGalileo can be evaluated using data from either the Canadian Rockies or the Swiss Alps.
 
-Parts of the code require a WandB account to function entirely. If you would like to make use of this, please set the variable [WANDB_ENTITY] in "src/snow_galileo/data/config.py" to your Belieben.
+For evaluating SnowGalileo on clear-sky data,
+1) Download `evaluate_[region]_inputs_h5pys.tar.xz` from [here](https://zenodo.org/records/20735656). Extract the files and place them into `data/fsc_test_[region]_h5pys/`. From the same Zenodo repository, download the FSC labels used as ground truth (`evaluate_[region]_labels_tifs.tar.xz`) and place them into `data/fsc_test_[region]_100m_masks/`.
+2) Run `python -m scripts.eval_only --eval_config_name "fsc_test_[region]_tiny.json" --h5pys_only`. Set `--checkpoint_name` to the name of the SnowGalileo checkpoint that should be evaluated (options can be downloaded from the folder `checkpoints_snowgalileo_finetune/` from [here](https://zenodo.org/records/20735656) and should be stored in `logging_checkpoints/`). Set `--exclude_prediction_high_res` if you want to evaluate the model without high-resolution satellite data (Landsat and Sentinel-2) on the prediction day. Evaluation results will be stored in `results/`.
+
+Replace `[region]` with either `rockies` for the Canadian Rockies, or `switzerland` for the Swiss Alps.
+
+For evaluating SnowGalileo on cloudy data,
+1) Download `evaluate_[region]_inputs_with_clouds_h5pys.tar.xz` from [here](https://zenodo.org/records/20735656). Extract the files and place them into `data/fsc_test_[region]_full_clouds_h5pys/`. If not done already, from the same Zenodo repository, download the FSC labels used as ground truth (`evaluate_[region]_labels_tifs.tar.xz`) and place them into `data/fsc_test_[region]_100m_masks/`.
+2) Run `python -m scripts.eval_with_clouds --eval_config_name "fsc_test_[region]_full_clouds_tiny.json" --h5pys_only`. Set `--checkpoint_name` to the name of the SnowGalileo checkpoint that should be evaluated (options can be downloaded from the folder `checkpoints_snowgalileo_finetune/` from [here](https://zenodo.org/records/20735656) and should be stored in `logging_checkpoints/`). Set `--exclude_prediction_high_res` if you want to evaluate the model without high-resolution satellite data (Landsat and Sentinel-2) on the prediction day. Evaluation results will be stored in `results/`.
+
+Replace `[region]` with either `rockies` for the Canadian Rockies, or `switzerland` for the Swiss Alps.
+
+### How to Run Inference on your own Points
+
+This repository can be used to run FSC inference on your own points. More detailed documentation will be available in the future.
+
+### Further Usage
+
+Information about exporting input data using Google Earth Engine can be found in the file `data/README.md`. This repository also contains code for training and evaluating baseline models (random forest, MLP and support vector regressor), as well as for running machine learning ablation experiments. More detailed documentation will be available in the future.
 
 ## Environment & Portability Note
 

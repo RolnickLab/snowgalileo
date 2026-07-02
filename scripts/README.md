@@ -1,19 +1,28 @@
 ### File Structure
 
-Pre-training Execution:
+Here, starter scripts for pre-training, fine-tuning, evaluation, and inference are stored.
 
-- `scripts/export_for_pretrain.py`: Export pre-training data from Google Earth Engine based on specified sampling points (stored in `data/pretraining_points`).
-- `scripts/pretrain.py`: Snowgalileo pre-training
-  - Setup (wandb, hyperparameters, etc.)
-  - Dataloader collate function: creates masks for pre-training
-  - Pre-train model for e epochs
-  - Evaluate model pre-training on validation task (encoder, with KNN)
+Pre-training:
 
-Evaluation Execution:
+- `scripts/export_for_pretrain.py`: Export pre-training data from Google Earth Engine based on specified sampling points (stored in `data/pretraining_points`). More information can be found in `data/README.md`.
+- `scripts/compute_normalization.py`: Compute ML normalization values based on the pre-training dataset. The same values are used for all subsequent training and evaluation steps.
+- `scripts/pretrain.py`: SnowGalileo pre-training.
 
-- `scripts/export_for_eval.py`: Export data from Google Earth Engine for evaluation purposes. More post-processing is necessary (TODO: document what exactly)
-- `scripts/run_inference`: Generates output GeoTIFFs including model input and predictions. Currently only works with already exported data (data paths are specified in the eval config to be passed as argument)
-- `scripts/finetune.py`: Main entrypoint for finetuning
-- `scripts/finetune_sweeps.py`: Hyperparameter sweeps for finetuning
-- `scripts/eval_only.py`: Evaluates finetuned model from checkpoint. Will be main entrypoint for analyzes experiments
-- `scripts/visualize.py`: Used to plot qualitative predictions
+Fine-tuning & Evaluation:
+
+- `scripts/export_for_eval.py`: Export data from Google Earth Engine for evaluation purposes. More information can be found in `data/README.md`.
+- `scripts/finetune.py`: SnowGalileo fine-tuning.
+- `scripts/finetune_with_clouds.py`: SnowGalileo fine-tuning with generated clouds.
+- `scripts/finetune_sweeps.py`: Hyperparameter sweeps for SnowGalileo fine-tuning.
+- `scripts/train_sklearn_baseline.py`: Training of random forest, MLP, and support vector regressor.
+- `scripts/sklearn_sweeps.py`: Hyperparameter sweeps for training the baseline models.
+- `scripts/eval_only.py`: Evaluates finetuned model from checkpoint.
+- `scripts/eval_with_clouds.py`: Evaluates finetuned model from checkpoint with generated clouds.
+- `scripts/eval_individual_patches.py`: Evaluates the performance per individual tile.
+- `scripts/visualize.py`: Used to plot qualitative predictions.
+- `scripts/test_sklearn_baseline.py`: Evaluation of random forest, MLP, and support vector regressor.
+
+Inference Execution:
+
+- `scripts/export_for_inference.py`: Export data from Google Earth Engine for inference purposes. More information in `data/README.md`.
+- `scripts/run_inference`: Generates output GeoTIFFs including model input and predictions.

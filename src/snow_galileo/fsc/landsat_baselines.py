@@ -968,6 +968,10 @@ class LandsatEvalSklearn(LandsatEval):
     ) -> Dict[str, float]:
         assert normalization in ["std", ""], f"Unknown normalization {normalization}"
 
+        assert (
+            self.eval_config["cloud_generation"]["cloud_prob_pred_day"] == 0.0 or self.h5pys_only
+        ), "Cloud generation is only supported with h5pys to this point."
+
         test_ds = LandsatEvalDatasetSklearn(
             split="test",
             exclude_prediction_date=self.exclude_prediction_date,

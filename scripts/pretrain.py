@@ -87,7 +87,7 @@ argparser.add_argument(
     action="store_true",
     help="Speeds up training. Make sure that all pre-training files to be used are stored in the h5pys folder.",
 )
-argparser.add_argument("--num_workers", dest="num_workers", default=0)
+argparser.add_argument("--num_workers", dest="num_workers", default=4)
 argparser.add_argument("--batch_size", dest="batch_size", default="")
 argparser.add_argument("--checkpoint_every_epoch", type=int, default=50)
 argparser.add_argument("--tifs_folder", type=str, default="tifs_all_bands")

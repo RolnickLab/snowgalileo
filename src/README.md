@@ -10,25 +10,15 @@ Data Export:
 
 Snowgalileo Model:
 - `src/snow_galileo/snowgalileo.py`
-  - Encoder:
-    - divides images into patches
-    - projects patches to per-channel-group tokens
-    - adds embeddings (e.g., where is space is the token, or where in time)
-    - removes masked tokens
-    - Applies attention
-    - adds masked tokens
-  - Pixel Decoder (used for pre-training):
-    - gets embedded images
-    - Applies attention
-    - bring back into pixel space
+  - encoder & pixel decoder (used for pre-training)
 - `src/snow_galileo/masking.py`
   - creates token masks for pre-training
 - `src/snow_galileo/embedding.py`
   - the embeddings that add contextual information to tokens
 
-Finetuning/ Evaluation Setup:
+Finetuning & Evaluation Setup:
 - `src/snow_galileo/fsc/patch_predict.py`
-  - contains the Finetuning head and functions for finetuning and evaluating the model
+  - contains the FSC prediction head and functions for finetuning and evaluating the model
 - `src/snow_galileo/fsc/landsat_eval.py`
   - prepares the Landsat evaluation dataset, and wraps the Landsat-specific evaluation process
 
