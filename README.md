@@ -6,16 +6,106 @@ To reproduce the figures in the accompanying paper, please visit `paper_visualiz
 
 ## Python Version
 
-This project uses Python 3.11 and relies on a `Makefile` for standardized, reproducible commands.
+This project uses **Python 3.11** and relies on a `Makefile` for standardized, reproducible commands.
+
+You can read more about the makefile [here](.make/README.md).
 
 ## Package & Environment Management
 
-- **Environment & Dependency Management**: [uv](https://docs.astral.sh/uv/) is the recommended default tool for fast, reliable dependency installation and virtual environment creation. It can be configured to use [Poetry](https://python-poetry.org/docs/) or `conda` via `Makefile.variables`.
-  - When we mention `conda` in this project, we generally mean `mamba` or `micromamba` See Mamba documentation
+- **Environment & Dependency Management:** **[uv](https://docs.astral.sh/uv/)** is the **recommended default** tool for fast, reliable dependency installation and virtual environment creation. It can be configured to use **[Poetry](https://python-poetry.org/docs/)** or `conda` via `Makefile.variables`.
+  - When we mention `conda` in this project, we generally mean `mamba` or `micromamba` [See Mamba documentation](https://mamba.readthedocs.io/en/latest/user_guide/mamba.html)
+- **Configuration:** Review the project-level configurations in [Makefile.variables](Makefile.variables) or set individual preferences in `Makefile.private`.
 
-Configuration: Review the project-level configurations in Makefile.variables or set individual preferences in Makefile.private.
+## Quick Start
 
-## Quickstart
+First, make sure that either the project's [Makefile.variables](Makefile.variables) or [Makefile.private](Makefile.private.example) your choice of configuration.
+
+You can review your current active configurations using this command:
+
+```bash
+make info
+```
+
+You can list the available targets using this command:
+
+```bash
+make targets
+```
+
+### Tool-Specific Setup
+
+Select your preferred development stack below. Ensure your `Makefile.variables` are configured to match your choice.
+
+#### 1. Configure Your Stack
+
+Adjust the variables in `Makefile.private` to match your desired setup if they differ from the project's default configuration found in `Makefile.variables` (do this with care and only if necessary):
+
+| Desired Stack                | `DEFAULT_BUILD_TOOL` | `DEFAULT_INSTALL_ENV` |
+| :--------------------------- | :------------------- | :-------------------- |
+| **uv** (Default/Recommended) | `uv`                 | `uv`                  |
+| **Poetry** (Standard)        | `poetry`             | `poetry`              |
+| **Poetry + Conda**           | `poetry`             | `conda`               |
+| **Poetry + Venv**            | `poetry`             | `venv`                |
+
+#### 2. Install System Tools
+
+If needed, run the command corresponding to your chosen stack to install the necessary system tools (e.g., `uv`, `poetry`, or `mamba`).
+
+<details open>
+<summary><strong>Stack: uv </strong></summary>
+
+```bash
+make uv-install
+```
+
+</details>
+
+<details> <summary><strong>Stack: Poetry</strong></summary>
+
+```bash
+make poetry-install
+```
+
+</details>
+
+<details> <summary><strong>Stack: Poetry + Conda</strong></summary>
+
+```bash
+# Install both the package manager and environment manager
+make mamba-install
+make poetry-install
+```
+
+</details>
+
+### Installing the Project
+
+Once your tools are configured and installed, run the universal install command. This will create the environment and install all dependencies defined in pyproject.toml.
+
+```bash
+make install
+```
+
+### Activating the Environment
+
+```bash
+# Works for uv, poetry, and conda configurations
+eval $(make <tool>-activate)
+```
+
+Examples:
+
+- uv: `eval $(make uv-activate)`
+
+- poetry: `eval $(make poetry-activate)`
+
+- conda: `eval $(make conda-activate)`
+
+Note: You can also view environment details (path, python version, etc.) by running `make <tool>-env-info` (`poetry` and `conda` only - `uv` does not provide this functionality).
+
+## Project Usage
+
+Information about input data export using Google Earth Engine can be found in `data/README.md`.
 
 ### Description of the configs
 
@@ -33,84 +123,46 @@ For pre-training SnowGalileo, [data] is required. Then run [config] config file.
 
 Parts of the code require a WandB account to function entirely. If you would like to make use of this, please set the variable [WANDB_ENTITY] in "src/snow_galileo/data/config.py" to your Belieben.
 
-### Detailed Description
+## Environment & Portability Note
 
-#### File Structure
-
-Information about input data export using Google Earth Engine can be found in `data/README.md`.
-
-Pre-training Execution:
-
-- `scripts/export_for_pretrain.py`: Export pre-training data from Google Earth Engine based on specified sampling points (stored in `data/pretraining_points`).
-- `scripts/pretrain.py`: Snowgalileo pre-training
-  - Setup (wandb, hyperparameters, etc.)
-  - Dataloader collate function: creates masks for pre-training
-  - Pre-train model for e epochs
-  - Evaluate model pre-training on validation task (encoder, with KNN)
-
-Evaluation Execution:
-
-- `scripts/export_for_eval.py`: Export data from Google Earth Engine for evaluation purposes. More post-processing is necessary (TODO: document what exactly)
-- `scripts/predict_and_generate_output`: Generates output GeoTIFFs including model input and predictions. Currently only works with already exported data (data paths are specified in the eval config to be passed as argument)
-- `scripts/finetune.py`: Main entrypoint for finetuning
-- `scripts/finetune_sweeps.py`: Hyperparameter sweeps for finetuning
-- `scripts/eval_only.py`: Evaluates finetuned model from checkpoint. Will be main entrypoint for analyzes experiments
-- `scripts/visualize.py`: Used to plot qualitative predictions
-
-Data Export:
-
-- `src/snow_galileo/data/earthengine/`
-  - contains all code specific to Google Earthengine: sensor-specific export scripts, as well as export files
-- `src/snow_galileo/data/dataset.py`
-  - contains the pre-training dataset class
-
-Snowgalileo Model:
-
-- `src/snow_galileo/snowgalileo.py`
-  - Encoder:
-    - divides images into patches
-    - projects patches to per-channel-group tokens
-    - adds embeddings (e.g., where is space is the token, or where in time)
-    - removes masked tokens
-    - Applies attention
-    - adds masked tokens
-  - Pixel Decoder (used for pre-training):
-    - gets embedded images
-    - Applies attention
-    - bring back into pixel space
-- `src/snow_galileo/masking.py`
-  - creates token masks for pre-training
-- `src/snow_galileo/embedding.py`
-  - the embeddings that add contextual information to tokens
-
-Finetuning/ Evaluation Setup:
-
-- `src/snow_galileo/eval/patch_predict.py`
-  - contains the Finetuning head and functions for finetuning and evaluating the model
-- `src/snow_galileo/eval/landsat_eval.py`
-  - prepares the Landsat evaluation dataset, and wraps the Landsat-specific evaluation process
-
-#### Disclaimer about Variable Names
-
-To be able to perform sensor fusion of remote sensing data of different spatial and temporal resolutions, this project lives from grouping data with similar resolutions into distinct data types, and processing these as individual variables throughout the different stages of the algorithm. To increase readability, we use shortcuts as identifier for these data types, and define them in this section:
-
-- `s_t_h_x`: All data stemming from high resolution (10m-30m) satellite imagery, that vary over a timespan of 8 days. These include: Sentinel-1, Sentinel-2, Landsat. The initial shape of these array type will be `(height=100, width=100, timesteps=8, channels=15)`.
-- `s_t_m_x`: All data stemming from medium resolution (300m) satellite imagery, varying over time. This includes Sentinel-3. Shape: `(height=5, width=5, timesteps=8, channels=2)`.
-- `s_t_l_x`: All data stemming from low resolution (500m) satellite imagery, varying over time. This includes MODIS, 500m-VIIRS (RGB and VNIR), NDSI, NDVI. Shape: `(height=2, width=2, timesteps=8, channels=11)`.
-- `sp_x`: All data stemming from high resolution satellite imagery, that is static in time. This includes DEM and WC. Shape: `(height=100, width=100, channels=14)`.
-- `t_x`: All time-varying data that is static in space. This includes 1km-VIIRS (RGB, VNIR, SWIR) and ERA5. Shape: `(timesteps=8, channels=9)`.
-- `st_x`: All data static over space and time. This includes coordinate information. Shape: `(channels=3)`.
-
-Throughout the processing, the spatial (pixel) dimension gets reduced to a token dimension, and channels (referring to satellite bands, or distinct variables of auxiliary data, e.g. topography elevation and slope are distinct channels) are grouped into channel groups that include data with similar characteristics. For example, all Sentinel-2 RGB channels are grouped in one channel group.
+This template is designed for reproducibility using the `uv.lock` file.
 
 ### Funding
 We are greatful to the ESA AI4Science 4000143295/23/I-DT grant that made this project possible.
 
-### Credits
-SatelliteCloudGenerator
+### Acknowledgements
 
-More information: Tseng, G., Fuller, A., Reil, M., Herzog, H., Beukema, P., Bastani, F., ... & Rolnick, D. (2025). Galileo: Learning global and local features in pretrained remote sensing models. arXiv e-prints, arXiv-2502.
+This repository builds upon the codebase of [Galileo](https://github.com/nasaharvest/galileo), which is licensed under the [MIT](https://opensource.org/license/mit) license. If you use this repository, please also cite the Galileo paper:
 
-Original repo: https://github.com/nasaharvest/galileo
+```
+@misc{tseng2025galileolearninggloballocal,
+      title={Galileo: Learning Global and Local Features in Pretrained Remote Sensing Models},
+      author={Gabriel Tseng and Anthony Fuller and Marlena Reil and Henry Herzog and Patrick Beukema and Favyen Bastani and James R. Green and Evan Shelhamer and Hannah Kerner and David Rolnick},
+      year={2025},
+      eprint={2502.09356},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2502.09356},
+}
+```
 
-This README file is inspired by the advanced lab template of Francis Pelletier.
+This repository also uses the [SatelliteCloudGenerator](https://github.com/strath-ai/SatelliteCloudGenerator). If you use functionality based on this package, please cite:
+
+```
+@Article{rs15174138,
+  author = {Czerkawski, Mikolaj and Atkinson, Robert and Michie, Craig and Tachtatzis, Christos},
+  title = {SatelliteCloudGenerator: Controllable Cloud and Shadow Synthesis for Multi-Spectral Optical Satellite Images},
+  journal = {Remote Sensing},
+  volume = {15},
+  year = {2023},
+  number = {17},
+  article-number = {4138},
+  url = {https://www.mdpi.com/2072-4292/15/17/4138},
+  issn = {2072-4292},
+  doi = {10.3390/rs15174138}
+}
+```
+
+The structure of this README was inspired by a template created by Francis Pelletier.
+
+We gratefully acknowledge all original authors and contributors for making their code openly available.
