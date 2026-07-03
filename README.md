@@ -185,6 +185,6 @@ This repository also uses the [SatelliteCloudGenerator](https://github.com/strat
 }
 ```
 
-The structure of this README was inspired by a template created by Francis Pelletier.
+This README is using resources, templates, and documentation by RolnickLab.
 
 We gratefully acknowledge all original authors and contributors for making their code openly available.
