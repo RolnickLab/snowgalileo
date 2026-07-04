@@ -1,4 +1,4 @@
-### Using this great tool: https://github.com/strath-ai/SatelliteCloudGenerator
+### Using: https://github.com/strath-ai/SatelliteCloudGenerator
 
 import random
 from pathlib import Path
@@ -140,19 +140,6 @@ FULL_CONFIG = {
     "blur_scaling": 2,
 }
 
-# thick local (from https://github.com/strath-ai/SatelliteCloudGenerator/blob/main/src/configs.py)
-LOCAL_CONFIG = {
-    "min_lvl": 0.0,
-    "max_lvl": 1.0,
-    "const_scale": True,
-    "decay_factor": 1.0,
-    "clear_threshold": [0.0, 0.2],
-    "locality_degree": [2, 4],
-    "cloud_color": True,
-    "channel_offset": 2,
-    "blur_scaling": 2,
-}
-
 
 def generate_clouds(
     band_stack, band_weights, scaling_factors, cloud_type="random", cloud_prob=0.0, shadow_prob=0.0
@@ -172,7 +159,7 @@ def generate_clouds(
     elif cloud_type == "full":
         cfgs = [FULL_CONFIG]
     elif cloud_type == "local":
-        cfgs = [LOCAL_CONFIG]
+        cfgs = [scg.LOCAL_CONFIG]
 
     gens = []
 

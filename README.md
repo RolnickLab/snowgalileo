@@ -2,6 +2,8 @@
 
 This repository contains the code for pre-training, fine-tuning, and evaluating the ESA AI4Snow model "SnowGalileo". SnowGalileo is a transformer model for daily fractional snow cover (FSC) mapping at 100 m resolution, based on multi-sensor Earth observation data.
 
+This work was funded by the European Space Agency (ESA) under contract/grant number (AI4Science 4000143295/23/I-DT).
+
 To reproduce the figures in the accompanying paper, please visit `paper_visualizations/`.
 
 ## Python Version
@@ -149,9 +151,6 @@ Information about exporting input data using Google Earth Engine can be found in
 
 This template is designed for reproducibility using the `uv.lock` file.
 
-### Funding
-We are greatful to the ESA AI4Science 4000143295/23/I-DT grant that made this project possible.
-
 ### Acknowledgements
 
 This repository builds upon the codebase of [Galileo](https://github.com/nasaharvest/galileo), which is licensed under the [MIT](https://opensource.org/license/mit) license. If you use this repository, please also cite the Galileo paper:
@@ -168,7 +167,7 @@ This repository builds upon the codebase of [Galileo](https://github.com/nasahar
 }
 ```
 
-This repository also uses the [SatelliteCloudGenerator](https://github.com/strath-ai/SatelliteCloudGenerator). If you use functionality based on this package, please cite:
+SnowGalileo's evaluation pipeline would not be possible without the [SatelliteCloudGenerator](https://github.com/strath-ai/SatelliteCloudGenerator). If you use functionality based on this package, please cite:
 
 ```
 @Article{rs15174138,
