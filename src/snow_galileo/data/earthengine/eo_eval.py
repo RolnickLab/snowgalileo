@@ -558,10 +558,22 @@ class EarthEngineExporterEval(EarthEngineExporter):
 
     def export_from_csv_wgs84(self, csv_file) -> None:
         """Export from center coordinates and dates passed by a csv file."""
+
+        assert np.all(df["crs"] == "EPSG:4326"), (
+            "Doublecheck the coordinate system of the CSV file and that a column 'crs' is present in EPSG format. Expected 'EPSG:4326'."
+        )
+
         df = pd.read_csv(csv_file)
         dates = df["date"].tolist()
-        lats = df["latitude"].tolist()
-        lons = df["longitude"].tolist()
+
+        if "latitude" in df.columns and "longitude" in df.columns:
+            lats = df["latitude"].tolist()
+            lons = df["longitude"].tolist()
+        elif "center_y" in df.columns and "center_x" in df.columns:
+            lats = df["center_y"].tolist()
+            lons = df["center_x"].tolist()
+        else:
+            raise ValueError("DataFrame must contain columns 'latitude' and 'longitude' or 'center_y' and 'center_x'")
 
         exports_started = 0
         print(f"Exporting {len(dates)} files: ")
