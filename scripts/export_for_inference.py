@@ -30,9 +30,16 @@ argparser.add_argument(
     default="rockies_march.csv",
     help="Filename of the csv file that stores locations and dates to be exported. Here, the file must specify bounding box bounds in UTM format.",
 )
+argparser.add_argument("--crs", type=str, choices=["utm", "wgs84"])
 args = argparser.parse_args().__dict__
 
 exporter = EarthEngineExporterEval(
     check_gcp=args["check_gcp"], mode=args["mode"], tifs_folder=args["tifs_folder"]
 )
-exporter.export_from_csv_utm(csv_file=args["path_to_csv"])
+
+if args["crs"] == "utm":
+    exporter.export_from_csv_utm(csv_file=args["path_to_csv"])
+elif args["crs"] == "wgs84":
+    exporter.export_from_csv_wgs84(csv_file=args["path_to_csv"])
+else:
+    raise ValueError("Invalid coordinate system. Must be one of 'utm' or 'wgs84'.")
