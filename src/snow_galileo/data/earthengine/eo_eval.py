@@ -556,9 +556,9 @@ class EarthEngineExporterEval(EarthEngineExporter):
         if self.mode == "url":
             print("Export finished.")
 
-    def export_from_csv_wgs84(self, csv_file) -> None:
+    def export_from_csv_wgs84(self, csv_file, start_export_from_idx=0) -> None:
         """Export from center coordinates and dates passed by a csv file."""
-        df = pd.read_csv(csv_file)
+        df = pd.read_csv(csv_file)[start_export_from_idx:]
         assert np.all(df["crs"] == "EPSG:4326"), (
             "Doublecheck the coordinate system of the CSV file and that a column 'crs' is present in EPSG format. Expected 'EPSG:4326'."
         )
@@ -605,9 +605,9 @@ class EarthEngineExporterEval(EarthEngineExporter):
             self.sync_local_and_gcloud()
             print("Finished sync")
 
-    def export_from_csv_utm(self, csv_file) -> None:
+    def export_from_csv_utm(self, csv_file, start_export_from_idx=0) -> None:
         """Export from UTM bounds and dates passed by a csv file."""
-        df = pd.read_csv(csv_file)
+        df = pd.read_csv(csv_file)[start_export_from_idx:]
         dates = df["date"].tolist()
         coordinate_system = df["crs"].tolist()
         center_x = df["center_lat"].tolist()

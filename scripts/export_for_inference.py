@@ -6,6 +6,12 @@ argparser = argparse.ArgumentParser(
     description="Starter script for exporting input data to be used for inference from Google Earth Engine."
 )
 argparser.add_argument(
+    "--start_export_from_idx",
+    type=int,
+    default=0,
+    help="In the case of exporting in batches: Set to a higher index to start exporting points lower in the script.",
+)
+argparser.add_argument(
     "--mode",
     type=str,
     default="url",
@@ -38,8 +44,12 @@ exporter = EarthEngineExporterEval(
 )
 
 if args["crs"] == "utm":
-    exporter.export_from_csv_utm(csv_file=args["path_to_csv"])
+    exporter.export_from_csv_utm(
+        csv_file=args["path_to_csv"], start_export_from_idx=args["start_export_from_idx"]
+    )
 elif args["crs"] == "wgs84":
-    exporter.export_from_csv_wgs84(csv_file=args["path_to_csv"])
+    exporter.export_from_csv_wgs84(
+        csv_file=args["path_to_csv"], start_export_from_idx=args["start_export_from_idx"]
+    )
 else:
     raise ValueError("Invalid coordinate system. Must be one of 'utm' or 'wgs84'.")
