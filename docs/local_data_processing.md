@@ -13,15 +13,15 @@ Every operator script lives in
 `scripts/developer_scripts/bow_valley_inference_local/`; each is a thin Typer CLI
 over package code, run with `uv run python …` (the viewer with `uv run solara run …`). Run the stages top to bottom:
 
-| #   | Stage                         | Script                                                                    | Output                                               |
-| --- | ----------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 0   | Grid + reference patches (§2) | `python -m src.data.local_sources.grid --emit-csv`                        | `configs/bow_valley/cube_cells.csv`, parity fixtures |
-| 1   | Process raw → read roots (§3) | `process_raw_dataset.py process-all`                                      | clipped archive + `sentinel1_snap/` cache            |
-| 1a  | (S1 only, standalone)         | `process_raw_dataset.py process-s1` **or** `build_bow_valley_s1_cache.py` | `sentinel1_snap/s1_grd_<granule>.tif`                |
-| 1b  | Audit stage 1                 | `process_raw_audit.py`                                                    | exit 0 = clean                                       |
-| 2   | Assemble 308-band cubes (§5)  | `export_bow_valley_cube.py`                                               | `processing_root/cubes/PR_*.tif`                     |
-| 3   | Daily FSC inference (§6)      | `infer_bow_valley_daily_fsc.py`                                           | `processing_root/daily_fsc/*.tif`                    |
-| 4   | Inspect / QA (§7)             | `solara run data_viewer.py`                                               | Clip / Cube / Daily-FSC tabs                         |
+| #   | Stage                                                  | Script                                                                    | Output                                               |
+| --- | ------------------------------------------------------ | ------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 0   | Grid + reference patches (§2) - DEPRECATED AND REMOVED | `python -m src.data.local_sources.grid --emit-csv`                        | `configs/bow_valley/cube_cells.csv`, parity fixtures |
+| 1   | Process raw → read roots (§3)                          | `process_raw_dataset.py process-all`                                      | clipped archive + `sentinel1_snap/` cache            |
+| 1a  | (S1 only, standalone)                                  | `process_raw_dataset.py process-s1` **or** `build_bow_valley_s1_cache.py` | `sentinel1_snap/s1_grd_<granule>.tif`                |
+| 1b  | Audit stage 1                                          | `process_raw_audit.py`                                                    | exit 0 = clean                                       |
+| 2   | Assemble 308-band cubes (§5)                           | `export_bow_valley_cube.py`                                               | `processing_root/cubes/PR_*.tif`                     |
+| 3   | Daily FSC inference (§6)                               | `infer_bow_valley_daily_fsc.py`                                           | `processing_root/daily_fsc/*.tif`                    |
+| 4   | Inspect / QA (§7)                                      | `solara run data_viewer.py`                                               | Clip / Cube / Daily-FSC tabs                         |
 
 **Key ordering rule (stage 1):** Sentinel-1 is **processed, never clipped** — it
 must go through ESA SNAP *before* anything reads it. `process-all` enforces this:
@@ -75,7 +75,7 @@ Produces the sweep enumeration and parity fixtures every later task consumes.
 
 ```bash
 # Emit the generated cube CSV (cells × inference-window days, full cross-product)
-uv run python -m src.data.local_sources.grid --emit-csv --mode A \
+uv run python scripts/developer_scripts/bow_valley_inference_local/create_grid_csv.py \
     --window-start 2025-04-06 --window-end 2025-05-28
 
 uv run pytest tests/test_local_sources/test_grid.py tests/test_local_sources/test_cube_csv.py -q

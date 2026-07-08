@@ -30,11 +30,10 @@ import json
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Literal
 
 import pandas as pd
 import structlog
-import typer
 from pyproj import Transformer
 from shapely.geometry import Point, Polygon, box
 from shapely.ops import transform as shapely_transform
@@ -80,7 +79,6 @@ DEFAULT_LEGACY_CSV: Path = Path("tests/fixtures/sampled_cells_bow_river_with_dat
 #: grid generator and the clip stage share one source of truth — see
 #: data/BOW_VALLEY_DATA_LAYOUT.md.
 DEFAULT_AOI_PATH: Path = LocalPaths().aoi_path
-DEFAULT_OUTPUT_CSV: Path = Path("configs/bow_valley/cube_cells.csv")
 DEFAULT_MANIFEST_PATH: Path = Path("configs/bow_valley/cell_filter_manifest.csv")
 
 KeepRule = Literal["centre_in", "fully_inside"]
@@ -416,12 +414,12 @@ def _window_days(window_start: date, window_end: date) -> list[date]:
     return [window_start + timedelta(days=offset) for offset in range(span + 1)]
 
 
-def build_cube_csv(
+def build_cube_dataframe(
     kept: list[CellGeometry],
     window_start: date = DEFAULT_WINDOW_START,
     window_end: date = DEFAULT_WINDOW_END,
 ) -> pd.DataFrame:
-    """Build the generated cube CSV: full cross-product of cells × window days.
+    """Build the generated cube datafrane: full cross-product of cells × window days.
 
     Each row's ``date`` is a window-end day (``YYYYMMDD``); the GEE/export side
     derives ``window_start = date - (NUM_TIMESTEPS - 1)``. Cell geometry is
@@ -459,94 +457,3 @@ def build_cube_csv(
         rows=len(frame),
     )
     return frame
-
-
-def generate(
-    legacy_csv: Path = DEFAULT_LEGACY_CSV,
-    aoi_path: Path = DEFAULT_AOI_PATH,
-    output_csv: Path = DEFAULT_OUTPUT_CSV,
-    manifest_path: Path = DEFAULT_MANIFEST_PATH,
-    keep_rule: KeepRule = "centre_in",
-    window_start: date = DEFAULT_WINDOW_START,
-    window_end: date = DEFAULT_WINDOW_END,
-) -> pd.DataFrame:
-    """Run the full geometry pipeline and write the cube CSV + manifest.
-
-    Args:
-        legacy_csv: Legacy cell-sampling CSV (geometry only).
-        aoi_path: AOI GeoJSON (authoritative clip/inference boundary).
-        output_csv: Destination for the generated cube CSV.
-        manifest_path: Destination for the kept/dropped cell manifest.
-        keep_rule: AOI containment rule (see :func:`filter_cells`).
-        window_start: First inference day (inclusive).
-        window_end: Last inference day (inclusive).
-
-    Returns:
-        The generated cube CSV DataFrame (also written to ``output_csv``).
-    """
-    aoi = load_aoi_polygon(aoi_path)
-    cells = load_cells(legacy_csv)
-    kept, dropped = filter_cells(cells, aoi, keep_rule=keep_rule)
-
-    manifest = build_manifest(kept, dropped)
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    manifest.to_csv(manifest_path, index=False)
-
-    cube_csv = build_cube_csv(kept, window_start=window_start, window_end=window_end)
-    output_csv.parent.mkdir(parents=True, exist_ok=True)
-    cube_csv.to_csv(output_csv, index=False)
-
-    logger.info(
-        "generate_complete",
-        kept=len(kept),
-        dropped=len(dropped),
-        cube_rows=len(cube_csv),
-        output_csv=str(output_csv),
-        manifest=str(manifest_path),
-    )
-    return cube_csv
-
-
-def emit_csv(
-    legacy_csv: Annotated[
-        Path, typer.Option(help="Legacy cell-sampling CSV.")
-    ] = DEFAULT_LEGACY_CSV,
-    aoi_path: Annotated[Path, typer.Option("--aoi", help="AOI GeoJSON.")] = DEFAULT_AOI_PATH,
-    output_csv: Annotated[
-        Path, typer.Option(help="Generated cube CSV output.")
-    ] = DEFAULT_OUTPUT_CSV,
-    manifest_path: Annotated[
-        Path, typer.Option(help="Kept/dropped manifest output.")
-    ] = DEFAULT_MANIFEST_PATH,
-    require_fully_inside: Annotated[
-        bool,
-        typer.Option("--require-fully-inside", help="Keep only fully-contained cells (→ 338)."),
-    ] = False,
-    window_start: Annotated[
-        str, typer.Option(help="First inference day, YYYY-MM-DD.")
-    ] = DEFAULT_WINDOW_START.isoformat(),
-    window_end: Annotated[
-        str, typer.Option(help="Last inference day, YYYY-MM-DD.")
-    ] = DEFAULT_WINDOW_END.isoformat(),
-) -> None:
-    """Emit the generated cube CSV and the kept/dropped cell manifest."""
-    keep_rule: KeepRule = "fully_inside" if require_fully_inside else "centre_in"
-    cube_csv = generate(
-        legacy_csv=legacy_csv,
-        aoi_path=aoi_path,
-        output_csv=output_csv,
-        manifest_path=manifest_path,
-        keep_rule=keep_rule,
-        window_start=date.fromisoformat(window_start),
-        window_end=date.fromisoformat(window_end),
-    )
-    typer.echo(f"Wrote {len(cube_csv)} rows to {output_csv}")
-
-
-def main() -> None:
-    """CLI entry point (single command — emits the cube CSV + manifest)."""
-    typer.run(emit_csv)
-
-
-if __name__ == "__main__":
-    main()
