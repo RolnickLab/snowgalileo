@@ -610,8 +610,21 @@ class EarthEngineExporterEval(EarthEngineExporter):
         df = pd.read_csv(csv_file)[start_export_from_idx:]
         dates = df["date"].tolist()
         coordinate_system = df["crs"].tolist()
-        center_x = df["center_lat"].tolist()
-        center_y = df["center_lon"].tolist()
+        # Accept both centre-column dialects (mirrors export_from_csv_wgs84). These feed
+        # only the output filename: 'center_lat'/'center_lon' carry true degrees; the
+        # 'center_x'/'center_y' fallback carries UTM northing/easting, so the resulting
+        # filename holds UTM values (use build_cube_csv_for_gee_utm for degree filenames).
+        if "center_lat" in df.columns and "center_lon" in df.columns:
+            center_x = df["center_lat"].tolist()
+            center_y = df["center_lon"].tolist()
+        elif "center_x" in df.columns and "center_y" in df.columns:
+            center_x = df["center_y"].tolist()
+            center_y = df["center_x"].tolist()
+        else:
+            raise ValueError(
+                "DataFrame must contain columns 'center_lat' and 'center_lon' or "
+                "'center_x' and 'center_y'"
+            )
         min_x = df["min_x"].tolist()
         max_x = df["max_x"].tolist()
         min_y = df["min_y"].tolist()
