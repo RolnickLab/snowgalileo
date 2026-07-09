@@ -145,6 +145,13 @@ def main(
             help="Erode the AOI inward by this many metres before tiling (0 = full AOI)."
         ),
     ] = 0.0,
+    buffer_m: Annotated[
+        float,
+        typer.Option(
+            help="Grow each cell outward by this many metres at export for seamless overlap "
+            "(export geometry only; CSV cell bounds stay canonical). Neighbours overlap 2x this."
+        ),
+    ] = 40.0,
     limit: Annotated[
         Optional[int],
         typer.Option(help="Cap the number of CSV rows (smoke run); None = all (cell, day) pairs."),
@@ -193,8 +200,12 @@ def main(
         return
 
     exporter = EarthEngineExporterEval(check_gcp=check_gcp, mode=mode, tifs_folder=tifs_folder)
-    logger.info("export_start", mode=mode, tifs_folder=tifs_folder, cubes=len(frame))
-    exporter.export_from_csv_utm(csv_file=str(out_csv))
+    logger.info(
+        "export_start", mode=mode, tifs_folder=tifs_folder, cubes=len(frame), buffer_m=buffer_m
+    )
+    # Native-UTM export: pins every tile to the shared UTM lattice (no EPSG:4326 round-trip)
+    # and adds a buffer_m overlap halo, so tiles are seamless. See EarthEngineExporterEval.
+    exporter.export_from_csv_utm_native(csv_file=str(out_csv), buffer_m=buffer_m)
     logger.info("export_complete", mode=mode, tifs_folder=tifs_folder, cubes=len(frame))
 
 

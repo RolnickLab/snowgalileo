@@ -423,6 +423,10 @@ class EarthEngineExporterEval(EarthEngineExporter):
 
         print("Exporting image in crs", crs, flush=True)
 
+        # Grid control: scale=10 with an explicit `crs`. EE resamples every band onto one
+        # scale-aligned grid in that CRS, so a native-UTM `crs` yields axis-aligned tiles on a
+        # shared 10 m lattice (no convergence tilt, no 0-border) without needing a crs_transform
+        # affine — which broke on dates whose bands had inconsistent native footprints.
         if self.mode == "cloud":
             try:
                 ee.batch.Export.image.toCloudStorage(
@@ -461,15 +465,14 @@ class EarthEngineExporterEval(EarthEngineExporter):
                 return False
         elif self.mode == "url":
             try:
-                url = img.getDownloadURL(
-                    {
-                        "region": polygon,
-                        "crs": crs,
-                        "scale": 10,
-                        "filePerBand": False,
-                        "format": "GEO_TIFF",
-                    }
-                )
+                params: dict = {
+                    "region": polygon,
+                    "crs": crs,
+                    "scale": 10,
+                    "filePerBand": False,
+                    "format": "GEO_TIFF",
+                }
+                url = img.getDownloadURL(params)
                 r = requests.get(url, stream=True)
             except ee.ee_exception.EEException as e:
                 print(f"Task not started! Got exception {e}", flush=True)
@@ -672,3 +675,96 @@ class EarthEngineExporterEval(EarthEngineExporter):
 
         if self.mode == "url":
             print("Export finished.")
+
+    def export_from_csv_utm_native(
+        self,
+        csv_file,
+        buffer_m: float = 40.0,
+        start_export_from_idx: int = 0,
+    ) -> None:
+        """Export cubes on the native UTM lattice — seamless tiles, no EPSG:4326 round-trip.
+
+        Unlike :meth:`export_from_csv_utm`, which reprojects the UTM cell corners to lat/lon
+        and lets Earth Engine reproject that tilted quad back to UTM (grid convergence then
+        leaves a 0-filled sliver around each tile → visible seams), this builds the request
+        rectangle directly in the row's native UTM ``crs`` and exports at ``scale=10`` in that
+        same CRS. Earth Engine resamples every band onto one axis-aligned 10 m lattice snapped
+        to the UTM origin, so every tile lands on a shared grid and neighbours abut with no gap.
+
+        Each cell is grown outward by ``buffer_m`` metres on all four sides before export, so
+        adjacent tiles deliberately overlap by ``2 * buffer_m``. The overlap is redundant data
+        (fine — coverage outside the AOI is acceptable) that a downstream mosaic step is
+        expected to reconcile by mean-averaging the overlapping pixels.
+
+        NOTE: the ``buffer_m`` halo is applied to the *export geometry only*. The CSV cell
+        bounds (``min_x``/``max_x``/``min_y``/``max_y``) stay the canonical 1 km values that
+        round-trip with the loader and the local-source pipeline — they are never widened.
+
+        Args:
+            csv_file: Cube CSV in the GEE-UTM reader dialect (``date, crs, center_lat,
+                center_lon, min_x, max_x, min_y, max_y``); ``crs`` is a per-row UTM EPSG.
+            buffer_m: Outward halo added to every cell edge, in UTM metres. ``40.0`` gives an
+                80 m overlap between neighbours.
+            start_export_from_idx: Skip the first N rows (resume a partial run).
+        """
+        df = pd.read_csv(csv_file)[start_export_from_idx:]
+        dates = df["date"].tolist()
+        coordinate_system = df["crs"].tolist()
+        # Centre columns only name the output file (mirrors export_from_csv_utm): the
+        # 'center_lat'/'center_lon' dialect carries true degrees; the 'center_x'/'center_y'
+        # fallback carries UTM northing/easting.
+        if "center_lat" in df.columns and "center_lon" in df.columns:
+            center_x = df["center_lat"].tolist()
+            center_y = df["center_lon"].tolist()
+        elif "center_x" in df.columns and "center_y" in df.columns:
+            center_x = df["center_y"].tolist()
+            center_y = df["center_x"].tolist()
+        else:
+            raise ValueError(
+                "DataFrame must contain columns 'center_lat' and 'center_lon' or "
+                "'center_x' and 'center_y'"
+            )
+        min_x = df["min_x"].tolist()
+        max_x = df["max_x"].tolist()
+        min_y = df["min_y"].tolist()
+        max_y = df["max_y"].tolist()
+
+        exports_started = 0
+        print(f"Exporting {len(dates)} files (native UTM, buffer_m={buffer_m}): ")
+
+        for i, dat in enumerate(dates):
+            crs = coordinate_system[i]
+
+            # Grow the cell outward by buffer_m in native UTM metres (exact — no reprojection).
+            emin_x = float(min_x[i]) - buffer_m
+            emax_x = float(max_x[i]) + buffer_m
+            emin_y = float(min_y[i]) - buffer_m
+            emax_y = float(max_y[i]) + buffer_m
+
+            # Request rectangle in the row's own UTM CRS; geodesic=False keeps edges straight
+            # in the projected plane (no great-circle bulge). Passing this UTM `crs` (with the
+            # scale=10 export) makes EE resample every band onto one axis-aligned 10 m lattice
+            # in that zone — seamless tiles, no crs_transform affine needed.
+            region = ee.Geometry.Rectangle(
+                coords=[emin_x, emin_y, emax_x, emax_y],
+                proj=ee.Projection(crs),
+                geodesic=False,
+            )
+
+            filename = f"PR_{dat}_{center_x[i]:.16f}_{center_y[i]:.16f}.tif"
+
+            window_end_date = datetime.strptime(str(dat), "%Y%m%d").date()
+            window_start_date = window_end_date - timedelta(days=NUM_TIMESTEPS - 1)
+
+            export_started = self._export_for_polygon(
+                polygon=region,
+                polygon_identifier=filename,
+                interval_start_date=window_start_date,
+                interval_end_date=window_end_date,
+                crs=crs,
+            )
+            if export_started:
+                exports_started += 1
+
+        if self.mode == "url":
+            print(f"Export finished. {exports_started}/{len(dates)} started.")
