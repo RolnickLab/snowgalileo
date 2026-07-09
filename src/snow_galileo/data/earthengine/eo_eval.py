@@ -13,6 +13,7 @@
 import os
 import shutil
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, List, Optional, Union
@@ -681,6 +682,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
         csv_file,
         buffer_m: float = 40.0,
         start_export_from_idx: int = 0,
+        max_workers: int = 4,
     ) -> None:
         """Export cubes on the native UTM lattice — seamless tiles, no EPSG:4326 round-trip.
 
@@ -706,6 +708,11 @@ class EarthEngineExporterEval(EarthEngineExporter):
             buffer_m: Outward halo added to every cell edge, in UTM metres. ``40.0`` gives an
                 80 m overlap between neighbours.
             start_export_from_idx: Skip the first N rows (resume a partial run).
+            max_workers: Parallel download threads, used only in ``url`` mode (each row is
+                a blocking ``getDownloadURL`` + download). Keep this low — Earth Engine
+                throttles ``getDownloadURL``, so a large pool yields 429s, not speed.
+                Ignored for ``cloud``/``drive`` mode, which run serially (fire-and-forget
+                batch submits that mutate shared state).
         """
         df = pd.read_csv(csv_file)[start_export_from_idx:]
         dates = df["date"].tolist()
@@ -729,10 +736,11 @@ class EarthEngineExporterEval(EarthEngineExporter):
         min_y = df["min_y"].tolist()
         max_y = df["max_y"].tolist()
 
-        exports_started = 0
         print(f"Exporting {len(dates)} files (native UTM, buffer_m={buffer_m}): ")
 
-        for i, dat in enumerate(dates):
+        def _export_row(i: int) -> bool:
+            """Build and export one row's cube. Returns True if the export started."""
+            dat = dates[i]
             crs = coordinate_system[i]
 
             # Grow the cell outward by buffer_m in native UTM metres (exact — no reprojection).
@@ -756,15 +764,24 @@ class EarthEngineExporterEval(EarthEngineExporter):
             window_end_date = datetime.strptime(str(dat), "%Y%m%d").date()
             window_start_date = window_end_date - timedelta(days=NUM_TIMESTEPS - 1)
 
-            export_started = self._export_for_polygon(
+            return self._export_for_polygon(
                 polygon=region,
                 polygon_identifier=filename,
                 interval_start_date=window_start_date,
                 interval_end_date=window_end_date,
                 crs=crs,
             )
-            if export_started:
-                exports_started += 1
+
+        # url mode is network-bound (getDownloadURL + download release the GIL), so a small
+        # thread pool cuts wall time. cloud/drive mode only fires batch submits that mutate
+        # the shared ee_task_list — no I/O to overlap and not thread-safe — so run it serially.
+        indices = range(len(dates))
+        if self.mode == "url" and max_workers > 1:
+            with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                results = list(pool.map(_export_row, indices))
+        else:
+            results = [_export_row(i) for i in indices]
+        exports_started = sum(results)
 
         if self.mode == "url":
             print(f"Export finished. {exports_started}/{len(dates)} started.")

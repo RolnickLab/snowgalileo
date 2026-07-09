@@ -152,6 +152,13 @@ def main(
             "(export geometry only; CSV cell bounds stay canonical). Neighbours overlap 2x this."
         ),
     ] = 40.0,
+    max_workers: Annotated[
+        int,
+        typer.Option(
+            help="Parallel download threads (url mode only). Keep low — GEE throttles "
+            "getDownloadURL, so a big pool yields 429s, not speed. 1 = serial."
+        ),
+    ] = 4,
     limit: Annotated[
         Optional[int],
         typer.Option(help="Cap the number of CSV rows (smoke run); None = all (cell, day) pairs."),
@@ -201,11 +208,18 @@ def main(
 
     exporter = EarthEngineExporterEval(check_gcp=check_gcp, mode=mode, tifs_folder=tifs_folder)
     logger.info(
-        "export_start", mode=mode, tifs_folder=tifs_folder, cubes=len(frame), buffer_m=buffer_m
+        "export_start",
+        mode=mode,
+        tifs_folder=tifs_folder,
+        cubes=len(frame),
+        buffer_m=buffer_m,
+        max_workers=max_workers,
     )
     # Native-UTM export: pins every tile to the shared UTM lattice (no EPSG:4326 round-trip)
     # and adds a buffer_m overlap halo, so tiles are seamless. See EarthEngineExporterEval.
-    exporter.export_from_csv_utm_native(csv_file=str(out_csv), buffer_m=buffer_m)
+    exporter.export_from_csv_utm_native(
+        csv_file=str(out_csv), buffer_m=buffer_m, max_workers=max_workers
+    )
     logger.info("export_complete", mode=mode, tifs_folder=tifs_folder, cubes=len(frame))
 
 
