@@ -14,8 +14,7 @@ You can read more about the makefile [here](.make/README.md).
 
 ## Package & Environment Management
 
-- **Environment & Dependency Management:** **[uv](https://docs.astral.sh/uv/)** is the **recommended default** tool for fast, reliable dependency installation and virtual environment creation. It can be configured to use **[Poetry](https://python-poetry.org/docs/)** or `conda` via `Makefile.variables`.
-  - When we mention `conda` in this project, we generally mean `mamba` or `micromamba` [See Mamba documentation](https://mamba.readthedocs.io/en/latest/user_guide/mamba.html)
+- **Environment & Dependency Management:** This project builds on **[uv](https://docs.astral.sh/uv/)** for fast, reliable dependency installation and virtual environment creation.
 - **Configuration:** Review the project-level configurations in [Makefile.variables](Makefile.variables) or set individual preferences in `Makefile.private`.
 
 ## Quick Start
@@ -42,13 +41,6 @@ Select your preferred development stack below. Ensure your `Makefile.variables` 
 
 Adjust the variables in `Makefile.private` to match your desired setup if they differ from the project's default configuration found in `Makefile.variables` (do this with care and only if necessary):
 
-| Desired Stack                | `DEFAULT_BUILD_TOOL` | `DEFAULT_INSTALL_ENV` |
-| :--------------------------- | :------------------- | :-------------------- |
-| **uv** (Default/Recommended) | `uv`                 | `uv`                  |
-| **Poetry** (Standard)        | `poetry`             | `poetry`              |
-| **Poetry + Conda**           | `poetry`             | `conda`               |
-| **Poetry + Venv**            | `poetry`             | `venv`                |
-
 #### 2. Install System Tools
 
 If needed, run the command corresponding to your chosen stack to install the necessary system tools (e.g., `uv`, `poetry`, or `mamba`).
@@ -57,28 +49,8 @@ If needed, run the command corresponding to your chosen stack to install the nec
 <summary><strong>Stack: uv </strong></summary>
 
 ```bash
-make uv-install
+pipx install uv
 ```
-
-</details>
-
-<details> <summary><strong>Stack: Poetry</strong></summary>
-
-```bash
-make poetry-install
-```
-
-</details>
-
-<details> <summary><strong>Stack: Poetry + Conda</strong></summary>
-
-```bash
-# Install both the package manager and environment manager
-make mamba-install
-make poetry-install
-```
-
-</details>
 
 ### Installing the Project
 

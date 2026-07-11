@@ -1,5 +1,6 @@
 import logging
 import warnings
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Union, cast
 
@@ -1328,6 +1329,23 @@ class LandsatEval(EvalTask):
                 with cast(xr.Dataset, rioxarray.open_rasterio(filepath)) as data:
                     stack = np.concatenate([data.values, preds_up[None, :, :]], axis=0)
 
+                    new_attrs = data.attrs.copy()
+                    new_attrs.update(
+                        {
+                            "description": (
+                                "Input bands plus model prediction. The last band contains the "
+                                "fractional snow cover (FSC) map predicted by SnowGalileo. "
+                                "The FSC map provides pixel-wise snow cover fractions predicted at "
+                                "a native spatial resolution of 100 m and resampled to 10 m. "
+                                "FSC values range from 0 (no snow-covered area within the pixel) "
+                                "to 1 (the entire pixel covered by snow)."
+                            ),
+                            "prediction_model": "SnowGalileo",
+                            "processing_date": datetime.now(datetime.UTC).strftime("%y%m%d"),
+                            "units": "(last band only) fractional snow cover (unitless, range 0-1)",
+                        }
+                    )
+
                     new_band = np.arange(1, stack.shape[0] + 1)
                     new = xr.DataArray(
                         stack,
@@ -1337,7 +1355,7 @@ class LandsatEval(EvalTask):
                             "y": data.coords["y"],
                             "x": data.coords["x"],
                         },
-                        attrs=data.attrs,
+                        attrs=new_attrs,
                     )
 
                     new = new.rio.write_crs(data.rio.crs)
