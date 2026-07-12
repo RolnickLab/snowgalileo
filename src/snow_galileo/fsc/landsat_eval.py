@@ -1,6 +1,6 @@
+import datetime
 import logging
 import warnings
-from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Union, cast
 
@@ -1341,7 +1341,9 @@ class LandsatEval(EvalTask):
                                 "to 1 (the entire pixel covered by snow)."
                             ),
                             "prediction_model": "SnowGalileo",
-                            "processing_date": datetime.now(datetime.UTC).strftime("%y%m%d"),
+                            "processing_date": datetime.datetime.now(datetime.UTC).strftime(
+                                "%y%m%d"
+                            ),
                             "units": "(last band only) fractional snow cover (unitless, range 0-1)",
                         }
                     )
