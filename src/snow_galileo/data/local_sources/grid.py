@@ -86,6 +86,8 @@ GEE_UTM_CSV_COLUMNS: list[str] = [
     "max_y",
 ]
 
+# TODO Generalize CRS management for other regions
+
 #: CRS the legacy cells (and therefore the generated CSV) are expressed in.
 GRID_MATH_CRS: str = "EPSG:32611"
 
