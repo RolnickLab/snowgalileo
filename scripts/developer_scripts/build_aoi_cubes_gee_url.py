@@ -139,19 +139,13 @@ def main(
     mode: Annotated[
         str, typer.Option(help="GEE export mode: 'url' (download), 'cloud', or 'drive'.")
     ] = "url",
-    inset_m: Annotated[
-        float,
-        typer.Option(
-            help="Erode the AOI inward by this many metres before tiling (0 = full AOI)."
-        ),
-    ] = 0.0,
     buffer_m: Annotated[
         float,
         typer.Option(
             help="Grow each cell outward by this many metres at export for seamless overlap "
             "(export geometry only; CSV cell bounds stay canonical). Neighbours overlap 2x this."
         ),
-    ] = 40.0,
+    ] = 0.0,
     max_workers: Annotated[
         int,
         typer.Option(
@@ -181,7 +175,7 @@ def main(
 
     list_of_cells = build_cells(mode="B", aoi_path=aoi)
     if not list_of_cells:
-        raise typer.BadParameter(f"AOI {aoi} tiled to zero cells (check CRS / inset_m).")
+        raise typer.BadParameter(f"AOI {aoi} tiled to zero cells (check CRS).")
 
     frame = build_cube_csv_for_gee_utm(list_of_cells, window_start=start, window_end=end)
 
