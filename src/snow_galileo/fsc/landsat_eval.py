@@ -1915,5 +1915,5 @@ class LandsatEval(EvalTask):
     def evaluate_indidvidual_samples(self, model: EncoderWithHead, id: str):
         self._evaluate_individual_samples(model, id=id)
 
-    def predict_and_store_output(self, model: EncoderWithHead, id: str):
-        self._predict_and_store_output(model, id=id)
+    def predict_and_store_output(self, model: EncoderWithHead, id: str, log_wandb: bool = True):
+        self._predict_and_store_output(model, id=id, log_wandb=log_wandb)
