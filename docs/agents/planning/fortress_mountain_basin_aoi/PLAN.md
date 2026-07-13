@@ -1,7 +1,7 @@
 # Fortress Mountain Basin AOI — Cube Build via GEE URL Pipeline
 
-Status: **code complete & validated; blocked on GEE/GCP credentials for the live download.**
-Last updated: 2026-07-07
+Status: **live download working & seamless; committed. 3-day AOI run verified (75/75 tiles).**
+Last updated: 2026-07-09
 
 ## Goal
 
@@ -90,9 +90,39 @@ columns and cited stale line numbers). Now:
 
 Nothing has been committed — pending review.
 
+### 4. Seamless native-UTM export + parallelism (2026-07-09)
+
+The first live run exposed ~20 m seams: a 0-valued border sliver around each tile from
+the EPSG:4326 round-trip (grid convergence tilts the UTM box → 0-filled slivers). Fixed by
+exporting in the cell's **native UTM CRS** instead of round-tripping through 4326.
+
+- **`eo_eval.py` `export_from_csv_utm_native`** — builds the request rectangle directly in
+  the row's UTM `crs`, grows each cell by a `buffer_m` halo (default 40 m → neighbours
+  overlap 80 m, for a downstream mean-mosaic to reconcile), and exports at
+  **`crs=<UTM>` + `scale=10`**. EE resamples every band onto one shared 10 m lattice snapped
+  to the UTM origin → axis-aligned, no tilt, no 0-border.
+- **Dead end that was reverted:** an explicit `crs_transform` affine (to pin the origin)
+  failed on ~2/3 of dates with `Expression evaluates to an image with inconsistent bounding boxes` — the 308-band composite has bands with mismatched native footprints, and without a
+  `scale` to trigger auto-resample EE cannot form one grid. `crs=UTM + scale=10` sidesteps
+  it entirely and produces the **same** origin/grid. `clip()` was a partial red herring (it
+  only masked to region, didn't unify projections) and was removed.
+- **Parallelism** — `url` mode is network-bound (blocking `getDownloadURL` + download per
+  cube), so rows run through a `ThreadPoolExecutor` (`--max-workers`, default 4).
+  cloud/drive stay serial (batch submits mutate shared `ee_task_list`). Workers capped low:
+  GEE throttles `getDownloadURL` → a big pool returns 429s.
+
+**Live verification (3-day AOI run, 2025-04-01..03, 25 cells/day):** 75/75 tiles, 0 errors;
+all 108×108; every origin on a common 10 m grid (`origin mod 10 == 0`); **zero 0-border
+pixels** on any tile; adjacent tiles overlap exactly 80 m.
+
+Committed: `d4e34c38` (exporter fix), `871b54f4` (parallelism).
+
 ## What remains to be done
 
-### A. Provision GEE / GCP credentials on this machine (BLOCKER)
+### A. Provision GEE / GCP credentials on this machine (DONE)
+
+Resolved — ADC refreshed via `gcloud auth application-default login`; live exports run.
+Historical steps retained below for reference.
 
 The live export failed with `RefreshError: invalid_grant: Bad Request`. Earth Engine
 authenticates on this machine via **gcloud Application Default Credentials (ADC)**, not the
@@ -141,9 +171,9 @@ usual `~/.config/earthengine/` token:
 
    A printed `1` means auth + project are good.
 
-### B. Live smoke test (after A)
+### B. Live smoke test (DONE — seamless 3-day run verified; see §4)
 
-Run a **single cube** first (`--limit 1`) before the full AOI:
+Historical smoke protocol. Run a **single cube** first (`--limit 1`) before the full AOI:
 
 ```
 uv run python scripts/developer_scripts/build_aoi_cubes_gee_url.py \
