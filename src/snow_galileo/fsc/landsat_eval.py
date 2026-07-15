@@ -1338,7 +1338,7 @@ class LandsatEval(EvalTask):
                                 "fractional snow cover (FSC) map predicted by SnowGalileo. "
                                 "FSC was predicted at a spatial resolution of 100 m and resampled to 10 m to match the GeoTIFF grid. "
                                 "FSC values range from 0 (no snow-covered area within the pixel) to 1 (the entire pixel covered by snow). "
-                                "The individual input bands are described in the long_name attribute of each band. "
+                                "The individual input bands are described in the description of each band. "
                                 "There, multi-source data is stored for 8 time steps (including the prediction day). The first 304 bands store the following "
                                 "input data, interleaved by time and resampled to 10 m resolution: "
                                 "1. Sentinel-1 (S1) bands: (VV, VH, angle), "
@@ -1354,7 +1354,8 @@ class LandsatEval(EvalTask):
                                 "including Copernicus DEM elevation, slope, and aspect, as well as ESA WorldCover land cover map. "
                                 "Band number 309 contains the fractional snow cover (FSC) map predicted by SnowGalileo. "
                                 "All input data were originally retrieved from Google Earth Engine. "
-                                "In the long_name attribute of each band, the relative time of the original data acquisition is stored, starting with TS 1 (8 days before the prediction date) "
+                                "For missing input data e.g. due to missing coverage, a placeholder value of -9999 is used. "
+                                "In the description of each band, the relative time of the original data acquisition is stored, starting with TS 1 (8 days before the prediction date) "
                                 "to TS 8 (the prediction date). Static-over-time features are stored without a time indicator. "
                             ),
                             "prediction_model": "SnowGalileo",
