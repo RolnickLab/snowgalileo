@@ -105,8 +105,7 @@ def test_stage2_run_respects_directory_contract(tmp_path: Path) -> None:
         exporter=exporter,
         model=model,  # type: ignore[arg-type]
         grid=grid,
-        window_start=date(2025, 5, 28),
-        window_end=date(2025, 5, 28),
+        days=[date(2025, 5, 28)],
         out_dir=daily_fsc_dir,
         batch_size=2,
     )

@@ -103,7 +103,7 @@ convention = "google"
 
 [tool.flynt]
 line-length = 99
-transform-concats = true
+transform-concats = false
 verbose = true
 
 [tool.pytest.ini_options]

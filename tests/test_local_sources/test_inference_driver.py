@@ -5,8 +5,8 @@ Covers ``src/snow_galileoinference/{windows,mosaic,driver}.py``:
 - **windows** — sliding 8-day window + inference-day enumeration (pure date math).
 - **DailyMosaicWriter** (AC-28, AC-29) — per-day FSC COG in EPSG:32611, disjoint
   seams, NN-only placement, all-masked → nodata, coverage-fraction tag.
-- **InferenceGridDriver** (AC-31) — iterates configured window × all in-AOI cells,
-  never the legacy CSV ``date`` column.
+- **InferenceGridDriver** (AC-31) — iterates the caller-resolved ``days`` × all in-AOI
+  cells, never the legacy CSV ``date`` column.
 
 Everything is synthetic: a tiny untrained ``EncoderWithHead`` (or a stub model)
 and a placeholder/monkeypatched exporter, so the suite needs **no** GPU and **no**
@@ -252,6 +252,47 @@ def patched_loader(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("snow_galileo.inference.driver.masked_output_for_tif", _fake)
 
 
+def test_driver_rejects_empty_days(grid_2x2: list[GridCell], tmp_path: Path) -> None:
+    """An empty ``days`` fails at construction rather than sweeping nothing.
+
+    A driver built with no days would ``run()`` cleanly and return zero COGs — a
+    success-shaped result for what is always a caller bug.
+    """
+    from snow_galileo.inference.driver import InferenceGridDriver
+
+    with pytest.raises(ValueError, match="nothing to infer"):
+        InferenceGridDriver(
+            exporter=_StubExporter(),  # type: ignore[arg-type]
+            model=_StubModel(),  # type: ignore[arg-type]
+            grid=grid_2x2,
+            days=[],
+            out_dir=tmp_path,
+        )
+
+
+def test_driver_sorts_days(grid_2x2: list[GridCell], patched_loader: None, tmp_path: Path) -> None:
+    """Days are swept ascending however they arrive.
+
+    The cube cache's day-frontier prune assumes a day-ordered sweep, so an unsorted
+    ``days`` (a hand-written ``--dates`` list) must not be taken at face value.
+    """
+    from snow_galileo.inference.driver import InferenceGridDriver
+
+    exporter = _StubExporter()
+    driver = InferenceGridDriver(
+        exporter=exporter,  # type: ignore[arg-type]
+        model=_StubModel(),  # type: ignore[arg-type]
+        grid=grid_2x2,
+        days=[date(2025, 4, 8), date(2025, 4, 6), date(2025, 4, 7)],
+        out_dir=tmp_path,
+        batch_size=4,
+    )
+    driver.run()
+
+    swept = [day for _, day in exporter.calls]
+    assert swept == sorted(swept)
+
+
 def test_driver_iterates_window_x_cells_ignoring_csv_date(
     grid_2x2: list[GridCell], patched_loader: None, tmp_path: Path
 ) -> None:
@@ -272,8 +313,7 @@ def test_driver_iterates_window_x_cells_ignoring_csv_date(
         exporter=exporter,  # type: ignore[arg-type]
         model=model,  # type: ignore[arg-type]
         grid=grid_2x2,
-        window_start=start,
-        window_end=end,
+        days=inference_days(start, end),
         out_dir=tmp_path,
         batch_size=2,
     )
@@ -331,8 +371,7 @@ def test_driver_prunes_cache_once_per_ascending_day(
         exporter=_CachingStubExporter(),  # type: ignore[arg-type]
         model=_StubModel(),  # type: ignore[arg-type]
         grid=grid_2x2,
-        window_start=date(2025, 4, 6),
-        window_end=date(2025, 4, 8),
+        days=inference_days(date(2025, 4, 6), date(2025, 4, 8)),
         out_dir=tmp_path,
         batch_size=2,
     )
@@ -357,8 +396,7 @@ def test_driver_without_cache_does_not_prune(
         exporter=_StubExporter(),  # type: ignore[arg-type]
         model=_StubModel(),  # type: ignore[arg-type]
         grid=grid_2x2,
-        window_start=date(2025, 4, 6),
-        window_end=date(2025, 4, 7),
+        days=inference_days(date(2025, 4, 6), date(2025, 4, 7)),
         out_dir=tmp_path,
         batch_size=2,
     )
@@ -386,8 +424,7 @@ def test_driver_drops_fully_masked_cell_to_nodata(
         exporter=_StubExporter(),  # type: ignore[arg-type]
         model=_StubModel(),  # type: ignore[arg-type]
         grid=grid_2x2,
-        window_start=date(2025, 4, 6),
-        window_end=date(2025, 4, 6),
+        days=[date(2025, 4, 6)],
         out_dir=tmp_path,
         batch_size=4,
     )
@@ -438,8 +475,7 @@ def test_driver_end_to_end_with_real_loader_and_encoder(tmp_path: Path) -> None:
         exporter=exporter,
         model=model,
         grid=grid,
-        window_start=date(2025, 5, 28),
-        window_end=date(2025, 5, 28),
+        days=[date(2025, 5, 28)],
         out_dir=fsc_dir,
         batch_size=1,
     )
@@ -497,8 +533,7 @@ def test_driver_forwards_cube_cache_to_parallel_export(
         exporter=exporter,
         model=_StubModel(),  # type: ignore[arg-type]
         grid=grid_2x2,
-        window_start=date(2025, 4, 6),
-        window_end=date(2025, 4, 6),
+        days=[date(2025, 4, 6)],
         out_dir=tmp_path / "fsc",
         batch_size=4,
         export_workers=2,  # >1 → engages the parallel pre-export path
