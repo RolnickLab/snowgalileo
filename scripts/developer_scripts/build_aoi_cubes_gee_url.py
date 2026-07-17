@@ -59,6 +59,7 @@ from snow_galileo.data.local_sources.grid import (
     GEOGRAPHIC_CRS,
     build_cells,
     build_cube_csv_for_gee_utm,
+    load_aoi_polygon,
 )
 
 logger = structlog.get_logger(__name__)
@@ -87,14 +88,7 @@ def _load_aoi_geographic(aoi_path: Path) -> Polygon:
         ValueError: If the file does not hold exactly one ``Polygon`` feature.
     """
     raw = json.loads(aoi_path.read_text())
-    features = raw.get("features", [])
-    if len(features) != 1:
-        raise ValueError(f"AOI {aoi_path} must hold exactly one feature, found {len(features)}.")
-    geometry = features[0]["geometry"]
-    if geometry["type"] != "Polygon":
-        raise ValueError(f"AOI geometry must be a Polygon, found {geometry['type']!r}.")
-
-    poly = Polygon(geometry["coordinates"][0])
+    poly = load_aoi_polygon(aoi_path=aoi_path)
 
     crs_name = raw.get("crs", {}).get("properties", {}).get("name")
     src_crs = (
