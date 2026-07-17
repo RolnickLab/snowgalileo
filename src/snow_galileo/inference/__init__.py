@@ -9,6 +9,7 @@ GEE pipeline keep working unchanged. The one fragile coupling to the loader's
 folder-driven ``__init__`` is isolated in :mod:`snow_galileo.inference._loader_bridge`.
 
 Modules:
+- :mod:`~snow_galileo.inference.model` — :func:`build_model` (checkpoint -> ready ``EncoderWithHead``).
 - :mod:`~snow_galileo.inference.windows` — sliding 8-day window + inference-day enumeration.
 - :mod:`~snow_galileo.inference.mosaic` — :class:`DailyMosaicWriter` (per-day FSC COG, UTM 11N).
 - :mod:`~snow_galileo.inference.driver` — :class:`InferenceGridDriver` (per-cell export → encoder → mosaic).

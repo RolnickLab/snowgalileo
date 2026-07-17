@@ -28,7 +28,7 @@ symlinks live in a temp dir and are deleted on exit; no cube on disk is renamed 
 
 Example:
     uv run python scripts/developer_scripts/infer_aoi_cubes.py \\
-        --cube-csv configs/aoi_cubes/cube_cells.csv \\
+            --cube-csv configs/aoi_cubes/cube_cells.csv \\
         --cube-dir data/aoi_cubes \\
         --out-dir data/outputs/fortress_fsc
 """
@@ -36,7 +36,6 @@ Example:
 from __future__ import annotations
 
 import datetime
-import json
 import tempfile
 from pathlib import Path
 from typing import Annotated, Optional
@@ -54,9 +53,8 @@ from snow_galileo.data.local_sources.base import CELL_TARGET_CRS, CELL_TARGET_PX
 from snow_galileo.data.local_sources.settings import InferenceSettings
 from snow_galileo.fsc.patch_predict import EncoderWithHead
 from snow_galileo.inference._loader_bridge import masked_output_for_tif
+from snow_galileo.inference.model import build_model
 from snow_galileo.inference.mosaic import DEFAULT_FSC_PX_PER_CELL, DailyMosaicWriter
-from snow_galileo.snowgalileo import Encoder
-from snow_galileo.utils import config_dir, load_check_config
 
 logger = structlog.get_logger(__name__)
 
@@ -84,53 +82,6 @@ _REQUIRED_COLUMNS: tuple[str, ...] = (
     "max_x",
     "max_y",
 )
-
-
-def _build_model(infer: InferenceSettings) -> EncoderWithHead:
-    """Build the pretrained ``EncoderWithHead`` from the configured checkpoint.
-
-    Mirrors ``scripts/eval_only.py`` and the Bow Valley inference script: the eval-config
-    filename's size token selects the ``ai4snow_<size>.json`` encoder config, the head
-    ``eval_config`` and ``sigmoid_slope`` come from the eval JSON, then the finetuned state
-    is strict-loaded.
-
-    Args:
-        infer: Inference settings (checkpoint, eval config, decoder mode, device).
-
-    Returns:
-        The loaded model, on ``infer.device``, in eval mode.
-
-    Raises:
-        FileNotFoundError: If the checkpoint does not exist — fail loudly rather than
-            silently initialise random weights, which would yield a meaningless COG.
-    """
-    if not infer.checkpoint.exists():
-        raise FileNotFoundError(
-            f"Inference checkpoint not found: {infer.checkpoint}. Point `checkpoint` in the "
-            "inference config (or INFER_CHECKPOINT) at a finetuned EncoderWithHead .pth."
-        )
-
-    with (config_dir / "eval" / infer.eval_config_name).open() as fh:
-        eval_config = json.load(fh)
-    sigmoid_slope = eval_config["hyperparameters_snowgalileo"]["sigmoid_slope"]
-
-    size_token = Path(infer.eval_config_name).stem.split("_")[-1]
-    enc_cfg = load_check_config(f"ai4snow_{size_token}.json")["model"]["encoder"]
-
-    model = EncoderWithHead(
-        Encoder(**enc_cfg),
-        eval_config=eval_config[infer.decoder_mode],
-        sigmoid_slope=sigmoid_slope,
-    )
-    state = torch.load(infer.checkpoint, map_location=infer.device)
-    model.load_state_dict(state)
-    logger.info(
-        "model_loaded",
-        checkpoint=str(infer.checkpoint),
-        size=size_token,
-        decoder_mode=infer.decoder_mode,
-    )
-    return model.to(infer.device).eval()
 
 
 def _load_cube_csv(cube_csv: Path) -> pd.DataFrame:
@@ -397,7 +348,7 @@ def main(
     )
 
     writer = DailyMosaicWriter(grid=grid, out_dir=out_dir, fsc_px_per_cell=DEFAULT_FSC_PX_PER_CELL)
-    model = _build_model(infer)
+    model = build_model(infer)
     written: list[Path] = []
 
     # Symlinks are the loader's view of the cubes; they never outlive the run.

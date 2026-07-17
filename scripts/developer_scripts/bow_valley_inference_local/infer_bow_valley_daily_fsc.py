@@ -45,12 +45,10 @@ Example:
 from __future__ import annotations
 
 import datetime
-import json
 from pathlib import Path
 from typing import Annotated, Optional
 
 import structlog
-import torch
 import typer
 
 from snow_galileo.data.local_sources.base import GridCell
@@ -62,12 +60,10 @@ from snow_galileo.data.local_sources.cube_cache_cli import (
 from snow_galileo.data.local_sources.exporter import LocalSourceExporter
 from snow_galileo.data.local_sources.grid import build_grid
 from snow_galileo.data.local_sources.settings import CubeSettings, InferenceSettings
-from snow_galileo.fsc.patch_predict import EncoderWithHead
 from snow_galileo.inference.driver import InferenceGridDriver
+from snow_galileo.inference.model import build_model
 from snow_galileo.inference.prebuilt import PrebuiltCubeSource
 from snow_galileo.inference.windows import inference_days
-from snow_galileo.snowgalileo import Encoder
-from snow_galileo.utils import config_dir, load_check_config
 
 logger = structlog.get_logger(__name__)
 
@@ -75,54 +71,6 @@ app = typer.Typer(add_completion=False, help="Run daily Bow Valley FSC inference
 
 #: Name of the artifact listing every cube a ``--cubes-only`` run could not find.
 MISSING_CUBES_FILENAME = "missing_cubes.txt"
-
-
-def _build_model(infer: InferenceSettings) -> EncoderWithHead:
-    """Build the pretrained ``EncoderWithHead`` from the configured checkpoint.
-
-    Mirrors ``scripts/eval_only.py`` exactly: the eval-config filename's size token
-    selects the ``ai4snow_<size>.json`` encoder config, the head ``eval_config`` and
-    ``sigmoid_slope`` come from the eval JSON, then the finetuned state is strict-loaded.
-
-    Args:
-        infer: The inference settings (checkpoint, eval config, decoder mode, device).
-
-    Returns:
-        The loaded model on ``infer.device``.
-
-    Raises:
-        FileNotFoundError: If the checkpoint file does not exist (fail loudly — never
-            silently initialize random weights).
-    """
-    if not infer.checkpoint.exists():
-        raise FileNotFoundError(
-            f"Inference checkpoint not found: {infer.checkpoint}. Set `checkpoint` in "
-            "inference.yaml (or INFER_CHECKPOINT) to a finetuned EncoderWithHead .pth. "
-            "Q6 must be resolved before an inference run."
-        )
-
-    with (config_dir / "eval" / infer.eval_config_name).open() as fh:
-        eval_config = json.load(fh)
-    sigmoid_slope = eval_config["hyperparameters_snowgalileo"]["sigmoid_slope"]
-
-    # Encoder size token is the trailing word of the eval-config filename (e.g. "tiny").
-    size_token = Path(infer.eval_config_name).stem.split("_")[-1]
-    enc_cfg = load_check_config(f"ai4snow_{size_token}.json")["model"]["encoder"]
-
-    model = EncoderWithHead(
-        Encoder(**enc_cfg),
-        eval_config=eval_config[infer.decoder_mode],
-        sigmoid_slope=sigmoid_slope,
-    )
-    state = torch.load(infer.checkpoint, map_location=infer.device)
-    model.load_state_dict(state)
-    logger.info(
-        "model_loaded",
-        checkpoint=str(infer.checkpoint),
-        size=size_token,
-        decoder_mode=infer.decoder_mode,
-    )
-    return model
 
 
 def _resolve_days(
@@ -324,7 +272,7 @@ def main(
     if limit is not None:
         grid = grid[:limit]
 
-    model = _build_model(infer)
+    model = build_model(infer)
     out_dir = infer.out_dir if infer.out_dir is not None else cube.daily_fsc_dir
 
     if cube_dir is not None and not cubes_only:
