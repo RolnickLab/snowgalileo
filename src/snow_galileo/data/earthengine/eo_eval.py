@@ -680,7 +680,6 @@ class EarthEngineExporterEval(EarthEngineExporter):
     def export_from_csv_utm_native(
         self,
         csv_file,
-        buffer_m: float = 40.0,
         start_export_from_idx: int = 0,
         max_workers: int = 4,
     ) -> None:
@@ -693,20 +692,13 @@ class EarthEngineExporterEval(EarthEngineExporter):
         same CRS. Earth Engine resamples every band onto one axis-aligned 10 m lattice snapped
         to the UTM origin, so every tile lands on a shared grid and neighbours abut with no gap.
 
-        Each cell is grown outward by ``buffer_m`` metres on all four sides before export, so
-        adjacent tiles deliberately overlap by ``2 * buffer_m``. The overlap is redundant data
-        (fine — coverage outside the AOI is acceptable) that a downstream mosaic step is
-        expected to reconcile by mean-averaging the overlapping pixels.
-
-        NOTE: the ``buffer_m`` halo is applied to the *export geometry only*. The CSV cell
-        bounds (``min_x``/``max_x``/``min_y``/``max_y``) stay the canonical 1 km values that
-        round-trip with the loader and the local-source pipeline — they are never widened.
+        Each cell exports at its exact canonical bounds (no overlap halo): an oversized cube
+        would be randomly cropped to 100x100 by the loader's unseeded ``dataset.subset_image``,
+        silently misregistering every prediction, and the downstream mosaic asserts non-overlap.
 
         Args:
             csv_file: Cube CSV in the GEE-UTM reader dialect (``date, crs, center_lat,
                 center_lon, min_x, max_x, min_y, max_y``); ``crs`` is a per-row UTM EPSG.
-            buffer_m: Outward halo added to every cell edge, in UTM metres. ``40.0`` gives an
-                80 m overlap between neighbours.
             start_export_from_idx: Skip the first N rows (resume a partial run).
             max_workers: Parallel download threads, used only in ``url`` mode (each row is
                 a blocking ``getDownloadURL`` + download). Keep this low — Earth Engine
@@ -736,25 +728,19 @@ class EarthEngineExporterEval(EarthEngineExporter):
         min_y = df["min_y"].tolist()
         max_y = df["max_y"].tolist()
 
-        print(f"Exporting {len(dates)} files (native UTM, buffer_m={buffer_m}): ")
+        print(f"Exporting {len(dates)} files (native UTM): ")
 
         def _export_row(i: int) -> bool:
             """Build and export one row's cube. Returns True if the export started."""
             dat = dates[i]
             crs = coordinate_system[i]
 
-            # Grow the cell outward by buffer_m in native UTM metres (exact — no reprojection).
-            emin_x = float(min_x[i]) - buffer_m
-            emax_x = float(max_x[i]) + buffer_m
-            emin_y = float(min_y[i]) - buffer_m
-            emax_y = float(max_y[i]) + buffer_m
-
-            # Request rectangle in the row's own UTM CRS; geodesic=False keeps edges straight
-            # in the projected plane (no great-circle bulge). Passing this UTM `crs` (with the
-            # scale=10 export) makes EE resample every band onto one axis-aligned 10 m lattice
-            # in that zone — seamless tiles, no crs_transform affine needed.
+            # Request rectangle at the cell's exact canonical UTM bounds; geodesic=False keeps
+            # edges straight in the projected plane (no great-circle bulge). Passing this UTM
+            # `crs` (with the scale=10 export) makes EE resample every band onto one
+            # axis-aligned 10 m lattice in that zone — seamless tiles, no crs_transform affine.
             region = ee.Geometry.Rectangle(
-                coords=[emin_x, emin_y, emax_x, emax_y],
+                coords=[float(min_x[i]), float(min_y[i]), float(max_x[i]), float(max_y[i])],
                 proj=ee.Projection(crs),
                 geodesic=False,
             )

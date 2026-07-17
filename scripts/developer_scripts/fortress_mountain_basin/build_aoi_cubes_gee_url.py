@@ -133,13 +133,6 @@ def main(
     mode: Annotated[
         str, typer.Option(help="GEE export mode: 'url' (download), 'cloud', or 'drive'.")
     ] = "url",
-    buffer_m: Annotated[
-        float,
-        typer.Option(
-            help="Grow each cell outward by this many metres at export for seamless overlap "
-            "(export geometry only; CSV cell bounds stay canonical). Neighbours overlap 2x this."
-        ),
-    ] = 0.0,
     max_workers: Annotated[
         int,
         typer.Option(
@@ -200,14 +193,13 @@ def main(
         mode=mode,
         tifs_folder=tifs_folder,
         cubes=len(frame),
-        buffer_m=buffer_m,
         max_workers=max_workers,
     )
     # Native-UTM export: pins every tile to the shared UTM lattice (no EPSG:4326 round-trip)
-    # and adds a buffer_m overlap halo, so tiles are seamless. See EarthEngineExporterEval.
-    exporter.export_from_csv_utm_native(
-        csv_file=str(out_csv), buffer_m=buffer_m, max_workers=max_workers
-    )
+    # and exports each cell at its exact canonical bounds — no overlap halo, so every cube is
+    # exactly 100x100 (an oversized cube would be randomly cropped and misregistered; see
+    # export_from_csv_utm_native and infer_aoi_cubes._check_cube_shape).
+    exporter.export_from_csv_utm_native(csv_file=str(out_csv), max_workers=max_workers)
     logger.info("export_complete", mode=mode, tifs_folder=tifs_folder, cubes=len(frame))
 
 

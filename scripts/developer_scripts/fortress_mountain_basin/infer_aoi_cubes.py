@@ -201,10 +201,10 @@ def _check_cube_shape(cube: Path) -> None:
     """Fail loudly if a cube is not exactly ``CELL_TARGET_PX`` square.
 
     This guard is not cosmetic. ``dataset.subset_image`` crops an oversized cube down to
-    100x100 with an *unseeded* ``np.random.choice`` offset — so a 108x108 cube (what the
-    build step emits at ``--buffer-m 40``) yields a prediction for a randomly shifted
-    window, silently misregistered by up to 80 m, differently on every tile and every day.
-    The mosaic would look plausible and be wrong. Cubes must be built at ``--buffer-m 0``.
+    100x100 with an *unseeded* ``np.random.choice`` offset — so an oversized cube yields a
+    prediction for a randomly shifted window, silently misregistered by up to 80 m,
+    differently on every tile and every day. The mosaic would look plausible and be wrong.
+    The build step exports at the cell's exact bounds, so cubes must arrive exactly 100x100.
 
     Args:
         cube: The cube to check.
@@ -218,7 +218,7 @@ def _check_cube_shape(cube: Path) -> None:
         raise ValueError(
             f"Cube {cube.name} is {shape[0]}x{shape[1]}, expected "
             f"{CELL_TARGET_PX}x{CELL_TARGET_PX}. Oversized cubes are randomly cropped by the "
-            "loader, which misregisters every prediction. Rebuild the cubes with --buffer-m 0."
+            "loader, which misregisters every prediction. Rebuild the cubes with the build step."
         )
 
 
