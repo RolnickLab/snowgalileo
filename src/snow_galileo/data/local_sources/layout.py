@@ -41,10 +41,14 @@ from __future__ import annotations
 
 import re
 from datetime import date
+from functools import lru_cache
+
+from pyproj import Transformer
 
 from snow_galileo.data.config import NUM_TIMESTEPS
 from snow_galileo.data.earthengine import eo as _eo
 from snow_galileo.data.earthengine import eo_eval as _eo_eval
+from snow_galileo.data.local_sources.base import GridCell
 
 # --- Band order (re-exported, never retyped) ------------------------------- #
 
@@ -92,6 +96,12 @@ def full_band_order() -> list[str]:
 
 # --- Filename contract ------------------------------------------------------ #
 
+#: The geographic CRS the filename's lat/lon are expressed in. The loader parses those
+#: fields back out (``landsat_eval.py`` ``parts[2]``/``parts[3]``) and feeds them to
+#: ``to_cartesian``, which asserts the ±90/±180 degree range — so degrees, not the
+#: cell's UTM metres, are the only valid contents.
+GEOGRAPHIC_CRS: str = "EPSG:4326"
+
 #: Regex every exporter filename must match (SPEC FR-18 / AC-9). ``LAT``/``LON``
 #: are signed decimal degrees; ``SC`` carries a (synthetic) cloud-score suffix.
 CUBE_FILENAME_REGEX: str = r"^PR_\d{8}_-?\d+\.\d+_-?\d+\.\d+_SC\d+\.tif$"
@@ -127,3 +137,43 @@ def build_cube_filename(
         matches :data:`CUBE_FILENAME_REGEX`.
     """
     return f"PR_{window_end.strftime('%Y%m%d')}_{lat}_{lon}_SC{cloud_score:02d}.tif"
+
+
+@lru_cache(maxsize=None)
+def _transformer_to_geographic(crs: str) -> Transformer:
+    """Return a cached ``crs`` → :data:`GEOGRAPHIC_CRS` transformer.
+
+    Cached because callers reproject one centre per (cell, day) — a grid sweep builds
+    the same handful of transformers thousands of times otherwise.
+
+    Args:
+        crs: Source CRS string (a cell's UTM CRS in practice).
+
+    Returns:
+        An ``always_xy=True`` transformer emitting ``(lon, lat)``.
+    """
+    return Transformer.from_crs(crs, GEOGRAPHIC_CRS, always_xy=True)
+
+
+def cell_centre_lat_lon(*, cell: GridCell) -> tuple[float, float]:
+    """Reproject a cell's centre from its UTM CRS to :data:`GEOGRAPHIC_CRS` degrees.
+
+    This is the lat/lon :func:`build_cube_filename` writes, so it is the single
+    derivation every producer and consumer of a cube filename must share: the exporter
+    naming a new cube and any reader reconstructing that name to find one on disk must
+    agree bit-for-bit, rounding included, or a cube is silently unfindable — or worse,
+    paired with the wrong cell.
+
+    Only the centre *point* is transformed. The cube's pixels stay on the cell's native
+    UTM grid; nothing here reprojects raster data.
+
+    Args:
+        cell: The grid cell (supplies ``crs`` and ``polygon``).
+
+    Returns:
+        ``(lat, lon)`` of the cell centre in signed decimal degrees, rounded to 4
+        decimals (~11 m) to match :data:`CUBE_FILENAME_REGEX`.
+    """
+    transformer = _transformer_to_geographic(cell.crs)
+    lon, lat = transformer.transform(cell.polygon.centroid.x, cell.polygon.centroid.y)
+    return round(lat, 4), round(lon, 4)

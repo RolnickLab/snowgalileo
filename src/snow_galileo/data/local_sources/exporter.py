@@ -43,8 +43,10 @@ from snow_galileo.data.local_sources.base import (
 )
 from snow_galileo.data.local_sources.cube_cache import DEFAULT_MAX_ENTRIES, CubeCache
 from snow_galileo.data.local_sources.layout import (
+    GEOGRAPHIC_CRS,
     TOTAL_BANDS,
     build_cube_filename,
+    cell_centre_lat_lon,
     full_band_order,
 )
 from snow_galileo.data.local_sources.paths import LocalPaths
@@ -56,12 +58,6 @@ from snow_galileo.data.local_sources.placeholder import (
 from snow_galileo.data.local_sources.settings import CubeSettings
 
 logger = structlog.get_logger(__name__)
-
-#: ``EPSG:4326`` is the geographic CRS the filename's lat/lon are expressed in —
-#: the loader feeds ``parts[2]/parts[3]`` to ``to_cartesian`` which asserts the
-#: ±90/±180 degree range, so the filename carries the cell *centre* in degrees
-#: (a separate channel from the UTM pixel grid).
-_GEOGRAPHIC_CRS: str = "EPSG:4326"
 
 
 class LocalSourceExporter:
@@ -282,18 +278,6 @@ class LocalSourceExporter:
             for offset in reversed(range(NUM_TIMESTEPS))
         ]
 
-    def _cell_centre_lat_lon(self, cell: GridCell) -> tuple[float, float]:
-        """Reproject the cell centre from its UTM CRS to ``EPSG:4326`` degrees.
-
-        Returns:
-            ``(lat, lon)`` of the cell centre, rounded to 4 decimals so the
-            filename stays compact while matching the FR-18 regex.
-        """
-        transformer = Transformer.from_crs(cell.crs, _GEOGRAPHIC_CRS, always_xy=True)
-        centre_x, centre_y = cell.polygon.centroid.x, cell.polygon.centroid.y
-        lon, lat = transformer.transform(centre_x, centre_y)
-        return round(lat, 4), round(lon, 4)
-
     def _ensure_s1_cache(self, cell: GridCell, window_end: datetime.date) -> None:
         """Pre-flight: verify the offline per-granule S1 cache covers this cell's window.
 
@@ -310,7 +294,7 @@ class LocalSourceExporter:
 
         # The cell's 4326 bbox is the region we need S1 over: a granule whose swath does
         # not cover this cell is not "missing", so a legitimately S1-free cell passes.
-        transformer = Transformer.from_crs(cell.crs, _GEOGRAPHIC_CRS, always_xy=True)
+        transformer = Transformer.from_crs(cell.crs, GEOGRAPHIC_CRS, always_xy=True)
         min_x, min_y, max_x, max_y = cell.polygon.bounds
         lon0, lat0 = transformer.transform(min_x, min_y)
         lon1, lat1 = transformer.transform(max_x, max_y)
@@ -397,7 +381,7 @@ class LocalSourceExporter:
         """
         self._ensure_s1_cache(cell, window_end)
         cube = self._assemble(cell, window_end)
-        lat, lon = self._cell_centre_lat_lon(cell)
+        lat, lon = cell_centre_lat_lon(cell=cell)
         filename = build_cube_filename(window_end=window_end, lat=lat, lon=lon)
 
         self.out_dir.mkdir(parents=True, exist_ok=True)

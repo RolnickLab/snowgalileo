@@ -21,9 +21,9 @@ from shapely.geometry import Point, box
 
 from snow_galileo.data.local_sources.grid import (
     GRID_MATH_CRS,
+    _filter_cells,
     build_grid,
     build_manifest,
-    filter_cells,
     load_aoi_polygon,
     load_cells,
 )
@@ -61,21 +61,21 @@ def test_loads_all_unique_cells(cells):
 
 def test_centre_in_count(cells, aoi):
     """Centre-in rule keeps 344 cells (SPEC AC-10)."""
-    kept, dropped = filter_cells(cells, aoi, keep_rule="centre_in")
+    kept, dropped = _filter_cells(cells, aoi, keep_rule="centre_in")
     assert len(kept) == EXPECTED_CENTRE_IN
     assert len(kept) + len(dropped) == EXPECTED_TOTAL_CELLS
 
 
 def test_fully_inside_count(cells, aoi):
     """`--require-fully-inside` keeps 338 cells (SPEC AC-10)."""
-    kept, dropped = filter_cells(cells, aoi, keep_rule="fully_inside")
+    kept, dropped = _filter_cells(cells, aoi, keep_rule="fully_inside")
     assert len(kept) == EXPECTED_FULLY_INSIDE
     assert len(kept) + len(dropped) == EXPECTED_TOTAL_CELLS
 
 
 def test_manifest_sums_to_total(cells, aoi):
     """Kept/dropped manifest accounts for every input cell (SPEC AC-10)."""
-    kept, dropped = filter_cells(cells, aoi, keep_rule="centre_in")
+    kept, dropped = _filter_cells(cells, aoi, keep_rule="centre_in")
     manifest = build_manifest(kept, dropped)
     assert len(manifest) == EXPECTED_TOTAL_CELLS
     assert (manifest["action"] == "KEEP").sum() == EXPECTED_CENTRE_IN
@@ -86,7 +86,7 @@ def test_manifest_sums_to_total(cells, aoi):
 
 def test_kept_centres_inside_aoi(cells, aoi):
     """Every kept cell centre lies within the AOI (SPEC AC-10)."""
-    kept, _ = filter_cells(cells, aoi, keep_rule="centre_in")
+    kept, _ = _filter_cells(cells, aoi, keep_rule="centre_in")
     transformer = Transformer.from_crs(GRID_MATH_CRS, "EPSG:4326", always_xy=True)
     for cell in kept:
         lon, lat = transformer.transform(cell.center_x, cell.center_y)

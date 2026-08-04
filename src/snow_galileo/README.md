@@ -3,12 +3,14 @@
 ### File Structure
 
 Data Export:
+
 - `src/snow_galileo/data/earthengine/`
   - contains all code specific to Google Earthengine: sensor-specific export scripts, as well as export files
 - `src/snow_galileo/data/dataset.py`
   - contains the pre-training dataset class
 
 Snowgalileo Model:
+
 - `src/snow_galileo/snowgalileo.py`
   - encoder & pixel decoder (used for pre-training)
 - `src/snow_galileo/masking.py`
@@ -17,6 +19,7 @@ Snowgalileo Model:
   - the embeddings that add contextual information to tokens
 
 Finetuning & Evaluation Setup:
+
 - `src/snow_galileo/fsc/patch_predict.py`
   - contains the FSC prediction head and functions for finetuning and evaluating the model
 - `src/snow_galileo/fsc/landsat_eval.py`
