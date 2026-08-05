@@ -1,7 +1,7 @@
 """Contract tests for :func:`snow_galileo.inference.model.build_model`.
 
 ``build_model`` is shared by both Stage-2 entry points (``infer_aoi_cubes.py`` and
-``infer_bow_valley_daily_fsc.py``). Its contract is "returns a model that is ready to run":
+``04_infer_bow_valley_daily_fsc.py``). Its contract is "returns a model that is ready to run":
 weights loaded from the checkpoint, on ``infer.device``, in eval mode. Both callers depend
 on that — the pre-built-cube runner calls the model directly and would silently run a
 dropout-active, randomly-initialised model if any part of it regressed.

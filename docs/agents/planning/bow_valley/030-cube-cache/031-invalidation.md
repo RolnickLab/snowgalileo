@@ -52,7 +52,7 @@ model). Two mechanisms:
   read/write/version-check the already-clean dir. The smallest surface that makes the race
   impossible by construction.
 
-### CLI (`infer_bow_valley_daily_fsc.py`, `export_bow_valley_cube.py`)
+### CLI (`04_infer_bow_valley_daily_fsc.py`, `03_export_bow_valley_cube.py`)
 
 - New option `--cache-policy {prompt|reuse|overwrite}`, default `prompt`.
 - A shared `resolve_cache_policy(root, policy)` helper (in a small CLI-side module, e.g.
@@ -72,7 +72,7 @@ model). Two mechanisms:
   builds the exporter with `overwrite_cache=False` (the default) — the version-stamp check
   still runs in `CubeCache.__init__`. No race (single construction in parent; driver pool
   workers reuse).
-- A standalone **`clean-cache`** command lives in **`export_bow_valley_cube.py`** (DECIDED —
+- A standalone **`clean-cache`** command lives in **`03_export_bow_valley_cube.py`** (DECIDED —
   Q1). This converts that script from a single-command Typer app to multi-command: the
   existing run command is named `export`, with `clean-cache` alongside. **Invocation
   changes**: `export_bow_valley_cube.py --config …` → `export_bow_valley_cube.py export --config …`. `clean-cache` wipes `CubeSettings.cube_cache_dir` on demand, reporting
@@ -123,11 +123,11 @@ source = interactive prompt + manual constant backstop; no-TTY = error requiring
 
 1. **Where does the `clean-cache` command live?**
 
-   - Proposed (author's recommendation): `process_raw_dataset.py`, alongside the
+   - Proposed (author's recommendation): `01_process_raw_dataset.py`, alongside the
      clip/process phases — the natural "data prep" home.
-   - Alternative: `export_bow_valley_cube.py`.
+   - Alternative: `03_export_bow_valley_cube.py`.
    - → DECIDE: which file.
-   - -> Decision : `export_bow_valley_cube.py`, because that's when they are needed. before that (in `process_raw_dataset.py`), we only want to do the minimum amount of processing to make the data compatible with our cube process.
+   - -> Decision : `03_export_bow_valley_cube.py`, because that's when they are needed. before that (in `01_process_raw_dataset.py`), we only want to do the minimum amount of processing to make the data compatible with our cube process.
 
 2. **Commit shape — one unit or incremental?**
 

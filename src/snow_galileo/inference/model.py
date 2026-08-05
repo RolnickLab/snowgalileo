@@ -1,7 +1,7 @@
 """Construct the finetuned ``EncoderWithHead`` from an :class:`InferenceSettings`.
 
 Shared by both Stage-2 operator entry points — the direct-source sweep
-(``infer_bow_valley_daily_fsc.py``) and the pre-built-cube runner (``infer_aoi_cubes.py``).
+(``04_infer_bow_valley_daily_fsc.py``) and the pre-built-cube runner (``infer_aoi_cubes.py``).
 Each carried its own private copy of this loader, and the copies had already drifted on
 their return contract (one returned a CPU model, the other a device-resident one), so the
 two scripts agreed on how to build the model only by coincidence. One function, one

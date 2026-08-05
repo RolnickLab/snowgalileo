@@ -91,9 +91,9 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   importable package is `src/data/local_sources/clip/` (`settings`, `gate`,
   `footprints`, `clippers`, `gdal_io`, `manifest`, `orchestrator`) — sibling to
   `grid.py`, since this is pipeline domain code, not a side script. The two Typer
-  CLIs `scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py`
+  CLIs `../../scripts/developer_scripts/bow_valley_inference_local/01_process_raw_dataset.py`
   (`clip-source`, `clip-all`, `process-s1`, `process-all`, `--dry-run`) and
-  `scripts/developer_scripts/bow_valley_inference_local/process_raw_audit.py` only do
+  `../../scripts/developer_scripts/bow_valley_inference_local/02_process_raw_audit.py` only do
   argument parsing + `from src.data.local_sources ...` imports (run via `uv run`, which
   uses the editable install). They were named `clip_dataset.py` / `clip_audit.py` until
   S1 gained a SNAP step (`process-s1`), making "clip" too narrow. The old flat `scripts/developer_scripts/bow_valley_inference_local/clip_dataset.py`
@@ -317,9 +317,9 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   keeps it; `overwrite` clears once. **Clearing happens ONLY in the single parent
   process** (`resolve_cache_policy` before any worker spawns, or the `clean-cache`
   command) — a worker constructing with `overwrite=True` would wipe a sibling's
-  fresh entries mid-run. Workers never clear. `export_bow_valley_cube.py` is now a
+  fresh entries mid-run. Workers never clear. `03_export_bow_valley_cube.py` is now a
   **multi-command** Typer app: `export …` (was the bare script) **and**
-  `clean-cache …`. `infer_bow_valley_daily_fsc.py` also takes `--cache-policy`.
+  `clean-cache …`. `04_infer_bow_valley_daily_fsc.py` also takes `--cache-policy`.
 - **Eviction is day-frontier, lazy, parent-only — not FIFO-eager.** `prune_before_day`
   is the **only** eviction path, called once per day in the parent before that day's
   pool spawns. It exploits the day-ordered sweep invariant (a cube for day D reads

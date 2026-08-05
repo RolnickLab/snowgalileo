@@ -47,7 +47,7 @@ pattern (`env_prefix="INFER_"`), loaded from `inference.yaml`. Fields:
 Rationale: keep `cube.yaml` the authority for *what* the sweep is (window, mode, roots);
 `inference.yaml` only carries *how to run the model* (checkpoint, batch, device, output).
 
-### 2. `scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py` (NEW, Typer)
+### 2. `../../../../../../../scripts/developer_scripts/bow_valley_inference_local/03_export_bow_valley_cube.py` (NEW, Typer)
 
 `--config configs/bow_valley/cube.yaml`, `--limit N` (cap cells for a smoke run),
 `--window-end YYYY-MM-DD` (optional; default = `cube.yaml` `window_end`). Builds the grid
@@ -55,7 +55,7 @@ Rationale: keep `cube.yaml` the authority for *what* the sweep is (window, mode,
 `(cell, window_end)` for the (optionally limited) grid. `structlog` JSON. This is the cube
 half (AC-3, first script).
 
-### 3. `scripts/developer_scripts/bow_valley_inference_local/infer_bow_valley_daily_fsc.py` (NEW, Typer)
+### 3. `../../../../../../../scripts/developer_scripts/bow_valley_inference_local/04_infer_bow_valley_daily_fsc.py` (NEW, Typer)
 
 `--cube-config cube.yaml`, `--config inference.yaml`, `--limit N`. Loads both settings,
 builds the model from the checkpoint via the **existing** path, builds the grid, constructs
@@ -128,8 +128,8 @@ declare it explicitly (`typer>=0.15`) so the dep is not accidental. Register not
 Suggested order, **stop + summarize after each, commit only on explicit approval**:
 
 1. `InferenceSettings` + `inference.yaml` + `typer` pin.
-2. `test_directory_contract.py` (Red) → `export_bow_valley_cube.py` +
-   `infer_bow_valley_daily_fsc.py` (Green for the contract test).
+2. `test_directory_contract.py` (Red) → `03_export_bow_valley_cube.py` +
+   `04_infer_bow_valley_daily_fsc.py` (Green for the contract test).
 3. `test_exporter_parity.py` (Red) → confirm green on available sources / documented skips.
 4. KNOWLEDGE.md entries + check off subtasks/ACs.
 5. Final delta run + commit (closes Phase 3).

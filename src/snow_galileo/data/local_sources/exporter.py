@@ -117,7 +117,7 @@ class LocalSourceExporter:
         # In real mode, verify the offline per-granule S1 SNAP cache covers each cell's
         # window before assembly (see _ensure_s1_cache) — fail loud rather than silently
         # emit an all-(-9999) S1 block. The cache is BUILT offline (s1_snap.py / the
-        # build_bow_valley_s1_cache.py driver), never inline here.
+        # 01_process_raw_dataset.py process-s1 driver), never inline here.
         self.verify_s1_cache = verify_s1_cache
         # The per-granule SNAP dB+angle cache the S1Adapter reads (built offline). The
         # verify pre-flight reads the RAW archive to know which granules the window needs.
@@ -282,7 +282,7 @@ class LocalSourceExporter:
         """Pre-flight: verify the offline per-granule S1 cache covers this cell's window.
 
         Real mode only, **verification only** (it does not run SNAP — the cache is built
-        offline by ``build_bow_valley_s1_cache.py``). Raises
+        offline by ``01_process_raw_dataset.py process-s1``). Raises
         :class:`~snow_galileo.data.local_sources.s1_snap.S1CacheUnavailableError` if a needed
         per-granule tif is missing, so the S1 adapter never silently falls back to an
         all-``-9999`` block. A window with genuinely no S1 over this cell needs nothing
@@ -442,7 +442,7 @@ def cli() -> None:
     ) -> None:
         """Build one placeholder cube for a Bow Valley UTM cell and print its path."""
         # typer/click has no native datetime.date param type; parse the ISO string here
-        # (matches export_bow_valley_cube.py's --window-end handling).
+        # (matches 03_export_bow_valley_cube.py's --window-end handling).
         end = datetime.date.fromisoformat(window_end)
         cells = build_grid()
         exporter = LocalSourceExporter(placeholder=placeholder)

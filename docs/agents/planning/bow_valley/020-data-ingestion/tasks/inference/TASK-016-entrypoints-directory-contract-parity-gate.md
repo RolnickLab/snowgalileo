@@ -2,8 +2,8 @@
 
 ## 1. Goal
 
-Ship the two operator entry points (`export_bow_valley_cube.py`,
-`infer_bow_valley_daily_fsc.py`) wired to `cube.yaml`/`inference.yaml`, the
+Ship the two operator entry points (`03_export_bow_valley_cube.py`,
+`04_infer_bow_valley_daily_fsc.py`) wired to `cube.yaml`/`inference.yaml`, the
 directory-contract test that enforces write boundaries, and the full-stack numeric
 parity gate against the Phase-0 GEE reference patches.
 
@@ -40,7 +40,7 @@ parity gate against the Phase-0 GEE reference patches.
 - [x] 2. Write `test_exporter_parity.py` (Red, AC-27). **DONE** — full-stack S2 + Landsat
   reflectance, each at its covered timestep, ≥90% bit-exact (S2 98.0% + Landsat 98.0%
   on PR_20250406); archive-dependent sources skip cleanly.
-- [x] 3. Implement `scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py` + `scripts/developer_scripts/bow_valley_inference_local/infer_bow_valley_daily_fsc.py`
+- [x] 3. Implement `../../../../../../../scripts/developer_scripts/bow_valley_inference_local/03_export_bow_valley_cube.py` + `../../../../../../../scripts/developer_scripts/bow_valley_inference_local/04_infer_bow_valley_daily_fsc.py`
   (Typer). **DONE** + parallel cube export (`parallel_export.py`, `--workers` /
   `export_workers`, SPEC `multiprocessing.Pool` NFR).
 - [x] 4. Finalize configs. **DONE** — `inference.yaml` added (`InferenceSettings`);
@@ -92,11 +92,11 @@ uv run pytest tests/test_local_sources/test_directory_contract.py -v
 uv run pytest tests/test_local_sources/test_exporter_parity.py -v
 
 # End-to-end smoke from config (small cell subset)
-uv run python scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py --config configs/bow_valley/cube.yaml --limit 4
-uv run python scripts/developer_scripts/bow_valley_inference_local/infer_bow_valley_daily_fsc.py --config configs/bow_valley/inference.yaml --limit 4
+uv run python scripts/developer_scripts/bow_valley_inference_local/03_export_bow_valley_cube.py --config configs/bow_valley/cube.yaml --limit 4
+uv run python scripts/developer_scripts/bow_valley_inference_local/04_infer_bow_valley_daily_fsc.py --config configs/bow_valley/inference.yaml --limit 4
 
-uv run ruff check scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py scripts/developer_scripts/bow_valley_inference_local/infer_bow_valley_daily_fsc.py
-uv run mypy scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py scripts/developer_scripts/bow_valley_inference_local/infer_bow_valley_daily_fsc.py
+uv run ruff check scripts/developer_scripts/bow_valley_inference_local/03_export_bow_valley_cube.py scripts/developer_scripts/bow_valley_inference_local/04_infer_bow_valley_daily_fsc.py
+uv run mypy scripts/developer_scripts/bow_valley_inference_local/03_export_bow_valley_cube.py scripts/developer_scripts/bow_valley_inference_local/04_infer_bow_valley_daily_fsc.py
 uv run pre-commit run --all-files
 ```
 
@@ -110,7 +110,7 @@ ruff/mypy/pre-commit exit 0.
 1. Verify ACs. 2. Run Section 6 commands.
 2. Commit:
    ```bash
-   git add scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py scripts/developer_scripts/bow_valley_inference_local/infer_bow_valley_daily_fsc.py \
+   git add scripts/developer_scripts/bow_valley_inference_local/03_export_bow_valley_cube.py scripts/developer_scripts/bow_valley_inference_local/04_infer_bow_valley_daily_fsc.py \
            configs/bow_valley/cube.yaml configs/bow_valley/inference.yaml \
            tests/test_local_sources/test_directory_contract.py \
            tests/test_local_sources/test_exporter_parity.py docs/agents/KNOWLEDGE.md

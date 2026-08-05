@@ -9,11 +9,11 @@ This is the cube half of Stage 2. It is **additive** — it composes existing co
 path is untouched.
 
 Example:
-    uv run python scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py \\
+    uv run python scripts/developer_scripts/bow_valley_inference_local/03_export_bow_valley_cube.py \\
         export --config configs/bow_valley/cube.yaml --limit 4
 
     # Wipe the cube cache on demand (reports entries removed):
-    uv run python scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py \\
+    uv run python scripts/developer_scripts/bow_valley_inference_local/03_export_bow_valley_cube.py \\
         clean-cache --config configs/bow_valley/cube.yaml
 """
 
@@ -63,7 +63,8 @@ def export(
         typer.Option(
             help="Verify the offline per-granule S1 SNAP cache covers each cell's window "
             "(fail loud if missing). On by default; build the cache first with "
-            "scripts/developer_scripts/bow_valley_inference_local/build_bow_valley_s1_cache.py. "
+            "scripts/developer_scripts/bow_valley_inference_local/01_process_raw_dataset.py "
+            "process-s1. "
             "Pass --no-verify-s1-cache to deliberately allow S1-free cubes.",
         ),
     ] = True,

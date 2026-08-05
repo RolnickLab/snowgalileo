@@ -28,7 +28,11 @@ This is an **idempotent, offline** step: run it once before exporting cubes;
 re-running skips granules whose cache tif already exists. One AOI-wide tif per granule
 (not per cell) — the adapter windows it to any cell, so mode A and mode B share it.
 
-    uv run python -m snow_galileo.data.local_sources.s1_snap
+This module is a library, not a CLI — the operator entry point (with preflight checks)
+is::
+
+    uv run python scripts/developer_scripts/bow_valley_inference_local/\
+01_process_raw_dataset.py process-s1
 
 Sentinel-1C note: the archive is all ``S1C_*`` (the satellite launched Dec 2024).
 SNAP reads S1C natively; ``xarray-sentinel``/``sarsen`` do **not** (the ``s1[ab]``
@@ -423,7 +427,7 @@ class S1CacheUnavailableError(RuntimeError):
 
     Raised by :func:`ensure_s1_cache` so cube export fails loudly instead of silently
     assembling an all-``-9999`` S1 block (the historical silent-dropout bug). The fix is
-    to run the offline build (``build_bow_valley_s1_cache.py``), not to build inline.
+    to run the offline build (``01_process_raw_dataset.py process-s1``), not to build inline.
     """
 
 
@@ -438,7 +442,7 @@ def ensure_s1_cache(
 
     A **verification-only** pre-flight (it does NOT run SNAP): building the cache is the
     offline driver's job (raw → SNAP, once — see :func:`build_s1_cache` and
-    ``build_bow_valley_s1_cache.py``). Keeping the heavyweight SNAP/orbit/SRTM step out
+    ``01_process_raw_dataset.py process-s1``). Keeping the heavyweight SNAP/orbit/SRTM step out
     of the cube-export path is the whole point of the per-granule offline stage; the
     exporter only checks that the offline build has been run.
 
@@ -482,61 +486,7 @@ def ensure_s1_cache(
     raise S1CacheUnavailableError(
         f"{len(missing)} S1 per-granule cache tif(s) are missing for the export window. "
         f"Build the cache first (offline, once): "
-        f"`uv run python scripts/developer_scripts/bow_valley_inference_local/build_bow_valley_s1_cache.py`. "
+        f"`uv run python scripts/developer_scripts/bow_valley_inference_local/"
+        f"01_process_raw_dataset.py process-s1`. "
         f"Missing granules: {missing}."
     )
-
-
-def cli() -> None:
-    """Single-command Typer CLI for the offline S1 SNAP cache build.
-
-    Runs SNAP **once per raw granule** over the AOI bbox (the geoRegion Subset is applied
-    after Terrain-Correction). For the operator-facing entry point with preflight checks,
-    use ``scripts/developer_scripts/bow_valley_inference_local/build_bow_valley_s1_cache.py``.
-
-    ``typer`` is imported here, not at module scope: this module is read on the S1-adapter
-    hot path (``s1.py``), and the CLI only runs under ``python -m`` — so the import stays
-    out of every library import.
-    """
-    import typer
-
-    from snow_galileo.data.local_sources.clip.settings import load_aoi_polygon
-    from snow_galileo.data.local_sources.paths import LocalPaths
-
-    paths = LocalPaths()
-    app = typer.Typer(add_completion=False, help="Build the Sentinel-1 per-granule SNAP cache.")
-
-    @app.command()
-    def build(
-        archive_root: Path = typer.Option(
-            paths.raw_root / "sentinel1",
-            "--archive-root",
-            help="Raw S1 archive (holds full-swath S1*_IW_GRDH_*.zip).",
-        ),
-        cache_dir: Path = typer.Option(
-            paths.clipped_root / "sentinel1_snap",
-            "--cache-dir",
-            help="Output directory for the s1_grd_*.tif cache.",
-        ),
-        aoi: Path = typer.Option(paths.aoi_path, "--aoi", help="AOI polygon (EPSG:4326 GeoJSON)."),
-        gpt: Path = typer.Option(_DEFAULT_GPT, "--gpt"),
-        graph: Path = typer.Option(_DEFAULT_GRAPH, "--graph"),
-        overwrite: bool = typer.Option(False, "--overwrite"),
-    ) -> None:
-        """Build the per-granule AOI-wide SNAP dB+angle cache from raw."""
-        cached = build_s1_cache(
-            archive_root=archive_root,
-            aoi_4326=load_aoi_polygon(aoi),
-            cache_dir=cache_dir,
-            gpt=gpt,
-            graph=graph,
-            overwrite=overwrite,
-        )
-        for path in cached:
-            typer.echo(str(path))
-
-    app()
-
-
-if __name__ == "__main__":
-    cli()

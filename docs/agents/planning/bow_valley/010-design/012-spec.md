@@ -43,7 +43,7 @@ ______________________________________________________________________
 
 **Stage 0→1 — AOI Clip (per `CLIPPING_PLAN.md`)**
 
-- [ ] FR-1: A `process_raw_dataset.py` Typer CLI (formerly `clip_dataset.py`) clips every
+- [ ] FR-1: A `01_process_raw_dataset.py` Typer CLI (formerly `clip_dataset.py`) clips every
   raw dataset in `data/bow_valley_selection_raw` to `data/bow_valley_inference_aoi.geojson`
   and writes `data/clipped_bow_valley_selection_raw`, preserving native pixel values, CRS,
   and file format (non-destructive). **Exception: Sentinel-1 is processed, not clipped** —

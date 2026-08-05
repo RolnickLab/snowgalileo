@@ -1,6 +1,6 @@
 """`clean-cache` CLI command (PLAN-CUBE-CACHE-INVALIDATION test #7).
 
-The command lives in ``export_bow_valley_cube.py`` (operator decision Q1) and wipes
+The command lives in ``03_export_bow_valley_cube.py`` (operator decision Q1) and wipes
 ``CubeSettings.cube_cache_dir`` on demand, reporting entries removed. It clears via a
 single parent-process ``CubeCache(overwrite=True)`` — the only construction that clears —
 so there is no cross-worker race.
@@ -25,7 +25,7 @@ _SCRIPT = (
     / "scripts"
     / "developer_scripts"
     / "bow_valley_inference_local"
-    / "export_bow_valley_cube.py"
+    / "03_export_bow_valley_cube.py"
 )
 
 
