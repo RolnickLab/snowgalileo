@@ -128,7 +128,7 @@ def grid_a():
 @pytest.fixture(scope="module")
 def grid_b():
     """Mode-B grid: the AOI tiled into 1 km cells (legacy CSV not consumed)."""
-    return build_grid(mode="B", aoi_path=AOI_PATH)
+    return build_grid(mode="B", legacy_csv=LEGACY_CSV, aoi_path=AOI_PATH)
 
 
 def test_mode_a_cell_count(grid_a):
@@ -235,7 +235,7 @@ INSET_M = 10_000.0  # 10 km internal border drop
 @pytest.fixture(scope="module")
 def grid_b_inset():
     """Mode-B grid with a 10 km internal inset (border ring dropped)."""
-    return build_grid(mode="B", aoi_path=AOI_PATH, mode_b_inset_m=INSET_M)
+    return build_grid(mode="B", legacy_csv=LEGACY_CSV, aoi_path=AOI_PATH, mode_b_inset_m=INSET_M)
 
 
 def test_inset_drops_border_cells(grid_b, grid_b_inset):
@@ -283,16 +283,16 @@ def test_inset_cells_clear_the_aoi_edge(grid_b_inset):
 def test_inset_negative_rejected():
     """A negative inset is rejected (it would *grow* the AOI)."""
     with pytest.raises(ValueError, match="inset_m must be >= 0"):
-        build_grid(mode="B", aoi_path=AOI_PATH, mode_b_inset_m=-1.0)
+        build_grid(mode="B", legacy_csv=LEGACY_CSV, aoi_path=AOI_PATH, mode_b_inset_m=-1.0)
 
 
 def test_inset_that_erases_aoi_raises():
     """An inset larger than the AOI's half-extent erodes it to nothing → ValueError."""
     with pytest.raises(ValueError, match="erodes the entire AOI"):
-        build_grid(mode="B", aoi_path=AOI_PATH, mode_b_inset_m=1_000_000.0)
+        build_grid(mode="B", legacy_csv=LEGACY_CSV, aoi_path=AOI_PATH, mode_b_inset_m=1_000_000.0)
 
 
 def test_inset_zero_matches_plain_mode_b(grid_b):
     """inset_m=0 is identical to plain Mode B (default-safe, no behaviour change)."""
-    grid0 = build_grid(mode="B", aoi_path=AOI_PATH, mode_b_inset_m=0.0)
+    grid0 = build_grid(mode="B", legacy_csv=LEGACY_CSV, aoi_path=AOI_PATH, mode_b_inset_m=0.0)
     assert len(grid0) == len(grid_b)

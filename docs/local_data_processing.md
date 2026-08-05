@@ -13,15 +13,15 @@ Every operator script lives in
 `scripts/developer_scripts/bow_valley_inference_local/`; each is a thin Typer CLI
 over package code, run with `uv run python …` (the viewer with `uv run solara run …`). Run the stages top to bottom:
 
-| #   | Stage                                                  | Script                                                                    | Output                                               |
-| --- | ------------------------------------------------------ | ------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 0   | Grid + reference patches (§2) - DEPRECATED AND REMOVED | `python -m src.data.local_sources.grid --emit-csv`                        | `configs/bow_valley/cube_cells.csv`, parity fixtures |
-| 1   | Process raw → read roots (§3)                          | `process_raw_dataset.py process-all`                                      | clipped archive + `sentinel1_snap/` cache            |
-| 1a  | (S1 only, standalone)                                  | `process_raw_dataset.py process-s1` **or** `build_bow_valley_s1_cache.py` | `sentinel1_snap/s1_grd_<granule>.tif`                |
-| 1b  | Audit stage 1                                          | `process_raw_audit.py`                                                    | exit 0 = clean                                       |
-| 2   | Assemble 308-band cubes (§5)                           | `export_bow_valley_cube.py`                                               | `processing_root/cubes/PR_*.tif`                     |
-| 3   | Daily FSC inference (§6)                               | `infer_bow_valley_daily_fsc.py`                                           | `processing_root/daily_fsc/*.tif`                    |
-| 4   | Inspect / QA (§7)                                      | `solara run data_viewer.py`                                               | Clip / Cube / Daily-FSC tabs                         |
+| #   | Stage                                                | Script                                                                    | Output                                               |
+| --- | ---------------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 0   | Grid + reference patches (§2) - PARTIALLY DEPRECATED | `generate_grid_csv.py`                                                    | `configs/bow_valley/cube_cells.csv`, parity fixtures |
+| 1   | Process raw → read roots (§3)                        | `process_raw_dataset.py process-all`                                      | clipped archive + `sentinel1_snap/` cache            |
+| 1a  | (S1 only, standalone)                                | `process_raw_dataset.py process-s1` **or** `build_bow_valley_s1_cache.py` | `sentinel1_snap/s1_grd_<granule>.tif`                |
+| 1b  | Audit stage 1                                        | `process_raw_audit.py`                                                    | exit 0 = clean                                       |
+| 2   | Assemble 308-band cubes (§5)                         | `export_bow_valley_cube.py`                                               | `processing_root/cubes/PR_*.tif`                     |
+| 3   | Daily FSC inference (§6)                             | `infer_bow_valley_daily_fsc.py`                                           | `processing_root/daily_fsc/*.tif`                    |
+| 4   | Inspect / QA (§7)                                    | `solara run data_viewer.py`                                               | Clip / Cube / Daily-FSC tabs                         |
 
 **Key ordering rule (stage 1):** Sentinel-1 is **processed, never clipped** — it
 must go through ESA SNAP *before* anything reads it. `process-all` enforces this:
@@ -95,6 +95,7 @@ uv run pytest tests/test_local_sources/test_grid.py tests/test_local_sources/tes
   500 cells (31%) fall outside the AOI and are dropped by design.
 - The legacy `date` column in `tests/fixtures/sampled_cells_bow_river_with_dates.csv` is never
   read — only cell geometry is reused; dates come from the inference window.
+- This is not used by later steps when using mode B, as this mode never writes a csv and consumes the dataframe directly
 
 ______________________________________________________________________
 
