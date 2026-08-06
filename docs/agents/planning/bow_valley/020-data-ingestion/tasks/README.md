@@ -8,12 +8,11 @@ Sourced from PLAN, FDD, SPEC, `DATA_ANALYSIS.md`, `docs/agents/KNOWLEDGE.md`.
 implementation → test) and follows Red → Green → Refactor. Do not start a task before
 its predecessors are approved (per CLAUDE.md: stop and get sign-off at each gate).
 
-> **The test suite is already red on a clean checkout (6 pre-existing failures).** See
-> [`test-baseline.md`](test-baseline.md). Every task validates against the **delta** —
-> a task passes when it introduces **no new** failures vs that baseline and its own new
-> tests are green. Never use `pytest -x` at the suite level (it halts on a pre-existing
-> failure before reaching new tests); never try to fix the baseline failures as part of
-> Bow Valley work.
+> **The test suite is green (365 passed, verified 2026-08-06).** See
+> [`test-baseline.md`](test-baseline.md). Every task validates by **absolute pass** — a
+> task passes when the full suite has **zero** failures and its own new tests are green.
+> Any failure is a regression to investigate, not a tolerated baseline. (This note
+> previously described 6 pre-existing failures; all are resolved.)
 
 | Task     | Title                                                      | FDD step | Key SPEC ACs                      |
 | -------- | ---------------------------------------------------------- | -------- | --------------------------------- |

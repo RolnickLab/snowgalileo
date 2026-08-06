@@ -514,7 +514,7 @@ ______________________________________________________________________
 
 ## Testing baseline
 
-The suite is **already red on a clean checkout** (6 pre-existing failures, see
+The suite is **green** — `uv run pytest -q` → **365 passed**, verified 2026-08-06 (see
 `docs/agents/planning/bow_valley/020-data-ingestion/tasks/test-baseline.md`). Judge work by
-**delta** — never `pytest -x` at the suite level. New work must add zero new
-failures.
+**absolute pass**: any failure is a regression. The 6 pre-existing failures this section
+used to describe are all resolved.
