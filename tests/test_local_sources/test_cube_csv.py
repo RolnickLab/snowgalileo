@@ -169,7 +169,7 @@ def test_generate_writes_files(kept_cells, tmp_path):
     out_csv = tmp_path / "cube_cells.csv"
     manifest = tmp_path / "manifest.csv"
     df = generate(
-        legacy_csv=LEGACY_CSV,
+        cube_cells_csv=LEGACY_CSV,
         aoi_path=AOI_PATH,
         output_csv=out_csv,
         manifest_path=manifest,

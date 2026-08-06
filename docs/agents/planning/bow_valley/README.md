@@ -54,7 +54,8 @@ For *what is done vs. in-flight vs. deferred*, see [`STATUS.md`](STATUS.md).
 
 The tasks are grouped by phase under `tasks/`:
 
-- `foundation/` — TASK-001…005 (audit, clip, contract/grid, tracer, parity gate)
+- `foundation/` — TASK-001…005 (audit, clip, contract/grid, tracer, parity gate) and
+  TASK-017 (generalize the grid CRS beyond UTM 11N — **not started**)
 - `adapters-static/` — TASK-006…010 (WorldCover, DEM, ERA5, MODIS, VIIRS)
 - `adapters-scene/` — TASK-011…014 (+012b/013b/013c) (S3, Landsat, S2, S1)
 - `inference/` — TASK-015, 016 (driver + mosaic; entry points + parity gate)

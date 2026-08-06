@@ -1,14 +1,23 @@
 """AOI 1 km grid generator — Phase 0 geometry half.
 
 This module ships the *geometry half* of the grid generator required by Phase 0
-(TASK-001): load the legacy cell-sampling CSV for **cell geometry only**, filter
-cells to ``data/bow_valley_inference_aoi.geojson``, emit a kept/dropped manifest, and emit the
-generated cross-product cube CSV that drives both the inference sweep and the
-Phase 0 GEE reference-patch run.
+(TASK-001): load a cells CSV for **cell geometry only**, filter cells to an AOI,
+emit a kept/dropped manifest, and emit the generated cross-product cube CSV that
+drives both the inference sweep and the Phase 0 GEE reference-patch run.
 
-The mode A/B switch, ``cube_cache`` wiring, and the per-cell ``GridCell`` target
-transform are productionized later in TASK-003; they are intentionally **not**
-implemented here.
+There are two ways to obtain the cells, and they take different inputs:
+
+- :func:`cells_from_csv` (**mode A**) — the cell list comes from a CSV; an AOI, if
+  given, only *filters* it. Used for training/validation sampling.
+- :func:`cells_from_aoi` (**mode B**) — an AOI is tiled into a seamless 1 km
+  lattice; no CSV exists. Used for large-scale inference maps.
+
+:func:`build_cells` / :func:`build_grid` dispatch between them for callers whose
+mode arrives from ``cube.yaml``. Call the two directly when the mode is static.
+
+**One CRS only.** Everything here is welded to :data:`GRID_MATH_CRS` (UTM 11N);
+a cells CSV in another zone is rejected by :func:`load_cells`. Generalizing this
+is TASK-017.
 
 Key contracts (verified against the codebase, see
 ``docs/agents/planning/bow_valley/020-data-ingestion/``):
@@ -143,24 +152,27 @@ def load_aoi_polygon(aoi_path: Path) -> Polygon:
     return Polygon(geometry["coordinates"][0])
 
 
-def load_cells(legacy_csv: Path) -> list[CellGeometry]:
-    """Load cell geometry from the legacy sampling CSV (geometry only).
+def load_cells(cube_cells_csv: Path) -> list[CellGeometry]:
+    """Load cell geometry from a cells CSV (geometry only).
 
-    The legacy ``date`` column is train/eval label-sampling metadata and is
+    The CSV's ``date`` column is train/eval label-sampling metadata and is
     **not** read here (see PLAN §8 Q4). Rows are deduplicated on their full
     geometry so a cell sampled on multiple label dates is counted once.
 
     Args:
-        legacy_csv: Path to ``tests/fixtures/sampled_cells_bow_river_with_dates.csv``.
+        cube_cells_csv: Path to a cells CSV in the :data:`CUBE_CSV_COLUMNS`
+            geometry dialect, e.g.
+            ``tests/fixtures/sampled_cells_bow_river_with_dates.csv``.
 
     Returns:
         One :class:`CellGeometry` per unique cell, ``cell_id`` assigned in
         stable row order.
 
     Raises:
-        ValueError: If any cell CRS is not :data:`GRID_MATH_CRS`.
+        ValueError: If any cell CRS is not :data:`GRID_MATH_CRS`. Generalizing
+            this beyond UTM 11N is TASK-017.
     """
-    df = pd.read_csv(legacy_csv)
+    df = pd.read_csv(cube_cells_csv)
     geom_cols = ["center_x", "center_y", "min_x", "min_y", "max_x", "max_y"]
     cells_df = df.drop_duplicates(subset=geom_cols).reset_index(drop=True)
 
@@ -180,7 +192,7 @@ def load_cells(legacy_csv: Path) -> list[CellGeometry]:
         )
         for idx, row in cells_df.iterrows()
     ]
-    logger.info("loaded_cells", count=len(cells), source=str(legacy_csv))
+    logger.info("loaded_cells", count=len(cells), source=str(cube_cells_csv))
     return cells
 
 
@@ -368,89 +380,140 @@ def _tile_aoi_to_cells(aoi: Polygon, inset_m: float = 0.0) -> list[CellGeometry]
     return cells
 
 
-def build_cells(
-    legacy_csv: Path,
-    aoi_path: Path,
-    mode: SweepMode = "A",
+def cells_from_csv(
+    cube_cells_csv: Path,
+    aoi_path: Path | None = None,
     require_fully_inside: bool = False,
-    mode_b_inset_m: float = 0.0,
 ) -> list[CellGeometry]:
-    """Build the cells for the inference sweep grid as a list of :class:`CellGeometry`.
+    """Mode A — take the cells from a CSV, optionally constrained by an AOI.
 
-    Both modes are **bounded by the AOI** (`data/bow_valley_inference_aoi.geojson`),
-    never the wider cell-sampling bbox — the clipped archive holds no data outside
-    the AOI (PLAN §3).
+    The CSV is the authoritative cell list; the AOI is a *filter* over it, not a
+    bound on it. Passing no AOI keeps every cell in the CSV, which is the
+    training/validation-sampling case.
 
     Args:
-        mode: ``"A"`` (sample-only) keeps the in-AOI legacy-CSV cells, using the
-            legacy CSV for **cell geometry only**. ``"B"`` (full tile) tiles the
-            AOI directly into a 1 km lattice and ignores the legacy CSV.
-        legacy_csv: Legacy cell-sampling CSV (mode A only).
-        aoi_path: Authoritative AOI GeoJSON (both modes).
-        require_fully_inside: Mode A only — keep only fully-contained cells
-            (→ 338) instead of the centre-in rule (→ 344).
-        mode_b_inset_m: Mode B only — erode the AOI inward by this many metres
-            (negative polygon buffer in UTM) before tiling, dropping an
-            ``mode_b_inset_m``-wide border ring. ``0.0`` (default) tiles the full
-            AOI. Ignored in mode A.
+        cube_cells_csv: Cells CSV (geometry only; see :func:`load_cells`).
+        aoi_path: Optional AOI GeoJSON to filter the cells against. ``None``
+            keeps every cell.
+        require_fully_inside: Keep only fully-contained cells instead of the
+            centre-in rule. Requires ``aoi_path``.
 
     Returns:
-        The list of cell geometries
+        The kept cell geometries, in CSV row order.
 
     Raises:
-        ValueError: If ``mode`` is not ``"A"`` or ``"B"``, or if a mode-B inset
-            erodes the entire AOI.
+        ValueError: If ``require_fully_inside`` is set without an ``aoi_path``,
+            or if filtering keeps no cells at all.
     """
-    aoi = load_aoi_polygon(aoi_path)
-    if mode == "A":
-        keep_rule: KeepRule = "fully_inside" if require_fully_inside else "centre_in"
-        cells = load_cells(legacy_csv)
-        kept, _ = _filter_cells(cells, aoi, keep_rule=keep_rule)
-    elif mode == "B":
-        kept = _tile_aoi_to_cells(aoi, inset_m=mode_b_inset_m)
-    else:
-        raise ValueError(f"Unknown sweep mode {mode!r}; expected 'A' or 'B'.")
+    if require_fully_inside and aoi_path is None:
+        raise ValueError("require_fully_inside needs an aoi_path to test containment against.")
 
+    cells = load_cells(cube_cells_csv)
+    if aoi_path is None:
+        return cells
+
+    keep_rule: KeepRule = "fully_inside" if require_fully_inside else "centre_in"
+    kept, _ = _filter_cells(cells, load_aoi_polygon(aoi_path), keep_rule=keep_rule)
+    if not kept:
+        # Almost always a CSV/AOI region mismatch. Without this the sweep runs to
+        # completion over an empty grid and writes nothing, silently.
+        raise ValueError(
+            f"AOI {aoi_path} keeps 0 of {len(cells)} cells from {cube_cells_csv} "
+            f"(keep_rule={keep_rule!r}). Do the CSV and the AOI cover the same region?"
+        )
     return kept
 
 
-def build_grid(
-    legacy_csv: Path,
-    aoi_path: Path,
+def cells_from_aoi(aoi_path: Path, inset_m: float = 0.0) -> list[CellGeometry]:
+    """Mode B — tile an AOI into a seamless 1 km lattice. No CSV involved.
+
+    Args:
+        aoi_path: AOI GeoJSON to tile (authoritative bound).
+        inset_m: Erode the AOI inward by this many metres before tiling,
+            dropping a border ring of that width. ``0.0`` tiles the full AOI.
+
+    Returns:
+        One :class:`CellGeometry` per kept tile, in row-major order.
+
+    Raises:
+        ValueError: If ``inset_m`` is negative or erodes the entire AOI.
+    """
+    return _tile_aoi_to_cells(load_aoi_polygon(aoi_path), inset_m=inset_m)
+
+
+def build_cells(
     mode: SweepMode = "A",
+    cube_cells_csv: Path | None = None,
+    aoi_path: Path | None = None,
+    require_fully_inside: bool = False,
+    mode_b_inset_m: float = 0.0,
+) -> list[CellGeometry]:
+    """Dispatch to the mode A/B cell builder named by a config value.
+
+    Thin wrapper over :func:`cells_from_csv` / :func:`cells_from_aoi` for callers
+    whose mode comes from ``cube.yaml`` rather than the call site. Call those two
+    directly when the mode is known statically — their signatures already say
+    which inputs are required.
+
+    Args:
+        mode: ``"A"`` (cells from CSV) or ``"B"`` (tile the AOI).
+        cube_cells_csv: Cells CSV. **Required in mode A**, unused in mode B.
+        aoi_path: AOI GeoJSON. **Required in mode B**, optional filter in mode A.
+        require_fully_inside: Mode A only — see :func:`cells_from_csv`.
+        mode_b_inset_m: Mode B only — see :func:`cells_from_aoi`.
+
+    Returns:
+        The list of cell geometries.
+
+    Raises:
+        ValueError: If ``mode`` is unknown, if the input that mode requires is
+            missing, or if the underlying builder rejects its arguments.
+    """
+    if mode == "A":
+        if cube_cells_csv is None:
+            raise ValueError("mode 'A' builds cells from a CSV; cube_cells_csv is required.")
+        return cells_from_csv(
+            cube_cells_csv,
+            aoi_path=aoi_path,
+            require_fully_inside=require_fully_inside,
+        )
+    if mode == "B":
+        if aoi_path is None:
+            raise ValueError("mode 'B' tiles an AOI; aoi_path is required.")
+        return cells_from_aoi(aoi_path, inset_m=mode_b_inset_m)
+    raise ValueError(f"Unknown sweep mode {mode!r}; expected 'A' or 'B'.")
+
+
+def build_grid(
+    mode: SweepMode = "A",
+    cube_cells_csv: Path | None = None,
+    aoi_path: Path | None = None,
     require_fully_inside: bool = False,
     mode_b_inset_m: float = 0.0,
 ) -> list[GridCell]:
     """Build the inference sweep grid as productionized :class:`GridCell` objects.
 
-    Both modes are **bounded by the AOI** (`data/bow_valley_inference_aoi.geojson`),
-    never the wider cell-sampling bbox — the clipped archive holds no data outside
-    the AOI (PLAN §3).
+    :func:`build_cells` with the geometries promoted to :class:`GridCell` — see it
+    for the per-mode argument contract.
 
     Args:
-        mode: ``"A"`` (sample-only) keeps the in-AOI legacy-CSV cells, using the
-            legacy CSV for **cell geometry only**. ``"B"`` (full tile) tiles the
-            AOI directly into a 1 km lattice and ignores the legacy CSV.
-        legacy_csv: Legacy cell-sampling CSV (mode A only).
-        aoi_path: Authoritative AOI GeoJSON (both modes).
-        require_fully_inside: Mode A only — keep only fully-contained cells
-            (→ 338) instead of the centre-in rule (→ 344).
-        mode_b_inset_m: Mode B only — erode the AOI inward by this many metres
-            (negative polygon buffer in UTM) before tiling, dropping an
-            ``mode_b_inset_m``-wide border ring. ``0.0`` (default) tiles the full
-            AOI. Ignored in mode A.
+        mode: ``"A"`` (cells from CSV) or ``"B"`` (tile the AOI).
+        cube_cells_csv: Cells CSV. **Required in mode A**, unused in mode B.
+        aoi_path: AOI GeoJSON. **Required in mode B**, optional filter in mode A.
+        require_fully_inside: Mode A only — see :func:`cells_from_csv`.
+        mode_b_inset_m: Mode B only — see :func:`cells_from_aoi`.
 
     Returns:
         The grid cells, each carrying the UTM 11N / 10 m / 100×100 target triple.
 
     Raises:
-        ValueError: If ``mode`` is not ``"A"`` or ``"B"``, or if a mode-B inset
-            erodes the entire AOI.
+        ValueError: If ``mode`` is unknown, if the input that mode requires is
+            missing, or if the underlying builder rejects its arguments.
     """
     cells = build_cells(
         mode=mode,
         aoi_path=aoi_path,
-        legacy_csv=legacy_csv,
+        cube_cells_csv=cube_cells_csv,
         require_fully_inside=require_fully_inside,
         mode_b_inset_m=mode_b_inset_m,
     )
@@ -547,7 +610,7 @@ def build_cube_dataframe_for_gee_utm(
 
 
 def generate(
-    legacy_csv: Path,
+    cube_cells_csv: Path,
     aoi_path: Path,
     output_csv: Path,
     manifest_path: Path,
@@ -558,7 +621,7 @@ def generate(
     """Run the full geometry pipeline and write the cube CSV + manifest.
 
     Args:
-        legacy_csv: Legacy cell-sampling CSV (geometry only).
+        cube_cells_csv: Cells CSV (geometry only).
         aoi_path: AOI GeoJSON (authoritative clip/inference boundary).
         output_csv: Destination for the generated cube CSV.
         manifest_path: Destination for the kept/dropped cell manifest.
@@ -570,7 +633,7 @@ def generate(
         The generated cube CSV DataFrame (also written to ``output_csv``).
     """
     aoi = load_aoi_polygon(aoi_path)
-    cells = load_cells(legacy_csv)
+    cells = load_cells(cube_cells_csv)
     kept, dropped = _filter_cells(cells, aoi, keep_rule=keep_rule)
 
     manifest = build_manifest(kept, dropped)

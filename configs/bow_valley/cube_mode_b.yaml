@@ -1,0 +1,44 @@
+# Stage-2 cube-assembly configuration — MODE B (full-AOI tiling).
+#
+# Sibling to cube.yaml (which is the Mode-A sample-cell config). This file is the
+# sweep definition of the full Mode-B run whose cubes live in full_run/cubes, and it
+# exists so that grid is reproducible rather than tribal knowledge: re-deriving the
+# grid with the wrong inset silently mosaics over the wrong footprint.
+#
+# Precedence: CUBE_-prefixed env vars > this file > field defaults.
+
+# Adapters' read-root: the AOI-clipped archive (NEVER the raw archive).
+archive_root: data/clipped_bow_valley_selection_raw
+
+# Stage-2 write-root. cube_cache/, cubes/, daily_fsc/, manifests/, scratch/ derive
+# from this. NOTE: the Mode-B cubes are NOT under processing_root/cubes — they live
+# in full_run/cubes, so an inference run over them must pass --cube-dir explicitly.
+processing_root: data/bow_valley_processing
+
+# Tile the full AOI. No cube_cells_csv: mode B has no cell list, it generates one.
+mode: B
+
+# The AOI that gets tiled. Defaults to LocalPaths.aoi_path; stated for auditability.
+aoi_path: data/bow_valley_inference_aoi.geojson
+
+# Erode the AOI inward by 5 km before tiling, dropping a 5 km border ring.
+#
+# THIS VALUE IS LOAD-BEARING AND MUST NOT BE CHANGED. It is the inset the full Mode-B
+# run's cubes were built with, and the grid it produces is a bijection with what is on
+# disk: 25,078 full-AOI tiles − 3,093 dropped by the inset = 21,985 cells/day, matching
+# the 461,685 cubes (21,985 × 21 days) in full_run/cubes exactly, with zero missing and
+# zero extra. See docs/agents/planning/bow_valley/050-operations/
+# 050-full-run-after-action-report.md. Any other inset makes every cube lookup miss.
+mode_b_inset_m: 5000
+
+# Inference window (inclusive) — the 21 days the full run's cubes cover.
+window_start: 2025-04-06
+window_end: 2025-04-26
+
+# Per-cell target CRS — UTM 11N, matching the GEE reference patches. NOT EPSG:4326.
+cell_crs: "EPSG:32611"
+
+# Entry cap on the per-(modality, cell, day) .npz cache. Irrelevant to a --cubes-only
+# run (nothing is assembled, so no cache is built or pruned); sized here for a Mode-B
+# build sweep, whose live 8-day window is ~1.81M entries.
+cache_max_entries: 3000000

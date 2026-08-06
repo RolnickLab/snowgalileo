@@ -18,7 +18,11 @@ archive_root: data/clipped_bow_valley_selection_raw
 processing_root: data/bow_valley_processing/full_run
 
 # Sweep mode: "B" = tile the full AOI into a 1 km lattice (~25,078 cells before inset).
+# No cube_cells_csv: mode B has no cell list, it generates one.
 mode: B
+
+# The AOI that gets tiled. Defaults to LocalPaths.aoi_path; stated for auditability.
+aoi_path: data/bow_valley_inference_aoi.geojson
 
 # Mode-B negative buffer: erode the AOI inward by 5 km (UTM negative polygon buffer)
 # before tiling, dropping the outer 5 km ring of output cells. 25,078 -> 21,985 cells

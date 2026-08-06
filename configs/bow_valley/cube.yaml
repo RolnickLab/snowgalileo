@@ -15,6 +15,18 @@ processing_root: data/bow_valley_processing
 # Sweep mode: "A" = in-AOI sample cells (~344, default); "B" = tile the AOI.
 mode: A
 
+# Mode A only — the cell list this sweep is built from (geometry columns only;
+# the `date` column is ignored and duplicate geometries collapse). Written by
+# 00_generate_grid_csv.py. Filtered by aoi_path below, which is idempotent here:
+# this file was itself produced by that filter, so it re-filters to the same 344.
+# NOT configs/aoi_cubes/cube_cells.csv — that one is the GEE center_lat/center_lon
+# dialect and will not load.
+cube_cells_csv: configs/bow_valley/cube_cells.csv
+
+# AOI for this run. Defaults to LocalPaths.aoi_path; stated for auditability.
+# Mode A: filters the cells above. Mode B: this is what gets tiled.
+aoi_path: data/bow_valley_inference_aoi.geojson
+
 # Inference window (inclusive). Derived from archive coverage: S1-start-limited
 # start, S2/L8-end-limited end (PLAN §3 Temporal window).
 window_start: 2025-04-06

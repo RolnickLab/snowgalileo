@@ -268,7 +268,12 @@ def main(
     infer = InferenceSettings.from_yaml(config)
     days = _resolve_days(dates=dates, dates_file=dates_file, cube=cube)
 
-    grid = build_grid(mode=cube.mode, mode_b_inset_m=cube.mode_b_inset_m)
+    grid = build_grid(
+        mode=cube.mode,
+        cube_cells_csv=cube.cube_cells_csv,
+        aoi_path=cube.aoi_path,
+        mode_b_inset_m=cube.mode_b_inset_m,
+    )
     if limit is not None:
         grid = grid[:limit]
 

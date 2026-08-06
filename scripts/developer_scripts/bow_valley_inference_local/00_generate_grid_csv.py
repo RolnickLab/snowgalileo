@@ -46,7 +46,7 @@ def generate_grid_csv(
     """Emit the generated cube CSV and the kept/dropped cell manifest."""
     keep_rule: KeepRule = "fully_inside" if require_fully_inside else "centre_in"
     cube_csv = generate(
-        legacy_csv=legacy_csv,
+        cube_cells_csv=legacy_csv,
         aoi_path=aoi_path,
         output_csv=output_csv,
         manifest_path=manifest_path,

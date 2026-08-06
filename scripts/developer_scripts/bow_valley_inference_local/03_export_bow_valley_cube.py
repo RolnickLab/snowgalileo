@@ -96,7 +96,12 @@ def export(
         datetime.date.fromisoformat(window_end) if window_end is not None else settings.window_end
     )
 
-    grid = build_grid(mode=settings.mode, mode_b_inset_m=settings.mode_b_inset_m)
+    grid = build_grid(
+        mode=settings.mode,
+        cube_cells_csv=settings.cube_cells_csv,
+        aoi_path=settings.aoi_path,
+        mode_b_inset_m=settings.mode_b_inset_m,
+    )
     if limit is not None:
         grid = grid[:limit]
 
