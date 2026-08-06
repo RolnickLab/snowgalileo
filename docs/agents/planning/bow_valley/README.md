@@ -7,7 +7,8 @@ Engine ingestion. Documents are grouped into numbered phase folders that follow 
 work in the order it happened: analysis → design → ingestion → cube cache → inference →
 operations, plus a cross-cutting QA viewer.
 
-For *what is done vs. in-flight vs. deferred*, see [`STATUS.md`](STATUS.md).
+For *what is done vs. in-flight vs. deferred*, see [`STATUS.md`](STATUS.md). Work that was
+scoped and then parked lives in [`../upcoming/`](../upcoming/README.md), not in the task tree.
 
 > Files keep a `*Formerly `OLD_NAME.md`.*` line under their title so older references
 > (e.g. a docstring citing `CLIPPING_PLAN §2.0`) remain greppable after the 2026-06-18
@@ -54,8 +55,7 @@ For *what is done vs. in-flight vs. deferred*, see [`STATUS.md`](STATUS.md).
 
 The tasks are grouped by phase under `tasks/`:
 
-- `foundation/` — TASK-001…005 (audit, clip, contract/grid, tracer, parity gate) and
-  TASK-017 (generalize the grid CRS beyond UTM 11N — **not started**)
+- `foundation/` — TASK-001…005 (audit, clip, contract/grid, tracer, parity gate)
 - `adapters-static/` — TASK-006…010 (WorldCover, DEM, ERA5, MODIS, VIIRS)
 - `adapters-scene/` — TASK-011…014 (+012b/013b/013c) (S3, Landsat, S2, S1)
 - `inference/` — TASK-015, 016 (driver + mosaic; entry points + parity gate)

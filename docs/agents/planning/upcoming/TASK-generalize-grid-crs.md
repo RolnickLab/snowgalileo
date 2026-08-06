@@ -1,4 +1,13 @@
-# TASK-017: Generalize the grid CRS beyond UTM 11N
+# Generalize the grid CRS beyond UTM 11N
+
+Status: **Parked, not scheduled** (moved out of `bow_valley/020-data-ingestion/tasks/foundation/`
+and un-numbered on 2026-08-06). Scoping it surfaced two welds outside the grid module (§4b) that
+make this larger and more dangerous than a `grid.py` parameter thread. Needs its own planning
+pass before anyone writes code.
+
+Formerly `TASK-017-generalize-grid-crs.md`. The number is gone because this is no longer part of
+the numbered Bow Valley task sequence; the two `grid.py` docstrings that cited `TASK-017` now
+cite this path instead.
 
 ## 1. Goal
 
@@ -65,6 +74,39 @@ e.g. `s2.py:20` ("every archive tile is `T11U**` = EPSG:32611"). A full second-r
 needs an adapter-by-adapter CRS audit, which is larger than this task and should be sized
 separately once the grid half is done.
 
+## 4b. Two welds outside `grid.py` (found 2026-08-06, the reason this is parked)
+
+Neither is in the §2 table. Both must be fixed *in the same change* as the grid, not after.
+
+### The output CRS is welded independently of the grid
+
+`exporter.py:400` and `mosaic.py:163` pass `crs=CELL_TARGET_CRS` into `rasterio.open` while
+`cell.crs` — already carrying the correct value — sits unused two lines away. Generalize the
+grid without fixing these and a zone-12 run writes zone-12 pixels **labelled `EPSG:32611`**.
+
+That is strictly worse than today's behaviour: the current `load_cells` raise fails loudly at
+the front door, whereas this produces plausible-looking GeoTIFFs that are silently georeferenced
+to the wrong place on Earth. Every downstream consumer — the viewer, the mosaic, any GIS — would
+believe the label. Fix: write `cell.crs`, and guard in `DailyMosaicWriter.__init__` that the
+grid is single-CRS (it already iterates the cells to compute bounds).
+
+### Nothing rejects a geographic `cell_crs`
+
+`_tile_aoi_to_cells` snaps its lattice with `CELL_SIZE_M = 1000`, in whatever units `cell_crs`
+uses. Set `cell_crs: "EPSG:4326"` and mode B silently builds **1000-degree** cells — one cell
+covering the planet, no error raised. Fix: reject a non-projected CRS via
+`pyproj.CRS(cell_crs).is_projected` at the entry point.
+
+### Design decision reached during scoping (not implemented)
+
+Config declares `cell_crs`; mode A validates the CSV's `crs` column against it and fails loudly
+on mismatch. Preferred over deriving mode A's CRS from the CSV data, because that leaves
+`cell_crs` meaningful in mode B and dead in mode A — the same silent-mislead this task exists to
+remove. Deriving mode B's zone from the AOI centroid stays rejected per §3.
+
+Recorded as the leading candidate, **not** as a settled decision — it has not been tested
+against §4b, which is what parked this.
+
 ## 5. Acceptance Criteria
 
 - [ ] The grid CRS is resolved from config/data, not a module constant; both `# TODO Generalize CRS management for other regions` markers are removed.
@@ -72,6 +114,8 @@ separately once the grid half is done.
   on rows that disagree.
 - [ ] `cell_crs` is either the wired single source of truth or deleted from
   `CubeSettings` and the three cube YAMLs; `mosaic.py:7` matches reality either way.
+- [ ] Both §4b welds are closed: `exporter.py` / `mosaic.py` write `cell.crs`, the mosaic
+  writer rejects a mixed-CRS grid, and a geographic `cell_crs` is rejected at the entry point.
 - [ ] Bow Valley output is unchanged — a mode A and a mode B build on the existing
   config produce byte-identical cells to the pre-change build (regression, not just
   "tests pass").

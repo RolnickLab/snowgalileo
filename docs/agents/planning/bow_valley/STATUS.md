@@ -42,6 +42,10 @@ From the AAR §7, highest-leverage first:
 6. **`max_tasks_per_child`** on the pool; **inference-stage progress logging**;
    **auto-resume wrapper**.
 
+Parked with a written diagnosis, outside this task tree — see
+[`../upcoming/`](../upcoming/README.md): generalizing the grid CRS beyond UTM 11N, and the
+standing `potential_future_work.md` register.
+
 ## ⚠️ Standing baseline note
 
 The test suite is **already red on a clean checkout** (6 pre-existing failures). Judge

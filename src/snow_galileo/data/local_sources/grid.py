@@ -17,7 +17,8 @@ mode arrives from ``cube.yaml``. Call the two directly when the mode is static.
 
 **One CRS only.** Everything here is welded to :data:`GRID_MATH_CRS` (UTM 11N);
 a cells CSV in another zone is rejected by :func:`load_cells`. Generalizing this
-is TASK-017.
+is parked — see
+``docs/agents/planning/upcoming/TASK-generalize-grid-crs.md``.
 
 Key contracts (verified against the codebase, see
 ``docs/agents/planning/bow_valley/020-data-ingestion/``):
@@ -170,7 +171,8 @@ def load_cells(cube_cells_csv: Path) -> list[CellGeometry]:
 
     Raises:
         ValueError: If any cell CRS is not :data:`GRID_MATH_CRS`. Generalizing
-            this beyond UTM 11N is TASK-017.
+            this beyond UTM 11N is parked — see
+            ``docs/agents/planning/upcoming/TASK-generalize-grid-crs.md``.
     """
     df = pd.read_csv(cube_cells_csv)
     geom_cols = ["center_x", "center_y", "min_x", "min_y", "max_x", "max_y"]
