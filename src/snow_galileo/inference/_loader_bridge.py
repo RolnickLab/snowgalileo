@@ -15,7 +15,8 @@ The loader and ``EncoderWithHead`` are used **as-is**; this is pure orchestratio
 Reading the loader's *output* convention is the same responsibility, so
 :func:`has_no_spacetime_observation` — the AC-28 "this cell carries no observation"
 predicate — lives here too, in one definition shared by both Stage-2 entry points rather
-than copy-pasted into each (see ``docs/agents/bugs/MASK_CHECK_BUG.md``).
+than copy-pasted into each, which is how the two copies it replaces came to disagree with
+the loader's convention without anything noticing.
 """
 
 from __future__ import annotations
@@ -109,8 +110,8 @@ def has_no_spacetime_observation(masked_output: MaskedOutput) -> bool:
     is a normal state, not a nodata condition, hence the ``and`` across the three.
 
     Fields, not indices, deliberately: the defect this replaces was a positional mask
-    lookup with a comment asserting the opposite polarity (see
-    ``docs/agents/bugs/MASK_CHECK_BUG.md``).
+    lookup carrying a comment that asserted the opposite polarity, and it went unnoticed
+    for as long as nothing had to name the tensors it was reading.
 
     Args:
         masked_output: The loader's 13-field ``MaskedOutput`` for one cube, as returned by

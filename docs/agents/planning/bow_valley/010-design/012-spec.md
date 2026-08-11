@@ -392,8 +392,9 @@ explicit.
   would make the condition unsatisfiable. Partial coverage is **not** a nodata condition
   (FDD §"Partial coverage is a first-class normal state"). The per-day AOI-coverage
   fraction is recorded in output metadata. Implemented by
-  `inference._loader_bridge.has_no_spacetime_observation`; see
-  `docs/agents/bugs/MASK_CHECK_BUG.md` for why the original wording was unsatisfiable.
+  `inference._loader_bridge.has_no_spacetime_observation`. The original wording ("cells
+  with all input groups masked") was unsatisfiable: `static` is derived from the cell
+  centre and is never nodata, so no input could ever satisfy it.
 - [ ] AC-29: A 2×2 adjacent-cell mosaic test shows non-overlapping seams (no
   double-written pixels) and FSC reprojected with nearest-neighbour only.
 
