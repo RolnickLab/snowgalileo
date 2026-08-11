@@ -89,7 +89,7 @@ import path, signature, and behaviour must still work unchanged after TASK-015:
     `_loader_bridge.has_no_spacetime_observation(masked_output)` — i.e. all three
     space-time masks are `1` everywhere, the loader's convention being `1 = masked`
     (AC-28). Do **not** re-derive this from "the existing mask convention": that deferral
-    is what produced the inverted guard in `docs/agents/bugs/MASK_CHECK_BUG.md`.
+    is what produced the inverted guard this replaces.
   - `mosaic.write_day(day, fsc_by_cell)`.
   - **Q4/AC-31:** the loop iterates `inference_days(window_start, window_end) × grid` and
     never reads any CSV `date`. Test asserts two cells with different legacy CSV `date` both

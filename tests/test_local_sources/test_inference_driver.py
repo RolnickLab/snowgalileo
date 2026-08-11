@@ -56,8 +56,8 @@ def _masked_output(*, mask_value: float) -> MaskedOutput:
     The loader's convention is ``0 = valid, 1 = masked`` (``landsat_eval.py:630-631``), so
     ``0.0`` stands for a fully observed cell and ``1.0`` for one with no observation at
     all. Fakes must be real ``MaskedOutput``s: the guard reads named fields, and the bug
-    this guards against (``docs/agents/bugs/MASK_CHECK_BUG.md``) survived precisely because
-    a plain-tuple double could disagree with the loader without anything failing.
+    it guards against survived precisely because a plain-tuple double could disagree with
+    the loader's polarity without anything failing.
 
     Args:
         mask_value: The value every mask tensor is filled with.
@@ -265,9 +265,8 @@ def patched_loader(monkeypatch: pytest.MonkeyPatch):
     Returns a real :class:`MaskedOutput` whose six masks are all-**zero** — the loader's
     convention is ``0 = valid, 1 = masked``, so this is a fully observed cell that the
     driver must predict on. The type is deliberate, not incidental: the guard reads named
-    fields, so a plain tuple here would fail loudly rather than quietly answer wrong (the
-    defect in ``docs/agents/bugs/MASK_CHECK_BUG.md``). The driver imports the symbol into
-    its own namespace, so we patch it there.
+    fields, so a plain tuple here fails loudly rather than quietly answering wrong. The
+    driver imports the symbol into its own namespace, so we patch it there.
     """
     monkeypatch.setattr(
         "snow_galileo.inference.driver.masked_output_for_tif",
@@ -493,8 +492,8 @@ def test_driver_end_to_end_drops_an_empty_cube_to_nodata(tmp_path: Path) -> None
     every pixel is ``-9999``, i.e. exactly the input AC-28 exists for. Through the real
     bridge its three space-time masks come back all-ones, so the guard must fire and the
     day's COG must be entirely nodata with zero coverage — never a finite, plausible FSC
-    derived from the cell's coordinates alone (``docs/agents/bugs/MASK_CHECK_BUG.md``).
-    Mirrors ``test_tracer_end_to_end.py``.
+    derived from the cell's coordinates alone, which is what the inverted guard this
+    replaces produced. Mirrors ``test_tracer_end_to_end.py``.
     """
     from snow_galileo.data.local_sources.exporter import LocalSourceExporter
     from snow_galileo.inference.driver import InferenceGridDriver
