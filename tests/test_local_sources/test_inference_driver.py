@@ -28,6 +28,7 @@ from snow_galileo.data.config import NO_DATA_VALUE, NUM_TIMESTEPS
 from snow_galileo.data.local_sources.base import GridCell
 from snow_galileo.inference.mosaic import DailyMosaicWriter
 from snow_galileo.inference.windows import eight_day_window, inference_days
+from snow_galileo.masking import MaskedOutput
 
 # A 1 km cell at 100 m FSC px → 10×10 block per cell.
 _CELL_M = 1_000.0
@@ -46,6 +47,29 @@ def _cell(cell_id: int, col: int, row: int) -> GridCell:
         min_y=max_y - _CELL_M,
         max_x=min_x + _CELL_M,
         max_y=max_y,
+    )
+
+
+def _masked_output(*, mask_value: float) -> MaskedOutput:
+    """Build a minimal ``MaskedOutput`` whose six masks are uniformly ``mask_value``.
+
+    The loader's convention is ``0 = valid, 1 = masked`` (``landsat_eval.py:630-631``), so
+    ``0.0`` stands for a fully observed cell and ``1.0`` for one with no observation at
+    all. Fakes must be real ``MaskedOutput``s: the guard reads named fields, and the bug
+    this guards against (``docs/agents/bugs/MASK_CHECK_BUG.md``) survived precisely because
+    a plain-tuple double could disagree with the loader without anything failing.
+
+    Args:
+        mask_value: The value every mask tensor is filled with.
+
+    Returns:
+        A 13-field ``MaskedOutput`` of one-element tensors; the inputs are unused by the
+        stub model.
+    """
+    return MaskedOutput(
+        *[torch.zeros(1) for _ in range(6)],
+        *[torch.full((1,), mask_value) for _ in range(6)],
+        torch.zeros(1, dtype=torch.long),
     )
 
 
@@ -238,18 +262,17 @@ class _StubModel:
 def patched_loader(monkeypatch: pytest.MonkeyPatch):
     """Stub the loader bridge so the driver never opens a real cube tif.
 
-    Returns a thirteen-tensor MaskedOutput whose six masks are all-ones (a valid
-    cell). The driver imports the symbol into its own namespace, so we patch it
-    there.
+    Returns a real :class:`MaskedOutput` whose six masks are all-**zero** — the loader's
+    convention is ``0 = valid, 1 = masked``, so this is a fully observed cell that the
+    driver must predict on. The type is deliberate, not incidental: the guard reads named
+    fields, so a plain tuple here would fail loudly rather than quietly answer wrong (the
+    defect in ``docs/agents/bugs/MASK_CHECK_BUG.md``). The driver imports the symbol into
+    its own namespace, so we patch it there.
     """
-
-    def _fake(_tif: Path):
-        x = [torch.zeros(1) for _ in range(6)]  # inputs (unused by the stub model)
-        masks = [torch.ones(1) for _ in range(6)]  # all-valid
-        month = torch.zeros(1, dtype=torch.long)
-        return (*x, *masks, month)
-
-    monkeypatch.setattr("snow_galileo.inference.driver.masked_output_for_tif", _fake)
+    monkeypatch.setattr(
+        "snow_galileo.inference.driver.masked_output_for_tif",
+        lambda _tif: _masked_output(mask_value=0.0),
+    )
 
 
 def test_driver_rejects_empty_days(grid_2x2: list[GridCell], tmp_path: Path) -> None:
@@ -407,16 +430,13 @@ def test_driver_without_cache_does_not_prune(
 def test_driver_drops_fully_masked_cell_to_nodata(
     grid_2x2: list[GridCell], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A cell whose every valid-mask is all-zero yields no prediction → nodata (AC-28)."""
+    """A cell whose space-time masks are all-one yields no prediction → nodata (AC-28)."""
     from snow_galileo.inference.driver import InferenceGridDriver
 
-    def _fake(tif: Path):
-        # cell_0 fully masked (masks all-zero), the rest valid (masks all-one).
+    def _fake(tif: Path) -> MaskedOutput:
+        # cell_0 carries no observation (masks all-one); the rest are fully valid (all-zero).
         cid = int(tif.stem.split("_")[1])
-        x = [torch.zeros(1) for _ in range(6)]
-        mask_val = 0.0 if cid == 0 else 1.0
-        masks = [torch.full((1,), mask_val) for _ in range(6)]
-        return (*x, *masks, torch.zeros(1, dtype=torch.long))
+        return _masked_output(mask_value=1.0 if cid == 0 else 0.0)
 
     monkeypatch.setattr("snow_galileo.inference.driver.masked_output_for_tif", _fake)
 
@@ -437,31 +457,26 @@ def test_driver_drops_fully_masked_cell_to_nodata(
     assert np.all(data[0:10, 10:20] == 0.5)
 
 
-def test_driver_end_to_end_with_real_loader_and_encoder(tmp_path: Path) -> None:
-    """Full plumbing: real exporter + real loader bridge + untrained encoder.
+def _tiny_encoder_with_head() -> object:
+    """Build the untrained ``EncoderWithHead`` the end-to-end tests drive.
 
-    Proves the driver drives the *unchanged* downstream loader and
-    ``EncoderWithHead`` end to end on a placeholder cube — values are meaningless
-    (random weights, all-masked input), so we assert only that a valid COG is
-    produced. Mirrors ``test_tracer_end_to_end.py``.
+    Seeded, CPU-only, no checkpoint: the predictions are meaningless, only the plumbing
+    (loader bridge → encoder → mosaic block) is under test.
+
+    Returns:
+        A ready ``EncoderWithHead`` on the tiny Bow River inference eval config.
     """
     import json
 
-    from snow_galileo.data.local_sources.exporter import LocalSourceExporter
     from snow_galileo.fsc.patch_predict import EncoderWithHead
-    from snow_galileo.inference.driver import InferenceGridDriver
     from snow_galileo.snowgalileo import Encoder
     from snow_galileo.utils import config_dir
-
-    cube_dir = tmp_path / "cubes"
-    fsc_dir = tmp_path / "daily_fsc"
-    exporter = LocalSourceExporter(out_dir=cube_dir, placeholder=True)
 
     with (config_dir / "eval" / "fsc_inference_bow_river_tiny.json").open() as fh:
         eval_config = json.load(fh)["finetune"]
 
     torch.manual_seed(0)
-    model = EncoderWithHead(
+    return EncoderWithHead(
         encoder=Encoder(),
         patch_size_high_res=10,
         inputs_per_target=10,
@@ -470,10 +485,28 @@ def test_driver_end_to_end_with_real_loader_and_encoder(tmp_path: Path) -> None:
         eval_config=eval_config,
     )
 
+
+def test_driver_end_to_end_drops_an_empty_cube_to_nodata(tmp_path: Path) -> None:
+    """Real exporter + real loader bridge + real encoder on an **empty** cube → nodata.
+
+    A ``placeholder=True`` exporter writes a structurally valid 308-band cube in which
+    every pixel is ``-9999``, i.e. exactly the input AC-28 exists for. Through the real
+    bridge its three space-time masks come back all-ones, so the guard must fire and the
+    day's COG must be entirely nodata with zero coverage — never a finite, plausible FSC
+    derived from the cell's coordinates alone (``docs/agents/bugs/MASK_CHECK_BUG.md``).
+    Mirrors ``test_tracer_end_to_end.py``.
+    """
+    from snow_galileo.data.local_sources.exporter import LocalSourceExporter
+    from snow_galileo.inference.driver import InferenceGridDriver
+
+    cube_dir = tmp_path / "cubes"
+    fsc_dir = tmp_path / "daily_fsc"
+    exporter = LocalSourceExporter(out_dir=cube_dir, placeholder=True)
+
     grid = [_cell(0, col=0, row=0)]
     driver = InferenceGridDriver(
         exporter=exporter,
-        model=model,
+        model=_tiny_encoder_with_head(),  # type: ignore[arg-type]
         grid=grid,
         days=[date(2025, 5, 28)],
         out_dir=fsc_dir,
@@ -486,6 +519,91 @@ def test_driver_end_to_end_with_real_loader_and_encoder(tmp_path: Path) -> None:
         assert src.crs.to_epsg() == 32611
         assert src.nodata == NO_DATA_VALUE
         assert "aoi_coverage_fraction" in src.tags()
+        # The guard fired: no fabricated value anywhere, and the day claims no coverage.
+        assert np.all(src.read(1) == NO_DATA_VALUE)
+        assert float(src.tags()["aoi_coverage_fraction"]) == 0.0
+
+
+def test_driver_end_to_end_predicts_from_a_real_cube(tmp_path: Path) -> None:
+    """Real (committed) cube + real loader bridge + real encoder → a written FSC block.
+
+    The counterpart to the empty-cube test above, and the only coverage of the
+    *predict-and-write* path through the real bridge: a placeholder cube can no longer
+    reach it, since the AC-28 guard now (correctly) drops it to nodata.
+
+    The cube is derived at test time from a committed GEE reference patch — no ``data/``
+    dependency, nothing new in git. Two adjustments are needed to satisfy the cube
+    contract: the patches are slightly oversized (the loader random-crops anything bigger
+    than 100x100, which misregisters the prediction), and their filenames carry UTM
+    easting/northing where the loader parses lat/lon, so the crop is rewritten under the
+    exporter's own naming — the same name ``PrebuiltCubeSource`` reconstructs.
+    """
+    from rasterio.windows import Window
+
+    from snow_galileo.data.local_sources.base import CELL_TARGET_CRS, CELL_TARGET_PX
+    from snow_galileo.data.local_sources.layout import build_cube_filename, cell_centre_lat_lon
+    from snow_galileo.inference.driver import InferenceGridDriver
+    from snow_galileo.inference.prebuilt import PrebuiltCubeSource
+
+    source_cube = (
+        Path("tests/fixtures/gee_reference_patches")
+        / "PR_20250406_562863.8459204244427383_5653083.7883343594148755.tif"
+    )
+    assert source_cube.exists(), f"Missing committed fixture {source_cube}."
+
+    day = date(2025, 4, 6)
+    cube_dir = tmp_path / "cubes"
+    cube_dir.mkdir()
+
+    with rasterio.open(source_cube) as src:
+        window = Window(0, 0, CELL_TARGET_PX, CELL_TARGET_PX)
+        data = src.read(window=window).astype(np.float32)
+        transform = src.window_transform(window)
+        descriptions = src.descriptions
+
+    # The cell the crop covers, so cube and grid cannot drift.
+    min_x, max_y = transform.c, transform.f
+    cell = GridCell.from_utm_bounds(
+        cell_id=0, min_x=min_x, min_y=max_y - _CELL_M, max_x=min_x + _CELL_M, max_y=max_y
+    )
+    lat, lon = cell_centre_lat_lon(cell=cell)
+    cube = cube_dir / build_cube_filename(window_end=day, lat=lat, lon=lon)
+
+    # Same profile the real exporter writes (exporter.py: float32, -9999, 100x100).
+    with rasterio.open(
+        cube,
+        "w",
+        driver="GTiff",
+        height=CELL_TARGET_PX,
+        width=CELL_TARGET_PX,
+        count=data.shape[0],
+        dtype="float32",
+        crs=CELL_TARGET_CRS,
+        transform=transform,
+        nodata=NO_DATA_VALUE,
+    ) as dst:
+        dst.write(data)
+        dst.descriptions = descriptions
+
+    driver = InferenceGridDriver(
+        exporter=PrebuiltCubeSource(cube_dir=cube_dir),  # type: ignore[arg-type]
+        model=_tiny_encoder_with_head(),  # type: ignore[arg-type]
+        grid=[cell],
+        days=[day],
+        out_dir=tmp_path / "daily_fsc",
+        batch_size=1,
+    )
+    (out,) = driver.run()
+
+    with rasterio.open(out) as src:
+        fsc = src.read(1)
+        assert src.crs.to_epsg() == 32611
+        # The cube carries observations, so the guard must NOT fire: a full 10x10 block
+        # of finite FSC, and a day that claims full coverage.
+        assert fsc.shape == (_FSC_PX, _FSC_PX)
+        assert not np.any(fsc == NO_DATA_VALUE)
+        assert np.all(np.isfinite(fsc))
+        assert float(src.tags()["aoi_coverage_fraction"]) == 1.0
 
 
 def test_driver_forwards_cube_cache_to_parallel_export(
@@ -511,7 +629,7 @@ def test_driver_forwards_cube_cache_to_parallel_export(
     monkeypatch.setattr("snow_galileo.inference.driver.export_cells_parallel", _fake_parallel)
     monkeypatch.setattr(
         "snow_galileo.inference.driver.masked_output_for_tif",
-        lambda _t: (*[torch.zeros(1)] * 6, *[torch.ones(1)] * 6, torch.zeros(1, dtype=torch.long)),
+        lambda _t: _masked_output(mask_value=0.0),
     )
 
     cache_dir = tmp_path / "cube_cache"

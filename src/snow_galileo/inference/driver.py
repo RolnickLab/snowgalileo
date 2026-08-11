@@ -40,7 +40,10 @@ from snow_galileo.data.local_sources.exporter import LocalSourceExporter
 from snow_galileo.data.local_sources.layout import build_cube_filename, cell_centre_lat_lon
 from snow_galileo.data.local_sources.parallel_export import export_cells_parallel
 from snow_galileo.fsc.patch_predict import EncoderWithHead
-from snow_galileo.inference._loader_bridge import masked_output_for_tif
+from snow_galileo.inference._loader_bridge import (
+    has_no_spacetime_observation,
+    masked_output_for_tif,
+)
 from snow_galileo.inference.mosaic import DEFAULT_FSC_PX_PER_CELL, DailyMosaicWriter
 
 logger = structlog.get_logger(__name__)
@@ -49,10 +52,6 @@ logger = structlog.get_logger(__name__)
 #: ``[D - CACHE_WINDOW_DAYS … D]`` (the exporter's 8-day window). The day-ordered sweep
 #: makes anything older than this frontier dead, so the parent prunes it between days.
 CACHE_WINDOW_DAYS: int = (NUM_TIMESTEPS - 1) * DAYS_PER_TIMESTEP
-
-#: Indices of the six valid-data masks within the loader's 13-tuple MaskedOutput
-#: (s_t_h_m, s_t_m_m, s_t_l_m, sp_m, t_m, st_m). Convention: 1=valid, 0=invalid.
-_MASK_INDICES: tuple[int, ...] = (6, 7, 8, 9, 10, 11)
 
 #: Encoder forward patch sizes for the FSC head (10×10 high-res → 10×10 output),
 #: matching ``_predict_and_store_output`` and ``test_tracer_end_to_end.py``.
@@ -159,8 +158,9 @@ class InferenceGridDriver:
             day: The inference (window-end) day.
 
         Returns:
-            Map ``cell_id -> 10×10 FSC array`` (or ``None`` for a cell whose every
-            input is masked → no prediction, left as nodata in the mosaic).
+            Map ``cell_id -> 10×10 FSC array`` (or ``None`` for a cell whose space-time
+            observations are masked everywhere → no prediction, left as nodata in the
+            mosaic; see :func:`has_no_spacetime_observation`).
         """
         self._tif_for_cell = self._pre_export_day(day)
 
@@ -177,6 +177,18 @@ class InferenceGridDriver:
             if len(batch) >= self.batch_size:
                 flush()
         flush()
+
+        # Once per day, not once per cell: the condition this reports is exactly the one
+        # that would fire for every cell of a sparsely-covered AOI, and a per-cell warning
+        # at grid scale (thousands of cells x every day) buries the run log.
+        dropped = sum(1 for patch in fsc_by_cell.values() if patch is None)
+        if dropped:
+            logger.warning(
+                "cells_dropped_all_masked",
+                day=day.isoformat(),
+                dropped=dropped,
+                cells=len(self.grid),
+            )
         return fsc_by_cell
 
     def _pre_export_day(self, day: datetime.date) -> dict[int, Path]:
@@ -247,7 +259,7 @@ class InferenceGridDriver:
                 masked_outputs = list(ex.map(masked_output_for_tif, tifs))
         else:
             masked_outputs = [masked_output_for_tif(tif) for tif in tifs]
-        all_masked: list[bool] = [self._is_fully_masked(mo) for mo in masked_outputs]
+        all_masked: list[bool] = [has_no_spacetime_observation(mo) for mo in masked_outputs]
 
         # Stack each of the 13 tensors across the batch dim, move to device.
         batched = [
@@ -276,17 +288,3 @@ class InferenceGridDriver:
                 .astype(np.float32)
             )
             fsc_by_cell[cell.cell_id] = patch
-
-    @staticmethod
-    def _is_fully_masked(masked_output: object) -> bool:
-        """Return ``True`` if every valid-data mask is all-zero (no information).
-
-        The loader's mask convention is 1=valid, 0=invalid; a cell with no valid
-        input on any of the six channel groups carries no signal, so its
-        prediction is dropped to nodata in the mosaic (SPEC AC-28).
-        """
-        mo = masked_output  # the 13-tuple MaskedOutput
-        return all(
-            not torch.as_tensor(mo[i]).any()  # type: ignore[index]
-            for i in _MASK_INDICES
-        )
