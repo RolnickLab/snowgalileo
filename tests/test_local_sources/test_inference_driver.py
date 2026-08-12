@@ -66,11 +66,13 @@ def _masked_output(*, mask_value: float) -> MaskedOutput:
         A 13-field ``MaskedOutput`` of one-element tensors; the inputs are unused by the
         stub model.
     """
-    return MaskedOutput(
+    tensor_list = [
         *[torch.zeros(1) for _ in range(6)],
         *[torch.full((1,), mask_value) for _ in range(6)],
         torch.zeros(1, dtype=torch.long),
-    )
+    ]
+
+    return MaskedOutput(*tensor_list)
 
 
 # --------------------------------------------------------------------------- #
