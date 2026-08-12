@@ -160,29 +160,35 @@ class SensorAblationsCloudsMetaDataset(CloudGeneratorMetaDataset):
 
         # TODO: make dynamic
         # ablate Sentinel-1
-        if self.eval_config["sensor_ablations"]["ablate_high_res_sar"]:
+        if self.eval_config["sensor_ablations"].get("ablate_high_res_sar", False):
             s_t_h_m[:, :, :, 0] = 1
+        # ablate Sentinel-2 data
+        if self.eval_config["sensor_ablations"].get("ablate_s2", False):
+            s_t_h_m[:, :, :, 1:4] = 1
+        # ablate Landsat data
+        if self.eval_config["sensor_ablations"].get("ablate_landsat", False):
+            s_t_h_m[:, :, :, 4:] = 1
         # ablate Sentinel-2, Landsat data
-        if self.eval_config["sensor_ablations"]["ablate_high_res_optical"]:
+        if self.eval_config["sensor_ablations"].get("ablate_high_res_optical", False):
             s_t_h_m[:, :, :, 1:] = 1
         # ablate Sentinel-3 data
-        if self.eval_config["sensor_ablations"]["ablate_med_res_sensor"]:
+        if self.eval_config["sensor_ablations"].get("ablate_med_res_sensor", False):
             s_t_m_m[:, :, :, :] = 1
         # ablate MODIS, VIIRS data
-        if self.eval_config["sensor_ablations"]["ablate_low_res_sensor"]:
+        if self.eval_config["sensor_ablations"].get("ablate_low_res_sensor", False):
             s_t_l_m[:, :, :, :-2] = 1
             t_m[:, :3] = 1
         # ablate indeces
-        if self.eval_config["sensor_ablations"]["ablate_indeces"]:
+        if self.eval_config["sensor_ablations"].get("ablate_indeces", False):
             s_t_l_m[:, :, :, -2:] = 1
         # ablate ERA5 data
-        if self.eval_config["sensor_ablations"]["ablate_era5"]:
+        if self.eval_config["sensor_ablations"].get("ablate_era5", False):
             t_m[:, 3:] = 1
         # ablate topography
-        if self.eval_config["sensor_ablations"]["ablate_topography"]:
+        if self.eval_config["sensor_ablations"].get("ablate_topography", False):
             sp_m[:, :, 0] = 1
         # ablate landcover
-        if self.eval_config["sensor_ablations"]["ablate_landcover"]:
+        if self.eval_config["sensor_ablations"].get("ablate_landcover", False):
             sp_m[:, :, 1] = 1
 
         return (
