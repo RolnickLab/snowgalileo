@@ -10,6 +10,7 @@ from snow_galileo.fsc import (
     CloudGeneratorEval,
     LandsatEval,
     SensorAblationsEval,
+    SensorAblationsEvalWithClouds,
     TimeseriesAblationsEval,
 )
 from snow_galileo.fsc.patch_predict import EncoderWithHead
@@ -107,9 +108,15 @@ else:
 exclude_prediction_era5 = not args["include_prediction_era5"]
 
 if eval_config["cloud_generation"]["cloud_prob_pred_day"] > 0.0:
-    print("Evaluating cloudy days")
-    eval_task: TimeseriesAblationsEval | SensorAblationsEval | LandsatEval | CloudGeneratorEval = (
-        CloudGeneratorEval(
+    if any(eval_config["sensor_ablations"].values()):
+        print("Evaluating cloudy days with sensor ablation", flush=True)
+        eval_task: (
+            TimeseriesAblationsEval
+            | SensorAblationsEval
+            | LandsatEval
+            | CloudGeneratorEval
+            | SensorAblationsEvalWithClouds
+        ) = SensorAblationsEvalWithClouds(
             exclude_prediction_high_res=args["exclude_prediction_high_res"],
             exclude_prediction_date=args["exclude_prediction_date"],
             exclude_prediction_sensors=args["exclude_prediction_sensors"],
@@ -118,9 +125,19 @@ if eval_config["cloud_generation"]["cloud_prob_pred_day"] > 0.0:
             h5pys_only=args["h5pys_only"],
             decoder_mode=decoder_mode,
         )
-    )
+    else:
+        print("Evaluating cloudy days", flush=True)
+        eval_task = CloudGeneratorEval(
+            exclude_prediction_high_res=args["exclude_prediction_high_res"],
+            exclude_prediction_date=args["exclude_prediction_date"],
+            exclude_prediction_sensors=args["exclude_prediction_sensors"],
+            exclude_prediction_era5=exclude_prediction_era5,
+            eval_config=eval_config,
+            h5pys_only=args["h5pys_only"],
+            decoder_mode=decoder_mode,
+        )
 elif eval_config["timeseries_ablations"]:
-    print("Evaluating timeseries ablation")
+    print("Evaluating timeseries ablation", flush=True)
     eval_task = TimeseriesAblationsEval(
         exclude_prediction_high_res=args["exclude_prediction_high_res"],
         exclude_prediction_date=args["exclude_prediction_date"],
@@ -131,7 +148,7 @@ elif eval_config["timeseries_ablations"]:
         decoder_mode=decoder_mode,
     )
 elif any(eval_config["sensor_ablations"].values()):
-    print("Evaluating sensor ablation")
+    print("Evaluating sensor ablation", flush=True)
     eval_task = SensorAblationsEval(
         exclude_prediction_high_res=args["exclude_prediction_high_res"],
         exclude_prediction_date=args["exclude_prediction_date"],
