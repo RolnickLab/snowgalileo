@@ -118,11 +118,33 @@ def _window_end_days(start: date, end: date) -> list[date]:
     return [start + timedelta(days=offset) for offset in range(span + 1)]
 
 
+def _read_date_file(filename: str) -> list[date]:
+    with open(filename, "r", encoding="utf-8") as f:
+        lines = []
+        for line in f:
+            line = line.strip()
+            split_line = line.split("-")
+            lines.append(
+                date(year=int(split_line[0]), month=int(split_line[1]), day=int(split_line[2]))
+            )
+        return lines
+
+
 @app.command()
 def main(
     aoi: Annotated[Path, typer.Option(help="AOI GeoJSON (single Polygon; any declared CRS).")],
-    start_date: Annotated[str, typer.Option(help="First window-end day, YYYY-MM-DD (inclusive).")],
-    end_date: Annotated[str, typer.Option(help="Last window-end day, YYYY-MM-DD (inclusive).")],
+    start_date: Annotated[
+        str | None, typer.Option(help="First window-end day, YYYY-MM-DD (inclusive).")
+    ] = None,
+    end_date: Annotated[
+        str | None, typer.Option(help="Last window-end day, YYYY-MM-DD (inclusive).")
+    ] = None,
+    days: Annotated[
+        str | None,
+        typer.Option(
+            help="File of dates, newline separated, format 'YYYY-MM-DD' . Using this option overrides 'start_date' and 'end_date'."
+        ),
+    ] = None,
     tifs_folder: Annotated[
         str,
         typer.Option(help="Cube download folder NAME (created under the configured DATA_FOLDER)."),
@@ -156,15 +178,25 @@ def main(
     if mode not in {"url", "cloud", "drive"}:
         raise typer.BadParameter(f"mode must be url/cloud/drive, got {mode!r}.")
 
-    start = date.fromisoformat(start_date)
-    end = date.fromisoformat(end_date)
-    days = _window_end_days(start, end)
+    if not start_date and not end_date and not days:
+        raise typer.BadParameter("Either 'start_date' and 'end_date', or 'days' are required.")
+
+    if start_date and end_date:
+        start = date.fromisoformat(start_date)
+        end = date.fromisoformat(end_date)
+        build_cube_args = {"window_start": start, "window_end": end}
+        day_list = _window_end_days(start, end)
+
+    if days:
+        day_list = _read_date_file(days)
+        build_cube_args = {"days": day_list}
 
     list_of_cells = build_cells(mode="B", aoi_path=aoi)
+
     if not list_of_cells:
         raise typer.BadParameter(f"AOI {aoi} tiled to zero cells (check CRS).")
 
-    frame = build_cube_csv_for_gee_utm(list_of_cells, window_start=start, window_end=end)
+    frame = build_cube_csv_for_gee_utm(list_of_cells, **build_cube_args)
 
     if limit is not None:
         frame = frame.head(limit)
@@ -175,14 +207,13 @@ def main(
         "wrote_cube_csv",
         path=str(out_csv),
         cells=len(list_of_cells),
-        days=len(days),
+        days=len(day_list),
         cubes_to_export=len(frame),
-        window=f"{start.isoformat()}..{end.isoformat()}",
     )
 
     if dry_run:
         typer.echo(
-            f"[dry-run] Wrote {len(frame)} rows ({len(list_of_cells)} cells x {len(days)} days) "
+            f"[dry-run] Wrote {len(frame)} rows ({len(list_of_cells)} cells x {len(day_list)} days) "
             f"to {out_csv}. No cubes downloaded."
         )
         return

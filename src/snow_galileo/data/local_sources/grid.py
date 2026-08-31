@@ -487,6 +487,7 @@ def build_cube_csv(
     kept: list[CellGeometry],
     window_start: date = DEFAULT_WINDOW_START,
     window_end: date = DEFAULT_WINDOW_END,
+    days: list[date] | None = None,
 ) -> pd.DataFrame:
     """Build the generated cube CSV: full cross-product of cells × window days.
 
@@ -498,12 +499,17 @@ def build_cube_csv(
         kept: In-AOI cells (geometry only).
         window_start: First inference day (inclusive).
         window_end: Last inference day (inclusive).
+        days: List of individual dates - overrides 'window_start' and 'window_end'.
 
     Returns:
         A DataFrame with exactly :data:`CUBE_CSV_COLUMNS`, one row per
         ``(cell, day)`` pair, ordered by ``(date, cell_id)``.
     """
-    days = _window_days(window_start, window_end)
+    day_list = _window_days(window_start, window_end)
+    if days:
+        day_list = days
+        logger.warning("Argument 'day' provided -- Overriding 'window_start' and 'window_end'.")
+
     rows = [
         {
             "date": int(day.strftime("%Y%m%d")),
@@ -515,14 +521,14 @@ def build_cube_csv(
             "max_x": cell.max_x,
             "max_y": cell.max_y,
         }
-        for day in days
+        for day in day_list
         for cell in kept
     ]
     frame = pd.DataFrame(rows, columns=CUBE_CSV_COLUMNS)
     logger.info(
         "built_cube_csv",
         cells=len(kept),
-        window_days=len(days),
+        window_days=len(day_list),
         rows=len(frame),
     )
     return frame
@@ -532,6 +538,7 @@ def build_cube_csv_for_gee_utm(
     kept: list[CellGeometry],
     window_start: date = DEFAULT_WINDOW_START,
     window_end: date = DEFAULT_WINDOW_END,
+    days: list[date] | None = None,
 ) -> pd.DataFrame:
     """Build the cube CSV in the dialect ``export_from_csv_utm`` consumes.
 
@@ -547,11 +554,16 @@ def build_cube_csv_for_gee_utm(
         kept: In-AOI cells (geometry only), in :data:`GRID_MATH_CRS`.
         window_start: First inference day (inclusive).
         window_end: Last inference day (inclusive).
+        days: List of individual dates - overrides 'window_start' and 'window_end'.
 
     Returns:
         A DataFrame with exactly :data:`GEE_UTM_CSV_COLUMNS`, one row per ``(cell, day)``.
     """
-    frame = build_cube_csv(kept, window_start=window_start, window_end=window_end)
+    build_cube_args = {"window_start": window_start, "window_end": window_end}
+    if days:
+        build_cube_args = {"days": days}
+
+    frame = build_cube_csv(kept, **build_cube_args)
 
     to_geo = Transformer.from_crs(GRID_MATH_CRS, GEOGRAPHIC_CRS, always_xy=True)
     lon, lat = to_geo.transform(frame["center_x"].to_numpy(), frame["center_y"].to_numpy())
