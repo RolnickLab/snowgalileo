@@ -111,18 +111,18 @@ uv run python scripts/developer_scripts/fortress_mountain_basin/build_aoi_cubes_
 
 Key options:
 
-| Option          | Default                            | Notes                                                               |
-| --------------- | ---------------------------------- | ------------------------------------------------------------------- |
-| `--aoi`         | (required)                         | GeoJSON, single Polygon, any declared CRS (reprojected to lon/lat). |
-| `--start-date`  | (required)                         | First window-end day, `YYYY-MM-DD`, inclusive.                      |
-| `--end-date`    | (required)                         | Last window-end day, `YYYY-MM-DD`, inclusive.                       |
-| `--tifs-folder` | `aoi_cubes`                        | Download folder **name** under `data/`.                             |
-| `--out-csv`     | `configs/aoi_cubes/cube_cells.csv` | Where the cube CSV is written.                                      |
-| `--mode`        | `url`                              | `url` (download) / `cloud` / `drive`. `url` is the hybrid default.  |
-| `--max-workers` | `4`                                | Parallel download threads (`url` only). Keep low — GEE throttles.   |
-| `--limit`       | `None`                             | Cap CSV rows for a smoke run.                                       |
-| `--check-gcp`   | `False`                            | Skip already-exported tifs (needs a configured bucket).             |
-| `--dry-run`     | `False`                            | Write the CSV only; do not touch Earth Engine.                      |
+| Option          | Default                                    | Notes                                                               |
+| --------------- | ------------------------------------------ | ------------------------------------------------------------------- |
+| `--aoi`         | (required)                                 | GeoJSON, single Polygon, any declared CRS (reprojected to lon/lat). |
+| `--start-date`  | (required)                                 | First window-end day, `YYYY-MM-DD`, inclusive.                      |
+| `--end-date`    | (required)                                 | Last window-end day, `YYYY-MM-DD`, inclusive.                       |
+| `--tifs-folder` | `aoi_cubes`                                | Download folder **name** under `data/`.                             |
+| `--out-csv`     | `../configs/fortress_basin/cube_cells.csv` | Where the cube CSV is written.                                      |
+| `--mode`        | `url`                                      | `url` (download) / `cloud` / `drive`. `url` is the hybrid default.  |
+| `--max-workers` | `4`                                        | Parallel download threads (`url` only). Keep low — GEE throttles.   |
+| `--limit`       | `None`                                     | Cap CSV rows for a smoke run.                                       |
+| `--check-gcp`   | `False`                                    | Skip already-exported tifs (needs a configured bucket).             |
+| `--dry-run`     | `False`                                    | Write the CSV only; do not touch Earth Engine.                      |
 
 **Smoke first.** Verify the CSV before spending quota:
 
@@ -152,15 +152,15 @@ uv run python scripts/developer_scripts/fortress_mountain_basin/infer_aoi_cubes.
 
 Key options:
 
-| Option         | Default                             | Notes                                                                                          |
-| -------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `--cube-csv`   | `configs/aoi_cubes/cube_cells.csv`  | The CSV step 1 wrote (single source of truth).                                                 |
-| `--cube-dir`   | `data/aoi_cubes`                    | Where step 1 downloaded the cubes.                                                             |
-| `--out-dir`    | `data/outputs/aoi_fsc`              | Daily FSC COG output dir.                                                                      |
-| `--config`     | `configs/bow_valley/inference.yaml` | Checkpoint, eval config, batch size, device.                                                   |
-| `--device`     | config value (`cuda`)               | Override, e.g. `cpu`. **No automatic CPU fallback** — set `cpu` explicitly on a GPU-less host. |
-| `--batch-size` | config value (`16`)                 | Cells per forward pass; override for VRAM.                                                     |
-| `--limit-days` | `None`                              | Process the first N days only (smoke run).                                                     |
+| Option         | Default                                    | Notes                                                                                          |
+| -------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `--cube-csv`   | `../configs/fortress_basin/cube_cells.csv` | The CSV step 1 wrote (single source of truth).                                                 |
+| `--cube-dir`   | `data/aoi_cubes`                           | Where step 1 downloaded the cubes.                                                             |
+| `--out-dir`    | `data/outputs/aoi_fsc`                     | Daily FSC COG output dir.                                                                      |
+| `--config`     | `configs/bow_valley/inference.yaml`        | Checkpoint, eval config, batch size, device.                                                   |
+| `--device`     | config value (`cuda`)                      | Override, e.g. `cpu`. **No automatic CPU fallback** — set `cpu` explicitly on a GPU-less host. |
+| `--batch-size` | config value (`16`)                        | Cells per forward pass; override for VRAM.                                                     |
+| `--limit-days` | `None`                                     | Process the first N days only (smoke run).                                                     |
 
 **Smoke on CPU first** to isolate plumbing bugs from CUDA/VRAM ones:
 

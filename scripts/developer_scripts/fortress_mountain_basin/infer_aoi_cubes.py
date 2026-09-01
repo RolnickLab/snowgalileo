@@ -52,18 +52,16 @@ from einops import rearrange
 from snow_galileo.data.local_sources.base import CELL_TARGET_CRS, CELL_TARGET_PX, GridCell
 from snow_galileo.data.local_sources.settings import InferenceSettings
 from snow_galileo.fsc.patch_predict import EncoderWithHead
-from snow_galileo.inference._loader_bridge import masked_output_for_tif
+from snow_galileo.inference._loader_bridge import (
+    has_no_spacetime_observation,
+    masked_output_for_tif,
+)
 from snow_galileo.inference.model import build_model
 from snow_galileo.inference.mosaic import DEFAULT_FSC_PX_PER_CELL, DailyMosaicWriter
 
 logger = structlog.get_logger(__name__)
 
 app = typer.Typer(add_completion=False, help="Run daily FSC inference over pre-built AOI cubes.")
-
-#: Indices of the six valid-data masks in the loader's 13-tuple (1=valid, 0=invalid).
-#: Mirrors ``inference.driver._MASK_INDICES`` — a cell whose masks are all zero carries no
-#: signal, so its prediction is dropped to nodata rather than fabricated.
-_MASK_INDICES: tuple[int, ...] = (6, 7, 8, 9, 10, 11)
 
 #: Encoder forward patch sizes for the FSC head (10x10 high-res -> 10x10 output).
 #: Mirrors ``inference.driver`` and ``LandsatEval._predict_and_store_output``.
@@ -222,14 +220,6 @@ def _check_cube_shape(cube: Path) -> None:
         )
 
 
-def _is_fully_masked(masked_output: object) -> bool:
-    """Return ``True`` if every valid-data mask is all-zero (the cube carries no signal)."""
-    return all(
-        not torch.as_tensor(masked_output[i]).any()  # type: ignore[index]
-        for i in _MASK_INDICES
-    )
-
-
 def _predict_day(
     *,
     model: EncoderWithHead,
@@ -249,7 +239,8 @@ def _predict_day(
 
     Returns:
         Map ``cell_id -> (fsc_px_per_cell, fsc_px_per_cell)`` float array, or ``None`` for a
-        cell whose cube is fully masked (left as nodata in the mosaic).
+        cell whose space-time observations are masked everywhere (left as nodata in the
+        mosaic; see :func:`~snow_galileo.inference._loader_bridge.has_no_spacetime_observation`).
     """
     fsc_by_cell: dict[int, npt.NDArray[np.float32] | None] = {}
     cell_ids = sorted(cubes_by_cell)
@@ -258,7 +249,7 @@ def _predict_day(
         batch_ids = cell_ids[start : start + batch_size]
 
         masked_outputs = [masked_output_for_tif(cubes_by_cell[cell_id]) for cell_id in batch_ids]
-        all_masked = [_is_fully_masked(mo) for mo in masked_outputs]
+        all_masked = [has_no_spacetime_observation(mo) for mo in masked_outputs]
 
         # Stack each of the 13 tensors across the batch dim, move to device.
         batched = [
@@ -276,7 +267,8 @@ def _predict_day(
 
         for row, (cell_id, masked) in enumerate(zip(batch_ids, all_masked, strict=True)):
             if masked:
-                logger.warning("cell_fully_masked", cell_id=cell_id)
+                # Counted and reported once per day by the caller, not warned per cell:
+                # a sparsely-covered AOI would emit one line per cell per day.
                 fsc_by_cell[cell_id] = None
                 continue
             fsc_by_cell[cell_id] = (
@@ -390,7 +382,13 @@ def main(
             )
             cog = writer.write_day(day, fsc_by_cell)
             written.append(cog)
-            logger.info("day_written", day=day.isoformat(), cog=str(cog), cells=len(fsc_by_cell))
+            logger.info(
+                "day_written",
+                day=day.isoformat(),
+                cog=str(cog),
+                cells=len(fsc_by_cell),
+                dropped_all_masked=sum(1 for patch in fsc_by_cell.values() if patch is None),
+            )
 
     logger.info("inference_complete", days=len(written), out_dir=str(out_dir))
     typer.echo(f"Wrote {len(written)} daily FSC COG(s) to {out_dir}.")

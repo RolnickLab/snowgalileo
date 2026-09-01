@@ -247,7 +247,7 @@ Carry-overs to preserve when reversing:
 1. **Days.** The driver derives days from `inference_days(window_start, window_end)` — a
    contiguous range — and deliberately never reads a CSV `date` column (SPEC AC-31). The
    script derives them from `sorted(frame["date"].unique())`. On the current CSV these are
-   identical (verified: `configs/aoi_cubes/cube_cells.csv` is 3 days, 20250401–20250403,
+   identical (verified: `../../../../configs/fortress_basin/cube_cells.csv` is 3 days, 20250401–20250403,
    step 1, 25 cells, 75 rows), so pass `window_start=min(days)`, `window_end=max(days)` —
    plus a one-line contiguity assert, or a future sparse CSV would make the driver iterate a
    day that has no cubes.
