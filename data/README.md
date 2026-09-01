@@ -49,3 +49,17 @@ Fine-tuning and evaluation data is based on labels (or "masks") provided with ou
 ## Inference Data
 
 (to-do)
+
+### Known coverage gap: no Sentinel-1 over western Canada, 2022-01-01 to 2025-04-05
+
+Check this before choosing an export date range. GEE's `COPERNICUS/S1_GRD` holds **zero** scenes over the Canadian Rockies for that period, so every cube exported for a window inside it has `VV`, `VH` and `angle` set to `-9999` at all 8 timesteps. Scene counts over Fortress Mountain (`-115.2469, 50.8130`):
+
+| 2019 | 2020 | 2021 | 2022  | 2023  | 2024  | 2025 | 2026 |
+| ---- | ---- | ---- | ----- | ----- | ----- | ---- | ---- |
+| 88   | 86   | 83   | **0** | **0** | **0** | 22   | 22   |
+
+This is a real acquisition gap, not an export fault: Sentinel-1B failed on 2021-12-23 and ESA's revised observation scenario dropped western Canada until Sentinel-1C restored it on **2025-04-06**. European sites merely halve over the same period. The exporter retrieves S1 normally on any date that has a scene.
+
+**Usable ranges for this region: `≤ 2021-12` or `≥ 2025-04-06`.** Outside them, expect S1-free cubes — the model masks the missing bands correctly, but a run covering only the gap has an entire modality absent, which is worth stating alongside its results.
+
+Full evidence, including the control sites: `docs/agents/bugs/MASK_CHECK_BUG.md` §F.2, and `docs/agents/KNOWLEDGE.md`.
