@@ -475,7 +475,7 @@ def build_grid(
     return grid
 
 
-def _window_days(window_start: date, window_end: date) -> list[date]:
+def generate_date_list(window_start: date, window_end: date) -> list[date]:
     """Return every day in ``[window_start, window_end]`` inclusive."""
     if window_end < window_start:
         raise ValueError(f"window_end {window_end} precedes window_start {window_start}.")
@@ -485,8 +485,8 @@ def _window_days(window_start: date, window_end: date) -> list[date]:
 
 def build_cube_csv(
     kept: list[CellGeometry],
-    window_start: date = DEFAULT_WINDOW_START,
-    window_end: date = DEFAULT_WINDOW_END,
+    window_start: date | None = DEFAULT_WINDOW_START,
+    window_end: date | None = DEFAULT_WINDOW_END,
     days: list[date] | None = None,
 ) -> pd.DataFrame:
     """Build the generated cube CSV: full cross-product of cells × window days.
@@ -505,9 +505,10 @@ def build_cube_csv(
         A DataFrame with exactly :data:`CUBE_CSV_COLUMNS`, one row per
         ``(cell, day)`` pair, ordered by ``(date, cell_id)``.
     """
-    day_list = _window_days(window_start, window_end)
+    if window_start and window_end:
+        date_list = generate_date_list(window_start, window_end)
     if days:
-        day_list = days
+        date_list = days
         logger.warning("Argument 'day' provided -- Overriding 'window_start' and 'window_end'.")
 
     rows = [
@@ -521,14 +522,14 @@ def build_cube_csv(
             "max_x": cell.max_x,
             "max_y": cell.max_y,
         }
-        for day in day_list
+        for day in date_list
         for cell in kept
     ]
     frame = pd.DataFrame(rows, columns=CUBE_CSV_COLUMNS)
     logger.info(
         "built_cube_csv",
         cells=len(kept),
-        window_days=len(day_list),
+        list_of_dates=len(date_list),
         rows=len(frame),
     )
     return frame
@@ -536,8 +537,8 @@ def build_cube_csv(
 
 def build_cube_csv_for_gee_utm(
     kept: list[CellGeometry],
-    window_start: date = DEFAULT_WINDOW_START,
-    window_end: date = DEFAULT_WINDOW_END,
+    window_start: date | None = DEFAULT_WINDOW_START,
+    window_end: date | None = DEFAULT_WINDOW_END,
     days: list[date] | None = None,
 ) -> pd.DataFrame:
     """Build the cube CSV in the dialect ``export_from_csv_utm`` consumes.
@@ -559,12 +560,7 @@ def build_cube_csv_for_gee_utm(
     Returns:
         A DataFrame with exactly :data:`GEE_UTM_CSV_COLUMNS`, one row per ``(cell, day)``.
     """
-    build_cube_args = {"window_start": window_start, "window_end": window_end}
-    if days:
-        build_cube_args = {"days": days}
-
-    frame = build_cube_csv(kept, **build_cube_args)
-
+    frame = build_cube_csv(kept, window_start=window_start, window_end=window_end, days=days)
     to_geo = Transformer.from_crs(GRID_MATH_CRS, GEOGRAPHIC_CRS, always_xy=True)
     lon, lat = to_geo.transform(frame["center_x"].to_numpy(), frame["center_y"].to_numpy())
     frame = frame.assign(center_lat=lat, center_lon=lon)
