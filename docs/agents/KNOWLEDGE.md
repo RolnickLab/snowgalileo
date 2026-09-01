@@ -239,6 +239,37 @@ Working branch: ablations (https://github.com/marlens123/presto-v3/tree/ablation
   exactly the 7 in-window acq dates, 0 everywhere else). Guard tests:
   `tests/test_local_sources/test_s1_snap_extent_guard.py`. See
   \[[s1-truncated-snap-cache-silent-dropout]\].
+- **GEE `COPERNICUS/S1_GRD` has a THREE-YEAR HOLE over western Canada: zero scenes from
+  2022-01-01 to 2025-04-05. Not a bug — the data does not exist.** Any cube exported for a
+  window inside that range carries S1 (`VV`/`VH`/`angle`) as `-9999` at **every** timestep.
+  Measured per-year scene counts over the Fortress cell centre (`-115.2469, 50.8130`):
+  `2019:88 2020:86 2021:83 | 2022:0 2023:0 2024:0 | 2025:22 2026:22`, first 2025 scene
+  **2025-04-06**, 12-day cadence after. **Controls prove it is regional, not a query or
+  ingestion fault:** Rome and Zurich *halve* across 2022-2024 (175→90/yr) and recover, while
+  Fortress, Bow Valley and Calgary each go to **exactly 0** — the signature of the
+  Sentinel-1B failure (2021-12-23) plus ESA's revised observation scenario, which dropped
+  western Canada outright until S1C restored it. Identical in `S1_GRD` and `S1_GRD_FLOAT`.
+  The exporter is fine: `get_single_s1_image` on the *same* cell geometry returns real dB
+  (`-29.90 … 12.70`) for 2021-03-10 and 2025-04-06, and the `create_placeholder` `-9999`
+  for 2022-03-09 / 2023-03-16 / 2025-04-01 — only the date varies.
+  - **This is the THIRD distinct cause of "S1 is missing", and the only one outside our
+    code.** The other two (\[[s1-cache-never-built-silent-dropout]\],
+    \[[s1-truncated-snap-cache-silent-dropout]\]) are **local**-pipeline SNAP-cache faults;
+    `verify_s1_cache.py` diagnoses those and will find **nothing** here, because this is the
+    **GEE** pipeline and the archive itself is empty. **Triage order: query the archive's
+    date range for the AOI first** — one `filterBounds().filterDate().size()` call — before
+    touching the cache, the manifest or the adapter.
+  - **Usable S1 date ranges for this AOI: `≤ 2021-12` or `≥ 2025-04-06`.** The Fortress
+    Mountain run (19 dates, 2022-03-09 … 2023-05-24, all 475 cubes) sits entirely inside the
+    hole; `data/aoi_cubes` (2025-04-01…03) misses the resumption by three days. Both are
+    legitimately S1-free.
+  - **Model caveat, not a data bug:** inference over that range runs with an entire modality
+    permanently masked against a checkpoint finetuned where S1 was present at some timesteps.
+    That is a distribution-shift note for the *results*, and belongs in whatever write-up
+    accompanies the run. It does **not** trip the all-masked nodata guard — `s_t_h_m` peaks
+    at 0.732 over the 475 cubes because optical carries the other 4 of 7 channel groups.
+  - Evidence and the full control table: `docs/agents/bugs/MASK_CHECK_BUG.md` §F.2.
+    (Established 2026-08-31.) See \[[s1-gee-archive-gap-western-canada]\].
 - **Inference driver/mosaic (TASK-015) mosaics FSC by DIRECT UTM placement — NO reproject.**
   The per-cell cube grid is already EPSG:32611 (not 4326), so each cell's 10×10 FSC
   prediction is already UTM 11N at 100 m/px. `DailyMosaicWriter` (`src/inference/mosaic.py`)
