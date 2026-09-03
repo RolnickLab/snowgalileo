@@ -20,7 +20,7 @@ must not be used for continuous coverage.
 It uses ``center_lat`` / ``center_lon`` only to name the output file and derives the export
 geometry from the UTM ``min/max`` bounds + per-row ``crs`` (reprojecting to 4326 itself).
 NOTE: this differs from :func:`grid.build_cube_dataframe`, which emits ``center_x`` / ``center_y``.
-This script delegates to :func:`grid.build_cube_csv_for_gee_utm` — the adapter that emits
+This script delegates to :func:`grid.build_cube_dataframe_for_gee_utm` — the adapter that emits
 what the reader consumes, with ``center_lat`` / ``center_lon`` populated with the cell
 centre reprojected to true decimal degrees (CRS-correct, not mislabelled eastings).
 
@@ -58,7 +58,7 @@ from snow_galileo.data import EarthEngineExporterEval
 from snow_galileo.data.local_sources.grid import (
     GEOGRAPHIC_CRS,
     build_cells,
-    build_cube_csv_for_gee_utm,
+    build_cube_dataframe_for_gee_utm,
     generate_date_list,
     load_aoi_polygon,
 )
@@ -181,7 +181,7 @@ def main(
     if not list_of_cells:
         raise typer.BadParameter(f"AOI {aoi} tiled to zero cells (check CRS).")
 
-    frame = build_cube_csv_for_gee_utm(
+    frame = build_cube_dataframe_for_gee_utm(
         list_of_cells, window_start=start, window_end=end, days=date_list
     )
 

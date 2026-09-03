@@ -12,6 +12,7 @@ per-cell ``GridCell`` target-grid triple (``EPSG:32611`` UTM 11N, ``scale=10`` m
 
 from __future__ import annotations
 
+import json
 from itertools import combinations
 from pathlib import Path
 
@@ -122,13 +123,13 @@ def test_cells_non_overlapping(cells):
 @pytest.fixture(scope="module")
 def grid_a():
     """Mode-A grid: the in-AOI legacy cells as GridCells (centre-in rule)."""
-    return build_grid(mode="A", legacy_csv=LEGACY_CSV, aoi_path=AOI_PATH)
+    return build_grid(mode="A", cube_cells_csv=LEGACY_CSV, aoi_path=AOI_PATH)
 
 
 @pytest.fixture(scope="module")
 def grid_b():
     """Mode-B grid: the AOI tiled into 1 km cells (legacy CSV not consumed)."""
-    return build_grid(mode="B", aoi_path=AOI_PATH)
+    return build_grid(mode="B", cube_cells_csv=LEGACY_CSV, aoi_path=AOI_PATH)
 
 
 def test_mode_a_cell_count(grid_a):
@@ -140,7 +141,7 @@ def test_mode_a_fully_inside_switch():
     """Mode A with require_fully_inside yields the 338 cells (SPEC AC-10)."""
     grid = build_grid(
         mode="A",
-        legacy_csv=LEGACY_CSV,
+        cube_cells_csv=LEGACY_CSV,
         aoi_path=AOI_PATH,
         require_fully_inside=True,
     )
@@ -222,7 +223,65 @@ def test_mode_b_cells_non_overlapping(grid_b):
 def test_invalid_mode_rejected():
     """An unknown sweep mode is rejected explicitly (no silent default)."""
     with pytest.raises((ValueError, KeyError)):
-        build_grid(mode="Z", legacy_csv=LEGACY_CSV, aoi_path=AOI_PATH)
+        build_grid(mode="Z", cube_cells_csv=LEGACY_CSV, aoi_path=AOI_PATH)
+
+
+# --------------------------------------------------------------------------- #
+# Per-mode required-input guards                                               #
+#                                                                              #
+# These are the contract the split into cells_from_csv/cells_from_aoi exists to #
+# enforce. mypy cannot catch a missing one — every argument is optional on the  #
+# dispatcher — so each guard needs a runtime test.                             #
+# --------------------------------------------------------------------------- #
+
+
+def test_mode_a_requires_cells_csv():
+    """Mode A builds from a CSV; omitting it fails loudly, not with an empty grid."""
+    with pytest.raises(ValueError, match="cube_cells_csv"):
+        build_grid(mode="A", aoi_path=AOI_PATH)
+
+
+def test_mode_b_requires_aoi():
+    """Mode B tiles an AOI; omitting it fails loudly."""
+    with pytest.raises(ValueError, match="aoi_path"):
+        build_grid(mode="B", cube_cells_csv=LEGACY_CSV)
+
+
+def test_mode_a_aoi_is_optional():
+    """Without an AOI, mode A keeps every cell in the CSV (no silent filtering)."""
+    grid = build_grid(mode="A", cube_cells_csv=LEGACY_CSV)
+    assert len(grid) == EXPECTED_TOTAL_CELLS
+
+
+def test_require_fully_inside_without_aoi_rejected():
+    """The containment flag has nothing to test against without an AOI."""
+    with pytest.raises(ValueError, match="require_fully_inside"):
+        build_grid(mode="A", cube_cells_csv=LEGACY_CSV, require_fully_inside=True)
+
+
+def test_mismatched_csv_and_aoi_rejected(tmp_path):
+    """A CSV/AOI region mismatch raises instead of yielding an empty grid.
+
+    The silent version of this sweeps to completion over zero cells and writes
+    nothing — the failure mode that makes multi-region mode A dangerous.
+    """
+    aoi = load_aoi_polygon(AOI_PATH)
+    min_x, min_y, max_x, max_y = aoi.bounds
+    elsewhere = tmp_path / "elsewhere_aoi.geojson"
+    # A same-size AOI shifted a full width east: valid geometry, wrong region.
+    shifted = box(min_x + (max_x - min_x) * 2, min_y, max_x + (max_x - min_x) * 2, max_y)
+    elsewhere.write_text(
+        json.dumps(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    {"type": "Feature", "properties": {}, "geometry": shifted.__geo_interface__}
+                ],
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="keeps 0 of"):
+        build_grid(mode="A", cube_cells_csv=LEGACY_CSV, aoi_path=elsewhere)
 
 
 # --------------------------------------------------------------------------- #
@@ -235,7 +294,9 @@ INSET_M = 10_000.0  # 10 km internal border drop
 @pytest.fixture(scope="module")
 def grid_b_inset():
     """Mode-B grid with a 10 km internal inset (border ring dropped)."""
-    return build_grid(mode="B", aoi_path=AOI_PATH, mode_b_inset_m=INSET_M)
+    return build_grid(
+        mode="B", cube_cells_csv=LEGACY_CSV, aoi_path=AOI_PATH, mode_b_inset_m=INSET_M
+    )
 
 
 def test_inset_drops_border_cells(grid_b, grid_b_inset):
@@ -283,16 +344,18 @@ def test_inset_cells_clear_the_aoi_edge(grid_b_inset):
 def test_inset_negative_rejected():
     """A negative inset is rejected (it would *grow* the AOI)."""
     with pytest.raises(ValueError, match="inset_m must be >= 0"):
-        build_grid(mode="B", aoi_path=AOI_PATH, mode_b_inset_m=-1.0)
+        build_grid(mode="B", cube_cells_csv=LEGACY_CSV, aoi_path=AOI_PATH, mode_b_inset_m=-1.0)
 
 
 def test_inset_that_erases_aoi_raises():
     """An inset larger than the AOI's half-extent erodes it to nothing → ValueError."""
     with pytest.raises(ValueError, match="erodes the entire AOI"):
-        build_grid(mode="B", aoi_path=AOI_PATH, mode_b_inset_m=1_000_000.0)
+        build_grid(
+            mode="B", cube_cells_csv=LEGACY_CSV, aoi_path=AOI_PATH, mode_b_inset_m=1_000_000.0
+        )
 
 
 def test_inset_zero_matches_plain_mode_b(grid_b):
     """inset_m=0 is identical to plain Mode B (default-safe, no behaviour change)."""
-    grid0 = build_grid(mode="B", aoi_path=AOI_PATH, mode_b_inset_m=0.0)
+    grid0 = build_grid(mode="B", cube_cells_csv=LEGACY_CSV, aoi_path=AOI_PATH, mode_b_inset_m=0.0)
     assert len(grid0) == len(grid_b)

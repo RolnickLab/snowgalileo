@@ -539,8 +539,8 @@ _FSC_VMIN, _FSC_VMAX = 0.0, 1.0
 # partial snow cover is legible, not a muddy periwinkle band. turbo(0)=(48,18,59) is dark
 # but non-black, so valid FSC=0 keeps a non-zero colour band and is not dropped by
 # result_to_geotiff's all-zero-RGB transparency heuristic (only the forced-black NaN/nodata
-# pixels are). The on-map colour scale (see data_viewer ``_FSC_COLORBAR_*``) is sampled
-# from this same colormap so legend and pixels agree.
+# pixels are). The on-map colour scale (``fsc_colorbar``, used by the app's FSC tab) is
+# sampled from this same colormap so legend and pixels agree.
 _FSC_COLORMAP = "turbo"
 
 

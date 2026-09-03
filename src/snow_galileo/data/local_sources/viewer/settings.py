@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from snow_galileo.data.local_sources.paths import LocalPaths
@@ -30,6 +30,20 @@ class ViewerSettings(BaseSettings):
     # clipped archive). Default from LocalPaths.processing_root; VIEWER_* overridable.
     processing_root: Path = Field(default_factory=lambda: _PATHS.processing_root)
 
+    # Leaf data dirs for the cube + daily-FSC tabs. Default to the conventional
+    # ``processing_root/<sub>`` layout; set directly (e.g. by the viewer's per-tab folder
+    # picker, or the launch CLI) to point a tab at an arbitrary directory of
+    # ``PR_*.tif`` / ``fsc_*.tif``. Env: ``VIEWER_CUBES_DIR`` / ``VIEWER_DAILY_FSC_DIR``
+    # (the long ``*_OVERRIDE`` form is also accepted for back-compat).
+    cubes_dir_override: Path | None = Field(
+        default=None,
+        validation_alias=AliasChoices("VIEWER_CUBES_DIR", "VIEWER_CUBES_DIR_OVERRIDE"),
+    )
+    daily_fsc_dir_override: Path | None = Field(
+        default=None,
+        validation_alias=AliasChoices("VIEWER_DAILY_FSC_DIR", "VIEWER_DAILY_FSC_DIR_OVERRIDE"),
+    )
+
     # Decimation target for quicklook reads (long edge, px). Guards against the
     # ~146 MB S1 full-res loads (geospatial skill: no eager multi-GB reads).
     long_edge: int = 1024
@@ -52,10 +66,18 @@ class ViewerSettings(BaseSettings):
 
     @property
     def cubes_dir(self) -> Path:
-        """Directory of assembled per-cell cubes (``PR_*.tif``)."""
-        return self.processing_root / "cubes"
+        """Directory of assembled per-cell cubes (``PR_*.tif``).
+
+        ``cubes_dir_override`` (a picked leaf dir) takes precedence; otherwise the
+        conventional ``processing_root/cubes``.
+        """
+        return self.cubes_dir_override or (self.processing_root / "cubes")
 
     @property
     def daily_fsc_dir(self) -> Path:
-        """Directory of daily fractional-snow-cover COGs (``fsc_*.tif``)."""
-        return self.processing_root / "daily_fsc"
+        """Directory of daily fractional-snow-cover COGs (``fsc_*.tif``).
+
+        ``daily_fsc_dir_override`` (a picked leaf dir) takes precedence; otherwise the
+        conventional ``processing_root/daily_fsc``.
+        """
+        return self.daily_fsc_dir_override or (self.processing_root / "daily_fsc")

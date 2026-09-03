@@ -13,8 +13,23 @@ bug and the S3 `scale_factor` bug. See `docs/agents/KNOWLEDGE.md`.
 
 ## Run
 
+The viewer is a Solara app (`app.py`, the `Page` component) launched through a small
+Typer CLI (`cli.py`) that sets each tab's default folder from flags. Use the launcher
+entrypoint under `scripts/`:
+
 ```bash
-uv run solara run scripts/developer_scripts/bow_valley_inference_local/data_viewer.py
+uv run python scripts/developer_scripts/bow_valley_inference_local/05_data_viewer.py \
+    --clipped-root data/clipped_bow_valley_selection_raw \
+    --cubes-dir    data/bow_valley_processing/cubes \
+    --fsc-dir      data/bow_valley_processing/daily_fsc
+```
+
+All flags are optional (each tab keeps its in-app folder picker). Trailing args after `--`
+are forwarded to `solara run`, e.g. `-- --port 8900`. Without folder flags you can also run
+the app module directly:
+
+```bash
+uv run solara run snow_galileo.data.local_sources.viewer.app
 ```
 
 Opens at <http://localhost:8765>. The page loads every manifest row; select a

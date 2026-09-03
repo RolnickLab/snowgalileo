@@ -334,7 +334,7 @@ def clip_sentinel2(
 
 # --------------------------------------------------------------------------- #
 # Sentinel-1 — NOT clipped here. S1 is processed from raw via ESA SNAP
-# (src/data/local_sources/s1_snap.py → process_raw_dataset.py process-s1), producing the
+# (src/data/local_sources/s1_snap.py → 01_process_raw_dataset.py process-s1), producing the
 # per-granule dB+angle cache that BOTH the cube adapter and the viewer read. There is no
 # raw-DN clipped-S1 product. See PLAN-S1-PERGRANULE-SNAP.md.
 # --------------------------------------------------------------------------- #

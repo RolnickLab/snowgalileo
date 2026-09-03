@@ -13,15 +13,15 @@ Every operator script lives in
 `scripts/developer_scripts/bow_valley_inference_local/`; each is a thin Typer CLI
 over package code, run with `uv run python …` (the viewer with `uv run solara run …`). Run the stages top to bottom:
 
-| #   | Stage                         | Script                                                                    | Output                                               |
-| --- | ----------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------- |
-| 0   | Grid + reference patches (§2) | `python -m src.data.local_sources.grid --emit-csv`                        | `configs/bow_valley/cube_cells.csv`, parity fixtures |
-| 1   | Process raw → read roots (§3) | `process_raw_dataset.py process-all`                                      | clipped archive + `sentinel1_snap/` cache            |
-| 1a  | (S1 only, standalone)         | `process_raw_dataset.py process-s1` **or** `build_bow_valley_s1_cache.py` | `sentinel1_snap/s1_grd_<granule>.tif`                |
-| 1b  | Audit stage 1                 | `process_raw_audit.py`                                                    | exit 0 = clean                                       |
-| 2   | Assemble 308-band cubes (§5)  | `export_bow_valley_cube.py`                                               | `processing_root/cubes/PR_*.tif`                     |
-| 3   | Daily FSC inference (§6)      | `infer_bow_valley_daily_fsc.py`                                           | `processing_root/daily_fsc/*.tif`                    |
-| 4   | Inspect / QA (§7)             | `solara run data_viewer.py`                                               | Clip / Cube / Daily-FSC tabs                         |
+| #   | Stage                                                | Script                                                     | Output                                               |
+| --- | ---------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------- |
+| 0   | Grid + reference patches (§2) - PARTIALLY DEPRECATED | `00_generate_grid_csv.py`                                  | `configs/bow_valley/cube_cells.csv`, parity fixtures |
+| 1   | Process raw → read roots (§3)                        | `01_process_raw_dataset.py process-all`                    | clipped archive + `sentinel1_snap/` cache            |
+| 1a  | (S1 only, standalone)                                | `01_process_raw_dataset.py process-s1`                     | `sentinel1_snap/s1_grd_<granule>.tif`                |
+| 1b  | Audit stage 1                                        | `02_process_raw_audit.py`                                  | exit 0 = clean                                       |
+| 2   | Assemble 308-band cubes (§5)                         | `03_export_bow_valley_cube.py`                             | `processing_root/cubes/PR_*.tif`                     |
+| 3   | Daily FSC inference (§6)                             | `04_infer_bow_valley_daily_fsc.py`                         | `processing_root/daily_fsc/*.tif`                    |
+| 4   | Inspect / QA (§7)                                    | `05_data_viewer.py [--clipped-root/--cubes-dir/--fsc-dir]` | Clip / Cube / Daily-FSC tabs                         |
 
 **Key ordering rule (stage 1):** Sentinel-1 is **processed, never clipped** — it
 must go through ESA SNAP *before* anything reads it. `process-all` enforces this:
@@ -75,7 +75,7 @@ Produces the sweep enumeration and parity fixtures every later task consumes.
 
 ```bash
 # Emit the generated cube CSV (cells × inference-window days, full cross-product)
-uv run python -m src.data.local_sources.grid --emit-csv --mode A \
+uv run python scripts/developer_scripts/bow_valley_inference_local/00_generate_grid_csv.py \
     --window-start 2025-04-06 --window-end 2025-05-28
 
 uv run pytest tests/test_local_sources/test_grid.py tests/test_local_sources/test_cube_csv.py -q
@@ -95,6 +95,7 @@ uv run pytest tests/test_local_sources/test_grid.py tests/test_local_sources/tes
   500 cells (31%) fall outside the AOI and are dropped by design.
 - The legacy `date` column in `tests/fixtures/sampled_cells_bow_river_with_dates.csv` is never
   read — only cell geometry is reused; dates come from the inference window.
+- This is not used by later steps when using mode B, as this mode never writes a csv and consumes the dataframe directly
 
 ______________________________________________________________________
 
@@ -109,15 +110,15 @@ decision.
 # Dry-run: gate only, no pixels decoded, no writes — sanity check first.
 # NOTE: a dry-run can hide footprint-reader bugs (see Gotchas). Don't treat its
 # CLIP/SKIP tally as proof of correctness.
-uv run python scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py clip-all --dry-run
+uv run python scripts/developer_scripts/bow_valley_inference_local/01_process_raw_dataset.py clip-all --dry-run
 
 # Real clip (all sources, serial).
-uv run python scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py clip-all
+uv run python scripts/developer_scripts/bow_valley_inference_local/01_process_raw_dataset.py clip-all
 
 # ...or run sources in parallel (they are independent processes). Example:
-uv run python scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py clip-source sentinel2 &
-uv run python scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py clip-source sentinel3 &
-uv run python scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py clip-source viirs &
+uv run python scripts/developer_scripts/bow_valley_inference_local/01_process_raw_dataset.py clip-source sentinel2 &
+uv run python scripts/developer_scripts/bow_valley_inference_local/01_process_raw_dataset.py clip-source sentinel3 &
+uv run python scripts/developer_scripts/bow_valley_inference_local/01_process_raw_dataset.py clip-source viirs &
 wait
 # Parallel clip-source jobs each write only their own per-source manifest; the
 # combined root manifest is NOT produced. Regenerate it (header once, then every
@@ -131,7 +132,7 @@ wait
 # per-granule AOI-wide dB+angle cache (offline, hours; idempotent; raw granules are
 # read-only). This is the SINGLE S1 product: both the cube S1Adapter AND the viewer's S1
 # quicklook read it. (clip-all does not touch S1 — there is no raw-DN clipped S1.)
-uv run python scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py process-s1
+uv run python scripts/developer_scripts/bow_valley_inference_local/01_process_raw_dataset.py process-s1
 
 # Verify the SNAP cache before assembling cubes. An INTERRUPTED build can publish a
 # truncated sliver tif that the idempotent cache-hit check then refuses to overwrite,
@@ -141,12 +142,12 @@ uv run python scripts/developer_scripts/bow_valley_inference_local/spikes/verify
 
 # ...or do the whole raw → read-roots pipeline in one go (process-s1 FIRST, then clip-all
 # of every other modality — the process-then-clip order):
-uv run python scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py process-all
+uv run python scripts/developer_scripts/bow_valley_inference_local/01_process_raw_dataset.py process-all
 
 # Post-run audit: zero all-nodata outputs, static mosaics reach lat 52.31, and the S1
 # SNAP cache covers every AOI-overlapping raw granule.
 # (Single-command Typer app — no subcommand. --root defaults to the clipped dir.)
-uv run python scripts/developer_scripts/bow_valley_inference_local/process_raw_audit.py
+uv run python scripts/developer_scripts/bow_valley_inference_local/02_process_raw_audit.py
 ```
 
 **CLI flags** (both `clip-all` and `clip-source`): `--input-dir`
@@ -161,7 +162,7 @@ pole — it is not hung. MODIS/VIIRS are fast per granule but emit thousands of
 per-grid GeoTIFFs. Running the four heavy sources (S1/S2/S3/viirs) in parallel
 roughly halves wall-clock.
 
-**Code lives in the package**, not the scripts: `src/data/local_sources/clip/`
+**Code lives in the package**, not the scripts: `src/snow_galileo/data/local_sources/clip/`
 (`settings`, `gate`, `footprints`, `gdal_io`, `clippers`, `manifest`,
 `orchestrator`). The two CLIs are thin entrypoints.
 
@@ -258,7 +259,7 @@ Ensures spatial location and date matching are preserved from raw clipped source
 
 ______________________________________________________________________
 
-## 5. Stage 2 — assemble the cubes (`export_bow_valley_cube.py`)
+## 5. Stage 2 — assemble the cubes (`03_export_bow_valley_cube.py`)
 
 Builds the in-AOI grid and writes one canonical **308-band** cube tif per
 `(cell, window_end)` into `processing_root/cubes/`, using the **real-adapter**
@@ -272,16 +273,16 @@ GEE-path code.
 
 ```bash
 # Smoke run — 4 cells, default window from cube.yaml.
-uv run python scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py \
+uv run python scripts/developer_scripts/bow_valley_inference_local/03_export_bow_valley_cube.py \
     export --config configs/bow_valley/cube.yaml --limit 4
 
 # Full sweep (all 344 in-AOI cells), explicit window-end, 8 workers.
-uv run python scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py \
+uv run python scripts/developer_scripts/bow_valley_inference_local/03_export_bow_valley_cube.py \
     export --config configs/bow_valley/cube.yaml --window-end 2025-05-28 --workers 8
 
 # Wipe the cube cache on demand (reports entries removed) — for the "did my
 # clips/adapters change?" case the version stamp can't catch.
-uv run python scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py \
+uv run python scripts/developer_scripts/bow_valley_inference_local/03_export_bow_valley_cube.py \
     clean-cache --config configs/bow_valley/cube.yaml
 ```
 
@@ -313,7 +314,7 @@ contract in §4); intermediate per-day/per-cell arrays cached under
 
 ______________________________________________________________________
 
-## 6. Stage 3 — daily FSC inference (`infer_bow_valley_daily_fsc.py`)
+## 6. Stage 3 — daily FSC inference (`04_infer_bow_valley_daily_fsc.py`)
 
 Runs the pretrained model over the sweep and writes one daily fractional-snow-
 cover **COG per inference day** into `processing_root/daily_fsc/`. Reads
@@ -324,7 +325,7 @@ config, batch, device); builds `EncoderWithHead` via the **same** load path as
 
 ```bash
 # Smoke run — 4 cells.
-uv run python scripts/developer_scripts/bow_valley_inference_local/infer_bow_valley_daily_fsc.py \
+uv run python scripts/developer_scripts/bow_valley_inference_local/04_infer_bow_valley_daily_fsc.py \
     --cube-config configs/bow_valley/cube.yaml \
     --config configs/bow_valley/inference.yaml --limit 4
 ```
@@ -374,11 +375,11 @@ on first write, never overlapping the Mode-A tree.
 # Stage 2 — assemble the full-AOI cubes (21,985 cells × 21 days = 461,685 cubes).
 # 'reuse' is wrong here (fresh isolated cache); 'overwrite' clears the empty full_run
 # cache up front and runs non-interactively (safe for a long batch run).
-uv run python scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py \
+uv run python scripts/developer_scripts/bow_valley_inference_local/03_export_bow_valley_cube.py \
     export --config configs/bow_valley/cube_full_run.yaml --workers 16 --cache-policy overwrite
 
 # Stage 3 — daily FSC inference over the full grid (writes one COG per inference day).
-uv run python scripts/developer_scripts/bow_valley_inference_local/infer_bow_valley_daily_fsc.py \
+uv run python scripts/developer_scripts/bow_valley_inference_local/04_infer_bow_valley_daily_fsc.py \
     --cube-config configs/bow_valley/cube_full_run.yaml \
     --config configs/bow_valley/inference_full_run.yaml --cache-policy overwrite
 ```
@@ -476,15 +477,23 @@ it removes the cache-thrash contention, the part the SSD actually fixes.
 
 ______________________________________________________________________
 
-## 7. Inspect / QA — the data viewer (`data_viewer.py`)
+## 7. Inspect / QA — the data viewer (`05_data_viewer.py`)
 
 A developer/QA Solara app; each tab is a leafmap map with the AOI outline
 overlaid. Read-only on the archive and `processing_root`; writes only transient
 decimated GeoTIFFs to a temp dir.
 
 ```bash
-uv run solara run scripts/developer_scripts/bow_valley_inference_local/data_viewer.py
+uv run python scripts/developer_scripts/bow_valley_inference_local/05_data_viewer.py \
+    --clipped-root data/clipped_bow_valley_selection_raw \
+    --cubes-dir    data/bow_valley_processing/cubes \
+    --fsc-dir      data/bow_valley_processing/daily_fsc
 ```
+
+The launcher is a Typer CLI that sets each tab's default folder from the flags (all
+optional — every tab also has an in-app folder picker), then execs `solara run` on the
+app module `snow_galileo.data.local_sources.viewer.app`. Trailing args after `--` go to
+`solara run` (e.g. `-- --port 8900`).
 
 Three tabs, one per pipeline output:
 
@@ -505,7 +514,7 @@ ______________________________________________________________________
 
 ## Testing baseline
 
-The suite is **already red on a clean checkout** (6 pre-existing failures, see
+The suite is **green** — `uv run pytest -q` → **365 passed**, verified 2026-08-06 (see
 `docs/agents/planning/bow_valley/020-data-ingestion/tasks/test-baseline.md`). Judge work by
-**delta** — never `pytest -x` at the suite level. New work must add zero new
-failures.
+**absolute pass**: any failure is a regression. The 6 pre-existing failures this section
+used to describe are all resolved.

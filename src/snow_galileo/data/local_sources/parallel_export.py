@@ -113,7 +113,8 @@ def export_cells_parallel(
             needed tif is missing. **Default ``True``** — the check is cheap (a cache-dir
             glob, no SNAP) and catches a missing/incomplete cache before a long bulk run
             silently emits all-``-9999`` S1. Build the cache once up front with
-            ``scripts/developer_scripts/bow_valley_inference_local/build_bow_valley_s1_cache.py``;
+            ``scripts/developer_scripts/bow_valley_inference_local/01_process_raw_dataset.py
+            process-s1``;
             set ``False`` only to deliberately allow S1-free cubes.
         cube_cache_dir: Optional per-(modality, cell, day) ``.npz`` cache root shared by
             every worker (file-based, so no IPC). ``None`` (default) disables it — each

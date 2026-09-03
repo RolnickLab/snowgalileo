@@ -840,8 +840,8 @@ Each phase ends with an explicit approval gate per CLAUDE.md workflow rules.
      8. `s2.py` (parity spike already done, now production)
      9. `s1.py` (parity spike already done, now production)
    - **Step 4 — `InferenceGridDriver` + `DailyMosaicWriter`.**
-   - **Step 5 — `scripts/developer_scripts/bow_valley_inference_local/export_bow_valley_cube.py` and
-     `scripts/developer_scripts/bow_valley_inference_local/infer_bow_valley_daily_fsc.py`.**
+   - **Step 5 — `../../../../../scripts/developer_scripts/bow_valley_inference_local/03_export_bow_valley_cube.py` and
+     `../../../../../scripts/developer_scripts/bow_valley_inference_local/04_infer_bow_valley_daily_fsc.py`.**
 
 ### Tooling per task
 

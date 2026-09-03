@@ -1,8 +1,13 @@
-"""Solara entrypoint for the Bow Valley data viewer.
+"""Solara app for the Bow Valley data viewer.
 
-Run with::
+This is the Solara ``Page`` component. Launch it via the CLI wrapper (which sets the
+per-tab ``VIEWER_*`` folder defaults from flags, then execs ``solara run`` on this module)::
 
-    uv run solara run scripts/developer_scripts/bow_valley_inference_local/data_viewer.py
+    uv run python scripts/developer_scripts/bow_valley_inference_local/data_viewer.py
+
+or directly (no folder flags), targeting this module by its dotted path::
+
+    uv run solara run snow_galileo.data.local_sources.viewer.app
 
 A developer/QA tool with three tabs, each a leafmap map with the
 ``data/bow_valley_inference_aoi.geojson`` outline overlaid:
@@ -24,6 +29,7 @@ See ``docs/agents/planning/bow_valley/060-viewer/060-viewer-plan.md``, ``CONTRAC
 from __future__ import annotations
 
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 import solara
@@ -34,7 +40,6 @@ from snow_galileo.data.local_sources.viewer.aoi import aoi_bounds_4326, load_aoi
 from snow_galileo.data.local_sources.viewer.manifest import ProductRow, load_products
 from snow_galileo.data.local_sources.viewer.outputs import (
     CubeAvailability,
-    CubeRow,
     cube_availability,
     cubes_for_date,
     dates_for_cubes,
@@ -58,10 +63,16 @@ import leafmap  # isort: skip  (heavy import, kept after local modules)
 _SETTINGS = ViewerSettings()
 _TMPDIR = Path(tempfile.mkdtemp(prefix="data_viewer_"))
 
-# Loaded once at import (cheap: a few hundred manifest rows + a directory scan).
-_PRODUCTS: list[ProductRow] = load_products(_SETTINGS)
-_CUBES: list[CubeRow] = list_cubes(_SETTINGS)
-_FSC = list_fsc(_SETTINGS)
+# Map height: fill the viewport minus the tab strip + page padding. Viewport-relative so
+# it scales with the browser window; ~140px reserves the tab bar and surrounding chrome.
+_MAP_HEIGHT = "calc(100vh - 140px)"
+
+# Default zoom framing the AOI (~2.0° × 1.6°) snugly. The FSC tab uses this fixed frame
+# (no per-timestep reframe) so stepping the date slider does not jump the view.
+_AOI_DEFAULT_ZOOM = 9
+
+# AOI is a fixed geojson — global. The per-tab data scans (products / cubes / FSC) are now
+# reactive on each tab's folder picker, so they live inside the tab components, not here.
 _AOI_GEOJSON = load_aoi_geojson(_SETTINGS)
 _AOI_BOUNDS = aoi_bounds_4326(_AOI_GEOJSON)
 
@@ -79,8 +90,6 @@ _RENDERABLE_SOURCES = {
     "era5",
     "sentinel3",
 }
-
-_SOURCES: list[str] = sorted({p.source for p in _PRODUCTS})
 
 # Cube availability is a per-cube full-band read (~0.5s on the ~100×100 cubes). Memoise it
 # by path so re-renders (a slider/dropdown nudge) don't re-scan the same cube each time.
@@ -101,8 +110,56 @@ _CUBE_MODE_VARIABLE = "Select by variable"
 _CUBE_MODES = [_CUBE_MODE_TIMESTEP, _CUBE_MODE_VARIABLE]
 
 
-def _products_for(source: str) -> list[ProductRow]:
-    return [p for p in _PRODUCTS if p.source == source]
+@solara.component
+def _FolderPicker(*, label: str, folder: Path, on_pick: Callable[[Path], None]) -> None:
+    """A collapsible directory picker for a tab's top-level data folder.
+
+    Shows the active folder and a missing-folder warning; expanding it reveals a
+    ``FileBrowser`` to choose a new directory. Folded by default so it doesn't crowd the
+    tab. Selecting a directory calls ``on_pick`` with the chosen path.
+
+    Args:
+        label: Human label for what this folder holds (e.g. ``"Clipped archive"``).
+        folder: The currently active folder.
+        on_pick: Called with the directory the user selects.
+    """
+    open_state, set_open = solara.use_state(False)
+
+    # Track the directory the browser is currently *in*; "Use this folder" commits it. We
+    # drive the browse off ``on_directory_change`` (which always yields an absolute Path)
+    # rather than ``on_path_select`` — the latter can hand back a bare name string for some
+    # click paths (Solara FileBrowser quirk), which is not a resolvable directory.
+    start = (
+        folder if folder.exists() else next((p for p in folder.parents if p.exists()), Path.home())
+    )
+    browse_dir, set_browse_dir = solara.use_state(start)
+
+    def _commit() -> None:
+        if browse_dir.is_dir():
+            on_pick(browse_dir)
+            set_open(False)
+
+    with solara.Card(f"{label} folder"):
+        solara.Markdown(f"**folder:** `{folder}`")
+        if not folder.exists():
+            solara.Warning(f"folder does not exist: `{folder}`")
+        solara.Button(
+            "Change folder…" if not open_state else "Close",
+            text=True,
+            on_click=lambda: set_open(not open_state),
+        )
+        if open_state:
+            solara.Markdown(f"Navigate into a folder, then commit. Current: `{browse_dir}`")
+            solara.Button("Use this folder", on_click=_commit)
+            solara.FileBrowser(
+                directory=browse_dir,
+                on_directory_change=set_browse_dir,
+                directory_first=True,
+            )
+
+
+def _products_for(products: list[ProductRow], source: str) -> list[ProductRow]:
+    return [p for p in products if p.source == source]
 
 
 def _add_aoi_overlay(m: leafmap.Map) -> None:
@@ -148,6 +205,7 @@ def _render_on_map(
     *,
     key: str,
     zoom_to_data: bool = False,
+    fixed_zoom: int | None = None,
     colorbar: tuple[list[str], float, float, str] | None = None,
 ) -> leafmap.Map:
     """Build a leafmap map centred on the AOI with ``result`` placed on it (if georef).
@@ -161,7 +219,10 @@ def _render_on_map(
         key: Unique transient-filename seed for this selection.
         zoom_to_data: If ``True``, frame the map on the non-transparent data footprint
             rather than the full layer extent — for sparse fields (FSC) that would
-            otherwise be a speck inside the AOI bbox.
+            otherwise be a speck inside the AOI bbox. Ignored when ``fixed_zoom`` is set.
+        fixed_zoom: If set, frame on the AOI centre at this zoom and never reframe to the
+            data — so a tab that re-renders per timestep (FSC) keeps a stable view instead
+            of jumping each step. Takes precedence over ``zoom_to_data``.
         colorbar: Optional ``(hex_colours, vmin, vmax, caption)`` for a continuous on-map
             colour scale (e.g. the FSC 0–1 legend). Drawn bottom-right.
     """
@@ -169,7 +230,7 @@ def _render_on_map(
         (_AOI_BOUNDS[1] + _AOI_BOUNDS[3]) / 2,
         (_AOI_BOUNDS[0] + _AOI_BOUNDS[2]) / 2,
     ]
-    zoom = 8
+    zoom = fixed_zoom if fixed_zoom is not None else 8
 
     has_raster = (
         result is not None and result.kind == "georef_raster" and result.bounds_4326 is not None
@@ -179,7 +240,7 @@ def _render_on_map(
         assert result is not None and result.bounds_4326 is not None  # narrows for mypy
         safe = "".join(c if c.isalnum() else "_" for c in key)
         tif = result_to_geotiff(result, _TMPDIR / f"{safe}.tif")
-        if zoom_to_data:
+        if zoom_to_data and fixed_zoom is None:
             data_box = _opaque_data_bounds_4326(result.image, result.bounds_4326)
             if data_box is not None:
                 center = [(data_box[1] + data_box[3]) / 2, (data_box[0] + data_box[2]) / 2]
@@ -190,6 +251,10 @@ def _render_on_map(
                 zoom = 8 if span_deg > 0.7 else 9 if span_deg > 0.3 else 11
 
     m = leafmap.Map(center=center, zoom=zoom)
+    # Fill the viewport height below the tab bar. ipyleaflet's default map height
+    # collapses to ~half the page; pin it to a viewport-relative height so the map
+    # is as tall as possible while leaving room for the tab strip + page chrome.
+    m.layout.height = _MAP_HEIGHT
     m.add_basemap(_SETTINGS.default_basemap)
     if has_raster and tif is not None:
         assert result is not None  # narrows for mypy (guarded by has_raster)
@@ -204,9 +269,10 @@ def _render_on_map(
             indexes=indexes,
             layer_name=result.label,
             opacity=1.0,
-            # When zooming to the data footprint we have already framed the view; letting
-            # zoom_to_layer re-frame would snap back to the full (mostly-empty) extent.
-            zoom_to_layer=not zoom_to_data,
+            # When we have already framed the view (data footprint, or a fixed AOI zoom),
+            # letting zoom_to_layer re-frame would snap back to the full (mostly-empty)
+            # extent — and for FSC, jump the view on every timestep.
+            zoom_to_layer=not (zoom_to_data or fixed_zoom is not None),
         )
         if colorbar is not None:
             colors, vmin, vmax, caption = colorbar
@@ -224,6 +290,14 @@ def _render_on_map(
     # validator raises ``TraitError: 'east' ... expected a float, not NoneType`` on
     # re-render. The constructor ``center``/``zoom`` already frames the AOI, and
     # ``zoom_to_layer`` frames the active layer, so fit_bounds was redundant anyway.
+    #
+    # NOTE: deliberately no ``m.observe(names=["center", "zoom"])`` to persist the user's
+    # pan/zoom either. Subscribing to the viewport traits makes ipyleaflet sync the map
+    # *bounds*; on this version the client sends a transient ``east=None`` mid-interaction
+    # and the non-nullable ``east`` Float trait raises an uncaught
+    # ``TraitError: 'east' ... expected a float, not NoneType``. Same root cause as the
+    # removed fit_bounds. So the FSC frame is stable (``fixed_zoom``) but a manual pan/zoom
+    # resets on the next timestep — a deliberate trade for not crashing.
     return m
 
 
@@ -275,11 +349,38 @@ def _PlainImagePanel(result: QuicklookResult) -> None:
 @solara.component
 def ClipTab() -> None:
     """The original clip-manifest viewer (source → product → quicklook on the map)."""
-    source, set_source = solara.use_state(_SOURCES[0] if _SOURCES else "")
-    products = _products_for(source)
-    ids = [p.product_id for p in products]
-    product_id, set_product_id = solara.use_state(ids[0] if ids else "")
+    folder, set_folder = solara.use_state(_SETTINGS.clipped_root)
+    settings = _SETTINGS.model_copy(update={"clipped_root": folder})
+
+    # Scan the picked clipped archive. A folder without a clip manifest (or an empty/bad
+    # pick) yields no products rather than crashing the tab; the picker stays usable.
+    try:
+        all_products = load_products(settings)
+    except FileNotFoundError:
+        all_products = []
+
+    sources = sorted({p.source for p in all_products})
+
+    # All hooks first (rules-of-hooks: unconditional, stable order — no use_state after the
+    # early return below).
+    source, set_source = solara.use_state("")
+    product_id, set_product_id = solara.use_state("")
     date_idx, set_date_idx = solara.use_state(0)
+
+    if not all_products:
+        with solara.Columns([4, 8]):
+            with solara.Column():
+                _FolderPicker(label="Clipped archive", folder=folder, on_pick=set_folder)
+                solara.Warning(
+                    f"No clip manifest (`{settings.manifest_name}`) found under `{folder}`. "
+                    "Pick a clipped-archive folder in the sidebar."
+                )
+        return
+
+    if source not in sources:
+        source = sources[0] if sources else ""
+    products = _products_for(all_products, source)
+    ids = [p.product_id for p in products]
 
     if product_id not in ids:
         product_id = ids[0] if ids else ""
@@ -301,7 +402,8 @@ def ClipTab() -> None:
     result: QuicklookResult | None = None
     with solara.Columns([4, 8]):
         with solara.Column():
-            solara.Select(label="Source", value=source, values=_SOURCES, on_value=set_source)
+            _FolderPicker(label="Clipped archive", folder=folder, on_pick=set_folder)
+            solara.Select(label="Source", value=source, values=sources, on_value=set_source)
             if source not in _RENDERABLE_SOURCES:
                 solara.Warning(
                     f"`{source}` has no renderer yet (later phase). "
@@ -355,22 +457,37 @@ def CubeTab() -> None:
     * **Select by variable** — pick a variable first; the timestep dropdown then lists only
       the timesteps at which that variable is real. Statics have no timestep.
     """
-    if not _CUBES:
-        solara.Info(
-            f"No cubes found under `{_SETTINGS.cubes_dir}`. Run `export_bow_valley_cube.py` first."
-        )
+    # All hooks first with stable defaults (rules-of-hooks): the folder picker can change
+    # the scanned cube set, so no use_state may sit after the early return below or take a
+    # default derived from the scan. Each selection is clamped to the live choices later.
+    folder, set_folder = solara.use_state(_SETTINGS.cubes_dir)
+    date_label, set_date_label = solara.use_state("")
+    cell_label, set_cell_label = solara.use_state("")
+    mode, set_mode = solara.use_state(_CUBE_MODE_TIMESTEP)
+    var, set_var = solara.use_state("")
+    timestep, set_timestep = solara.use_state(0)
+
+    settings = _SETTINGS.model_copy(update={"cubes_dir_override": folder})
+    cubes = list_cubes(settings)
+
+    if not cubes:
+        with solara.Columns([4, 8]):
+            with solara.Column():
+                _FolderPicker(label="Cubes", folder=folder, on_pick=set_folder)
+                solara.Info(
+                    f"No cubes (`PR_*.tif`) found under `{folder}`. Pick a cubes folder in "
+                    "the sidebar, or run `export_bow_valley_cube.py` first."
+                )
         return
 
-    dates = dates_for_cubes(_CUBES)
+    dates = dates_for_cubes(cubes)
     date_labels = [d.isoformat() for d in dates]
-    date_label, set_date_label = solara.use_state(date_labels[0])
     if date_label not in date_labels:
         date_label = date_labels[0]
     sel_date = dates[date_labels.index(date_label)]
 
-    cells = cubes_for_date(_CUBES, sel_date)
+    cells = cubes_for_date(cubes, sel_date)
     cell_labels = [c.cell_label for c in cells]
-    cell_label, set_cell_label = solara.use_state(cell_labels[0])
     if cell_label not in cell_labels:
         cell_label = cell_labels[0]
     cell = cells[cell_labels.index(cell_label)]
@@ -379,12 +496,11 @@ def CubeTab() -> None:
     all_vars = [*avail.dynamic_order, *avail.statics]
     all_ts = list(range(avail.n_timesteps))
 
-    mode, set_mode = solara.use_state(_CUBE_MODE_TIMESTEP)
     # Raw selections persist across re-renders; each axis is clamped below to whatever the
     # *other* axis (and the active cube) makes valid, so a stale pick falls back cleanly
     # when the date/cell/mode changes rather than rendering an all-nodata band.
-    var, set_var = solara.use_state(all_vars[0])
-    timestep, set_timestep = solara.use_state(0)
+    if var not in all_vars:
+        var = all_vars[0]
 
     if mode == _CUBE_MODE_TIMESTEP:
         # Timestep is the free axis; the variable list is filtered to it.
@@ -431,6 +547,7 @@ def CubeTab() -> None:
 
     with solara.Columns([4, 8]):
         with solara.Column():
+            _FolderPicker(label="Cubes", folder=folder, on_pick=set_folder)
             solara.Select(
                 label="Prediction date",
                 value=date_label,
@@ -470,29 +587,53 @@ def CubeTab() -> None:
 @solara.component
 def FscTab() -> None:
     """Step a date slider through the daily-FSC COGs; render colormapped (0–1)."""
-    if not _FSC:
-        solara.Info(
-            "No daily-FSC COGs found under "
-            f"`{_SETTINGS.daily_fsc_dir}`. Run `infer_bow_valley_daily_fsc.py` first."
-        )
+    # Hooks first with stable defaults (rules-of-hooks): the folder picker can change the
+    # scanned FSC set, so no use_state may sit after the early return below.
+    folder, set_folder = solara.use_state(_SETTINGS.daily_fsc_dir)
+    idx, set_idx = solara.use_state(0)
+
+    settings = _SETTINGS.model_copy(update={"daily_fsc_dir_override": folder})
+    fsc = list_fsc(settings)
+
+    if not fsc:
+        with solara.Columns([4, 8]):
+            with solara.Column():
+                _FolderPicker(label="Daily FSC", folder=folder, on_pick=set_folder)
+                solara.Info(
+                    f"No daily-FSC COGs (`fsc_*.tif`) found under `{folder}`. Pick a daily-FSC "
+                    "folder in the sidebar, or run `infer_bow_valley_daily_fsc.py` first."
+                )
         return
 
-    idx, set_idx = solara.use_state(0)
-    safe_idx = min(idx, len(_FSC) - 1)
-    fsc_row = _FSC[safe_idx]
+    safe_idx = min(idx, len(fsc) - 1)
+    fsc_row = fsc[safe_idx]
 
     result = render_fsc(path=fsc_row.path, long_edge=_SETTINGS.long_edge)
 
     with solara.Columns([4, 8]):
         with solara.Column():
-            if len(_FSC) > 1:
+            _FolderPicker(label="Daily FSC", folder=folder, on_pick=set_folder)
+            if len(fsc) > 1:
                 solara.SliderInt(
-                    label=f"Date: {fsc_row.pred_date.isoformat()} ({safe_idx + 1}/{len(_FSC)})",
+                    label=f"Date: {fsc_row.pred_date.isoformat()} ({safe_idx + 1}/{len(fsc)})",
                     value=safe_idx,
                     min=0,
-                    max=len(_FSC) - 1,
+                    max=len(fsc) - 1,
                     on_value=set_idx,
                 )
+                # Prev/next step the slider one date; disabled at the ends so the index can
+                # never leave [0, len-1] (set_idx always lands on an in-range value).
+                with solara.Row():
+                    solara.Button(
+                        "◀ Prev",
+                        on_click=lambda: set_idx(safe_idx - 1),
+                        disabled=safe_idx == 0,
+                    )
+                    solara.Button(
+                        "Next ▶",
+                        on_click=lambda: set_idx(safe_idx + 1),
+                        disabled=safe_idx == len(fsc) - 1,
+                    )
             else:
                 solara.Info(f"Only one date on disk: {fsc_row.pred_date.isoformat()}.")
             with solara.Card("Daily FSC"):
@@ -504,11 +645,13 @@ def FscTab() -> None:
                 )
         with solara.Column():
             fsc_colors, fsc_vmin, fsc_vmax = fsc_colorbar()
+            # fixed_zoom frames the AOI at a stable, closer view every render, so stepping
+            # the date slider does not jump the map (vs. the old per-footprint reframe).
             solara.display(
                 _render_on_map(
                     result,
                     key=f"fsc_{fsc_row.pred_date.isoformat()}",
-                    zoom_to_data=True,
+                    fixed_zoom=_AOI_DEFAULT_ZOOM,
                     colorbar=(fsc_colors, fsc_vmin, fsc_vmax, "FSC (0–1)"),
                 )
             )

@@ -6,11 +6,17 @@ triple.
 
 **Recipe (the engine GEE uses):** the ESA Sentinel-1 Toolbox via headless
 ``gpt`` — Apply-Orbit → ThermalNoiseRemoval → Remove-GRD-Border-Noise →
-Calibration(σ⁰) → Terrain-Correction(SRTM 1Sec, EPSG:32611) → LinearToFromdB
-(graph: ``scripts/developer_scripts/bow_valley_inference_local/spikes/s1_grd_snap_graph.xml``).
-This reproduces the *full*
-chain, including the noise-removal steps the ``sarsen`` path could not (and which
-``xarray-sentinel`` can't even read for S1C — see PARITY_SPIKE_NOTES.md §2).
+Calibration(σ⁰) → Terrain-Correction(SRTM 1Sec, EPSG:32611). This reproduces the
+*full* chain, including the noise-removal steps the ``sarsen`` path could not (and
+which ``xarray-sentinel`` can't even read for S1C — see PARITY_SPIKE_NOTES.md §2).
+
+The validated artifact here is the **production S1 adapter cache**
+(``tests/fixtures/archive/sentinel1_snap/*.tif``, produced by
+``src/snow_galileo/data/local_sources/s1_grd_graph.xml``), which stores VV/VH as
+**linear σ⁰** — the graph has no ``LinearToFromdB`` node; the dB conversion
+(``10·log10``) is done in the adapter (``s1.py``). This test mirrors that step,
+converting the linear cache bands to dB before masking and diffing against the
+dB-domain reference patch.
 
 **Chosen tolerance (PARITY_SPIKE_NOTES.md §4):** median absolute per-band
 difference ≤ **1.0 dB** for VV/VH, over valid (non-0, non-−9999) reference pixels
@@ -23,14 +29,12 @@ value-domain risk; it is recovered in the real adapter (TASK-014), not the spike
 
 **Skip policy.** Running the SNAP chain needs ESA SNAP installed and is
 compute-heavy (full IW GRD + SRTM download), so this test does **not** invoke
-``gpt`` itself. It validates the *already-produced* dB GeoTIFF
-(``S1_SNAP_OUTPUT``, default ``/tmp/s1run/s1_grd_db.tif``) when present, and
-``skip``s cleanly otherwise (e.g. CI without SNAP). To (re)generate the artifact:
-
-    /home/dev/esa-snap/bin/gpt \\
-      scripts/developer_scripts/bow_valley_inference_local/spikes/s1_grd_snap_graph.xml \\
-      -Pinput=<extracted .SAFE>/manifest.safe \\
-      -Pregion='POLYGON((...AOI...))' -Poutput=/tmp/s1run/s1_grd_db.tif
+``gpt`` itself. It validates the *already-produced* linear-σ⁰ cache GeoTIFF
+(``S1_SNAP_OUTPUT``, default the checked-in fixture under
+``tests/fixtures/archive/sentinel1_snap/``) when present, and ``skip``s cleanly
+otherwise (e.g. CI without SNAP). To (re)generate the artifact, run the adapter's
+cache graph (``src/snow_galileo/data/local_sources/s1_grd_graph.xml``) — it emits
+linear σ⁰, which this test converts to dB via ``10·log10`` before comparison.
 """
 
 from __future__ import annotations
@@ -42,6 +46,7 @@ import numpy as np
 import pytest
 import rasterio
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
 #: Median-absolute-difference tolerance for VV/VH, in dB.
 S1_DRIFT_TOLERANCE_DB: float = 1.0
 
@@ -59,7 +64,13 @@ _REF_VV_BAND = 38 * _TIMESTEP + 1
 _REF_VH_BAND = 38 * _TIMESTEP + 2
 
 #: The SNAP dB GeoTIFF produced by the graph (override via env for a custom path).
-S1_SNAP_OUTPUT = Path(os.environ.get("S1_SNAP_OUTPUT", "/tmp/s1run/s1_grd_db.tif"))
+S1_SNAP_OUTPUT = Path(
+    os.environ.get(
+        "S1_SNAP_OUTPUT",
+        REPO_ROOT
+        / "tests/fixtures/archive/sentinel1_snap/s1_grd_S1C_IW_GRDH_1SDV_20250330T013724_20250330T013749_001664_002BB2_88AD.tif",
+    )
+)
 
 
 @pytest.fixture(scope="module")
@@ -95,7 +106,11 @@ def parity() -> dict[str, float]:
     with rasterio.open(S1_SNAP_OUTPUT) as snap:
         reprojected = []
         for band_index in (1, 2):
-            db = snap.read(band_index).astype(np.float64)
+            # The cache stores VV/VH as linear σ⁰; convert to dB exactly as the
+            # adapter does (10·log10; σ⁰ ≤ 0 is invalid) before the edge mask/diff.
+            linear = snap.read(band_index).astype(np.float64)
+            with np.errstate(divide="ignore"):
+                db = 10.0 * np.log10(np.where(linear > 0, linear, np.nan))
             masked = np.where(db < S1_EDGE_MASK_DB, np.nan, db)
             rp = reproject_to_cell(
                 source=masked[np.newaxis, :, :],

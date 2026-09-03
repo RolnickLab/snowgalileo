@@ -7,7 +7,8 @@ Engine ingestion. Documents are grouped into numbered phase folders that follow 
 work in the order it happened: analysis → design → ingestion → cube cache → inference →
 operations, plus a cross-cutting QA viewer.
 
-For *what is done vs. in-flight vs. deferred*, see [`STATUS.md`](STATUS.md).
+For *what is done vs. in-flight vs. deferred*, see [`STATUS.md`](STATUS.md). Work that was
+scoped and then parked lives in [`../upcoming/`](../upcoming/README.md), not in the task tree.
 
 > Files keep a `*Formerly `OLD_NAME.md`.*` line under their title so older references
 > (e.g. a docstring citing `CLIPPING_PLAN §2.0`) remain greppable after the 2026-06-18

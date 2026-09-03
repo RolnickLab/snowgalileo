@@ -345,7 +345,7 @@ ______________________________________________________________________
 
 ## 3. Implementation Workflow
 
-1. **Typer CLI Script (`scripts/developer_scripts/bow_valley_inference_local/process_raw_dataset.py`, formerly `clip_dataset.py`):**
+1. **Typer CLI Script (`../../../../../scripts/developer_scripts/bow_valley_inference_local/01_process_raw_dataset.py`, formerly `clip_dataset.py`):**
 
    - Uses `typer` to provide a robust CLI with commands `clip-all`, `clip-source`,
      `process-s1`, and `process-all` (S1 is processed via SNAP, not clipped — see §2.5).
