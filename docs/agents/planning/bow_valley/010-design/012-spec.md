@@ -380,9 +380,21 @@ explicit.
 
 **Inference & mosaic**
 
-- [ ] AC-28: `DailyMosaicWriter` output is a valid COG in EPSG:32611; cells with
-  all input groups masked are `nodata`; the per-day AOI-coverage fraction is
-  recorded in output metadata.
+- [ ] AC-28: `DailyMosaicWriter` output is a valid COG in EPSG:32611; a cell whose
+  **space-time observation groups** (`space_time_high`, `space_time_med`,
+  `space_time_low`) are masked at every pixel and timestep is `nodata`. Here *masked*
+  means the loader's channel-group mask is `1` — set when **any** band of that group is
+  nodata — so the condition reads "the encoder is handed no space-time token for this
+  cell", which is stricter than "the cube file is all `-9999`". Static ancillary
+  (`space`: DEM, WorldCover), non-spatial time bands (`time`: coarse VIIRS, ERA5) and
+  derived geometry (`static`: location) are excluded — none can support a
+  spatially-resolved FSC patch on its own, and `static` is never nodata, so including it
+  would make the condition unsatisfiable. Partial coverage is **not** a nodata condition
+  (FDD §"Partial coverage is a first-class normal state"). The per-day AOI-coverage
+  fraction is recorded in output metadata. Implemented by
+  `inference._loader_bridge.has_no_spacetime_observation`. The original wording ("cells
+  with all input groups masked") was unsatisfiable: `static` is derived from the cell
+  centre and is never nodata, so no input could ever satisfy it.
 - [ ] AC-29: A 2×2 adjacent-cell mosaic test shows non-overlapping seams (no
   double-written pixels) and FSC reprojected with nearest-neighbour only.
 
