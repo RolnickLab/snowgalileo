@@ -53,6 +53,8 @@ from snow_galileo.data.config import (
 
 # --- Target-grid constants (CRS is law) ------------------------------------ #
 
+# TODO Generalize CRS management for other regions
+
 #: Per-cell target CRS — UTM 11N. Matches the GEE reference patches' grid.
 CELL_TARGET_CRS: str = "EPSG:32611"
 

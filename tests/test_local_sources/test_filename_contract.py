@@ -23,11 +23,18 @@ from __future__ import annotations
 
 import re
 from datetime import date
+from pathlib import Path
 
 import pytest
 
-from snow_galileo.data.local_sources.layout import CUBE_FILENAME_REGEX, build_cube_filename
+from snow_galileo.data.local_sources.base import GridCell
+from snow_galileo.data.local_sources.layout import (
+    CUBE_FILENAME_REGEX,
+    build_cube_filename,
+    cell_centre_lat_lon,
+)
 from snow_galileo.fsc.landsat_eval import LandsatEvalDataset
+from snow_galileo.inference.prebuilt import PrebuiltCubeSource
 
 #: Synthetic (window_end, lat, lon) triples spanning the contract's edge cases:
 #: every month digit pair, both hemispheres of longitude (signed), and the
@@ -67,8 +74,6 @@ def test_prediction_month_roundtrips(
     parser: LandsatEvalDataset, window_end: date, lat: float, lon: float
 ) -> None:
     """Downstream parser recovers ``window_end.month`` from the filename (AC-9)."""
-    from pathlib import Path
-
     name = build_cube_filename(window_end=window_end, lat=lat, lon=lon)
     assert parser.prediction_month_from_file(Path(name)) == window_end.month
 
@@ -90,3 +95,51 @@ def test_lat_lon_recoverable(window_end: date, lat: float, lon: float) -> None:
     assert parts[0] == "PR"
     assert float(parts[2]) == pytest.approx(lat)
     assert float(parts[3]) == pytest.approx(lon)
+
+
+@pytest.fixture()
+def bow_valley_cell() -> GridCell:
+    """A real 1 km Bow Valley cell on the EPSG:32611 grid the exporter writes."""
+    return GridCell.from_utm_bounds(
+        cell_id=1, min_x=600000.0, min_y=5620000.0, max_x=601000.0, max_y=5621000.0
+    )
+
+
+def test_cell_centre_is_degrees_not_metres(bow_valley_cell: GridCell) -> None:
+    """The centre comes back in the ±90/±180 band ``to_cartesian`` asserts on.
+
+    ``landsat_eval.py`` parses these values out of the filename and feeds them to
+    ``to_cartesian``, which builds the model's ``static_x`` location channels and
+    rejects anything outside the degree range. Returning the cell's UTM metres here
+    would fail there, far from the cause.
+    """
+    lat, lon = cell_centre_lat_lon(cell=bow_valley_cell)
+    assert -90 <= lat <= 90
+    assert -180 <= lon <= 180
+
+    # Sanity-check the location itself, not just the range, against a value derived by
+    # hand rather than from pyproj (asserting pyproj's own output back at it would prove
+    # nothing). EPSG:32611's central meridian is -117 deg with a 500 km false easting, so
+    # easting 600500 sits ~100.5 km east of it; at ~50.7N one degree of longitude spans
+    # ~70.4 km, giving -117 + 100.5/70.4 ~= -115.57. Northing 5620500 is ~5620 km up from
+    # the equator at ~111 km per degree ~= 50.7N.
+    assert lat == pytest.approx(50.7, abs=0.2)
+    assert lon == pytest.approx(-115.57, abs=0.2)
+
+
+def test_prebuilt_reader_reconstructs_the_exporter_name(
+    bow_valley_cell: GridCell, tmp_path: Path
+) -> None:
+    """``PrebuiltCubeSource.cube_name`` equals the name the exporter would write.
+
+    This is the join key between a cube on disk and the cell it was exported for. If
+    the two derivations ever diverge, every prebuilt cube becomes unfindable — so pin
+    the agreement rather than trusting two copies of the arithmetic to stay in step.
+    """
+    window_end = date(2025, 4, 6)
+    lat, lon = cell_centre_lat_lon(cell=bow_valley_cell)
+    exporter_name = build_cube_filename(window_end=window_end, lat=lat, lon=lon)
+
+    source = PrebuiltCubeSource(cube_dir=tmp_path)
+    assert source.cube_name(cell=bow_valley_cell, window_end=window_end) == exporter_name
+    assert re.match(CUBE_FILENAME_REGEX, exporter_name), exporter_name
