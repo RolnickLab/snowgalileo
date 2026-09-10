@@ -244,7 +244,7 @@ class LandsatEvalSklearn(LandsatEval):
         self.normalizing_dict = normalizing_dict
         self.h5pys_only = h5pys_only
 
-        assert model_type in ["rf", "svr", "mlp"], f"Unknown model type {model_type}"
+        assert model_type in ["rf", "svr", "mlp", "mlr"], f"Unknown model type {model_type}"
 
         super().__init__(
             normalization=normalization,
@@ -966,7 +966,7 @@ class LandsatEvalSklearn(LandsatEval):
 
     def predict_only(
         self,
-        model: Union[RandomForestRegressor, SVR, MLPRegressor],
+        model: Union[RandomForestRegressor, SVR, MLPRegressor, LinearRegression],
         id: str = "",
         save_results: bool = False,
         normalization: str = "std",

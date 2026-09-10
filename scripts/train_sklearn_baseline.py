@@ -9,7 +9,7 @@ from snow_galileo.fsc.landsat_baselines import LandsatEvalSklearn
 from snow_galileo.utils import config_dir, seed_everything
 
 argparser = argparse.ArgumentParser(
-    description="Starter script for training a sklearn model (Random Forest, SVR, or MLP)."
+    description="Starter script for training a sklearn model (Random Forest, SVR, MLP, MLR)."
 )
 argparser.add_argument(
     "--exclude_prediction_high_res",
