@@ -593,6 +593,7 @@ def evaluate_seg(
     all_preds_1D_f = all_preds_1D[mask]
 
     # mask for computing metrics for patchy tiles, i.e., where the mean of the 2D label is between 0.1 and 0.9 (inclusive)
+    all_preds_2D = torch.cat(all_preds_2D)
     all_labels_2D = torch.cat(all_labels_2D)
     tile_mask = (all_labels_2D.mean(dim=[1, 2]) >= 0.1) & (all_labels_2D.mean(dim=[1, 2]) <= 0.9)
     all_labels_2D_f = all_labels_2D[tile_mask]
