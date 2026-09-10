@@ -684,7 +684,7 @@ class LandsatEvalSklearn(LandsatEval):
         start_time = time()
 
         if hyperparameters == {}:
-            hyperparameters = self.eval_config[f"hyperparameters_{self.model_type}"]
+            hyperparameters = self.eval_config.get(f"hyperparameters_{self.model_type}", {})
 
         assert (
             self.eval_config["cloud_generation"]["cloud_prob_pred_day"] == 0.0 or self.h5pys_only
