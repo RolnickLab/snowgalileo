@@ -52,8 +52,8 @@ argparser.add_argument(
     "--model_type",
     type=str,
     default="rf",
-    choices=["rf", "svr", "mlp"],
-    help="Type of model to train: rf (random forest), svr (support vector regressor), or mlp (multi-layer perceptron).",
+    choices=["rf", "svr", "mlp", "mlr"],
+    help="Type of model to train: rf (random forest), svr (support vector regressor), mlp (multi-layer perceptron), mlr (multi-linear regressor).",
 )
 argparser.add_argument(
     "--normalization",

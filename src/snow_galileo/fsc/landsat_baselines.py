@@ -13,6 +13,7 @@ import wandb
 import xarray as xr
 from einops import rearrange, reduce, repeat
 from sklearn.ensemble import BaggingRegressor, RandomForestRegressor
+from sklearn.linear_model import LinearRegression
 from sklearn.metrics import root_mean_squared_error
 from sklearn.neural_network import MLPRegressor
 from sklearn.svm import SVR
@@ -846,6 +847,10 @@ class LandsatEvalSklearn(LandsatEval):
                 early_stopping=True,
                 n_iter_no_change=20,
             )
+
+        elif self.model_type == "mlr":
+            print("Training Multi-linear Regressor...", flush=True)
+            model = LinearRegression()
 
         else:
             raise ValueError(f"Unknown model type {self.model_type}")
