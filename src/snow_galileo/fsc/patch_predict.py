@@ -587,10 +587,16 @@ def evaluate_seg(
     majority_baseline_preds_1D = np.zeros_like(all_preds_1D)
     all_labels_1D = np.concatenate(all_labels_1D)
 
-    # mask for computing metrics without boundary values
-    mask = (all_labels_1D > 0) & (all_labels_1D < 1)
+    # mask for computing metrics for patchy pixels, i.e., where the label is between 0.1 and 0.9 (inclusive)
+    mask = (all_labels_1D >= 0.1) & (all_labels_1D <= 0.9)
     all_labels_1D_f = all_labels_1D[mask]
     all_preds_1D_f = all_preds_1D[mask]
+
+    # mask for computing metrics for patchy tiles, i.e., where the mean of the 2D label is between 0.1 and 0.9 (inclusive)
+    all_labels_2D = torch.cat(all_labels_2D)
+    tile_mask = (all_labels_2D.mean(dim=[1, 2]) >= 0.1) & (all_labels_2D.mean(dim=[1, 2]) <= 0.9)
+    all_labels_2D_f = all_labels_2D[tile_mask]
+    all_preds_2D_f = all_preds_2D[tile_mask]
 
     # create 10 bins for multi-class classification
     multi_class_bins = np.linspace(0.1, 1, 9)
@@ -604,7 +610,8 @@ def evaluate_seg(
         "model": {},
         "baseline": {
             "majority": {},
-            "balanced": {},
+            "patchy_pixels": {},
+            "patchy_tiles": {},
         },
     }
 
@@ -614,8 +621,12 @@ def evaluate_seg(
         majority_baseline_preds_1D, all_labels_1D
     )
 
-    results["baseline"]["balanced"]["regression"] = compute_regression_metrics(
+    results["baseline"]["patchy_pixels"]["regression"] = compute_regression_metrics(
         all_preds_1D_f, all_labels_1D_f
+    )
+
+    results["baseline"]["patchy_tiles"]["regression"] = compute_regression_metrics(
+        all_preds_2D_f.reshape(-1).numpy(), all_labels_2D_f.reshape(-1).numpy()
     )
 
     results["model"]["classification"] = compute_classification_metrics(
@@ -626,7 +637,7 @@ def evaluate_seg(
         majority_baseline_preds_1D, binned_targets_np
     )
 
-    results["baseline"]["balanced"]["classification"] = compute_classification_metrics(
+    results["baseline"]["patchy_pixels"]["classification"] = compute_classification_metrics(
         binned_preds_np_f, binned_targets_np_f
     )
 

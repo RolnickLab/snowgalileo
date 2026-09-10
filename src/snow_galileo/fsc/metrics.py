@@ -28,6 +28,7 @@ def compute_regression_metrics(preds: np.ndarray, target: np.ndarray) -> Dict[st
         "r2": float(r2_score(target, preds)),
         "mean_absolute_error": float(mean_absolute_error(target, preds)),
         "median_absolute_error": float(median_absolute_error(target, preds)),
+        "mean_bias_error": float(mean_bias_error(target, preds)),
     }
 
 
@@ -49,6 +50,10 @@ def compute_segmentation_metrics(preds: np.ndarray, target: np.ndarray) -> Dict[
 
 def class_wise_f1(y_pred, y_true, num_classes):
     return [f1_score(np.array(y_true) == i, np.array(y_pred) == i) for i in range(num_classes)]
+
+
+def mean_bias_error(y_true, y_pred):
+    return np.mean(y_pred - y_true)
 
 
 def mean_iou(

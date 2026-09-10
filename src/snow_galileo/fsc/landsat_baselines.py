@@ -28,7 +28,11 @@ from snow_galileo.fsc.landsat_eval import (
     LandsatEvalDataset,
     masked_output_np_to_tensor,
 )
-from snow_galileo.fsc.metrics import compute_regression_metrics
+from snow_galileo.fsc.metrics import (
+    compute_classification_metrics,
+    compute_regression_metrics,
+    compute_segmentation_metrics,
+)
 
 
 class LandsatEvalDatasetSklearn(LandsatEvalDataset):
@@ -997,8 +1001,11 @@ class LandsatEvalSklearn(LandsatEval):
             shuffle=False,
             num_workers=0,
         )
-        all_preds = []
-        all_test_labels = []
+        all_preds_1D = []
+        all_labels_1D = []
+
+        all_preds_2D = []
+        all_labels_2D = []
 
         if save_results:
             # create a csv to store results
@@ -1052,11 +1059,14 @@ class LandsatEvalSklearn(LandsatEval):
                 )[0]
             )  # (N, num_features)
             preds = model.predict(input.numpy())
-            all_preds.append(torch.as_tensor(preds))
-            all_test_labels.append(torch.squeeze(label).flatten())
+            all_preds_1D.append(torch.as_tensor(preds))
+            all_labels_1D.append(torch.squeeze(label).flatten())
 
             label_to_save = torch.squeeze(label).numpy()
             pred_to_save = torch.as_tensor(preds).numpy().reshape(label_to_save.shape)
+
+            all_preds_2D.append(pred_to_save)
+            all_labels_2D.append(label_to_save)
 
             # save predictions and labels for each sample
             if save_results:
@@ -1076,10 +1086,88 @@ class LandsatEvalSklearn(LandsatEval):
                 with open(results_csv_path, "a") as f:
                     f.write(f"{filename[0]},{rmse}\n")
 
-        test_preds = torch.cat(all_preds, dim=0).numpy()
-        test_labels = torch.cat(all_test_labels, dim=0).numpy()
+        # sequence prediction
+        all_preds_1D = torch.cat(all_preds_1D, dim=0).numpy()
+        majority_baseline_preds_1D = np.zeros_like(all_preds_1D)
+        all_labels_1D = torch.cat(all_labels_1D, dim=0).numpy()
 
-        results = compute_regression_metrics(preds=test_preds, target=test_labels)
+        # mask for computing metrics for patchy pixels, i.e., where the label is between 0.1 and 0.9 (inclusive)
+        mask = (all_labels_1D >= 0.1) & (all_labels_1D <= 0.9)
+        all_labels_1D_f = all_labels_1D[mask]
+        all_preds_1D_f = all_preds_1D[mask]
+
+        # mask for computing metrics for patchy tiles, i.e., where the mean of the 2D label is between 0.1 and 0.9 (inclusive)
+        all_labels_2D = torch.cat(all_labels_2D)
+        tile_mask = (all_labels_2D.mean(dim=[1, 2]) >= 0.1) & (
+            all_labels_2D.mean(dim=[1, 2]) <= 0.9
+        )
+        all_labels_2D_f = all_labels_2D[tile_mask]
+        all_preds_2D_f = all_preds_2D[tile_mask]
+
+        # create 10 bins for multi-class classification
+        multi_class_bins = np.linspace(0.1, 1, 9)
+        binned_preds_np = np.digitize(all_preds_1D, bins=multi_class_bins)
+        binned_targets_np = np.digitize(all_labels_1D, bins=multi_class_bins)
+
+        binned_preds_np_f = np.digitize(all_preds_1D_f, bins=multi_class_bins)
+        binned_targets_np_f = np.digitize(all_labels_1D_f, bins=multi_class_bins)
+
+        results = {
+            "model": {},
+            "baseline": {
+                "majority": {},
+                "patchy_pixels": {},
+                "patchy_tiles": {},
+            },
+        }
+
+        results["model"]["regression"] = compute_regression_metrics(all_preds_1D, all_labels_1D)
+
+        results["baseline"]["majority"]["regression"] = compute_regression_metrics(
+            majority_baseline_preds_1D, all_labels_1D
+        )
+
+        results["baseline"]["patchy_pixels"]["regression"] = compute_regression_metrics(
+            all_preds_1D_f, all_labels_1D_f
+        )
+
+        results["baseline"]["patchy_tiles"]["regression"] = compute_regression_metrics(
+            all_preds_2D_f.reshape(-1).numpy(), all_labels_2D_f.reshape(-1).numpy()
+        )
+
+        results["model"]["classification"] = compute_classification_metrics(
+            binned_preds_np, binned_targets_np
+        )
+
+        results["baseline"]["majority"]["classification"] = compute_classification_metrics(
+            majority_baseline_preds_1D, binned_targets_np
+        )
+
+        results["baseline"]["patchy_pixels"]["classification"] = compute_classification_metrics(
+            binned_preds_np_f, binned_targets_np_f
+        )
+
+        # spatial prediction
+        all_preds_2D = torch.cat(all_preds_2D)
+        majority_baseline_preds_2D = torch.zeros_like(all_preds_2D)
+        all_labels_2D = torch.cat(all_labels_2D)
+
+        # create 10 bins for multi-class segmentation
+        multi_class_bins = np.linspace(0.1, 1, 9)
+        binned_preds_np = np.digitize(all_preds_2D, bins=multi_class_bins)
+        binned_targets_np = np.digitize(all_labels_2D, bins=multi_class_bins)
+
+        results["model"]["segmentation"] = compute_segmentation_metrics(
+            binned_preds_np, binned_targets_np
+        )
+
+        results["baseline"]["majority"]["segmentation"] = compute_segmentation_metrics(
+            majority_baseline_preds_2D, binned_targets_np
+        )
+
+        results["baseline"]["balanced"]["segmentation"] = compute_segmentation_metrics(
+            binned_preds_np_f, binned_targets_np_f
+        )
 
         if save_results:
             # results
