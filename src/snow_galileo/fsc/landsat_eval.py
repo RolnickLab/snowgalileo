@@ -1817,6 +1817,7 @@ class LandsatEval(EvalTask):
         self,
         model: EncoderWithHead,
         id: str,
+        store_predictions: bool = False,
     ):
         test_ds = self._get_dataset(
             exclude_prediction_date=self.exclude_prediction_date,
@@ -1848,7 +1849,7 @@ class LandsatEval(EvalTask):
         # create header if file is empty
         if results_csv_path.stat().st_size == 0:
             with open(results_csv_path, "w") as f:
-                f.write("filename,r2,rmse\n")
+                f.write("filename,r2,rmse,observed_fsc_mean,predicted_fsc_mean\n")
 
         all_preds_2D = []
         all_labels_2D = []
@@ -1857,10 +1858,6 @@ class LandsatEval(EvalTask):
         all_labels_1D = []
 
         model.eval()
-
-        # compute overall rmse across all samples for double-checking
-        total_se = 0
-        total_n = 0
 
         with torch.no_grad():
             for masked_output, labels, filename in tqdm(
@@ -1931,25 +1928,20 @@ class LandsatEval(EvalTask):
                 r2 = r2_score(labels.flatten(), preds_2D.flatten())
                 rmse = root_mean_squared_error(labels.flatten(), preds_2D.flatten())
 
+                observed_fsc_mean = np.mean(labels.flatten())
+                predicted_fsc_mean = np.mean(preds_2D.flatten())
+
                 # append results to csv with filename, r2, rmse
                 with open(results_csv_path, "a") as f:
-                    f.write(f"{filename[0]},{r2},{rmse}\n")
-
-                se = np.sum((preds_2D.flatten() - labels.flatten()) ** 2)
-                total_se += se
-                total_n += preds_2D.flatten().size
+                    f.write(
+                        f"{filename[0]},{r2},{rmse},{observed_fsc_mean},{predicted_fsc_mean}\n"
+                    )
 
                 # save the predictions and labels for later analysis
-                np.save(results_path / f"{filename[0]}_input.npy", s_t_h_x.cpu().numpy())
-                np.save(results_path / f"{filename[0]}_preds.npy", preds_2D)
-                np.save(results_path / f"{filename[0]}_labels.npy", labels)
-
-        # NOTE: This was added for test purposes (making sure that the individual evaluation gives the
-        # same output as the entire dataset evaluation)
-        overall_rmse = np.sqrt(total_se / total_n)
-        # append overall rmse to the end of the csv
-        with open(results_csv_path, "a") as f:
-            f.write(f"overall_rmse,{overall_rmse}\n")
+                if store_predictions:
+                    np.save(results_path / f"{filename[0]}_input.npy", s_t_h_x.cpu().numpy())
+                    np.save(results_path / f"{filename[0]}_preds.npy", preds_2D)
+                    np.save(results_path / f"{filename[0]}_labels.npy", labels)
 
     @torch.no_grad()
     def _visualize_predictions(

@@ -1019,7 +1019,7 @@ class LandsatEvalSklearn(LandsatEval):
             # create header if file is empty
             if results_csv_path.stat().st_size == 0:
                 with open(results_csv_path, "w") as f:
-                    f.write("filename,rmse\n")
+                    f.write("filename,rmse,observed_fsc_mean,predicted_fsc_mean\n")
 
         for input, label, filename in test_dl:
             (
@@ -1072,19 +1072,14 @@ class LandsatEvalSklearn(LandsatEval):
             if save_results:
                 run_folder = Path(f"./sklearn_individual/{id}")
                 run_folder.mkdir(exist_ok=True)
-                sample_id = filename[0].split(".tif")[0]
-                sample_preds_path = Path(f"./{run_folder}/{sample_id}_{self.model_type}_preds.npy")
-                sample_labels_path = Path(
-                    f"./{run_folder}/{sample_id}_{self.model_type}_labels.npy"
-                )
-                np.save(sample_preds_path, pred_to_save)
-                np.save(sample_labels_path, label_to_save)
 
                 rmse = root_mean_squared_error(label_to_save.flatten(), pred_to_save.flatten())
+                observed_fsc_mean = np.mean(label_to_save.flatten())
+                predicted_fsc_mean = np.mean(pred_to_save.flatten())
 
                 # append results to csv with filename, r2, rmse
                 with open(results_csv_path, "a") as f:
-                    f.write(f"{filename[0]},{rmse}\n")
+                    f.write(f"{filename[0]},{rmse},{observed_fsc_mean},{predicted_fsc_mean}\n")
 
         # sequence prediction
         all_preds_1D = torch.cat(all_preds_1D, dim=0).numpy()
