@@ -74,6 +74,8 @@
     },
     "sensor_ablations": {
         "ablate_era5": true,
+        "ablate_s2": false,
+        "ablate_landsat": false,
         "ablate_indeces": false,
         "ablate_landcover": false,
         "ablate_high_res_optical": false,

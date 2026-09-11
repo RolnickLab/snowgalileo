@@ -1,10 +1,10 @@
 {
-    "name": "fsc_test_switzerland_ablate_time_tiny",
+    "name": "fsc_test_rockies_clouds_ablate_time_tiny",
     "data": {
-        "label_folder": "fsc_test_switzerland_100m_masks",
-        "input_tif_folder": "fsc_test_switzerland_100m_cropped",
-        "input_h5py_folder": "fsc_test_switzerland_h5pys",
-        "sklearn_train_data_checkpoint_folder": "sklearn_train_data_checkpoint",
+        "label_folder": "fsc_test_rockies_100m_masks",
+        "input_tif_folder": "fsc_test_rockies_100m_cropped",
+        "input_h5py_folder": "fsc_test_rockies_full_clouds_h5pys",
+        "sklearn_train_data_checkpoint_folder": "",
         "label_resolution": 100,
         "num_timesteps": 8,
         "input_height_width": 100,
@@ -86,8 +86,9 @@
     },
     "timeseries_ablations": true,
     "cloud_generation": {
-        "cloud_prob_pred_day": 0.0,
+        "cloud_prob_pred_day": 1.0,
         "cloud_prob_timeseries": 0.0,
-        "shadow_prob": 0.0
+        "shadow_prob": 0.0,
+        "cloud_type": "full"
     }
 }
