@@ -1095,8 +1095,8 @@ class LandsatEvalSklearn(LandsatEval):
         all_preds_2D = torch.cat(all_preds_2D).reshape(-1, self.num_tokens_per_dim, self.num_tokens_per_dim).numpy()
         all_labels_2D = torch.cat(all_labels_2D).reshape(-1, self.num_tokens_per_dim, self.num_tokens_per_dim).numpy()
         majority_baseline_preds_2D = np.zeros_like(all_preds_2D)
-        tile_mask = (all_labels_2D.mean(axis=[1, 2]) >= 0.1) & (
-            all_labels_2D.mean(axis=[1, 2]) <= 0.9
+        tile_mask = (all_labels_2D.mean(axis=(1, 2)) >= 0.1) & (
+            all_labels_2D.mean(axis=(1, 2)) <= 0.9
         )
         all_labels_2D_f = all_labels_2D[tile_mask]
         all_preds_2D_f = all_preds_2D[tile_mask]
