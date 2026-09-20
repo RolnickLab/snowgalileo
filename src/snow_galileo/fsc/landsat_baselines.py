@@ -1065,8 +1065,8 @@ class LandsatEvalSklearn(LandsatEval):
             label_to_save = torch.squeeze(label).numpy()
             pred_to_save = torch.as_tensor(preds).numpy().reshape(label_to_save.shape)
 
-            all_preds_2D.append(pred_to_save)
-            all_labels_2D.append(label_to_save)
+            all_preds_2D.append(torch.as_tensor(pred_to_save))
+            all_labels_2D.append(torch.as_tensor(label_to_save))
 
             # save predictions and labels for each sample
             if save_results:
@@ -1092,8 +1092,9 @@ class LandsatEvalSklearn(LandsatEval):
         all_preds_1D_f = all_preds_1D[mask]
 
         # mask for computing metrics for patchy tiles, i.e., where the mean of the 2D label is between 0.1 and 0.9 (inclusive)
-        all_preds_2D = torch.cat(all_preds_2D)
-        all_labels_2D = torch.cat(all_labels_2D)
+        all_preds_2D = torch.cat(all_preds_2D).reshape(-1, self.num_tokens_per_dim, self.num_tokens_per_dim).numpy()
+        all_labels_2D = torch.cat(all_labels_2D).reshape(-1, self.num_tokens_per_dim, self.num_tokens_per_dim).numpy()
+        majority_baseline_preds_2D = np.zeros_like(all_preds_2D)
         tile_mask = (all_labels_2D.mean(dim=[1, 2]) >= 0.1) & (
             all_labels_2D.mean(dim=[1, 2]) <= 0.9
         )
@@ -1142,11 +1143,6 @@ class LandsatEvalSklearn(LandsatEval):
         results["baseline"]["patchy_pixels"]["classification"] = compute_classification_metrics(
             binned_preds_np_f, binned_targets_np_f
         )
-
-        # spatial prediction
-        all_preds_2D = torch.cat(all_preds_2D)
-        majority_baseline_preds_2D = torch.zeros_like(all_preds_2D)
-        all_labels_2D = torch.cat(all_labels_2D)
 
         # create 10 bins for multi-class segmentation
         multi_class_bins = np.linspace(0.1, 1, 9)
