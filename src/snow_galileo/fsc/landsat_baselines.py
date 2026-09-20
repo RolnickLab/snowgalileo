@@ -1129,7 +1129,7 @@ class LandsatEvalSklearn(LandsatEval):
         )
 
         results["baseline"]["patchy_tiles"]["regression"] = compute_regression_metrics(
-            all_preds_2D_f, all_labels_2D_f
+            all_preds_2D_f.reshape(-1), all_labels_2D_f.reshape(-1)
         )
 
         results["model"]["classification"] = compute_classification_metrics(
