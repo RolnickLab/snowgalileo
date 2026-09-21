@@ -599,6 +599,8 @@ def evaluate_seg(
     all_labels_2D_f = all_labels_2D[tile_mask]
     all_preds_2D_f = all_preds_2D[tile_mask]
 
+    majority_baseline_preds_2D = torch.zeros_like(all_preds_2D)
+
     # create 10 bins for multi-class classification
     multi_class_bins = np.linspace(0.1, 1, 9)
     binned_preds_np = np.digitize(all_preds_1D, bins=multi_class_bins)
@@ -641,11 +643,6 @@ def evaluate_seg(
     results["baseline"]["patchy_pixels"]["classification"] = compute_classification_metrics(
         binned_preds_np_f, binned_targets_np_f
     )
-
-    # spatial prediction
-    all_preds_2D = torch.cat(all_preds_2D)
-    majority_baseline_preds_2D = torch.zeros_like(all_preds_2D)
-    all_labels_2D = torch.cat(all_labels_2D)
 
     # create 10 bins for multi-class segmentation
     multi_class_bins = np.linspace(0.1, 1, 9)
