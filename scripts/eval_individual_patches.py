@@ -116,5 +116,5 @@ eval_task = LandsatEval(
 
 eval_task.evaluate_indidvidual_samples(
     model=model,
-    id=f"{args['prefix']}_{args['checkpoint_name'].split('.pth')[0]}",
+    id=f"{args['identifier']}_{args['checkpoint_name'].split('.pth')[0]}",
 )
