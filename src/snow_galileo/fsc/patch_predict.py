@@ -613,7 +613,6 @@ def evaluate_seg(
         "model": {},
         "baseline": {
             "majority": {},
-            "balanced": {},
             "patchy_pixels": {},
             "patchy_tiles": {},
         },
@@ -658,8 +657,12 @@ def evaluate_seg(
         majority_baseline_preds_2D, binned_targets_np
     )
 
-    results["baseline"]["balanced"]["segmentation"] = compute_segmentation_metrics(
+    results["baseline"]["patchy_pixels"]["segmentation"] = compute_segmentation_metrics(
         binned_preds_np_f, binned_targets_np_f
+    )
+
+    results["baseline"]["patchy_tiles"]["segmentation"] = compute_segmentation_metrics(
+        all_preds_2D_f.reshape(-1).numpy(), all_labels_2D_f.reshape(-1).numpy()
     )
 
     return results

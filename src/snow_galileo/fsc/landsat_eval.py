@@ -1766,6 +1766,7 @@ class LandsatEval(EvalTask):
             "r2": results["model"]["regression"]["r2"],
             "mean_absolute_error": results["model"]["regression"]["mean_absolute_error"],
             "median_absolute_error": results["model"]["regression"]["median_absolute_error"],
+            "mean_bias_error": results["model"]["regression"]["mean_bias_error"],
             "miou": results["model"]["segmentation"]["miou"],
             "rmse_majority_baseline": results["baseline"]["majority"]["regression"]["rmse"],
             "r2_majority_baseline": results["baseline"]["majority"]["regression"]["r2"],
@@ -1775,16 +1776,34 @@ class LandsatEval(EvalTask):
             "median_absolute_error_majority_baseline": results["baseline"]["majority"][
                 "regression"
             ]["median_absolute_error"],
+            "mean_bias_error_majority_baseline": results["baseline"]["majority"]["regression"][
+                "mean_bias_error"
+            ],
             "miou_majority_baseline": results["baseline"]["majority"]["segmentation"]["miou"],
-            "rmse_balanced": results["baseline"]["balanced"]["regression"]["rmse"],
-            "r2_balanced": results["baseline"]["balanced"]["regression"]["r2"],
-            "mean_absolute_error_balanced": results["baseline"]["balanced"]["regression"][
+            "rmse_patchy_pixels": results["baseline"]["patchy_pixels"]["regression"]["rmse"],
+            "r2_patchy_pixels": results["baseline"]["patchy_pixels"]["regression"]["r2"],
+            "mean_absolute_error_patchy_pixels": results["baseline"]["patchy_pixels"]["regression"][
                 "mean_absolute_error"
             ],
-            "median_absolute_error_balanced": results["baseline"]["balanced"]["regression"][
+            "median_absolute_error_patchy_pixels": results["baseline"]["patchy_pixels"]["regression"][
                 "median_absolute_error"
             ],
-            "miou_balanced": results["baseline"]["balanced"]["segmentation"]["miou"],
+            "mean_bias_error_patchy_pixels": results["baseline"]["patchy_pixels"]["regression"][
+                "mean_bias_error"
+            ],
+            "miou_patchy_pixels": results["baseline"]["patchy_pixels"]["segmentation"]["miou"],
+            "rmse_patchy_tiles": results["baseline"]["patchy_tiles"]["regression"]["rmse"],
+            "r2_patchy_tiles": results["baseline"]["patchy_tiles"]["regression"]["r2"],
+            "mean_absolute_error_patchy_tiles": results["baseline"]["patchy_tiles"]["regression"][
+                "mean_absolute_error"
+            ],
+            "median_absolute_error_patchy_tiles": results["baseline"]["patchy_tiles"]["regression"][
+                "median_absolute_error"
+            ],
+            "mean_bias_error_patchy_tiles": results["baseline"]["patchy_tiles"]["regression"][
+                "mean_bias_error"
+            ],
+            "miou_patchy_tiles": results["baseline"]["patchy_tiles"]["segmentation"]["miou"],
         }
 
         out_path = Path(f"results/{results_to_save['dataset']}") / f"{id}.json"
