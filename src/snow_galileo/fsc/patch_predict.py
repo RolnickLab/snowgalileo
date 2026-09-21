@@ -613,6 +613,7 @@ def evaluate_seg(
         "model": {},
         "baseline": {
             "majority": {},
+            "balanced": {},
             "patchy_pixels": {},
             "patchy_tiles": {},
         },
