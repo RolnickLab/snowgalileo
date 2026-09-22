@@ -1859,10 +1859,8 @@ class LandsatEval(EvalTask):
 
         # create a csv to store results
         results_folder = RESULTS_FOLDER
-        results_path = results_folder / id
-        results_csv_path = results_folder / f"evaluation_results_{id}.csv"
 
-        results_path.mkdir(parents=True, exist_ok=True)
+        results_csv_path = results_folder / f"evaluation_results_{id}.csv"
         results_csv_path.touch(exist_ok=True)
 
         # create header if file is empty
@@ -1958,6 +1956,8 @@ class LandsatEval(EvalTask):
 
                 # save the predictions and labels for later analysis
                 if store_predictions:
+                    results_path = results_folder / id
+                    results_path.mkdir(parents=True, exist_ok=True)
                     np.save(results_path / f"{filename[0]}_input.npy", s_t_h_x.cpu().numpy())
                     np.save(results_path / f"{filename[0]}_preds.npy", preds_2D)
                     np.save(results_path / f"{filename[0]}_labels.npy", labels)
