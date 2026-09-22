@@ -114,7 +114,9 @@ eval_task = LandsatEval(
     decoder_mode=decoder_mode,
 )
 
+checkpoint_name = args["checkpoint_name"].replace("/", "_").replace(".pth", "")
+
 eval_task.evaluate_indidvidual_samples(
     model=model,
-    id=f"{args['identifier']}_{args['checkpoint_name'].split('.pth')[0]}",
+    id=f"{args['identifier']}_{checkpoint_name}",
 )
