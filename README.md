@@ -51,7 +51,7 @@ pipx install uv
 
 ### Installing the Project
 
-Once your tools are configured and installed, run the universal install command. This will create the environment and install all dependencies defined in pyproject.toml.
+Once your tools are configured and installed, run the universal install command. This will create the environment and install all dependencies defined in `pyproject.toml`.
 
 ```bash
 make install
