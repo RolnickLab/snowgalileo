@@ -3,7 +3,7 @@
 This is the Solara ``Page`` component. Launch it via the CLI wrapper (which sets the
 per-tab ``VIEWER_*`` folder defaults from flags, then execs ``solara run`` on this module)::
 
-    uv run python scripts/developer_scripts/bow_valley_inference_local/data_viewer.py
+    uv run python scripts/developer_scripts/bow_valley_inference_local/05_data_viewer.py
 
 or directly (no folder flags), targeting this module by its dotted path::
 
@@ -476,7 +476,7 @@ def CubeTab() -> None:
                 _FolderPicker(label="Cubes", folder=folder, on_pick=set_folder)
                 solara.Info(
                     f"No cubes (`PR_*.tif`) found under `{folder}`. Pick a cubes folder in "
-                    "the sidebar, or run `export_bow_valley_cube.py` first."
+                    "the sidebar, or run `03_export_bow_valley_cube.py` first."
                 )
         return
 
@@ -601,7 +601,7 @@ def FscTab() -> None:
                 _FolderPicker(label="Daily FSC", folder=folder, on_pick=set_folder)
                 solara.Info(
                     f"No daily-FSC COGs (`fsc_*.tif`) found under `{folder}`. Pick a daily-FSC "
-                    "folder in the sidebar, or run `infer_bow_valley_daily_fsc.py` first."
+                    "folder in the sidebar, or run `04_infer_bow_valley_daily_fsc.py` first."
                 )
         return
 

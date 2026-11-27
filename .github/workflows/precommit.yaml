@@ -2,6 +2,7 @@ name: Pre-Commit
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
 
 concurrency:
@@ -27,7 +28,7 @@ jobs:
         with:
           path: |
             ~/.cache/pre-commit
-          key: pre-commit-3|${{ env.pythonLocation }}|
+          key: pre-commit-3|${{ hashFiles('.pre-commit-config.yaml') }}
 
       - name: Install dependencies
         run: make install-all

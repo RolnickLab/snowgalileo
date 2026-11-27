@@ -97,6 +97,12 @@ def test_dates_span_full_window(kept_cells):
     assert (counts == EXPECTED_CENTRE_IN).all()
 
 
+def test_no_dates_rejected(kept_cells):
+    """Neither `days` nor a full window raises instead of returning an empty frame."""
+    with pytest.raises(ValueError, match="No dates"):
+        build_cube_dataframe(kept=kept_cells, window_start=DEFAULT_WINDOW_START)
+
+
 def test_gee_utm_schema_is_reader_dialect(kept_cells):
     """The GEE-UTM adapter emits exactly the reader's dialect columns, in order."""
     df = build_cube_dataframe_for_gee_utm(

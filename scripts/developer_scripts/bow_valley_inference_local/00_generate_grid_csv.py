@@ -6,10 +6,7 @@ import typer
 
 from snow_galileo.data.local_sources.grid import KeepRule, generate
 from snow_galileo.data.local_sources.paths import LocalPaths
-
-#: Default inference window (PLAN §3 Temporal window), inclusive of both ends.
-DEFAULT_WINDOW_START: date = date(2025, 4, 6)
-DEFAULT_WINDOW_END: date = date(2025, 5, 28)
+from snow_galileo.data.local_sources.settings import DEFAULT_WINDOW_END, DEFAULT_WINDOW_START
 
 #: Repo-root-relative default paths (resolved against the package's repo root).
 DEFAULT_LEGACY_CSV: Path = Path("tests/fixtures/sampled_cells_bow_river_with_dates.csv")

@@ -554,13 +554,19 @@ def build_cube_dataframe(
     Returns:
         A DataFrame with exactly :data:`CUBE_CSV_COLUMNS`, one row per
         ``(cell, day)`` pair, ordered by ``(date, cell_id)``.
+
+    Raises:
+        ValueError: If neither ``days`` nor both window bounds are given.
     """
-    date_list = []
+    date_list: list[date] = []
     if window_start and window_end:
         date_list = generate_date_list(window_start, window_end)
     if days:
         date_list = days
         logger.warning("Argument 'day' provided -- Overriding 'window_start' and 'window_end'.")
+    if not date_list:
+        # An empty frame would drive a sweep that silently exports nothing.
+        raise ValueError("No dates: pass `days`, or both `window_start` and `window_end`.")
 
     rows = [
         {

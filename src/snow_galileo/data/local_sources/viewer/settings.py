@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import AliasChoices, Field
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from snow_galileo.data.local_sources.paths import LocalPaths
@@ -33,15 +33,14 @@ class ViewerSettings(BaseSettings):
     # Leaf data dirs for the cube + daily-FSC tabs. Default to the conventional
     # ``processing_root/<sub>`` layout; set directly (e.g. by the viewer's per-tab folder
     # picker, or the launch CLI) to point a tab at an arbitrary directory of
-    # ``PR_*.tif`` / ``fsc_*.tif``. Env: ``VIEWER_CUBES_DIR`` / ``VIEWER_DAILY_FSC_DIR``
-    # (the long ``*_OVERRIDE`` form is also accepted for back-compat).
+    # ``PR_*.tif`` / ``fsc_*.tif``. Env: ``VIEWER_CUBES_DIR`` / ``VIEWER_DAILY_FSC_DIR``.
     cubes_dir_override: Path | None = Field(
         default=None,
-        validation_alias=AliasChoices("VIEWER_CUBES_DIR", "VIEWER_CUBES_DIR_OVERRIDE"),
+        validation_alias="VIEWER_CUBES_DIR",
     )
     daily_fsc_dir_override: Path | None = Field(
         default=None,
-        validation_alias=AliasChoices("VIEWER_DAILY_FSC_DIR", "VIEWER_DAILY_FSC_DIR_OVERRIDE"),
+        validation_alias="VIEWER_DAILY_FSC_DIR",
     )
 
     # Decimation target for quicklook reads (long edge, px). Guards against the

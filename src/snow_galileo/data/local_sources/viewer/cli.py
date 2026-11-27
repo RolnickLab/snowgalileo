@@ -8,21 +8,21 @@ environment (pydantic-settings, see ``ViewerSettings``). This wrapper turns
 
 Run via the launcher entrypoint::
 
-    uv run python scripts/developer_scripts/bow_valley_inference_local/data_viewer.py \
+    uv run python scripts/developer_scripts/bow_valley_inference_local/05_data_viewer.py \
         --cubes-dir /data/cubes \
         --fsc-dir /data/fsc \
         --clipped-root /data/clipped
 
 Any trailing args after ``--`` are forwarded verbatim to ``solara run`` (e.g. host/port)::
 
-    uv run python .../data_viewer.py --cubes-dir /data/cubes -- --port 8900
+    uv run python .../05_data_viewer.py --cubes-dir /data/cubes -- --port 8900
 """
 
 from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 
@@ -59,19 +59,19 @@ def _resolve(label: str, path: Path) -> str:
 @app.command()
 def main(
     clipped_root: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option("--clipped-root", help="Default folder for the Clip tab (clipped archive)."),
     ] = None,
     cubes_dir: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option("--cubes-dir", help="Default folder for the Cube tab (PR_*.tif cubes)."),
     ] = None,
     fsc_dir: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option("--fsc-dir", help="Default folder for the Daily FSC tab (fsc_*.tif COGs)."),
     ] = None,
     solara_args: Annotated[
-        Optional[list[str]],
+        list[str] | None,
         typer.Argument(help="Extra args forwarded verbatim to `solara run` (e.g. --port 8900)."),
     ] = None,
 ) -> None:

@@ -547,7 +547,9 @@ def test_driver_end_to_end_predicts_from_a_real_cube(tmp_path: Path) -> None:
     from snow_galileo.inference.prebuilt import PrebuiltCubeSource
 
     source_cube = (
-        Path("tests/fixtures/gee_reference_patches")
+        Path(__file__).parents[1]
+        / "fixtures"
+        / "gee_reference_patches"
         / "PR_20250406_562863.8459204244427383_5653083.7883343594148755.tif"
     )
     assert source_cube.exists(), f"Missing committed fixture {source_cube}."
