@@ -23,7 +23,7 @@ is parked — see
 Key contracts (verified against the codebase, see
 ``docs/agents/planning/bow_valley/020-data-ingestion/``):
 
-- :func:`build_cube_csv` emits the **canonical UTM dialect** —
+- :func:`build_cube_dataframe` emits the **canonical UTM dialect** —
   ``date, crs, center_x, center_y, min_x, min_y, max_x, max_y`` — matching this
   module's :class:`CellGeometry` vocabulary and the legacy sampling CSV that
   :func:`load_cells` reads. Cell centres are UTM eastings/northings.
@@ -31,7 +31,7 @@ Key contracts (verified against the codebase, see
   ``center_lat`` / ``center_lon`` (it uses them only to name the output tif, in
   decimal degrees). :func:`build_cube_dataframe_for_gee_utm` is the adapter that emits
   that dialect — identical UTM bounds, but with the centre reprojected to true
-  degrees. Do **not** feed a :func:`build_cube_csv` frame straight to that reader
+  degrees. Do **not** feed a :func:`build_cube_dataframe` frame straight to that reader
   (``KeyError`` on the missing ``center_lat`` column).
 - Cell geometry stays in its native ``EPSG:32611`` (UTM 11N) in the CSV — the GEE
   exporter reprojects to 4326 itself. The AOI filter reprojects only the cell
@@ -57,17 +57,16 @@ from shapely.ops import transform as shapely_transform
 
 from snow_galileo.data.config import EXPORTED_HEIGHT_WIDTH_METRES
 from snow_galileo.data.local_sources.base import GridCell
+from snow_galileo.data.local_sources.settings import SweepMode
 
 logger = structlog.get_logger(__name__)
 
 #: Side length of one grid cell, in :data:`GRID_MATH_CRS` metres (1000 m).
 CELL_SIZE_M: float = float(EXPORTED_HEIGHT_WIDTH_METRES)
 
-SweepMode = Literal["A", "B"]
-
 # --- Fixed contracts -------------------------------------------------------
 
-#: Canonical UTM cube-CSV schema (:func:`build_cube_csv`). Centre columns are UTM
+#: Canonical UTM cube-CSV schema (:func:`build_cube_dataframe`). Centre columns are UTM
 #: eastings/northings, matching :class:`CellGeometry` and the legacy sampling CSV.
 CUBE_CSV_COLUMNS: list[str] = [
     "date",
@@ -93,8 +92,6 @@ GEE_UTM_CSV_COLUMNS: list[str] = [
     "max_x",
     "max_y",
 ]
-
-# TODO Generalize CRS management for other regions
 
 #: CRS the legacy cells (and therefore the generated CSV) are expressed in.
 GRID_MATH_CRS: str = "EPSG:32611"
@@ -310,8 +307,12 @@ def _cell_to_gridcell(cell: CellGeometry) -> GridCell:
     )
 
 
-def _tile_aoi_to_cells(aoi: Polygon, inset_m: float = 0.0) -> list[CellGeometry]:
+def tile_aoi_to_cells(aoi: Polygon, inset_m: float = 0.0) -> list[CellGeometry]:
     """Tile the AOI into a regular 1 km grid in :data:`GRID_MATH_CRS` (mode B).
+
+    Takes a polygon, so callers that load or reproject the AOI themselves (e.g. a
+    GeoJSON declared in another CRS) tile it directly; :func:`cells_from_aoi` is the
+    path-based wrapper.
 
     The AOI (lon/lat) is reprojected to UTM 11N, optionally **eroded inward** by
     ``inset_m`` metres (a negative polygon buffer), snapped to a
@@ -440,11 +441,11 @@ def cells_from_aoi(aoi_path: Path, inset_m: float = 0.0) -> list[CellGeometry]:
     Raises:
         ValueError: If ``inset_m`` is negative or erodes the entire AOI.
     """
-    return _tile_aoi_to_cells(load_aoi_polygon(aoi_path), inset_m=inset_m)
+    return tile_aoi_to_cells(load_aoi_polygon(aoi_path), inset_m=inset_m)
 
 
 def build_cells(
-    mode: SweepMode = "A",
+    mode: SweepMode,
     cube_cells_csv: Path | None = None,
     aoi_path: Path | None = None,
     require_fully_inside: bool = False,
@@ -487,7 +488,7 @@ def build_cells(
 
 
 def build_grid(
-    mode: SweepMode = "A",
+    mode: SweepMode,
     cube_cells_csv: Path | None = None,
     aoi_path: Path | None = None,
     require_fully_inside: bool = False,
@@ -562,8 +563,9 @@ def build_cube_dataframe(
     if window_start and window_end:
         date_list = generate_date_list(window_start, window_end)
     if days:
+        if date_list:
+            logger.warning("Argument 'days' provided, overriding 'window_start' and 'window_end'.")
         date_list = days
-        logger.warning("Argument 'day' provided -- Overriding 'window_start' and 'window_end'.")
     if not date_list:
         # An empty frame would drive a sweep that silently exports nothing.
         raise ValueError("No dates: pass `days`, or both `window_start` and `window_end`.")
@@ -600,7 +602,7 @@ def build_cube_dataframe_for_gee_utm(
 ) -> pd.DataFrame:
     """Build the cube CSV in the dialect ``export_from_csv_utm`` consumes.
 
-    Wraps :func:`build_cube_csv` (single cross-product source of truth) and swaps the
+    Wraps :func:`build_cube_dataframe` (single cross-product source of truth) and swaps the
     canonical UTM centre columns for the GEE UTM reader's: ``center_lat`` / ``center_lon``
     with the cell centre reprojected from :data:`GRID_MATH_CRS` to true
     :data:`GEOGRAPHIC_CRS` decimal degrees. The export **geometry** is unchanged — the
@@ -653,6 +655,12 @@ def generate(
     aoi = load_aoi_polygon(aoi_path)
     cells = load_cells(cube_cells_csv)
     kept, dropped = _filter_cells(cells, aoi, keep_rule=keep_rule)
+    if not kept:
+        # Same guard as cells_from_csv: an empty cube CSV would export nothing, silently.
+        raise ValueError(
+            f"AOI {aoi_path} keeps 0 of {len(cells)} cells from {cube_cells_csv} "
+            f"(keep_rule={keep_rule!r}). Do the CSV and the AOI cover the same region?"
+        )
 
     manifest = build_manifest(kept, dropped)
     manifest_path.parent.mkdir(parents=True, exist_ok=True)

@@ -103,6 +103,19 @@ def test_no_dates_rejected(kept_cells):
         build_cube_dataframe(kept=kept_cells, window_start=DEFAULT_WINDOW_START)
 
 
+def test_days_override_window(kept_cells):
+    """An explicit `days` list replaces the window: one row per (cell, listed day)."""
+    days = [date(2025, 4, 10), date(2025, 4, 20)]
+    df = build_cube_dataframe(
+        kept=kept_cells,
+        window_start=DEFAULT_WINDOW_START,
+        window_end=DEFAULT_WINDOW_END,
+        days=days,
+    )
+    assert len(df) == EXPECTED_CENTRE_IN * len(days)
+    assert sorted(df["date"].unique()) == [20250410, 20250420]
+
+
 def test_gee_utm_schema_is_reader_dialect(kept_cells):
     """The GEE-UTM adapter emits exactly the reader's dialect columns, in order."""
     df = build_cube_dataframe_for_gee_utm(

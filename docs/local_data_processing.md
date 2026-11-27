@@ -358,7 +358,7 @@ Mode-A deliverables are never touched.
 | `configs/bow_valley/inference_full_run.yaml` | `export_workers: 16` (vs 8); everything else identical                                    |
 
 **Grid: 5 km negative buffer.** `mode_b_inset_m: 5000` erodes the AOI inward by
-5 km (a `buffer(-5000)` in UTM 11N, `grid.py:_tile_aoi_to_cells`) **before** tiling,
+5 km (a `buffer(-5000)` in UTM 11N, `grid.py:tile_aoi_to_cells`) **before** tiling,
 dropping the outer 5 km ring of output cells: **25,078 → 21,985 cells (−12%)**. This
 removes edge cells whose 8-day source windows may have degraded coverage near the AOI
 boundary. It does **not** add a data margin around retained cells — every cell still
