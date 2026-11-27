@@ -11,9 +11,11 @@
 archive_root: data/clipped_bow_valley_selection_raw
 
 # Stage-2 write-root. cube_cache/, cubes/, daily_fsc/, manifests/, scratch/ derive
-# from this. NOTE: the Mode-B cubes are NOT under processing_root/cubes — they live
-# in full_run/cubes, so an inference run over them must pass --cube-dir explicitly.
-processing_root: data/bow_valley_processing
+# from this. Kept separate from the Mode-A root (data/bow_valley_processing) and the
+# full run (full_run/) so outputs written here never overwrite either. The full-run
+# cubes are NOT under this root: a --cubes-only run over them must pass
+# --cube-dir data/bow_valley_processing/full_run/cubes.
+processing_root: data/bow_valley_processing/mode_b
 
 # Tile the full AOI. No cube_cells_csv: mode B has no cell list, it generates one.
 mode: B
