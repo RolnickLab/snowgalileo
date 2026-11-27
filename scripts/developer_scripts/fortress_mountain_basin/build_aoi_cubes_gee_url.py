@@ -20,7 +20,7 @@ must not be used for continuous coverage.
 It uses ``center_lat`` / ``center_lon`` only to name the output file and derives the export
 geometry from the UTM ``min/max`` bounds + per-row ``crs`` (reprojecting to 4326 itself).
 NOTE: this differs from :func:`grid.build_cube_dataframe`, which emits ``center_x`` / ``center_y``.
-This script delegates to :func:`grid.build_cube_csv_for_gee_utm` — the adapter that emits
+This script delegates to :func:`grid.build_cube_dataframe_for_gee_utm` — the adapter that emits
 what the reader consumes, with ``center_lat`` / ``center_lon`` populated with the cell
 centre reprojected to true decimal degrees (CRS-correct, not mislabelled eastings).
 
@@ -57,10 +57,10 @@ from snow_galileo.data import EarthEngineExporterEval
 # seam-alignment / wrong-projection bug waiting to happen).
 from snow_galileo.data.local_sources.grid import (
     GEOGRAPHIC_CRS,
-    build_cells,
-    build_cube_csv_for_gee_utm,
+    build_cube_dataframe_for_gee_utm,
     generate_date_list,
     load_aoi_polygon,
+    tile_aoi_to_cells,
 )
 
 logger = structlog.get_logger(__name__)
@@ -164,26 +164,22 @@ def main(
     if not start_date and not end_date and not days:
         raise typer.BadParameter("Either 'start_date' and 'end_date', or 'days' are required.")
 
-    start = None
-    end = None
     date_list = []
-
     if start_date and end_date:
-        start = date.fromisoformat(start_date)
-        end = date.fromisoformat(end_date)
-        date_list = generate_date_list(start, end)
+        date_list = generate_date_list(
+            date.fromisoformat(start_date), date.fromisoformat(end_date)
+        )
 
     if days:
         date_list = _read_date_file(days)
 
-    list_of_cells = build_cells(mode="B", aoi_path=aoi)
+    # Tile the polygon, not the path: _load_aoi_geographic honours the declared CRS.
+    list_of_cells = tile_aoi_to_cells(aoi=_load_aoi_geographic(aoi))
 
     if not list_of_cells:
         raise typer.BadParameter(f"AOI {aoi} tiled to zero cells (check CRS).")
 
-    frame = build_cube_csv_for_gee_utm(
-        list_of_cells, window_start=start, window_end=end, days=date_list
-    )
+    frame = build_cube_dataframe_for_gee_utm(list_of_cells, days=date_list)
 
     if limit is not None:
         frame = frame.head(limit)

@@ -136,7 +136,7 @@ already consumes.
     therefore zooms to the **data footprint** (span-aware zoom, not the empty extent) and
     renders at `opacity=1.0`.
 
-## 7. Tab wiring (`data_viewer.py`)
+## 7. Tab wiring (`05_data_viewer.py`)
 
 - Wrap the current `Page` map+sidebar logic into a `ClipTab` component (verbatim move).
 - `CubeTab`: date `Select` → cell `Select` (CubeRow labels) → **mode `ToggleButtonsSingle`**
@@ -172,9 +172,9 @@ already consumes.
 ```bash
 cd /home/dev/projects/presto-v3
 uv run pytest tests/test_local_sources/test_viewer_outputs.py -v
-uv run ruff check src/data/local_sources/viewer/ scripts/developer_scripts/bow_valley_inference_local/data_viewer.py
+uv run ruff check src/data/local_sources/viewer/ scripts/developer_scripts/bow_valley_inference_local/05_data_viewer.py
 uv run mypy  src/data/local_sources/viewer/outputs.py src/data/local_sources/viewer/renderers.py
-# Manual: uv run solara run scripts/developer_scripts/bow_valley_inference_local/data_viewer.py
+# Manual: uv run solara run scripts/developer_scripts/bow_valley_inference_local/05_data_viewer.py
 #   → Clip / Cube / Daily FSC tabs; cube var+timestep on map; FSC date slider on map; AOI on all.
 # Full-suite delta (TEST_BASELINE.md): NEW-failures list MUST be empty. NOT pytest -x.
 ```
@@ -183,7 +183,7 @@ uv run mypy  src/data/local_sources/viewer/outputs.py src/data/local_sources/vie
 
 1. `settings.py` paths + `outputs.py` + its tests (Red→Green). STOP.
 2. `render_cube_band` + `render_fsc` + their tests (Red→Green). STOP.
-3. `data_viewer.py` tabs (ClipTab move + CubeTab + FscTab), manual smoke. STOP.
+3. `05_data_viewer.py` tabs (ClipTab move + CubeTab + FscTab), manual smoke. STOP.
 4. **Cube selection modes + FSC display polish** (this revision): `cube_availability` +
    `vars_at_timestep` + `timesteps_for_var` + their tests (Red→Green); CubeTab mode toggle
    - dropdown timestep + cross-filtering; FSC `turbo` colormap + `fsc_colorbar` on-map scale

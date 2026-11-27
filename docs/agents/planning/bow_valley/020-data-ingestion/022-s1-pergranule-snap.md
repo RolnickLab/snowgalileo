@@ -166,7 +166,7 @@ Both prior xfails promoted to real passing assertions. Full local_sources suite:
 passed, 2 skipped. ruff + mypy clean.
 
 **Still to run (operator, heavy):** the full 32-granule cache build
-(`process_raw_dataset.py process-s1`, ~1h40m) and the cube re-export to populate VV/VH in
+(`01_process_raw_dataset.py process-s1`, ~1h40m) and the cube re-export to populate VV/VH in
 the real cube + viewer. Not run here (hours of SNAP); the pipeline is proven on the parity
 granules.
 

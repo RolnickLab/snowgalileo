@@ -23,7 +23,7 @@ logger = structlog.get_logger()
 
 #: Source directory names handled by the clip stage, in a stable order.
 #: NOTE: Sentinel-1 is intentionally absent — S1 is *processed* from raw via ESA SNAP
-#: (``process_raw_dataset.py process-s1`` → ``sentinel1_snap/``), NOT clipped. Everything
+#: (``01_process_raw_dataset.py process-s1`` → ``sentinel1_snap/``), NOT clipped. Everything
 #: downstream (cube adapter AND viewer) reads the processed SNAP cache; there is no use
 #: for raw-DN clipped S1. See PLAN-S1-PERGRANULE-SNAP.md.
 SOURCES = [

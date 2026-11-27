@@ -60,7 +60,7 @@ but with no config file). It:
    UTM AOI fed in as degrees would produce garbage tiles).
 2. Tiles the AOI into a gapless 1 km **EPSG:32611** lattice via the canonical Mode-B tiler
    (`grid._tile_aoi_to_cells`) — the seamless-coverage prerequisite for later stitching.
-3. Builds the cube CSV via `grid.build_cube_csv_for_gee_utm` (the reader dialect — see §2).
+3. Builds the cube CSV via `grid.build_cube_dataframe_for_gee_utm` (the reader dialect — see §2).
 4. Writes the CSV, then (unless `--dry-run`) runs
    `EarthEngineExporterEval.export_from_csv_utm` in URL mode to download one 8-day cube per
    `(cell, day)`.
@@ -83,7 +83,7 @@ Two CSV dialects existed and mismatched:
 Feeding a canonical frame to the reader raised `KeyError`. Fixed with a Ports-and-Adapters
 split (no rename of canonical columns):
 
-- **`grid.py`**: added `GEE_UTM_CSV_COLUMNS` and `build_cube_csv_for_gee_utm()` — wraps
+- **`grid.py`**: added `GEE_UTM_CSV_COLUMNS` and `build_cube_dataframe_for_gee_utm()` — wraps
   `build_cube_dataframe` and reprojects the centre (EPSG:32611 → EPSG:4326) to emit
   `center_lat`/`center_lon` as **true degrees** (not mislabelled eastings — the loader
   parses these back into location bands, so they must be real lat/lon).
@@ -237,7 +237,7 @@ annotation** (`exporter: LocalSourceExporter` is already a lie — the tests pas
 the driver duck-types around them twice; a small `typing.Protocol` with just `export()`
 makes the existing informal contract explicit). Net diff is negative.
 
-`infer_bow_valley_daily_fsc.py` is **behaviourally untouched**: it keeps injecting
+`04_infer_bow_valley_daily_fsc.py` is **behaviourally untouched**: it keeps injecting
 `LocalSourceExporter` and keeps the fused single-pass build+infer, the parallel pre-export,
 and the day-frontier cache prune. The two scripts simply inject different cube sources into
 the same driver — no cube/inference separation is required.
@@ -370,7 +370,7 @@ The §6 fix mandated regenerating every prior local-pipeline FSC output. **Bow V
 is now regenerated** — the first of the three (Mode A, full Mode-B sweep, Fortress) to be
 redone. The ~33 h Mode-B sweep and Fortress remain to regenerate.
 
-**Run.** `infer_bow_valley_daily_fsc.py`, Mode A, on this workstation (checkpoint
+**Run.** `04_infer_bow_valley_daily_fsc.py`, Mode A, on this workstation (checkpoint
 `clouds_pretrained_42_lfdciemu.pth` **is** present here — the §D blocker is Fortress-specific,
 tied to `infer_aoi_cubes.py`, not this script). 344 cells × 21 days
 (2025-04-06..26), CUDA, warm cube cache (`--cache-policy reuse`), ~36 min, exit 0,
@@ -571,5 +571,5 @@ fixed from a script; leaving it would mean knowingly shipping invalid prediction
 operator has since approved extending `src/snow_galileo/inference/` and
 `src/snow_galileo/data/local_sources/`, provided the
 `scripts/developer_scripts/bow_valley_inference_local/` scripts keep working with minimal
-changes — which the §5 reversal preserves (`infer_bow_valley_daily_fsc.py` is behaviourally
+changes — which the §5 reversal preserves (`04_infer_bow_valley_daily_fsc.py` is behaviourally
 unchanged).

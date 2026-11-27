@@ -49,6 +49,14 @@ class CubeSettings(BaseSettings):
         archive_root: The **clipped** archive every adapter reads (FR-6).
         processing_root: Stage-2 write-root; all subdirs derive from it.
         mode: Sweep mode — ``"A"`` (in-AOI sample cells) or ``"B"`` (tile the AOI).
+        cube_cells_csv: Cells CSV the mode-A grid is built from (geometry only; the
+            :data:`~snow_galileo.data.local_sources.grid.CUBE_CSV_COLUMNS` dialect).
+            **Required in mode A**, unused in mode B — hence no default: a mode-A
+            config must name its own cell list rather than inherit someone else's.
+        aoi_path: AOI polygon for this run. Defaults to the deployment-wide
+            :pyattr:`~snow_galileo.data.local_sources.paths.LocalPaths.aoi_path`;
+            override per run to sweep a different region. **Required in mode B**
+            (it is what gets tiled); in mode A it only *filters* the CSV cells.
         mode_b_inset_m: Mode B only — erode the AOI inward by this many metres
             (negative polygon buffer) before tiling, dropping a border ring of that
             width. ``0`` (default) tiles the full AOI; e.g. ``10000`` drops a 10 km
@@ -65,6 +73,8 @@ class CubeSettings(BaseSettings):
     archive_root: Path = _PATHS.clipped_root
     processing_root: Path = _PATHS.processing_root
     mode: SweepMode = "A"
+    cube_cells_csv: Path | None = None
+    aoi_path: Path = _PATHS.aoi_path
     mode_b_inset_m: Annotated[float, Field(ge=0)] = 0.0
     window_start: date = DEFAULT_WINDOW_START
     window_end: date = DEFAULT_WINDOW_END

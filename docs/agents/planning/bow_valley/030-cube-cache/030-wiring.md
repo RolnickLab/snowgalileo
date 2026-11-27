@@ -123,8 +123,8 @@ behaviour-identical.
 `InferenceGridDriver._pre_export_day` passes `cube_cache_dir=CubeSettings.cube_cache_dir`
 and `cache_max_entries=settings.cache_max_entries` into `export_cells_parallel`. The
 serial fallback (`_run_batch` → `self.exporter.export`) benefits automatically once the
-injected exporter is built with a cache. `export_bow_valley_cube.py` (standalone) and
-`infer_bow_valley_daily_fsc.py` construct the exporter with the cache dir from settings.
+injected exporter is built with a cache. `03_export_bow_valley_cube.py` (standalone) and
+`04_infer_bow_valley_daily_fsc.py` construct the exporter with the cache dir from settings.
 
 ## Tests
 

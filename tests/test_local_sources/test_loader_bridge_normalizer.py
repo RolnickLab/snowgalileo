@@ -47,6 +47,7 @@ def valid_cube(tmp_path: Path) -> Path:
     """
     import rasterio
 
+    from snow_galileo.data.earthengine.eo import EE_SPACE_BANDS, ESA_WORLDCOVER_BAND_INDEX
     from snow_galileo.data.local_sources.exporter import LocalSourceExporter
 
     cell = GridCell.from_utm_bounds(
@@ -62,6 +63,12 @@ def valid_cube(tmp_path: Path) -> Path:
     with rasterio.open(cube, "r+") as src:
         for band in range(1, src.count + 1):
             src.write(np.ones((src.height, src.width), dtype=np.float32), band)
+        # The ESA WorldCover band is categorical, not continuous: a blanket 1.0 is not a valid
+        # class code, so ``one_hot_encode_esa_worldcover`` warns and blanks all 11 one-hot
+        # channels to NO_DATA_VALUE. Write a real class code (70 = snow and ice) so the
+        # WorldCover block carries valid data the normalizer can act on.
+        wc_band = src.count - len(EE_SPACE_BANDS) + ESA_WORLDCOVER_BAND_INDEX + 1
+        src.write(np.full((src.height, src.width), 70.0, dtype=np.float32), wc_band)
     return cube
 
 

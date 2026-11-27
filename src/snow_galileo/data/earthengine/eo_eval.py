@@ -617,7 +617,7 @@ class EarthEngineExporterEval(EarthEngineExporter):
         # Accept both centre-column dialects (mirrors export_from_csv_wgs84). These feed
         # only the output filename: 'center_lat'/'center_lon' carry true degrees; the
         # 'center_x'/'center_y' fallback carries UTM northing/easting, so the resulting
-        # filename holds UTM values (use build_cube_csv_for_gee_utm for degree filenames).
+        # filename holds UTM values (use build_cube_dataframe_for_gee_utm for degree filenames).
         if "center_lat" in df.columns and "center_lon" in df.columns:
             center_x = df["center_lat"].tolist()
             center_y = df["center_lon"].tolist()

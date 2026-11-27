@@ -33,12 +33,12 @@ mosaic with a nodata hole in it renders as a plausible COG and nothing downstrea
 it is incomplete — so it is never written.
 
 Example:
-    uv run python scripts/developer_scripts/bow_valley_inference_local/infer_bow_valley_daily_fsc.py \\
+    uv run python scripts/developer_scripts/bow_valley_inference_local/04_infer_bow_valley_daily_fsc.py \\
         --cube-config configs/bow_valley/cube.yaml \\
         --config configs/bow_valley/inference.yaml --limit 4
 
     # Re-infer three already-built days over the cubes on disk:
-    uv run python scripts/developer_scripts/bow_valley_inference_local/infer_bow_valley_daily_fsc.py \\
+    uv run python scripts/developer_scripts/bow_valley_inference_local/04_infer_bow_valley_daily_fsc.py \\
         --cubes-only --dates 2025-04-06,2025-04-10,2025-04-26
 """
 
@@ -268,7 +268,12 @@ def main(
     infer = InferenceSettings.from_yaml(config)
     days = _resolve_days(dates=dates, dates_file=dates_file, cube=cube)
 
-    grid = build_grid(mode=cube.mode, mode_b_inset_m=cube.mode_b_inset_m)
+    grid = build_grid(
+        mode=cube.mode,
+        cube_cells_csv=cube.cube_cells_csv,
+        aoi_path=cube.aoi_path,
+        mode_b_inset_m=cube.mode_b_inset_m,
+    )
     if limit is not None:
         grid = grid[:limit]
 

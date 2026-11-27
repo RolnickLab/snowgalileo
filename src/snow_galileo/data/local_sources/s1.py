@@ -16,7 +16,8 @@ adapter reads that cache and runs the same coalesce → mosaic → reproject pat
 the S2/Landsat scene adapters, with **no SNAP dependency** — so it is fast and
 unit-testable. Build the cache before exporting cubes:
 
-    uv run python -m snow_galileo.data.local_sources.s1_snap
+    uv run python scripts/developer_scripts/bow_valley_inference_local/\
+01_process_raw_dataset.py process-s1
 
 **`angle` = ellipsoid incidence (~43.6°), NOT local incidence.** GEE ``S1_GRD``'s
 ``angle`` band varies only with range (near-constant across a small patch); the

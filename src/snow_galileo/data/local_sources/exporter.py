@@ -117,7 +117,7 @@ class LocalSourceExporter:
         # In real mode, verify the offline per-granule S1 SNAP cache covers each cell's
         # window before assembly (see _ensure_s1_cache) — fail loud rather than silently
         # emit an all-(-9999) S1 block. The cache is BUILT offline (s1_snap.py / the
-        # build_bow_valley_s1_cache.py driver), never inline here.
+        # 01_process_raw_dataset.py process-s1 driver), never inline here.
         self.verify_s1_cache = verify_s1_cache
         # The per-granule SNAP dB+angle cache the S1Adapter reads (built offline). The
         # verify pre-flight reads the RAW archive to know which granules the window needs.
@@ -282,7 +282,7 @@ class LocalSourceExporter:
         """Pre-flight: verify the offline per-granule S1 cache covers this cell's window.
 
         Real mode only, **verification only** (it does not run SNAP — the cache is built
-        offline by ``build_bow_valley_s1_cache.py``). Raises
+        offline by ``01_process_raw_dataset.py process-s1``). Raises
         :class:`~snow_galileo.data.local_sources.s1_snap.S1CacheUnavailableError` if a needed
         per-granule tif is missing, so the S1 adapter never silently falls back to an
         all-``-9999`` block. A window with genuinely no S1 over this cell needs nothing
@@ -414,43 +414,3 @@ class LocalSourceExporter:
             placeholder=self.placeholder,
         )
         return out_path
-
-
-def cli() -> None:
-    """Minimal Typer CLI for the TASK-004 verification commands (Section 6).
-
-    ``python -m snow_galileo.data.local_sources.exporter --window-end 2025-04-06 --cell 0``
-    builds one placeholder cube using a Bow Valley UTM cell.
-
-    ``typer`` is imported here, not at module scope: this module is on the cube-export
-    and inference hot paths (``parallel_export``, ``driver``), and the CLI only runs
-    under ``python -m`` — so the import stays out of every library import.
-    """
-    import typer
-
-    from snow_galileo.data.local_sources.grid import build_grid
-
-    app = typer.Typer(add_completion=False, help="Export one placeholder cube.")
-
-    @app.command()
-    def export(
-        window_end: str = typer.Option(..., "--window-end", help="Window-end day (YYYY-MM-DD)."),
-        cell: int = typer.Option(0, "--cell", help="Grid cell index."),
-        placeholder: bool = typer.Option(
-            True, "--placeholder/--no-placeholder", help="Use placeholder adapters (required)."
-        ),
-    ) -> None:
-        """Build one placeholder cube for a Bow Valley UTM cell and print its path."""
-        # typer/click has no native datetime.date param type; parse the ISO string here
-        # (matches export_bow_valley_cube.py's --window-end handling).
-        end = datetime.date.fromisoformat(window_end)
-        cells = build_grid()
-        exporter = LocalSourceExporter(placeholder=placeholder)
-        path = exporter.export(cell=cells[cell], window_end=end)
-        typer.echo(str(path))
-
-    app()
-
-
-if __name__ == "__main__":
-    cli()

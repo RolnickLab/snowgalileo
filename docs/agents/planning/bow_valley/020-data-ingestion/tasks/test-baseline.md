@@ -1,67 +1,33 @@
-# Pre-existing Test Baseline
+# Test Baseline
 
-The test suite is **already red on a clean checkout**, independent of any Bow Valley
-work. During implementation of these tasks, act on **new** failures only — never treat
-a baseline failure as a regression, and never let one block a task's approval.
+The test suite is **green**. Judge every task by **absolute pass** — zero failures — not
+by a delta against a list of tolerated ones.
 
-## Baseline (captured at commit `021b4540`, branch `raw_data_prep`)
+## Baseline (verified 2026-08-06 at commit `12ec7d04`, branch `refactor-post-bow-valley-crunch`)
 
-`uv run pytest -q --tb=no` → **6 failed, 32 passed, 17 subtests passed**.
+`uv run pytest -q` → **365 passed**, 0 failed, in ~5 min.
 
-Pre-existing failures (do NOT attempt to fix as part of Bow Valley tasks; do NOT count
-as regressions):
+## Validation rule for every task
 
-```
-tests/test_dataset.py::TestDataset::test_tif_to_array
-tests/test_retrieve_cloud_state.py::TestRetrieveCloudState::test_end_to_end
-tests/test_retrieve_season_from_filename.py::TestRetrieveSeasonFromFilename::test_map_int_to_cloud_states
-tests/test_sklearn_preprocessing.py::TestSklearn::test_aggregation
-tests/test_sklearn_preprocessing.py::TestSklearn::test_forward_filling
-tests/test_sklearn_preprocessing.py::TestSklearn::test_median_replace
-```
+1. **Any failure is a regression.** Investigate it; do not compare it against a tolerated
+   set. There is no tolerated set.
+2. Run the **full suite** (`uv run pytest -q`), plus the task's own new test files
+   targeted with `-x` while iterating.
+3. If the count changes, say so explicitly and account for the difference — new tests
+   added, tests removed, or a real regression.
 
-These touch the existing dataset loader, cloud-state mapping, and sklearn preprocessing —
-none of which the Bow Valley pipeline modifies (downstream code is unchanged by design).
-Some fail simply because expected fixture files are absent on this machine; others have
-unknown causes. Either way they are out of scope.
+## History: this file used to describe a red baseline
 
-## Validation rule for every task (overrides the per-task "no regressions" wording)
+Until 2026-08-04 this document recorded **6 pre-existing failures** (captured at
+`021b4540`, branch `raw_data_prep`) in `test_dataset.py`, `test_retrieve_cloud_state.py`,
+`test_retrieve_season_from_filename.py`, and `test_sklearn_preprocessing.py`, and
+prescribed a `comm`-based delta check against them. All six are gone —
+`test_retrieve_cloud_state.py` no longer exists, and the rest pass; the module
+restructure at `df89f502` is the likely fix, though the file was never updated to say so.
 
-1. **Never use `pytest -x`** at the suite level — it stops on the first (pre-existing)
-   failure before reaching new tests. Run the **targeted** new test files with `-x`
-   (those should be clean), but run the **full suite without `-x`**.
-2. A task's regression check is the **delta against this baseline**, not "zero failures".
-   Use the helper below.
-3. If a task legitimately changes the baseline set (it should not — downstream code is
-   untouched), update this file in the same PR and explain why.
-
-### Delta check (copy-paste)
-
-```bash
-cd /home/dev/projects/presto-v3
-# Run full suite, list current failures, diff against the baseline.
-uv run pytest -q -p no:cacheprovider --tb=no 2>/dev/null \
-  | grep -E '^FAILED' | sed 's/^FAILED //; s/ -.*$//' | sort > /tmp/current_failures.txt
-
-cat > /tmp/baseline_failures.txt <<'EOF'
-tests/test_dataset.py::TestDataset::test_tif_to_array
-tests/test_retrieve_cloud_state.py::TestRetrieveCloudState::test_end_to_end
-tests/test_retrieve_season_from_filename.py::TestRetrieveSeasonFromFilename::test_map_int_to_cloud_states
-tests/test_sklearn_preprocessing.py::TestSklearn::test_aggregation
-tests/test_sklearn_preprocessing.py::TestSklearn::test_forward_filling
-tests/test_sklearn_preprocessing.py::TestSklearn::test_median_replace
-EOF
-sort -o /tmp/baseline_failures.txt /tmp/baseline_failures.txt
-
-echo "=== NEW failures introduced by this task (must be empty to pass) ==="
-comm -23 /tmp/current_failures.txt /tmp/baseline_failures.txt
-
-echo "=== Baseline failures that newly PASS (informational, fine) ==="
-comm -13 /tmp/current_failures.txt /tmp/baseline_failures.txt
-```
-
-**Pass condition:** the "NEW failures" list is empty. The task's own new test files
-pass on their own (`pytest tests/test_local_sources/<file> -v` green).
+Recorded because the obsolete instruction was the actively dangerous part: a doc telling
+future sessions to expect red and judge by delta trains them to wave past real failures.
+If the suite goes red again, that is news — not the baseline.
 
 ## Slow real-archive tests are serialized under xdist (2026-06-09)
 
