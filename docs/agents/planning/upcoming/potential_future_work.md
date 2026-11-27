@@ -6,7 +6,7 @@ future session can act without re-deriving the analysis.
 
 Nothing here is scheduled. An entry earning a schedule should graduate to its own `PLAN.md`.
 
-Last updated: 2026-09-02
+Last updated: 2026-11-27
 
 ______________________________________________________________________
 
@@ -325,3 +325,55 @@ of the chain.
   cube produced so far.
 - **Step B**: when an archive re-generation or migration window is already open for another
   reason. Not worth standing up a 476k-file migration on its own; Step A removes the pressure.
+
+______________________________________________________________________
+
+## 3. The AC-28 mask check is only tested with uniform masks
+
+Status: **Diagnosed, test-only gap. Small, standalone; do it on `main`.**
+
+### Symptom
+
+`has_no_spacetime_observation` (`src/snow_galileo/inference/_loader_bridge.py:97`) decides
+whether a cell is dropped to nodata. Its rule: drop only when all three **space-time** masks
+are `1` everywhere; the `space`, `time` and `static` masks are ignored.
+
+Every test feeds it uniform masks. `_masked_output(mask_value=...)` in
+`tests/test_local_sources/test_inference_driver.py` sets all six masks to the same value
+(`patched_loader` uses `0.0`; `test_driver_drops_fully_masked_cell_to_nodata` uses `1.0` for
+cell 0). No test calls the function directly.
+
+With uniform inputs, these wrong implementations all pass the suite:
+
+- checking all six masks instead of the three space-time ones;
+- `or` across the space-time groups instead of `and`;
+- `.any()` instead of `.all()`.
+
+### Why it matters
+
+The real cube never looks uniform. `mask_prediction_era5` forces `t_m[-1, 3:] = 1` on every
+cube (`_loader_bridge.py:90` enables `exclude_prediction_era5`), and the static masks derive
+from the cell centre and are never nodata. The previous guard (fixed in `049d29bf`) failed
+exactly on this mixed state and was a constant `False`. The current tests would not have
+caught that bug, and would not catch its return.
+
+### The fix
+
+Direct unit tests on `has_no_spacetime_observation`, built from a real `MaskedOutput`:
+
+1. Space-time all `1`, `time` mask with a forced `1`, `static` all `0`: returns `True`.
+2. Space-time all `1`, `space` and `time` all `0`: returns `True` (other groups are ignored).
+3. Two space-time groups all `1`, one with a single `0`: returns `False` (`and`, not `or`).
+4. Space-time with one `0` pixel among the `1`s: returns `False` (`.all()`, not `.any()`).
+
+Optionally, one integration case: an all-nodata cube through `masked_output_for_tif`, asserting
+`True`. This pins the loader's polarity end to end, not only the function's logic.
+
+### Blockers
+
+None. The code lives on `main` (PR #83), so the tests belong there, not in a refactor branch.
+
+### Trigger
+
+Next change to `_loader_bridge.py`, the masking code, or the loader's `exclude_prediction_*`
+flags, or before the full-run cubes are re-measured against the check.
