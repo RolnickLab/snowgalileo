@@ -41,12 +41,9 @@ Select your preferred development stack below. Ensure your `Makefile.variables` 
 
 Adjust the variables in `Makefile.private` to match your desired setup if they differ from the project's default configuration found in `Makefile.variables` (do this with care and only if necessary):
 
-#### 2. Install System Tools
+#### 2. Install uv
 
-If needed, run the command corresponding to your chosen stack to install the necessary system tools (e.g., `uv`, `poetry`, or `mamba`).
-
-<details open>
-<summary><strong>Stack: uv </strong></summary>
+If needed, run the command to install uv.
 
 ```bash
 pipx install uv
@@ -54,7 +51,7 @@ pipx install uv
 
 ### Installing the Project
 
-Once your tools are configured and installed, run the universal install command. This will create the environment and install all dependencies defined in pyproject.toml.
+Once your tools are configured and installed, run the universal install command. This will create the environment and install all dependencies defined in `pyproject.toml`.
 
 ```bash
 make install
@@ -63,19 +60,8 @@ make install
 ### Activating the Environment
 
 ```bash
-# Works for uv, poetry, and conda configurations
-eval $(make <tool>-activate)
+eval $(make uv-activate)
 ```
-
-Examples:
-
-- uv: `eval $(make uv-activate)`
-
-- poetry: `eval $(make poetry-activate)`
-
-- conda: `eval $(make conda-activate)`
-
-Note: You can also view environment details (path, python version, etc.) by running `make <tool>-env-info` (`poetry` and `conda` only - `uv` does not provide this functionality).
 
 ## Project Usage
 
